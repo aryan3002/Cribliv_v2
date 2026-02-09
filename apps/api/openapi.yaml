@@ -1,0 +1,107 @@
+openapi: 3.1.0
+info:
+  title: Cribliv v2 API
+  version: 0.1.0
+servers:
+  - url: http://localhost:4000/v1
+paths:
+  /health:
+    get:
+      summary: API and DB health
+  /auth/otp/send:
+    post:
+      summary: Send OTP
+  /auth/otp/verify:
+    post:
+      summary: Verify OTP
+  /auth/logout:
+    post:
+      summary: Logout
+  /auth/me:
+    get:
+      summary: Current user profile and wallet balance
+  /users/me:
+    patch:
+      summary: Update profile
+  /search/agentic-route:
+    post:
+      summary: Natural language query routing
+  /listings/search:
+    get:
+      summary: Listing search
+  /listings/{listing_id}:
+    get:
+      summary: Listing detail
+  /shortlist:
+    get:
+      summary: Get shortlist
+    post:
+      summary: Add shortlist item
+  /shortlist/{listing_id}:
+    delete:
+      summary: Remove shortlist item
+  /tenant/contact-unlocks:
+    post:
+      summary: Unlock owner contact using credits
+  /wallet:
+    get:
+      summary: Wallet balance
+  /wallet/transactions:
+    get:
+      summary: Wallet transaction history
+  /wallet/purchase-intents:
+    post:
+      summary: Placeholder credit purchase intent
+  /owner/listings:
+    get:
+      summary: Owner listings
+    post:
+      summary: Create listing draft
+  /owner/listings/{listing_id}:
+    patch:
+      summary: Update listing
+  /owner/listings/{listing_id}/photos/presign:
+    post:
+      summary: Presign upload URLs
+  /owner/listings/{listing_id}/photos/complete:
+    post:
+      summary: Complete upload
+  /owner/listings/{listing_id}/submit:
+    post:
+      summary: Submit listing for review
+  /owner/verification/video:
+    post:
+      summary: Submit video liveness verification
+  /owner/verification/electricity:
+    post:
+      summary: Submit electricity bill verification
+  /owner/verification/status:
+    get:
+      summary: Verification status
+  /owner/contact-unlocks/{unlock_id}/responded:
+    post:
+      summary: Mark owner response for refund logic
+  /pg/segment:
+    post:
+      summary: PG segmentation by bed count
+  /admin/review/listings:
+    get:
+      summary: Listing review queue
+  /admin/review/listings/{listing_id}/decision:
+    post:
+      summary: Listing decision
+  /admin/review/verifications:
+    get:
+      summary: Verification queue
+  /admin/review/verifications/{attempt_id}/decision:
+    post:
+      summary: Verification decision
+  /admin/wallet/adjust:
+    post:
+      summary: Wallet adjustment
+  /webhooks/razorpay:
+    post:
+      summary: Razorpay webhook placeholder
+  /webhooks/upi:
+    post:
+      summary: UPI webhook placeholder

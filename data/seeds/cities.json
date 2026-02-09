@@ -1,0 +1,58 @@
+[
+  {
+    "slug": "delhi",
+    "name_en": "Delhi",
+    "name_hi": "दिल्ली",
+    "state_en": "Delhi",
+    "state_hi": "दिल्ली"
+  },
+  {
+    "slug": "gurugram",
+    "name_en": "Gurugram",
+    "name_hi": "गुरुग्राम",
+    "state_en": "Haryana",
+    "state_hi": "हरियाणा"
+  },
+  {
+    "slug": "noida",
+    "name_en": "Noida",
+    "name_hi": "नोएडा",
+    "state_en": "Uttar Pradesh",
+    "state_hi": "उत्तर प्रदेश"
+  },
+  {
+    "slug": "ghaziabad",
+    "name_en": "Ghaziabad",
+    "name_hi": "गाज़ियाबाद",
+    "state_en": "Uttar Pradesh",
+    "state_hi": "उत्तर प्रदेश"
+  },
+  {
+    "slug": "faridabad",
+    "name_en": "Faridabad",
+    "name_hi": "फरीदाबाद",
+    "state_en": "Haryana",
+    "state_hi": "हरियाणा"
+  },
+  {
+    "slug": "chandigarh",
+    "name_en": "Chandigarh",
+    "name_hi": "चंडीगढ़",
+    "state_en": "Chandigarh",
+    "state_hi": "चंडीगढ़"
+  },
+  {
+    "slug": "jaipur",
+    "name_en": "Jaipur",
+    "name_hi": "जयपुर",
+    "state_en": "Rajasthan",
+    "state_hi": "राजस्थान"
+  },
+  {
+    "slug": "lucknow",
+    "name_en": "Lucknow",
+    "name_hi": "लखनऊ",
+    "state_en": "Uttar Pradesh",
+    "state_hi": "उत्तर प्रदेश"
+  }
+]

@@ -1,0 +1,29 @@
+export const analyticsEvents = [
+  "home_viewed",
+  "agentic_query_submitted",
+  "agentic_clarification_shown",
+  "agentic_route_resolved",
+  "city_page_viewed",
+  "search_results_viewed",
+  "filter_applied",
+  "listing_card_clicked",
+  "listing_detail_viewed",
+  "shortlist_added",
+  "shortlist_removed",
+  "contact_unlock_clicked",
+  "otp_send_requested",
+  "otp_verified",
+  "credit_debited",
+  "contact_unlocked",
+  "owner_response_marked",
+  "auto_refund_triggered",
+  "owner_listing_draft_saved",
+  "owner_listing_submitted",
+  "verification_video_submitted",
+  "verification_bill_submitted",
+  "admin_listing_decision",
+  "admin_verification_decision",
+  "pg_segmentation_triggered"
+] as const;
+
+export type AnalyticsEventName = (typeof analyticsEvents)[number];
