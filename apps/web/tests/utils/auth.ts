@@ -45,7 +45,11 @@ export async function loginWithOtp(request: APIRequestContext, phone: string, pu
   const sendData = sendJson?.data as OtpSendResponse;
   const otpCode = sendData?.dev_otp;
   expect(sendData?.challenge_id).toBeTruthy();
-  expect(otpCode).toBeTruthy();
+  if (!otpCode) {
+    throw new Error(
+      "OTP send response did not include dev_otp. Run E2E with OTP_PROVIDER=mock for test login."
+    );
+  }
 
   const verifyResponse = await request.post(`${getApiBaseUrl()}/auth/otp/verify`, {
     data: {

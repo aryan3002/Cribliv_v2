@@ -9,6 +9,8 @@ import {
 import { randomInt, randomUUID } from "crypto";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
+import { D7OtpClient, D7OtpVerifyError } from "./d7-otp.client";
+import { readOtpProviderConfig } from "./otp-provider.config";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
 
@@ -16,7 +18,8 @@ const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
 export class AuthService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
-    @Inject(DatabaseService) private readonly database: DatabaseService
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(D7OtpClient) private readonly d7OtpClient: D7OtpClient
   ) {}
 
   async sendOtp(phone_e164: string, purpose: string) {
@@ -49,21 +52,40 @@ export class AuthService {
         );
       }
 
-      const otp = String(randomInt(100000, 999999));
+      const providerConfig = readOtpProviderConfig();
+      if (providerConfig.provider === "mock") {
+        const otp = String(randomInt(100000, 999999));
+        const inserted = await this.database.query<{ id: string }>(
+          `
+          INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status)
+          VALUES ($1, $2::otp_purpose, $3, now() + interval '5 minutes', 'active')
+          RETURNING id::text
+          `,
+          [phone_e164, purpose, otp]
+        );
+
+        return {
+          challenge_id: inserted.rows[0].id,
+          expires_in_sec: 300,
+          retry_after_sec: 30,
+          dev_otp: otp
+        };
+      }
+
+      const d7SendResult = await this.d7OtpClient.sendOtp({ phoneE164: phone_e164 });
       const inserted = await this.database.query<{ id: string }>(
         `
         INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status)
-        VALUES ($1, $2::otp_purpose, $3, now() + interval '5 minutes', 'active')
+        VALUES ($1, $2::otp_purpose, $3, now() + ($4::int * interval '1 second'), 'active')
         RETURNING id::text
         `,
-        [phone_e164, purpose, otp]
+        [phone_e164, purpose, `d7:${d7SendResult.otpId}`, providerConfig.expirySec]
       );
 
       return {
         challenge_id: inserted.rows[0].id,
-        expires_in_sec: 300,
-        retry_after_sec: 30,
-        dev_otp: otp
+        expires_in_sec: providerConfig.expirySec,
+        retry_after_sec: 30
       };
     }
 
@@ -105,27 +127,23 @@ export class AuthService {
         throw new UnauthorizedException({ code: "otp_expired", message: "OTP expired" });
       }
 
-      if (challenge.otp_hash !== otp_code) {
-        const attempts = challenge.attempt_count + 1;
-        const status = attempts >= 5 ? "blocked" : "active";
-
-        await this.database.query(
-          `
-          UPDATE otp_challenges
-          SET attempt_count = $2, status = $3::otp_status, updated_at = now()
-          WHERE id = $1::uuid
-          `,
-          [challenge.id, attempts, status]
-        );
-
-        if (status === "blocked") {
-          throw new UnauthorizedException({
-            code: "otp_blocked",
-            message: "OTP challenge blocked"
-          });
+      const providerOtpId = challenge.otp_hash.startsWith("d7:")
+        ? challenge.otp_hash.slice(3)
+        : null;
+      if (providerOtpId) {
+        try {
+          await this.d7OtpClient.verifyOtp({ otpId: providerOtpId, otpCode: otp_code });
+        } catch (error) {
+          if (error instanceof D7OtpVerifyError) {
+            if (error.code === "invalid_otp") {
+              await this.handleInvalidDbOtp(challenge.id, challenge.attempt_count);
+            }
+            throw new UnauthorizedException({ code: "otp_expired", message: "OTP expired" });
+          }
+          throw error;
         }
-
-        throw new UnauthorizedException({ code: "invalid_otp", message: "Invalid OTP" });
+      } else if (challenge.otp_hash !== otp_code) {
+        await this.handleInvalidDbOtp(challenge.id, challenge.attempt_count);
       }
 
       const client = await this.database.getClient();
@@ -229,6 +247,29 @@ export class AuthService {
     }
 
     return this.verifyOtpInMemory(challenge_id, otp_code);
+  }
+
+  private async handleInvalidDbOtp(challengeId: string, currentAttemptCount: number) {
+    const attempts = currentAttemptCount + 1;
+    const status = attempts >= 5 ? "blocked" : "active";
+
+    await this.database.query(
+      `
+      UPDATE otp_challenges
+      SET attempt_count = $2, status = $3::otp_status, updated_at = now()
+      WHERE id = $1::uuid
+      `,
+      [challengeId, attempts, status]
+    );
+
+    if (status === "blocked") {
+      throw new UnauthorizedException({
+        code: "otp_blocked",
+        message: "OTP challenge blocked"
+      });
+    }
+
+    throw new UnauthorizedException({ code: "invalid_otp", message: "Invalid OTP" });
   }
 
   async logout(refresh_token: string) {

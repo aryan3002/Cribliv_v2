@@ -18,15 +18,16 @@
 ## Phase 1 implementation status (current)
 
 - Auth, search, listing-detail, shortlist, owner listing write flows, verification, wallet, contact unlocks, and admin review paths are wired for **DB-first behavior** when `DATABASE_URL` is set.
+- Payment purchase intents and webhook processing are DB-backed with signature verification, webhook-event dedupe, and idempotent wallet credit posting.
 - In-memory fallback remains for non-configured local development bootstrap.
 - Worker process is DB-backed for 12-hour refund sweep scheduling.
+- Worker process dispatches outbound CRM lead events with retry/backoff semantics.
 - Owner/admin UI now uses contract-accurate request builders and response mappers to avoid route drift.
 
 ## Jobs
 
 - refund_due_unlocks: every 5 min
-- process_verification_attempt: on submission
-- router_fallback_log: on timeout/error
+- dispatch_outbound_events: every 1 min
 
 ## Persistence notes
 
@@ -34,6 +35,13 @@
   - `wallet_transactions`
   - `contact_unlocks`
   - `contact_events`
+- Payment lifecycle persists across:
+  - `payment_orders`
+  - `payment_webhook_events`
+  - `wallet_transactions` (`purchase_pack` ledger entries)
+- Sales lead lifecycle persists across:
+  - `sales_leads`
+  - `outbound_events`
 - Photo upload idempotency responses are persisted in `idempotency_keys`.
 - Verification attempts persist with threshold scores and admin-review state transitions.
 

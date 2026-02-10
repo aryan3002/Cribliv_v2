@@ -20,6 +20,8 @@ Monorepo for Cribliv v2 (web + API + shared packages), implementing Phase 1 arch
 ### E2E auth notes
 
 - E2E suites use OTP login via API request context and inject session into localStorage key `cribliv:auth-session`.
+- Keep `OTP_PROVIDER=mock` for local API integration tests and web E2E suites.
+- Use `OTP_PROVIDER=d7` with `D7_KEY` for real-device SMS OTP flows.
 - Default E2E role phones in local bootstrap:
   - owner: `+919999999901`
   - tenant: `+919999999902`
@@ -41,6 +43,14 @@ Monorepo for Cribliv v2 (web + API + shared packages), implementing Phase 1 arch
   - verification attempts + admin review decisions
 - In-memory fallback remains enabled for quick local bring-up without DB.
 - Health endpoint: `GET /v1/health` returns API status and DB availability.
+
+## Launch scope and flags
+
+- MVP launch scope and staging checklist: `docs/architecture/launch-scope.md`
+- Key launch flags (from `.env.example`):
+  - `FF_REAL_VERIFICATION_PROVIDER`
+  - `FF_PG_SALES_LEADS`
+  - `FF_PRODUCTION_DB_ONLY`
 
 ## Workspace
 

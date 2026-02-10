@@ -11,6 +11,7 @@ import { trackEvent } from "../../../../../lib/analytics";
 import { t, type Locale } from "../../../../../lib/i18n";
 import {
   completeListingPhotos,
+  createSalesLead,
   createOwnerListing,
   listOwnerListings,
   makeIdempotencyKey,
@@ -153,6 +154,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const [error, setError] = useState<string | null>(null);
   const [authHint, setAuthHint] = useState<string | null>(null);
   const [pgPath, setPgPath] = useState<PgPath>(null);
+  const [salesAssistNotice, setSalesAssistNotice] = useState<string | null>(null);
 
   const [uploads, setUploads] = useState<UploadFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -278,12 +280,14 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   useEffect(() => {
     if (form.listing_type !== "pg" || !form.beds) {
       setPgPath(null);
+      setSalesAssistNotice(null);
       return;
     }
 
     const beds = Number(form.beds);
     if (!Number.isFinite(beds) || beds <= 0) {
       setPgPath(null);
+      setSalesAssistNotice(null);
       return;
     }
 
@@ -360,6 +364,30 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       }
 
       await submitOwnerListing(token, draftId);
+      if (pgPath === "sales_assist") {
+        try {
+          await createSalesLead(token, {
+            source: "pg_sales_assist",
+            listingId: draftId,
+            notes: "PG onboarding assist requested from listing wizard",
+            metadata: {
+              total_beds: form.beds ? Number(form.beds) : null,
+              listing_type: form.listing_type
+            },
+            idempotencyKey: `pg-sales-assist:${draftId}`
+          });
+          setSalesAssistNotice("Sales assist request created. Our team will contact you shortly.");
+          trackEvent("pg_sales_assist_requested", {
+            listing_id: draftId,
+            total_beds: form.beds ? Number(form.beds) : null
+          });
+        } catch (leadError) {
+          console.error("Failed to create PG sales assist lead", leadError);
+          setSalesAssistNotice(
+            "Listing submitted. Sales assist request could not be created automatically."
+          );
+        }
+      }
       trackEvent("owner_listing_submitted", { listing_id: draftId });
       sessionStorage.removeItem(STORAGE_KEY);
       router.push(`/${locale}/owner/dashboard`);
@@ -1029,6 +1057,14 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         <div className="panel" role="status">
           <p className="muted-text" style={{ margin: 0 }}>
             {authHint}
+          </p>
+        </div>
+      ) : null}
+
+      {salesAssistNotice ? (
+        <div className="panel" role="status">
+          <p className="muted-text" style={{ margin: 0 }}>
+            {salesAssistNotice}
           </p>
         </div>
       ) : null}

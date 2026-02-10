@@ -34,6 +34,7 @@ interface ListingRecord {
   city: string;
   locality?: string;
   monthlyRent: number;
+  furnishing?: "unfurnished" | "semi_furnished" | "fully_furnished";
   verificationStatus: "unverified" | "pending" | "verified" | "failed";
   status: "draft" | "pending_review" | "active" | "rejected" | "paused" | "archived";
   createdAt: number;
@@ -61,6 +62,44 @@ interface UnlockRecord {
   refundTxnId?: string;
 }
 
+interface PaymentOrderRecord {
+  id: string;
+  userId: string;
+  provider: "razorpay" | "upi";
+  providerOrderId: string;
+  amountPaise: number;
+  creditsToGrant: number;
+  planId: "starter_10" | "growth_20";
+  status: "created" | "authorized" | "captured" | "failed" | "refunded";
+  providerPaymentId?: string;
+}
+
+interface SalesLeadRecord {
+  id: string;
+  createdByUserId: string;
+  listingId?: string;
+  source: "pg_sales_assist" | "property_management";
+  status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+  idempotencyKey?: string;
+  notes?: string;
+  metadata: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface OutboundEventRecord {
+  id: number;
+  eventType: string;
+  aggregateType: string;
+  aggregateId?: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "dispatched" | "failed";
+  attemptCount: number;
+  nextAttemptAt: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 @Injectable()
 export class AppStateService {
   users = new Map<string, UserRecord>();
@@ -74,8 +113,16 @@ export class AppStateService {
   unlocks = new Map<string, UnlockRecord>();
   unlockByIdempotency = new Map<string, UnlockRecord>();
   idempotencyResponses = new Map<string, unknown>();
+  paymentOrders = new Map<string, PaymentOrderRecord>();
+  paymentOrderByProviderOrderId = new Map<string, PaymentOrderRecord>();
+  paymentOrderByIdempotency = new Map<string, PaymentOrderRecord>();
+  processedPaymentWebhookEvents = new Set<string>();
+  salesLeads = new Map<string, SalesLeadRecord>();
+  salesLeadByIdempotency = new Map<string, SalesLeadRecord>();
+  outboundEvents: OutboundEventRecord[] = [];
   verificationAttempts: Array<Record<string, unknown>> = [];
   adminActions: Array<Record<string, unknown>> = [];
+  private outboundEventCounter = 1;
 
   constructor() {
     const ownerId = randomUUID();
@@ -223,5 +270,86 @@ export class AppStateService {
   setIdempotentResponse<T>(key: string, value: T): T {
     this.idempotencyResponses.set(key, value);
     return value;
+  }
+
+  createSalesLead(input: {
+    createdByUserId: string;
+    listingId?: string;
+    source: "pg_sales_assist" | "property_management";
+    status?: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+    idempotencyKey?: string;
+    notes?: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    if (input.idempotencyKey) {
+      const existing = this.salesLeadByIdempotency.get(
+        `${input.createdByUserId}:${input.idempotencyKey}`
+      );
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const now = Date.now();
+    const lead: SalesLeadRecord = {
+      id: randomUUID(),
+      createdByUserId: input.createdByUserId,
+      listingId: input.listingId,
+      source: input.source,
+      status: input.status ?? "new",
+      idempotencyKey: input.idempotencyKey,
+      notes: input.notes,
+      metadata: input.metadata ?? {},
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.salesLeads.set(lead.id, lead);
+    if (lead.idempotencyKey) {
+      this.salesLeadByIdempotency.set(`${lead.createdByUserId}:${lead.idempotencyKey}`, lead);
+    }
+    return lead;
+  }
+
+  listSalesLeads() {
+    return [...this.salesLeads.values()].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  updateSalesLeadStatus(
+    id: string,
+    status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost"
+  ) {
+    const lead = this.salesLeads.get(id);
+    if (!lead) {
+      return undefined;
+    }
+
+    lead.status = status;
+    lead.updatedAt = Date.now();
+    return lead;
+  }
+
+  enqueueOutboundEvent(input: {
+    eventType: string;
+    aggregateType: string;
+    aggregateId?: string;
+    payload: Record<string, unknown>;
+  }) {
+    const now = Date.now();
+    const event: OutboundEventRecord = {
+      id: this.outboundEventCounter++,
+      eventType: input.eventType,
+      aggregateType: input.aggregateType,
+      aggregateId: input.aggregateId,
+      payload: input.payload,
+      status: "pending",
+      attemptCount: 0,
+      nextAttemptAt: now,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.outboundEvents.push(event);
+    return event;
   }
 }

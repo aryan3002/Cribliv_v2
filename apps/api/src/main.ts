@@ -2,9 +2,11 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { AppModule } from "./app.module";
+import { assertVerificationProviderConfig } from "./modules/verification/providers/provider.config";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  assertVerificationProviderConfig();
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.setGlobalPrefix("v1");
   app.enableCors();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

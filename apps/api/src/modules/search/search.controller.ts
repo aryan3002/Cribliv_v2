@@ -29,4 +29,9 @@ export class SearchController {
   ) {
     return ok(await this.searchService.searchListings(query));
   }
+
+  @Get("listings/search/filters-metadata")
+  async filtersMetadata() {
+    return ok(await this.searchService.searchFiltersMetadata());
+  }
 }

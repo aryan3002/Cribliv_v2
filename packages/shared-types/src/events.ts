@@ -23,7 +23,10 @@ export const analyticsEvents = [
   "verification_bill_submitted",
   "admin_listing_decision",
   "admin_verification_decision",
-  "pg_segmentation_triggered"
+  "pg_segmentation_triggered",
+  "pg_sales_assist_requested",
+  "property_management_requested",
+  "admin_lead_status_updated"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from "@nestjs/common";
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg";
+import { readFeatureFlags } from "../config/feature-flags";
 
 @Injectable()
 export class DatabaseService implements OnModuleDestroy {
@@ -7,6 +8,12 @@ export class DatabaseService implements OnModuleDestroy {
 
   constructor() {
     const connectionString = process.env.DATABASE_URL;
+    const flags = readFeatureFlags();
+
+    if (process.env.NODE_ENV === "production" && flags.ff_production_db_only && !connectionString) {
+      throw new Error("DATABASE_URL is required when FF_PRODUCTION_DB_ONLY is enabled");
+    }
+
     if (connectionString) {
       this.pool = new Pool({ connectionString });
     }

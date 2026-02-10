@@ -280,6 +280,7 @@ export class OwnerService {
       city: String(body.location.city).toLowerCase(),
       locality: body.location.locality ?? undefined,
       monthlyRent: Number(body.rent),
+      furnishing: body.property_fields?.furnishing ?? undefined,
       verificationStatus: "unverified" as const,
       status: "draft" as const,
       createdAt: Date.now(),
@@ -435,6 +436,10 @@ export class OwnerService {
 
     if (body.location?.locality) {
       listing.locality = body.location.locality;
+    }
+
+    if (body.property_fields?.furnishing) {
+      listing.furnishing = body.property_fields.furnishing;
     }
 
     return {

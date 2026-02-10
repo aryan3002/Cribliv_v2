@@ -18,9 +18,28 @@ export interface AdminVerificationVm {
   userId: string;
   verificationType: "video_liveness" | "electricity_bill_match";
   result: "pending" | "pass" | "fail" | "manual_review";
+  machineResult?: "pending" | "pass" | "fail" | "manual_review";
   addressMatchScore?: number;
   livenessScore?: number;
+  provider?: string;
+  providerReference?: string;
+  providerResultCode?: string;
+  reviewReason?: string;
+  retryable?: boolean;
   threshold: number;
+  createdAt: string;
+}
+
+export interface AdminLeadVm {
+  id: string;
+  createdByUserId: string;
+  listingId?: string;
+  source: "pg_sales_assist" | "property_management";
+  status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+  notes?: string;
+  metadata: Record<string, unknown>;
+  crmSyncStatus: string;
+  lastCrmPushAt?: string;
   createdAt: string;
 }
 
@@ -98,6 +117,12 @@ export async function fetchAdminVerifications(accessToken: string) {
       result: "pending" | "pass" | "fail" | "manual_review";
       address_match_score: number | null;
       liveness_score: number | null;
+      provider: string | null;
+      provider_reference: string | null;
+      provider_result_code: string | null;
+      review_reason: string | null;
+      retryable: boolean | null;
+      machine_result: "pending" | "pass" | "fail" | "manual_review" | null;
       threshold: number;
       created_at: string;
     }>;
@@ -113,8 +138,14 @@ export async function fetchAdminVerifications(accessToken: string) {
       userId: row.user_id,
       verificationType: row.verification_type,
       result: row.result,
+      machineResult: row.machine_result ?? undefined,
       addressMatchScore: row.address_match_score ?? undefined,
       livenessScore: row.liveness_score ?? undefined,
+      provider: row.provider ?? undefined,
+      providerReference: row.provider_reference ?? undefined,
+      providerResultCode: row.provider_result_code ?? undefined,
+      reviewReason: row.review_reason ?? undefined,
+      retryable: row.retryable ?? undefined,
       threshold: row.threshold,
       createdAt: row.created_at
     })),
@@ -143,5 +174,65 @@ export async function decideAdminVerification(
   return {
     attemptId: response.attempt_id,
     newResult: response.new_result
+  };
+}
+
+export async function fetchAdminLeads(accessToken: string) {
+  const response = await fetchApi<{
+    items: Array<{
+      id: string;
+      created_by_user_id: string;
+      listing_id: string | null;
+      source: "pg_sales_assist" | "property_management";
+      status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+      notes: string | null;
+      metadata: Record<string, unknown>;
+      crm_sync_status: string;
+      last_crm_push_at: string | null;
+      created_at: string;
+    }>;
+    total: number;
+  }>("/admin/leads", {
+    headers: authHeaders(accessToken)
+  });
+
+  return {
+    items: (response.items ?? []).map((row) => ({
+      id: row.id,
+      createdByUserId: row.created_by_user_id,
+      listingId: row.listing_id ?? undefined,
+      source: row.source,
+      status: row.status,
+      notes: row.notes ?? undefined,
+      metadata: row.metadata ?? {},
+      crmSyncStatus: row.crm_sync_status,
+      lastCrmPushAt: row.last_crm_push_at ?? undefined,
+      createdAt: row.created_at
+    })),
+    total: response.total ?? 0
+  };
+}
+
+export async function updateAdminLeadStatus(
+  accessToken: string,
+  leadId: string,
+  status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost",
+  reason?: string
+) {
+  const response = await fetchApi<{ lead_id: string; status: string }>(
+    `/admin/leads/${leadId}/status`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({
+        status,
+        reason
+      })
+    }
+  );
+
+  return {
+    leadId: response.lead_id,
+    status: response.status
   };
 }

@@ -16,6 +16,7 @@ import { Roles } from "../../common/roles.decorator";
 import { AppStateService } from "../../common/app-state.service";
 import { ok } from "../../common/response";
 import { DatabaseService } from "../../common/database.service";
+import { logTelemetry } from "../../common/telemetry";
 
 @Controller("admin")
 @UseGuards(AuthGuard, RolesGuard)
@@ -119,6 +120,12 @@ export class AdminController {
         ]
       );
 
+      logTelemetry("admin.listing_decision", {
+        listing_id: updated.rows[0].id,
+        decision: body.decision,
+        admin_user_id: req.user.id
+      });
+
       return ok({ listing_id: updated.rows[0].id, new_status: updated.rows[0].status });
     }
 
@@ -143,6 +150,13 @@ export class AdminController {
       created_at: new Date().toISOString()
     });
 
+    logTelemetry("admin.listing_decision", {
+      mode: "in_memory",
+      listing_id: listing.id,
+      decision: body.decision,
+      admin_user_id: req.user.id
+    });
+
     return ok({ listing_id: listing.id, new_status: listing.status });
   }
 
@@ -165,6 +179,12 @@ export class AdminController {
         liveness_score: number | null;
         threshold: number;
         created_at: string;
+        provider: string | null;
+        provider_reference: string | null;
+        provider_result_code: string | null;
+        review_reason: string | null;
+        retryable: boolean | null;
+        machine_result: string | null;
       }>(
         `
         SELECT
@@ -176,8 +196,21 @@ export class AdminController {
           va.address_match_score,
           va.liveness_score,
           va.threshold,
-          va.created_at::text
+          va.created_at::text,
+          vpl.provider,
+          vpl.provider_reference,
+          vpl.provider_result_code,
+          vpl.review_reason,
+          vpl.retryable,
+          vpl.result::text AS machine_result
         FROM verification_attempts va
+        LEFT JOIN LATERAL (
+          SELECT provider, provider_reference, provider_result_code, review_reason, retryable, result
+          FROM verification_provider_logs
+          WHERE attempt_id = va.id
+          ORDER BY created_at DESC
+          LIMIT 1
+        ) vpl ON true
         ${filter}
         ORDER BY va.created_at DESC
         `,
@@ -187,7 +220,12 @@ export class AdminController {
       return ok({ items: items.rows, total: items.rowCount ?? 0 });
     }
 
-    const items = this.appState.verificationAttempts.filter((a) => !result || a.result === result);
+    const items = this.appState.verificationAttempts
+      .filter((a) => !result || a.result === result)
+      .map((attempt) => ({
+        ...attempt,
+        machine_result: attempt.machine_result ?? attempt.result
+      }));
     return ok({ items, total: items.length });
   }
 
@@ -221,6 +259,15 @@ export class AdminController {
 
         const listingId = attempt.rows[0].listing_id;
         if (listingId) {
+          const currentStatus = await client.query<{ verification_status: string }>(
+            `
+            SELECT verification_status::text
+            FROM listings
+            WHERE id = $1::uuid
+            LIMIT 1
+            `,
+            [listingId]
+          );
           const listingStatus =
             body.decision === "pass" ? "verified" : body.decision === "fail" ? "failed" : "pending";
           await client.query(
@@ -231,6 +278,13 @@ export class AdminController {
             `,
             [listingId, listingStatus]
           );
+          logTelemetry("verification.final_status_transition", {
+            listing_id: listingId,
+            previous_status: currentStatus.rows[0]?.verification_status ?? null,
+            new_status: listingStatus,
+            source: "admin_verification_decision",
+            admin_user_id: req.user.id
+          });
         }
 
         await client.query(
@@ -252,6 +306,11 @@ export class AdminController {
         );
 
         await client.query("COMMIT");
+        logTelemetry("admin.verification_decision", {
+          attempt_id: attemptId,
+          decision: body.decision,
+          admin_user_id: req.user.id
+        });
         return ok({ attempt_id: attemptId, new_result: body.decision });
       } catch (error) {
         await client.query("ROLLBACK");
@@ -267,6 +326,26 @@ export class AdminController {
     }
 
     attempt.result = body.decision;
+    const listingId =
+      typeof attempt.listing_id === "string"
+        ? attempt.listing_id
+        : (attempt.listing_id as string | undefined);
+    if (listingId) {
+      const listing = this.appState.listings.get(listingId);
+      if (listing) {
+        const previous = listing.verificationStatus;
+        listing.verificationStatus =
+          body.decision === "pass" ? "verified" : body.decision === "fail" ? "failed" : "pending";
+        logTelemetry("verification.final_status_transition", {
+          mode: "in_memory",
+          listing_id: listingId,
+          previous_status: previous,
+          new_status: listing.verificationStatus,
+          source: "admin_verification_decision",
+          admin_user_id: req.user.id
+        });
+      }
+    }
     this.appState.adminActions.push({
       admin_id: req.user.id,
       target_type: "verification_attempt",
@@ -276,7 +355,142 @@ export class AdminController {
       created_at: new Date().toISOString()
     });
 
+    logTelemetry("admin.verification_decision", {
+      mode: "in_memory",
+      attempt_id: attemptId,
+      decision: body.decision,
+      admin_user_id: req.user.id
+    });
+
     return ok({ attempt_id: attemptId, new_result: body.decision });
+  }
+
+  @Get("leads")
+  async leads(@Query("status") status?: string) {
+    if (this.database.isEnabled()) {
+      const params: unknown[] = [];
+      const statusClause = status ? "WHERE sl.status = $1::sales_lead_status" : "";
+      if (status) {
+        params.push(status);
+      }
+
+      const result = await this.database.query<{
+        id: string;
+        created_by_user_id: string;
+        listing_id: string | null;
+        source: "pg_sales_assist" | "property_management";
+        status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+        notes: string | null;
+        metadata: Record<string, unknown>;
+        crm_sync_status: string;
+        last_crm_push_at: string | null;
+        created_at: string;
+      }>(
+        `
+        SELECT
+          sl.id::text,
+          sl.created_by_user_id::text,
+          sl.listing_id::text,
+          sl.source::text,
+          sl.status::text,
+          sl.notes,
+          sl.metadata,
+          sl.crm_sync_status,
+          sl.last_crm_push_at::text,
+          sl.created_at::text
+        FROM sales_leads sl
+        ${statusClause}
+        ORDER BY sl.created_at DESC
+        `,
+        params
+      );
+
+      return ok({ items: result.rows, total: result.rowCount ?? 0 });
+    }
+
+    const items = this.appState
+      .listSalesLeads()
+      .filter((lead) => !status || lead.status === status)
+      .map((lead) => ({
+        id: lead.id,
+        created_by_user_id: lead.createdByUserId,
+        listing_id: lead.listingId ?? null,
+        source: lead.source,
+        status: lead.status,
+        notes: lead.notes ?? null,
+        metadata: lead.metadata,
+        crm_sync_status: "pending",
+        last_crm_push_at: null,
+        created_at: new Date(lead.createdAt).toISOString()
+      }));
+
+    return ok({ items, total: items.length });
+  }
+
+  @Post("leads/:lead_id/status")
+  async updateLeadStatus(
+    @Req() req: { user: { id: string } },
+    @Param("lead_id") leadId: string,
+    @Body()
+    body: {
+      status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+      reason?: string;
+    }
+  ) {
+    if (this.database.isEnabled()) {
+      const updated = await this.database.query<{ id: string; status: string }>(
+        `
+        UPDATE sales_leads
+        SET status = $2::sales_lead_status, updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text, status::text
+        `,
+        [leadId, body.status]
+      );
+
+      if (!updated.rowCount || !updated.rows[0]) {
+        throw new BadRequestException({ code: "not_found", message: "Lead not found" });
+      }
+
+      await this.database.query(
+        `
+        INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+        VALUES ($1::uuid, 'sales_lead', $2::uuid, 'update_lead'::admin_action_type, $3, null, $4::jsonb)
+        `,
+        [req.user.id, leadId, body.reason ?? null, JSON.stringify({ status: body.status })]
+      );
+
+      logTelemetry("admin.lead_status_updated", {
+        lead_id: updated.rows[0].id,
+        status: updated.rows[0].status,
+        admin_user_id: req.user.id
+      });
+
+      return ok({ lead_id: updated.rows[0].id, status: updated.rows[0].status });
+    }
+
+    const updated = this.appState.updateSalesLeadStatus(leadId, body.status);
+    if (!updated) {
+      throw new BadRequestException({ code: "not_found", message: "Lead not found" });
+    }
+
+    this.appState.adminActions.push({
+      admin_id: req.user.id,
+      target_type: "sales_lead",
+      target_id: leadId,
+      action: "lead_status_update",
+      reason: body.reason ?? null,
+      created_at: new Date().toISOString()
+    });
+
+    logTelemetry("admin.lead_status_updated", {
+      mode: "in_memory",
+      lead_id: updated.id,
+      status: updated.status,
+      admin_user_id: req.user.id
+    });
+
+    return ok({ lead_id: updated.id, status: updated.status });
   }
 
   @Post("wallet/adjust")

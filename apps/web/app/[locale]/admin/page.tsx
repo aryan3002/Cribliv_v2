@@ -7,7 +7,10 @@ import {
   decideAdminListing,
   decideAdminVerification,
   fetchAdminListings,
+  fetchAdminLeads,
   fetchAdminVerifications,
+  updateAdminLeadStatus,
+  type AdminLeadVm,
   type AdminListingVm,
   type AdminVerificationVm
 } from "../../../lib/admin-api";
@@ -15,7 +18,8 @@ import { t, type Locale } from "../../../lib/i18n";
 
 type ListingDecision = "approve" | "reject" | "pause";
 type VerificationDecision = "pass" | "fail" | "manual_review";
-type ActiveTab = "listings" | "verifications";
+type LeadStatus = "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+type ActiveTab = "listings" | "verifications" | "leads";
 
 export default function AdminDashboardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
@@ -36,9 +40,17 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   const [verificationErrors, setVerificationErrors] = useState<Record<string, string>>({});
   const [verificationProcessing, setVerificationProcessing] = useState<Record<string, boolean>>({});
 
+  const [leads, setLeads] = useState<AdminLeadVm[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+  const [leadsError, setLeadsError] = useState<string | null>(null);
+  const [leadReasons, setLeadReasons] = useState<Record<string, string>>({});
+  const [leadErrors, setLeadErrors] = useState<Record<string, string>>({});
+  const [leadProcessing, setLeadProcessing] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     void loadListings();
     void loadVerifications();
+    void loadLeads();
   }, []);
 
   function getToken() {
@@ -92,6 +104,31 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
       setVerificationsError(message);
     } finally {
       setVerificationsLoading(false);
+    }
+  }
+
+  async function loadLeads() {
+    setLeadsLoading(true);
+    setLeadsError(null);
+
+    const token = getToken();
+    if (!token) {
+      setLeadsError(t(locale, "loginRequired"));
+      setLeadsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetchAdminLeads(token);
+      setLeads(response.items);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load leads";
+      if (message.toLowerCase().includes("unauthorized")) {
+        clearAuthSession();
+      }
+      setLeadsError(message);
+    } finally {
+      setLeadsLoading(false);
     }
   }
 
@@ -182,6 +219,39 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
       }));
     } finally {
       setVerificationProcessing((previous) => ({ ...previous, [attemptId]: false }));
+    }
+  }
+
+  async function handleLeadStatus(leadId: string, status: LeadStatus) {
+    const token = getToken();
+    if (!token) {
+      return;
+    }
+
+    setLeadProcessing((previous) => ({ ...previous, [leadId]: true }));
+    setLeadErrors((previous) => ({ ...previous, [leadId]: "" }));
+
+    try {
+      const reason = (leadReasons[leadId] || "").trim();
+      await updateAdminLeadStatus(token, leadId, status, reason || undefined);
+      trackEvent("admin_lead_status_updated", {
+        lead_id: leadId,
+        status
+      });
+      setLeads((previous) =>
+        previous.map((lead) => (lead.id === leadId ? { ...lead, status } : lead))
+      );
+      setLeadReasons((previous) => ({
+        ...previous,
+        [leadId]: ""
+      }));
+    } catch (err) {
+      setLeadErrors((previous) => ({
+        ...previous,
+        [leadId]: err instanceof Error ? err.message : "Lead update failed"
+      }));
+    } finally {
+      setLeadProcessing((previous) => ({ ...previous, [leadId]: false }));
     }
   }
 
@@ -353,18 +423,40 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                     {verification.listingId ? (
                       <> &middot; Listing: {verification.listingId}</>
                     ) : null}
+                    {verification.provider ? (
+                      <> &middot; Provider: {verification.provider}</>
+                    ) : null}
+                    {verification.providerResultCode ? (
+                      <> &middot; Result code: {verification.providerResultCode}</>
+                    ) : null}
+                    {verification.providerReference ? (
+                      <> &middot; Ref: {verification.providerReference}</>
+                    ) : null}
                     {typeof verification.addressMatchScore === "number" ? (
                       <> &middot; Address score: {verification.addressMatchScore}%</>
                     ) : null}
                     {typeof verification.livenessScore === "number" ? (
                       <> &middot; Liveness score: {verification.livenessScore}%</>
                     ) : null}
+                    {verification.retryable ? <> &middot; Retryable provider error</> : null}
                   </div>
                 </div>
                 <span className={`status-pill status-pill--${verification.result}`}>
                   {verification.result.replace(/_/g, " ")}
                 </span>
               </div>
+
+              {verification.machineResult ? (
+                <div className="queue-card__meta">
+                  Machine result:{" "}
+                  <span className={`status-pill status-pill--${verification.machineResult}`}>
+                    {verification.machineResult.replace(/_/g, " ")}
+                  </span>
+                </div>
+              ) : null}
+              {verification.reviewReason ? (
+                <div className="queue-card__meta">Review reason: {verification.reviewReason}</div>
+              ) : null}
 
               <div className="queue-card__meta">
                 Submitted:{" "}
@@ -429,6 +521,135 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     );
   }
 
+  function renderLeadQueue() {
+    if (leadsLoading) {
+      return (
+        <div aria-busy="true">
+          {[1, 2, 3].map((index) => (
+            <div key={index} className="skeleton skeleton--card" />
+          ))}
+        </div>
+      );
+    }
+
+    if (leadsError) {
+      return (
+        <div className="panel warning-box" role="alert">
+          {leadsError}
+        </div>
+      );
+    }
+
+    if (leads.length === 0) {
+      return (
+        <div className="empty-state">
+          <h3>No sales leads yet</h3>
+          <p>New leads from PG sales assist and property management requests will appear here.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        {leads.map((lead) => {
+          const processing = leadProcessing[lead.id] || false;
+          const fieldError = leadErrors[lead.id] || "";
+
+          return (
+            <div key={lead.id} className="queue-card">
+              <div className="queue-card__header">
+                <div>
+                  <h3 className="queue-card__title">
+                    {lead.source === "pg_sales_assist"
+                      ? "PG Sales Assist Lead"
+                      : "Property Management Lead"}
+                  </h3>
+                  <div className="queue-card__meta">
+                    Owner: {lead.createdByUserId}
+                    {lead.listingId ? <> &middot; Listing: {lead.listingId}</> : null}
+                    {lead.notes ? <> &middot; {lead.notes}</> : null}
+                  </div>
+                </div>
+                <span className={`status-pill status-pill--${lead.status}`}>
+                  {lead.status.replace(/_/g, " ")}
+                </span>
+              </div>
+
+              <div className="queue-card__meta">
+                Created:{" "}
+                {new Date(lead.createdAt).toLocaleString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+                {" · "}CRM: {lead.crmSyncStatus}
+                {lead.lastCrmPushAt ? (
+                  <> (last push {new Date(lead.lastCrmPushAt).toLocaleString("en-IN")})</>
+                ) : null}
+              </div>
+
+              <div>
+                <label htmlFor={`reason-lead-${lead.id}`} className="form-label">
+                  Note (optional)
+                </label>
+                <textarea
+                  id={`reason-lead-${lead.id}`}
+                  className="reason-input"
+                  placeholder="Add context for this status change..."
+                  value={leadReasons[lead.id] || ""}
+                  onChange={(event) =>
+                    setLeadReasons((previous) => ({
+                      ...previous,
+                      [lead.id]: event.target.value
+                    }))
+                  }
+                />
+                {fieldError ? <p className="form-error">{fieldError}</p> : null}
+              </div>
+
+              <div className="queue-card__actions">
+                <button
+                  type="button"
+                  className="btn-sm btn-sm--warn"
+                  disabled={processing}
+                  onClick={() => handleLeadStatus(lead.id, "contacted")}
+                >
+                  Mark Contacted
+                </button>
+                <button
+                  type="button"
+                  className="btn-sm btn-sm--approve"
+                  disabled={processing}
+                  onClick={() => handleLeadStatus(lead.id, "qualified")}
+                >
+                  Mark Qualified
+                </button>
+                <button
+                  type="button"
+                  className="btn-sm"
+                  disabled={processing}
+                  onClick={() => handleLeadStatus(lead.id, "closed_won")}
+                >
+                  Close Won
+                </button>
+                <button
+                  type="button"
+                  className="btn-sm btn-sm--reject"
+                  disabled={processing}
+                  onClick={() => handleLeadStatus(lead.id, "closed_lost")}
+                >
+                  Close Lost
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <section className="hero">
       <h1>{t(locale, "adminDashboard")}</h1>
@@ -452,9 +673,22 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
         >
           {t(locale, "verificationQueue")} ({verifications.length})
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "leads"}
+          className={`tab-btn${activeTab === "leads" ? " tab-btn--active" : ""}`}
+          onClick={() => setActiveTab("leads")}
+        >
+          Sales Leads ({leads.length})
+        </button>
       </div>
 
-      {activeTab === "listings" ? renderListingQueue() : renderVerificationQueue()}
+      {activeTab === "listings"
+        ? renderListingQueue()
+        : activeTab === "verifications"
+          ? renderVerificationQueue()
+          : renderLeadQueue()}
     </section>
   );
 }

@@ -65,8 +65,14 @@ export interface VerificationAttemptVm {
   id: string;
   verificationType: "video_liveness" | "electricity_bill_match";
   result: "pending" | "pass" | "fail" | "manual_review";
+  machineResult?: "pending" | "pass" | "fail" | "manual_review" | null;
   livenessScore: number | null;
   addressMatchScore: number | null;
+  provider?: string | null;
+  providerReference?: string | null;
+  providerResultCode?: string | null;
+  reviewReason?: string | null;
+  retryable?: boolean;
   threshold: number;
   createdAt: string;
 }
@@ -247,6 +253,45 @@ export async function segmentPgPath(accessToken: string, totalBeds: number) {
   };
 }
 
+export async function createSalesLead(
+  accessToken: string,
+  input: {
+    source: "pg_sales_assist" | "property_management";
+    listingId?: string;
+    notes?: string;
+    metadata?: Record<string, unknown>;
+    idempotencyKey?: string;
+  }
+) {
+  const response = await fetchApi<{
+    id: string;
+    status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+    source: "pg_sales_assist" | "property_management";
+    listing_id: string | null;
+    created_at: string;
+  }>("/sales/leads", {
+    method: "POST",
+    headers: authHeaders(
+      accessToken,
+      input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : undefined
+    ),
+    body: JSON.stringify({
+      source: input.source,
+      listing_id: input.listingId,
+      notes: input.notes,
+      metadata: input.metadata ?? {}
+    })
+  });
+
+  return {
+    id: response.id,
+    status: response.status,
+    source: response.source,
+    listingId: response.listing_id,
+    createdAt: response.created_at
+  };
+}
+
 export async function presignListingPhotos(
   accessToken: string,
   listingId: string,
@@ -317,6 +362,12 @@ export async function submitVideoVerification(
   const response = await fetchApi<{
     attempt_id: string;
     result: "pending" | "pass" | "fail" | "manual_review";
+    machine_result?: "pending" | "pass" | "fail" | "manual_review";
+    provider?: string;
+    provider_reference?: string | null;
+    provider_result_code?: string;
+    review_reason?: string | null;
+    retryable?: boolean;
   }>("/owner/verification/video", {
     method: "POST",
     headers: authHeaders(accessToken),
@@ -329,7 +380,13 @@ export async function submitVideoVerification(
 
   return {
     attemptId: response.attempt_id,
-    result: response.result
+    result: response.result,
+    machineResult: response.machine_result ?? response.result,
+    provider: response.provider,
+    providerReference: response.provider_reference ?? null,
+    providerResultCode: response.provider_result_code,
+    reviewReason: response.review_reason ?? null,
+    retryable: Boolean(response.retryable)
   };
 }
 
@@ -346,6 +403,12 @@ export async function submitElectricityVerification(
     attempt_id: string;
     address_match_score: number;
     result: "pending" | "pass" | "fail" | "manual_review";
+    machine_result?: "pending" | "pass" | "fail" | "manual_review";
+    provider?: string;
+    provider_reference?: string | null;
+    provider_result_code?: string;
+    review_reason?: string | null;
+    retryable?: boolean;
   }>("/owner/verification/electricity", {
     method: "POST",
     headers: authHeaders(accessToken),
@@ -360,7 +423,13 @@ export async function submitElectricityVerification(
   return {
     attemptId: response.attempt_id,
     addressMatchScore: response.address_match_score,
-    result: response.result
+    result: response.result,
+    machineResult: response.machine_result ?? response.result,
+    provider: response.provider,
+    providerReference: response.provider_reference ?? null,
+    providerResultCode: response.provider_result_code,
+    reviewReason: response.review_reason ?? null,
+    retryable: Boolean(response.retryable)
   };
 }
 
@@ -378,6 +447,12 @@ export async function fetchVerificationStatus(
       threshold: number;
       result: "pending" | "pass" | "fail" | "manual_review";
       created_at: string;
+      provider?: string | null;
+      provider_reference?: string | null;
+      provider_result_code?: string | null;
+      review_reason?: string | null;
+      retryable?: boolean | null;
+      machine_result?: "pending" | "pass" | "fail" | "manual_review" | null;
     }>;
   }>(`/owner/verification/status?listing_id=${encodeURIComponent(listingId)}`, {
     headers: authHeaders(accessToken)
@@ -391,6 +466,12 @@ export async function fetchVerificationStatus(
       result: attempt.result,
       livenessScore: attempt.liveness_score,
       addressMatchScore: attempt.address_match_score,
+      provider: attempt.provider ?? null,
+      providerReference: attempt.provider_reference ?? null,
+      providerResultCode: attempt.provider_result_code ?? null,
+      reviewReason: attempt.review_reason ?? null,
+      retryable: Boolean(attempt.retryable),
+      machineResult: attempt.machine_result ?? null,
       threshold: Number(attempt.threshold ?? 85),
       createdAt: attempt.created_at
     }))

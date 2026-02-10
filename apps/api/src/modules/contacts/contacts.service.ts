@@ -10,6 +10,7 @@ import {
 import { randomUUID } from "crypto";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
+import { logTelemetry } from "../../common/telemetry";
 
 @Injectable()
 export class ContactsService {
@@ -78,6 +79,12 @@ export class ContactsService {
         }
         await client.query("COMMIT");
         const row = existingUnlock.rows[0];
+        logTelemetry("contact.unlock_idempotent_hit", {
+          mode: "db",
+          tenant_user_id: userId,
+          unlock_id: row.id,
+          listing_id: row.listing_id
+        });
         return {
           unlock_id: row.id,
           owner_contact: {
@@ -260,6 +267,12 @@ export class ContactsService {
       await client.query("COMMIT");
 
       const listing = listingResult.rows[0];
+      logTelemetry("contact.unlock_debited", {
+        mode: "db",
+        tenant_user_id: userId,
+        unlock_id: unlockId,
+        listing_id: listingId
+      });
       return {
         unlock_id: unlockId,
         owner_contact: {
@@ -281,6 +294,12 @@ export class ContactsService {
     const cacheKey = `${userId}:unlock:${idempotencyKey}`;
     const existing = this.appState.unlockByIdempotency.get(cacheKey);
     if (existing) {
+      logTelemetry("contact.unlock_idempotent_hit", {
+        mode: "in_memory",
+        tenant_user_id: userId,
+        unlock_id: existing.id,
+        listing_id: existing.listingId
+      });
       return {
         unlock_id: existing.id,
         owner_contact: {
@@ -335,6 +354,12 @@ export class ContactsService {
 
     this.appState.unlocks.set(unlock.id, unlock);
     this.appState.unlockByIdempotency.set(cacheKey, unlock);
+    logTelemetry("contact.unlock_debited", {
+      mode: "in_memory",
+      tenant_user_id: userId,
+      unlock_id: unlock.id,
+      listing_id: listingId
+    });
 
     return {
       unlock_id: unlock.id,
@@ -425,6 +450,12 @@ export class ContactsService {
 
       await client.query("COMMIT");
       const updated = updateResult.rows[0];
+      logTelemetry("contact.owner_responded", {
+        mode: "db",
+        unlock_id: updated.id,
+        owner_user_id: ownerUserId,
+        channel
+      });
       return {
         unlock_id: updated.id,
         owner_response_status: updated.owner_response_status,
@@ -459,6 +490,12 @@ export class ContactsService {
 
     unlock.ownerResponseStatus = "responded";
     unlock.ownerRespondedAt = Date.now();
+    logTelemetry("contact.owner_responded", {
+      mode: "in_memory",
+      unlock_id: unlock.id,
+      owner_user_id: ownerUserId,
+      channel
+    });
 
     return {
       unlock_id: unlock.id,

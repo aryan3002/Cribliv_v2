@@ -1,5 +1,19 @@
 export const DEFAULT_API_BASE_URL = "http://localhost:4000/v1";
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  details?: unknown;
+
+  constructor(message: string, input: { status: number; code?: string; details?: unknown }) {
+    super(message);
+    this.name = "ApiError";
+    this.status = input.status;
+    this.code = input.code;
+    this.details = input.details;
+  }
+}
+
 export function getApiBaseUrl() {
   const raw = (
     process.env.NEXT_PUBLIC_API_BASE_URL ||
@@ -29,8 +43,13 @@ export async function fetchApi<T>(
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = payload?.error?.message ?? `Request failed with status ${response.status}`;
-    throw new Error(message);
+    const errorPayload = payload?.error ?? payload ?? {};
+    const message = errorPayload?.message ?? `Request failed with status ${response.status}`;
+    throw new ApiError(message, {
+      status: response.status,
+      code: errorPayload?.code,
+      details: errorPayload?.details
+    });
   }
 
   return payload.data as T;

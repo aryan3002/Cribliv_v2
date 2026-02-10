@@ -52,6 +52,13 @@ function getAttemptLabel(attempt: VerificationAttemptVm) {
   return attempt.verificationType === "video_liveness" ? "Video selfie" : "Electricity bill";
 }
 
+function getResultLabel(result: "pending" | "pass" | "fail" | "manual_review") {
+  if (result === "manual_review") {
+    return "manual review";
+  }
+  return result;
+}
+
 function resultToOverall(result: "pending" | "pass" | "fail" | "manual_review") {
   if (result === "pass") {
     return "verified" as const;
@@ -235,6 +242,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
   const copy = RESULT_COPY[overall] ?? RESULT_COPY.unverified;
 
   const uiStatus = latestAttempt ? resultToOverall(latestAttempt.result) : overall;
+  const awaitingAdmin = Boolean(status?.attempts.length) && overall === "pending";
   const scoreClass =
     uiStatus === "verified"
       ? "score-bar__fill--pass"
@@ -296,6 +304,11 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
           <div>
             <h3 style={{ margin: 0 }}>{locale === "hi" ? copy.headingHi : copy.heading}</h3>
             <p className="muted-text">{locale === "hi" ? copy.descHi : copy.description}</p>
+            {awaitingAdmin ? (
+              <p className="muted-text" style={{ marginTop: 8 }}>
+                Awaiting admin review for final verification status.
+              </p>
+            ) : null}
           </div>
           <span className={`status-pill status-pill--${uiStatus}`}>{uiStatus}</span>
         </div>
@@ -434,14 +447,33 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
                   <p>
                     Status:{" "}
                     <span className={`status-pill status-pill--${attempt.result}`}>
-                      {attempt.result}
+                      {getResultLabel(attempt.result)}
                     </span>
                   </p>
+                  {attempt.machineResult ? (
+                    <p>
+                      Machine result:{" "}
+                      <span className={`status-pill status-pill--${attempt.machineResult}`}>
+                        {getResultLabel(attempt.machineResult)}
+                      </span>
+                    </p>
+                  ) : null}
                   {attempt.addressMatchScore != null ? (
                     <p>Address match score: {attempt.addressMatchScore}%</p>
                   ) : null}
                   {attempt.livenessScore != null ? (
                     <p>Liveness score: {attempt.livenessScore}%</p>
+                  ) : null}
+                  {attempt.provider ? <p>Provider: {attempt.provider}</p> : null}
+                  {attempt.providerReference ? (
+                    <p>Provider reference: {attempt.providerReference}</p>
+                  ) : null}
+                  {attempt.providerResultCode ? (
+                    <p>Provider result code: {attempt.providerResultCode}</p>
+                  ) : null}
+                  {attempt.reviewReason ? <p>Review reason: {attempt.reviewReason}</p> : null}
+                  {attempt.retryable ? (
+                    <p className="muted-text">Provider signaled this attempt may be retried.</p>
                   ) : null}
                   <p>
                     Submitted:{" "}

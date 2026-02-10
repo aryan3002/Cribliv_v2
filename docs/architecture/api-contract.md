@@ -13,7 +13,7 @@ All required Phase 1 endpoint groups are present and implemented with DB-first b
 - Owner response tracking for refund logic
 - PG segmentation
 - Admin review and wallet adjust
-- Payment webhooks placeholders
+- Payment purchase intents and webhooks (signature-verified, idempotent)
 
 ## DB-backed status (implemented)
 
@@ -33,6 +33,28 @@ All required Phase 1 endpoint groups are present and implemented with DB-first b
 - Owner photo upload flows are idempotent via `idempotency_keys` table.
 - Verification endpoints now persist `verification_attempts` and update `listings.verification_status`.
 - Admin review endpoints now read/write DB state for listings, verifications, and wallet adjustments.
+- `POST /v1/wallet/purchase-intents` now persists idempotent order records in `payment_orders`:
+  - Requires `Idempotency-Key`.
+  - Same user + same key returns the same order response.
+  - Plan validation is allowlisted (`starter_10`, `growth_20`).
+- `POST /v1/webhooks/razorpay` and `POST /v1/webhooks/upi` now:
+  - Verify HMAC signatures.
+  - Persist deduplicated receipts to `payment_webhook_events`.
+  - Atomically transition payment status and post `purchase_pack` wallet credits on capture events.
+  - Prevent double-crediting on webhook replay via DB idempotency keys.
+- `POST /v1/sales/leads` now captures PG sales-assist/property-management leads with idempotency.
+- `GET /v1/admin/leads` and `POST /v1/admin/leads/{lead_id}/status` provide admin lead queue operations.
+- `GET /v1/listings/search/filters-metadata` provides dynamic city/locality/filter metadata.
+- Verification responses now expose provider audit fields:
+  - `provider`
+  - `provider_reference`
+  - `provider_result_code`
+  - `review_reason`
+  - `retryable`
+- Verification policy is admin-finalized:
+  - automated provider outcomes (`pass`, `manual_review`, `fail`) keep listing `verification_status = pending`
+  - final `verified`/`failed` status is set by admin verification decision endpoint
+- Provider audit payloads are persisted in masked form in `verification_provider_logs` to avoid raw PII storage.
 
 ## Frontend contract alignment (implemented)
 

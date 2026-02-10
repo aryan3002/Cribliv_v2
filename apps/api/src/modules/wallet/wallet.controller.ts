@@ -4,7 +4,13 @@ import { ok } from "../../common/response";
 import { AppStateService } from "../../common/app-state.service";
 import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { DatabaseService } from "../../common/database.service";
+import { logTelemetry } from "../../common/telemetry";
 import { randomUUID } from "crypto";
+import {
+  buildProviderPayload,
+  parseCreditPlan,
+  parsePaymentProvider
+} from "../payments/payments.util";
 
 @Controller("wallet")
 @UseGuards(AuthGuard)
@@ -85,90 +91,210 @@ export class WalletController {
 
   @Post("purchase-intents")
   async purchaseIntent(
-    @Req() req: { user: { id: string }; headers: Record<string, string> },
+    @Req()
+    req: {
+      user: { id: string };
+      headers: Record<string, string | string[] | undefined>;
+    },
     @Body() body: { plan_id: string; provider: string }
   ) {
-    const idem = requireIdempotencyKey(req.headers["idempotency-key"]);
-    const amountPaise = body.plan_id === "starter_10" ? 9900 : 19900;
+    const idemHeader = req.headers["idempotency-key"];
+    const idem = requireIdempotencyKey(Array.isArray(idemHeader) ? idemHeader[0] : idemHeader);
+    const plan = parseCreditPlan(body.plan_id);
+    const provider = parsePaymentProvider(body.provider);
 
     if (this.database.isEnabled()) {
       const existing = await this.database.query<{
-        response: {
-          order_id: string;
-          amount_paise: number;
-          provider_payload: { provider: string; mode: string };
-        };
+        provider: "razorpay" | "upi";
+        provider_order_id: string;
+        amount_paise: number;
+        credits_to_grant: number;
+        metadata: Record<string, unknown>;
       }>(
         `
-        SELECT payload #> '{response}' AS response
-        FROM audit_logs
-        WHERE actor_user_id = $1::uuid
-          AND event_name = 'wallet_purchase_intent'
-          AND payload ->> 'idempotency_key' = $2
-        ORDER BY id DESC
+        SELECT provider::text, provider_order_id, amount_paise, credits_to_grant, metadata
+        FROM payment_orders
+        WHERE user_id = $1::uuid
+          AND idempotency_key = $2
         LIMIT 1
         `,
         [req.user.id, idem]
       );
 
-      if (existing.rowCount && existing.rows[0]?.response) {
-        return ok(existing.rows[0].response);
+      if (existing.rowCount && existing.rows[0]) {
+        const row = existing.rows[0];
+        const existingPlanId =
+          typeof row.metadata?.plan_id === "string" ? row.metadata.plan_id : plan.planId;
+        const providerPayload = buildProviderPayload({
+          provider: parsePaymentProvider(row.provider),
+          providerOrderId: row.provider_order_id,
+          amountPaise: Number(row.amount_paise),
+          creditsToGrant: Number(row.credits_to_grant),
+          planId: parseCreditPlan(existingPlanId).planId
+        });
+        logTelemetry("wallet.purchase_intent_idempotent_hit", {
+          mode: "db",
+          user_id: req.user.id,
+          order_id: row.provider_order_id,
+          provider: row.provider,
+          plan_id: existingPlanId,
+          idempotency_key: idem
+        });
+        return ok({
+          order_id: row.provider_order_id,
+          amount_paise: Number(row.amount_paise),
+          credits_to_grant: Number(row.credits_to_grant),
+          provider_payload: providerPayload
+        });
       }
 
-      const orderId = `order_${randomUUID().replace(/-/g, "")}`;
-      const response = {
-        order_id: orderId,
-        amount_paise: amountPaise,
-        provider_payload: {
-          provider: body.provider,
-          mode: "placeholder"
-        }
-      };
+      const providerOrderId = `order_${randomUUID().replace(/-/g, "")}`;
 
-      await this.database.query(
+      const inserted = await this.database.query<{
+        provider_order_id: string;
+        amount_paise: number;
+        credits_to_grant: number;
+      }>(
         `
-        INSERT INTO payment_orders(user_id, provider, provider_order_id, amount_paise, credits_to_grant, status)
-        VALUES ($1::uuid, $2::payment_provider, $3, $4, $5, 'created')
+        INSERT INTO payment_orders(
+          user_id,
+          provider,
+          provider_order_id,
+          amount_paise,
+          credits_to_grant,
+          status,
+          idempotency_key,
+          metadata
+        )
+        VALUES (
+          $1::uuid,
+          $2::payment_provider,
+          $3,
+          $4,
+          $5,
+          'created',
+          $6,
+          $7::jsonb
+        )
+        ON CONFLICT (user_id, idempotency_key)
+          WHERE idempotency_key IS NOT NULL
+        DO NOTHING
+        RETURNING provider_order_id, amount_paise, credits_to_grant
         `,
         [
           req.user.id,
-          body.provider === "upi" ? "upi" : "razorpay",
-          orderId,
-          amountPaise,
-          body.plan_id === "starter_10" ? 10 : 20
+          provider,
+          providerOrderId,
+          plan.amountPaise,
+          plan.credits,
+          idem,
+          JSON.stringify({ plan_id: plan.planId })
         ]
       );
 
-      await this.database.query(
-        `
-        INSERT INTO audit_logs(actor_user_id, actor_type, event_name, entity_type, entity_id, payload)
-        VALUES ($1::uuid, 'user', 'wallet_purchase_intent', 'payment_order', null, $2::jsonb)
-        `,
-        [req.user.id, JSON.stringify({ idempotency_key: idem, response })]
-      );
+      const orderRow =
+        inserted.rows[0] ??
+        (
+          await this.database.query<{
+            provider_order_id: string;
+            amount_paise: number;
+            credits_to_grant: number;
+          }>(
+            `
+            SELECT provider_order_id, amount_paise, credits_to_grant
+            FROM payment_orders
+            WHERE user_id = $1::uuid
+              AND idempotency_key = $2
+            LIMIT 1
+            `,
+            [req.user.id, idem]
+          )
+        ).rows[0];
 
-      return ok(response);
+      const providerPayload = buildProviderPayload({
+        provider,
+        providerOrderId: orderRow.provider_order_id,
+        amountPaise: Number(orderRow.amount_paise),
+        creditsToGrant: Number(orderRow.credits_to_grant),
+        planId: plan.planId
+      });
+
+      logTelemetry("wallet.purchase_intent_created", {
+        mode: "db",
+        user_id: req.user.id,
+        order_id: orderRow.provider_order_id,
+        provider,
+        plan_id: plan.planId,
+        idempotency_key: idem
+      });
+
+      return ok({
+        order_id: orderRow.provider_order_id,
+        amount_paise: Number(orderRow.amount_paise),
+        credits_to_grant: Number(orderRow.credits_to_grant),
+        provider_payload: providerPayload
+      });
     }
 
-    const idemCacheKey = `${req.user.id}:wallet:purchase-intents:${idem}`;
-    const cached = this.appState.getIdempotentResponse<{
-      order_id: string;
-      amount_paise: number;
-      provider_payload: { provider: string; mode: string };
-    }>(idemCacheKey);
-    if (cached) {
-      return ok(cached);
+    const idemCacheKey = `${req.user.id}:purchase:${idem}`;
+    const existingOrder = this.appState.paymentOrderByIdempotency.get(idemCacheKey);
+    if (existingOrder) {
+      logTelemetry("wallet.purchase_intent_idempotent_hit", {
+        mode: "in_memory",
+        user_id: req.user.id,
+        order_id: existingOrder.providerOrderId,
+        provider: existingOrder.provider,
+        plan_id: existingOrder.planId,
+        idempotency_key: idem
+      });
+      return ok({
+        order_id: existingOrder.providerOrderId,
+        amount_paise: existingOrder.amountPaise,
+        credits_to_grant: existingOrder.creditsToGrant,
+        provider_payload: buildProviderPayload({
+          provider: existingOrder.provider,
+          providerOrderId: existingOrder.providerOrderId,
+          amountPaise: existingOrder.amountPaise,
+          creditsToGrant: existingOrder.creditsToGrant,
+          planId: existingOrder.planId
+        })
+      });
     }
 
-    const response = {
-      order_id: `order_${idem}`,
-      amount_paise: amountPaise,
-      provider_payload: {
-        provider: body.provider,
-        mode: "placeholder"
-      }
+    const providerOrderId = `order_${randomUUID().replace(/-/g, "")}`;
+    const order = {
+      id: randomUUID(),
+      userId: req.user.id,
+      provider,
+      providerOrderId,
+      amountPaise: plan.amountPaise,
+      creditsToGrant: plan.credits,
+      planId: plan.planId,
+      status: "created" as const
     };
+    this.appState.paymentOrders.set(order.id, order);
+    this.appState.paymentOrderByProviderOrderId.set(providerOrderId, order);
+    this.appState.paymentOrderByIdempotency.set(idemCacheKey, order);
+    logTelemetry("wallet.purchase_intent_created", {
+      mode: "in_memory",
+      user_id: req.user.id,
+      order_id: providerOrderId,
+      provider,
+      plan_id: plan.planId,
+      idempotency_key: idem
+    });
 
-    return ok(this.appState.setIdempotentResponse(idemCacheKey, response));
+    return ok({
+      order_id: providerOrderId,
+      amount_paise: plan.amountPaise,
+      credits_to_grant: plan.credits,
+      provider_payload: buildProviderPayload({
+        provider,
+        providerOrderId,
+        amountPaise: plan.amountPaise,
+        creditsToGrant: plan.credits,
+        planId: plan.planId
+      })
+    });
   }
 }

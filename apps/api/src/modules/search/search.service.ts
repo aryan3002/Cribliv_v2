@@ -40,6 +40,44 @@ const TYPE_KEYWORDS = {
   flatHouse: ["flat", "house", "घर", "apartment", "home", "1bhk", "2bhk", "3bhk", "4bhk"]
 };
 
+const SORT_OPTIONS = [
+  { key: "relevance", label: "Relevance" },
+  { key: "newest", label: "Newest" },
+  { key: "verified", label: "Verified first" },
+  { key: "rent_asc", label: "Rent: Low to High" },
+  { key: "rent_desc", label: "Rent: High to Low" }
+] as const;
+
+function normalizeSort(sort?: string) {
+  if (!sort) {
+    return "relevance";
+  }
+
+  const normalized = sort.toLowerCase();
+  if (normalized === "price_asc") {
+    return "rent_asc";
+  }
+  if (normalized === "price_desc") {
+    return "rent_desc";
+  }
+  if (normalized === "newest" || normalized === "verified") {
+    return normalized;
+  }
+  if (normalized === "rent_asc" || normalized === "rent_desc") {
+    return normalized;
+  }
+
+  return "relevance";
+}
+
+function parsePage(rawPage?: string) {
+  const parsed = Number(rawPage ?? "1");
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+  return Math.floor(parsed);
+}
+
 function normalizeDigits(input: string) {
   const devanagari = "०१२३४५६७८९";
   return input.replace(/[०-९]/g, (char) => String(devanagari.indexOf(char)));
@@ -237,6 +275,8 @@ export class SearchService {
   }
 
   async searchListings(query: Record<string, string | undefined>) {
+    const normalizedSort = normalizeSort(query.sort);
+
     if (this.database.isEnabled()) {
       const clauses: string[] = ["l.status = 'active'"];
       const params: unknown[] = [];
@@ -271,13 +311,42 @@ export class SearchService {
         clauses.push(`l.bhk = $${params.length}`);
       }
 
+      if (query.furnishing) {
+        params.push(query.furnishing);
+        clauses.push(`l.furnishing = $${params.length}::furnishing_type`);
+      }
+
       if (query.verified_only === "true") {
         clauses.push(`l.verification_status = 'verified'`);
       }
 
-      const page = Math.max(1, Number(query.page ?? "1"));
+      const page = parsePage(query.page);
       const pageSize = 20;
       const offset = (page - 1) * pageSize;
+      const orderBy =
+        normalizedSort === "rent_asc"
+          ? "l.monthly_rent ASC, l.created_at DESC"
+          : normalizedSort === "rent_desc"
+            ? "l.monthly_rent DESC, l.created_at DESC"
+            : normalizedSort === "verified"
+              ? `
+                CASE
+                  WHEN l.verification_status = 'verified' THEN 0
+                  WHEN l.verification_status = 'pending' THEN 1
+                  ELSE 2
+                END ASC,
+                l.created_at DESC
+              `
+              : normalizedSort === "newest"
+                ? "l.created_at DESC"
+                : `
+                  CASE
+                    WHEN l.verification_status = 'verified' THEN 0
+                    WHEN l.verification_status = 'pending' THEN 1
+                    ELSE 2
+                  END ASC,
+                  l.created_at DESC
+                `;
 
       const where = clauses.join(" AND ");
 
@@ -323,7 +392,7 @@ export class SearchService {
         JOIN cities c ON c.id = ll.city_id
         LEFT JOIN localities loc ON loc.id = ll.locality_id
         WHERE ${where}
-        ORDER BY l.created_at DESC
+        ORDER BY ${orderBy}
         LIMIT $${resultParams.length - 1}
         OFFSET $${resultParams.length}
         `,
@@ -363,13 +432,7 @@ export class SearchService {
         };
       });
 
-      if (query.sort === "price_asc") {
-        items.sort((a, b) => a.monthly_rent - b.monthly_rent);
-      } else if (query.sort === "price_desc") {
-        items.sort((a, b) => b.monthly_rent - a.monthly_rent);
-      } else if (query.sort === "newest") {
-        items.sort((a, b) => b.score - a.score);
-      } else {
+      if (normalizedSort === "relevance") {
         items.sort((a, b) => b.score - a.score);
       }
 
@@ -382,11 +445,15 @@ export class SearchService {
     }
 
     const now = Date.now();
+    const page = parsePage(query.page);
+    const pageSize = 20;
+    const offset = (page - 1) * pageSize;
     const items = [...this.appState.listings.values()]
       .filter((l) => l.status === "active")
       .filter((l) => (!query.city ? true : l.city === query.city))
       .filter((l) => (!query.locality ? true : l.locality === query.locality))
       .filter((l) => (!query.listing_type ? true : l.listingType === query.listing_type))
+      .filter((l) => (!query.furnishing ? true : l.furnishing === query.furnishing))
       .filter((l) => {
         if (!query.min_rent) {
           return true;
@@ -414,23 +481,122 @@ export class SearchService {
           listing_type: l.listingType,
           monthly_rent: l.monthlyRent,
           verification_status: l.verificationStatus,
-          score: Number(score.toFixed(4))
+          score: Number(score.toFixed(4)),
+          created_at: l.createdAt
         };
       });
 
-    if (query.sort === "price_asc") {
+    if (normalizedSort === "rent_asc") {
       items.sort((a, b) => a.monthly_rent - b.monthly_rent);
-    } else if (query.sort === "price_desc") {
+    } else if (normalizedSort === "rent_desc") {
       items.sort((a, b) => b.monthly_rent - a.monthly_rent);
+    } else if (normalizedSort === "newest") {
+      items.sort((a, b) => b.created_at - a.created_at);
+    } else if (normalizedSort === "verified") {
+      items.sort((a, b) => {
+        if (a.verification_status === b.verification_status) {
+          return b.score - a.score;
+        }
+        if (a.verification_status === "verified") {
+          return -1;
+        }
+        if (b.verification_status === "verified") {
+          return 1;
+        }
+        return b.score - a.score;
+      });
     } else {
       items.sort((a, b) => b.score - a.score);
     }
 
+    const pagedItems = items.slice(offset, offset + pageSize).map((item) => {
+      const { created_at, ...rest } = item;
+      return rest;
+    });
+
     return {
-      items,
+      items: pagedItems,
       total: items.length,
-      page: Number(query.page ?? "1"),
-      page_size: items.length || 10
+      page,
+      page_size: pageSize
+    };
+  }
+
+  async searchFiltersMetadata() {
+    if (this.database.isEnabled()) {
+      const cities = await this.database.query<{ slug: string }>(
+        `
+        SELECT slug
+        FROM cities
+        WHERE is_active = true
+        ORDER BY slug ASC
+        `
+      );
+
+      const localities = await this.database.query<{ slug: string }>(
+        `
+        SELECT DISTINCT loc.slug
+        FROM localities loc
+        JOIN listing_locations ll ON ll.locality_id = loc.id
+        JOIN listings l ON l.id = ll.listing_id
+        WHERE l.status = 'active'
+        ORDER BY loc.slug ASC
+        LIMIT 300
+        `
+      );
+
+      const rentRange = await this.database.query<{
+        min_rent: number | null;
+        max_rent: number | null;
+      }>(
+        `
+        SELECT min(monthly_rent)::int AS min_rent, max(monthly_rent)::int AS max_rent
+        FROM listings
+        WHERE status = 'active'
+        `
+      );
+
+      return {
+        cities: cities.rows.map((row) => row.slug),
+        localities: localities.rows.map((row) => row.slug),
+        listing_types: ["flat_house", "pg"],
+        furnishing_options: ["unfurnished", "semi_furnished", "fully_furnished"],
+        bhk_options: [1, 2, 3, 4, 5],
+        sort_options: SORT_OPTIONS,
+        ranges: {
+          rent_min: Number(rentRange.rows[0]?.min_rent ?? 0),
+          rent_max: Number(rentRange.rows[0]?.max_rent ?? 0)
+        },
+        defaults: {
+          sort: "relevance",
+          page_size: 20
+        }
+      };
+    }
+
+    const activeListings = [...this.appState.listings.values()].filter(
+      (listing) => listing.status === "active"
+    );
+    const rents = activeListings.map((listing) => listing.monthlyRent);
+    const localities = [
+      ...new Set(activeListings.map((listing) => listing.locality).filter(Boolean))
+    ].sort();
+
+    return {
+      cities: [...new Set(activeListings.map((listing) => listing.city))].sort(),
+      localities,
+      listing_types: ["flat_house", "pg"],
+      furnishing_options: ["unfurnished", "semi_furnished", "fully_furnished"],
+      bhk_options: [1, 2, 3, 4, 5],
+      sort_options: SORT_OPTIONS,
+      ranges: {
+        rent_min: rents.length ? Math.min(...rents) : 0,
+        rent_max: rents.length ? Math.max(...rents) : 0
+      },
+      defaults: {
+        sort: "relevance",
+        page_size: 20
+      }
     };
   }
 }

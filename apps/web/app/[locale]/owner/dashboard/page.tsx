@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { clearAuthSession, readAuthSession } from "../../../../lib/client-auth";
 import {
+  createSalesLead,
   type ListingStatus,
+  makeIdempotencyKey,
   type OwnerListingVm,
   listOwnerListings
 } from "../../../../lib/owner-api";
+import { trackEvent } from "../../../../lib/analytics";
 import { t, type Locale } from "../../../../lib/i18n";
 
 const STATUS_FILTERS: Array<{ value: ListingStatus | "all"; label: string }> = [
@@ -41,6 +44,8 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ListingStatus | "all">("all");
+  const [pmRequesting, setPmRequesting] = useState(false);
+  const [pmNotice, setPmNotice] = useState<string | null>(null);
 
   useEffect(() => {
     void loadListings();
@@ -71,6 +76,40 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
       setError(message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function requestPropertyManagementAssist() {
+    const session = readAuthSession();
+    if (!session?.access_token) {
+      setPmNotice(t(locale, "loginRequired"));
+      return;
+    }
+
+    setPmRequesting(true);
+    setPmNotice(null);
+    try {
+      await createSalesLead(session.access_token, {
+        source: "property_management",
+        notes: "Property management consultation requested from owner dashboard",
+        metadata: {
+          locale,
+          listing_count: listings.length
+        },
+        idempotencyKey: makeIdempotencyKey("pm-assist")
+      });
+      setPmNotice("Property management request submitted. Team will contact you.");
+      trackEvent("property_management_requested", {
+        listing_count: listings.length
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to request property management";
+      if (message.toLowerCase().includes("unauthorized")) {
+        clearAuthSession();
+      }
+      setPmNotice(message);
+    } finally {
+      setPmRequesting(false);
     }
   }
 
@@ -180,6 +219,30 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
             {t(locale, "verification")}
           </Link>
         </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 16 }}>
+        <div className="card-row">
+          <div>
+            <h3 style={{ margin: 0 }}>Need property management support?</h3>
+            <p className="muted-text">
+              Request a callback for managed onboarding, pricing guidance, and operations support.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-sm btn-sm--primary"
+            onClick={requestPropertyManagementAssist}
+            disabled={pmRequesting}
+          >
+            {pmRequesting ? "Requesting..." : "Request Callback"}
+          </button>
+        </div>
+        {pmNotice ? (
+          <p className="muted-text" role="status" style={{ marginTop: 8 }}>
+            {pmNotice}
+          </p>
+        ) : null}
       </div>
     </section>
   );

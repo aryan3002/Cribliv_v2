@@ -10,10 +10,10 @@ paths:
       summary: API and DB health
   /auth/otp/send:
     post:
-      summary: Send OTP
+      summary: Send OTP (mock returns dev_otp; provider mode sends SMS OTP)
   /auth/otp/verify:
     post:
-      summary: Verify OTP
+      summary: Verify OTP (mock code or provider-managed OTP)
   /auth/logout:
     post:
       summary: Logout
@@ -29,6 +29,9 @@ paths:
   /listings/search:
     get:
       summary: Listing search
+  /listings/search/filters-metadata:
+    get:
+      summary: Search filters metadata for chips/options
   /listings/{listing_id}:
     get:
       summary: Listing detail
@@ -51,7 +54,7 @@ paths:
       summary: Wallet transaction history
   /wallet/purchase-intents:
     post:
-      summary: Placeholder credit purchase intent
+      summary: Create idempotent credit purchase intent
   /owner/listings:
     get:
       summary: Owner listings
@@ -71,19 +74,22 @@ paths:
       summary: Submit listing for review
   /owner/verification/video:
     post:
-      summary: Submit video liveness verification
+      summary: Submit video liveness verification (returns provider evidence fields including retryable)
   /owner/verification/electricity:
     post:
-      summary: Submit electricity bill verification
+      summary: Submit electricity bill verification (returns provider evidence fields including retryable)
   /owner/verification/status:
     get:
-      summary: Verification status
+      summary: Verification status with attempt-level provider evidence and machine_result
   /owner/contact-unlocks/{unlock_id}/responded:
     post:
       summary: Mark owner response for refund logic
   /pg/segment:
     post:
       summary: PG segmentation by bed count
+  /sales/leads:
+    post:
+      summary: Create sales lead for PG assist/property management
   /admin/review/listings:
     get:
       summary: Listing review queue
@@ -92,16 +98,22 @@ paths:
       summary: Listing decision
   /admin/review/verifications:
     get:
-      summary: Verification queue
+      summary: Verification queue with provider evidence (provider, result_code, review_reason, retryable, machine_result)
   /admin/review/verifications/{attempt_id}/decision:
     post:
       summary: Verification decision
+  /admin/leads:
+    get:
+      summary: Admin sales lead queue
+  /admin/leads/{lead_id}/status:
+    post:
+      summary: Update sales lead status
   /admin/wallet/adjust:
     post:
       summary: Wallet adjustment
   /webhooks/razorpay:
     post:
-      summary: Razorpay webhook placeholder
+      summary: Razorpay webhook with signature verification and credit posting
   /webhooks/upi:
     post:
-      summary: UPI webhook placeholder
+      summary: UPI webhook with signature verification and credit posting

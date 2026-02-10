@@ -1,24 +1,28 @@
-import "dotenv/config";
-import fs from "fs";
-import path from "path";
-import { Client } from "pg";
+const fs = require("fs") as typeof import("fs");
+const path = require("path") as typeof import("path");
+const { createRequire } = require("module") as typeof import("module");
 
-interface City {
-  slug: string;
-  name_en: string;
-  name_hi: string;
-  state_en: string;
-  state_hi: string;
-}
+const seedDir = __dirname;
+const repoRoot = path.resolve(seedDir, "../..");
+const requireFromApi = createRequire(path.resolve(repoRoot, "apps/api/package.json"));
 
-interface Locality {
-  city_slug: string;
-  slug: string;
-  name_en: string;
-  name_hi: string;
-  pincode?: string;
-  lat?: number;
-  lng?: number;
+const dotenv = requireFromApi("dotenv");
+dotenv.config({ path: path.resolve(repoRoot, ".env") });
+
+const { Client } = requireFromApi("pg") as {
+  Client: new (input: { connectionString: string }) => any;
+};
+
+function normalizeLocalhostConnectionString(connectionString: string) {
+  try {
+    const parsed = new URL(connectionString);
+    if (parsed.hostname === "localhost") {
+      parsed.hostname = "127.0.0.1";
+    }
+    return parsed.toString();
+  } catch {
+    return connectionString;
+  }
 }
 
 async function seed() {
@@ -27,13 +31,29 @@ async function seed() {
     throw new Error("DATABASE_URL is required");
   }
 
-  const client = new Client({ connectionString: databaseUrl });
+  const resolvedDatabaseUrl = normalizeLocalhostConnectionString(databaseUrl);
+  const client = new Client({ connectionString: resolvedDatabaseUrl });
   await client.connect();
 
-  const cities = JSON.parse(fs.readFileSync(path.join(__dirname, "cities.json"), "utf8")) as City[];
+  const cities = JSON.parse(fs.readFileSync(path.join(seedDir, "cities.json"), "utf8")) as Array<{
+    slug: string;
+    name_en: string;
+    name_hi: string;
+    state_en: string;
+    state_hi: string;
+  }>;
+
   const localities = JSON.parse(
-    fs.readFileSync(path.join(__dirname, "localities.json"), "utf8")
-  ) as Locality[];
+    fs.readFileSync(path.join(seedDir, "localities.json"), "utf8")
+  ) as Array<{
+    city_slug: string;
+    slug: string;
+    name_en: string;
+    name_hi: string;
+    pincode?: string;
+    lat?: number;
+    lng?: number;
+  }>;
 
   for (const city of cities) {
     await client.query(
@@ -51,8 +71,10 @@ async function seed() {
     );
   }
 
-  const cityRows = await client.query<{ id: number; slug: string }>("SELECT id, slug FROM cities");
-  const cityBySlug = new Map(cityRows.rows.map((row) => [row.slug, row.id]));
+  const cityRows = await client.query("SELECT id, slug FROM cities");
+  const cityBySlug = new Map(
+    cityRows.rows.map((row: { id: number; slug: string }) => [row.slug, row.id])
+  );
 
   for (const locality of localities) {
     const cityId = cityBySlug.get(locality.city_slug);
