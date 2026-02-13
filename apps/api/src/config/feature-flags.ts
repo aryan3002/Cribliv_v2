@@ -13,6 +13,7 @@ export interface FeatureFlags {
   ff_admin_wallet_adjust: boolean;
   ff_real_verification_provider: boolean;
   ff_pg_sales_leads: boolean;
+  ff_owner_listing_assisted_capture: boolean;
   ff_production_db_only: boolean;
 }
 
@@ -31,6 +32,7 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_admin_wallet_adjust: true,
   ff_real_verification_provider: false,
   ff_pg_sales_leads: true,
+  ff_owner_listing_assisted_capture: false,
   ff_production_db_only: true
 };
 
@@ -106,6 +108,10 @@ export function readFeatureFlags(): FeatureFlags {
       defaultFeatureFlags.ff_real_verification_provider
     ),
     ff_pg_sales_leads: parseBooleanEnv("FF_PG_SALES_LEADS", defaultFeatureFlags.ff_pg_sales_leads),
+    ff_owner_listing_assisted_capture: parseBooleanEnv(
+      "FF_OWNER_LISTING_ASSISTED_CAPTURE",
+      defaultFeatureFlags.ff_owner_listing_assisted_capture
+    ),
     ff_production_db_only: parseBooleanEnv(
       "FF_PRODUCTION_DB_ONLY",
       defaultFeatureFlags.ff_production_db_only

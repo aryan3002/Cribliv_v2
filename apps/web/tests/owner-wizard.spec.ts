@@ -9,6 +9,7 @@ test.describe("Owner listing wizard happy path", () => {
 
   test("wizard navigates through all steps with validation", async ({ page }) => {
     await page.goto("/en/owner/listings/new");
+    await page.getByRole("button", { name: /fill manually/i }).click();
 
     /* Step indicator is visible */
     await expect(page.getByRole("navigation", { name: /wizard progress/i })).toBeVisible();
@@ -54,6 +55,7 @@ test.describe("Owner listing wizard happy path", () => {
 
   test("PG segmentation shows correct banner", async ({ page }) => {
     await page.goto("/en/owner/listings/new");
+    await page.getByRole("button", { name: /fill manually/i }).click();
 
     /* Select PG type */
     await page.getByLabel(/listing title/i).fill("PG in Gurugram");

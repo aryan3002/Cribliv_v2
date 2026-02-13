@@ -72,6 +72,9 @@ paths:
   /owner/listings/{listing_id}/submit:
     post:
       summary: Submit listing for review
+  /owner/listings/capture/extract:
+    post:
+      summary: Assisted listing capture (multipart audio -> transcript + draft suggestion + confirm fields)
   /owner/verification/video:
     post:
       summary: Submit video liveness verification (returns provider evidence fields including retryable)

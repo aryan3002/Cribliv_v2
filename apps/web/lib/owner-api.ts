@@ -54,6 +54,43 @@ export interface OwnerListingDraftInput {
   };
 }
 
+export type ConfidenceTier = "high" | "medium" | "low";
+
+export interface OwnerDraftPayloadSnakeCase {
+  listing_type?: "flat_house" | "pg";
+  title?: string;
+  description?: string;
+  rent?: number;
+  deposit?: number;
+  location?: {
+    city?: string;
+    locality?: string;
+    address_line1?: string;
+    masked_address?: string;
+  };
+  property_fields?: {
+    bhk?: number;
+    bathrooms?: number;
+    area_sqft?: number;
+    furnishing?: "unfurnished" | "semi_furnished" | "fully_furnished";
+  };
+  pg_fields?: {
+    total_beds?: number;
+    room_sharing_options?: string[];
+    food_included?: boolean;
+    attached_bathroom?: boolean;
+  };
+}
+
+export interface OwnerListingCaptureExtractResponse {
+  transcript_echo: string;
+  draft_suggestion: Partial<OwnerDraftPayloadSnakeCase>;
+  field_confidence_tier: Record<string, ConfidenceTier>;
+  confirm_fields: string[];
+  missing_required_fields: string[];
+  critical_warnings: string[];
+}
+
 export interface PresignedUpload {
   clientUploadId: string;
   uploadUrl: string;
@@ -290,6 +327,31 @@ export async function createSalesLead(
     listingId: response.listing_id,
     createdAt: response.created_at
   };
+}
+
+export async function extractOwnerListingFromAudio(
+  accessToken: string,
+  input: {
+    audio: Blob;
+    locale?: "hi-IN" | "en-IN";
+    listingTypeHint?: "flat_house" | "pg";
+    fileName?: string;
+  }
+) {
+  const formData = new FormData();
+  formData.append("audio", input.audio, input.fileName ?? "listing-capture.webm");
+  if (input.locale) {
+    formData.append("locale", input.locale);
+  }
+  if (input.listingTypeHint) {
+    formData.append("listing_type_hint", input.listingTypeHint);
+  }
+
+  return fetchApi<OwnerListingCaptureExtractResponse>("/owner/listings/capture/extract", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: formData
+  });
 }
 
 export async function presignListingPhotos(

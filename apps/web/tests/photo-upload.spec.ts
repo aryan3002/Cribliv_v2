@@ -9,6 +9,7 @@ test.describe("Photo upload flow", () => {
 
   test("photo upload zone is accessible and interactive", async ({ page }) => {
     await page.goto("/en/owner/listings/new");
+    await page.getByRole("button", { name: /fill manually/i }).click();
 
     /* Fill step 1 basics to get past validation */
     await page.getByLabel(/listing title/i).fill("Photo test listing");
@@ -37,6 +38,7 @@ test.describe("Photo upload flow", () => {
 
   test("duplicate upload shows appropriate error message", async ({ page }) => {
     await page.goto("/en/owner/listings/new");
+    await page.getByRole("button", { name: /fill manually/i }).click();
 
     /* Navigate to photos step */
     await page.getByLabel(/listing title/i).fill("Duplicate test");

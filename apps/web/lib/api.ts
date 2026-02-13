@@ -31,7 +31,8 @@ export async function fetchApi<T>(
 ): Promise<T> {
   const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
   const headers = new Headers(init.headers ?? {});
-  if (!headers.has("Content-Type") && init.body) {
+  const isFormDataBody = typeof FormData !== "undefined" && init.body instanceof FormData;
+  if (!headers.has("Content-Type") && init.body && !isFormDataBody) {
     headers.set("Content-Type", "application/json");
   }
 

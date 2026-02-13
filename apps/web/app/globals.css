@@ -472,6 +472,98 @@ body {
   margin-top: 24px;
 }
 
+.capture-entry {
+  display: grid;
+  gap: 12px;
+}
+
+.capture-recorder__timer {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 8px 0;
+}
+
+.capture-recorder__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.capture-confirmation h3,
+.capture-recorder h3 {
+  margin-top: 0;
+}
+
+.capture-section {
+  margin-top: 16px;
+}
+
+.capture-section h4 {
+  margin: 0 0 8px;
+}
+
+.capture-field-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.capture-field-card--missing {
+  border-style: dashed;
+}
+
+.capture-field-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.capture-field-card__value {
+  margin-top: 6px;
+  font-size: 16px;
+}
+
+.capture-field-card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.capture-field-card__edit {
+  margin-top: 8px;
+}
+
+.capture-tier {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.capture-tier--high {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.capture-tier--medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.capture-tier--low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.capture-transcript {
+  margin-top: 12px;
+}
+
 /* ── Upload zone ── */
 
 .upload-zone {

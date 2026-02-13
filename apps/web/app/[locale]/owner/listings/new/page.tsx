@@ -13,8 +13,11 @@ import {
   completeListingPhotos,
   createSalesLead,
   createOwnerListing,
+  extractOwnerListingFromAudio,
   listOwnerListings,
   makeIdempotencyKey,
+  type OwnerDraftPayloadSnakeCase,
+  type OwnerListingCaptureExtractResponse,
   presignListingPhotos,
   segmentPgPath,
   submitOwnerListing,
@@ -26,6 +29,20 @@ type ListingType = "flat_house" | "pg";
 type Furnishing = "" | "unfurnished" | "semi_furnished" | "fully_furnished";
 type SharingType = "" | "single" | "double" | "triple" | "quad";
 type PgPath = "self_serve" | "sales_assist" | null;
+type CaptureMode = "entry" | "voice_recording" | "assisted_confirmation" | "wizard";
+type RecorderState = "idle" | "recording" | "processing";
+
+interface CaptureFieldOption {
+  value: string;
+  label: string;
+}
+
+interface CaptureFieldDefinition {
+  path: string;
+  label: string;
+  type: "text" | "number" | "select" | "boolean";
+  options?: CaptureFieldOption[];
+}
 
 interface FormData {
   title: string;
@@ -125,6 +142,285 @@ const EMPTY_FORM: FormData = {
   meals_included: false
 };
 
+const CAPTURE_FIELD_DEFINITIONS: CaptureFieldDefinition[] = [
+  {
+    path: "listing_type",
+    label: "Property type",
+    type: "select",
+    options: [
+      { value: "flat_house", label: "Flat / House" },
+      { value: "pg", label: "PG / Hostel" }
+    ]
+  },
+  { path: "title", label: "Listing title", type: "text" },
+  { path: "description", label: "Description", type: "text" },
+  { path: "rent", label: "Monthly rent", type: "number" },
+  { path: "deposit", label: "Security deposit", type: "number" },
+  { path: "location.city", label: "City", type: "text" },
+  { path: "location.locality", label: "Locality", type: "text" },
+  { path: "location.address_line1", label: "Full address", type: "text" },
+  { path: "property_fields.bhk", label: "Bedrooms (BHK)", type: "number" },
+  { path: "property_fields.bathrooms", label: "Bathrooms", type: "number" },
+  { path: "property_fields.area_sqft", label: "Area (sq ft)", type: "number" },
+  {
+    path: "property_fields.furnishing",
+    label: "Furnishing",
+    type: "select",
+    options: [
+      { value: "unfurnished", label: "Unfurnished" },
+      { value: "semi_furnished", label: "Semi-Furnished" },
+      { value: "fully_furnished", label: "Fully Furnished" }
+    ]
+  },
+  { path: "pg_fields.total_beds", label: "Total beds", type: "number" },
+  {
+    path: "pg_fields.room_sharing_options",
+    label: "Sharing options",
+    type: "select",
+    options: [
+      { value: "single", label: "Single" },
+      { value: "double", label: "Double" },
+      { value: "triple", label: "Triple" },
+      { value: "quad", label: "Quad" }
+    ]
+  },
+  { path: "pg_fields.food_included", label: "Meals included", type: "boolean" }
+];
+
+function cloneCaptureDraft(
+  draft: Partial<OwnerDraftPayloadSnakeCase> | undefined
+): Partial<OwnerDraftPayloadSnakeCase> {
+  return draft ? (JSON.parse(JSON.stringify(draft)) as Partial<OwnerDraftPayloadSnakeCase>) : {};
+}
+
+function getCaptureFieldDefinition(path: string): CaptureFieldDefinition | undefined {
+  return CAPTURE_FIELD_DEFINITIONS.find((item) => item.path === path);
+}
+
+function getCaptureValue(draft: Partial<OwnerDraftPayloadSnakeCase> | null, path: string): unknown {
+  if (!draft) {
+    return undefined;
+  }
+  switch (path) {
+    case "listing_type":
+      return draft.listing_type;
+    case "title":
+      return draft.title;
+    case "description":
+      return draft.description;
+    case "rent":
+      return draft.rent;
+    case "deposit":
+      return draft.deposit;
+    case "location.city":
+      return draft.location?.city;
+    case "location.locality":
+      return draft.location?.locality;
+    case "location.address_line1":
+      return draft.location?.address_line1;
+    case "property_fields.bhk":
+      return draft.property_fields?.bhk;
+    case "property_fields.bathrooms":
+      return draft.property_fields?.bathrooms;
+    case "property_fields.area_sqft":
+      return draft.property_fields?.area_sqft;
+    case "property_fields.furnishing":
+      return draft.property_fields?.furnishing;
+    case "pg_fields.total_beds":
+      return draft.pg_fields?.total_beds;
+    case "pg_fields.room_sharing_options":
+      return draft.pg_fields?.room_sharing_options?.[0];
+    case "pg_fields.food_included":
+      return draft.pg_fields?.food_included;
+    default:
+      return undefined;
+  }
+}
+
+function hasCaptureValue(draft: Partial<OwnerDraftPayloadSnakeCase> | null, path: string): boolean {
+  const value = getCaptureValue(draft, path);
+  if (value == null) {
+    return false;
+  }
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  return true;
+}
+
+function setCaptureValue(
+  draft: Partial<OwnerDraftPayloadSnakeCase>,
+  path: string,
+  value: unknown
+): Partial<OwnerDraftPayloadSnakeCase> {
+  const next = cloneCaptureDraft(draft);
+  switch (path) {
+    case "listing_type":
+      next.listing_type = value === "pg" ? "pg" : "flat_house";
+      break;
+    case "title":
+      next.title = typeof value === "string" ? value : "";
+      break;
+    case "description":
+      next.description = typeof value === "string" ? value : "";
+      break;
+    case "rent":
+      next.rent = typeof value === "number" && Number.isFinite(value) ? value : undefined;
+      break;
+    case "deposit":
+      next.deposit = typeof value === "number" && Number.isFinite(value) ? value : undefined;
+      break;
+    case "location.city":
+      next.location = { ...(next.location ?? {}), city: typeof value === "string" ? value : "" };
+      break;
+    case "location.locality":
+      next.location = {
+        ...(next.location ?? {}),
+        locality: typeof value === "string" ? value : ""
+      };
+      break;
+    case "location.address_line1":
+      next.location = {
+        ...(next.location ?? {}),
+        address_line1: typeof value === "string" ? value : ""
+      };
+      break;
+    case "property_fields.bhk":
+      next.property_fields = {
+        ...(next.property_fields ?? {}),
+        bhk: typeof value === "number" && Number.isFinite(value) ? value : undefined
+      };
+      break;
+    case "property_fields.bathrooms":
+      next.property_fields = {
+        ...(next.property_fields ?? {}),
+        bathrooms: typeof value === "number" && Number.isFinite(value) ? value : undefined
+      };
+      break;
+    case "property_fields.area_sqft":
+      next.property_fields = {
+        ...(next.property_fields ?? {}),
+        area_sqft: typeof value === "number" && Number.isFinite(value) ? value : undefined
+      };
+      break;
+    case "property_fields.furnishing":
+      next.property_fields = {
+        ...(next.property_fields ?? {}),
+        furnishing:
+          value === "unfurnished" || value === "semi_furnished" || value === "fully_furnished"
+            ? value
+            : undefined
+      };
+      break;
+    case "pg_fields.total_beds":
+      next.pg_fields = {
+        ...(next.pg_fields ?? {}),
+        total_beds: typeof value === "number" && Number.isFinite(value) ? value : undefined
+      };
+      break;
+    case "pg_fields.room_sharing_options":
+      next.pg_fields = {
+        ...(next.pg_fields ?? {}),
+        room_sharing_options: typeof value === "string" && value ? [value] : undefined
+      };
+      break;
+    case "pg_fields.food_included":
+      next.pg_fields = {
+        ...(next.pg_fields ?? {}),
+        food_included: typeof value === "boolean" ? value : undefined
+      };
+      break;
+    default:
+      break;
+  }
+  return next;
+}
+
+function formatCaptureValue(path: string, value: unknown): string {
+  if (value == null || value === "") {
+    return "—";
+  }
+  if ((path === "rent" || path === "deposit") && typeof value === "number") {
+    return `₹${value.toLocaleString("en-IN")}`;
+  }
+  if (path === "listing_type" && typeof value === "string") {
+    return value === "pg" ? "PG / Hostel" : "Flat / House";
+  }
+  if (path === "property_fields.furnishing" && typeof value === "string") {
+    return value.replace(/_/g, " ");
+  }
+  if (path === "pg_fields.food_included" && typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (Array.isArray(value)) {
+    return value.join(", ");
+  }
+  return String(value);
+}
+
+function resolveWizardStepForForm(form: FormData): number {
+  if (!form.title.trim() || !form.monthly_rent.trim()) {
+    return 0;
+  }
+  if (!form.city.trim()) {
+    return 1;
+  }
+  return 2;
+}
+
+function applyCaptureDraftToForm(
+  previous: FormData,
+  draft: Partial<OwnerDraftPayloadSnakeCase>
+): FormData {
+  const next = { ...previous };
+  if (draft.title) {
+    next.title = draft.title;
+  }
+  if (draft.description) {
+    next.description = draft.description;
+  }
+  if (draft.listing_type) {
+    next.listing_type = draft.listing_type;
+  }
+  if (typeof draft.rent === "number" && Number.isFinite(draft.rent)) {
+    next.monthly_rent = String(draft.rent);
+  }
+  if (typeof draft.deposit === "number" && Number.isFinite(draft.deposit)) {
+    next.deposit = String(draft.deposit);
+  }
+  if (draft.location?.city) {
+    next.city = draft.location.city;
+  }
+  if (draft.location?.locality) {
+    next.locality = draft.location.locality;
+  }
+  if (draft.location?.address_line1) {
+    next.address = draft.location.address_line1;
+  }
+  if (typeof draft.property_fields?.bhk === "number") {
+    next.bedrooms = String(draft.property_fields.bhk);
+  }
+  if (typeof draft.property_fields?.bathrooms === "number") {
+    next.bathrooms = String(draft.property_fields.bathrooms);
+  }
+  if (typeof draft.property_fields?.area_sqft === "number") {
+    next.area_sqft = String(draft.property_fields.area_sqft);
+  }
+  if (draft.property_fields?.furnishing) {
+    next.furnishing = draft.property_fields.furnishing;
+  }
+  if (typeof draft.pg_fields?.total_beds === "number") {
+    next.beds = String(draft.pg_fields.total_beds);
+  }
+  if (draft.pg_fields?.room_sharing_options?.[0]) {
+    next.sharing_type = draft.pg_fields.room_sharing_options[0] as SharingType;
+  }
+  if (typeof draft.pg_fields?.food_included === "boolean") {
+    next.meals_included = draft.pg_fields.food_included;
+  }
+  return next;
+}
+
 function generateClientUploadId(file: File): string {
   return `${file.name}-${file.size}`;
 }
@@ -158,6 +454,23 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
   const [uploads, setUploads] = useState<UploadFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(editId ? "wizard" : "entry");
+  const [recorderState, setRecorderState] = useState<RecorderState>("idle");
+  const [captureSeconds, setCaptureSeconds] = useState(0);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [captureResult, setCaptureResult] = useState<OwnerListingCaptureExtractResponse | null>(
+    null
+  );
+  const [captureDraft, setCaptureDraft] = useState<Partial<OwnerDraftPayloadSnakeCase> | null>(
+    null
+  );
+  const [confirmedCaptureFields, setConfirmedCaptureFields] = useState<Record<string, boolean>>({});
+  const [editingCaptureField, setEditingCaptureField] = useState<string | null>(null);
+  const [editingCaptureValue, setEditingCaptureValue] = useState<string>("");
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recorderStreamRef = useRef<MediaStream | null>(null);
+  const recorderChunksRef = useRef<Blob[]>([]);
+  const recorderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY);
@@ -229,6 +542,209 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       }
     })();
   }, [editId]);
+
+  useEffect(() => {
+    return () => {
+      if (recorderTimerRef.current) {
+        clearInterval(recorderTimerRef.current);
+      }
+      recorderRef.current?.stop();
+      recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  function clearRecorderTimer() {
+    if (recorderTimerRef.current) {
+      clearInterval(recorderTimerRef.current);
+      recorderTimerRef.current = null;
+    }
+  }
+
+  function stopRecorderStream() {
+    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recorderStreamRef.current = null;
+  }
+
+  function enterManualWizard(reason?: string) {
+    if (reason) {
+      trackEvent("owner_listing_manual_fallback", { reason });
+    }
+    setCaptureMode("wizard");
+    setRecorderState("idle");
+    setCaptureError(null);
+  }
+
+  async function processCapturedAudio(audioBlob: Blob) {
+    const token = getAccessToken();
+    if (!token) {
+      setCaptureError("Login required to use assisted capture. Continue with manual form.");
+      trackEvent("owner_listing_capture_abandoned", { stage: "extraction", fields_filled: 0 });
+      return;
+    }
+
+    setRecorderState("processing");
+    setCaptureError(null);
+    try {
+      const result = await extractOwnerListingFromAudio(token, {
+        audio: audioBlob,
+        locale: locale === "hi" ? "hi-IN" : "en-IN",
+        listingTypeHint: form.listing_type
+      });
+      setCaptureResult(result);
+      setCaptureDraft(cloneCaptureDraft(result.draft_suggestion));
+      setConfirmedCaptureFields({});
+      setEditingCaptureField(null);
+      setCaptureMode("assisted_confirmation");
+      setRecorderState("idle");
+      trackEvent("owner_listing_extraction_completed", {
+        field_count: Object.keys(result.field_confidence_tier ?? {}).length,
+        confirm_count: result.confirm_fields.length,
+        missing_required: result.missing_required_fields.length
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to process voice capture";
+      setCaptureError(message);
+      setRecorderState("idle");
+      trackEvent("owner_listing_capture_abandoned", { stage: "extraction", fields_filled: 0 });
+    }
+  }
+
+  async function startVoiceCapture() {
+    if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
+      setCaptureError("Voice capture is not supported in this browser.");
+      enterManualWizard("browser_unsupported");
+      return;
+    }
+
+    setCaptureError(null);
+    setCaptureSeconds(0);
+    setRecorderState("recording");
+    setCaptureMode("voice_recording");
+    trackEvent("owner_listing_capture_started", { method: "voice" });
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorderStreamRef.current = stream;
+      recorderChunksRef.current = [];
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : undefined;
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      recorderRef.current = recorder;
+
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          recorderChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        clearRecorderTimer();
+        const audioBlob = new Blob(recorderChunksRef.current, {
+          type: recorder.mimeType || "audio/webm"
+        });
+        stopRecorderStream();
+        recorderRef.current = null;
+        void processCapturedAudio(audioBlob);
+      };
+
+      recorder.start(250);
+      recorderTimerRef.current = setInterval(() => {
+        setCaptureSeconds((previous) => {
+          const next = previous + 1;
+          if (next >= 60) {
+            recorderRef.current?.stop();
+            return 60;
+          }
+          return next;
+        });
+      }, 1000);
+    } catch (err) {
+      clearRecorderTimer();
+      stopRecorderStream();
+      recorderRef.current = null;
+      setRecorderState("idle");
+      setCaptureMode("entry");
+      setCaptureError(
+        err instanceof Error ? err.message : "Microphone permission denied. Continue manually."
+      );
+      trackEvent("owner_listing_manual_fallback", { reason: "permission_denied" });
+    }
+  }
+
+  function stopVoiceCapture() {
+    if (recorderState !== "recording") {
+      return;
+    }
+    clearRecorderTimer();
+    recorderRef.current?.stop();
+    trackEvent("owner_listing_recording_completed", { duration_sec: captureSeconds });
+  }
+
+  function startEditingCapture(path: string) {
+    const value = getCaptureValue(captureDraft, path);
+    if (typeof value === "boolean") {
+      setEditingCaptureValue(value ? "true" : "false");
+    } else if (value == null) {
+      setEditingCaptureValue("");
+    } else {
+      setEditingCaptureValue(String(value));
+    }
+    setEditingCaptureField(path);
+  }
+
+  function saveEditedCapture(path: string) {
+    const definition = getCaptureFieldDefinition(path);
+    if (!definition || !captureDraft) {
+      return;
+    }
+
+    let nextValue: unknown = editingCaptureValue;
+    if (definition.type === "number") {
+      const parsed = Number(editingCaptureValue);
+      nextValue = Number.isFinite(parsed) ? parsed : undefined;
+    } else if (definition.type === "boolean") {
+      nextValue = editingCaptureValue === "true";
+    }
+
+    const previousValue = getCaptureValue(captureDraft, path);
+    const nextDraft = setCaptureValue(captureDraft, path, nextValue);
+    setCaptureDraft(nextDraft);
+    setConfirmedCaptureFields((previous) => ({ ...previous, [path]: true }));
+    setEditingCaptureField(null);
+    trackEvent("owner_listing_field_edited", {
+      field: path,
+      original_value: previousValue ?? null,
+      new_value: nextValue ?? null
+    });
+    trackEvent("owner_listing_field_confirmed", { field: path, was_edited: true });
+  }
+
+  function confirmCaptureField(path: string) {
+    setConfirmedCaptureFields((previous) => ({ ...previous, [path]: true }));
+    trackEvent("owner_listing_field_confirmed", { field: path, was_edited: false });
+  }
+
+  function continueFromCapture() {
+    if (!captureDraft || !captureResult) {
+      return;
+    }
+
+    const updatedForm = applyCaptureDraftToForm(form, captureDraft);
+    setForm(updatedForm);
+    setStep(resolveWizardStepForForm(updatedForm));
+    setCaptureMode("wizard");
+    trackEvent("owner_listing_capture_completed", {
+      total_time_sec: captureSeconds,
+      edit_count: Object.values(confirmedCaptureFields).length,
+      field_fill_rate: Object.keys(captureResult.field_confidence_tier ?? {}).length
+    });
+  }
 
   function updateField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((previous) => ({ ...previous, [key]: value }));
@@ -564,6 +1080,285 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         return true;
     }
   }, [form.city, form.monthly_rent, form.title, step]);
+
+  const captureVisiblePaths = useMemo(() => {
+    if (!captureDraft) {
+      return [];
+    }
+    return CAPTURE_FIELD_DEFINITIONS.map((definition) => definition.path).filter((path) =>
+      hasCaptureValue(captureDraft, path)
+    );
+  }, [captureDraft]);
+
+  const autoFilledPaths = useMemo(() => {
+    if (!captureResult) {
+      return [];
+    }
+    return captureVisiblePaths.filter((path) => {
+      if (captureResult.confirm_fields.includes(path)) {
+        return false;
+      }
+      return captureResult.field_confidence_tier[path] === "high";
+    });
+  }, [captureResult, captureVisiblePaths]);
+
+  const confirmPaths = useMemo(() => {
+    if (!captureResult || !captureDraft) {
+      return [];
+    }
+    return captureResult.confirm_fields.filter((path) => hasCaptureValue(captureDraft, path));
+  }, [captureDraft, captureResult]);
+
+  const missingPaths = useMemo(() => {
+    if (!captureResult) {
+      return [];
+    }
+    return captureResult.missing_required_fields;
+  }, [captureResult]);
+
+  const unresolvedConfirmations = useMemo(() => {
+    if (!captureDraft) {
+      return [];
+    }
+    return confirmPaths.filter(
+      (path) => hasCaptureValue(captureDraft, path) && !confirmedCaptureFields[path]
+    );
+  }, [captureDraft, confirmPaths, confirmedCaptureFields]);
+
+  const unresolvedRequired = useMemo(() => {
+    if (!captureDraft) {
+      return [];
+    }
+    return missingPaths.filter((path) => !hasCaptureValue(captureDraft, path));
+  }, [captureDraft, missingPaths]);
+
+  const canContinueFromCapture =
+    captureMode === "assisted_confirmation" &&
+    unresolvedConfirmations.length === 0 &&
+    unresolvedRequired.length === 0;
+
+  function renderCaptureField(path: string, requireConfirmation: boolean) {
+    const definition = getCaptureFieldDefinition(path);
+    if (!definition || !captureDraft) {
+      return null;
+    }
+    const value = getCaptureValue(captureDraft, path);
+    const tier = captureResult?.field_confidence_tier[path] ?? "medium";
+    const isEditing = editingCaptureField === path;
+
+    return (
+      <div key={path} className="capture-field-card">
+        <div className="capture-field-card__head">
+          <span>{definition.label}</span>
+          <span className={`capture-tier capture-tier--${tier}`}>{tier}</span>
+        </div>
+
+        {isEditing ? (
+          <div className="capture-field-card__edit">
+            {definition.type === "select" ? (
+              <select
+                className="form-select"
+                value={editingCaptureValue}
+                onChange={(event) => setEditingCaptureValue(event.target.value)}
+              >
+                <option value="">Select...</option>
+                {definition.options?.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : definition.type === "boolean" ? (
+              <select
+                className="form-select"
+                value={editingCaptureValue}
+                onChange={(event) => setEditingCaptureValue(event.target.value)}
+              >
+                <option value="">Select...</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </select>
+            ) : (
+              <input
+                className="form-input"
+                type={definition.type === "number" ? "number" : "text"}
+                value={editingCaptureValue}
+                onChange={(event) => setEditingCaptureValue(event.target.value)}
+              />
+            )}
+
+            <div className="capture-field-card__actions">
+              <button
+                type="button"
+                className="btn-sm btn-sm--primary"
+                onClick={() => saveEditedCapture(path)}
+              >
+                Save
+              </button>
+              <button type="button" className="btn-sm" onClick={() => setEditingCaptureField(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="capture-field-card__value">{formatCaptureValue(path, value)}</div>
+            <div className="capture-field-card__actions">
+              {requireConfirmation ? (
+                <button
+                  type="button"
+                  className="btn-sm btn-sm--primary"
+                  onClick={() => confirmCaptureField(path)}
+                  disabled={Boolean(confirmedCaptureFields[path])}
+                >
+                  {confirmedCaptureFields[path] ? "Confirmed" : "Confirm"}
+                </button>
+              ) : null}
+              <button type="button" className="btn-sm" onClick={() => startEditingCapture(path)}>
+                Edit
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function renderCaptureEntry() {
+    return (
+      <div className="panel capture-entry">
+        <p className="trust-strip" style={{ marginBottom: 16 }}>
+          Nothing is published until you submit.
+        </p>
+        <button type="button" className="primary" onClick={startVoiceCapture}>
+          Describe Property
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => enterManualWizard("user_preference")}
+        >
+          Fill Manually
+        </button>
+        {captureError ? <p className="error-text">{captureError}</p> : null}
+      </div>
+    );
+  }
+
+  function renderVoiceRecorder() {
+    return (
+      <div className="panel capture-recorder">
+        <h3>Voice recording</h3>
+        <p className="muted-text">
+          Speak naturally for up to 60 seconds. We will prefill your listing draft.
+        </p>
+        <p className="capture-recorder__timer">
+          {String(Math.floor(captureSeconds / 60)).padStart(2, "0")}:
+          {String(captureSeconds % 60).padStart(2, "0")} / 01:00
+        </p>
+        <div className="capture-recorder__actions">
+          <button
+            type="button"
+            className="primary"
+            onClick={stopVoiceCapture}
+            disabled={recorderState !== "recording"}
+          >
+            Stop & Continue
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => enterManualWizard("user_cancelled")}
+          >
+            Fill Manually
+          </button>
+        </div>
+        {recorderState === "processing" ? (
+          <p className="muted-text">Processing recording...</p>
+        ) : null}
+        {captureError ? <p className="error-text">{captureError}</p> : null}
+      </div>
+    );
+  }
+
+  function renderAssistedConfirmation() {
+    return (
+      <div className="panel capture-confirmation">
+        <h3>Assisted Draft</h3>
+        <p className="muted-text">
+          We filled {captureVisiblePaths.length} fields from your voice input.
+        </p>
+
+        {autoFilledPaths.length > 0 ? (
+          <div className="capture-section">
+            <h4>Auto-filled</h4>
+            {autoFilledPaths.map((path) => renderCaptureField(path, false))}
+          </div>
+        ) : null}
+
+        {confirmPaths.length > 0 ? (
+          <div className="capture-section">
+            <h4>Please confirm</h4>
+            {confirmPaths.map((path) => renderCaptureField(path, true))}
+          </div>
+        ) : null}
+
+        {missingPaths.length > 0 ? (
+          <div className="capture-section">
+            <h4>Missing required fields</h4>
+            {missingPaths.map((path) => {
+              const definition = getCaptureFieldDefinition(path);
+              if (!definition) {
+                return null;
+              }
+              return (
+                <div key={path} className="capture-field-card capture-field-card--missing">
+                  <div className="capture-field-card__head">
+                    <span>{definition.label}</span>
+                    <span className="capture-tier capture-tier--low">required</span>
+                  </div>
+                  <div className="capture-field-card__actions">
+                    <button
+                      type="button"
+                      className="btn-sm"
+                      onClick={() => startEditingCapture(path)}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {captureResult?.critical_warnings.length ? (
+          <div className="panel warning-box" role="alert">
+            {captureResult.critical_warnings[0]}
+          </div>
+        ) : null}
+
+        <details className="capture-transcript">
+          <summary>What you said</summary>
+          <p>{captureResult?.transcript_echo ?? "No transcript available."}</p>
+        </details>
+
+        <div className="wizard-nav">
+          <button type="button" className="secondary" onClick={() => setCaptureMode("entry")}>
+            Re-record
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={continueFromCapture}
+            disabled={!canContinueFromCapture}
+          >
+            Continue to Form
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   function renderStepIndicator() {
     return (
@@ -1045,8 +1840,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     <section className="hero">
       <h1>{editId ? t(locale, "editListing") : t(locale, "createListing")}</h1>
 
-      {renderStepIndicator()}
-
       {error ? (
         <div className="panel warning-box" role="alert">
           {error}
@@ -1069,34 +1862,44 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </div>
       ) : null}
 
-      <div className="panel">
-        {step === 0 ? renderBasics() : null}
-        {step === 1 ? renderLocation() : null}
-        {step === 2 ? renderDetails() : null}
-        {step === 3 ? renderPhotos() : null}
-        {step === 4 ? renderReview() : null}
-      </div>
+      {captureMode === "entry" ? renderCaptureEntry() : null}
+      {captureMode === "voice_recording" ? renderVoiceRecorder() : null}
+      {captureMode === "assisted_confirmation" ? renderAssistedConfirmation() : null}
 
-      <div className="wizard-nav">
-        <button type="button" className="secondary" onClick={goBack} disabled={step === 0}>
-          {t(locale, "back")}
-        </button>
+      {captureMode === "wizard" ? (
+        <>
+          {renderStepIndicator()}
 
-        {step < 4 ? (
-          <button
-            type="button"
-            className="primary"
-            onClick={goNext}
-            disabled={saving || !canProceed}
-          >
-            {saving ? "Saving..." : t(locale, "next")}
-          </button>
-        ) : (
-          <button type="button" className="primary" onClick={submitListing} disabled={saving}>
-            {saving ? "Submitting..." : t(locale, "submitForReview")}
-          </button>
-        )}
-      </div>
+          <div className="panel">
+            {step === 0 ? renderBasics() : null}
+            {step === 1 ? renderLocation() : null}
+            {step === 2 ? renderDetails() : null}
+            {step === 3 ? renderPhotos() : null}
+            {step === 4 ? renderReview() : null}
+          </div>
+
+          <div className="wizard-nav">
+            <button type="button" className="secondary" onClick={goBack} disabled={step === 0}>
+              {t(locale, "back")}
+            </button>
+
+            {step < 4 ? (
+              <button
+                type="button"
+                className="primary"
+                onClick={goNext}
+                disabled={saving || !canProceed}
+              >
+                {saving ? "Saving..." : t(locale, "next")}
+              </button>
+            ) : (
+              <button type="button" className="primary" onClick={submitListing} disabled={saving}>
+                {saving ? "Submitting..." : t(locale, "submitForReview")}
+              </button>
+            )}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
