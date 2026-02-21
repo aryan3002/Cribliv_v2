@@ -4,6 +4,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   UnauthorizedException
 } from "@nestjs/common";
 import { randomInt, randomUUID } from "crypto";
@@ -16,6 +17,8 @@ const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
@@ -389,7 +392,153 @@ export class AuthService {
     };
   }
 
-  private sendOtpInMemory(phone_e164: string, purpose: string) {
+  async refreshToken(refresh_token: string) {
+    if (!refresh_token) {
+      throw new BadRequestException({ code: "invalid_token", message: "Refresh token required" });
+    }
+
+    if (this.database.isEnabled()) {
+      const token = refresh_token.startsWith("ref_") ? refresh_token.slice(4) : refresh_token;
+      const result = await this.database.query<{
+        session_id: string;
+        user_id: string;
+        role: string;
+      }>(
+        `
+        SELECT s.id::text AS session_id, s.user_id::text, u.role::text
+        FROM sessions s
+        JOIN users u ON u.id = s.user_id
+        WHERE s.refresh_token_hash = $1
+          AND s.revoked_at IS NULL
+          AND s.expires_at > now()
+        LIMIT 1
+        `,
+        [token]
+      );
+
+      if (!result.rowCount || !result.rows[0]) {
+        throw new UnauthorizedException({
+          code: "invalid_token",
+          message: "Invalid or expired refresh token"
+        });
+      }
+
+      const client = await this.database.getClient();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `UPDATE sessions SET revoked_at = now(), updated_at = now() WHERE refresh_token_hash = $1`,
+          [token]
+        );
+        const newToken = randomUUID();
+        const inserted = await client.query<{ id: string }>(
+          `INSERT INTO sessions(user_id, refresh_token_hash, expires_at)
+           VALUES ($1::uuid, $2, now() + interval '30 days')
+           RETURNING id::text`,
+          [result.rows[0].user_id, newToken]
+        );
+        await client.query("COMMIT");
+        return {
+          access_token: `acc_${inserted.rows[0].id}`,
+          refresh_token: `ref_${newToken}`
+        };
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
+    }
+
+    // In-memory path
+    const rotated = this.appState.rotateSession(refresh_token);
+    if (!rotated) {
+      throw new UnauthorizedException({
+        code: "invalid_token",
+        message: "Invalid or expired refresh token"
+      });
+    }
+    return { access_token: rotated.accessToken, refresh_token: rotated.refreshToken };
+  }
+
+  // ── Role upgrade request ─────────────────────────────────────────────────
+
+  async requestRoleUpgrade(userId: string, requestedRole: "owner" | "pg_operator") {
+    // ── Fetch user — works for both in-memory and DB users ─────────────────
+    const user = this.appState.users.get(userId);
+    if (!user) {
+      throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+    }
+
+    // Idempotent: if user already has the requested role, return success
+    if (user.role === requestedRole) {
+      return {
+        request_id: null,
+        status: "already_granted",
+        requested_role: requestedRole,
+        role: user.role
+      };
+    }
+
+    // Non-tenants with a different role (e.g. admin) should not downgrade
+    if (user.role !== "tenant" && user.role !== requestedRole) {
+      throw new BadRequestException({
+        code: "already_has_role",
+        message: `User already has role '${user.role}' — contact admin to change`
+      });
+    }
+
+    // ── IN-MEMORY (dev) MODE: grant role immediately ──────────────────────
+    // No admin approval needed in local development — improves DX.
+    if (!this.database.isEnabled()) {
+      this.appState.setUserRole(userId, requestedRole);
+      this.logger.log(
+        `[RoleUpgrade] IMMEDIATE GRANT user=${userId} role=${requestedRole} (in-memory mode)`
+      );
+      return {
+        request_id: null,
+        status: "granted",
+        requested_role: requestedRole,
+        role: requestedRole
+      };
+    }
+
+    // ── DB MODE: create a pending request for admin approval ─────────────
+    const existing = this.appState.getPendingRoleRequest(userId);
+    if (existing) {
+      throw new BadRequestException({
+        code: "request_already_pending",
+        message: "A role upgrade request is already pending for this account"
+      });
+    }
+
+    const req = this.appState.createRoleRequest(userId, requestedRole);
+    this.logger.log(
+      `[RoleRequest] user=${userId} requested role=${requestedRole} requestId=${req.id}`
+    );
+
+    try {
+      await this.database.query(
+        `
+        INSERT INTO role_requests(id, user_id, requested_role, status, created_at)
+        VALUES ($1::uuid, $2::uuid, $3, 'pending', now())
+        ON CONFLICT (user_id) WHERE status = 'pending' DO NOTHING
+        `,
+        [req.id, userId, requestedRole]
+      );
+    } catch {
+      // role_requests table may not exist in older migrations — in-memory fallback is fine
+    }
+
+    return {
+      request_id: req.id,
+      status: "pending",
+      requested_role: requestedRole,
+      role: user.role
+    };
+  }
+
+  private async sendOtpInMemory(phone_e164: string, purpose: string) {
     const existing = [...this.appState.challenges.values()].filter((c) => c.phone === phone_e164);
     const recentCount = existing.filter(
       (c) => Date.now() - (c.expiresAt - 5 * 60_000) < 10 * 60_000
@@ -405,6 +554,8 @@ export class AuthService {
       );
     }
 
+    // Mock OTP — always used in local dev (OTP_PROVIDER=mock).
+    // To use real SMS: set OTP_PROVIDER=d7 in apps/api/.env (see D7_SETUP.md).
     const otp = String(randomInt(100000, 999999));
     const id = randomUUID();
     this.appState.challenges.set(id, {
@@ -416,15 +567,20 @@ export class AuthService {
       expiresAt: Date.now() + 5 * 60_000
     });
 
+    // Always log at INFO level so the OTP is visible in the terminal console
+    this.logger.log(`\n╔══════════════════════════════════════╗
+║   [DEV] MOCK OTP for ${phone_e164}   ║
+║   Code: ${otp}                           ║
+╚══════════════════════════════════════╝`);
     return {
       challenge_id: id,
       expires_in_sec: 300,
       retry_after_sec: 30,
-      dev_otp: otp
+      dev_otp: otp // returned to client so login page can auto-fill
     };
   }
 
-  private verifyOtpInMemory(challenge_id: string, otp_code: string) {
+  private async verifyOtpInMemory(challenge_id: string, otp_code: string) {
     const challenge = this.appState.challenges.get(challenge_id);
     if (!challenge) {
       throw new UnauthorizedException({ code: "invalid_otp", message: "Invalid OTP" });

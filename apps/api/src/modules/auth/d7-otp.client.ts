@@ -46,6 +46,7 @@ export class D7OtpClient {
         },
         config
       );
+      console.log("D7 sendOtp response:", response); // Debug log
     } catch {
       throw new HttpException(
         {

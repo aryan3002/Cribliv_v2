@@ -2,11 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  clearAuthSession,
-  readAuthSession,
-  type StoredAuthSession
-} from "../../../../../lib/client-auth";
+import { useSession, signOut } from "next-auth/react";
 import { trackEvent } from "../../../../../lib/analytics";
 import { t, type Locale } from "../../../../../lib/i18n";
 import {
@@ -425,20 +421,11 @@ function generateClientUploadId(file: File): string {
   return `${file.name}-${file.size}`;
 }
 
-function getSession() {
-  return readAuthSession();
-}
-
-function getAccessToken() {
-  return getSession()?.access_token ?? null;
-}
-
-function getRole(session: StoredAuthSession | null) {
-  return session?.user?.role;
-}
-
 export default function OwnerListingWizardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
+  const { data: nextAuthSession } = useSession();
+  const accessToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
+  const userRole = (nextAuthSession?.user as { role?: string } | undefined)?.role ?? null;
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -514,7 +501,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       return;
     }
 
-    const token = getAccessToken();
+    const token = accessToken;
     if (!token) {
       setAuthHint("Login required to edit and submit this listing.");
       return;
@@ -575,7 +562,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   }
 
   async function processCapturedAudio(audioBlob: Blob) {
-    const token = getAccessToken();
+    const token = accessToken;
     if (!token) {
       setCaptureError("Login required to use assisted capture. Continue with manual form.");
       trackEvent("owner_listing_capture_abandoned", { stage: "extraction", fields_filled: 0 });
@@ -807,9 +794,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       return;
     }
 
-    const session = getSession();
-    const token = session?.access_token;
-    if (!token || getRole(session) !== "pg_operator") {
+    const token = accessToken;
+    if (!token || userRole !== "pg_operator") {
       setPgPath(beds <= 29 ? "self_serve" : "sales_assist");
       return;
     }
@@ -825,7 +811,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   }, [form.beds, form.listing_type]);
 
   async function saveDraft(): Promise<string | null> {
-    const token = getAccessToken();
+    const token = accessToken;
     if (!token) {
       setAuthHint("Login required to save draft to server. You can continue filling the form.");
       return null;
@@ -850,7 +836,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save listing";
       if (message.toLowerCase().includes("unauthorized")) {
-        clearAuthSession();
+        void signOut({ redirect: false });
       }
       setError(message);
       return null;
@@ -860,7 +846,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   }
 
   async function submitListing() {
-    const token = getAccessToken();
+    const token = accessToken;
     if (!token) {
       setError(t(locale, "loginRequired"));
       return;
@@ -910,7 +896,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to submit listing";
       if (message.toLowerCase().includes("unauthorized")) {
-        clearAuthSession();
+        void signOut({ redirect: false });
       }
       setError(message);
     } finally {
@@ -925,7 +911,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
     setAuthHint(null);
 
-    const token = getAccessToken();
+    const token = accessToken;
     if (token) {
       if (step === 1 && !listingId) {
         const savedId = await saveDraft();
@@ -975,7 +961,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   }
 
   async function uploadFile(upload: UploadFile) {
-    const token = getAccessToken();
+    const token = accessToken;
     if (!token || !listingId) {
       setError("Login and save draft before uploading photos.");
       return;

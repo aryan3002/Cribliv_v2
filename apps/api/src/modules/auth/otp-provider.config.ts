@@ -24,7 +24,7 @@ export type OtpProviderConfig = D7OtpProviderConfig | MockOtpProviderConfig;
 const DEFAULT_D7_BASE_URL = "https://api.d7networks.com";
 const DEFAULT_D7_TEMPLATE = "Greetings from CribLiv, your mobile verification code is: {}";
 const DEFAULT_D7_EXPIRY_SEC = 300;
-const DEFAULT_ORIGINATOR = "CRIBLV";
+const DEFAULT_ORIGINATOR = "CribLiv";
 
 function parseOtpProvider(raw: string | undefined): OtpProvider {
   if (!raw) {

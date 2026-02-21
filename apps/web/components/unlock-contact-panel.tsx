@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import {
   clearAuthSession,
   readAuthSession,
@@ -75,6 +76,8 @@ function createClientKey() {
 }
 
 export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
+  // NextAuth session — used as auth source when localStorage token is absent
+  const { data: nextAuthSession } = useSession();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [phone, setPhone] = useState("+91");
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -96,12 +99,15 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
   const [purchaseStartedAt, setPurchaseStartedAt] = useState<number>(0);
 
   useEffect(() => {
-    const session = readAuthSession();
-    setAccessToken(session?.access_token ?? null);
-    if (!session) {
+    // Prefer localStorage (legacy in-panel OTP login), fall back to NextAuth session token
+    const stored = readAuthSession();
+    const nextAuthToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
+    const token = stored?.access_token ?? nextAuthToken;
+    setAccessToken(token);
+    if (!token) {
       setShortlisted(readGuestShortlist().includes(listingId));
     }
-  }, [listingId]);
+  }, [listingId, nextAuthSession]);
 
   useEffect(() => {
     if (!accessToken) {

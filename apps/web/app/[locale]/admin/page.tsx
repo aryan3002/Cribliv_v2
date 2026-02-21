@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { clearAuthSession, readAuthSession } from "../../../lib/client-auth";
+import { useSession, signOut } from "next-auth/react";
 import { trackEvent } from "../../../lib/analytics";
 import {
   decideAdminListing,
@@ -23,6 +23,8 @@ type ActiveTab = "listings" | "verifications" | "leads";
 
 export default function AdminDashboardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
+  const { data: nextAuthSession } = useSession();
+  const accessToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("listings");
 
@@ -54,7 +56,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   }, []);
 
   function getToken() {
-    return readAuthSession()?.access_token ?? null;
+    return accessToken;
   }
 
   async function loadListings() {
@@ -74,7 +76,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load listings";
       if (message.toLowerCase().includes("unauthorized")) {
-        clearAuthSession();
+        void signOut({ redirect: false });
       }
       setListingsError(message);
     } finally {
@@ -99,7 +101,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load verifications";
       if (message.toLowerCase().includes("unauthorized")) {
-        clearAuthSession();
+        void signOut({ redirect: false });
       }
       setVerificationsError(message);
     } finally {
@@ -124,7 +126,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load leads";
       if (message.toLowerCase().includes("unauthorized")) {
-        clearAuthSession();
+        void signOut({ redirect: false });
       }
       setLeadsError(message);
     } finally {

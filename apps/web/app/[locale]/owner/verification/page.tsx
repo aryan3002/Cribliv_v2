@@ -9,7 +9,7 @@ import {
   type VerificationAttemptVm,
   type VerificationStatusVm
 } from "../../../../lib/owner-api";
-import { readAuthSession } from "../../../../lib/client-auth";
+import { useSession } from "next-auth/react";
 import { trackEvent } from "../../../../lib/analytics";
 import { t, type Locale } from "../../../../lib/i18n";
 
@@ -71,6 +71,8 @@ function resultToOverall(result: "pending" | "pass" | "fail" | "manual_review") 
 
 export default function OwnerVerificationPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
+  const { data: nextAuthSession } = useSession();
+  const accessToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
 
   const [listings, setListings] = useState<ListingOption[]>([]);
   const [selectedListingId, setSelectedListingId] = useState<string>("");
@@ -105,8 +107,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
     setLoading(true);
     setError(null);
 
-    const session = readAuthSession();
-    const token = session?.access_token;
+    const token = accessToken;
 
     if (!token) {
       setError(t(locale, "loginRequired"));
@@ -137,7 +138,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
   }
 
   async function loadStatus(listingId: string) {
-    const token = readAuthSession()?.access_token;
+    const token = accessToken;
     if (!token) {
       setError(t(locale, "loginRequired"));
       return;
@@ -154,7 +155,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
   }
 
   async function onSubmitVideo() {
-    const token = readAuthSession()?.access_token;
+    const token = accessToken;
     if (!token) {
       setError(t(locale, "loginRequired"));
       return;
@@ -191,7 +192,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
   }
 
   async function onSubmitElectricity() {
-    const token = readAuthSession()?.access_token;
+    const token = accessToken;
     if (!token) {
       setError(t(locale, "loginRequired"));
       return;

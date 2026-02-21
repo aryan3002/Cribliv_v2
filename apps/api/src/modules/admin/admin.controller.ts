@@ -5,6 +5,7 @@ import {
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -17,6 +18,7 @@ import { AppStateService } from "../../common/app-state.service";
 import { ok } from "../../common/response";
 import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
+import type { Role } from "../../common/types";
 
 @Controller("admin")
 @UseGuards(AuthGuard, RolesGuard)
@@ -588,6 +590,192 @@ export class AdminController {
     return ok({
       transaction_id: txn.id,
       balance_credits: this.appState.getWalletBalance(body.user_id)
+    });
+  }
+
+  // ── User & Role Management ───────────────────────────────────────────────
+
+  /**
+   * GET /admin/users
+   * List all users with id, phone, role, preferred_language.
+   * Supports optional ?role= filter.
+   */
+  @Get("users")
+  async listUsers(@Query("role") role?: string) {
+    if (this.database.isEnabled()) {
+      const params: unknown[] = [];
+      const filter = role ? "WHERE u.role = $1::user_role" : "";
+      if (role) params.push(role);
+
+      const result = await this.database.query<{
+        id: string;
+        phone_e164: string;
+        role: string;
+        preferred_language: string;
+        full_name: string | null;
+        created_at: string;
+      }>(
+        `
+        SELECT u.id::text, u.phone_e164, u.role::text, u.preferred_language::text,
+               u.full_name, u.created_at::text
+        FROM users u
+        ${filter}
+        ORDER BY u.created_at DESC
+        `,
+        params
+      );
+
+      return ok({ users: result.rows, total: result.rowCount ?? 0 });
+    }
+
+    const all = [...this.appState.users.values()];
+    const filtered = role ? all.filter((u) => u.role === role) : all;
+    return ok({
+      users: filtered.map((u) => ({
+        id: u.id,
+        phone_e164: u.phone,
+        role: u.role,
+        preferred_language: u.preferred_language,
+        full_name: u.full_name ?? null
+      })),
+      total: filtered.length
+    });
+  }
+
+  /**
+   * PATCH /admin/users/:id/role
+   * Directly change a user's role. Admin-only hard override.
+   * Body: { role: "tenant" | "owner" | "pg_operator" | "admin" }
+   */
+  @Patch("users/:user_id/role")
+  async setUserRole(
+    @Req() req: { user: { id: string } },
+    @Param("user_id") userId: string,
+    @Body() body: { role: Role }
+  ) {
+    const VALID_ROLES: Role[] = ["tenant", "owner", "pg_operator", "admin"];
+    if (!VALID_ROLES.includes(body.role)) {
+      throw new BadRequestException({ code: "invalid_role", message: "Invalid role" });
+    }
+
+    if (this.database.isEnabled()) {
+      const result = await this.database.query<{ id: string; role: string }>(
+        `
+        UPDATE users
+        SET role = $2::user_role, updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text, role::text
+        `,
+        [userId, body.role]
+      );
+
+      if (!result.rowCount || !result.rows[0]) {
+        throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+      }
+
+      await this.database
+        .query(
+          `
+        INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+        VALUES ($1::uuid, 'user', $2::uuid, 'update_lead'::admin_action_type, null, null, $3::jsonb)
+        `,
+          [req.user.id, userId, JSON.stringify({ role: body.role })]
+        )
+        .catch(() => undefined); // admin_actions insert is best-effort
+
+      logTelemetry("admin.user_role_changed", {
+        user_id: userId,
+        new_role: body.role,
+        admin_user_id: req.user.id
+      });
+
+      return ok({ user_id: result.rows[0].id, role: result.rows[0].role });
+    }
+
+    const user = this.appState.setUserRole(userId, body.role);
+    if (!user) {
+      throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+    }
+
+    logTelemetry("admin.user_role_changed", {
+      mode: "in_memory",
+      user_id: userId,
+      new_role: body.role,
+      admin_user_id: req.user.id
+    });
+
+    return ok({ user_id: user.id, role: user.role });
+  }
+
+  /**
+   * GET /admin/role-requests
+   * List user role upgrade requests, optionally filtered by ?status=pending|approved|rejected
+   */
+  @Get("role-requests")
+  async listRoleRequests(@Query("status") status?: string) {
+    const validStatuses = ["pending", "approved", "rejected"];
+    const safeStatus =
+      status && validStatuses.includes(status)
+        ? (status as "pending" | "approved" | "rejected")
+        : undefined;
+
+    const requests = this.appState.listRoleRequests(safeStatus);
+
+    // Enrich with phone
+    const enriched = requests.map((r) => {
+      const user = this.appState.users.get(r.userId);
+      return {
+        id: r.id,
+        user_id: r.userId,
+        phone_e164: user?.phone ?? null,
+        requested_role: r.requestedRole,
+        status: r.status,
+        created_at: new Date(r.createdAt).toISOString(),
+        decided_at: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+        decided_by_admin_id: r.decidedByAdminId ?? null
+      };
+    });
+
+    return ok({ requests: enriched, total: enriched.length });
+  }
+
+  /**
+   * PATCH /admin/role-requests/:id/decision
+   * Approve or reject a pending role request.
+   * Body: { decision: "approved" | "rejected", reason?: string }
+   */
+  @Patch("role-requests/:request_id/decision")
+  async decideRoleRequest(
+    @Req() req: { user: { id: string } },
+    @Param("request_id") requestId: string,
+    @Body() body: { decision: "approved" | "rejected"; reason?: string }
+  ) {
+    if (!["approved", "rejected"].includes(body.decision)) {
+      throw new BadRequestException({
+        code: "invalid_decision",
+        message: "decision must be 'approved' or 'rejected'"
+      });
+    }
+
+    const result = this.appState.decideRoleRequest(requestId, body.decision, req.user.id);
+    if (!result) {
+      throw new BadRequestException({ code: "not_found", message: "Role request not found" });
+    }
+
+    logTelemetry("admin.role_request_decided", {
+      request_id: requestId,
+      decision: body.decision,
+      user_id: result.userId,
+      new_role: result.requestedRole,
+      admin_user_id: req.user.id
+    });
+
+    return ok({
+      request_id: result.id,
+      user_id: result.userId,
+      requested_role: result.requestedRole,
+      status: result.status,
+      decided_at: result.decidedAt ? new Date(result.decidedAt).toISOString() : null
     });
   }
 }

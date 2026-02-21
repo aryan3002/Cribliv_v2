@@ -1,9 +1,11 @@
 import { SearchHero } from "../../components/search-hero";
+import { SessionBanner } from "../../components/session-banner";
 import { t, type Locale } from "../../lib/i18n";
 
 export default function HomePage({ params }: { params: { locale: Locale } }) {
   return (
     <div className="hero">
+      <SessionBanner locale={params.locale} />
       <h1>{params.locale === "hi" ? "तेज, भरोसेमंद घर खोज" : "Fast, trustworthy home search"}</h1>
       <p>
         {params.locale === "hi"

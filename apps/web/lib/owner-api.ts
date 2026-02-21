@@ -539,3 +539,31 @@ export async function fetchVerificationStatus(
     }))
   };
 }
+
+// ── Role upgrade request ────────────────────────────────────────────────────
+
+export interface RoleRequestResult {
+  /** null when role is granted immediately (in-memory / dev mode) */
+  request_id: string | null;
+  /** "granted" = role set immediately (dev); "pending" = awaiting admin (prod); "already_granted" = idempotent */
+  status: "granted" | "already_granted" | "pending";
+  requested_role: "owner" | "pg_operator";
+  /** The role the user now has (set when status = "granted" or "already_granted") */
+  role?: string;
+}
+
+/**
+ * POST /users/me/role-request
+ * A tenant requests to be upgraded to owner or pg_operator.
+ * Admin must approve via the admin panel.
+ */
+export async function requestRoleUpgrade(
+  accessToken: string,
+  requestedRole: "owner" | "pg_operator"
+): Promise<RoleRequestResult> {
+  return fetchApi<RoleRequestResult>("/users/me/role-request", {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify({ requested_role: requestedRole })
+  });
+}

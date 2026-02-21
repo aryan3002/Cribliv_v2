@@ -18,6 +18,8 @@ interface Challenge {
   attempts: number;
   expiresAt: number;
   blockedUntil?: number;
+  /** Populated when OTP_PROVIDER=d7 in in-memory mode */
+  d7OtpId?: string;
 }
 
 interface SessionRecord {
@@ -100,6 +102,17 @@ interface OutboundEventRecord {
   updatedAt: number;
 }
 
+export interface RoleRequestRecord {
+  id: string;
+  userId: string;
+  requestedRole: "owner" | "pg_operator";
+  status: "pending" | "approved" | "rejected";
+  reason?: string;
+  createdAt: number;
+  decidedAt?: number;
+  decidedByAdminId?: string;
+}
+
 @Injectable()
 export class AppStateService {
   users = new Map<string, UserRecord>();
@@ -122,12 +135,17 @@ export class AppStateService {
   outboundEvents: OutboundEventRecord[] = [];
   verificationAttempts: Array<Record<string, unknown>> = [];
   adminActions: Array<Record<string, unknown>> = [];
+  /** Role upgrade requests submitted by users */
+  roleRequests = new Map<string, RoleRequestRecord>();
+  /** Lookup: userId → latest pending/decided request id */
+  roleRequestsByUser = new Map<string, string>();
   private outboundEventCounter = 1;
 
   constructor() {
     const ownerId = randomUUID();
     const tenantId = randomUUID();
     const adminId = randomUUID();
+    const pgOperatorId = randomUUID();
 
     const owner: UserRecord = {
       id: ownerId,
@@ -147,8 +165,14 @@ export class AppStateService {
       role: "admin",
       preferred_language: "en"
     };
+    const pgOperator: UserRecord = {
+      id: pgOperatorId,
+      phone: "+919999999904",
+      role: "pg_operator",
+      preferred_language: "en"
+    };
 
-    [owner, tenant, admin].forEach((u) => {
+    [owner, tenant, admin, pgOperator].forEach((u) => {
       this.users.set(u.id, u);
       this.usersByPhone.set(u.phone, u);
       this.wallets.set(u.id, u.role === "tenant" ? 2 : 0);
@@ -179,6 +203,18 @@ export class AppStateService {
         verificationStatus: "pending",
         status: "active",
         createdAt: Date.now()
+      },
+      {
+        id: randomUUID(),
+        ownerUserId: pgOperatorId,
+        listingType: "pg",
+        title: "Girls PG near Huda City Centre",
+        city: "gurugram",
+        locality: "sector-29",
+        monthlyRent: 12000,
+        verificationStatus: "unverified",
+        status: "draft",
+        createdAt: Date.now()
       }
     ];
 
@@ -203,6 +239,28 @@ export class AppStateService {
     }
 
     return this.users.get(session.userId);
+  }
+
+  getSessionByRefreshToken(refreshToken?: string): SessionRecord | undefined {
+    if (!refreshToken) return undefined;
+    for (const session of this.sessions.values()) {
+      if (session.refreshToken === refreshToken) return session;
+    }
+    return undefined;
+  }
+
+  rotateSession(oldRefreshToken: string): { accessToken: string; refreshToken: string } | null {
+    const old = this.getSessionByRefreshToken(oldRefreshToken);
+    if (!old) return null;
+    this.sessions.delete(old.accessToken);
+    const newAccessToken = `acc_${randomUUID()}`;
+    const newRefreshToken = `ref_${randomUUID()}`;
+    this.sessions.set(newAccessToken, {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      userId: old.userId
+    });
+    return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
   ensureWallet(userId: string) {
@@ -351,5 +409,63 @@ export class AppStateService {
 
     this.outboundEvents.push(event);
     return event;
+  }
+
+  // ── Role request management (in-memory) ─────────────────────────────────
+
+  createRoleRequest(userId: string, requestedRole: "owner" | "pg_operator"): RoleRequestRecord {
+    const request: RoleRequestRecord = {
+      id: randomUUID(),
+      userId,
+      requestedRole,
+      status: "pending",
+      createdAt: Date.now()
+    };
+    this.roleRequests.set(request.id, request);
+    this.roleRequestsByUser.set(userId, request.id);
+    return request;
+  }
+
+  getPendingRoleRequest(userId: string): RoleRequestRecord | undefined {
+    const id = this.roleRequestsByUser.get(userId);
+    if (!id) return undefined;
+    const req = this.roleRequests.get(id);
+    return req?.status === "pending" ? req : undefined;
+  }
+
+  decideRoleRequest(
+    requestId: string,
+    decision: "approved" | "rejected",
+    adminId: string
+  ): RoleRequestRecord | undefined {
+    const req = this.roleRequests.get(requestId);
+    if (!req) return undefined;
+    req.status = decision;
+    req.decidedAt = Date.now();
+    req.decidedByAdminId = adminId;
+
+    if (decision === "approved") {
+      const user = this.users.get(req.userId);
+      if (user) {
+        user.role = req.requestedRole;
+      }
+    }
+    return req;
+  }
+
+  listRoleRequests(status?: "pending" | "approved" | "rejected"): RoleRequestRecord[] {
+    const all = [...this.roleRequests.values()];
+    return status ? all.filter((r) => r.status === status) : all;
+  }
+
+  /** Admin hard-set of a user's role (bypasses request flow) */
+  setUserRole(
+    userId: string,
+    role: "tenant" | "owner" | "pg_operator" | "admin"
+  ): UserRecord | undefined {
+    const user = this.users.get(userId);
+    if (!user) return undefined;
+    user.role = role;
+    return user;
   }
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { clearAuthSession, readAuthSession } from "../../../../lib/client-auth";
+import { useSession, signOut } from "next-auth/react";
 import {
   createSalesLead,
   type ListingStatus,
@@ -40,6 +40,20 @@ const VERIFICATION_LABEL: Record<OwnerListingVm["verificationStatus"], string> =
 
 export default function OwnerDashboardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
+  const { data: nextAuthSession } = useSession();
+  const accessToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
+  const userRole = (nextAuthSession?.user as { role?: string } | undefined)?.role as
+    | "owner"
+    | "pg_operator"
+    | undefined;
+
+  /** True when this user is specifically a PG operator */
+  const isPgOperator = userRole === "pg_operator";
+  const dashboardTitle = isPgOperator ? "Your PG Listings" : "Your Listings";
+  const createListingLabel = isPgOperator ? "+ Add PG" : t(locale, "createListing");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const newListingHref = `/${locale}/owner/listings/new${isPgOperator ? "?type=pg" : ""}` as any;
+
   const [listings, setListings] = useState<OwnerListingVm[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +69,7 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
     setLoading(true);
     setError(null);
 
-    const session = readAuthSession();
-    if (!session?.access_token) {
+    if (!accessToken) {
       setError(t(locale, "loginRequired"));
       setLoading(false);
       return;
@@ -64,14 +77,14 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
 
     try {
       const response = await listOwnerListings(
-        session.access_token,
+        accessToken,
         statusFilter === "all" ? undefined : statusFilter
       );
       setListings(response.items);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load listings";
       if (message.toLowerCase().includes("unauthorized")) {
-        clearAuthSession();
+        void signOut({ redirect: false });
       }
       setError(message);
     } finally {
@@ -80,8 +93,7 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
   }
 
   async function requestPropertyManagementAssist() {
-    const session = readAuthSession();
-    if (!session?.access_token) {
+    if (!accessToken) {
       setPmNotice(t(locale, "loginRequired"));
       return;
     }
@@ -89,7 +101,7 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
     setPmRequesting(true);
     setPmNotice(null);
     try {
-      await createSalesLead(session.access_token, {
+      await createSalesLead(accessToken, {
         source: "property_management",
         notes: "Property management consultation requested from owner dashboard",
         metadata: {
@@ -105,7 +117,7 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to request property management";
       if (message.toLowerCase().includes("unauthorized")) {
-        clearAuthSession();
+        void signOut({ redirect: false });
       }
       setPmNotice(message);
     } finally {
@@ -116,9 +128,16 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
   return (
     <section className="hero">
       <div className="card-row" style={{ marginBottom: 16 }}>
-        <h1>{t(locale, "yourListings")}</h1>
-        <Link className="primary" href={`/${locale}/owner/listings/new`}>
-          {t(locale, "createListing")}
+        <div>
+          <h1 style={{ margin: 0 }}>{dashboardTitle}</h1>
+          {isPgOperator && (
+            <p className="muted-text" style={{ margin: "4px 0 0" }}>
+              PG Operator dashboard — manage your paying guest accommodations
+            </p>
+          )}
+        </div>
+        <Link className="primary" href={newListingHref}>
+          {createListingLabel}
         </Link>
       </div>
 
@@ -151,12 +170,14 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
         <div className="empty-state">
           <h3>{t(locale, "noListings")}</h3>
           <p>
-            {statusFilter === "all"
-              ? t(locale, "noListingsDescription")
-              : `No listings with status "${STATUS_LABEL[statusFilter]}".`}
+            {isPgOperator
+              ? "No PG spaces listed yet. Add your first PG to start receiving tenant enquiries."
+              : statusFilter === "all"
+                ? t(locale, "noListingsDescription")
+                : `No listings with status "${STATUS_LABEL[statusFilter as ListingStatus]}".`}
           </p>
-          <Link className="primary" href={`/${locale}/owner/listings/new`}>
-            {t(locale, "createListing")}
+          <Link className="primary" href={newListingHref}>
+            {createListingLabel}
           </Link>
         </div>
       ) : (
