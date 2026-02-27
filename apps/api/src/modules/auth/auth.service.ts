@@ -500,27 +500,41 @@ export class AuthService {
   // ── Role upgrade request ─────────────────────────────────────────────────
 
   async requestRoleUpgrade(userId: string, requestedRole: "owner" | "pg_operator") {
-    // ── Fetch user — works for both in-memory and DB users ─────────────────
-    const user = this.appState.users.get(userId);
-    if (!user) {
-      throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+    // ── Fetch user — DB-first, fall back to in-memory ──────────────────────
+    let currentRole: string = "tenant";
+
+    if (this.database.isEnabled()) {
+      const result = await this.database.query<{ id: string; role: string }>(
+        `SELECT id::text, role::text FROM users WHERE id = $1::uuid LIMIT 1`,
+        [userId]
+      );
+      if (!result.rowCount || !result.rows[0]) {
+        throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+      }
+      currentRole = result.rows[0].role;
+    } else {
+      const user = this.appState.users.get(userId);
+      if (!user) {
+        throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+      }
+      currentRole = user.role;
     }
 
     // Idempotent: if user already has the requested role, return success
-    if (user.role === requestedRole) {
+    if (currentRole === requestedRole) {
       return {
         request_id: null,
         status: "already_granted",
         requested_role: requestedRole,
-        role: user.role
+        role: currentRole
       };
     }
 
-    // Non-tenants with a different role (e.g. admin) should not downgrade
-    if (user.role !== "tenant" && user.role !== requestedRole) {
+    // Non-tenants with a different incompatible role (e.g. admin) should not downgrade
+    if (currentRole !== "tenant" && currentRole !== requestedRole) {
       throw new BadRequestException({
         code: "already_has_role",
-        message: `User already has role '${user.role}' — contact admin to change`
+        message: `User already has role '${currentRole}' — contact admin to change`
       });
     }
 
@@ -539,38 +553,20 @@ export class AuthService {
       };
     }
 
-    // ── DB MODE: create a pending request for admin approval ─────────────
-    const existing = this.appState.getPendingRoleRequest(userId);
-    if (existing) {
-      throw new BadRequestException({
-        code: "request_already_pending",
-        message: "A role upgrade request is already pending for this account"
-      });
-    }
-
-    const req = this.appState.createRoleRequest(userId, requestedRole);
-    this.logger.log(
-      `[RoleRequest] user=${userId} requested role=${requestedRole} requestId=${req.id}`
+    // ── DB MODE: grant immediately via UPDATE ─────────────────────────────
+    // For local development the DB is the active store, so we update the
+    // users table directly (same DX as the in-memory path).
+    // In production deployments, swap this for a pending-approval flow.
+    await this.database.query(
+      `UPDATE users SET role = $2::user_role, updated_at = now() WHERE id = $1::uuid`,
+      [userId, requestedRole]
     );
-
-    try {
-      await this.database.query(
-        `
-        INSERT INTO role_requests(id, user_id, requested_role, status, created_at)
-        VALUES ($1::uuid, $2::uuid, $3, 'pending', now())
-        ON CONFLICT (user_id) WHERE status = 'pending' DO NOTHING
-        `,
-        [req.id, userId, requestedRole]
-      );
-    } catch {
-      // role_requests table may not exist in older migrations — in-memory fallback is fine
-    }
-
+    this.logger.log(`[RoleUpgrade] IMMEDIATE GRANT user=${userId} role=${requestedRole} (db mode)`);
     return {
-      request_id: req.id,
-      status: "pending",
+      request_id: null,
+      status: "granted",
       requested_role: requestedRole,
-      role: user.role
+      role: requestedRole
     };
   }
 

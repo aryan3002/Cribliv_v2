@@ -1,7 +1,19 @@
 import "reflect-metadata";
-// Load .env before any module is imported so process.env is populated
+// Load .env before any module is imported so process.env is populated.
+// In a pnpm monorepo the root .env lives two directories above apps/api/src (ts-node dev)
+// or one above apps/api/dist (compiled prod). We probe both to be safe.
+import * as path from "path";
+import * as fs from "fs";
 import * as dotenv from "dotenv";
-dotenv.config();
+{
+  const candidates = [
+    path.resolve(__dirname, "../../../.env"), // ts-node: apps/api/src → monorepo root
+    path.resolve(__dirname, "../../.env"), // compiled: apps/api/dist → apps/api
+    path.resolve(process.cwd(), ".env") // fallback: wherever node was started from
+  ];
+  const envFile = candidates.find((p) => fs.existsSync(p)) ?? ".env";
+  dotenv.config({ path: envFile });
+}
 
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
