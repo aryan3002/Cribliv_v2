@@ -977,3 +977,104 @@ body {
   color: #92400e;
   border: 1px solid #fde68a;
 }
+
+/* Skeleton loading animation */
+.skeleton-block {
+  background: linear-gradient(90deg, var(--surface-alt) 25%, #e8e8ed 50%, var(--surface-alt) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+
+.skeleton-card {
+  padding: 1rem;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Voice Search ─────────────────────────────────────────────────────── */
+
+.voice-search-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.voice-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.voice-search-btn:hover:not(:disabled) {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.voice-search-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.voice-search-btn--recording {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: #fef3f2;
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+
+.voice-search-btn--processing {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.voice-search-label {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  animation: voice-fade 1s ease-in-out infinite alternate;
+}
+
+.voice-search-error {
+  font-size: 0.75rem;
+  color: var(--danger);
+}
+
+.voice-search-pulse {
+  animation: voice-icon-pulse 1s ease-in-out infinite;
+}
+
+.voice-search-spinner {
+  animation: voice-spin 1s linear infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 45, 32, 0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(217, 45, 32, 0); }
+}
+
+@keyframes voice-icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes voice-fade {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+@keyframes voice-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

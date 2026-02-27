@@ -7,8 +7,8 @@ import type { UserRole } from "../auth.config";
 
 export function Header({ locale }: { locale: Locale }) {
   const { data: session, status } = useSession();
-  const role = (session?.user as { role?: UserRole } | undefined)?.role;
-  const phone = (session?.user as { phone?: string } | undefined)?.phone;
+  const role = session?.user?.role;
+  const phone = session?.user?.phone;
   const isLoading = status === "loading";
 
   return (

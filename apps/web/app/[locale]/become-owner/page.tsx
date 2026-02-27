@@ -36,8 +36,8 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
   const { locale } = params;
   const { data: session, status, update: updateSession } = useSession();
   const router = useRouter();
-  const accessToken = (session as { accessToken?: string } | null)?.accessToken ?? null;
-  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const accessToken = session?.accessToken ?? null;
+  const userRole = session?.user?.role;
 
   const [selected, setSelected] = useState<RoleChoice>("owner");
   const [submitting, setSubmitting] = useState(false);

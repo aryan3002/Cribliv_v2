@@ -1,15 +1,7 @@
 import { fetchApi } from "./api";
+import type { ListingStatus, VerificationStatus, ListingType } from "@cribliv/shared-types";
 
-export type ListingStatus =
-  | "draft"
-  | "pending_review"
-  | "active"
-  | "rejected"
-  | "paused"
-  | "archived";
-
-export type VerificationStatus = "unverified" | "pending" | "verified" | "failed";
-export type ListingType = "flat_house" | "pg";
+export type { ListingStatus, VerificationStatus, ListingType };
 
 export interface OwnerListingVm {
   id: string;

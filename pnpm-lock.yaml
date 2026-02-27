@@ -37,6 +37,9 @@ importers:
       "@nestjs/platform-express":
         specifier: ^10.4.2
         version: 10.4.22(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@10.4.22)
+      "@nestjs/throttler":
+        specifier: ^6.5.0
+        version: 6.5.0(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@10.4.22(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@10.4.22)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -46,6 +49,9 @@ importers:
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
+      helmet:
+        specifier: ^8.1.0
+        version: 8.1.0
       pg:
         specifier: ^8.13.0
         version: 8.18.0
@@ -71,6 +77,9 @@ importers:
       "@types/express":
         specifier: ^5.0.0
         version: 5.0.6
+      "@types/multer":
+        specifier: ^2.0.0
+        version: 2.0.0
       "@types/node":
         specifier: ^22.7.4
         version: 22.19.10
@@ -135,7 +144,13 @@ importers:
   packages/shared-types: {}
 
   packages/ui:
-    dependencies:
+    devDependencies:
+      "@types/react":
+        specifier: ^18.3.11
+        version: 18.3.28
+      "@types/react-dom":
+        specifier: ^18.3.1
+        version: 18.3.7(@types/react@18.3.28)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -577,6 +592,16 @@ packages:
         optional: true
       "@nestjs/platform-express":
         optional: true
+
+  "@nestjs/throttler@6.5.0":
+    resolution:
+      {
+        integrity: sha512-9j0ZRfH0QE1qyrj9JjIRDz5gQLPqq9yVC2nHsrosDVAfI5HHw08/aUAWx9DZLSdQf4HDkmhTTEGLrRFHENvchQ==
+      }
+    peerDependencies:
+      "@nestjs/common": ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0
+      "@nestjs/core": ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0 || ^11.0.0
+      reflect-metadata: ^0.1.13 || ^0.2.0
 
   "@next/env@14.2.13":
     resolution:
@@ -1020,6 +1045,12 @@ packages:
     resolution:
       {
         integrity: sha512-ymXWVrDiCxTBE3+RIrrP533E70eA+9qu7zdWoHuOmGujkYtzf4HQF96b8nwHLqhuf4ykX61IGRIB38CC6/sImQ==
+      }
+
+  "@types/multer@2.0.0":
+    resolution:
+      {
+        integrity: sha512-C3Z9v9Evij2yST3RSBktxP9STm6OdMc5uR1xF1SGr98uv8dUlAL2hqwrZ3GVB3uyMyiegnscEK6PGtYvNrjTjw==
       }
 
   "@types/node@22.19.10":
@@ -2404,6 +2435,13 @@ packages:
         integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==
       }
     engines: { node: ">= 0.4" }
+
+  helmet@8.1.0:
+    resolution:
+      {
+        integrity: sha512-jOiHyAZsmnr8LqoPGmCjYAaiuWwjAPLgY8ZX2XrmHawt99/u1y6RgrZMTeoPfpUbV96HOalYgz1qzkRbw54Pmg==
+      }
+    engines: { node: ">=18.0.0" }
 
   http-errors@2.0.1:
     resolution:
@@ -4617,6 +4655,12 @@ snapshots:
     optionalDependencies:
       "@nestjs/platform-express": 10.4.22(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@10.4.22)
 
+  "@nestjs/throttler@6.5.0(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@10.4.22(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@10.4.22)(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)":
+    dependencies:
+      "@nestjs/common": 10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core": 10.4.22(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@10.4.22)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      reflect-metadata: 0.2.2
+
   "@next/env@14.2.13": {}
 
   "@next/swc-darwin-arm64@14.2.13":
@@ -4810,6 +4854,10 @@ snapshots:
   "@types/json-schema@7.0.15": {}
 
   "@types/methods@1.1.4": {}
+
+  "@types/multer@2.0.0":
+    dependencies:
+      "@types/express": 5.0.6
 
   "@types/node@22.19.10":
     dependencies:
@@ -5661,6 +5709,8 @@ snapshots:
   hasown@2.0.2:
     dependencies:
       function-bind: 1.1.2
+
+  helmet@8.1.0: {}
 
   http-errors@2.0.1:
     dependencies:

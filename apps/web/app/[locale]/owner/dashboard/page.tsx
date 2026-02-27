@@ -41,11 +41,8 @@ const VERIFICATION_LABEL: Record<OwnerListingVm["verificationStatus"], string> =
 export default function OwnerDashboardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
   const { data: nextAuthSession } = useSession();
-  const accessToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
-  const userRole = (nextAuthSession?.user as { role?: string } | undefined)?.role as
-    | "owner"
-    | "pg_operator"
-    | undefined;
+  const accessToken = nextAuthSession?.accessToken ?? null;
+  const userRole = nextAuthSession?.user?.role as "owner" | "pg_operator" | undefined;
 
   /** True when this user is specifically a PG operator */
   const isPgOperator = userRole === "pg_operator";

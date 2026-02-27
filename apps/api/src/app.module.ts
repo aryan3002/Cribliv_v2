@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { CoreModule } from "./common/core.module";
 import { GuardsModule } from "./common/guards.module";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -16,9 +18,13 @@ import { PaymentsModule } from "./modules/payments/payments.module";
 import { AuditModule } from "./modules/audit/audit.module";
 import { HealthModule } from "./modules/health/health.module";
 import { SalesModule } from "./modules/sales/sales.module";
+import { AiModule } from "./modules/ai/ai.module";
+import { VoiceModule } from "./modules/voice/voice.module";
 
 @Module({
   imports: [
+    // Global rate limiting: 100 requests per 60 seconds per IP
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     CoreModule,
     GuardsModule,
     AuthModule,
@@ -35,7 +41,13 @@ import { SalesModule } from "./modules/sales/sales.module";
     PaymentsModule,
     AuditModule,
     HealthModule,
-    SalesModule
+    SalesModule,
+    AiModule,
+    VoiceModule
+  ],
+  providers: [
+    // Apply ThrottlerGuard globally to all routes
+    { provide: APP_GUARD, useClass: ThrottlerGuard }
   ]
 })
 export class AppModule {}

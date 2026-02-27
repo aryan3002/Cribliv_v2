@@ -25,7 +25,7 @@ export class AuthService {
     @Inject(D7OtpClient) private readonly d7OtpClient: D7OtpClient
   ) {}
 
-  async sendOtp(phone_e164: string, purpose: string) {
+  async sendOtp(phone_e164: string, purpose: string, clientIp?: string) {
     if (!/^\+91\d{10}$/.test(phone_e164)) {
       throw new BadRequestException({ code: "invalid_phone", message: "Invalid phone format" });
     }
@@ -35,6 +35,7 @@ export class AuthService {
     }
 
     if (this.database.isEnabled()) {
+      // Per-phone rate limit: max 6 OTP sends per 10 minutes
       const recent = await this.database.query<{ count: number }>(
         `
         SELECT count(*)::int AS count
@@ -55,16 +56,40 @@ export class AuthService {
         );
       }
 
+      // Per-IP rate limit: max 20 OTP sends per hour per IP
+      if (clientIp && clientIp !== "unknown") {
+        const ipRecent = await this.database.query<{ count: number }>(
+          `
+          SELECT count(*)::int AS count
+          FROM otp_challenges
+          WHERE client_ip = $1
+            AND created_at > now() - interval '1 hour'
+          `,
+          [clientIp]
+        );
+
+        if ((ipRecent.rows[0]?.count ?? 0) >= 20) {
+          this.logger.warn(`IP rate limited: ${clientIp}`);
+          throw new HttpException(
+            {
+              code: "otp_ip_rate_limited",
+              message: "Too many OTP requests from this network"
+            },
+            HttpStatus.TOO_MANY_REQUESTS
+          );
+        }
+      }
+
       const providerConfig = readOtpProviderConfig();
       if (providerConfig.provider === "mock") {
         const otp = String(randomInt(100000, 999999));
         const inserted = await this.database.query<{ id: string }>(
           `
-          INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status)
-          VALUES ($1, $2::otp_purpose, $3, now() + interval '5 minutes', 'active')
+          INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status, client_ip)
+          VALUES ($1, $2::otp_purpose, $3, now() + interval '5 minutes', 'active', $4)
           RETURNING id::text
           `,
-          [phone_e164, purpose, otp]
+          [phone_e164, purpose, otp, clientIp || null]
         );
 
         return {
@@ -78,11 +103,17 @@ export class AuthService {
       const d7SendResult = await this.d7OtpClient.sendOtp({ phoneE164: phone_e164 });
       const inserted = await this.database.query<{ id: string }>(
         `
-        INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status)
-        VALUES ($1, $2::otp_purpose, $3, now() + ($4::int * interval '1 second'), 'active')
+        INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status, client_ip)
+        VALUES ($1, $2::otp_purpose, $3, now() + ($4::int * interval '1 second'), 'active', $5)
         RETURNING id::text
         `,
-        [phone_e164, purpose, `d7:${d7SendResult.otpId}`, providerConfig.expirySec]
+        [
+          phone_e164,
+          purpose,
+          `d7:${d7SendResult.otpId}`,
+          providerConfig.expirySec,
+          clientIp || null
+        ]
       );
 
       return {
@@ -218,11 +249,16 @@ export class AuthService {
           isNewUser = true;
         }
 
+        // Admin sessions are short-lived (4 hours) for security;
+        // regular users get 30-day sessions
+        const userRole = userResult.rows[0].role;
+        const sessionDuration = userRole === "admin" ? "4 hours" : "30 days";
+
         const sessionToken = randomUUID();
         const sessionResult = await client.query<{ id: string }>(
           `
           INSERT INTO sessions(user_id, refresh_token_hash, expires_at)
-          VALUES ($1::uuid, $2, now() + interval '30 days')
+          VALUES ($1::uuid, $2, now() + interval '${sessionDuration}')
           RETURNING id::text
           `,
           [userResult.rows[0].id, sessionToken]

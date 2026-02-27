@@ -12,7 +12,7 @@ function roleDashboard(role: UserRole | undefined): string {
 
 export default function ForbiddenPage() {
   const { data: session } = useSession();
-  const role = (session?.user as { role?: UserRole } | undefined)?.role;
+  const role = session?.user?.role;
 
   return (
     <div
@@ -31,8 +31,7 @@ export default function ForbiddenPage() {
         {role && (
           <>
             {" "}
-            You&apos;re logged in as{" "}
-            <strong>{(session?.user as { phone?: string } | undefined)?.phone}</strong> ({role}).
+            You&apos;re logged in as <strong>{session?.user?.phone}</strong> ({role}).
           </>
         )}
       </p>

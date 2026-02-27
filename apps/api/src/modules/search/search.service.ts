@@ -1,6 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
+import { IntentClassifierService } from "../ai/intent-classifier.service";
+import { RankingService } from "../ai/ranking.service";
+import { EmbeddingService } from "../ai/embedding.service";
+import { QueryParserService } from "../ai/query-parser.service";
+import type { ParsedFilters, SearchIntent } from "../ai/ai.types";
 
 const CITY_ALIASES: Record<string, string> = {
   delhi: "delhi",
@@ -165,10 +170,78 @@ function parseRentFilters(text: string) {
 export class SearchService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
-    @Inject(DatabaseService) private readonly database: DatabaseService
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(IntentClassifierService) private readonly intentClassifier: IntentClassifierService,
+    @Inject(RankingService) private readonly rankingService: RankingService,
+    @Inject(EmbeddingService) private readonly embeddingService: EmbeddingService,
+    @Inject(QueryParserService) private readonly queryParser: QueryParserService
   ) {}
 
-  routeQuery(query: string, locale: "en" | "hi", cityHint?: string) {
+  /**
+   * Route a natural-language query to intent + filters.
+   * Pipeline: AI intent classifier (when enabled) → regex fallback.
+   */
+  async routeQuery(
+    query: string,
+    locale: "en" | "hi",
+    cityHint?: string,
+    sessionToken?: string,
+    userId?: string
+  ) {
+    // 1. Try AI intent classifier first
+    const aiResult = await this.intentClassifier.classify(query, locale, cityHint);
+
+    if (aiResult && aiResult.confidence >= 0.5) {
+      // Conversation context: merge with accumulated filters if available
+      let mergedFilters = aiResult.filters as Record<string, unknown>;
+
+      if (sessionToken) {
+        const session = await this.queryParser.getOrCreateSession(sessionToken, userId);
+        if (session) {
+          mergedFilters = this.queryParser.mergeFilters(
+            session.accumulated_filters,
+            aiResult.filters
+          ) as Record<string, unknown>;
+
+          await this.queryParser.appendTurn(
+            session.session_id,
+            { role: "user", content: query, filters: aiResult.filters, timestamp: Date.now() },
+            mergedFilters as ParsedFilters,
+            aiResult.intent
+          );
+        }
+      }
+
+      const route = this.intentToRoute(aiResult.intent, mergedFilters);
+      return {
+        intent: aiResult.intent,
+        route,
+        filters: mergedFilters,
+        clarifying_question: aiResult.clarifying_question,
+        source: "ai" as const
+      };
+    }
+
+    // 2. Regex fallback (existing logic)
+    return { ...this.routeQueryRegex(query, locale, cityHint), source: "regex" as const };
+  }
+
+  /** Map intent to a route path */
+  private intentToRoute(intent: SearchIntent, filters: Record<string, unknown>): string {
+    switch (intent) {
+      case "open_listing":
+        return filters.listing_id ? `/listing/${filters.listing_id}` : "/search";
+      case "post_listing":
+        return "/owner/dashboard";
+      case "city_browse":
+        return filters.city ? `/city/${filters.city}` : "/search";
+      default:
+        return "/search";
+    }
+  }
+
+  /** Original regex-based route query (preserved as fallback) */
+  routeQueryRegex(query: string, locale: "en" | "hi", cityHint?: string) {
     const rawText = query || "";
     const text = normalizeDigits(rawText).toLowerCase();
     const filters: Record<string, unknown> = {};
@@ -400,26 +473,40 @@ export class SearchService {
       );
 
       const now = Date.now();
+
+      // Try materialized scores from listing_scores table (Phase B AI ranking)
+      const listingIds = rows.rows.map((row) => row.id);
+      const materializedScores = await this.rankingService.getScores(listingIds);
+
       const items = rows.rows.map((row) => {
-        const createdAt = new Date(row.created_at).getTime();
-        const freshness = Math.max(0, 1 - (now - createdAt) / (1000 * 60 * 60 * 24 * 30));
-        const verification =
-          row.verification_status === "verified"
-            ? 1
-            : row.verification_status === "pending"
-              ? 0.5
-              : 0;
-        const photoQuality = Math.min((row.photo_count ?? 0) / 6, 1);
-        const ownerResponseRate = 0.7;
-        const completeness = 0.8;
-        const engagement = 0.5;
-        const score =
-          0.3 * verification +
-          0.2 * freshness +
-          0.2 * photoQuality +
-          0.15 * ownerResponseRate +
-          0.1 * completeness +
-          0.05 * engagement;
+        let score: number;
+
+        const precomputed = materializedScores?.get(row.id);
+        if (precomputed) {
+          // Use materialized score from background job
+          score = precomputed.composite_score;
+        } else {
+          // Fallback: hardcoded inline scoring
+          const createdAt = new Date(row.created_at).getTime();
+          const freshness = Math.max(0, 1 - (now - createdAt) / (1000 * 60 * 60 * 24 * 30));
+          const verification =
+            row.verification_status === "verified"
+              ? 1
+              : row.verification_status === "pending"
+                ? 0.5
+                : 0;
+          const photoQuality = Math.min((row.photo_count ?? 0) / 6, 1);
+          const ownerResponseRate = 0.7;
+          const completeness = 0.8;
+          const engagement = 0.5;
+          score =
+            0.3 * verification +
+            0.2 * freshness +
+            0.2 * photoQuality +
+            0.15 * ownerResponseRate +
+            0.1 * completeness +
+            0.05 * engagement;
+        }
 
         return {
           id: row.id,

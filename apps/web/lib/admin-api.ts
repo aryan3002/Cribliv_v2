@@ -1,9 +1,10 @@
 import { fetchApi } from "./api";
+import type { ListingType, VerificationType, VerificationResult } from "@cribliv/shared-types";
 
 export interface AdminListingVm {
   id: string;
   title: string;
-  listingType: "flat_house" | "pg";
+  listingType: ListingType;
   status: string;
   ownerUserId: string;
   verificationStatus: string;
@@ -16,9 +17,9 @@ export interface AdminVerificationVm {
   id: string;
   listingId?: string;
   userId: string;
-  verificationType: "video_liveness" | "electricity_bill_match";
-  result: "pending" | "pass" | "fail" | "manual_review";
-  machineResult?: "pending" | "pass" | "fail" | "manual_review";
+  verificationType: VerificationType;
+  result: VerificationResult;
+  machineResult?: VerificationResult;
   addressMatchScore?: number;
   livenessScore?: number;
   provider?: string;

@@ -424,8 +424,8 @@ function generateClientUploadId(file: File): string {
 export default function OwnerListingWizardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
   const { data: nextAuthSession } = useSession();
-  const accessToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
-  const userRole = (nextAuthSession?.user as { role?: string } | undefined)?.role ?? null;
+  const accessToken = nextAuthSession?.accessToken ?? null;
+  const userRole = nextAuthSession?.user?.role ?? null;
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");

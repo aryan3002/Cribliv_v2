@@ -170,7 +170,7 @@ function LoginPageInner() {
 
       // Fetch session to get role for redirect
       const session = await getSession();
-      const role = (session?.user as { role?: UserRole } | undefined)?.role;
+      const role = session?.user?.role;
       const locale = "en";
       // Only use fromPath if the logged-in role is actually allowed there
       const safeDest =

@@ -5,6 +5,7 @@ dotenv.config();
 
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
+import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { assertVerificationProviderConfig } from "./modules/verification/providers/provider.config";
 
@@ -12,7 +13,37 @@ async function bootstrap() {
   assertVerificationProviderConfig();
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.setGlobalPrefix("v1");
-  app.enableCors();
+
+  // Security headers (CSP, HSTS, X-Content-Type-Options, etc.)
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"]
+        }
+      },
+      crossOriginEmbedderPolicy: false // Allow cross-origin images
+    })
+  );
+
+  // CORS: restrict to known origins (env-configurable)
+  const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3000")
+    .split(",")
+    .map((o) => o.trim());
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Idempotency-Key"]
+  });
+
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
   const port = process.env.PORT ? Number(process.env.PORT) : 4000;

@@ -16,9 +16,9 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
   const locale = params.locale as Locale;
   const { data: session } = useSession();
 
-  const role = (session?.user as { role?: UserRole } | undefined)?.role;
-  const phone = (session?.user as { phone?: string } | undefined)?.phone;
-  const walletBalance = (session as { walletBalance?: number } | null)?.walletBalance ?? 0;
+  const role = session?.user?.role;
+  const phone = session?.user?.phone;
+  const walletBalance = session?.walletBalance ?? 0;
 
   return (
     <div

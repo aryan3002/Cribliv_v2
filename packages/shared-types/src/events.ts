@@ -34,7 +34,14 @@ export const analyticsEvents = [
   "pg_segmentation_triggered",
   "pg_sales_assist_requested",
   "property_management_requested",
-  "admin_lead_status_updated"
+  "admin_lead_status_updated",
+  // Phase C – Voice search events
+  "voice_search_started",
+  "voice_search_recording_complete",
+  "voice_search_result",
+  "voice_search_error",
+  "voice_search_mic_denied",
+  "voice_search_routed"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

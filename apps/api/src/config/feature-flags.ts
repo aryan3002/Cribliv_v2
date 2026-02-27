@@ -15,6 +15,13 @@ export interface FeatureFlags {
   ff_pg_sales_leads: boolean;
   ff_owner_listing_assisted_capture: boolean;
   ff_production_db_only: boolean;
+  /** Phase B – AI-Ready */
+  ff_ai_intent_classifier: boolean;
+  ff_ai_embeddings: boolean;
+  ff_ai_ranking: boolean;
+  ff_ai_conversation_context: boolean;
+  /** Phase C – Voice */
+  ff_voice_search: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -33,7 +40,14 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_real_verification_provider: false,
   ff_pg_sales_leads: true,
   ff_owner_listing_assisted_capture: false,
-  ff_production_db_only: true
+  ff_production_db_only: true,
+  /** Phase B – AI-Ready (default OFF until Azure credentials configured) */
+  ff_ai_intent_classifier: false,
+  ff_ai_embeddings: false,
+  ff_ai_ranking: false,
+  ff_ai_conversation_context: false,
+  /** Phase C – Voice (default OFF) */
+  ff_voice_search: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -115,6 +129,17 @@ export function readFeatureFlags(): FeatureFlags {
     ff_production_db_only: parseBooleanEnv(
       "FF_PRODUCTION_DB_ONLY",
       defaultFeatureFlags.ff_production_db_only
-    )
+    ),
+    ff_ai_intent_classifier: parseBooleanEnv(
+      "FF_AI_INTENT_CLASSIFIER",
+      defaultFeatureFlags.ff_ai_intent_classifier
+    ),
+    ff_ai_embeddings: parseBooleanEnv("FF_AI_EMBEDDINGS", defaultFeatureFlags.ff_ai_embeddings),
+    ff_ai_ranking: parseBooleanEnv("FF_AI_RANKING", defaultFeatureFlags.ff_ai_ranking),
+    ff_ai_conversation_context: parseBooleanEnv(
+      "FF_AI_CONVERSATION_CONTEXT",
+      defaultFeatureFlags.ff_ai_conversation_context
+    ),
+    ff_voice_search: parseBooleanEnv("FF_VOICE_SEARCH", defaultFeatureFlags.ff_voice_search)
   };
 }

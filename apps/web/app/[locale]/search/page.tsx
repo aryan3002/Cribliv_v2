@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
+
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
 interface ListingCard {
   id: string;
@@ -16,6 +19,44 @@ interface SearchResponse {
   total: number;
   page: number;
   page_size: number;
+}
+
+export async function generateMetadata({
+  params,
+  searchParams
+}: {
+  params: { locale: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}): Promise<Metadata> {
+  const query = typeof searchParams.q === "string" ? searchParams.q : "";
+  const city = typeof searchParams.city === "string" ? searchParams.city : "";
+  const isHindi = params.locale === "hi";
+
+  const titleParts = [query, city].filter(Boolean);
+  const title = titleParts.length
+    ? isHindi
+      ? `${titleParts.join(", ")} — किराये पर खोज | Cribliv`
+      : `${titleParts.join(", ")} — Rentals Search | Cribliv`
+    : isHindi
+      ? "किराये पर मकान खोजें — Cribliv"
+      : "Search Verified Rentals — Cribliv";
+
+  const description = isHindi
+    ? "AI-संचालित सत्यापित किराये की खोज। फ्लैट, PG और मकान खोजें।"
+    : "AI-powered verified rental search. Find flats, PGs, and houses across North India.";
+
+  return {
+    title,
+    description,
+    robots: { index: !!query || !!city, follow: true },
+    openGraph: {
+      title,
+      description,
+      url: `${BASE_URL}/${params.locale}/search`,
+      siteName: "Cribliv",
+      type: "website"
+    }
+  };
 }
 
 function normalizeSearchParams(searchParams: Record<string, string | string[] | undefined>) {

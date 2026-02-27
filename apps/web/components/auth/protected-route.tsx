@@ -71,7 +71,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   if (!isAuthenticated) return null;
 
   if (allowedRoles && allowedRoles.length > 0) {
-    const role = (session?.user as { role?: UserRole })?.role;
+    const role = session?.user?.role;
     if (!role || !allowedRoles.includes(role)) return null;
   }
 

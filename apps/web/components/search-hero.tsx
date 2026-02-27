@@ -6,6 +6,7 @@ import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { trackEvent } from "../lib/analytics";
 import { buildSearchQuery, fetchApi } from "../lib/api";
+import { VoiceSearchButton } from "./voice-search-button";
 
 interface AgenticRouteResponse {
   intent: string;
@@ -97,6 +98,26 @@ export function SearchHero({ locale }: { locale: Locale }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t(locale, "searchPlaceholder")}
+        />
+        <VoiceSearchButton
+          locale={locale === "hi" ? "hi" : "en"}
+          onResult={(result) => {
+            trackEvent("voice_search_routed", {
+              intent: result.route_result.intent,
+              transcript: result.transcription.text
+            });
+            if (result.route_result.clarifying_question) {
+              setClarification(result.route_result.clarifying_question);
+              setBaseFilters(
+                (result.route_result.filters ?? {}) as Record<string, string | number | boolean>
+              );
+            } else {
+              routeToSearch(
+                (result.route_result.filters ?? {}) as Record<string, string | number | boolean>
+              );
+            }
+          }}
+          onTranscript={(text) => setQuery(text)}
         />
         <button type="submit" disabled={loading}>
           {loading ? "Routing..." : "Search"}

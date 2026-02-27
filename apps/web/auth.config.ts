@@ -92,18 +92,18 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         return {
           ...token,
-          id: user.id as string,
-          phone: (user as { phone: string }).phone,
-          role: (user as { role: UserRole }).role,
-          preferredLanguage: (user as { preferredLanguage: string }).preferredLanguage,
-          accessToken: (user as { accessToken: string }).accessToken,
-          refreshToken: (user as { refreshToken: string | null }).refreshToken,
+          id: user.id,
+          phone: user.phone,
+          role: user.role,
+          preferredLanguage: user.preferredLanguage,
+          accessToken: user.accessToken,
+          refreshToken: user.refreshToken,
           tokenIssuedAt: Date.now()
         };
       }
 
       // Subsequent calls: rotate if token is older than 30 minutes
-      const issuedAt = (token.tokenIssuedAt as number) ?? 0;
+      const issuedAt = token.tokenIssuedAt ?? 0;
       const thirtyMinutes = 30 * 60 * 1000;
       const shouldRefresh = Date.now() - issuedAt > thirtyMinutes;
 
@@ -140,12 +140,11 @@ export const authConfig: NextAuthConfig = {
      */
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.id as string;
-        (session.user as { phone?: string }).phone = token.phone as string;
-        (session.user as { role?: UserRole }).role = token.role as UserRole;
-        (session.user as { preferredLanguage?: string }).preferredLanguage =
-          token.preferredLanguage as string;
-        (session as { accessToken?: string }).accessToken = token.accessToken as string;
+        session.user.id = token.id;
+        session.user.phone = token.phone;
+        session.user.role = token.role;
+        session.user.preferredLanguage = token.preferredLanguage as "en" | "hi";
+        session.accessToken = token.accessToken;
       }
 
       // Sync role from backend to catch permission changes in real-time
@@ -153,15 +152,14 @@ export const authConfig: NextAuthConfig = {
         try {
           const res = await fetch(`${API_BASE_URL}/auth/me`, {
             headers: {
-              Authorization: `Bearer ${token.accessToken as string}`
+              Authorization: `Bearer ${token.accessToken}`
             },
             cache: "no-store"
           });
           if (res.ok) {
             const payload = (await res.json()) as { data: MeResponse };
-            (session.user as { role?: UserRole }).role = payload.data.role;
-            (session as { walletBalance?: number }).walletBalance =
-              payload.data.wallet_balance ?? 0;
+            session.user.role = payload.data.role;
+            session.walletBalance = payload.data.wallet_balance ?? 0;
           }
         } catch {
           // Silently ignore — keep the role from the token

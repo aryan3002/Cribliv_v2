@@ -7,8 +7,25 @@ export class SearchController {
   constructor(@Inject(SearchService) private readonly searchService: SearchService) {}
 
   @Post("search/agentic-route")
-  route(@Body() body: { query: string; locale: "en" | "hi"; city_hint?: string }) {
-    return ok(this.searchService.routeQuery(body.query, body.locale, body.city_hint));
+  async route(
+    @Body()
+    body: {
+      query: string;
+      locale: "en" | "hi";
+      city_hint?: string;
+      session_token?: string;
+      user_id?: string;
+    }
+  ) {
+    return ok(
+      await this.searchService.routeQuery(
+        body.query,
+        body.locale,
+        body.city_hint,
+        body.session_token,
+        body.user_id
+      )
+    );
   }
 
   @Get("listings/search")
@@ -25,6 +42,7 @@ export class SearchController {
       verified_only?: string;
       sort?: string;
       page?: string;
+      source?: string; // 'text' | 'voice' — for analytics tracking
     }
   ) {
     return ok(await this.searchService.searchListings(query));
