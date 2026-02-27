@@ -22,28 +22,15 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
 
   return (
     <div
-      style={{
-        maxWidth: 560,
-        margin: "48px auto",
-        padding: "0 16px",
-        fontFamily: "sans-serif"
-      }}
+      className="container--narrow"
+      style={{ paddingTop: "var(--space-12)", paddingBottom: "var(--space-12)" }}
     >
-      <h1 style={{ fontSize: 24, marginBottom: 4 }}>My Account</h1>
+      <h1 style={{ marginBottom: "var(--space-1)" }}>My Account</h1>
       {phone && (
-        <p style={{ color: "#6b7280", marginBottom: 32, fontSize: 15 }}>
+        <p className="text-secondary" style={{ marginBottom: "var(--space-8)" }}>
           {phone}
           {role && (
-            <span
-              style={{
-                marginLeft: 8,
-                background: "#e8f4fd",
-                borderRadius: 4,
-                padding: "2px 8px",
-                fontSize: 12,
-                fontWeight: 500
-              }}
-            >
+            <span className="badge badge--brand" style={{ marginLeft: "var(--space-2)" }}>
               {role}
             </span>
           )}
@@ -52,34 +39,38 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
 
       {/* Credits card */}
       <div
+        className="alert alert--warning"
         style={{
-          background: "#fffbeb",
-          border: "1px solid #fde68a",
-          borderRadius: 10,
-          padding: "20px 24px",
-          marginBottom: 24
+          padding: "var(--space-5) var(--space-6)",
+          marginBottom: "var(--space-6)",
+          borderRadius: "var(--radius-lg)"
         }}
       >
-        <div style={{ fontSize: 13, color: "#92400e", marginBottom: 4 }}>Available Credits</div>
-        <div style={{ fontSize: 40, fontWeight: 700, color: "#b45309", lineHeight: 1 }}>
-          ✦ {walletBalance}
-        </div>
-        <div style={{ fontSize: 12, color: "#78350f", marginTop: 6 }}>
-          Each credit unlocks one owner&apos;s contact details.
-          {walletBalance > 0 &&
-            ` You have ${walletBalance} unlock${walletBalance !== 1 ? "s" : ""} available.`}
+        <div style={{ width: "100%" }}>
+          <div className="overline" style={{ marginBottom: "var(--space-1)" }}>
+            Available Credits
+          </div>
+          <div
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: 40,
+              fontWeight: 700,
+              color: "#b45309",
+              lineHeight: 1
+            }}
+          >
+            ✦ {walletBalance}
+          </div>
+          <div className="caption" style={{ marginTop: "var(--space-2)", color: "#78350f" }}>
+            Each credit unlocks one owner&apos;s contact details.
+            {walletBalance > 0 &&
+              ` You have ${walletBalance} unlock${walletBalance !== 1 ? "s" : ""} available.`}
+          </div>
         </div>
       </div>
 
       {/* Quick links */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          marginBottom: 32
-        }}
-      >
+      <div className="flex flex-col gap-3" style={{ marginBottom: "var(--space-8)" }}>
         {[
           { href: `/${locale}/search?city=noida`, label: "🔍  Browse Properties" },
           { href: `/${locale}/shortlist`, label: "❤️  My Shortlist" },
@@ -88,13 +79,11 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
           <Link
             key={href}
             href={href as `/${string}`}
+            className="card"
             style={{
               display: "block",
-              padding: "14px 18px",
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
+              padding: "var(--space-4) var(--space-5)",
               textDecoration: "none",
-              color: "#111827",
               fontSize: 15,
               fontWeight: 500
             }}
@@ -104,22 +93,13 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
         ))}
       </div>
 
-      <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 20 }}>
-        <button
-          onClick={() => void signOut({ callbackUrl: `/${locale}` })}
-          style={{
-            background: "none",
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            padding: "8px 16px",
-            fontSize: 13,
-            cursor: "pointer",
-            color: "#6b7280"
-          }}
-        >
-          Sign out
-        </button>
-      </div>
+      <hr className="divider" />
+      <button
+        onClick={() => void signOut({ callbackUrl: `/${locale}` })}
+        className="btn btn--secondary btn--sm"
+      >
+        Sign out
+      </button>
     </div>
   );
 }

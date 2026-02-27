@@ -187,222 +187,161 @@ function LoginPageInner() {
   // UI
   // ------------------------------------------------------------------
   return (
-    <div
-      style={{
-        maxWidth: 360,
-        margin: "80px auto",
-        padding: "0 16px",
-        fontFamily: "sans-serif"
-      }}
-    >
-      <h1 style={{ fontSize: 24, marginBottom: 24 }}>Cribliv</h1>
-
-      {/* Tab switcher */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 24 }}>
-        {(["login", "signup"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              setTab(t);
-              setStep(1);
-              setError(null);
-              setInfo(null);
-              setOtp("");
-              setChallengeId("");
-              setDevOtp(null);
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              borderBottom: tab === t ? "2px solid #000" : "2px solid transparent",
-              paddingBottom: 4,
-              cursor: "pointer",
-              fontWeight: tab === t ? 600 : 400,
-              fontSize: 15,
-              textTransform: "capitalize"
-            }}
-          >
-            {t === "login" ? "Log in" : "Sign up"}
-          </button>
-        ))}
-      </div>
-
-      {/* Step 1 — Phone */}
-      {step === 1 && (
-        <div>
-          <label htmlFor="phone" style={{ display: "block", marginBottom: 6, fontSize: 14 }}>
-            Mobile number
-          </label>
-          <input
-            id="phone"
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+919999999901"
-            disabled={loading}
-            onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              fontSize: 15,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              boxSizing: "border-box",
-              marginBottom: 12
-            }}
-            autoFocus
-            autoComplete="tel"
-            aria-label="Mobile number"
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-card__logo">
+          <span
+            className="logo-dot"
+            style={{ display: "inline-block", marginRight: 6, verticalAlign: "middle" }}
+            aria-hidden="true"
           />
-          <button
-            onClick={handleSendOtp}
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "10px 0",
-              backgroundColor: loading ? "#999" : "#000",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 15,
-              cursor: loading ? "not-allowed" : "pointer"
-            }}
-          >
-            {loading ? "Sending…" : "Send OTP"}
-          </button>
+          Cribliv
         </div>
-      )}
+        <h1 className="auth-card__title">Welcome</h1>
+        <p className="auth-card__subtitle">Sign in with your mobile number to continue</p>
 
-      {/* Step 2 — OTP */}
-      {step === 2 && (
-        <div>
-          {info && <p style={{ fontSize: 13, color: "#555", marginBottom: 12 }}>{info}</p>}
-
-          {/* Dev-only: show OTP hint when running on mock provider */}
-          {devOtp && (
-            <div
-              style={{
-                background: "#fef9c3",
-                border: "2px solid #facc15",
-                borderRadius: 8,
-                padding: "12px 16px",
-                marginBottom: 16,
-                textAlign: "center"
+        {/* Tab switcher */}
+        <div className="auth-tabs">
+          {(["login", "signup"] as const).map((t) => (
+            <button
+              key={t}
+              className={`auth-tab${tab === t ? " auth-tab--active" : ""}`}
+              onClick={() => {
+                setTab(t);
+                setStep(1);
+                setError(null);
+                setInfo(null);
+                setOtp("");
+                setChallengeId("");
+                setDevOtp(null);
               }}
             >
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "#92400e",
-                  fontWeight: 600,
-                  marginBottom: 4,
-                  textTransform: "uppercase",
-                  letterSpacing: 1
-                }}
-              >
-                🔧 Dev Mode — Mock OTP (input auto-filled)
-              </div>
-              <div
-                style={{
-                  fontSize: 32,
-                  fontWeight: 700,
-                  letterSpacing: 10,
-                  color: "#78350f",
-                  fontFamily: "monospace"
-                }}
-              >
-                {devOtp}
-              </div>
-              <div style={{ fontSize: 11, color: "#92400e", marginTop: 4 }}>
-                Just click Verify — no SMS sent
-              </div>
-            </div>
-          )}
-
-          <label htmlFor="otp" style={{ display: "block", marginBottom: 6, fontSize: 14 }}>
-            6-digit OTP
-          </label>
-          <input
-            id="otp"
-            type="text"
-            inputMode="numeric"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="123456"
-            disabled={loading}
-            maxLength={6}
-            onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              fontSize: 20,
-              letterSpacing: 8,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              boxSizing: "border-box",
-              marginBottom: 12
-            }}
-            autoFocus
-            autoComplete="one-time-code"
-            aria-label="One-time password"
-          />
-          <button
-            onClick={handleVerify}
-            disabled={loading || otp.length < 6}
-            style={{
-              width: "100%",
-              padding: "10px 0",
-              backgroundColor: loading || otp.length < 6 ? "#999" : "#000",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 15,
-              cursor: loading || otp.length < 6 ? "not-allowed" : "pointer",
-              marginBottom: 12
-            }}
-          >
-            {loading ? "Verifying…" : tab === "signup" ? "Verify & Sign up" : "Verify & Sign in"}
-          </button>
-          <button
-            onClick={() => {
-              setStep(1);
-              setOtp("");
-              setChallengeId("");
-              setDevOtp(null);
-              setError(null);
-              setInfo(null);
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#555",
-              fontSize: 13,
-              cursor: "pointer",
-              padding: 0
-            }}
-          >
-            ← Change number
-          </button>
+              {t === "login" ? "Log in" : "Sign up"}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Error message */}
-      {error && (
-        <p
-          role="alert"
-          style={{
-            marginTop: 16,
-            color: "#c00",
-            fontSize: 13,
-            padding: "8px 12px",
-            border: "1px solid #f9c",
-            borderRadius: 4,
-            backgroundColor: "#fff5f5"
-          }}
-        >
-          {error}
-        </p>
-      )}
+        {/* Step 1 — Phone */}
+        {step === 1 && (
+          <div>
+            <label htmlFor="phone" className="form-label">
+              Mobile number
+            </label>
+            <input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+919999999901"
+              disabled={loading}
+              onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+              className="input"
+              autoFocus
+              autoComplete="tel"
+              aria-label="Mobile number"
+            />
+            <button
+              onClick={handleSendOtp}
+              disabled={loading}
+              className="btn btn--primary btn--full"
+              style={{ marginTop: "var(--space-4)" }}
+            >
+              {loading ? "Sending…" : "Send OTP"}
+            </button>
+          </div>
+        )}
+
+        {/* Step 2 — OTP */}
+        {step === 2 && (
+          <div>
+            {info && (
+              <p className="body-sm text-secondary" style={{ marginBottom: "var(--space-3)" }}>
+                {info}
+              </p>
+            )}
+
+            {/* Dev-only: show OTP hint when running on mock provider */}
+            {devOtp && (
+              <div
+                className="alert alert--warning"
+                style={{ marginBottom: "var(--space-4)", textAlign: "center" }}
+              >
+                <div>
+                  <div className="overline" style={{ marginBottom: "var(--space-1)" }}>
+                    🔧 Dev Mode — Mock OTP (auto-filled)
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "monospace",
+                      fontSize: 32,
+                      fontWeight: 700,
+                      letterSpacing: 10,
+                      color: "#78350f"
+                    }}
+                  >
+                    {devOtp}
+                  </div>
+                  <div
+                    className="caption"
+                    style={{ marginTop: "var(--space-1)", color: "#92400e" }}
+                  >
+                    Just click Verify — no SMS sent
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <label htmlFor="otp" className="form-label">
+              6-digit OTP
+            </label>
+            <input
+              id="otp"
+              type="text"
+              inputMode="numeric"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="123456"
+              disabled={loading}
+              maxLength={6}
+              onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+              className="input"
+              style={{ fontSize: 20, letterSpacing: 8, textAlign: "center" }}
+              autoFocus
+              autoComplete="one-time-code"
+              aria-label="One-time password"
+            />
+            <button
+              onClick={handleVerify}
+              disabled={loading || otp.length < 6}
+              className="btn btn--primary btn--full"
+              style={{ marginTop: "var(--space-4)", marginBottom: "var(--space-3)" }}
+            >
+              {loading ? "Verifying…" : tab === "signup" ? "Verify & Sign up" : "Verify & Sign in"}
+            </button>
+            <button
+              onClick={() => {
+                setStep(1);
+                setOtp("");
+                setChallengeId("");
+                setDevOtp(null);
+                setError(null);
+                setInfo(null);
+              }}
+              className="btn btn--ghost btn--sm"
+              style={{ padding: 0 }}
+            >
+              ← Change number
+            </button>
+          </div>
+        )}
+
+        {/* Error message */}
+        {error && (
+          <div className="alert alert--error" role="alert" style={{ marginTop: "var(--space-4)" }}>
+            {error}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

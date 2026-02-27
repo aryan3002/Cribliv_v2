@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { ReactNode } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "../components/auth/session-provider";
 
 export const metadata: Metadata = {
@@ -19,10 +19,23 @@ export const metadata: Metadata = {
   }
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0066FF"
+};
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
       <body>
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>

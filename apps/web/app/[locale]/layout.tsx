@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { Header } from "../../components/header";
+import { Footer } from "../../components/footer";
 import { isValidLocale } from "../../lib/i18n";
 import { notFound } from "next/navigation";
 
@@ -36,7 +37,10 @@ export default function LocaleLayout({
   return (
     <>
       <Header locale={params.locale} />
-      <main className="container">{children}</main>
+      <main id="main-content" className="container page-content">
+        {children}
+      </main>
+      <Footer locale={params.locale} />
     </>
   );
 }

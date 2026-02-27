@@ -61,12 +61,14 @@ export async function generateMetadata({
 export default function CityPage({ params }: { params: { locale: string; citySlug: string } }) {
   const city = params.citySlug.replace(/-/g, " ");
   return (
-    <section className="hero">
-      <h1>{city}</h1>
+    <section className="container" style={{ paddingBlock: "var(--space-6)" }}>
+      <h1 className="h2">{city}</h1>
       <p>Verified rentals in {city}, updated daily.</p>
-      <div className="panel">
-        <strong>SEO Landing Blueprint</strong>
-        <p>Locality clusters, budget chips, and FAQs are rendered server-side.</p>
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
+        <div className="card__body">
+          <strong>SEO Landing Blueprint</strong>
+          <p>Locality clusters, budget chips, and FAQs are rendered server-side.</p>
+        </div>
       </div>
     </section>
   );

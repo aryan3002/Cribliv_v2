@@ -70,68 +70,37 @@ function ErrorPageInner() {
   const { title, description, action } = getErrorInfo(errorCode);
 
   return (
-    <div
-      style={{
-        maxWidth: 380,
-        margin: "80px auto",
-        padding: "0 16px",
-        fontFamily: "sans-serif"
-      }}
-    >
-      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Cribliv</h1>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1 className="auth-card__title">Cribliv</h1>
 
-      <div
-        role="alert"
-        aria-live="assertive"
-        style={{
-          marginTop: 24,
-          padding: "16px",
-          border: "1px solid #f9c",
-          borderRadius: 6,
-          backgroundColor: "#fff5f5"
-        }}
-      >
-        <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: "#900" }}>{title}</p>
-        <p style={{ fontSize: 14, color: "#555", margin: 0 }}>{description}</p>
-      </div>
+        <div className="alert alert--error" role="alert" aria-live="assertive">
+          <p style={{ fontWeight: 600, marginBottom: "var(--space-1)" }}>{title}</p>
+          <p className="caption" style={{ margin: 0 }}>
+            {description}
+          </p>
+        </div>
 
-      <div style={{ marginTop: 20, display: "flex", gap: 12 }}>
-        <Link
-          href={action.href as `/${string}`}
-          style={{
-            display: "inline-block",
-            padding: "10px 20px",
-            backgroundColor: "#000",
-            color: "#fff",
-            borderRadius: 6,
-            textDecoration: "none",
-            fontSize: 14
-          }}
-        >
-          {action.label}
-        </Link>
-        {action.href !== "/en" && (
-          <Link
-            href="/en"
-            style={{
-              display: "inline-block",
-              padding: "10px 20px",
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              textDecoration: "none",
-              fontSize: 14,
-              color: "#333"
-            }}
-          >
-            Go home
+        <div style={{ marginTop: "var(--space-5)", display: "flex", gap: "var(--space-3)" }}>
+          <Link href={action.href as `/${string}`} className="btn btn--primary">
+            {action.label}
           </Link>
+          {action.href !== "/en" && (
+            <Link href="/en" className="btn btn--secondary">
+              Go home
+            </Link>
+          )}
+        </div>
+
+        {errorCode && (
+          <p
+            className="caption"
+            style={{ marginTop: "var(--space-5)", color: "var(--text-tertiary)" }}
+          >
+            Error code: {errorCode}
+          </p>
         )}
       </div>
-
-      {/* Show error code in small text for debugging without leaking details */}
-      {errorCode && (
-        <p style={{ marginTop: 24, fontSize: 11, color: "#aaa" }}>Error code: {errorCode}</p>
-      )}
     </div>
   );
 }

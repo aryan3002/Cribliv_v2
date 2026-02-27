@@ -15,11 +15,11 @@ export default function LocaleError({
   }, [error]);
 
   return (
-    <section className="hero">
-      <div className="panel warning-box">
+    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+      <div className="alert alert--error">
         <h2>Something went wrong</h2>
         <p>An unexpected error occurred. Please try again.</p>
-        <button className="btn btn-primary" onClick={reset}>
+        <button className="btn btn--primary" onClick={reset}>
           Try again
         </button>
       </div>

@@ -48,25 +48,28 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
   //  Not logged in
   if (status === "loading") {
     return (
-      <section className="hero">
-        <div className="skeleton skeleton--card" style={{ height: 120 }} />
+      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+        <div className="skeleton-card" style={{ height: 120 }} />
       </section>
     );
   }
 
   if (!session) {
     return (
-      <section className="hero">
-        <div className="panel" style={{ textAlign: "center", padding: "48px 24px" }}>
-          <h2>Sign in first</h2>
-          <p className="muted-text">You need to be logged in to request a role upgrade.</p>
-          <Link
-            href={`/auth/login?from=/${locale}/become-owner`}
-            className="primary"
-            style={{ marginTop: 16, display: "inline-block" }}
-          >
-            Login / Sign up
-          </Link>
+      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
+            <h2 className="h3">Sign in first</h2>
+            <p
+              className="caption"
+              style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-4)" }}
+            >
+              You need to be logged in to request a role upgrade.
+            </p>
+            <Link href={`/auth/login?from=/${locale}/become-owner`} className="btn btn--primary">
+              Login / Sign up
+            </Link>
+          </div>
         </div>
       </section>
     );
@@ -75,22 +78,22 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
   //  Already an owner or pg_operator
   if (userRole === "owner" || userRole === "pg_operator") {
     return (
-      <section className="hero">
-        <div className="panel" style={{ textAlign: "center", padding: "48px 24px" }}>
-          <div
-            style={{ background: "#e8fdf0", borderRadius: 10, padding: "24px", marginBottom: 24 }}
-          >
-            <h2 style={{ margin: "0 0 8px" }}>
-              ✓ You&apos;re already a{""}
-              {userRole === "pg_operator" ? "PG Operator" : "Property Owner"}
-            </h2>
-            <p className="muted-text" style={{ margin: 0 }}>
-              Your role is active. Manage your listings from the dashboard.
-            </p>
+      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
+            <div className="alert alert--success" style={{ marginBottom: "var(--space-5)" }}>
+              <h2 className="h3" style={{ margin: "0 0 var(--space-2)" }}>
+                ✓ You&apos;re already a{""}
+                {userRole === "pg_operator" ? "PG Operator" : "Property Owner"}
+              </h2>
+              <p style={{ margin: 0 }}>
+                Your role is active. Manage your listings from the dashboard.
+              </p>
+            </div>
+            <Link href={`/${locale}/owner/dashboard`} className="btn btn--primary">
+              Go to Dashboard
+            </Link>
           </div>
-          <Link href={`/${locale}/owner/dashboard`} className="primary">
-            Go to Dashboard
-          </Link>
         </div>
       </section>
     );
@@ -100,11 +103,17 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
   if (grantedRole) {
     const roleLabel = grantedRole === "pg_operator" ? "PG Operator" : "Property Owner";
     return (
-      <section className="hero">
-        <div className="panel" style={{ textAlign: "center", padding: "48px 24px" }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-          <h2 style={{ margin: "0 0 8px" }}>✓ You are now a {roleLabel}!</h2>
-          <p className="muted-text">Your account has been upgraded. Redirecting to dashboard</p>
+      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
+            <div style={{ fontSize: 48, marginBottom: "var(--space-3)" }}>🎉</div>
+            <h2 className="h3" style={{ margin: "0 0 var(--space-2)" }}>
+              ✓ You are now a {roleLabel}!
+            </h2>
+            <p className="caption" style={{ color: "var(--text-tertiary)" }}>
+              Your account has been upgraded. Redirecting to dashboard
+            </p>
+          </div>
         </div>
       </section>
     );
@@ -113,28 +122,24 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
   //  Pending admin approval (DB / prod mode)
   if (submitted) {
     return (
-      <section className="hero">
-        <div className="panel" style={{ textAlign: "center", padding: "48px 24px" }}>
-          <h2 style={{ margin: "0 0 8px" }}>Request submitted! 🎉</h2>
-          <p className="muted-text">
-            Your request to become a{""}
-            <strong>{ROLE_INFO[selected].label}</strong> is pending admin approval (usually within
-            24 hours).
-          </p>
-          <Link
-            href={`/${locale}`}
-            style={{
-              marginTop: 20,
-              display: "inline-block",
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              padding: "8px 20px",
-              textDecoration: "none",
-              color: "#374151"
-            }}
-          >
-            ← Back to home
-          </Link>
+      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+        <div className="card" style={{ textAlign: "center" }}>
+          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
+            <h2 className="h3" style={{ margin: "0 0 var(--space-2)" }}>
+              Request submitted! 🎉
+            </h2>
+            <p
+              className="caption"
+              style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-5)" }}
+            >
+              Your request to become a{""}
+              <strong>{ROLE_INFO[selected].label}</strong> is pending admin approval (usually within
+              24 hours).
+            </p>
+            <Link href={`/${locale}`} className="btn btn--secondary">
+              ← Back to home
+            </Link>
+          </div>
         </div>
       </section>
     );
@@ -199,22 +204,20 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
   }
 
   return (
-    <section className="hero">
-      <h1 style={{ marginBottom: 8 }}>List your property on CribLiv</h1>
-      <p className="muted-text" style={{ marginBottom: 32 }}>
+    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+      <h1 className="h2" style={{ marginBottom: "var(--space-2)" }}>
+        List your property on CribLiv
+      </h1>
+      <p
+        className="caption"
+        style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-6)" }}
+      >
         Select your role below and get instant access.
       </p>
 
       <form onSubmit={handleSubmit}>
         {/* Role selector cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 16,
-            marginBottom: 24
-          }}
-        >
+        <div className="grid grid--2" style={{ marginBottom: "var(--space-5)" }}>
           {(["owner", "pg_operator"] as RoleChoice[]).map((role) => {
             const info = ROLE_INFO[role];
             const active = selected === role;
@@ -223,12 +226,12 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
                 key={role}
                 type="button"
                 onClick={() => setSelected(role)}
+                className="card"
                 style={{
                   textAlign: "left",
-                  padding: 20,
-                  borderRadius: 10,
-                  border: active ? "2px solid #000" : "1px solid #e5e7eb",
-                  background: active ? "#fafafa" : "#fff",
+                  padding: "var(--space-4)",
+                  border: active ? "2px solid var(--brand)" : "1px solid var(--border)",
+                  background: active ? "var(--bg-raised)" : "var(--bg-card)",
                   cursor: "pointer",
                   transition: "border 0.15s"
                 }}
@@ -239,38 +242,40 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "flex-start",
-                    marginBottom: 8
+                    marginBottom: "var(--space-2)"
                   }}
                 >
-                  <strong style={{ fontSize: 16 }}>{info.label}</strong>
+                  <strong>{info.label}</strong>
                   {active && (
                     <span
+                      className="badge badge--brand"
                       style={{
-                        background: "#000",
-                        color: "#fff",
                         borderRadius: "50%",
                         width: 20,
                         height: 20,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: 12,
-                        flexShrink: 0
+                        fontSize: 10,
+                        padding: 0
                       }}
                     >
                       ✓
                     </span>
                   )}
                 </div>
-                <p className="muted-text" style={{ margin: "0 0 12px", fontSize: 13 }}>
+                <p
+                  className="caption"
+                  style={{ margin: "0 0 var(--space-3)", color: "var(--text-tertiary)" }}
+                >
                   {info.description}
                 </p>
                 <ul
                   style={{
                     margin: 0,
                     paddingLeft: 16,
-                    fontSize: 12,
-                    color: "#6b7280",
+                    fontSize: "var(--text-xs)",
+                    color: "var(--text-tertiary)",
                     listStyle: "disc"
                   }}
                 >
@@ -284,21 +289,32 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
         </div>
 
         {error && (
-          <div className="panel warning-box" role="alert" style={{ marginBottom: 16 }}>
+          <div
+            className="alert alert--error"
+            role="alert"
+            style={{ marginBottom: "var(--space-4)" }}
+          >
             {error}
           </div>
         )}
 
         <button
           type="submit"
-          className="primary"
+          className="btn btn--primary"
           disabled={submitting}
-          style={{ width: "100%", padding: "12px 0", fontSize: 15 }}
+          style={{ width: "100%" }}
         >
           {submitting ? "Activating…" : `Get ${ROLE_INFO[selected].label} access →`}
         </button>
 
-        <p className="muted-text" style={{ marginTop: 12, fontSize: 12, textAlign: "center" }}>
+        <p
+          className="caption"
+          style={{
+            marginTop: "var(--space-3)",
+            textAlign: "center",
+            color: "var(--text-tertiary)"
+          }}
+        >
           By submitting you agree to CribLiv&apos;s owner terms. We may contact you for
           verification.
         </p>

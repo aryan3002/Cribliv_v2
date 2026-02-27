@@ -15,69 +15,45 @@ export default function ForbiddenPage() {
   const role = session?.user?.role;
 
   return (
-    <div
-      style={{
-        maxWidth: 420,
-        margin: "120px auto",
-        padding: "0 24px",
-        textAlign: "center",
-        fontFamily: "sans-serif"
-      }}
-    >
-      <div style={{ fontSize: 64, marginBottom: 16 }}>🚫</div>
-      <h1 style={{ fontSize: 28, marginBottom: 12 }}>Access Denied</h1>
-      <p style={{ color: "#555", marginBottom: 32, lineHeight: 1.5 }}>
-        You don&apos;t have permission to view that page.
-        {role && (
-          <>
-            {" "}
-            You&apos;re logged in as <strong>{session?.user?.phone}</strong> ({role}).
-          </>
-        )}
-      </p>
-      <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-        {session ? (
-          <Link
-            href={roleDashboard(role) as `/${string}`}
-            style={{
-              background: "#000",
-              color: "#fff",
-              borderRadius: 6,
-              padding: "10px 20px",
-              textDecoration: "none",
-              fontSize: 15
-            }}
-          >
-            Go to my dashboard
-          </Link>
-        ) : (
-          <Link
-            href="/auth/login"
-            style={{
-              background: "#000",
-              color: "#fff",
-              borderRadius: 6,
-              padding: "10px 20px",
-              textDecoration: "none",
-              fontSize: 15
-            }}
-          >
-            Log in
-          </Link>
-        )}
-        <Link
-          href="/en"
+    <div className="auth-page">
+      <div className="auth-card" style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 64, marginBottom: "var(--space-4)" }}>🚫</div>
+        <h1 className="h2" style={{ marginBottom: "var(--space-3)" }}>
+          Access Denied
+        </h1>
+        <p
+          className="caption"
+          style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-6)", lineHeight: 1.6 }}
+        >
+          You don&apos;t have permission to view that page.
+          {role && (
+            <>
+              {" "}
+              You&apos;re logged in as <strong>{session?.user?.phone}</strong> ({role}).
+            </>
+          )}
+        </p>
+        <div
           style={{
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            padding: "10px 20px",
-            textDecoration: "none",
-            fontSize: 15,
-            color: "#333"
+            display: "flex",
+            gap: "var(--space-3)",
+            justifyContent: "center",
+            flexWrap: "wrap"
           }}
         >
-          Home
-        </Link>
+          {session ? (
+            <Link href={roleDashboard(role) as `/${string}`} className="btn btn--primary">
+              Go to my dashboard
+            </Link>
+          ) : (
+            <Link href="/auth/login" className="btn btn--primary">
+              Log in
+            </Link>
+          )}
+          <Link href="/en" className="btn btn--secondary">
+            Home
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -97,42 +97,116 @@ export function ShortlistClient({ locale }: { locale: string }) {
   }
 
   if (loading) {
-    return <div className="panel">Loading shortlist...</div>;
+    return (
+      <section>
+        <h1 style={{ marginBottom: "var(--space-6)" }}>Shortlist</h1>
+        <div className="listing-grid">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="skeleton-card">
+              <div className="skeleton-card__image" />
+              <div className="skeleton-card__body">
+                <div className="skeleton-block" style={{ height: 16, marginBottom: 8 }} />
+                <div
+                  className="skeleton-block"
+                  style={{ height: 12, width: "60%", marginBottom: 12 }}
+                />
+                <div className="skeleton-block" style={{ height: 20, width: "40%" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
   }
 
   return (
-    <section className="hero">
-      <h1>Shortlist</h1>
-      <div className="panel">
-        {isGuestMode
-          ? "Guest shortlist is stored on this browser. Login via unlock flow to sync across devices."
-          : "Your shortlist is synced with your account."}
+    <section>
+      <div style={{ marginBottom: "var(--space-6)" }}>
+        <h1 style={{ marginBottom: "var(--space-2)" }}>Shortlist</h1>
+        <p className="body-sm text-secondary">
+          {isGuestMode
+            ? "Guest shortlist is stored on this browser. Login to sync across devices."
+            : "Your shortlist is synced with your account."}
+        </p>
       </div>
-      {error ? <div className="panel warning-box">{error}</div> : null}
-      {!items.length ? <div className="panel">No shortlisted homes yet.</div> : null}
-      <div className="listing-grid">
-        {items.map((item) => (
-          <article key={item.id} className="panel listing-card">
-            <h3>{item.title}</h3>
-            <p className="muted-text">
-              {item.city ?? "City unavailable"} {item.listing_type ? `• ${item.listing_type}` : ""}
-            </p>
-            <p className="rent">
-              {item.monthly_rent
-                ? `₹${item.monthly_rent.toLocaleString("en-IN")}/month`
-                : "Rent unavailable"}
-            </p>
-            <div className="action-row">
-              <Link className="primary" href={`/${locale}/listing/${item.id}`}>
-                View
-              </Link>
-              <button className="secondary" onClick={() => void removeItem(item.id)}>
-                Remove
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
+
+      {error && (
+        <div className="alert alert--error" style={{ marginBottom: "var(--space-4)" }}>
+          <span aria-hidden="true">⚠️</span>
+          {error}
+        </div>
+      )}
+
+      {!items.length ? (
+        <div className="empty-state">
+          <span className="empty-state__icon" aria-hidden="true">
+            💜
+          </span>
+          <h3>No shortlisted homes yet</h3>
+          <p>Browse verified rentals and tap the heart icon to save them here.</p>
+          <Link href={`/${locale}/search`} className="btn btn--primary">
+            Browse Listings
+          </Link>
+        </div>
+      ) : (
+        <div className="listing-grid">
+          {items.map((item) => (
+            <article key={item.id} className="card">
+              <div className="card__image">
+                <div className="card__image-placeholder" aria-hidden="true">
+                  🏠
+                </div>
+                {item.verification_status === "verified" && (
+                  <span className="card__badge">
+                    <span className="badge badge--verified">✓ Verified</span>
+                  </span>
+                )}
+                <button
+                  className="card__heart card__heart--active"
+                  onClick={() => void removeItem(item.id)}
+                  aria-label={`Remove ${item.title} from shortlist`}
+                >
+                  ♥
+                </button>
+              </div>
+              <div className="card__body">
+                <div className="card__title">{item.title}</div>
+                <div className="card__location">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                  {item.city ?? "City unavailable"}
+                  {item.listing_type
+                    ? ` · ${item.listing_type === "flat_house" ? "Flat/House" : "PG"}`
+                    : ""}
+                </div>
+                <div className="card__price">
+                  {item.monthly_rent
+                    ? `₹${item.monthly_rent.toLocaleString("en-IN")}`
+                    : "Rent unavailable"}
+                  {item.monthly_rent && <span className="card__price-period">/month</span>}
+                </div>
+                <div className="card__meta">
+                  <Link className="btn btn--primary btn--sm" href={`/${locale}/listing/${item.id}`}>
+                    View Details
+                  </Link>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

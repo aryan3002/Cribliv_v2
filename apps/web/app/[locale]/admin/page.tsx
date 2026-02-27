@@ -260,9 +260,12 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   function renderListingQueue() {
     if (listingsLoading) {
       return (
-        <div aria-busy="true">
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
+          aria-busy="true"
+        >
           {[1, 2, 3].map((index) => (
-            <div key={index} className="skeleton skeleton--card" />
+            <div key={index} className="skeleton-card" />
           ))}
         </div>
       );
@@ -270,7 +273,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
 
     if (listingsError) {
       return (
-        <div className="panel warning-box" role="alert">
+        <div className="alert alert--error" role="alert">
           {listingsError}
         </div>
       );
@@ -279,8 +282,9 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     if (listings.length === 0) {
       return (
         <div className="empty-state">
-          <h3>No listings pending review</h3>
-          <p>All submitted listings have been reviewed.</p>
+          <span className="empty-state__icon">📋</span>
+          <h3 className="empty-state__heading">No listings pending review</h3>
+          <p className="empty-state__description">All submitted listings have been reviewed.</p>
         </div>
       );
     }
@@ -331,7 +335,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </label>
                 <textarea
                   id={`reason-listing-${listing.id}`}
-                  className="reason-input"
+                  className="textarea"
                   placeholder="Enter reason for rejection or pause..."
                   value={listingReasons[listing.id] || ""}
                   onChange={(event) =>
@@ -347,7 +351,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
               <div className="queue-card__actions">
                 <button
                   type="button"
-                  className="btn-sm btn-sm--approve"
+                  className="btn btn--primary btn--sm"
                   disabled={processing}
                   onClick={() => handleListingDecision(listing.id, "approve")}
                 >
@@ -355,7 +359,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </button>
                 <button
                   type="button"
-                  className="btn-sm btn-sm--reject"
+                  className="btn btn--danger btn--sm"
                   disabled={processing}
                   onClick={() => handleListingDecision(listing.id, "reject")}
                 >
@@ -363,7 +367,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </button>
                 <button
                   type="button"
-                  className="btn-sm btn-sm--warn"
+                  className="btn btn--secondary btn--sm"
                   disabled={processing}
                   onClick={() => handleListingDecision(listing.id, "pause")}
                 >
@@ -380,9 +384,12 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   function renderVerificationQueue() {
     if (verificationsLoading) {
       return (
-        <div aria-busy="true">
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
+          aria-busy="true"
+        >
           {[1, 2, 3].map((index) => (
-            <div key={index} className="skeleton skeleton--card" />
+            <div key={index} className="skeleton-card" />
           ))}
         </div>
       );
@@ -390,7 +397,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
 
     if (verificationsError) {
       return (
-        <div className="panel warning-box" role="alert">
+        <div className="alert alert--error" role="alert">
           {verificationsError}
         </div>
       );
@@ -399,8 +406,11 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     if (verifications.length === 0) {
       return (
         <div className="empty-state">
-          <h3>No verifications pending review</h3>
-          <p>All submitted verifications have been reviewed.</p>
+          <span className="empty-state__icon">🔍</span>
+          <h3 className="empty-state__heading">No verifications pending review</h3>
+          <p className="empty-state__description">
+            All submitted verifications have been reviewed.
+          </p>
         </div>
       );
     }
@@ -477,7 +487,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </label>
                 <textarea
                   id={`reason-ver-${verification.id}`}
-                  className="reason-input"
+                  className="textarea"
                   placeholder="Enter reason for failure..."
                   value={verificationReasons[verification.id] || ""}
                   onChange={(event) =>
@@ -493,7 +503,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
               <div className="queue-card__actions">
                 <button
                   type="button"
-                  className="btn-sm btn-sm--approve"
+                  className="btn btn--primary btn--sm"
                   disabled={processing}
                   onClick={() => handleVerificationDecision(verification.id, "pass")}
                 >
@@ -501,7 +511,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </button>
                 <button
                   type="button"
-                  className="btn-sm btn-sm--reject"
+                  className="btn btn--danger btn--sm"
                   disabled={processing}
                   onClick={() => handleVerificationDecision(verification.id, "fail")}
                 >
@@ -509,7 +519,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </button>
                 <button
                   type="button"
-                  className="btn-sm btn-sm--warn"
+                  className="btn btn--secondary btn--sm"
                   disabled={processing}
                   onClick={() => handleVerificationDecision(verification.id, "manual_review")}
                 >
@@ -526,9 +536,12 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   function renderLeadQueue() {
     if (leadsLoading) {
       return (
-        <div aria-busy="true">
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
+          aria-busy="true"
+        >
           {[1, 2, 3].map((index) => (
-            <div key={index} className="skeleton skeleton--card" />
+            <div key={index} className="skeleton-card" />
           ))}
         </div>
       );
@@ -536,7 +549,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
 
     if (leadsError) {
       return (
-        <div className="panel warning-box" role="alert">
+        <div className="alert alert--error" role="alert">
           {leadsError}
         </div>
       );
@@ -545,8 +558,11 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     if (leads.length === 0) {
       return (
         <div className="empty-state">
-          <h3>No sales leads yet</h3>
-          <p>New leads from PG sales assist and property management requests will appear here.</p>
+          <span className="empty-state__icon">📊</span>
+          <h3 className="empty-state__heading">No sales leads yet</h3>
+          <p className="empty-state__description">
+            New leads from PG sales assist and property management requests will appear here.
+          </p>
         </div>
       );
     }
@@ -598,7 +614,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </label>
                 <textarea
                   id={`reason-lead-${lead.id}`}
-                  className="reason-input"
+                  className="textarea"
                   placeholder="Add context for this status change..."
                   value={leadReasons[lead.id] || ""}
                   onChange={(event) =>
@@ -614,7 +630,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
               <div className="queue-card__actions">
                 <button
                   type="button"
-                  className="btn-sm btn-sm--warn"
+                  className="btn btn--secondary btn--sm"
                   disabled={processing}
                   onClick={() => handleLeadStatus(lead.id, "contacted")}
                 >
@@ -622,7 +638,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </button>
                 <button
                   type="button"
-                  className="btn-sm btn-sm--approve"
+                  className="btn btn--primary btn--sm"
                   disabled={processing}
                   onClick={() => handleLeadStatus(lead.id, "qualified")}
                 >
@@ -630,7 +646,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </button>
                 <button
                   type="button"
-                  className="btn-sm"
+                  className="btn btn--ghost btn--sm"
                   disabled={processing}
                   onClick={() => handleLeadStatus(lead.id, "closed_won")}
                 >
@@ -638,7 +654,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                 </button>
                 <button
                   type="button"
-                  className="btn-sm btn-sm--reject"
+                  className="btn btn--danger btn--sm"
                   disabled={processing}
                   onClick={() => handleLeadStatus(lead.id, "closed_lost")}
                 >
@@ -653,8 +669,10 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   }
 
   return (
-    <section className="hero">
-      <h1>{t(locale, "adminDashboard")}</h1>
+    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+      <h1 className="h2" style={{ marginBottom: "var(--space-5)" }}>
+        {t(locale, "adminDashboard")}
+      </h1>
 
       <div className="tab-row" role="tablist" aria-label="Admin queues">
         <button
@@ -686,11 +704,13 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
         </button>
       </div>
 
-      {activeTab === "listings"
-        ? renderListingQueue()
-        : activeTab === "verifications"
-          ? renderVerificationQueue()
-          : renderLeadQueue()}
+      <div style={{ marginTop: "var(--space-5)" }}>
+        {activeTab === "listings"
+          ? renderListingQueue()
+          : activeTab === "verifications"
+            ? renderVerificationQueue()
+            : renderLeadQueue()}
+      </div>
     </section>
   );
 }

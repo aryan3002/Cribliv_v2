@@ -1143,7 +1143,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           <div className="capture-field-card__edit">
             {definition.type === "select" ? (
               <select
-                className="form-select"
+                className="input"
                 value={editingCaptureValue}
                 onChange={(event) => setEditingCaptureValue(event.target.value)}
               >
@@ -1156,7 +1156,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               </select>
             ) : definition.type === "boolean" ? (
               <select
-                className="form-select"
+                className="input"
                 value={editingCaptureValue}
                 onChange={(event) => setEditingCaptureValue(event.target.value)}
               >
@@ -1166,7 +1166,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               </select>
             ) : (
               <input
-                className="form-input"
+                className="input"
                 type={definition.type === "number" ? "number" : "text"}
                 value={editingCaptureValue}
                 onChange={(event) => setEditingCaptureValue(event.target.value)}
@@ -1176,12 +1176,16 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             <div className="capture-field-card__actions">
               <button
                 type="button"
-                className="btn-sm btn-sm--primary"
+                className="btn btn--primary btn--sm"
                 onClick={() => saveEditedCapture(path)}
               >
                 Save
               </button>
-              <button type="button" className="btn-sm" onClick={() => setEditingCaptureField(null)}>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => setEditingCaptureField(null)}
+              >
                 Cancel
               </button>
             </div>
@@ -1193,14 +1197,18 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               {requireConfirmation ? (
                 <button
                   type="button"
-                  className="btn-sm btn-sm--primary"
+                  className="btn btn--primary btn--sm"
                   onClick={() => confirmCaptureField(path)}
                   disabled={Boolean(confirmedCaptureFields[path])}
                 >
                   {confirmedCaptureFields[path] ? "Confirmed" : "Confirm"}
                 </button>
               ) : null}
-              <button type="button" className="btn-sm" onClick={() => startEditingCapture(path)}>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                onClick={() => startEditingCapture(path)}
+              >
                 Edit
               </button>
             </div>
@@ -1212,30 +1220,30 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
   function renderCaptureEntry() {
     return (
-      <div className="panel capture-entry">
+      <div className="card capture-entry">
         <p className="trust-strip" style={{ marginBottom: 16 }}>
           Nothing is published until you submit.
         </p>
-        <button type="button" className="primary" onClick={startVoiceCapture}>
+        <button type="button" className="btn btn--primary" onClick={startVoiceCapture}>
           Describe Property
         </button>
         <button
           type="button"
-          className="secondary"
+          className="btn btn--secondary"
           onClick={() => enterManualWizard("user_preference")}
         >
           Fill Manually
         </button>
-        {captureError ? <p className="error-text">{captureError}</p> : null}
+        {captureError ? <p className="alert alert--error">{captureError}</p> : null}
       </div>
     );
   }
 
   function renderVoiceRecorder() {
     return (
-      <div className="panel capture-recorder">
+      <div className="card capture-recorder">
         <h3>Voice recording</h3>
-        <p className="muted-text">
+        <p className="caption">
           Speak naturally for up to 60 seconds. We will prefill your listing draft.
         </p>
         <p className="capture-recorder__timer">
@@ -1245,7 +1253,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         <div className="capture-recorder__actions">
           <button
             type="button"
-            className="primary"
+            className="btn btn--primary"
             onClick={stopVoiceCapture}
             disabled={recorderState !== "recording"}
           >
@@ -1253,25 +1261,23 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </button>
           <button
             type="button"
-            className="secondary"
+            className="btn btn--secondary"
             onClick={() => enterManualWizard("user_cancelled")}
           >
             Fill Manually
           </button>
         </div>
-        {recorderState === "processing" ? (
-          <p className="muted-text">Processing recording...</p>
-        ) : null}
-        {captureError ? <p className="error-text">{captureError}</p> : null}
+        {recorderState === "processing" ? <p className="caption">Processing recording...</p> : null}
+        {captureError ? <p className="alert alert--error">{captureError}</p> : null}
       </div>
     );
   }
 
   function renderAssistedConfirmation() {
     return (
-      <div className="panel capture-confirmation">
+      <div className="card capture-confirmation">
         <h3>Assisted Draft</h3>
-        <p className="muted-text">
+        <p className="caption">
           We filled {captureVisiblePaths.length} fields from your voice input.
         </p>
 
@@ -1306,7 +1312,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
                   <div className="capture-field-card__actions">
                     <button
                       type="button"
-                      className="btn-sm"
+                      className="btn btn--ghost btn--sm"
                       onClick={() => startEditingCapture(path)}
                     >
                       Add
@@ -1319,7 +1325,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         ) : null}
 
         {captureResult?.critical_warnings.length ? (
-          <div className="panel warning-box" role="alert">
+          <div className="alert alert--error" role="alert">
             {captureResult.critical_warnings[0]}
           </div>
         ) : null}
@@ -1330,12 +1336,16 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </details>
 
         <div className="wizard-nav">
-          <button type="button" className="secondary" onClick={() => setCaptureMode("entry")}>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={() => setCaptureMode("entry")}
+          >
             Re-record
           </button>
           <button
             type="button"
-            className="primary"
+            className="btn btn--primary"
             onClick={continueFromCapture}
             disabled={!canContinueFromCapture}
           >
@@ -1373,7 +1383,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </label>
           <input
             id="wiz-title"
-            className="form-input"
+            className="input"
             value={form.title}
             onChange={(event) => updateField("title", event.target.value)}
             placeholder="e.g. Spacious 2BHK near Metro"
@@ -1386,7 +1396,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </label>
           <textarea
             id="wiz-desc"
-            className="form-textarea"
+            className="textarea"
             value={form.description}
             onChange={(event) => updateField("description", event.target.value)}
             placeholder="Describe your property — condition, nearby landmarks, best suited for..."
@@ -1400,7 +1410,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             </label>
             <select
               id="wiz-type"
-              className="form-select"
+              className="input"
               value={form.listing_type}
               onChange={(event) => updateField("listing_type", event.target.value as ListingType)}
             >
@@ -1415,7 +1425,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             </label>
             <select
               id="wiz-furnishing"
-              className="form-select"
+              className="input"
               value={form.furnishing}
               onChange={(event) => updateField("furnishing", event.target.value as Furnishing)}
             >
@@ -1435,7 +1445,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             <input
               id="wiz-rent"
               type="number"
-              className="form-input"
+              className="input"
               value={form.monthly_rent}
               onChange={(event) => updateField("monthly_rent", event.target.value)}
               placeholder="e.g. 15000"
@@ -1450,7 +1460,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             <input
               id="wiz-deposit"
               type="number"
-              className="form-input"
+              className="input"
               value={form.deposit}
               onChange={(event) => updateField("deposit", event.target.value)}
               placeholder="e.g. 30000"
@@ -1471,7 +1481,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </label>
           <select
             id="wiz-city"
-            className="form-select"
+            className="input"
             value={form.city}
             onChange={(event) => updateField("city", event.target.value)}
           >
@@ -1490,7 +1500,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </label>
           <input
             id="wiz-locality"
-            className="form-input"
+            className="input"
             value={form.locality}
             onChange={(event) => updateField("locality", event.target.value)}
             placeholder="e.g. Sector 62, DLF Phase 3"
@@ -1503,12 +1513,15 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </label>
           <textarea
             id="wiz-address"
-            className="form-textarea"
+            className="textarea"
             value={form.address}
             onChange={(event) => updateField("address", event.target.value)}
             placeholder="Complete address (kept private, used for verification only)"
           />
-          <p className="form-hint">
+          <p
+            className="caption"
+            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
+          >
             Your full address is never shown to tenants. It is used only for owner verification.
           </p>
         </div>
@@ -1531,7 +1544,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
                 <input
                   id="wiz-beds"
                   type="number"
-                  className="form-input"
+                  className="input"
                   value={form.beds}
                   onChange={(event) => updateField("beds", event.target.value)}
                   placeholder="e.g. 20"
@@ -1545,7 +1558,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
                 </label>
                 <select
                   id="wiz-sharing"
-                  className="form-select"
+                  className="input"
                   value={form.sharing_type}
                   onChange={(event) =>
                     updateField("sharing_type", event.target.value as SharingType)
@@ -1592,7 +1605,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               <input
                 id="wiz-bedrooms"
                 type="number"
-                className="form-input"
+                className="input"
                 value={form.bedrooms}
                 onChange={(event) => updateField("bedrooms", event.target.value)}
                 placeholder="e.g. 2"
@@ -1607,7 +1620,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               <input
                 id="wiz-bathrooms"
                 type="number"
-                className="form-input"
+                className="input"
                 value={form.bathrooms}
                 onChange={(event) => updateField("bathrooms", event.target.value)}
                 placeholder="e.g. 1"
@@ -1624,7 +1637,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           <input
             id="wiz-area"
             type="number"
-            className="form-input"
+            className="input"
             value={form.area_sqft}
             onChange={(event) => updateField("area_sqft", event.target.value)}
             placeholder="e.g. 850"
@@ -1655,7 +1668,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   function renderPhotos() {
     return (
       <>
-        <p className="muted-text">
+        <p className="caption">
           Add photos of your property. Good photos help tenants decide faster.
         </p>
 
@@ -1677,7 +1690,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           }}
         >
           <p>Click or drag photos here</p>
-          <p className="form-hint">JPG, PNG up to 10 MB each</p>
+          <p className="caption" style={{ color: "var(--text-tertiary)" }}>
+            JPG, PNG up to 10 MB each
+          </p>
           <input
             ref={fileInputRef}
             type="file"
@@ -1727,7 +1742,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
                   <button
                     type="button"
-                    className="btn-sm"
+                    className="btn btn--ghost btn--sm"
                     onClick={() => removeUpload(upload.clientUploadId)}
                     aria-label={`Remove ${upload.file.name}`}
                   >
@@ -1740,7 +1755,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             <div style={{ marginTop: 12 }}>
               <button
                 type="button"
-                className="primary"
+                className="btn btn--primary"
                 onClick={uploadAllPending}
                 disabled={saving || uploads.every((upload) => upload.status !== "pending")}
               >
@@ -1761,9 +1776,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       <>
         <div className="info-box">{t(locale, "reviewInfo")}</div>
 
-        <div className="panel">
+        <div className="card">
           <h3>{form.title || "Untitled"}</h3>
-          <p className="muted-text">
+          <p className="caption">
             {isPg ? "PG / Hostel" : "Flat / House"} in {form.city || "—"}
             {form.locality ? `, ${form.locality}` : ""}
           </p>
@@ -1776,7 +1791,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           {form.description ? <p>{form.description}</p> : null}
         </div>
 
-        <div className="panel">
+        <div className="card">
           <h4>Property details</h4>
           {!isPg && form.bedrooms ? <p>Bedrooms: {form.bedrooms}</p> : null}
           {!isPg && form.bathrooms ? <p>Bathrooms: {form.bathrooms}</p> : null}
@@ -1797,7 +1812,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </div>
 
         {completedUploads.length > 0 ? (
-          <div className="panel">
+          <div className="card">
             <h4>Photos ({completedUploads.length})</h4>
             <div className="chip-row">
               {completedUploads.map((upload) => (
@@ -1823,26 +1838,26 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   }
 
   return (
-    <section className="hero">
+    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
       <h1>{editId ? t(locale, "editListing") : t(locale, "createListing")}</h1>
 
       {error ? (
-        <div className="panel warning-box" role="alert">
+        <div className="alert alert--error" role="alert">
           {error}
         </div>
       ) : null}
 
       {authHint ? (
-        <div className="panel" role="status">
-          <p className="muted-text" style={{ margin: 0 }}>
+        <div className="card" role="status">
+          <p className="caption" style={{ margin: 0 }}>
             {authHint}
           </p>
         </div>
       ) : null}
 
       {salesAssistNotice ? (
-        <div className="panel" role="status">
-          <p className="muted-text" style={{ margin: 0 }}>
+        <div className="card" role="status">
+          <p className="caption" style={{ margin: 0 }}>
             {salesAssistNotice}
           </p>
         </div>
@@ -1856,7 +1871,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         <>
           {renderStepIndicator()}
 
-          <div className="panel">
+          <div className="card">
             {step === 0 ? renderBasics() : null}
             {step === 1 ? renderLocation() : null}
             {step === 2 ? renderDetails() : null}
@@ -1865,21 +1880,31 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </div>
 
           <div className="wizard-nav">
-            <button type="button" className="secondary" onClick={goBack} disabled={step === 0}>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              onClick={goBack}
+              disabled={step === 0}
+            >
               {t(locale, "back")}
             </button>
 
             {step < 4 ? (
               <button
                 type="button"
-                className="primary"
+                className="btn btn--primary"
                 onClick={goNext}
                 disabled={saving || !canProceed}
               >
                 {saving ? "Saving..." : t(locale, "next")}
               </button>
             ) : (
-              <button type="button" className="primary" onClick={submitListing} disabled={saving}>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={submitListing}
+                disabled={saving}
+              >
                 {saving ? "Submitting..." : t(locale, "submitForReview")}
               </button>
             )}

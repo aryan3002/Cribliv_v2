@@ -253,40 +253,54 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
 
   if (loading) {
     return (
-      <section className="hero">
-        <h1>{t(locale, "verification")}</h1>
-        <div aria-busy="true">
-          <div className="skeleton skeleton--card" />
-          <div className="skeleton skeleton--card" />
+      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+        <h1 className="h2">{t(locale, "verification")}</h1>
+        <div
+          aria-busy="true"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-4)",
+            marginTop: "var(--space-5)"
+          }}
+        >
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
         </div>
       </section>
     );
   }
 
   return (
-    <section className="hero">
-      <h1>{t(locale, "verification")}</h1>
+    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+      <h1 className="h2" style={{ marginBottom: "var(--space-5)" }}>
+        {t(locale, "verification")}
+      </h1>
 
       {error ? (
-        <div className="panel warning-box" role="alert">
+        <div className="alert alert--error" role="alert" style={{ marginBottom: "var(--space-4)" }}>
           {error}
         </div>
       ) : null}
 
       {submitSuccess ? (
-        <div className="success-box" role="status">
+        <div
+          className="alert alert--success"
+          role="status"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
           {submitSuccess}
         </div>
       ) : null}
 
-      <div className="panel">
-        <div className="form-group">
+      <div className="card" style={{ marginBottom: "var(--space-4)" }}>
+        <div className="card__body">
           <label className="form-label" htmlFor="verification-listing">
             Listing
           </label>
           <select
             id="verification-listing"
-            className="form-select"
+            className="input"
             value={selectedListingId}
             onChange={(event) => setSelectedListingId(event.target.value)}
           >
@@ -300,195 +314,231 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
         </div>
       </div>
 
-      <div className="panel">
-        <div className="card-row">
-          <div>
-            <h3 style={{ margin: 0 }}>{locale === "hi" ? copy.headingHi : copy.heading}</h3>
-            <p className="muted-text">{locale === "hi" ? copy.descHi : copy.description}</p>
-            {awaitingAdmin ? (
-              <p className="muted-text" style={{ marginTop: 8 }}>
-                Awaiting admin review for final verification status.
+      <div className="card" style={{ marginBottom: "var(--space-4)" }}>
+        <div className="card__body">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "var(--space-4)",
+              flexWrap: "wrap"
+            }}
+          >
+            <div>
+              <h3 className="card__title">{locale === "hi" ? copy.headingHi : copy.heading}</h3>
+              <p
+                className="caption"
+                style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
+              >
+                {locale === "hi" ? copy.descHi : copy.description}
               </p>
-            ) : null}
+              {awaitingAdmin ? (
+                <p
+                  className="caption"
+                  style={{ marginTop: "var(--space-2)", color: "var(--text-tertiary)" }}
+                >
+                  Awaiting admin review for final verification status.
+                </p>
+              ) : null}
+            </div>
+            <span className={`status-pill status-pill--${uiStatus}`}>{uiStatus}</span>
           </div>
-          <span className={`status-pill status-pill--${uiStatus}`}>{uiStatus}</span>
-        </div>
 
-        {latestScore != null ? (
-          <div className="score-bar-wrap">
-            <div className="score-bar">
-              <div
-                className={`score-bar__fill ${scoreClass}`}
-                style={{ width: `${Math.min(latestScore, 100)}%` }}
-              />
-              <div
-                className="score-bar__threshold"
-                style={{ left: `${threshold}%` }}
-                title={`Threshold: ${threshold}%`}
-              />
+          {latestScore != null ? (
+            <div className="score-bar-wrap">
+              <div className="score-bar">
+                <div
+                  className={`score-bar__fill ${scoreClass}`}
+                  style={{ width: `${Math.min(latestScore, 100)}%` }}
+                />
+                <div
+                  className="score-bar__threshold"
+                  style={{ left: `${threshold}%` }}
+                  title={`Threshold: ${threshold}%`}
+                />
+              </div>
+              <div className="score-bar__label">
+                <span>Score: {latestScore}%</span>
+                <span>Threshold: {threshold}%</span>
+              </div>
             </div>
-            <div className="score-bar__label">
-              <span>Score: {latestScore}%</span>
-              <span>Threshold: {threshold}%</span>
-            </div>
-          </div>
-        ) : (
-          <p className="muted-text">No address match score yet. Threshold is fixed at 85%.</p>
-        )}
+          ) : (
+            <p
+              className="caption"
+              style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
+            >
+              No address match score yet. Threshold is fixed at 85%.
+            </p>
+          )}
+        </div>
       </div>
 
-      <div className="panel">
-        <h3>Video verification</h3>
-        <div className="form-group">
-          <label className="form-label" htmlFor="video-artifact-path">
-            Artifact blob path
-          </label>
-          <input
-            id="video-artifact-path"
-            className="form-input"
-            value={videoArtifactPath}
-            onChange={(event) => setVideoArtifactPath(event.target.value)}
-            placeholder="verification-artifacts/video-selfie.mp4"
-          />
+      <div className="card" style={{ marginBottom: "var(--space-4)" }}>
+        <div className="card__body">
+          <h3 className="card__title">Video verification</h3>
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <label className="form-label" htmlFor="video-artifact-path">
+              Artifact blob path
+            </label>
+            <input
+              id="video-artifact-path"
+              className="input"
+              value={videoArtifactPath}
+              onChange={(event) => setVideoArtifactPath(event.target.value)}
+              placeholder="verification-artifacts/video-selfie.mp4"
+            />
+          </div>
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <label className="form-label" htmlFor="video-vendor-ref">
+              Vendor reference (optional)
+            </label>
+            <input
+              id="video-vendor-ref"
+              className="input"
+              value={videoVendorReference}
+              onChange={(event) => setVideoVendorReference(event.target.value)}
+              placeholder="vendor-ref-123"
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={onSubmitVideo}
+            disabled={submitting || !selectedListingId}
+          >
+            {submitting ? "Submitting..." : "Submit Video Verification"}
+          </button>
         </div>
-        <div className="form-group">
-          <label className="form-label" htmlFor="video-vendor-ref">
-            Vendor reference (optional)
-          </label>
-          <input
-            id="video-vendor-ref"
-            className="form-input"
-            value={videoVendorReference}
-            onChange={(event) => setVideoVendorReference(event.target.value)}
-            placeholder="vendor-ref-123"
-          />
-        </div>
-        <button
-          type="button"
-          className="primary"
-          onClick={onSubmitVideo}
-          disabled={submitting || !selectedListingId}
-        >
-          {submitting ? "Submitting..." : "Submit Video Verification"}
-        </button>
       </div>
 
-      <div className="panel">
-        <h3>Electricity verification</h3>
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label" htmlFor="consumer-id">
-              Consumer ID
-            </label>
-            <input
-              id="consumer-id"
-              className="form-input"
-              value={consumerId}
-              onChange={(event) => setConsumerId(event.target.value)}
-              placeholder="Consumer ID"
-            />
+      <div className="card" style={{ marginBottom: "var(--space-4)" }}>
+        <div className="card__body">
+          <h3 className="card__title">Electricity verification</h3>
+          <div className="grid grid--2" style={{ marginBottom: "var(--space-3)" }}>
+            <div>
+              <label className="form-label" htmlFor="consumer-id">
+                Consumer ID
+              </label>
+              <input
+                id="consumer-id"
+                className="input"
+                value={consumerId}
+                onChange={(event) => setConsumerId(event.target.value)}
+                placeholder="Consumer ID"
+              />
+            </div>
+            <div>
+              <label className="form-label" htmlFor="bill-artifact-path">
+                Bill artifact path (optional)
+              </label>
+              <input
+                id="bill-artifact-path"
+                className="input"
+                value={billArtifactPath}
+                onChange={(event) => setBillArtifactPath(event.target.value)}
+                placeholder="verification-artifacts/electricity-bill.pdf"
+              />
+            </div>
           </div>
-          <div className="form-group">
-            <label className="form-label" htmlFor="bill-artifact-path">
-              Bill artifact path (optional)
+
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <label className="form-label" htmlFor="address-text">
+              Address text
             </label>
-            <input
-              id="bill-artifact-path"
-              className="form-input"
-              value={billArtifactPath}
-              onChange={(event) => setBillArtifactPath(event.target.value)}
-              placeholder="verification-artifacts/electricity-bill.pdf"
+            <textarea
+              id="address-text"
+              className="textarea"
+              value={addressText}
+              onChange={(event) => setAddressText(event.target.value)}
+              placeholder="Enter bill address text for fuzzy match"
             />
+            <p
+              className="caption"
+              style={{ marginTop: "var(--space-1)", color: "var(--text-tertiary)" }}
+            >
+              Address match threshold is 85%.
+            </p>
           </div>
-        </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="address-text">
-            Address text
-          </label>
-          <textarea
-            id="address-text"
-            className="form-textarea"
-            value={addressText}
-            onChange={(event) => setAddressText(event.target.value)}
-            placeholder="Enter bill address text for fuzzy match"
-          />
-          <p className="form-hint">Address match threshold is 85%.</p>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={onSubmitElectricity}
+            disabled={submitting || !selectedListingId}
+          >
+            {submitting ? "Submitting..." : "Submit Electricity Verification"}
+          </button>
         </div>
-
-        <button
-          type="button"
-          className="primary"
-          onClick={onSubmitElectricity}
-          disabled={submitting || !selectedListingId}
-        >
-          {submitting ? "Submitting..." : "Submit Electricity Verification"}
-        </button>
       </div>
 
       {status && status.attempts.length > 0 ? (
-        <div className="panel">
-          <h3>Submission history</h3>
-          <div className="verification-timeline">
-            {status.attempts.map((attempt) => (
-              <div key={attempt.id} className="timeline-item">
-                <div
-                  className={`timeline-dot ${
-                    attempt.result === "pass"
-                      ? "timeline-dot--done"
-                      : attempt.result === "fail"
-                        ? "timeline-dot--fail"
-                        : "timeline-dot--active"
-                  }`}
-                >
-                  {attempt.result === "pass" ? "✓" : attempt.result === "fail" ? "✗" : "..."}
-                </div>
-                <div className="timeline-content">
-                  <h4>{getAttemptLabel(attempt)}</h4>
-                  <p>
-                    Status:{" "}
-                    <span className={`status-pill status-pill--${attempt.result}`}>
-                      {getResultLabel(attempt.result)}
-                    </span>
-                  </p>
-                  {attempt.machineResult ? (
+        <div className="card">
+          <div className="card__body">
+            <h3 className="card__title">Submission history</h3>
+            <div className="verification-timeline">
+              {status.attempts.map((attempt) => (
+                <div key={attempt.id} className="timeline-item">
+                  <div
+                    className={`timeline-dot ${
+                      attempt.result === "pass"
+                        ? "timeline-dot--done"
+                        : attempt.result === "fail"
+                          ? "timeline-dot--fail"
+                          : "timeline-dot--active"
+                    }`}
+                  >
+                    {attempt.result === "pass" ? "✓" : attempt.result === "fail" ? "✗" : "..."}
+                  </div>
+                  <div className="timeline-content">
+                    <h4>{getAttemptLabel(attempt)}</h4>
                     <p>
-                      Machine result:{" "}
-                      <span className={`status-pill status-pill--${attempt.machineResult}`}>
-                        {getResultLabel(attempt.machineResult)}
+                      Status:{" "}
+                      <span className={`status-pill status-pill--${attempt.result}`}>
+                        {getResultLabel(attempt.result)}
                       </span>
                     </p>
-                  ) : null}
-                  {attempt.addressMatchScore != null ? (
-                    <p>Address match score: {attempt.addressMatchScore}%</p>
-                  ) : null}
-                  {attempt.livenessScore != null ? (
-                    <p>Liveness score: {attempt.livenessScore}%</p>
-                  ) : null}
-                  {attempt.provider ? <p>Provider: {attempt.provider}</p> : null}
-                  {attempt.providerReference ? (
-                    <p>Provider reference: {attempt.providerReference}</p>
-                  ) : null}
-                  {attempt.providerResultCode ? (
-                    <p>Provider result code: {attempt.providerResultCode}</p>
-                  ) : null}
-                  {attempt.reviewReason ? <p>Review reason: {attempt.reviewReason}</p> : null}
-                  {attempt.retryable ? (
-                    <p className="muted-text">Provider signaled this attempt may be retried.</p>
-                  ) : null}
-                  <p>
-                    Submitted:{" "}
-                    {new Date(attempt.createdAt).toLocaleString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })}
-                  </p>
+                    {attempt.machineResult ? (
+                      <p>
+                        Machine result:{" "}
+                        <span className={`status-pill status-pill--${attempt.machineResult}`}>
+                          {getResultLabel(attempt.machineResult)}
+                        </span>
+                      </p>
+                    ) : null}
+                    {attempt.addressMatchScore != null ? (
+                      <p>Address match score: {attempt.addressMatchScore}%</p>
+                    ) : null}
+                    {attempt.livenessScore != null ? (
+                      <p>Liveness score: {attempt.livenessScore}%</p>
+                    ) : null}
+                    {attempt.provider ? <p>Provider: {attempt.provider}</p> : null}
+                    {attempt.providerReference ? (
+                      <p>Provider reference: {attempt.providerReference}</p>
+                    ) : null}
+                    {attempt.providerResultCode ? (
+                      <p>Provider result code: {attempt.providerResultCode}</p>
+                    ) : null}
+                    {attempt.reviewReason ? <p>Review reason: {attempt.reviewReason}</p> : null}
+                    {attempt.retryable ? (
+                      <p className="caption" style={{ color: "var(--text-tertiary)" }}>
+                        Provider signaled this attempt may be retried.
+                      </p>
+                    ) : null}
+                    <p>
+                      Submitted:{" "}
+                      {new Date(attempt.createdAt).toLocaleString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       ) : null}

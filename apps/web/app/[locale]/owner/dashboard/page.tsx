@@ -123,21 +123,37 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
   }
 
   return (
-    <section className="hero">
-      <div className="card-row" style={{ marginBottom: 16 }}>
+    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+      {/* Header row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "var(--space-4)",
+          flexWrap: "wrap",
+          marginBottom: "var(--space-5)"
+        }}
+      >
         <div>
-          <h1 style={{ margin: 0 }}>{dashboardTitle}</h1>
+          <h1 className="h2" style={{ margin: 0 }}>
+            {dashboardTitle}
+          </h1>
           {isPgOperator && (
-            <p className="muted-text" style={{ margin: "4px 0 0" }}>
+            <p
+              className="caption"
+              style={{ marginTop: "var(--space-1)", color: "var(--text-tertiary)" }}
+            >
               PG Operator dashboard — manage your paying guest accommodations
             </p>
           )}
         </div>
-        <Link className="primary" href={newListingHref}>
+        <Link className="btn btn--primary" href={newListingHref}>
           {createListingLabel}
         </Link>
       </div>
 
+      {/* Status filter tabs */}
       <div className="tab-row" role="tablist" aria-label="Filter by status">
         {STATUS_FILTERS.map((filter) => (
           <button
@@ -153,73 +169,104 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
         ))}
       </div>
 
+      {/* Listings */}
       {loading ? (
-        <div aria-busy="true" aria-label="Loading listings">
+        <div
+          className="grid grid--3"
+          aria-busy="true"
+          aria-label="Loading listings"
+          style={{ marginTop: "var(--space-5)" }}
+        >
           {[1, 2, 3].map((index) => (
-            <div key={index} className="skeleton skeleton--card" />
+            <div key={index} className="skeleton-card" />
           ))}
         </div>
       ) : error ? (
-        <div className="panel warning-box" role="alert">
+        <div className="alert alert--error" role="alert" style={{ marginTop: "var(--space-5)" }}>
           {error}
         </div>
       ) : listings.length === 0 ? (
-        <div className="empty-state">
-          <h3>{t(locale, "noListings")}</h3>
-          <p>
+        <div className="empty-state" style={{ marginTop: "var(--space-6)" }}>
+          <span className="empty-state__icon">📋</span>
+          <h3 className="empty-state__heading">{t(locale, "noListings")}</h3>
+          <p className="empty-state__description">
             {isPgOperator
               ? "No PG spaces listed yet. Add your first PG to start receiving tenant enquiries."
               : statusFilter === "all"
                 ? t(locale, "noListingsDescription")
                 : `No listings with status "${STATUS_LABEL[statusFilter as ListingStatus]}".`}
           </p>
-          <Link className="primary" href={newListingHref}>
+          <Link className="btn btn--primary" href={newListingHref}>
             {createListingLabel}
           </Link>
         </div>
       ) : (
-        <div className="listing-grid">
+        <div className="grid grid--3" style={{ marginTop: "var(--space-5)" }}>
           {listings.map((listing) => (
-            <article key={listing.id} className="panel listing-card">
-              <div className="card-row">
-                <h3>{listing.title || "Untitled listing"}</h3>
-                <span className={`status-pill status-pill--${listing.status}`}>
-                  {STATUS_LABEL[listing.status]}
-                </span>
-              </div>
+            <article key={listing.id} className="card">
+              <div className="card__body">
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: "var(--space-2)"
+                  }}
+                >
+                  <h3 className="card__title">{listing.title || "Untitled listing"}</h3>
+                  <span className={`status-pill status-pill--${listing.status}`}>
+                    {STATUS_LABEL[listing.status]}
+                  </span>
+                </div>
 
-              <p className="muted-text">
-                {listing.city || "City not set"} &middot;{" "}
-                {listing.listingType === "pg" ? "PG" : "Flat/House"}
-              </p>
+                <p className="card__location">
+                  {listing.city || "City not set"} &middot;{" "}
+                  {listing.listingType === "pg" ? "PG" : "Flat/House"}
+                </p>
 
-              {typeof listing.monthlyRent === "number" ? (
-                <p className="rent">₹{listing.monthlyRent.toLocaleString("en-IN")}/month</p>
-              ) : (
-                <p className="muted-text">Rent not set</p>
-              )}
+                {typeof listing.monthlyRent === "number" ? (
+                  <p className="card__price">
+                    ₹{listing.monthlyRent.toLocaleString("en-IN")}
+                    <span className="card__price-period">/month</span>
+                  </p>
+                ) : (
+                  <p className="caption" style={{ color: "var(--text-tertiary)" }}>
+                    Rent not set
+                  </p>
+                )}
 
-              <div className="card-row">
-                <span className={`status-pill status-pill--${listing.verificationStatus}`}>
-                  {VERIFICATION_LABEL[listing.verificationStatus]}
-                </span>
-                <div className="action-row">
-                  {(listing.status === "draft" || listing.status === "rejected") && (
-                    <Link
-                      className="btn-sm btn-sm--primary"
-                      href={`/${locale}/owner/listings/new?edit=${listing.id}`}
-                    >
-                      {listing.status === "rejected" ? "Edit & Resubmit" : "Edit & Submit"}
-                    </Link>
-                  )}
-                  {listing.status === "active" && (
-                    <Link
-                      className="btn-sm"
-                      href={`/${locale}/owner/listings/new?edit=${listing.id}`}
-                    >
-                      Edit
-                    </Link>
-                  )}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "var(--space-2)",
+                    marginTop: "var(--space-3)"
+                  }}
+                >
+                  <span
+                    className={`badge badge--${listing.verificationStatus === "verified" ? "verified" : listing.verificationStatus === "pending" ? "pending" : "default"}`}
+                  >
+                    {VERIFICATION_LABEL[listing.verificationStatus]}
+                  </span>
+                  <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                    {(listing.status === "draft" || listing.status === "rejected") && (
+                      <Link
+                        className="btn btn--primary btn--sm"
+                        href={`/${locale}/owner/listings/new?edit=${listing.id}`}
+                      >
+                        {listing.status === "rejected" ? "Edit & Resubmit" : "Edit & Submit"}
+                      </Link>
+                    )}
+                    {listing.status === "active" && (
+                      <Link
+                        className="btn btn--secondary btn--sm"
+                        href={`/${locale}/owner/listings/new?edit=${listing.id}`}
+                      >
+                        Edit
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
             </article>
@@ -227,40 +274,72 @@ export default function OwnerDashboardPage({ params }: { params: { locale: strin
         </div>
       )}
 
-      <div className="panel" style={{ marginTop: 24 }}>
-        <div className="card-row">
+      {/* Verification CTA */}
+      <div className="card" style={{ marginTop: "var(--space-6)" }}>
+        <div
+          className="card__body"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "var(--space-4)",
+            flexWrap: "wrap"
+          }}
+        >
           <div>
-            <h3 style={{ margin: 0 }}>Verification status</h3>
-            <p className="muted-text">Get verified to earn a Verified badge on your listings.</p>
+            <h3 className="card__title">Verification status</h3>
+            <p
+              className="caption"
+              style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
+            >
+              Get verified to earn a Verified badge on your listings.
+            </p>
           </div>
-          <Link className="btn-sm btn-sm--primary" href={`/${locale}/owner/verification`}>
+          <Link className="btn btn--primary btn--sm" href={`/${locale}/owner/verification`}>
             {t(locale, "verification")}
           </Link>
         </div>
       </div>
 
-      <div className="panel" style={{ marginTop: 16 }}>
-        <div className="card-row">
+      {/* Property Management CTA */}
+      <div className="card" style={{ marginTop: "var(--space-4)" }}>
+        <div
+          className="card__body"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "var(--space-4)",
+            flexWrap: "wrap"
+          }}
+        >
           <div>
-            <h3 style={{ margin: 0 }}>Need property management support?</h3>
-            <p className="muted-text">
+            <h3 className="card__title">Need property management support?</h3>
+            <p
+              className="caption"
+              style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
+            >
               Request a callback for managed onboarding, pricing guidance, and operations support.
             </p>
           </div>
           <button
             type="button"
-            className="btn-sm btn-sm--primary"
+            className="btn btn--primary btn--sm"
             onClick={requestPropertyManagementAssist}
             disabled={pmRequesting}
           >
             {pmRequesting ? "Requesting..." : "Request Callback"}
           </button>
         </div>
-        {pmNotice ? (
-          <p className="muted-text" role="status" style={{ marginTop: 8 }}>
+        {pmNotice && (
+          <p
+            className="caption"
+            role="status"
+            style={{ padding: "0 var(--space-4) var(--space-4)", color: "var(--text-tertiary)" }}
+          >
             {pmNotice}
           </p>
-        ) : null}
+        )}
       </div>
     </section>
   );

@@ -123,7 +123,11 @@ export function SearchHero({ locale }: { locale: Locale }) {
           {loading ? "Routing..." : "Search"}
         </button>
       </form>
-      {error ? <p className="muted-text">{error}</p> : null}
+      {error ? (
+        <p className="caption" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      ) : null}
       {clarification ? (
         <div className="clarification-box">
           <p>{clarification.text}</p>

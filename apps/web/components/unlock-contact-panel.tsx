@@ -380,139 +380,209 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
     purchaseState === "creating_intent" || purchaseState === "checking_status";
 
   return (
-    <div className="panel unlock-panel">
-      <p>Unlock contact for 1 credit. Auto-refund if no response in 12 hours.</p>
-      <div className="action-row">
-        <button className="primary" onClick={onUnlockClick} disabled={loading}>
-          {loading ? "Processing..." : "Unlock Number"}
-        </button>
-        <button className="secondary" onClick={toggleShortlist} disabled={loading}>
-          {shortlisted ? "Remove from Shortlist" : "Save to Shortlist"}
-        </button>
-      </div>
-
-      {!accessToken ? (
-        <p className="muted-text">Guest browsing is open. OTP is required only for unlock.</p>
-      ) : null}
-
-      {authStep === "otp_send" ? (
-        <div className="otp-box">
-          <label htmlFor="unlock-phone">Phone number</label>
-          <input id="unlock-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          <button className="primary" onClick={requestOtp} disabled={loading}>
-            Send OTP
+    <div className="card unlock-panel">
+      <div className="card__body">
+        <p>Unlock contact for 1 credit. Auto-refund if no response in 12 hours.</p>
+        <div
+          style={{
+            display: "flex",
+            gap: "var(--space-3)",
+            flexWrap: "wrap",
+            marginTop: "var(--space-3)"
+          }}
+        >
+          <button className="btn btn--primary" onClick={onUnlockClick} disabled={loading}>
+            {loading ? "Processing..." : "Unlock Number"}
+          </button>
+          <button className="btn btn--secondary" onClick={toggleShortlist} disabled={loading}>
+            {shortlisted ? "Remove from Shortlist" : "Save to Shortlist"}
           </button>
         </div>
-      ) : null}
 
-      {authStep === "otp_verify" ? (
-        <div className="otp-box">
-          <label htmlFor="unlock-otp">Enter OTP</label>
-          <input id="unlock-otp" value={otp} onChange={(e) => setOtp(e.target.value)} />
-          <button className="primary" onClick={verifyOtpAndUnlock} disabled={loading}>
-            Verify & Unlock
-          </button>
-        </div>
-      ) : null}
-
-      {unlock ? (
-        <div className="success-box">
-          <p>
-            Owner Contact: <strong>{unlock.owner_contact.phone_e164}</strong>
+        {!accessToken ? (
+          <p
+            className="caption"
+            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
+          >
+            Guest browsing is open. OTP is required only for unlock.
           </p>
-          <p>Credits remaining: {unlock.credits_remaining}</p>
-          <p>Refund auto-check at: {refundTimeLabel}</p>
-        </div>
-      ) : null}
+        ) : null}
 
-      {accessToken ? (
-        <p className="muted-text">Wallet credits: {walletSnapshot?.balance_credits ?? "—"}</p>
-      ) : null}
-
-      {canShowBuyCredits ? (
-        <div className="panel warning-box" data-testid="buy-credits-panel">
-          <p>You don&apos;t have enough credits to unlock this listing. Buy credits to continue.</p>
-          <div className="action-row">
-            <button className="primary" onClick={startBuyCredits} disabled={purchaseInProgress}>
-              {purchaseState === "creating_intent" ? "Creating Purchase..." : "Buy Credits"}
-            </button>
+        {authStep === "otp_send" ? (
+          <div style={{ marginTop: "var(--space-4)" }}>
+            <label className="form-label" htmlFor="unlock-phone">
+              Phone number
+            </label>
+            <input
+              id="unlock-phone"
+              className="input"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
             <button
-              className="secondary"
-              onClick={refreshPurchaseStatus}
-              disabled={purchaseInProgress || purchaseState === "idle"}
+              className="btn btn--primary"
+              onClick={requestOtp}
+              disabled={loading}
+              style={{ marginTop: "var(--space-2)" }}
             >
-              {purchaseState === "checking_status"
-                ? "Refreshing..."
-                : "I completed payment - Refresh balance"}
+              Send OTP
             </button>
           </div>
-          {purchaseIntent ? (
-            <div className="muted-text">
-              <p>
-                Order: <strong>{purchaseIntent.order_id}</strong>
-              </p>
-              <p>
-                Amount: <strong>₹{(purchaseIntent.amount_paise / 100).toFixed(2)}</strong> for{" "}
-                <strong>{purchaseIntent.credits_to_grant}</strong> credits
-              </p>
-              {purchaseIntent.provider_payload?.deep_link ? (
-                <a
-                  href={purchaseIntent.provider_payload.deep_link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="secondary"
-                  style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}
-                >
-                  Open UPI App
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-          {purchaseState === "pending_payment" ? (
-            <p className="muted-text">
-              Waiting for payment confirmation. Use refresh after completing payment.
+        ) : null}
+
+        {authStep === "otp_verify" ? (
+          <div style={{ marginTop: "var(--space-4)" }}>
+            <label className="form-label" htmlFor="unlock-otp">
+              Enter OTP
+            </label>
+            <input
+              id="unlock-otp"
+              className="input"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
+            <button
+              className="btn btn--primary"
+              onClick={verifyOtpAndUnlock}
+              disabled={loading}
+              style={{ marginTop: "var(--space-2)" }}
+            >
+              Verify & Unlock
+            </button>
+          </div>
+        ) : null}
+
+        {unlock ? (
+          <div className="alert alert--success" style={{ marginTop: "var(--space-4)" }}>
+            <p>
+              Owner Contact: <strong>{unlock.owner_contact.phone_e164}</strong>
             </p>
-          ) : null}
-          {purchaseState === "success" ? (
-            <div className="success-box">
-              <p>
-                Credits updated. New balance:{" "}
-                <strong>{walletSnapshot?.balance_credits ?? 0}</strong>
-              </p>
-              {recentWalletTxns.length > 0 ? (
-                <div>
-                  <p className="muted-text">Recent wallet activity:</p>
-                  <ul>
-                    {recentWalletTxns.map((txn) => (
-                      <li key={txn.id}>
-                        {txn.txn_type}: {txn.credits_delta > 0 ? "+" : ""}
-                        {txn.credits_delta}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          {purchaseError ? <p className="error-text">{purchaseError}</p> : null}
-        </div>
-      ) : null}
+            <p>Credits remaining: {unlock.credits_remaining}</p>
+            <p>Refund auto-check at: {refundTimeLabel}</p>
+          </div>
+        ) : null}
 
-      {accessToken && walletSnapshot ? (
-        <p className="muted-text">
-          Wallet transactions: {walletSnapshot.total_transactions}{" "}
-          <button
-            className="secondary"
-            style={{ height: 32 }}
-            onClick={() => refreshWalletSnapshot(accessToken)}
-            disabled={walletRefreshing}
+        {accessToken ? (
+          <p
+            className="caption"
+            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
           >
-            {walletRefreshing ? "Refreshing..." : "Refresh Wallet"}
-          </button>
-        </p>
-      ) : null}
+            Wallet credits: {walletSnapshot?.balance_credits ?? "—"}
+          </p>
+        ) : null}
 
-      {error ? <p className="error-text">{error}</p> : null}
+        {canShowBuyCredits ? (
+          <div
+            className="alert alert--warning"
+            data-testid="buy-credits-panel"
+            style={{ marginTop: "var(--space-4)" }}
+          >
+            <p>
+              You don&apos;t have enough credits to unlock this listing. Buy credits to continue.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--space-3)",
+                flexWrap: "wrap",
+                marginTop: "var(--space-3)"
+              }}
+            >
+              <button
+                className="btn btn--primary"
+                onClick={startBuyCredits}
+                disabled={purchaseInProgress}
+              >
+                {purchaseState === "creating_intent" ? "Creating Purchase..." : "Buy Credits"}
+              </button>
+              <button
+                className="btn btn--secondary"
+                onClick={refreshPurchaseStatus}
+                disabled={purchaseInProgress || purchaseState === "idle"}
+              >
+                {purchaseState === "checking_status"
+                  ? "Refreshing..."
+                  : "I completed payment - Refresh balance"}
+              </button>
+            </div>
+            {purchaseIntent ? (
+              <div
+                className="caption"
+                style={{ marginTop: "var(--space-3)", color: "var(--text-tertiary)" }}
+              >
+                <p>
+                  Order: <strong>{purchaseIntent.order_id}</strong>
+                </p>
+                <p>
+                  Amount: <strong>₹{(purchaseIntent.amount_paise / 100).toFixed(2)}</strong> for{" "}
+                  <strong>{purchaseIntent.credits_to_grant}</strong> credits
+                </p>
+                {purchaseIntent.provider_payload?.deep_link ? (
+                  <a
+                    href={purchaseIntent.provider_payload.deep_link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn--secondary btn--sm"
+                    style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}
+                  >
+                    Open UPI App
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+            {purchaseState === "pending_payment" ? (
+              <p
+                className="caption"
+                style={{ color: "var(--text-tertiary)", marginTop: "var(--space-2)" }}
+              >
+                Waiting for payment confirmation. Use refresh after completing payment.
+              </p>
+            ) : null}
+            {purchaseState === "success" ? (
+              <div className="alert alert--success" style={{ marginTop: "var(--space-3)" }}>
+                <p>
+                  Credits updated. New balance:{" "}
+                  <strong>{walletSnapshot?.balance_credits ?? 0}</strong>
+                </p>
+                {recentWalletTxns.length > 0 ? (
+                  <div>
+                    <p className="caption" style={{ color: "var(--text-tertiary)" }}>
+                      Recent wallet activity:
+                    </p>
+                    <ul>
+                      {recentWalletTxns.map((txn) => (
+                        <li key={txn.id}>
+                          {txn.txn_type}: {txn.credits_delta > 0 ? "+" : ""}
+                          {txn.credits_delta}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {purchaseError ? <p className="alert alert--error">{purchaseError}</p> : null}
+          </div>
+        ) : null}
+
+        {accessToken && walletSnapshot ? (
+          <p
+            className="caption"
+            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
+          >
+            Wallet transactions: {walletSnapshot.total_transactions}{" "}
+            <button
+              className="btn btn--ghost btn--sm"
+              onClick={() => refreshWalletSnapshot(accessToken)}
+              disabled={walletRefreshing}
+            >
+              {walletRefreshing ? "Refreshing..." : "Refresh Wallet"}
+            </button>
+          </p>
+        ) : null}
+
+        {error ? <p className="alert alert--error">{error}</p> : null}
+      </div>
     </div>
   );
 }

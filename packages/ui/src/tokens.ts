@@ -1,19 +1,32 @@
 export const colorTokens = {
-  brand: "#0175FE",
-  brandDark: "#0158C7",
-  trust: "#138A36",
+  brand: "#0066FF",
+  brandDark: "#0052CC",
+  brandLight: "#E8F0FE",
+  trust: "#16A34A",
   warning: "#F59E0B",
-  danger: "#D92D20",
+  danger: "#DC2626",
   surface: "#FFFFFF",
-  surfaceAlt: "#F5F5F7",
-  text: "#1D1D1F",
-  muted: "#6E6E73",
-  border: "#E4E7EC"
+  surfaceAlt: "#F8FAFC",
+  surfaceRaised: "#FFFFFF",
+  text: "#0F172A",
+  textSecondary: "#475569",
+  textTertiary: "#94A3B8",
+  muted: "#64748B",
+  border: "#E2E8F0"
 };
 
 export const spacingTokens = {
-  s4: 4,
-  s8: 8,
+  s1: 4,
+  s2: 8,
+  s3: 12,
+  s4: 16,
+  s5: 24,
+  s6: 32,
+  s7: 48,
+  s8: 64,
+  // Legacy aliases
+  s4_legacy: 4,
+  s8_legacy: 8,
   s12: 12,
   s16: 16,
   s24: 24,
@@ -24,11 +37,12 @@ export const spacingTokens = {
 export const radiusTokens = {
   sm: 8,
   md: 12,
+  lg: 16,
+  xl: 24,
   pill: 999
 };
 
 export const typographyTokens = {
-  body: "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  heading: "'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  accent: "'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+  body: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  heading: "'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
 };
