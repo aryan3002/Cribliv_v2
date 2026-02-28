@@ -41,7 +41,10 @@ export const analyticsEvents = [
   "voice_search_result",
   "voice_search_error",
   "voice_search_mic_denied",
-  "voice_search_routed"
+  "voice_search_routed",
+  // Phase D – Search autocomplete & Google Places
+  "places_suggestion_selected",
+  "suggest_selected"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

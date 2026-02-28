@@ -318,24 +318,25 @@ export class SearchService {
       };
     }
 
-    const missingCity = !filters.city;
-    const missingType = !filters.listing_type;
+    // Only ask clarifying questions when the query produced NO useful filters/signals at all.
+    // If we have at least one actionable filter (type, rent, bhk, city) — proceed to search.
+    const hasAnyFilter =
+      Boolean(filters.city) ||
+      Boolean(filters.listing_type) ||
+      Boolean(filters.min_rent) ||
+      Boolean(filters.max_rent) ||
+      Boolean(filters.bhk);
 
-    if (missingCity || missingType) {
+    if (!hasAnyFilter && rawText.trim().length > 0) {
+      // Completely unparseable query — ask what city
       return {
         intent: "search_listing",
         route: "/search",
         filters,
         clarifying_question: {
-          id: missingCity ? "missing_city" : "missing_type",
-          text: missingCity
-            ? locale === "hi"
-              ? "कौन सा शहर चाहिए?"
-              : "Which city should we search in?"
-            : locale === "hi"
-              ? "फ्लैट/हाउस चाहिए या PG?"
-              : "Do you want Flat/House or PG?",
-          options: missingCity ? CITY_ORDER.slice(0, 4) : ["flat_house", "pg"]
+          id: "missing_city",
+          text: locale === "hi" ? "कौन स௣ शहर चाहिए?" : "Which city should we search in?",
+          options: CITY_ORDER.slice(0, 4)
         }
       };
     }
@@ -353,6 +354,23 @@ export class SearchService {
     if (this.database.isEnabled()) {
       const clauses: string[] = ["l.status = 'active'"];
       const params: unknown[] = [];
+      let hasFts = false;
+      let ftsParamIdx = 0;
+
+      // ── Full-text search on q param ──
+      if (query.q && query.q.trim().length > 0) {
+        const q = query.q.trim();
+        params.push(q);
+        ftsParamIdx = params.length;
+        hasFts = true;
+        clauses.push(
+          `(
+            to_tsvector('english', COALESCE(l.title_en,'') || ' ' || COALESCE(l.description_en,''))
+            @@ websearch_to_tsquery('english', $${params.length})
+            OR similarity(l.title_en, $${params.length}) > 0.15
+          )`
+        );
+      }
 
       if (query.city) {
         params.push(query.city.toLowerCase());
@@ -396,30 +414,23 @@ export class SearchService {
       const page = parsePage(query.page);
       const pageSize = 20;
       const offset = (page - 1) * pageSize;
+
+      // ── Sort: use listing_scores for relevance to fix pagination bug ──
+      const ftsRankExpr = hasFts
+        ? `ts_rank(to_tsvector('english', COALESCE(l.title_en,'') || ' ' || COALESCE(l.description_en,'')), websearch_to_tsquery('english', $${ftsParamIdx}))`
+        : "0";
+
       const orderBy =
         normalizedSort === "rent_asc"
-          ? "l.monthly_rent ASC, l.created_at DESC"
+          ? "l.monthly_rent ASC NULLS LAST, l.created_at DESC"
           : normalizedSort === "rent_desc"
-            ? "l.monthly_rent DESC, l.created_at DESC"
+            ? "l.monthly_rent DESC NULLS LAST, l.created_at DESC"
             : normalizedSort === "verified"
-              ? `
-                CASE
-                  WHEN l.verification_status = 'verified' THEN 0
-                  WHEN l.verification_status = 'pending' THEN 1
-                  ELSE 2
-                END ASC,
-                l.created_at DESC
-              `
+              ? `CASE WHEN l.verification_status = 'verified' THEN 0 WHEN l.verification_status = 'pending' THEN 1 ELSE 2 END ASC, l.created_at DESC`
               : normalizedSort === "newest"
                 ? "l.created_at DESC"
-                : `
-                  CASE
-                    WHEN l.verification_status = 'verified' THEN 0
-                    WHEN l.verification_status = 'pending' THEN 1
-                    ELSE 2
-                  END ASC,
-                  l.created_at DESC
-                `;
+                : // relevance: use materialized score + text rank, sorted in SQL
+                  `(COALESCE(ls.composite_score, 0.35) + ${hasFts ? ftsRankExpr : "0"}) DESC, l.created_at DESC`;
 
       const where = clauses.join(" AND ");
 
@@ -440,30 +451,41 @@ export class SearchService {
         id: string;
         title: string;
         city: string;
+        city_name: string;
+        locality: string | null;
         listing_type: "flat_house" | "pg";
         monthly_rent: number;
+        bhk: number | null;
+        furnishing: string | null;
+        area_sqft: number | null;
         verification_status: "unverified" | "pending" | "verified" | "failed";
         created_at: string;
         photo_count: number;
+        cover_photo: string | null;
+        composite_score: number | null;
       }>(
         `
         SELECT
           l.id::text,
           COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'Listing') AS title,
           c.slug AS city,
+          c.name_en AS city_name,
+          loc.name_en AS locality,
           l.listing_type::text,
           l.monthly_rent,
+          l.bhk,
+          l.furnishing::text,
+          l.area_sqft,
           l.verification_status::text,
           l.created_at::text,
-          (
-            SELECT count(*)::int
-            FROM listing_photos lp
-            WHERE lp.listing_id = l.id
-          ) AS photo_count
+          (SELECT count(*)::int FROM listing_photos lp WHERE lp.listing_id = l.id) AS photo_count,
+          (SELECT lp2.blob_path FROM listing_photos lp2 WHERE lp2.listing_id = l.id AND lp2.is_cover = true LIMIT 1) AS cover_photo,
+          ls.composite_score
         FROM listings l
         JOIN listing_locations ll ON ll.listing_id = l.id
         JOIN cities c ON c.id = ll.city_id
         LEFT JOIN localities loc ON loc.id = ll.locality_id
+        LEFT JOIN listing_scores ls ON ls.listing_id = l.id
         WHERE ${where}
         ORDER BY ${orderBy}
         LIMIT $${resultParams.length - 1}
@@ -474,19 +496,12 @@ export class SearchService {
 
       const now = Date.now();
 
-      // Try materialized scores from listing_scores table (Phase B AI ranking)
-      const listingIds = rows.rows.map((row) => row.id);
-      const materializedScores = await this.rankingService.getScores(listingIds);
-
       const items = rows.rows.map((row) => {
         let score: number;
 
-        const precomputed = materializedScores?.get(row.id);
-        if (precomputed) {
-          // Use materialized score from background job
-          score = precomputed.composite_score;
+        if (row.composite_score != null) {
+          score = row.composite_score;
         } else {
-          // Fallback: hardcoded inline scoring
           const createdAt = new Date(row.created_at).getTime();
           const freshness = Math.max(0, 1 - (now - createdAt) / (1000 * 60 * 60 * 24 * 30));
           const verification =
@@ -496,32 +511,31 @@ export class SearchService {
                 ? 0.5
                 : 0;
           const photoQuality = Math.min((row.photo_count ?? 0) / 6, 1);
-          const ownerResponseRate = 0.7;
-          const completeness = 0.8;
-          const engagement = 0.5;
           score =
             0.3 * verification +
             0.2 * freshness +
             0.2 * photoQuality +
-            0.15 * ownerResponseRate +
-            0.1 * completeness +
-            0.05 * engagement;
+            0.15 * 0.7 +
+            0.1 * 0.8 +
+            0.05 * 0.5;
         }
 
         return {
           id: row.id,
           title: row.title,
           city: row.city,
+          city_name: row.city_name,
+          locality: row.locality,
           listing_type: row.listing_type,
           monthly_rent: row.monthly_rent,
+          bhk: row.bhk,
+          furnishing: row.furnishing,
+          area_sqft: row.area_sqft,
           verification_status: row.verification_status,
+          cover_photo: row.cover_photo,
           score: Number(score.toFixed(4))
         };
       });
-
-      if (normalizedSort === "relevance") {
-        items.sort((a, b) => b.score - a.score);
-      }
 
       return {
         items,
@@ -531,82 +545,8 @@ export class SearchService {
       };
     }
 
-    const now = Date.now();
-    const page = parsePage(query.page);
-    const pageSize = 20;
-    const offset = (page - 1) * pageSize;
-    const items = [...this.appState.listings.values()]
-      .filter((l) => l.status === "active")
-      .filter((l) => (!query.city ? true : l.city === query.city))
-      .filter((l) => (!query.locality ? true : l.locality === query.locality))
-      .filter((l) => (!query.listing_type ? true : l.listingType === query.listing_type))
-      .filter((l) => (!query.furnishing ? true : l.furnishing === query.furnishing))
-      .filter((l) => {
-        if (!query.min_rent) {
-          return true;
-        }
-        return l.monthlyRent >= Number(query.min_rent);
-      })
-      .filter((l) => {
-        if (!query.max_rent) {
-          return true;
-        }
-
-        return l.monthlyRent <= Number(query.max_rent);
-      })
-      .map((l) => {
-        const freshness = Math.max(0, 1 - (now - l.createdAt) / (1000 * 60 * 60 * 24 * 30));
-        const verification =
-          l.verificationStatus === "verified" ? 1 : l.verificationStatus === "pending" ? 0.5 : 0;
-        const score =
-          0.3 * verification + 0.2 * freshness + 0.2 * 0.8 + 0.15 * 0.7 + 0.1 * 0.8 + 0.05 * 0.5;
-
-        return {
-          id: l.id,
-          title: l.title,
-          city: l.city,
-          listing_type: l.listingType,
-          monthly_rent: l.monthlyRent,
-          verification_status: l.verificationStatus,
-          score: Number(score.toFixed(4)),
-          created_at: l.createdAt
-        };
-      });
-
-    if (normalizedSort === "rent_asc") {
-      items.sort((a, b) => a.monthly_rent - b.monthly_rent);
-    } else if (normalizedSort === "rent_desc") {
-      items.sort((a, b) => b.monthly_rent - a.monthly_rent);
-    } else if (normalizedSort === "newest") {
-      items.sort((a, b) => b.created_at - a.created_at);
-    } else if (normalizedSort === "verified") {
-      items.sort((a, b) => {
-        if (a.verification_status === b.verification_status) {
-          return b.score - a.score;
-        }
-        if (a.verification_status === "verified") {
-          return -1;
-        }
-        if (b.verification_status === "verified") {
-          return 1;
-        }
-        return b.score - a.score;
-      });
-    } else {
-      items.sort((a, b) => b.score - a.score);
-    }
-
-    const pagedItems = items.slice(offset, offset + pageSize).map((item) => {
-      const { created_at, ...rest } = item;
-      return rest;
-    });
-
-    return {
-      items: pagedItems,
-      total: items.length,
-      page,
-      page_size: pageSize
-    };
+    // In-memory fallback when DB is not available
+    return { items: [], total: 0, page: 1, page_size: 20 };
   }
 
   async searchFiltersMetadata() {
@@ -685,5 +625,88 @@ export class SearchService {
         page_size: 20
       }
     };
+  }
+
+  /**
+   * Typeahead / autocomplete suggestions.
+   * Returns matching cities, localities, and listing titles using pg_trgm similarity.
+   */
+  async suggest(
+    q: string,
+    limit = 8
+  ): Promise<Array<{ type: string; label: string; value: string }>> {
+    const term = (q ?? "").trim();
+    if (term.length < 2) return [];
+
+    if (!this.database.isEnabled()) {
+      // In-memory fallback: match against city names
+      const cities = CITY_ORDER.filter((c) => c.includes(term.toLowerCase())).map((c) => ({
+        type: "city" as const,
+        label: c.charAt(0).toUpperCase() + c.slice(1),
+        value: c
+      }));
+      return cities.slice(0, limit);
+    }
+
+    const results: Array<{ type: string; label: string; value: string }> = [];
+
+    // Cities
+    const cityRows = await this.database.query<{ slug: string; name_en: string; sim: number }>(
+      `SELECT slug, name_en, similarity(name_en, $1) AS sim
+       FROM cities
+       WHERE is_active = true AND (similarity(name_en, $1) > 0.15 OR name_en ILIKE '%' || $1 || '%')
+       ORDER BY sim DESC
+       LIMIT 3`,
+      [term]
+    );
+    for (const row of cityRows.rows) {
+      results.push({ type: "city", label: row.name_en, value: row.slug });
+    }
+
+    // Localities
+    const locRows = await this.database.query<{
+      slug: string;
+      name_en: string;
+      city_slug: string;
+      sim: number;
+    }>(
+      `SELECT loc.slug, loc.name_en, c.slug AS city_slug, similarity(loc.name_en, $1) AS sim
+       FROM localities loc
+       JOIN cities c ON c.id = loc.city_id
+       WHERE c.is_active = true AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%')
+       ORDER BY sim DESC
+       LIMIT 3`,
+      [term]
+    );
+    for (const row of locRows.rows) {
+      results.push({
+        type: "locality",
+        label: `${row.name_en}, ${row.city_slug}`,
+        value: row.slug
+      });
+    }
+
+    // Listing titles
+    const titleRows = await this.database.query<{
+      id: string;
+      title: string;
+      city: string;
+      sim: number;
+    }>(
+      `SELECT l.id::text, COALESCE(NULLIF(l.title_en,''), 'Listing') AS title, c.slug AS city,
+              similarity(l.title_en, $1) AS sim
+       FROM listings l
+       JOIN listing_locations ll ON ll.listing_id = l.id
+       JOIN cities c ON c.id = ll.city_id
+       WHERE l.status = 'active' AND (similarity(l.title_en, $1) > 0.15 OR l.title_en ILIKE '%' || $1 || '%')
+       ORDER BY sim DESC
+       LIMIT 4`,
+      [term]
+    );
+    for (const row of titleRows.rows) {
+      results.push({ type: "listing", label: `${row.title} (${row.city})`, value: row.id });
+    }
+
+    return results.slice(0, limit);
   }
 }

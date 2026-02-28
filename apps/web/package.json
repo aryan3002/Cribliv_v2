@@ -13,6 +13,7 @@
   "dependencies": {
     "@cribliv/shared-types": "workspace:*",
     "@cribliv/ui": "workspace:*",
+    "@googlemaps/js-api-loader": "^2.0.2",
     "next": "14.2.13",
     "next-auth": "5.0.0-beta.30",
     "react": "18.3.1",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
+    "@types/google.maps": "^3.58.1",
     "@types/node": "^22.7.4",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",

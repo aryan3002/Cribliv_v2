@@ -93,7 +93,9 @@ Rules:
 - If query mentions posting/listing a property, intent is "post_listing".
 - If only a city is mentioned with no other criteria, intent is "city_browse".
 - Otherwise intent is "search_listing".
-- Report missing_required when city or listing_type cannot be determined.
+- City is OPTIONAL — users can search by type, budget, BHK, etc. without specifying a city.
+  Only add city to missing_required when the entire query is vague and produces no usable filters.
+- Do NOT add listing_type to missing_required — it is always optional.
 - Be conservative with confidence; use < 0.5 when very ambiguous.`;
 
 // ─── City aliases (must stay in sync with search.service.ts) ──────────────────
@@ -250,24 +252,26 @@ export class IntentClassifierService {
     parsed: { intent: SearchIntent; filters: ParsedFilters; missing_required?: string[] },
     locale: "en" | "hi"
   ): IntentClassification["clarifying_question"] {
-    const missing = parsed.missing_required ?? [];
+    // Only ask clarifying questions when the query produced NO useful filters.
+    // If we have at least one actionable filter, proceed to search without blocking.
+    const hasAnyFilter =
+      Boolean(parsed.filters.city) ||
+      Boolean(parsed.filters.listing_type) ||
+      Boolean(parsed.filters.min_rent) ||
+      Boolean(parsed.filters.max_rent) ||
+      Boolean(parsed.filters.bhk) ||
+      Boolean(parsed.filters.furnishing) ||
+      Boolean(parsed.filters.locality) ||
+      Boolean(parsed.filters.listing_id);
 
-    if (missing.includes("city") || (!parsed.filters.city && parsed.intent === "search_listing")) {
+    if (hasAnyFilter) return undefined;
+
+    // Truly ambiguous query with no parseable filters — ask for city
+    if (parsed.intent === "search_listing") {
       return {
         id: "missing_city",
         text: locale === "hi" ? "कौन सा शहर चाहिए?" : "Which city should we search in?",
         options: CITY_ORDER
-      };
-    }
-
-    if (
-      missing.includes("listing_type") ||
-      (!parsed.filters.listing_type && parsed.intent === "search_listing")
-    ) {
-      return {
-        id: "missing_type",
-        text: locale === "hi" ? "फ्लैट/हाउस चाहिए या PG?" : "Do you want Flat/House or PG?",
-        options: ["flat_house", "pg"]
       };
     }
 

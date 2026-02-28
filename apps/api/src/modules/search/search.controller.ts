@@ -32,6 +32,7 @@ export class SearchController {
   async search(
     @Query()
     query: {
+      q?: string;
       city?: string;
       locality?: string;
       listing_type?: "flat_house" | "pg";
@@ -42,10 +43,16 @@ export class SearchController {
       verified_only?: string;
       sort?: string;
       page?: string;
-      source?: string; // 'text' | 'voice' — for analytics tracking
+      source?: string;
     }
   ) {
     return ok(await this.searchService.searchListings(query));
+  }
+
+  @Get("listings/search/suggest")
+  async suggest(@Query() query: { q?: string; limit?: string }) {
+    const limit = Math.min(Math.max(Number(query.limit) || 8, 1), 20);
+    return ok(await this.searchService.suggest(query.q ?? "", limit));
   }
 
   @Get("listings/search/filters-metadata")

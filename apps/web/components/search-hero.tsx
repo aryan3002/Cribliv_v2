@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { trackEvent } from "../lib/analytics";
 import { buildSearchQuery, fetchApi } from "../lib/api";
 import { VoiceSearchButton } from "./voice-search-button";
+import { useGooglePlaces, type PlacePrediction } from "../lib/google-places";
 
 interface AgenticRouteResponse {
   intent: string;
@@ -19,6 +20,16 @@ interface AgenticRouteResponse {
   };
 }
 
+interface CriblivSuggestion {
+  type: "city" | "locality" | "listing";
+  label: string;
+  value: string;
+}
+
+type BlendedSuggestion =
+  | { source: "cribliv"; data: CriblivSuggestion }
+  | { source: "google"; data: PlacePrediction };
+
 export function SearchHero({ locale }: { locale: Locale }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -30,10 +41,93 @@ export function SearchHero({ locale }: { locale: Locale }) {
   >(null);
   const [baseFilters, setBaseFilters] = useState<Record<string, string | number | boolean>>({});
 
+  // -- Autocomplete state --
+  const [suggestions, setSuggestions] = useState<BlendedSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const {
+    predictions: placePredictions,
+    fetchPredictions: fetchPlaces,
+    getPlaceDetails,
+    clearPredictions,
+    enabled: placesEnabled
+  } = useGooglePlaces({ types: ["locality", "sublocality", "neighborhood"] });
+
+  // Fetch internal suggest API
+  const fetchCriblivSuggestions = useCallback(async (q: string): Promise<CriblivSuggestion[]> => {
+    if (q.length < 2) return [];
+    try {
+      const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000").replace(
+        /\/+$/,
+        ""
+      );
+      const base = apiBase.endsWith("/v1") ? apiBase : `${apiBase}/v1`;
+      const res = await fetch(`${base}/listings/search/suggest?q=${encodeURIComponent(q)}&limit=6`);
+      if (res.ok) {
+        const body = await res.json();
+        return body.data ?? [];
+      }
+    } catch {
+      /* no-op */
+    }
+    return [];
+  }, []);
+
+  // Blend results when either source updates
+  const onInputChange = useCallback(
+    (value: string) => {
+      setQuery(value);
+      if (transcript) setTranscript(null);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (value.length < 2) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        clearPredictions();
+        return;
+      }
+      debounceRef.current = setTimeout(async () => {
+        // Fire both sources in parallel
+        const [cribliv] = await Promise.all([
+          fetchCriblivSuggestions(value),
+          placesEnabled ? fetchPlaces(value) : Promise.resolve()
+        ]);
+        const blended: BlendedSuggestion[] = cribliv.map((d) => ({
+          source: "cribliv" as const,
+          data: d
+        }));
+        setSuggestions(blended);
+        setShowSuggestions(true);
+      }, 250);
+    },
+    [transcript, fetchCriblivSuggestions, fetchPlaces, clearPredictions, placesEnabled]
+  );
+
+  // Merge Google predictions when they arrive (async)
+  useEffect(() => {
+    if (placePredictions.length === 0) return;
+    setSuggestions((prev) => {
+      const cribliv = prev.filter((s) => s.source === "cribliv");
+      const google = placePredictions.map((d) => ({ source: "google" as const, data: d }));
+      return [...cribliv, ...google];
+    });
+    setShowSuggestions(true);
+  }, [placePredictions]);
+
+  // Click-outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   function routeToSearch(filters: Record<string, string | number | boolean>) {
     const hasFilters = Object.keys(filters).length > 0 || query.trim().length > 0;
     if (!hasFilters) {
-      // No filters resolved — show clarification instead of silently doing nothing
       setClarification({
         id: "empty_voice_result",
         text:
@@ -54,19 +148,14 @@ export function SearchHero({ locale }: { locale: Locale }) {
     setError(null);
     setClarification(null);
     setTranscript(null);
+    setShowSuggestions(false);
     setLoading(true);
-    trackEvent("agentic_query_submitted", {
-      query_text: query,
-      lang_detected: locale
-    });
+    trackEvent("agentic_query_submitted", { query_text: query, lang_detected: locale });
 
     try {
       const response = await fetchApi<AgenticRouteResponse>("/search/agentic-route", {
         method: "POST",
-        body: JSON.stringify({
-          query,
-          locale
-        })
+        body: JSON.stringify({ query, locale })
       });
 
       trackEvent("agentic_route_resolved", {
@@ -93,12 +182,9 @@ export function SearchHero({ locale }: { locale: Locale }) {
   }
 
   function applyClarification(option: string) {
-    if (!clarification) {
-      return;
-    }
+    if (!clarification) return;
     const nextFilters = { ...baseFilters };
     if (clarification.id.includes("city") || clarification.id === "empty_voice_result") {
-      // For fallback voice results, set the option as the search query
       setQuery(option);
       const search = buildSearchQuery({ q: option });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,19 +195,44 @@ export function SearchHero({ locale }: { locale: Locale }) {
     routeToSearch(nextFilters);
   }
 
+  async function handleSuggestionClick(s: BlendedSuggestion) {
+    setShowSuggestions(false);
+    if (s.source === "google") {
+      const details = await getPlaceDetails(s.data.place_id);
+      const locationName = details?.name ?? s.data.structured_formatting.main_text;
+      trackEvent("places_suggestion_selected", { place: locationName, place_id: s.data.place_id });
+      setQuery(locationName);
+      // Use as a text query — the agentic router will parse the city/locality
+      const search = buildSearchQuery({ q: locationName });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      router.push(`/${locale}/search${search ? `?${search}` : ""}` as any);
+    } else {
+      const { data } = s;
+      trackEvent("suggest_selected", { type: data.type, value: data.value });
+      if (data.type === "city") {
+        setQuery("");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        router.push(`/${locale}/search?${buildSearchQuery({ city: data.value })}` as any);
+      } else {
+        setQuery(data.label);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        router.push(`/${locale}/search?${buildSearchQuery({ q: data.label })}` as any);
+      }
+    }
+  }
+
   return (
-    <div className="search-hero-wrapper">
+    <div className="search-hero-wrapper" ref={wrapperRef}>
       <form className="hero-search" onSubmit={onSubmit}>
         <div className="hero-search__input-row">
           <input
             aria-label="Agentic search"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              if (transcript) setTranscript(null);
-            }}
+            onChange={(e) => onInputChange(e.target.value)}
+            onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
             placeholder={t(locale, "searchPlaceholder")}
             className="hero-search__input"
+            autoComplete="off"
           />
           <VoiceSearchButton
             locale={locale === "hi" ? "hi" : "en"}
@@ -152,7 +263,38 @@ export function SearchHero({ locale }: { locale: Locale }) {
         </div>
       </form>
 
-      {/* Show voice transcript feedback */}
+      {/* Autocomplete Dropdown */}
+      {showSuggestions && suggestions.length > 0 && (
+        <ul className="hero-search__suggestions">
+          {suggestions.map((s, i) => (
+            <li key={s.source === "google" ? `g-${s.data.place_id}` : `c-${s.data.value}-${i}`}>
+              <button
+                type="button"
+                className="hero-search__suggestion-item"
+                onClick={() => handleSuggestionClick(s)}
+              >
+                <span className="hero-search__suggestion-icon">
+                  {s.source === "google"
+                    ? "📍"
+                    : s.data.type === "city"
+                      ? "🏙️"
+                      : s.data.type === "locality"
+                        ? "🏘️"
+                        : "🏠"}
+                </span>
+                <span className="hero-search__suggestion-text">
+                  {s.source === "google" ? s.data.description : s.data.label}
+                </span>
+                <span className="hero-search__suggestion-badge">
+                  {s.source === "google" ? "Google" : s.data.type}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Voice transcript feedback */}
       {transcript && (
         <p className="hero-search__transcript" aria-live="polite">
           <VoiceBadge /> {locale === "hi" ? "आपने कहा:" : "You said:"}{" "}

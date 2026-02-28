@@ -10,6 +10,7 @@ import { AzureOpenAiExtractorClient } from "./azure-openai-extractor.client";
 @Module({
   imports: [ContactsModule],
   controllers: [OwnerController, OwnerCaptureController],
-  providers: [OwnerService, OwnerCaptureService, AzureSpeechClient, AzureOpenAiExtractorClient]
+  providers: [OwnerService, OwnerCaptureService, AzureSpeechClient, AzureOpenAiExtractorClient],
+  exports: [AzureSpeechClient]
 })
 export class OwnerModule {}

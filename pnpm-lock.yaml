@@ -113,6 +113,9 @@ importers:
       "@cribliv/ui":
         specifier: workspace:*
         version: link:../../packages/ui
+      "@googlemaps/js-api-loader":
+        specifier: ^2.0.2
+        version: 2.0.2
       next:
         specifier: 14.2.13
         version: 14.2.13(@playwright/test@1.58.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -129,6 +132,9 @@ importers:
       "@playwright/test":
         specifier: ^1.49.0
         version: 1.58.2
+      "@types/google.maps":
+        specifier: ^3.58.1
+        version: 3.58.1
       "@types/node":
         specifier: ^22.7.4
         version: 22.19.10
@@ -464,6 +470,12 @@ packages:
     engines: { node: ">=12" }
     cpu: [x64]
     os: [win32]
+
+  "@googlemaps/js-api-loader@2.0.2":
+    resolution:
+      {
+        integrity: sha512-bKVuTqatS8Jven5aFqVB7rCHF1VFEzpzyi0ruzO0GUR+A7m9oMqMgtnmpANj7kMYEvvhty8Fk7TnJ1MKjWHu+Q==
+      }
 
   "@isaacs/cliui@8.0.2":
     resolution:
@@ -1051,6 +1063,12 @@ packages:
     resolution:
       {
         integrity: sha512-sKYVuV7Sv9fbPIt/442koC7+IIwK5olP1KWeD88e/idgoJqDm3JV/YUiPwkoKK92ylff2MGxSz1CSjsXelx0YA==
+      }
+
+  "@types/google.maps@3.58.1":
+    resolution:
+      {
+        integrity: sha512-X9QTSvGJ0nCfMzYOnaVs/k6/4L+7F5uCS+4iUmkLEls6J9S/Phv+m/i3mDeyc49ZBgwab3EFO1HEoBY7k98EGQ==
       }
 
   "@types/http-errors@2.0.5":
@@ -4662,6 +4680,10 @@ snapshots:
   "@esbuild/win32-x64@0.21.5":
     optional: true
 
+  "@googlemaps/js-api-loader@2.0.2":
+    dependencies:
+      "@types/google.maps": 3.58.1
+
   "@isaacs/cliui@8.0.2":
     dependencies:
       string-width: 5.1.2
@@ -5000,6 +5022,8 @@ snapshots:
       "@types/body-parser": 1.19.6
       "@types/express-serve-static-core": 5.1.1
       "@types/serve-static": 2.2.0
+
+  "@types/google.maps@3.58.1": {}
 
   "@types/http-errors@2.0.5": {}
 
