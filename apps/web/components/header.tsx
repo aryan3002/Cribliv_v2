@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useEffect } from "react";
 import type { Locale } from "../lib/i18n";
@@ -34,8 +35,8 @@ export function Header({ locale }: { locale: Locale }) {
       <div className="container nav-row">
         {/* Logo */}
         <Link href={`/${locale}`} className="logo" aria-label="Cribliv Home">
-          <span className="logo-dot" aria-hidden="true" />
-          Cribliv
+          <Image src="/cribliv.png" alt="" width={58} height={54} priority className="logo-img" />
+          <span className="logo-wordmark">Cribliv</span>
         </Link>
 
         {/* Navigation Links */}

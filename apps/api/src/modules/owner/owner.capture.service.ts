@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadGatewayException,
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { AzureOpenAiExtractorClient } from "./azure-openai-extractor.client";
@@ -216,6 +222,12 @@ export class OwnerCaptureService {
     locale: SupportedCaptureLocale;
     listingTypeHint?: ListingType;
   }): Promise<OwnerCaptureExtractResponse> {
+    // ── Mock capture mode — bypasses feature flag and Azure for local dev ──
+    const mockMode = (process.env.CAPTURE_MOCK ?? "").toLowerCase();
+    if (mockMode === "true" || mockMode === "1") {
+      return this.buildMockCaptureResponse(input.listingTypeHint ?? "flat_house");
+    }
+
     const flags = readFeatureFlags();
     if (!flags.ff_owner_listing_assisted_capture) {
       throw new NotFoundException({
@@ -231,17 +243,46 @@ export class OwnerCaptureService {
       });
     }
 
-    const transcript = await this.speechClient.transcribe({
-      audioBuffer: input.audioBuffer,
-      contentType: input.contentType,
-      locale: input.locale
-    });
+    let transcript: string;
+    let detectedLocale: string = input.locale;
+    try {
+      const sttResult = await this.speechClient.transcribe({
+        audioBuffer: input.audioBuffer,
+        contentType: input.contentType,
+        locale: input.locale
+      });
+      transcript = sttResult.text;
+      detectedLocale = sttResult.detectedLocale;
+    } catch (err) {
+      // Provide structured error so frontend can distinguish STT failure
+      const code = err instanceof BadGatewayException ? "stt_failed" : "stt_unavailable";
+      const message =
+        err instanceof Error
+          ? `Speech transcription failed: ${err.message}`
+          : "Azure Speech transcription is unavailable";
+      throw new BadGatewayException({ code, message });
+    }
 
-    const extracted = await this.extractorClient.extractDraft({
-      transcript,
-      locale: input.locale,
-      listingTypeHint: input.listingTypeHint
-    });
+    let extracted: {
+      draft_suggestion?: Partial<OwnerDraftPayloadSnakeCase>;
+      field_confidence?: Record<string, number>;
+      critical_warnings?: string[];
+    };
+    try {
+      extracted = await this.extractorClient.extractDraft({
+        transcript,
+        locale: detectedLocale as any,
+        listingTypeHint: input.listingTypeHint
+      });
+    } catch (err) {
+      const code =
+        err instanceof BadGatewayException ? "extraction_failed" : "extraction_unavailable";
+      const message =
+        err instanceof Error
+          ? `AI extraction failed: ${err.message}`
+          : "Azure OpenAI extraction is unavailable";
+      throw new BadGatewayException({ code, message });
+    }
 
     const warnings: string[] = [...(extracted.critical_warnings ?? [])];
     const draft = this.sanitizeDraft(extracted.draft_suggestion, input.listingTypeHint);
@@ -469,5 +510,70 @@ export class OwnerCaptureService {
       }
     }
     return [...confirm];
+  }
+
+  /**
+   * Development / demo mock: returns a realistic canned draft so the wizard
+   * capture flow can be developed and tested without working Azure deployments.
+   */
+  private buildMockCaptureResponse(listingType: ListingType): OwnerCaptureExtractResponse {
+    const isPg = listingType === "pg";
+    const draft: Partial<OwnerDraftPayloadSnakeCase> = isPg
+      ? {
+          listing_type: "pg",
+          title: "Boys PG near Metro Station",
+          description:
+            "Well-maintained PG with home-cooked meals, WiFi, and 24x7 security. Walking distance from Rajiv Chowk metro.",
+          rent: 8000,
+          deposit: 8000,
+          location: {
+            city: "delhi",
+            locality: "rajiv-chowk",
+            address_line1: "42, Block C, Connaught Place"
+          },
+          pg_fields: {
+            total_beds: 12,
+            room_sharing_options: ["double", "triple"],
+            food_included: true,
+            attached_bathroom: false
+          }
+        }
+      : {
+          listing_type: "flat_house",
+          title: "Spacious 2BHK near Metro",
+          description:
+            "Well-maintained 2BHK flat on the 3rd floor with covered parking, power backup, and 24x7 security. 5 minutes from Sector 62 metro station.",
+          rent: 18000,
+          deposit: 36000,
+          location: {
+            city: "noida",
+            locality: "sector-62",
+            address_line1: "C-42, Supertech Ecovillage"
+          },
+          property_fields: {
+            bhk: 2,
+            bathrooms: 2,
+            area_sqft: 950,
+            furnishing: "semi_furnished"
+          }
+        };
+
+    const tiers: Record<string, ConfidenceTier> = {};
+    for (const path of collectDraftPaths(draft)) {
+      tiers[path] = CRITICAL_CONFIRM_FIELDS.has(path) ? "medium" : "high";
+    }
+
+    return {
+      transcript_echo: isPg
+        ? "Mera PG hai Delhi mein, Rajiv Chowk ke paas. 12 beds hain, double aur triple sharing. Khana milta hai. Rent 8000 per month, same deposit."
+        : "Mera 2BHK flat hai Noida sector 62 mein. 950 square feet, semi furnished. Rent 18000 per month, deposit 36000. Third floor, covered parking hai.",
+      draft_suggestion: draft,
+      field_confidence_tier: tiers,
+      confirm_fields: this.resolveConfirmFields(draft, tiers),
+      missing_required_fields: [],
+      critical_warnings: [
+        "[MOCK MODE] This is a demo response. Set CAPTURE_MOCK=false to use real Azure services."
+      ]
+    };
   }
 }

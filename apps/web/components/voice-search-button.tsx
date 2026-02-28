@@ -36,6 +36,8 @@ interface VoiceSearchButtonProps {
   className?: string;
 }
 
+export type { VoiceSearchResponse, VoiceTranscription };
+
 export function VoiceSearchButton({
   locale,
   sessionToken,
@@ -45,11 +47,21 @@ export function VoiceSearchButton({
 }: VoiceSearchButtonProps) {
   const [state, setState] = useState<VoiceState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
   const startRecording = useCallback(async () => {
     setErrorMessage(null);
+    setRecordingSeconds(0);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -61,7 +73,6 @@ export function VoiceSearchButton({
         }
       });
 
-      // Prefer webm/opus (widely supported), fallback to wav
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/webm";
@@ -76,14 +87,14 @@ export function VoiceSearchButton({
       };
 
       recorder.onstop = async () => {
-        // Stop all tracks
+        clearTimer();
         stream.getTracks().forEach((track) => track.stop());
 
         const audioBlob = new Blob(chunksRef.current, { type: mimeType });
 
         if (audioBlob.size < 1000) {
           setState("error");
-          setErrorMessage("Recording too short. Please try again.");
+          setErrorMessage("Recording too short. Please speak for at least 2 seconds.");
           return;
         }
 
@@ -120,18 +131,27 @@ export function VoiceSearchButton({
 
           onResult(result);
           setState("idle");
-        } catch {
+        } catch (err) {
           setState("error");
-          setErrorMessage("Voice search failed. Please try again or type your search.");
-          trackEvent("voice_search_error", { locale });
+          const msg =
+            err instanceof Error && err.message
+              ? err.message
+              : "Voice search failed. Please try again or type your search.";
+          setErrorMessage(msg);
+          trackEvent("voice_search_error", { locale, error: msg });
         }
       };
 
       mediaRecorderRef.current = recorder;
-      recorder.start(250); // Collect data every 250ms
+      recorder.start(250);
       setState("recording");
 
       trackEvent("voice_search_started", { locale });
+
+      // Count seconds
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
 
       // Auto-stop after 10 seconds
       setTimeout(() => {
@@ -144,7 +164,7 @@ export function VoiceSearchButton({
       setErrorMessage("Microphone access denied. Please allow microphone permissions.");
       trackEvent("voice_search_mic_denied", { locale });
     }
-  }, [locale, sessionToken, onResult, onTranscript]);
+  }, [locale, sessionToken, onResult, onTranscript, clearTimer]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === "recording") {
@@ -158,11 +178,14 @@ export function VoiceSearchButton({
     } else if (state === "idle" || state === "error") {
       startRecording();
     }
-    // Do nothing while processing
   }, [state, startRecording, stopRecording]);
 
   return (
-    <div className={`voice-search-container ${className ?? ""}`}>
+    <div
+      className={`voice-search-container ${className ?? ""}`}
+      role="region"
+      aria-label="Voice search"
+    >
       <button
         type="button"
         className={`voice-search-btn voice-search-btn--${state}`}
@@ -186,19 +209,29 @@ export function VoiceSearchButton({
         )}
       </button>
 
-      {state === "recording" && (
-        <span className="voice-search-label">{locale === "hi" ? "बोलिए..." : "Listening..."}</span>
-      )}
+      <div className="voice-search-feedback" aria-live="polite">
+        {state === "recording" && (
+          <span className="voice-search-label">
+            {locale === "hi" ? "बोलिए..." : "Listening..."}{" "}
+            <span className="voice-search-timer">{recordingSeconds}s</span>
+          </span>
+        )}
 
-      {state === "processing" && (
-        <span className="voice-search-label">
-          {locale === "hi" ? "समझ रहे हैं..." : "Processing..."}
-        </span>
-      )}
+        {state === "processing" && (
+          <span className="voice-search-label">
+            {locale === "hi" ? "समझ रहे हैं..." : "Processing..."}
+          </span>
+        )}
 
-      {errorMessage && state === "error" && (
-        <span className="voice-search-error">{errorMessage}</span>
-      )}
+        {errorMessage && state === "error" && (
+          <span className="voice-search-error">
+            {errorMessage}{" "}
+            <button type="button" className="voice-search-retry" onClick={handleClick}>
+              Try again
+            </button>
+          </span>
+        )}
+      </div>
     </div>
   );
 }

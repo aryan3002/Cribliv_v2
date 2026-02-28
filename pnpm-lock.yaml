@@ -52,6 +52,9 @@ importers:
       helmet:
         specifier: ^8.1.0
         version: 8.1.0
+      microsoft-cognitiveservices-speech-sdk:
+        specifier: ^1.48.0
+        version: 1.48.0
       pg:
         specifier: ^8.13.0
         version: 8.18.0
@@ -199,6 +202,27 @@ packages:
         optional: true
       nodemailer:
         optional: true
+
+  "@azure/abort-controller@2.1.2":
+    resolution:
+      {
+        integrity: sha512-nBrLsEWm4J2u5LpAPjxADTlq3trDgVZZXHNKabeXZtpq3d3AbN/KGO82R87rdDz5/lYB024rtEf10/q0urNgsA==
+      }
+    engines: { node: ">=18.0.0" }
+
+  "@azure/core-auth@1.10.1":
+    resolution:
+      {
+        integrity: sha512-ykRMW8PjVAn+RS6ww5cmK9U2CyH9p4Q88YJwvUslfuMmN98w/2rdGRLPqJYObapBCdzBVeDgYWdJnFPFb7qzpg==
+      }
+    engines: { node: ">=20.0.0" }
+
+  "@azure/core-util@1.13.1":
+    resolution:
+      {
+        integrity: sha512-XPArKLzsvl0Hf0CaGyKHUyVgF7oDnhKoP85Xv6M4StF/1AhfORhZudHtOyf2s+FcbuQ9dPRAjB8J2KvRRMUK2A==
+      }
+    engines: { node: ">=20.0.0" }
 
   "@babel/code-frame@7.29.0":
     resolution:
@@ -1127,6 +1151,19 @@ packages:
         integrity: sha512-T8L6i7wCuyoK8A/ZeLYt1+q0ty3Zb9+qbSSvrIVitzT3YjZqkTZ40IbRsPanlB4h1QB3JVL1SYCdR6ngtFYcuA==
       }
 
+  "@types/webrtc@0.0.37":
+    resolution:
+      {
+        integrity: sha512-JGAJC/ZZDhcrrmepU4sPLQLIOIAgs5oIK+Ieq90K8fdaNMhfdfqmYatJdgif1NDQtvrSlTOGJDUYHIDunuufOg==
+      }
+
+  "@typespec/ts-http-runtime@0.3.3":
+    resolution:
+      {
+        integrity: sha512-91fp6CAAJSRtH5ja95T1FHSKa8aPW9/Zw6cta81jlZTUw/+Vq8jM/AfF/14h2b71wwR84JUTW/3Y8QPhDAawFA==
+      }
+    engines: { node: ">=20.0.0" }
+
   "@vitest/expect@2.1.9":
     resolution:
       {
@@ -1301,6 +1338,27 @@ packages:
     engines: { node: ">=0.4.0" }
     hasBin: true
 
+  agent-base@5.1.1:
+    resolution:
+      {
+        integrity: sha512-TMeqbNl2fMW0nMjTEPOwe3J/PRFP4vqeoNuQMG0HlMrtm5QxKqdvAkZ1pRBQ/ulIyDD5Yq0nJ7YbdD8ey0TO3g==
+      }
+    engines: { node: ">= 6.0.0" }
+
+  agent-base@6.0.2:
+    resolution:
+      {
+        integrity: sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==
+      }
+    engines: { node: ">= 6.0.0" }
+
+  agent-base@7.1.4:
+    resolution:
+      {
+        integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==
+      }
+    engines: { node: ">= 14" }
+
   ajv-formats@2.1.1:
     resolution:
       {
@@ -1470,6 +1528,12 @@ packages:
       }
     hasBin: true
 
+  bent@7.3.12:
+    resolution:
+      {
+        integrity: sha512-T3yrKnVGB63zRuoco/7Ybl7BwwGZR0lceoVG5XmQyMIH9s19SV5m+a8qam4if0zQuAmOQTyPTPmsQBdAorGK3w==
+      }
+
   binary-extensions@2.3.0:
     resolution:
       {
@@ -1543,6 +1607,12 @@ packages:
       }
     engines: { node: ">= 0.8" }
 
+  bytesish@0.4.4:
+    resolution:
+      {
+        integrity: sha512-i4uu6M4zuMUiyfZN4RU2+i9+peJh//pXhd9x1oSe1LBkZ3LEbCoygu8W0bXTukU1Jme2txKuotpCZRaC3FLxcQ==
+      }
+
   cac@6.7.14:
     resolution:
       {
@@ -1582,6 +1652,12 @@ packages:
     resolution:
       {
         integrity: sha512-BCfFL1sHijQlBGWBMuJyhZUhzo7wer5sVj9hqekB/7xn0Ypy+pER/edCYQm4exbXj4WiySGp40P8UuTh6w1srg==
+      }
+
+  caseless@0.12.0:
+    resolution:
+      {
+        integrity: sha512-4tYFyifaFfGacoiObjJegolkwSU4xQNGbVgUiNYVUxbQ2x2lUsFvY4hVgVzGiIe6WLOPqycWXA40l+PWsxthUw==
       }
 
   chai@5.3.3:
@@ -2450,6 +2526,27 @@ packages:
       }
     engines: { node: ">= 0.8" }
 
+  http-proxy-agent@7.0.2:
+    resolution:
+      {
+        integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==
+      }
+    engines: { node: ">= 14" }
+
+  https-proxy-agent@4.0.0:
+    resolution:
+      {
+        integrity: sha512-zoDhWrkR3of1l9QAL8/scJZyLu8j/gBkcwcaQOZh7Gyh/+uJQzGVETdgT30akuwkpL8HTRfssqI3BZuV18teDg==
+      }
+    engines: { node: ">= 6.0.0" }
+
+  https-proxy-agent@7.0.6:
+    resolution:
+      {
+        integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==
+      }
+    engines: { node: ">= 14" }
+
   human-signals@5.0.0:
     resolution:
       {
@@ -2573,6 +2670,13 @@ packages:
         integrity: sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==
       }
     engines: { node: ">=0.12.0" }
+
+  is-stream@2.0.1:
+    resolution:
+      {
+        integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==
+      }
+    engines: { node: ">=8" }
 
   is-stream@3.0.0:
     resolution:
@@ -2828,6 +2932,12 @@ packages:
         integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==
       }
     engines: { node: ">=8.6" }
+
+  microsoft-cognitiveservices-speech-sdk@1.48.0:
+    resolution:
+      {
+        integrity: sha512-D/8cZn0+vWE18PHloEXfeSHjxuCTYs1zjMulQ4EgpjIrLdtaqSqa9guDBXPnxFnnysWRnZZwyfM/uoiKZvEXXw==
+      }
 
   mime-db@1.52.0:
     resolution:
@@ -4162,6 +4272,13 @@ packages:
       }
     hasBin: true
 
+  uuid@9.0.1:
+    resolution:
+      {
+        integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==
+      }
+    hasBin: true
+
   v8-compile-cache-lib@3.0.1:
     resolution:
       {
@@ -4354,6 +4471,21 @@ packages:
         integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==
       }
 
+  ws@8.19.0:
+    resolution:
+      {
+        integrity: sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg==
+      }
+    engines: { node: ">=10.0.0" }
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: ">=5.0.2"
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xtend@4.0.2:
     resolution:
       {
@@ -4423,6 +4555,26 @@ snapshots:
       oauth4webapi: 3.8.5
       preact: 10.24.3
       preact-render-to-string: 6.5.11(preact@10.24.3)
+
+  "@azure/abort-controller@2.1.2":
+    dependencies:
+      tslib: 2.8.1
+
+  "@azure/core-auth@1.10.1":
+    dependencies:
+      "@azure/abort-controller": 2.1.2
+      "@azure/core-util": 1.13.1
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+
+  "@azure/core-util@1.13.1":
+    dependencies:
+      "@azure/abort-controller": 2.1.2
+      "@typespec/ts-http-runtime": 0.3.3
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
 
   "@babel/code-frame@7.29.0":
     dependencies:
@@ -4907,6 +5059,16 @@ snapshots:
 
   "@types/validator@13.15.10": {}
 
+  "@types/webrtc@0.0.37": {}
+
+  "@typespec/ts-http-runtime@0.3.3":
+    dependencies:
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - supports-color
+
   "@vitest/expect@2.1.9":
     dependencies:
       "@vitest/spy": 2.1.9
@@ -5038,6 +5200,16 @@ snapshots:
 
   acorn@8.15.0: {}
 
+  agent-base@5.1.1: {}
+
+  agent-base@6.0.2:
+    dependencies:
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
+  agent-base@7.1.4: {}
+
   ajv-formats@2.1.1(ajv@8.12.0):
     optionalDependencies:
       ajv: 8.12.0
@@ -5123,6 +5295,12 @@ snapshots:
 
   baseline-browser-mapping@2.9.19: {}
 
+  bent@7.3.12:
+    dependencies:
+      bytesish: 0.4.4
+      caseless: 0.12.0
+      is-stream: 2.0.1
+
   binary-extensions@2.3.0: {}
 
   bl@4.1.0:
@@ -5182,6 +5360,8 @@ snapshots:
 
   bytes@3.1.2: {}
 
+  bytesish@0.4.4: {}
+
   cac@6.7.14: {}
 
   call-bind-apply-helpers@1.0.2:
@@ -5204,6 +5384,8 @@ snapshots:
   callsites@3.1.0: {}
 
   caniuse-lite@1.0.30001769: {}
+
+  caseless@0.12.0: {}
 
   chai@5.3.3:
     dependencies:
@@ -5720,6 +5902,27 @@ snapshots:
       statuses: 2.0.2
       toidentifier: 1.0.1
 
+  http-proxy-agent@7.0.2:
+    dependencies:
+      agent-base: 7.1.4
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
+  https-proxy-agent@4.0.0:
+    dependencies:
+      agent-base: 5.1.1
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
+  https-proxy-agent@7.0.6:
+    dependencies:
+      agent-base: 7.1.4
+      debug: 4.4.3
+    transitivePeerDependencies:
+      - supports-color
+
   human-signals@5.0.0: {}
 
   husky@9.1.7: {}
@@ -5798,6 +6001,8 @@ snapshots:
   is-interactive@1.0.0: {}
 
   is-number@7.0.0: {}
+
+  is-stream@2.0.1: {}
 
   is-stream@3.0.0: {}
 
@@ -5930,6 +6135,20 @@ snapshots:
     dependencies:
       braces: 3.0.3
       picomatch: 2.3.1
+
+  microsoft-cognitiveservices-speech-sdk@1.48.0:
+    dependencies:
+      "@azure/core-auth": 1.10.1
+      "@types/webrtc": 0.0.37
+      agent-base: 6.0.2
+      bent: 7.3.12
+      https-proxy-agent: 4.0.0
+      uuid: 9.0.1
+      ws: 8.19.0
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
 
   mime-db@1.52.0: {}
 
@@ -6665,6 +6884,8 @@ snapshots:
 
   uuid@10.0.0: {}
 
+  uuid@9.0.1: {}
+
   v8-compile-cache-lib@3.0.1: {}
 
   validator@13.15.26: {}
@@ -6818,6 +7039,8 @@ snapshots:
       strip-ansi: 7.1.2
 
   wrappy@1.0.2: {}
+
+  ws@8.19.0: {}
 
   xtend@4.0.2: {}
 

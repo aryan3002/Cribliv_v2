@@ -89,7 +89,12 @@ export class OwnerCaptureController {
     const name = (rawName ?? "").toLowerCase();
 
     if (mimeType.startsWith("audio/webm") || mimeType.startsWith("video/webm")) {
-      return "audio/webm";
+      // Azure Speech REST API requires the codec to be specified — "audio/webm" alone
+      // causes Azure to return an empty transcript (InitialSilenceTimeout/NoMatch).
+      return "audio/webm;codecs=opus";
+    }
+    if (mimeType.startsWith("audio/ogg")) {
+      return "audio/ogg;codecs=opus";
     }
     if (mimeType.startsWith("audio/mp4") || mimeType.startsWith("video/mp4")) {
       return "audio/mp4";
@@ -98,10 +103,8 @@ export class OwnerCaptureController {
       if (name.endsWith(".mp4") || name.endsWith(".m4a")) {
         return "audio/mp4";
       }
-      if (name.endsWith(".webm")) {
-        return "audio/webm";
-      }
-      return "audio/webm";
+      // Default to webm+opus for unknown octet-stream (browser default fallback).
+      return "audio/webm;codecs=opus";
     }
 
     throw new BadRequestException({

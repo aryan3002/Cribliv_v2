@@ -18,6 +18,7 @@ import { ok } from "../../common/response";
 import { OwnerService } from "./owner.service";
 import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { ContactsService } from "../contacts/contacts.service";
+import { CreateListingDto, UpdateListingDto, SubmitListingDto } from "./dto/listing.dto";
 
 @Controller("owner")
 @UseGuards(AuthGuard, RolesGuard)
@@ -34,7 +35,7 @@ export class OwnerController {
   }
 
   @Post("listings")
-  async create(@Req() req: { user: { id: string } }, @Body() body: any) {
+  async create(@Req() req: { user: { id: string } }, @Body() body: CreateListingDto) {
     return ok(await this.ownerService.createListing(req.user.id, body));
   }
 
@@ -42,7 +43,7 @@ export class OwnerController {
   async update(
     @Req() req: { user: { id: string } },
     @Param("listing_id") listingId: string,
-    @Body() body: any
+    @Body() body: UpdateListingDto
   ) {
     return ok(await this.ownerService.updateListing(req.user.id, listingId, body));
   }
@@ -82,9 +83,11 @@ export class OwnerController {
   async submit(
     @Req() req: { user: { id: string } },
     @Param("listing_id") listingId: string,
-    @Body() body: { agree_terms: boolean }
+    @Body() body: SubmitListingDto
   ) {
-    return ok(await this.ownerService.submitListing(req.user.id, listingId, body.agree_terms));
+    return ok(
+      await this.ownerService.submitListing(req.user.id, listingId, body.agree_terms ?? false)
+    );
   }
 
   @Post("contact-unlocks/:unlock_id/responded")

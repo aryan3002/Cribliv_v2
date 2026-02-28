@@ -12,414 +12,43 @@ import {
   extractOwnerListingFromAudio,
   listOwnerListings,
   makeIdempotencyKey,
-  type OwnerDraftPayloadSnakeCase,
-  type OwnerListingCaptureExtractResponse,
   presignListingPhotos,
   segmentPgPath,
   submitOwnerListing,
-  updateOwnerListing,
-  type OwnerListingDraftInput
+  updateOwnerListing
 } from "../../../../../lib/owner-api";
+import { ApiError } from "../../../../../lib/api";
+import type { OwnerListingDraftInput } from "../../../../../lib/owner-api";
 
-type ListingType = "flat_house" | "pg";
-type Furnishing = "" | "unfurnished" | "semi_furnished" | "fully_furnished";
-type SharingType = "" | "single" | "double" | "triple" | "quad";
-type PgPath = "self_serve" | "sales_assist" | null;
-type CaptureMode = "entry" | "voice_recording" | "assisted_confirmation" | "wizard";
-type RecorderState = "idle" | "recording" | "processing";
+import {
+  type WizardForm,
+  type CaptureMode,
+  type RecorderState,
+  type PgPath,
+  type UploadFile,
+  type StepError,
+  type OwnerDraftPayloadSnakeCase,
+  type OwnerListingCaptureExtractResponse,
+  STEPS,
+  EMPTY_FORM,
+  cloneCaptureDraft,
+  applyCaptureDraftToForm,
+  resolveWizardStepForForm,
+  generateClientUploadId,
+  validateStep
+} from "../../../../../components/listing-wizard";
 
-interface CaptureFieldOption {
-  value: string;
-  label: string;
-}
+import { CaptureEntry } from "../../../../../components/listing-wizard/CaptureEntry";
+import { VoiceRecordingPanel } from "../../../../../components/listing-wizard/VoiceRecordingPanel";
+import { CaptureConfirmation } from "../../../../../components/listing-wizard/CaptureConfirmation";
+import { WizardStepIndicator } from "../../../../../components/listing-wizard/WizardStepIndicator";
+import { BasicsStep } from "../../../../../components/listing-wizard/BasicsStep";
+import { LocationStep } from "../../../../../components/listing-wizard/LocationStep";
+import { DetailsStep } from "../../../../../components/listing-wizard/DetailsStep";
+import { PhotosStep } from "../../../../../components/listing-wizard/PhotosStep";
+import { ReviewStep } from "../../../../../components/listing-wizard/ReviewStep";
 
-interface CaptureFieldDefinition {
-  path: string;
-  label: string;
-  type: "text" | "number" | "select" | "boolean";
-  options?: CaptureFieldOption[];
-}
-
-interface FormData {
-  title: string;
-  description: string;
-  listing_type: ListingType;
-  monthly_rent: string;
-  deposit: string;
-  furnishing: Furnishing;
-  city: string;
-  locality: string;
-  address: string;
-  bedrooms: string;
-  bathrooms: string;
-  area_sqft: string;
-  amenities: string[];
-  beds: string;
-  sharing_type: SharingType;
-  meals_included: boolean;
-}
-
-interface UploadFile {
-  file: File;
-  clientUploadId: string;
-  status: "pending" | "uploading" | "complete" | "error";
-  progress: number;
-  previewUrl: string;
-  errorMessage?: string;
-}
-
-const STEPS = ["Basics", "Location", "Details", "Photos", "Review"];
 const STORAGE_KEY = "cribliv:wizard-draft";
-
-const CITIES = [
-  "Delhi",
-  "Gurugram",
-  "Noida",
-  "Ghaziabad",
-  "Faridabad",
-  "Chandigarh",
-  "Jaipur",
-  "Lucknow"
-];
-
-const AMENITIES_FLAT = [
-  "WiFi",
-  "AC",
-  "Geyser",
-  "Washing Machine",
-  "Fridge",
-  "TV",
-  "Parking",
-  "Power Backup",
-  "Gas Pipeline",
-  "Lift",
-  "Security",
-  "CCTV",
-  "Gym",
-  "Swimming Pool",
-  "Balcony",
-  "Kitchen",
-  "Water Purifier"
-];
-
-const AMENITIES_PG = [
-  "WiFi",
-  "AC",
-  "Geyser",
-  "Washing Machine",
-  "Fridge",
-  "TV",
-  "Parking",
-  "Power Backup",
-  "Security",
-  "CCTV",
-  "Gym",
-  "Meals",
-  "Laundry",
-  "Housekeeping"
-];
-
-const EMPTY_FORM: FormData = {
-  title: "",
-  description: "",
-  listing_type: "flat_house",
-  monthly_rent: "",
-  deposit: "",
-  furnishing: "",
-  city: "",
-  locality: "",
-  address: "",
-  bedrooms: "",
-  bathrooms: "",
-  area_sqft: "",
-  amenities: [],
-  beds: "",
-  sharing_type: "",
-  meals_included: false
-};
-
-const CAPTURE_FIELD_DEFINITIONS: CaptureFieldDefinition[] = [
-  {
-    path: "listing_type",
-    label: "Property type",
-    type: "select",
-    options: [
-      { value: "flat_house", label: "Flat / House" },
-      { value: "pg", label: "PG / Hostel" }
-    ]
-  },
-  { path: "title", label: "Listing title", type: "text" },
-  { path: "description", label: "Description", type: "text" },
-  { path: "rent", label: "Monthly rent", type: "number" },
-  { path: "deposit", label: "Security deposit", type: "number" },
-  { path: "location.city", label: "City", type: "text" },
-  { path: "location.locality", label: "Locality", type: "text" },
-  { path: "location.address_line1", label: "Full address", type: "text" },
-  { path: "property_fields.bhk", label: "Bedrooms (BHK)", type: "number" },
-  { path: "property_fields.bathrooms", label: "Bathrooms", type: "number" },
-  { path: "property_fields.area_sqft", label: "Area (sq ft)", type: "number" },
-  {
-    path: "property_fields.furnishing",
-    label: "Furnishing",
-    type: "select",
-    options: [
-      { value: "unfurnished", label: "Unfurnished" },
-      { value: "semi_furnished", label: "Semi-Furnished" },
-      { value: "fully_furnished", label: "Fully Furnished" }
-    ]
-  },
-  { path: "pg_fields.total_beds", label: "Total beds", type: "number" },
-  {
-    path: "pg_fields.room_sharing_options",
-    label: "Sharing options",
-    type: "select",
-    options: [
-      { value: "single", label: "Single" },
-      { value: "double", label: "Double" },
-      { value: "triple", label: "Triple" },
-      { value: "quad", label: "Quad" }
-    ]
-  },
-  { path: "pg_fields.food_included", label: "Meals included", type: "boolean" }
-];
-
-function cloneCaptureDraft(
-  draft: Partial<OwnerDraftPayloadSnakeCase> | undefined
-): Partial<OwnerDraftPayloadSnakeCase> {
-  return draft ? (JSON.parse(JSON.stringify(draft)) as Partial<OwnerDraftPayloadSnakeCase>) : {};
-}
-
-function getCaptureFieldDefinition(path: string): CaptureFieldDefinition | undefined {
-  return CAPTURE_FIELD_DEFINITIONS.find((item) => item.path === path);
-}
-
-function getCaptureValue(draft: Partial<OwnerDraftPayloadSnakeCase> | null, path: string): unknown {
-  if (!draft) {
-    return undefined;
-  }
-  switch (path) {
-    case "listing_type":
-      return draft.listing_type;
-    case "title":
-      return draft.title;
-    case "description":
-      return draft.description;
-    case "rent":
-      return draft.rent;
-    case "deposit":
-      return draft.deposit;
-    case "location.city":
-      return draft.location?.city;
-    case "location.locality":
-      return draft.location?.locality;
-    case "location.address_line1":
-      return draft.location?.address_line1;
-    case "property_fields.bhk":
-      return draft.property_fields?.bhk;
-    case "property_fields.bathrooms":
-      return draft.property_fields?.bathrooms;
-    case "property_fields.area_sqft":
-      return draft.property_fields?.area_sqft;
-    case "property_fields.furnishing":
-      return draft.property_fields?.furnishing;
-    case "pg_fields.total_beds":
-      return draft.pg_fields?.total_beds;
-    case "pg_fields.room_sharing_options":
-      return draft.pg_fields?.room_sharing_options?.[0];
-    case "pg_fields.food_included":
-      return draft.pg_fields?.food_included;
-    default:
-      return undefined;
-  }
-}
-
-function hasCaptureValue(draft: Partial<OwnerDraftPayloadSnakeCase> | null, path: string): boolean {
-  const value = getCaptureValue(draft, path);
-  if (value == null) {
-    return false;
-  }
-  if (typeof value === "string") {
-    return value.trim().length > 0;
-  }
-  return true;
-}
-
-function setCaptureValue(
-  draft: Partial<OwnerDraftPayloadSnakeCase>,
-  path: string,
-  value: unknown
-): Partial<OwnerDraftPayloadSnakeCase> {
-  const next = cloneCaptureDraft(draft);
-  switch (path) {
-    case "listing_type":
-      next.listing_type = value === "pg" ? "pg" : "flat_house";
-      break;
-    case "title":
-      next.title = typeof value === "string" ? value : "";
-      break;
-    case "description":
-      next.description = typeof value === "string" ? value : "";
-      break;
-    case "rent":
-      next.rent = typeof value === "number" && Number.isFinite(value) ? value : undefined;
-      break;
-    case "deposit":
-      next.deposit = typeof value === "number" && Number.isFinite(value) ? value : undefined;
-      break;
-    case "location.city":
-      next.location = { ...(next.location ?? {}), city: typeof value === "string" ? value : "" };
-      break;
-    case "location.locality":
-      next.location = {
-        ...(next.location ?? {}),
-        locality: typeof value === "string" ? value : ""
-      };
-      break;
-    case "location.address_line1":
-      next.location = {
-        ...(next.location ?? {}),
-        address_line1: typeof value === "string" ? value : ""
-      };
-      break;
-    case "property_fields.bhk":
-      next.property_fields = {
-        ...(next.property_fields ?? {}),
-        bhk: typeof value === "number" && Number.isFinite(value) ? value : undefined
-      };
-      break;
-    case "property_fields.bathrooms":
-      next.property_fields = {
-        ...(next.property_fields ?? {}),
-        bathrooms: typeof value === "number" && Number.isFinite(value) ? value : undefined
-      };
-      break;
-    case "property_fields.area_sqft":
-      next.property_fields = {
-        ...(next.property_fields ?? {}),
-        area_sqft: typeof value === "number" && Number.isFinite(value) ? value : undefined
-      };
-      break;
-    case "property_fields.furnishing":
-      next.property_fields = {
-        ...(next.property_fields ?? {}),
-        furnishing:
-          value === "unfurnished" || value === "semi_furnished" || value === "fully_furnished"
-            ? value
-            : undefined
-      };
-      break;
-    case "pg_fields.total_beds":
-      next.pg_fields = {
-        ...(next.pg_fields ?? {}),
-        total_beds: typeof value === "number" && Number.isFinite(value) ? value : undefined
-      };
-      break;
-    case "pg_fields.room_sharing_options":
-      next.pg_fields = {
-        ...(next.pg_fields ?? {}),
-        room_sharing_options: typeof value === "string" && value ? [value] : undefined
-      };
-      break;
-    case "pg_fields.food_included":
-      next.pg_fields = {
-        ...(next.pg_fields ?? {}),
-        food_included: typeof value === "boolean" ? value : undefined
-      };
-      break;
-    default:
-      break;
-  }
-  return next;
-}
-
-function formatCaptureValue(path: string, value: unknown): string {
-  if (value == null || value === "") {
-    return "—";
-  }
-  if ((path === "rent" || path === "deposit") && typeof value === "number") {
-    return `₹${value.toLocaleString("en-IN")}`;
-  }
-  if (path === "listing_type" && typeof value === "string") {
-    return value === "pg" ? "PG / Hostel" : "Flat / House";
-  }
-  if (path === "property_fields.furnishing" && typeof value === "string") {
-    return value.replace(/_/g, " ");
-  }
-  if (path === "pg_fields.food_included" && typeof value === "boolean") {
-    return value ? "Yes" : "No";
-  }
-  if (Array.isArray(value)) {
-    return value.join(", ");
-  }
-  return String(value);
-}
-
-function resolveWizardStepForForm(form: FormData): number {
-  if (!form.title.trim() || !form.monthly_rent.trim()) {
-    return 0;
-  }
-  if (!form.city.trim()) {
-    return 1;
-  }
-  return 2;
-}
-
-function applyCaptureDraftToForm(
-  previous: FormData,
-  draft: Partial<OwnerDraftPayloadSnakeCase>
-): FormData {
-  const next = { ...previous };
-  if (draft.title) {
-    next.title = draft.title;
-  }
-  if (draft.description) {
-    next.description = draft.description;
-  }
-  if (draft.listing_type) {
-    next.listing_type = draft.listing_type;
-  }
-  if (typeof draft.rent === "number" && Number.isFinite(draft.rent)) {
-    next.monthly_rent = String(draft.rent);
-  }
-  if (typeof draft.deposit === "number" && Number.isFinite(draft.deposit)) {
-    next.deposit = String(draft.deposit);
-  }
-  if (draft.location?.city) {
-    next.city = draft.location.city;
-  }
-  if (draft.location?.locality) {
-    next.locality = draft.location.locality;
-  }
-  if (draft.location?.address_line1) {
-    next.address = draft.location.address_line1;
-  }
-  if (typeof draft.property_fields?.bhk === "number") {
-    next.bedrooms = String(draft.property_fields.bhk);
-  }
-  if (typeof draft.property_fields?.bathrooms === "number") {
-    next.bathrooms = String(draft.property_fields.bathrooms);
-  }
-  if (typeof draft.property_fields?.area_sqft === "number") {
-    next.area_sqft = String(draft.property_fields.area_sqft);
-  }
-  if (draft.property_fields?.furnishing) {
-    next.furnishing = draft.property_fields.furnishing;
-  }
-  if (typeof draft.pg_fields?.total_beds === "number") {
-    next.beds = String(draft.pg_fields.total_beds);
-  }
-  if (draft.pg_fields?.room_sharing_options?.[0]) {
-    next.sharing_type = draft.pg_fields.room_sharing_options[0] as SharingType;
-  }
-  if (typeof draft.pg_fields?.food_included === "boolean") {
-    next.meals_included = draft.pg_fields.food_included;
-  }
-  return next;
-}
-
-function generateClientUploadId(file: File): string {
-  return `${file.name}-${file.size}`;
-}
 
 export default function OwnerListingWizardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
@@ -430,17 +59,21 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
 
+  /* ——— Core wizard state ——— */
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [form, setForm] = useState<WizardForm>(EMPTY_FORM);
   const [listingId, setListingId] = useState<string | null>(editId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authHint, setAuthHint] = useState<string | null>(null);
   const [pgPath, setPgPath] = useState<PgPath>(null);
   const [salesAssistNotice, setSalesAssistNotice] = useState<string | null>(null);
+  const [stepErrors, setStepErrors] = useState<StepError[]>([]);
 
+  /* ——— Photo upload state ——— */
   const [uploads, setUploads] = useState<UploadFile[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /* ——— Capture / voice state ——— */
   const [captureMode, setCaptureMode] = useState<CaptureMode>(editId ? "wizard" : "entry");
   const [recorderState, setRecorderState] = useState<RecorderState>("idle");
   const [captureSeconds, setCaptureSeconds] = useState(0);
@@ -451,72 +84,57 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const [captureDraft, setCaptureDraft] = useState<Partial<OwnerDraftPayloadSnakeCase> | null>(
     null
   );
-  const [confirmedCaptureFields, setConfirmedCaptureFields] = useState<Record<string, boolean>>({});
-  const [editingCaptureField, setEditingCaptureField] = useState<string | null>(null);
-  const [editingCaptureValue, setEditingCaptureValue] = useState<string>("");
+
+  /* ——— Refs ——— */
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recorderStreamRef = useRef<MediaStream | null>(null);
   const recorderChunksRef = useRef<Blob[]>([]);
   const recorderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  /* ================================================================
+     Session-storage draft persistence
+     ================================================================ */
   useEffect(() => {
+    // Only restore draft when editing an existing listing.
+    // For new listings we always start fresh to avoid stale listingIds
+    // from a previous session causing "Listing not found" on save.
+    if (editId) return;
     const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (!saved || editId) {
-      return;
-    }
-
+    if (!saved) return;
     try {
-      const parsed = JSON.parse(saved) as {
-        form?: FormData;
-        step?: number;
-        listingId?: string;
-      };
-      if (parsed.form) {
-        setForm(parsed.form);
-      }
-      if (typeof parsed.step === "number") {
-        setStep(parsed.step);
-      }
-      if (parsed.listingId) {
-        setListingId(parsed.listingId);
-      }
+      const parsed = JSON.parse(saved) as { form?: WizardForm; step?: number; listingId?: string };
+      // Only restore if we have a matching listingId (same session draft continuity).
+      // Discard listingId if it looks stale (no editId in URL = fresh listing).
+      if (parsed.form) setForm(parsed.form);
+      if (typeof parsed.step === "number") setStep(parsed.step);
+      // Do NOT restore listingId for new listings — avoids "Listing not found"
+      // when a previous draft's ID no longer exists.
     } catch {
-      // Ignore invalid draft state.
+      /* ignore */
     }
   }, [editId]);
 
   useEffect(() => {
-    sessionStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        form,
-        step,
-        listingId
-      })
-    );
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ form, step, listingId }));
   }, [form, step, listingId]);
 
+  /* ================================================================
+     Load existing listing for edit
+     ================================================================ */
   useEffect(() => {
-    if (!editId) {
-      return;
-    }
-
+    if (!editId) return;
     const token = accessToken;
     if (!token) {
       setAuthHint("Login required to edit and submit this listing.");
       return;
     }
-
     void (async () => {
       try {
         const response = await listOwnerListings(token);
         const found = response.items.find((item) => item.id === editId);
-        if (!found) {
-          return;
-        }
-
-        setForm((previous) => ({
-          ...previous,
+        if (!found) return;
+        setForm((prev) => ({
+          ...prev,
           title: found.title ?? "",
           listing_type: found.listingType,
           city: found.city ?? "",
@@ -525,21 +143,53 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         }));
         setListingId(editId);
       } catch {
-        // Keep draft editable even if API call fails.
+        /* keep draft editable */
       }
     })();
-  }, [editId]);
+  }, [editId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ================================================================
+     Cleanup recorder on unmount
+     ================================================================ */
   useEffect(() => {
     return () => {
-      if (recorderTimerRef.current) {
-        clearInterval(recorderTimerRef.current);
-      }
+      if (recorderTimerRef.current) clearInterval(recorderTimerRef.current);
       recorderRef.current?.stop();
-      recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+      recorderStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
 
+  /* ================================================================
+     PG segmentation
+     ================================================================ */
+  useEffect(() => {
+    if (form.listing_type !== "pg" || !form.beds) {
+      setPgPath(null);
+      setSalesAssistNotice(null);
+      return;
+    }
+    const beds = Number(form.beds);
+    if (!Number.isFinite(beds) || beds <= 0) {
+      setPgPath(null);
+      setSalesAssistNotice(null);
+      return;
+    }
+    const token = accessToken;
+    if (!token || userRole !== "pg_operator") {
+      setPgPath(beds <= 29 ? "self_serve" : "sales_assist");
+      return;
+    }
+    void segmentPgPath(token, beds)
+      .then((result) => {
+        setPgPath(result.path);
+        trackEvent("pg_segmentation_triggered", { beds, path: result.path });
+      })
+      .catch(() => setPgPath(beds <= 29 ? "self_serve" : "sales_assist"));
+  }, [form.beds, form.listing_type]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ================================================================
+     Recorder helpers
+     ================================================================ */
   function clearRecorderTimer() {
     if (recorderTimerRef.current) {
       clearInterval(recorderTimerRef.current);
@@ -548,14 +198,12 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   }
 
   function stopRecorderStream() {
-    recorderStreamRef.current?.getTracks().forEach((track) => track.stop());
+    recorderStreamRef.current?.getTracks().forEach((t) => t.stop());
     recorderStreamRef.current = null;
   }
 
   function enterManualWizard(reason?: string) {
-    if (reason) {
-      trackEvent("owner_listing_manual_fallback", { reason });
-    }
+    if (reason) trackEvent("owner_listing_manual_fallback", { reason });
     setCaptureMode("wizard");
     setRecorderState("idle");
     setCaptureError(null);
@@ -568,7 +216,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       trackEvent("owner_listing_capture_abandoned", { stage: "extraction", fields_filled: 0 });
       return;
     }
-
     setRecorderState("processing");
     setCaptureError(null);
     try {
@@ -579,8 +226,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       });
       setCaptureResult(result);
       setCaptureDraft(cloneCaptureDraft(result.draft_suggestion));
-      setConfirmedCaptureFields({});
-      setEditingCaptureField(null);
       setCaptureMode("assisted_confirmation");
       setRecorderState("idle");
       trackEvent("owner_listing_extraction_completed", {
@@ -589,10 +234,27 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         missing_required: result.missing_required_fields.length
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to process voice capture";
-      setCaptureError(message);
-      setRecorderState("idle");
-      trackEvent("owner_listing_capture_abandoned", { stage: "extraction", fields_filled: 0 });
+      const isSttError =
+        err instanceof ApiError && (err.code === "stt_failed" || err.code === "stt_unavailable");
+
+      if (isSttError) {
+        // Azure Speech couldn't transcribe — auto-switch to manual wizard.
+        setRecorderState("idle");
+        setCaptureError("Voice capture unavailable — switching to manual form.");
+        trackEvent("owner_listing_capture_abandoned", {
+          stage: "stt_fallback",
+          code: (err as ApiError).code
+        });
+        // Brief delay so user sees the message, then switch to manual form
+        setTimeout(() => {
+          enterManualWizard("stt_failed");
+        }, 1200);
+      } else {
+        const message = err instanceof Error ? err.message : "Failed to process voice capture";
+        setCaptureError(message);
+        setRecorderState("idle");
+        trackEvent("owner_listing_capture_abandoned", { stage: "extraction", fields_filled: 0 });
+      }
     }
   }
 
@@ -602,7 +264,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       enterManualWizard("browser_unsupported");
       return;
     }
-
     setCaptureError(null);
     setCaptureSeconds(0);
     setRecorderState("recording");
@@ -613,7 +274,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       recorderStreamRef.current = stream;
       recorderChunksRef.current = [];
-
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/mp4")
@@ -624,12 +284,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         : new MediaRecorder(stream);
       recorderRef.current = recorder;
 
-      recorder.ondataavailable = (event: BlobEvent) => {
-        if (event.data && event.data.size > 0) {
-          recorderChunksRef.current.push(event.data);
-        }
+      recorder.ondataavailable = (e: BlobEvent) => {
+        if (e.data && e.data.size > 0) recorderChunksRef.current.push(e.data);
       };
-
       recorder.onstop = () => {
         clearRecorderTimer();
         const audioBlob = new Blob(recorderChunksRef.current, {
@@ -639,16 +296,12 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         recorderRef.current = null;
         void processCapturedAudio(audioBlob);
       };
-
       recorder.start(250);
       recorderTimerRef.current = setInterval(() => {
-        setCaptureSeconds((previous) => {
-          const next = previous + 1;
-          if (next >= 60) {
-            recorderRef.current?.stop();
-            return 60;
-          }
-          return next;
+        setCaptureSeconds((prev) => {
+          const next = prev + 1;
+          if (next >= 60) recorderRef.current?.stop();
+          return Math.min(next, 60);
         });
       }, 1000);
     } catch (err) {
@@ -665,90 +318,43 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   }
 
   function stopVoiceCapture() {
-    if (recorderState !== "recording") {
-      return;
-    }
+    if (recorderState !== "recording") return;
     clearRecorderTimer();
     recorderRef.current?.stop();
     trackEvent("owner_listing_recording_completed", { duration_sec: captureSeconds });
   }
 
-  function startEditingCapture(path: string) {
-    const value = getCaptureValue(captureDraft, path);
-    if (typeof value === "boolean") {
-      setEditingCaptureValue(value ? "true" : "false");
-    } else if (value == null) {
-      setEditingCaptureValue("");
-    } else {
-      setEditingCaptureValue(String(value));
-    }
-    setEditingCaptureField(path);
-  }
-
-  function saveEditedCapture(path: string) {
-    const definition = getCaptureFieldDefinition(path);
-    if (!definition || !captureDraft) {
-      return;
-    }
-
-    let nextValue: unknown = editingCaptureValue;
-    if (definition.type === "number") {
-      const parsed = Number(editingCaptureValue);
-      nextValue = Number.isFinite(parsed) ? parsed : undefined;
-    } else if (definition.type === "boolean") {
-      nextValue = editingCaptureValue === "true";
-    }
-
-    const previousValue = getCaptureValue(captureDraft, path);
-    const nextDraft = setCaptureValue(captureDraft, path, nextValue);
-    setCaptureDraft(nextDraft);
-    setConfirmedCaptureFields((previous) => ({ ...previous, [path]: true }));
-    setEditingCaptureField(null);
-    trackEvent("owner_listing_field_edited", {
-      field: path,
-      original_value: previousValue ?? null,
-      new_value: nextValue ?? null
-    });
-    trackEvent("owner_listing_field_confirmed", { field: path, was_edited: true });
-  }
-
-  function confirmCaptureField(path: string) {
-    setConfirmedCaptureFields((previous) => ({ ...previous, [path]: true }));
-    trackEvent("owner_listing_field_confirmed", { field: path, was_edited: false });
-  }
-
   function continueFromCapture() {
-    if (!captureDraft || !captureResult) {
-      return;
-    }
-
+    if (!captureDraft || !captureResult) return;
     const updatedForm = applyCaptureDraftToForm(form, captureDraft);
     setForm(updatedForm);
     setStep(resolveWizardStepForForm(updatedForm));
     setCaptureMode("wizard");
     trackEvent("owner_listing_capture_completed", {
       total_time_sec: captureSeconds,
-      edit_count: Object.values(confirmedCaptureFields).length,
       field_fill_rate: Object.keys(captureResult.field_confidence_tier ?? {}).length
     });
   }
 
-  function updateField<K extends keyof FormData>(key: K, value: FormData[K]) {
-    setForm((previous) => ({ ...previous, [key]: value }));
+  /* ================================================================
+     Form helpers
+     ================================================================ */
+  function updateField<K extends keyof WizardForm>(key: K, value: WizardForm[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setStepErrors([]); // clear step errors on edit
   }
 
   function toggleAmenity(amenity: string) {
-    setForm((previous) => ({
-      ...previous,
-      amenities: previous.amenities.includes(amenity)
-        ? previous.amenities.filter((item) => item !== amenity)
-        : [...previous.amenities, amenity]
+    setForm((prev) => ({
+      ...prev,
+      amenities: prev.amenities.includes(amenity)
+        ? prev.amenities.filter((a) => a !== amenity)
+        : [...prev.amenities, amenity]
     }));
   }
 
   function buildDraftInput(): OwnerListingDraftInput {
     const isPg = form.listing_type === "pg";
-
     return {
       title: form.title,
       description: form.description || undefined,
@@ -759,6 +365,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         city: form.city,
         locality: form.locality || undefined,
         addressLine1: form.address || undefined,
+        landmark: form.landmark || undefined,
+        pincode: form.pincode || undefined,
         maskedAddress: form.locality || form.city || undefined
       },
       propertyFields: isPg
@@ -767,77 +375,51 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             bhk: form.bedrooms ? Number(form.bedrooms) : undefined,
             bathrooms: form.bathrooms ? Number(form.bathrooms) : undefined,
             areaSqft: form.area_sqft ? Number(form.area_sqft) : undefined,
-            furnishing: form.furnishing || undefined
+            furnishing: form.furnishing || undefined,
+            preferredTenant: (form.preferred_tenant || undefined) as
+              | "any"
+              | "family"
+              | "bachelor"
+              | "female"
+              | "male"
+              | undefined
           },
       pgFields: isPg
         ? {
             totalBeds: form.beds ? Number(form.beds) : undefined,
             roomSharingOptions: form.sharing_type ? [form.sharing_type] : [],
             foodIncluded: form.meals_included,
-            attachedBathroom: false
+            attachedBathroom: form.attached_bathroom
           }
         : undefined
     };
   }
 
-  useEffect(() => {
-    if (form.listing_type !== "pg" || !form.beds) {
-      setPgPath(null);
-      setSalesAssistNotice(null);
-      return;
-    }
-
-    const beds = Number(form.beds);
-    if (!Number.isFinite(beds) || beds <= 0) {
-      setPgPath(null);
-      setSalesAssistNotice(null);
-      return;
-    }
-
-    const token = accessToken;
-    if (!token || userRole !== "pg_operator") {
-      setPgPath(beds <= 29 ? "self_serve" : "sales_assist");
-      return;
-    }
-
-    void segmentPgPath(token, beds)
-      .then((result) => {
-        setPgPath(result.path);
-        trackEvent("pg_segmentation_triggered", { beds, path: result.path });
-      })
-      .catch(() => {
-        setPgPath(beds <= 29 ? "self_serve" : "sales_assist");
-      });
-  }, [form.beds, form.listing_type]);
-
+  /* ================================================================
+     Draft save / submit
+     ================================================================ */
   async function saveDraft(): Promise<string | null> {
     const token = accessToken;
     if (!token) {
       setAuthHint("Login required to save draft to server. You can continue filling the form.");
       return null;
     }
-
     setSaving(true);
     setError(null);
-
     try {
       const input = buildDraftInput();
-
       if (!listingId) {
         const created = await createOwnerListing(token, input);
         setListingId(created.listingId);
         trackEvent("owner_listing_draft_saved", { listing_id: created.listingId, is_new: true });
         return created.listingId;
       }
-
       await updateOwnerListing(token, listingId, input);
       trackEvent("owner_listing_draft_saved", { listing_id: listingId, is_new: false });
       return listingId;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save listing";
-      if (message.toLowerCase().includes("unauthorized")) {
-        void signOut({ redirect: false });
-      }
+      if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
       setError(message);
       return null;
     } finally {
@@ -845,16 +427,14 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     }
   }
 
-  async function submitListing() {
+  async function handleSubmitListing() {
     const token = accessToken;
     if (!token) {
       setError(t(locale, "loginRequired"));
       return;
     }
-
     setSaving(true);
     setError(null);
-
     try {
       let draftId = listingId;
       if (!draftId) {
@@ -864,7 +444,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       } else {
         await updateOwnerListing(token, draftId, buildDraftInput());
       }
-
       await submitOwnerListing(token, draftId);
       if (pgPath === "sales_assist") {
         try {
@@ -895,65 +474,69 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       router.push(`/${locale}/owner/dashboard`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to submit listing";
-      if (message.toLowerCase().includes("unauthorized")) {
-        void signOut({ redirect: false });
-      }
+      if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
       setError(message);
     } finally {
       setSaving(false);
     }
   }
 
+  /* ================================================================
+     Navigation
+     ================================================================ */
   async function goNext() {
-    if (step >= 4) {
+    if (step >= 4) return;
+    setAuthHint(null);
+
+    // Per-step validation
+    const errors = validateStep(step, form);
+    if (errors.length > 0) {
+      setStepErrors(errors);
       return;
     }
-
-    setAuthHint(null);
+    setStepErrors([]);
 
     const token = accessToken;
     if (token) {
-      if (step === 1 && !listingId) {
+      // Always save when moving forward from step 1+.
+      // This handles the capture flow where the wizard can jump
+      // directly to step 2 before a listing has ever been created
+      // (listingId === null), so we can't gate on listingId.
+      if (step >= 1) {
         const savedId = await saveDraft();
-        if (!savedId) {
-          return;
-        }
-      } else if (step > 1 && listingId) {
-        const savedId = await saveDraft();
-        if (!savedId) {
-          return;
-        }
+        if (!savedId) return;
       }
     } else if (step === 0) {
       setAuthHint("You can keep filling the form. Login is needed to save and submit.");
     }
 
-    setStep((current) => current + 1);
+    setStep((c) => c + 1);
   }
 
   function goBack() {
     if (step > 0) {
-      setStep((current) => current - 1);
+      setStepErrors([]);
+      setStep((c) => c - 1);
     }
   }
 
+  /* ================================================================
+     Photo upload logic
+     ================================================================ */
   function onFilesSelected(files: FileList | null) {
-    if (!files) {
-      return;
-    }
-
+    if (!files) return;
     setUploads((current) => {
-      const existingIds = new Set(current.map((item) => item.clientUploadId));
+      const existingIds = new Set(current.map((i) => i.clientUploadId));
       const nextUploads: UploadFile[] = Array.from(files).map((file) => {
-        const clientUploadId = generateClientUploadId(file);
-        const duplicate = existingIds.has(clientUploadId);
+        const id = generateClientUploadId(file);
+        const dup = existingIds.has(id);
         return {
           file,
-          clientUploadId,
-          status: duplicate ? ("error" as const) : ("pending" as const),
+          clientUploadId: id,
+          status: dup ? ("error" as const) : ("pending" as const),
           progress: 0,
           previewUrl: URL.createObjectURL(file),
-          errorMessage: duplicate ? "This photo was already uploaded." : undefined
+          errorMessage: dup ? "This photo was already uploaded." : undefined
         };
       });
       return [...current, ...nextUploads];
@@ -966,15 +549,13 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       setError("Login and save draft before uploading photos.");
       return;
     }
-
-    setUploads((current) =>
-      current.map((item) =>
-        item.clientUploadId === upload.clientUploadId
-          ? { ...item, status: "uploading", progress: 15 }
-          : item
+    setUploads((c) =>
+      c.map((i) =>
+        i.clientUploadId === upload.clientUploadId
+          ? { ...i, status: "uploading" as const, progress: 15 }
+          : i
       )
     );
-
     try {
       const presignResult = await presignListingPhotos(
         token,
@@ -988,74 +569,71 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         ],
         makeIdempotencyKey("photo-presign")
       );
-
-      const firstUpload = presignResult.uploads[0];
-      if (!firstUpload) {
-        throw new Error("Failed to get upload URL");
-      }
-
-      setUploads((current) =>
-        current.map((item) =>
-          item.clientUploadId === upload.clientUploadId ? { ...item, progress: 70 } : item
-        )
+      const first = presignResult.uploads[0];
+      if (!first) throw new Error("Failed to get upload URL");
+      setUploads((c) =>
+        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 70 } : i))
       );
-
       await completeListingPhotos(
         token,
         listingId,
         [
           {
             clientUploadId: upload.clientUploadId,
-            blobPath: firstUpload.blobPath,
+            blobPath: first.blobPath,
             isCover: false,
             sortOrder: 0
           }
         ],
         makeIdempotencyKey("photo-complete")
       );
-
-      setUploads((current) =>
-        current.map((item) =>
-          item.clientUploadId === upload.clientUploadId
-            ? { ...item, status: "complete", progress: 100, errorMessage: undefined }
-            : item
+      setUploads((c) =>
+        c.map((i) =>
+          i.clientUploadId === upload.clientUploadId
+            ? { ...i, status: "complete" as const, progress: 100, errorMessage: undefined }
+            : i
         )
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Upload failed";
       const duplicate =
         message.toLowerCase().includes("duplicate") || message.toLowerCase().includes("already");
-
-      setUploads((current) =>
-        current.map((item) =>
-          item.clientUploadId === upload.clientUploadId
+      setUploads((c) =>
+        c.map((i) =>
+          i.clientUploadId === upload.clientUploadId
             ? {
-                ...item,
-                status: "error",
+                ...i,
+                status: "error" as const,
                 errorMessage: duplicate ? "This photo was already uploaded." : message
               }
-            : item
+            : i
         )
       );
     }
   }
 
   async function uploadAllPending() {
-    for (const upload of uploads.filter((item) => item.status === "pending")) {
+    // Auto-save draft first if no listing yet (creates listing ID for photo association)
+    if (!listingId && accessToken) {
+      const savedId = await saveDraft();
+      if (!savedId) return;
+    }
+    for (const upload of uploads.filter((i) => i.status === "pending")) {
       await uploadFile(upload);
     }
   }
 
   function removeUpload(clientUploadId: string) {
-    setUploads((current) => {
-      const removed = current.find((item) => item.clientUploadId === clientUploadId);
-      if (removed) {
-        URL.revokeObjectURL(removed.previewUrl);
-      }
-      return current.filter((item) => item.clientUploadId !== clientUploadId);
+    setUploads((c) => {
+      const removed = c.find((i) => i.clientUploadId === clientUploadId);
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return c.filter((i) => i.clientUploadId !== clientUploadId);
     });
   }
 
+  /* ================================================================
+     Derived state
+     ================================================================ */
   const canProceed = useMemo(() => {
     switch (step) {
       case 0:
@@ -1067,776 +645,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     }
   }, [form.city, form.monthly_rent, form.title, step]);
 
-  const captureVisiblePaths = useMemo(() => {
-    if (!captureDraft) {
-      return [];
-    }
-    return CAPTURE_FIELD_DEFINITIONS.map((definition) => definition.path).filter((path) =>
-      hasCaptureValue(captureDraft, path)
-    );
-  }, [captureDraft]);
-
-  const autoFilledPaths = useMemo(() => {
-    if (!captureResult) {
-      return [];
-    }
-    return captureVisiblePaths.filter((path) => {
-      if (captureResult.confirm_fields.includes(path)) {
-        return false;
-      }
-      return captureResult.field_confidence_tier[path] === "high";
-    });
-  }, [captureResult, captureVisiblePaths]);
-
-  const confirmPaths = useMemo(() => {
-    if (!captureResult || !captureDraft) {
-      return [];
-    }
-    return captureResult.confirm_fields.filter((path) => hasCaptureValue(captureDraft, path));
-  }, [captureDraft, captureResult]);
-
-  const missingPaths = useMemo(() => {
-    if (!captureResult) {
-      return [];
-    }
-    return captureResult.missing_required_fields;
-  }, [captureResult]);
-
-  const unresolvedConfirmations = useMemo(() => {
-    if (!captureDraft) {
-      return [];
-    }
-    return confirmPaths.filter(
-      (path) => hasCaptureValue(captureDraft, path) && !confirmedCaptureFields[path]
-    );
-  }, [captureDraft, confirmPaths, confirmedCaptureFields]);
-
-  const unresolvedRequired = useMemo(() => {
-    if (!captureDraft) {
-      return [];
-    }
-    return missingPaths.filter((path) => !hasCaptureValue(captureDraft, path));
-  }, [captureDraft, missingPaths]);
-
-  const canContinueFromCapture =
-    captureMode === "assisted_confirmation" &&
-    unresolvedConfirmations.length === 0 &&
-    unresolvedRequired.length === 0;
-
-  function renderCaptureField(path: string, requireConfirmation: boolean) {
-    const definition = getCaptureFieldDefinition(path);
-    if (!definition || !captureDraft) {
-      return null;
-    }
-    const value = getCaptureValue(captureDraft, path);
-    const tier = captureResult?.field_confidence_tier[path] ?? "medium";
-    const isEditing = editingCaptureField === path;
-
-    return (
-      <div key={path} className="capture-field-card">
-        <div className="capture-field-card__head">
-          <span>{definition.label}</span>
-          <span className={`capture-tier capture-tier--${tier}`}>{tier}</span>
-        </div>
-
-        {isEditing ? (
-          <div className="capture-field-card__edit">
-            {definition.type === "select" ? (
-              <select
-                className="input"
-                value={editingCaptureValue}
-                onChange={(event) => setEditingCaptureValue(event.target.value)}
-              >
-                <option value="">Select...</option>
-                {definition.options?.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            ) : definition.type === "boolean" ? (
-              <select
-                className="input"
-                value={editingCaptureValue}
-                onChange={(event) => setEditingCaptureValue(event.target.value)}
-              >
-                <option value="">Select...</option>
-                <option value="true">Yes</option>
-                <option value="false">No</option>
-              </select>
-            ) : (
-              <input
-                className="input"
-                type={definition.type === "number" ? "number" : "text"}
-                value={editingCaptureValue}
-                onChange={(event) => setEditingCaptureValue(event.target.value)}
-              />
-            )}
-
-            <div className="capture-field-card__actions">
-              <button
-                type="button"
-                className="btn btn--primary btn--sm"
-                onClick={() => saveEditedCapture(path)}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                onClick={() => setEditingCaptureField(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="capture-field-card__value">{formatCaptureValue(path, value)}</div>
-            <div className="capture-field-card__actions">
-              {requireConfirmation ? (
-                <button
-                  type="button"
-                  className="btn btn--primary btn--sm"
-                  onClick={() => confirmCaptureField(path)}
-                  disabled={Boolean(confirmedCaptureFields[path])}
-                >
-                  {confirmedCaptureFields[path] ? "Confirmed" : "Confirm"}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                onClick={() => startEditingCapture(path)}
-              >
-                Edit
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  function renderCaptureEntry() {
-    return (
-      <div className="card capture-entry">
-        <p className="trust-strip" style={{ marginBottom: 16 }}>
-          Nothing is published until you submit.
-        </p>
-        <button type="button" className="btn btn--primary" onClick={startVoiceCapture}>
-          Describe Property
-        </button>
-        <button
-          type="button"
-          className="btn btn--secondary"
-          onClick={() => enterManualWizard("user_preference")}
-        >
-          Fill Manually
-        </button>
-        {captureError ? <p className="alert alert--error">{captureError}</p> : null}
-      </div>
-    );
-  }
-
-  function renderVoiceRecorder() {
-    return (
-      <div className="card capture-recorder">
-        <h3>Voice recording</h3>
-        <p className="caption">
-          Speak naturally for up to 60 seconds. We will prefill your listing draft.
-        </p>
-        <p className="capture-recorder__timer">
-          {String(Math.floor(captureSeconds / 60)).padStart(2, "0")}:
-          {String(captureSeconds % 60).padStart(2, "0")} / 01:00
-        </p>
-        <div className="capture-recorder__actions">
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={stopVoiceCapture}
-            disabled={recorderState !== "recording"}
-          >
-            Stop & Continue
-          </button>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={() => enterManualWizard("user_cancelled")}
-          >
-            Fill Manually
-          </button>
-        </div>
-        {recorderState === "processing" ? <p className="caption">Processing recording...</p> : null}
-        {captureError ? <p className="alert alert--error">{captureError}</p> : null}
-      </div>
-    );
-  }
-
-  function renderAssistedConfirmation() {
-    return (
-      <div className="card capture-confirmation">
-        <h3>Assisted Draft</h3>
-        <p className="caption">
-          We filled {captureVisiblePaths.length} fields from your voice input.
-        </p>
-
-        {autoFilledPaths.length > 0 ? (
-          <div className="capture-section">
-            <h4>Auto-filled</h4>
-            {autoFilledPaths.map((path) => renderCaptureField(path, false))}
-          </div>
-        ) : null}
-
-        {confirmPaths.length > 0 ? (
-          <div className="capture-section">
-            <h4>Please confirm</h4>
-            {confirmPaths.map((path) => renderCaptureField(path, true))}
-          </div>
-        ) : null}
-
-        {missingPaths.length > 0 ? (
-          <div className="capture-section">
-            <h4>Missing required fields</h4>
-            {missingPaths.map((path) => {
-              const definition = getCaptureFieldDefinition(path);
-              if (!definition) {
-                return null;
-              }
-              return (
-                <div key={path} className="capture-field-card capture-field-card--missing">
-                  <div className="capture-field-card__head">
-                    <span>{definition.label}</span>
-                    <span className="capture-tier capture-tier--low">required</span>
-                  </div>
-                  <div className="capture-field-card__actions">
-                    <button
-                      type="button"
-                      className="btn btn--ghost btn--sm"
-                      onClick={() => startEditingCapture(path)}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-
-        {captureResult?.critical_warnings.length ? (
-          <div className="alert alert--error" role="alert">
-            {captureResult.critical_warnings[0]}
-          </div>
-        ) : null}
-
-        <details className="capture-transcript">
-          <summary>What you said</summary>
-          <p>{captureResult?.transcript_echo ?? "No transcript available."}</p>
-        </details>
-
-        <div className="wizard-nav">
-          <button
-            type="button"
-            className="btn btn--secondary"
-            onClick={() => setCaptureMode("entry")}
-          >
-            Re-record
-          </button>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={continueFromCapture}
-            disabled={!canContinueFromCapture}
-          >
-            Continue to Form
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function renderStepIndicator() {
-    return (
-      <nav className="wizard-steps" aria-label="Wizard progress">
-        {STEPS.map((label, index) => (
-          <div
-            key={label}
-            className={`wizard-step${
-              index === step ? " wizard-step--active" : index < step ? " wizard-step--done" : ""
-            }`}
-            aria-current={index === step ? "step" : undefined}
-          >
-            {label}
-          </div>
-        ))}
-      </nav>
-    );
-  }
-
-  function renderBasics() {
-    return (
-      <>
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-title">
-            Listing title
-          </label>
-          <input
-            id="wiz-title"
-            className="input"
-            value={form.title}
-            onChange={(event) => updateField("title", event.target.value)}
-            placeholder="e.g. Spacious 2BHK near Metro"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-desc">
-            Description
-          </label>
-          <textarea
-            id="wiz-desc"
-            className="textarea"
-            value={form.description}
-            onChange={(event) => updateField("description", event.target.value)}
-            placeholder="Describe your property — condition, nearby landmarks, best suited for..."
-          />
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label" htmlFor="wiz-type">
-              Property type
-            </label>
-            <select
-              id="wiz-type"
-              className="input"
-              value={form.listing_type}
-              onChange={(event) => updateField("listing_type", event.target.value as ListingType)}
-            >
-              <option value="flat_house">Flat / House</option>
-              <option value="pg">PG / Hostel</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="wiz-furnishing">
-              Furnishing
-            </label>
-            <select
-              id="wiz-furnishing"
-              className="input"
-              value={form.furnishing}
-              onChange={(event) => updateField("furnishing", event.target.value as Furnishing)}
-            >
-              <option value="">Select...</option>
-              <option value="unfurnished">Unfurnished</option>
-              <option value="semi_furnished">Semi-Furnished</option>
-              <option value="fully_furnished">Fully Furnished</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label" htmlFor="wiz-rent">
-              Monthly rent (₹)
-            </label>
-            <input
-              id="wiz-rent"
-              type="number"
-              className="input"
-              value={form.monthly_rent}
-              onChange={(event) => updateField("monthly_rent", event.target.value)}
-              placeholder="e.g. 15000"
-              min="0"
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="wiz-deposit">
-              Security deposit (₹)
-            </label>
-            <input
-              id="wiz-deposit"
-              type="number"
-              className="input"
-              value={form.deposit}
-              onChange={(event) => updateField("deposit", event.target.value)}
-              placeholder="e.g. 30000"
-              min="0"
-            />
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  function renderLocation() {
-    return (
-      <>
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-city">
-            City
-          </label>
-          <select
-            id="wiz-city"
-            className="input"
-            value={form.city}
-            onChange={(event) => updateField("city", event.target.value)}
-          >
-            <option value="">Select city...</option>
-            {CITIES.map((city) => (
-              <option key={city} value={city.toLowerCase()}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-locality">
-            Locality / Area
-          </label>
-          <input
-            id="wiz-locality"
-            className="input"
-            value={form.locality}
-            onChange={(event) => updateField("locality", event.target.value)}
-            placeholder="e.g. Sector 62, DLF Phase 3"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-address">
-            Full address
-          </label>
-          <textarea
-            id="wiz-address"
-            className="textarea"
-            value={form.address}
-            onChange={(event) => updateField("address", event.target.value)}
-            placeholder="Complete address (kept private, used for verification only)"
-          />
-          <p
-            className="caption"
-            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
-          >
-            Your full address is never shown to tenants. It is used only for owner verification.
-          </p>
-        </div>
-      </>
-    );
-  }
-
-  function renderDetails() {
-    const isPg = form.listing_type === "pg";
-
-    return (
-      <>
-        {isPg ? (
-          <>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label" htmlFor="wiz-beds">
-                  Total beds
-                </label>
-                <input
-                  id="wiz-beds"
-                  type="number"
-                  className="input"
-                  value={form.beds}
-                  onChange={(event) => updateField("beds", event.target.value)}
-                  placeholder="e.g. 20"
-                  min="1"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="wiz-sharing">
-                  Sharing type
-                </label>
-                <select
-                  id="wiz-sharing"
-                  className="input"
-                  value={form.sharing_type}
-                  onChange={(event) =>
-                    updateField("sharing_type", event.target.value as SharingType)
-                  }
-                >
-                  <option value="">Select...</option>
-                  <option value="single">Single</option>
-                  <option value="double">Double</option>
-                  <option value="triple">Triple</option>
-                  <option value="quad">Quad</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="checkbox-row">
-              <input
-                type="checkbox"
-                id="wiz-meals"
-                checked={form.meals_included}
-                onChange={(event) => updateField("meals_included", event.target.checked)}
-              />
-              <label htmlFor="wiz-meals">Meals included</label>
-            </div>
-
-            {pgPath === "self_serve" ? (
-              <div className="segment-banner segment-banner--self-serve">
-                With {form.beds} beds, you can manage your listing yourself through our self-serve
-                platform.
-              </div>
-            ) : null}
-            {pgPath === "sales_assist" ? (
-              <div className="segment-banner segment-banner--sales-assist">
-                With {form.beds}+ beds, our team will help you with onboarding and dedicated
-                support.
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label" htmlFor="wiz-bedrooms">
-                Bedrooms
-              </label>
-              <input
-                id="wiz-bedrooms"
-                type="number"
-                className="input"
-                value={form.bedrooms}
-                onChange={(event) => updateField("bedrooms", event.target.value)}
-                placeholder="e.g. 2"
-                min="0"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label" htmlFor="wiz-bathrooms">
-                Bathrooms
-              </label>
-              <input
-                id="wiz-bathrooms"
-                type="number"
-                className="input"
-                value={form.bathrooms}
-                onChange={(event) => updateField("bathrooms", event.target.value)}
-                placeholder="e.g. 1"
-                min="0"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-area">
-            Area (sq ft)
-          </label>
-          <input
-            id="wiz-area"
-            type="number"
-            className="input"
-            value={form.area_sqft}
-            onChange={(event) => updateField("area_sqft", event.target.value)}
-            placeholder="e.g. 850"
-            min="0"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Amenities</label>
-          <div className="amenity-grid">
-            {(isPg ? AMENITIES_PG : AMENITIES_FLAT).map((amenity) => (
-              <div key={amenity} className="checkbox-row">
-                <input
-                  id={`amenity-${amenity}`}
-                  type="checkbox"
-                  checked={form.amenities.includes(amenity)}
-                  onChange={() => toggleAmenity(amenity)}
-                />
-                <label htmlFor={`amenity-${amenity}`}>{amenity}</label>
-              </div>
-            ))}
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  function renderPhotos() {
-    return (
-      <>
-        <p className="caption">
-          Add photos of your property. Good photos help tenants decide faster.
-        </p>
-
-        <div
-          className="upload-zone"
-          role="button"
-          tabIndex={0}
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              fileInputRef.current?.click();
-            }
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            onFilesSelected(event.dataTransfer.files);
-          }}
-        >
-          <p>Click or drag photos here</p>
-          <p className="caption" style={{ color: "var(--text-tertiary)" }}>
-            JPG, PNG up to 10 MB each
-          </p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(event) => onFilesSelected(event.target.files)}
-            aria-label="Select photos"
-          />
-        </div>
-
-        {uploads.length > 0 ? (
-          <>
-            <div className="upload-list">
-              {uploads.map((upload) => (
-                <div key={upload.clientUploadId} className="upload-item">
-                  <img
-                    className="upload-item__preview"
-                    src={upload.previewUrl}
-                    alt={upload.file.name}
-                  />
-                  <div className="upload-item__info">
-                    <div className="upload-item__name">{upload.file.name}</div>
-                    <div
-                      className={`upload-item__status${
-                        upload.status === "complete"
-                          ? " upload-item__status--success"
-                          : upload.status === "error"
-                            ? " upload-item__status--error"
-                            : ""
-                      }`}
-                    >
-                      {upload.status === "pending" ? "Ready to upload" : null}
-                      {upload.status === "uploading" ? "Uploading..." : null}
-                      {upload.status === "complete" ? "Uploaded" : null}
-                      {upload.status === "error" ? upload.errorMessage || "Upload failed" : null}
-                    </div>
-                    {upload.status === "uploading" ? (
-                      <div className="progress-bar">
-                        <div
-                          className="progress-bar__fill"
-                          style={{ width: `${upload.progress}%` }}
-                        />
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => removeUpload(upload.clientUploadId)}
-                    aria-label={`Remove ${upload.file.name}`}
-                  >
-                    x
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: 12 }}>
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={uploadAllPending}
-                disabled={saving || uploads.every((upload) => upload.status !== "pending")}
-              >
-                Upload All
-              </button>
-            </div>
-          </>
-        ) : null}
-      </>
-    );
-  }
-
-  function renderReview() {
-    const isPg = form.listing_type === "pg";
-    const completedUploads = uploads.filter((upload) => upload.status === "complete");
-
-    return (
-      <>
-        <div className="info-box">{t(locale, "reviewInfo")}</div>
-
-        <div className="card">
-          <h3>{form.title || "Untitled"}</h3>
-          <p className="caption">
-            {isPg ? "PG / Hostel" : "Flat / House"} in {form.city || "—"}
-            {form.locality ? `, ${form.locality}` : ""}
-          </p>
-
-          {form.monthly_rent ? (
-            <p className="rent">₹{Number(form.monthly_rent).toLocaleString("en-IN")}/month</p>
-          ) : null}
-          {form.deposit ? <p>Deposit: ₹{Number(form.deposit).toLocaleString("en-IN")}</p> : null}
-          {form.furnishing ? <p>Furnishing: {form.furnishing.replace(/_/g, " ")}</p> : null}
-          {form.description ? <p>{form.description}</p> : null}
-        </div>
-
-        <div className="card">
-          <h4>Property details</h4>
-          {!isPg && form.bedrooms ? <p>Bedrooms: {form.bedrooms}</p> : null}
-          {!isPg && form.bathrooms ? <p>Bathrooms: {form.bathrooms}</p> : null}
-          {isPg && form.beds ? <p>Beds: {form.beds}</p> : null}
-          {isPg && form.sharing_type ? <p>Sharing: {form.sharing_type}</p> : null}
-          {isPg ? <p>Meals: {form.meals_included ? "Included" : "Not included"}</p> : null}
-          {form.area_sqft ? <p>Area: {form.area_sqft} sq ft</p> : null}
-
-          {form.amenities.length > 0 ? (
-            <div className="chip-row" style={{ marginTop: 8 }}>
-              {form.amenities.map((amenity) => (
-                <span key={amenity} className="badge">
-                  {amenity}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        {completedUploads.length > 0 ? (
-          <div className="card">
-            <h4>Photos ({completedUploads.length})</h4>
-            <div className="chip-row">
-              {completedUploads.map((upload) => (
-                <img
-                  key={upload.clientUploadId}
-                  src={upload.previewUrl}
-                  alt=""
-                  style={{ width: 80, height: 80, borderRadius: 6, objectFit: "cover" }}
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {pgPath === "sales_assist" ? (
-          <div className="segment-banner segment-banner--sales-assist">
-            As a large PG operator, our team will be in touch after submission to assist with
-            onboarding.
-          </div>
-        ) : null}
-      </>
-    );
-  }
-
+  /* ================================================================
+     Render
+     ================================================================ */
   return (
     <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
       <h1>{editId ? t(locale, "editListing") : t(locale, "createListing")}</h1>
@@ -1846,7 +657,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           {error}
         </div>
       ) : null}
-
       {authHint ? (
         <div className="card" role="status">
           <p className="caption" style={{ margin: 0 }}>
@@ -1854,7 +664,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </p>
         </div>
       ) : null}
-
       {salesAssistNotice ? (
         <div className="card" role="status">
           <p className="caption" style={{ margin: 0 }}>
@@ -1863,20 +672,68 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </div>
       ) : null}
 
-      {captureMode === "entry" ? renderCaptureEntry() : null}
-      {captureMode === "voice_recording" ? renderVoiceRecorder() : null}
-      {captureMode === "assisted_confirmation" ? renderAssistedConfirmation() : null}
+      {/* ——— Capture screens ——— */}
+      {captureMode === "entry" ? (
+        <CaptureEntry
+          onDescribe={startVoiceCapture}
+          onManual={() => enterManualWizard("user_preference")}
+          error={captureError}
+        />
+      ) : null}
 
+      {captureMode === "voice_recording" ? (
+        <VoiceRecordingPanel
+          seconds={captureSeconds}
+          isProcessing={recorderState === "processing"}
+          onStop={stopVoiceCapture}
+          onManual={() => enterManualWizard("user_cancelled")}
+          error={captureError}
+        />
+      ) : null}
+
+      {captureMode === "assisted_confirmation" && captureResult && captureDraft ? (
+        <CaptureConfirmation
+          captureResult={captureResult}
+          draft={captureDraft}
+          onDraftChange={(d) => setCaptureDraft(d)}
+          onContinue={continueFromCapture}
+          onReRecord={() => setCaptureMode("entry")}
+        />
+      ) : null}
+
+      {/* ——— Wizard form ——— */}
       {captureMode === "wizard" ? (
         <>
-          {renderStepIndicator()}
+          <WizardStepIndicator currentStep={step} />
 
           <div className="card">
-            {step === 0 ? renderBasics() : null}
-            {step === 1 ? renderLocation() : null}
-            {step === 2 ? renderDetails() : null}
-            {step === 3 ? renderPhotos() : null}
-            {step === 4 ? renderReview() : null}
+            {step === 0 ? (
+              <BasicsStep form={form} errors={stepErrors} updateField={updateField} />
+            ) : null}
+            {step === 1 ? (
+              <LocationStep form={form} errors={stepErrors} updateField={updateField} />
+            ) : null}
+            {step === 2 ? (
+              <DetailsStep
+                form={form}
+                errors={stepErrors}
+                pgPath={pgPath}
+                updateField={updateField}
+                toggleAmenity={toggleAmenity}
+              />
+            ) : null}
+            {step === 3 ? (
+              <PhotosStep
+                uploads={uploads}
+                saving={saving}
+                onFilesSelected={onFilesSelected}
+                onUploadAll={uploadAllPending}
+                onRemove={removeUpload}
+              />
+            ) : null}
+            {step === 4 ? (
+              <ReviewStep form={form} uploads={uploads} pgPath={pgPath} locale={locale} />
+            ) : null}
           </div>
 
           <div className="wizard-nav">
@@ -1902,7 +759,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={submitListing}
+                onClick={handleSubmitListing}
                 disabled={saving}
               >
                 {saving ? "Submitting..." : t(locale, "submitForReview")}
