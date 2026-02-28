@@ -44,7 +44,20 @@ export const analyticsEvents = [
   "voice_search_routed",
   // Phase D – Search autocomplete & Google Places
   "places_suggestion_selected",
-  "suggest_selected"
+  "suggest_selected",
+  // Phase E – Conversational Hindi Voice Agent
+  "voice_agent_session_started",
+  "voice_agent_greeting_played",
+  "voice_agent_user_spoke",
+  "voice_agent_agent_responded",
+  "voice_agent_phase_changed",
+  "voice_agent_draft_updated",
+  "voice_agent_session_completed",
+  "voice_agent_session_abandoned",
+  "voice_agent_error",
+  "voice_agent_barge_in",
+  "voice_agent_text_fallback",
+  "voice_agent_manual_fallback"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

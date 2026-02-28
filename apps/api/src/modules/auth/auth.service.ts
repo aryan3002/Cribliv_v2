@@ -344,7 +344,9 @@ export class AuthService {
         id: string;
         role: string;
         phone_e164: string;
+        full_name: string | null;
         preferred_language: string;
+        whatsapp_opt_in: boolean;
         wallet_balance: number;
       }>(
         `
@@ -352,7 +354,9 @@ export class AuthService {
           u.id::text,
           u.role::text,
           u.phone_e164,
+          u.full_name,
           u.preferred_language::text,
+          u.whatsapp_opt_in,
           COALESCE(w.balance_credits, 0) AS wallet_balance
         FROM users u
         LEFT JOIN wallets w ON w.user_id = u.id
@@ -372,7 +376,9 @@ export class AuthService {
       id: user?.id,
       role: user?.role,
       phone_e164: user?.phone,
+      full_name: user?.full_name ?? null,
       preferred_language: user?.preferred_language,
+      whatsapp_opt_in: user?.whatsapp_opt_in ?? false,
       wallet_balance: this.appState.getWalletBalance(userId)
     };
   }

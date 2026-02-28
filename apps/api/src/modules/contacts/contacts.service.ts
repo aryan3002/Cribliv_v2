@@ -11,20 +11,82 @@ import { randomUUID } from "crypto";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
+import { NotificationService } from "../notifications/notification.service";
 
 @Injectable()
 export class ContactsService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
-    @Inject(DatabaseService) private readonly database: DatabaseService
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(NotificationService) private readonly notifications: NotificationService
   ) {}
 
   async unlockContact(userId: string, listingId: string, idempotencyKey: string) {
+    let result: Awaited<ReturnType<typeof this.unlockContactDb>>;
     if (this.database.isEnabled()) {
-      return this.unlockContactDb(userId, listingId, idempotencyKey);
+      result = await this.unlockContactDb(userId, listingId, idempotencyKey);
+    } else {
+      result = this.unlockContactInMemory(userId, listingId, idempotencyKey);
     }
 
-    return this.unlockContactInMemory(userId, listingId, idempotencyKey);
+    // Fire-and-forget: notify owner that a tenant unlocked their contact
+    this.notifyOwnerContactUnlocked(listingId, userId).catch((err) => {
+      logTelemetry("notification.error", {
+        type: "owner.contact_unlocked",
+        listing_id: listingId,
+        error: err instanceof Error ? err.message : String(err)
+      });
+    });
+
+    return result;
+  }
+
+  /**
+   * Notify the listing owner that a tenant unlocked their contact info.
+   */
+  private async notifyOwnerContactUnlocked(listingId: string, tenantUserId: string) {
+    if (this.database.isEnabled()) {
+      const ownerInfo = await this.database.query<{
+        owner_user_id: string;
+        title: string;
+      }>(
+        `
+        SELECT
+          l.owner_user_id::text,
+          COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'आपकी प्रॉपर्टी') AS title
+        FROM listings l
+        WHERE l.id = $1::uuid
+        LIMIT 1
+        `,
+        [listingId]
+      );
+
+      const owner = ownerInfo.rows[0];
+      if (!owner) return;
+
+      // Also get tenant name for a richer message
+      const tenantInfo = await this.database.query<{ name: string }>(
+        `
+        SELECT COALESCE(NULLIF(display_name, ''), 'एक किरायेदार') AS name
+        FROM users
+        WHERE id = $1::uuid
+        LIMIT 1
+        `,
+        [tenantUserId]
+      );
+
+      await this.notifications.send({
+        type: "owner.contact_unlocked",
+        recipientUserId: owner.owner_user_id,
+        payload: {
+          listing_title: owner.title,
+          listing_id: listingId,
+          tenant_name: tenantInfo.rows[0]?.name ?? "एक किरायेदार",
+          response_deadline: "12 घंटे"
+        },
+        mode: "immediate"
+      });
+    }
   }
 
   async markOwnerResponded(

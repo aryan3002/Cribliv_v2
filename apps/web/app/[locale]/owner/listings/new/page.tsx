@@ -41,6 +41,7 @@ import {
 import { CaptureEntry } from "../../../../../components/listing-wizard/CaptureEntry";
 import { VoiceRecordingPanel } from "../../../../../components/listing-wizard/VoiceRecordingPanel";
 import { CaptureConfirmation } from "../../../../../components/listing-wizard/CaptureConfirmation";
+import { VoiceAgentPanel } from "../../../../../components/listing-wizard/VoiceAgentPanel";
 import { WizardStepIndicator } from "../../../../../components/listing-wizard/WizardStepIndicator";
 import { BasicsStep } from "../../../../../components/listing-wizard/BasicsStep";
 import { LocationStep } from "../../../../../components/listing-wizard/LocationStep";
@@ -649,8 +650,12 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
      Render
      ================================================================ */
   return (
-    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-      <h1>{editId ? t(locale, "editListing") : t(locale, "createListing")}</h1>
+    <section className="wizard-page">
+      <div className="wizard-page__header">
+        <h1 className="wizard-page__title">
+          {editId ? t(locale, "editListing") : t(locale, "createListing")}
+        </h1>
+      </div>
 
       {error ? (
         <div className="alert alert--error" role="alert">
@@ -658,29 +663,52 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </div>
       ) : null}
       {authHint ? (
-        <div className="card" role="status">
-          <p className="caption" style={{ margin: 0 }}>
-            {authHint}
-          </p>
+        <div className="wizard-page__notice" role="status">
+          <p>{authHint}</p>
         </div>
       ) : null}
       {salesAssistNotice ? (
-        <div className="card" role="status">
-          <p className="caption" style={{ margin: 0 }}>
-            {salesAssistNotice}
-          </p>
+        <div className="wizard-page__notice" role="status">
+          <p>{salesAssistNotice}</p>
         </div>
       ) : null}
 
-      {/* ——— Capture screens ——— */}
-      {captureMode === "entry" ? (
-        <CaptureEntry
-          onDescribe={startVoiceCapture}
-          onManual={() => enterManualWizard("user_preference")}
-          error={captureError}
+      {/* ——— Voice Agent (default entry) ——— */}
+      {captureMode === "entry" && nextAuthSession?.user?.id ? (
+        <VoiceAgentPanel
+          userId={nextAuthSession.user.id}
+          locale={locale === "hi" ? "hi-IN" : "en-IN"}
+          listingTypeHint={form.listing_type}
+          onComplete={(draft, _sessionId) => {
+            // Apply voice agent draft to form using the existing helper
+            const snakeDraft: Partial<OwnerDraftPayloadSnakeCase> = {
+              listing_type: draft.listing_type,
+              title: draft.title,
+              description: draft.description,
+              rent: draft.rent,
+              deposit: draft.deposit,
+              location: draft.location,
+              property_fields: draft.property_fields,
+              pg_fields: draft.pg_fields
+            };
+            const updatedForm = applyCaptureDraftToForm(form, snakeDraft);
+            // Also handle amenities + preferred_tenant from voice agent draft
+            if (draft.amenities?.length) updatedForm.amenities = draft.amenities;
+            if (draft.preferred_tenant) updatedForm.preferred_tenant = draft.preferred_tenant;
+            setForm(updatedForm);
+            setStep(resolveWizardStepForForm(updatedForm));
+            setCaptureMode("wizard");
+            trackEvent("voice_agent_session_completed", {
+              fields_filled: Object.keys(snakeDraft).filter(
+                (k) => (snakeDraft as Record<string, unknown>)[k] != null
+              ).length
+            });
+          }}
+          onManual={() => enterManualWizard("voice_agent_manual_fallback")}
         />
       ) : null}
 
+      {/* ——— Legacy capture screens (kept for fallback) ——— */}
       {captureMode === "voice_recording" ? (
         <VoiceRecordingPanel
           seconds={captureSeconds}
@@ -706,7 +734,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         <>
           <WizardStepIndicator currentStep={step} />
 
-          <div className="card">
+          <div className="wizard-form-section">
             {step === 0 ? (
               <BasicsStep form={form} errors={stepErrors} updateField={updateField} />
             ) : null}

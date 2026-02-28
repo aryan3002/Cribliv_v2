@@ -17,6 +17,7 @@ import * as dotenv from "dotenv";
 
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { assertVerificationProviderConfig } from "./modules/verification/providers/provider.config";
@@ -24,6 +25,10 @@ import { assertVerificationProviderConfig } from "./modules/verification/provide
 async function bootstrap() {
   assertVerificationProviderConfig();
   const app = await NestFactory.create(AppModule, { rawBody: true });
+
+  // ── Socket.IO WebSocket adapter (required for voice-agent gateway) ──
+  app.useWebSocketAdapter(new IoAdapter(app));
+
   app.setGlobalPrefix("v1");
 
   // Security headers (CSP, HSTS, X-Content-Type-Options, etc.)
@@ -35,7 +40,7 @@ async function bootstrap() {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", "ws:", "wss:"],
           fontSrc: ["'self'", "https://fonts.gstatic.com"],
           objectSrc: ["'none'"],
           frameAncestors: ["'none'"]

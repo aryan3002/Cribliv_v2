@@ -56,14 +56,44 @@ export default function sitemap(): MetadataRoute.Sitemap {
     });
   }
 
-  // Static pages
+  // Static marketing pages
+  const marketingPages = [
+    { path: "about", priority: 0.6, freq: "monthly" as const },
+    { path: "contact", priority: 0.5, freq: "monthly" as const },
+    { path: "how-it-works", priority: 0.7, freq: "monthly" as const },
+    { path: "become-owner", priority: 0.6, freq: "weekly" as const },
+    { path: "privacy", priority: 0.3, freq: "yearly" as const },
+    { path: "terms", priority: 0.3, freq: "yearly" as const },
+    { path: "faq", priority: 0.7, freq: "monthly" as const },
+    { path: "pricing", priority: 0.8, freq: "monthly" as const }
+  ];
   for (const locale of LOCALES) {
-    entries.push({
-      url: `${BASE_URL}/${locale}/become-owner`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.5
-    });
+    for (const mp of marketingPages) {
+      entries.push({
+        url: `${BASE_URL}/${locale}/${mp.path}`,
+        lastModified: new Date(),
+        changeFrequency: mp.freq,
+        priority: mp.priority,
+        alternates: {
+          languages: Object.fromEntries(LOCALES.map((l) => [l, `${BASE_URL}/${l}/${mp.path}`]))
+        }
+      });
+    }
+  }
+
+  // Rent-in-city guide pages
+  for (const locale of LOCALES) {
+    for (const city of CITIES) {
+      entries.push({
+        url: `${BASE_URL}/${locale}/rent-in/${city}`,
+        lastModified: new Date(),
+        changeFrequency: "weekly",
+        priority: 0.7,
+        alternates: {
+          languages: Object.fromEntries(LOCALES.map((l) => [l, `${BASE_URL}/${l}/rent-in/${city}`]))
+        }
+      });
+    }
   }
 
   return entries;

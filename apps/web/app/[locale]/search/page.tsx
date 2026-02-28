@@ -2,6 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
 import { SearchFilters } from "./search-filters";
+import {
+  MapPin,
+  Search as SearchIcon,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Building,
+  Home,
+  AlertTriangle,
+  ShieldCheck
+} from "lucide-react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -180,7 +191,7 @@ export default async function SearchResultsPage({
   return (
     <>
       {/* ── Inline Search + Header ── */}
-      <section className="container" style={{ paddingBottom: 0, paddingTop: "var(--space-5)" }}>
+      <section className="container" style={{ paddingBottom: 0, paddingTop: "var(--space-6)" }}>
         <SearchFilters
           locale={params.locale}
           filters={filters}
@@ -191,27 +202,25 @@ export default async function SearchResultsPage({
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "baseline",
             justifyContent: "space-between",
             flexWrap: "wrap",
             gap: "var(--space-2)",
-            marginTop: "var(--space-4)"
+            marginTop: "var(--space-6)",
+            paddingBottom: "var(--space-4)",
+            borderBottom: "1px solid var(--border)"
           }}
         >
           <div>
-            <h1 style={{ fontSize: "1.5rem", margin: 0 }}>
+            <h1 style={{ fontSize: "1.25rem", margin: 0, letterSpacing: "-0.01em" }}>
               {queryStr || cityStr
                 ? `Rentals ${cityStr ? `in ${cityLabel(cityStr)}` : ""}${queryStr ? ` — "${queryStr}"` : ""}`
                 : "Search Verified Rentals"}
             </h1>
-            <p
-              className="text-secondary body-sm"
-              style={{ marginBottom: 0, marginTop: "var(--space-1)" }}
-            >
-              {response.total} result{response.total === 1 ? "" : "s"} found
-              {cityStr ? ` in ${cityLabel(cityStr)}` : ""}
-            </p>
           </div>
+          <p className="text-secondary body-sm" style={{ margin: 0 }}>
+            {response.total} result{response.total === 1 ? "" : "s"}
+          </p>
         </div>
       </section>
 
@@ -232,7 +241,7 @@ export default async function SearchResultsPage({
                 href={`/${params.locale}/search?${buildSearchQuery(chip.removeParams)}`}
                 className="filter-chip"
               >
-                {chip.label} <span aria-label="remove">✕</span>
+                {chip.label} <X size={12} aria-label="remove" />
               </Link>
             ))}
             {activeChips.length > 1 && (
@@ -248,17 +257,20 @@ export default async function SearchResultsPage({
       {fetchError && (
         <div className="container">
           <div className="alert alert--warning" style={{ marginTop: "var(--space-4)" }}>
-            <span aria-hidden="true">⚠️</span> {fetchError}
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} /> {fetchError}
           </div>
         </div>
       )}
 
       {/* ── Results Grid ── */}
-      <div className="container" style={{ paddingTop: "var(--space-4)" }}>
+      <div
+        className="container"
+        style={{ paddingTop: "var(--space-4)", paddingBottom: "var(--space-16)" }}
+      >
         {response.items.length === 0 && !fetchError ? (
           <div className="empty-state">
             <span className="empty-state__icon" aria-hidden="true">
-              🔍
+              <SearchIcon size={48} style={{ margin: "0 auto", color: "var(--text-tertiary)" }} />
             </span>
             <h3>No listings match your search</h3>
             <p>Try adjusting your filters or searching in a different city.</p>
@@ -277,12 +289,14 @@ export default async function SearchResultsPage({
                       <img src={item.cover_photo} alt={item.title} loading="lazy" />
                     ) : (
                       <div className="card__image-placeholder" aria-hidden="true">
-                        🏠
+                        <Building size={36} style={{ color: "var(--text-tertiary)" }} />
                       </div>
                     )}
                     {item.verification_status === "verified" && (
                       <span className="card__badge">
-                        <span className="badge badge--verified">✓ Verified</span>
+                        <span className="badge badge--verified">
+                          <ShieldCheck size={12} style={{ marginRight: 2 }} /> Verified
+                        </span>
                       </span>
                     )}
                   </div>
@@ -290,20 +304,7 @@ export default async function SearchResultsPage({
                 <div className="card__body">
                   <div className="card__title">{item.title}</div>
                   <div className="card__location">
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
+                    <MapPin size={14} aria-hidden="true" />
                     {item.locality ? `${item.locality}, ` : ""}
                     {item.city_name ?? cityLabel(item.city)}
                     {" · "}
@@ -353,7 +354,7 @@ export default async function SearchResultsPage({
                 className="pagination__btn"
                 href={`/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(currentPage - 1) })}`}
               >
-                ← Prev
+                <ChevronLeft size={16} /> Prev
               </Link>
             )}
             {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -383,7 +384,7 @@ export default async function SearchResultsPage({
                 className="pagination__btn"
                 href={`/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(currentPage + 1) })}`}
               >
-                Next →
+                Next <ChevronRight size={16} />
               </Link>
             )}
           </nav>

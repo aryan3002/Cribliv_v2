@@ -37,8 +37,12 @@ function canAccessPath(role: UserRole | undefined, path: string): boolean {
   return true; // public path
 }
 
+function normalizePhone(phone: string): string {
+  return phone.trim().replace(/\s+/g, "");
+}
+
 function validatePhone(phone: string): string | null {
-  if (!/^\+91\d{10}$/.test(phone.trim())) {
+  if (!/^\+91\d{10}$/.test(normalizePhone(phone))) {
     return "Enter a valid Indian mobile number (e.g. +919999999901)";
   }
   return null;
@@ -104,21 +108,26 @@ function LoginPageInner() {
       return;
     }
 
+    const normalizedPhone = normalizePhone(phone);
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/auth/otp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone_e164: phone.trim(), purpose: "login" })
+        body: JSON.stringify({ phone_e164: normalizedPhone, purpose: "login" })
       });
 
       const payload = (await res.json()) as {
         data?: { challenge_id: string; dev_otp?: string };
         error?: { code: string; message: string };
+        // NestJS HttpException throws body directly (no wrapper)
+        code?: string;
+        message?: string;
       };
 
       if (!res.ok) {
-        setError(friendlyError(payload.error?.code));
+        const errorCode = payload.error?.code ?? payload.code;
+        setError(friendlyError(errorCode));
         return;
       }
 
@@ -135,7 +144,7 @@ function LoginPageInner() {
         setOtp(payload.data.dev_otp); // auto-fill so user can just click Verify
       }
 
-      setInfo(`OTP sent to ${phone.trim()}`);
+      setInfo(`OTP sent to ${normalizedPhone}`);
       setStep(2);
     } catch {
       setError("Network error. Please check your connection and try again.");

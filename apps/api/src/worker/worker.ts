@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { Pool } from "pg";
 import { AppStateService } from "../common/app-state.service";
+import { WhatsAppClient } from "../modules/notifications/whatsapp.client";
+import { NotificationService } from "../modules/notifications/notification.service";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const REFUND_BATCH_SIZE = 100;
@@ -154,11 +156,56 @@ async function postOutboundEvent(
   }
 }
 
-async function runOutboundDispatchDb(pool: Pool, crmWebhookUrl: string | undefined) {
-  if (!crmWebhookUrl) {
-    return { dispatchedCount: 0, failedCount: 0, skipped: true };
+/**
+ * Send a WhatsApp notification event using the WhatsApp Business API.
+ * Called by the worker for queued notification events.
+ */
+async function dispatchWhatsAppEvent(
+  whatsAppClient: WhatsAppClient,
+  event: {
+    id: number;
+    event_type: string;
+    payload: Record<string, unknown>;
+  }
+) {
+  const payload = event.payload;
+  const phone = payload.recipient_phone as string;
+  const templateName = payload.template_name as string;
+  const languageCode = (payload.language_code as string) ?? "hi";
+  const bodyParams = (payload.body_params as string[]) ?? [];
+
+  if (!phone || !templateName) {
+    throw new Error(`WhatsApp event ${event.id} missing recipient_phone or template_name`);
   }
 
+  const result = await whatsAppClient.sendTemplate({
+    to: phone,
+    templateName,
+    languageCode,
+    bodyParams
+  });
+
+  if (!result.success) {
+    throw new Error(result.error ?? "WhatsApp send failed");
+  }
+
+  console.log(
+    JSON.stringify({
+      job: "dispatch_whatsapp",
+      event_id: event.id,
+      event_type: event.event_type,
+      message_id: result.messageId,
+      status: "sent",
+      timestamp: new Date().toISOString()
+    })
+  );
+}
+
+async function runOutboundDispatchDb(
+  pool: Pool,
+  crmWebhookUrl: string | undefined,
+  whatsAppClient?: WhatsAppClient
+) {
   const client = await pool.connect();
   let dispatchedCount = 0;
   let failedCount = 0;
@@ -193,7 +240,28 @@ async function runOutboundDispatchDb(pool: Pool, crmWebhookUrl: string | undefin
 
       for (const event of events.rows) {
         try {
-          await postOutboundEvent(crmWebhookUrl, event);
+          const isWhatsApp = event.event_type.startsWith("notification.whatsapp.");
+
+          if (isWhatsApp && whatsAppClient) {
+            // Dispatch via WhatsApp API
+            await dispatchWhatsAppEvent(whatsAppClient, event);
+          } else if (isWhatsApp && !whatsAppClient) {
+            // No WhatsApp client configured – auto-mark as dispatched in dev
+            console.log(
+              JSON.stringify({
+                job: "dispatch_whatsapp",
+                event_id: event.id,
+                event_type: event.event_type,
+                status: "skipped_no_client",
+                timestamp: new Date().toISOString()
+              })
+            );
+          } else if (crmWebhookUrl) {
+            // Dispatch via CRM webhook
+            await postOutboundEvent(crmWebhookUrl, event);
+          } else {
+            // No dispatch target – skip
+          }
 
           await client.query(
             `
@@ -333,6 +401,10 @@ async function run() {
   const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
   const crmWebhookUrl = process.env.CRM_WEBHOOK_URL?.trim() || undefined;
 
+  // Initialize WhatsApp client for worker-based notification dispatch
+  const whatsAppEnabled = process.env.FF_WHATSAPP_NOTIFICATIONS !== "false";
+  const whatsAppClient = whatsAppEnabled ? new WhatsAppClient() : undefined;
+
   setInterval(async () => {
     try {
       const refundedCount = pool
@@ -360,7 +432,7 @@ async function run() {
   setInterval(async () => {
     try {
       const result = pool
-        ? await runOutboundDispatchDb(pool, crmWebhookUrl)
+        ? await runOutboundDispatchDb(pool, crmWebhookUrl, whatsAppClient)
         : await runOutboundDispatchInMemory(appState!, crmWebhookUrl);
       console.log(
         JSON.stringify({
@@ -388,6 +460,8 @@ async function run() {
       worker: "started",
       jobs: ["refund_due_unlocks", "dispatch_outbound_events"],
       mode: pool ? "db" : "in_memory",
+      whatsapp_enabled: whatsAppEnabled,
+      whatsapp_provider: whatsAppEnabled ? (process.env.WHATSAPP_PROVIDER ?? "mock") : "disabled",
       interval_ms: {
         refund_due_unlocks: REFUND_SWEEP_MS,
         dispatch_outbound_events: OUTBOUND_DISPATCH_MS

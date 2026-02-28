@@ -8,6 +8,7 @@
  */
 
 import { useSession, signOut } from "next-auth/react";
+import { Search as SearchIcon, Heart, Home as HomeIcon } from "lucide-react";
 import Link from "next/link";
 import type { Locale } from "../../../../lib/i18n";
 import type { UserRole } from "../../../../auth.config";
@@ -72,23 +73,25 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
       {/* Quick links */}
       <div className="flex flex-col gap-3" style={{ marginBottom: "var(--space-8)" }}>
         {[
-          { href: `/${locale}/search?city=noida`, label: "🔍  Browse Properties" },
-          { href: `/${locale}/shortlist`, label: "❤️  My Shortlist" },
-          { href: `/${locale}`, label: "🏠  Back to Home" }
-        ].map(({ href, label }) => (
+          { href: `/${locale}/search?city=noida`, label: "Browse Properties", icon: SearchIcon },
+          { href: `/${locale}/shortlist`, label: "My Shortlist", icon: Heart },
+          { href: `/${locale}`, label: "Back to Home", icon: HomeIcon }
+        ].map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href as `/${string}`}
             className="card"
             style={{
-              display: "block",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-3)",
               padding: "var(--space-4) var(--space-5)",
               textDecoration: "none",
               fontSize: 15,
               fontWeight: 500
             }}
           >
-            {label}
+            <Icon size={18} /> {label}
           </Link>
         ))}
       </div>

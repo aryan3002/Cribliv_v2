@@ -1,6 +1,7 @@
 export { CaptureEntry } from "./CaptureEntry";
 export { VoiceRecordingPanel } from "./VoiceRecordingPanel";
 export { CaptureConfirmation } from "./CaptureConfirmation";
+export { VoiceAgentPanel } from "./VoiceAgentPanel";
 export { WizardStepIndicator } from "./WizardStepIndicator";
 export { BasicsStep } from "./BasicsStep";
 export { LocationStep } from "./LocationStep";

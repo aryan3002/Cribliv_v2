@@ -37,7 +37,7 @@ export default function LocaleLayout({
   return (
     <>
       <Header locale={params.locale} />
-      <main id="main-content" className="container page-content">
+      <main id="main-content" className="page-content">
         {children}
       </main>
       <Footer locale={params.locale} />

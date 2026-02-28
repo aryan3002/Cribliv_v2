@@ -19,6 +19,8 @@ import { ok } from "../../common/response";
 import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
 import type { Role } from "../../common/types";
+import { NotificationService } from "../notifications/notification.service";
+import type { NotificationType } from "../notifications/notification.templates";
 
 @Controller("admin")
 @UseGuards(AuthGuard, RolesGuard)
@@ -26,7 +28,8 @@ import type { Role } from "../../common/types";
 export class AdminController {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
-    @Inject(DatabaseService) private readonly database: DatabaseService
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(NotificationService) private readonly notifications: NotificationService
   ) {}
 
   @Get("review/listings")
@@ -126,6 +129,15 @@ export class AdminController {
         listing_id: updated.rows[0].id,
         decision: body.decision,
         admin_user_id: req.user.id
+      });
+
+      // Fire-and-forget: notify owner of listing decision
+      this.notifyOwnerListingDecision(listingId, body.decision, body.reason).catch((err) => {
+        logTelemetry("notification.error", {
+          type: `owner.listing_${body.decision}`,
+          listing_id: listingId,
+          error: err instanceof Error ? err.message : String(err)
+        });
       });
 
       return ok({ listing_id: updated.rows[0].id, new_status: updated.rows[0].status });
@@ -776,6 +788,58 @@ export class AdminController {
       requested_role: result.requestedRole,
       status: result.status,
       decided_at: result.decidedAt ? new Date(result.decidedAt).toISOString() : null
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // WhatsApp notification helpers
+  // ---------------------------------------------------------------------------
+
+  private async notifyOwnerListingDecision(
+    listingId: string,
+    decision: "approve" | "reject" | "pause",
+    reason?: string
+  ) {
+    if (!this.database.isEnabled()) return;
+
+    const ownerInfo = await this.database.query<{
+      owner_user_id: string;
+      title: string;
+      city: string | null;
+    }>(
+      `
+      SELECT
+        l.owner_user_id::text,
+        COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'आपकी प्रॉपर्टी') AS title,
+        c.slug AS city
+      FROM listings l
+      LEFT JOIN listing_locations ll ON ll.listing_id = l.id
+      LEFT JOIN cities c ON c.id = ll.city_id
+      WHERE l.id = $1::uuid
+      LIMIT 1
+      `,
+      [listingId]
+    );
+
+    const owner = ownerInfo.rows[0];
+    if (!owner) return;
+
+    const typeMap: Record<string, NotificationType> = {
+      approve: "owner.listing_approved",
+      reject: "owner.listing_rejected",
+      pause: "owner.listing_paused"
+    };
+
+    await this.notifications.send({
+      type: typeMap[decision],
+      recipientUserId: owner.owner_user_id,
+      payload: {
+        listing_title: owner.title,
+        listing_id: listingId,
+        city: owner.city ?? "",
+        reason: reason ?? ""
+      },
+      mode: "immediate"
     });
   }
 }

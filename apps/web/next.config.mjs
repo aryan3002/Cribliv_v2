@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    typedRoutes: true
+    typedRoutes: true,
+    optimizePackageImports: ["lucide-react"],
   },
   async headers() {
     // Strip path (e.g. /v1) from API URL so connect-src allows all sub-paths.
@@ -9,6 +10,8 @@ const nextConfig = {
     // Using just origin (scheme+host+port) matches all paths on that host.
     const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
     const apiOrigin = apiUrl.replace(/\/v\d+\/?$/, "").replace(/\/$/, "") || "http://localhost:4000";
+    // WebSocket origins need ws:// / wss:// schemes — http:// does NOT cover them in CSP.
+    const wsOrigin = apiOrigin.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
     return [
       {
         source: "/(.*)",
@@ -18,11 +21,11 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https: blob:",
-              "font-src 'self' https://fonts.gstatic.com",
-              // Allow API calls + Azure Speech REST API for voice search
-              `connect-src 'self' ${apiOrigin} https://*.stt.speech.microsoft.com https://*.openai.azure.com`,
+              "font-src 'self'",
+              // Allow API calls (http + ws) + Azure Speech REST API for voice search
+              `connect-src 'self' ${apiOrigin} ${wsOrigin} https://*.stt.speech.microsoft.com https://*.openai.azure.com`,
               "media-src 'self' blob:",
               "frame-ancestors 'none'",
               "object-src 'none'",

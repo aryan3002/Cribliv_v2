@@ -20,6 +20,8 @@ import { HealthModule } from "./modules/health/health.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { AiModule } from "./modules/ai/ai.module";
 import { VoiceModule } from "./modules/voice/voice.module";
+import { VoiceAgentModule } from "./modules/voice-agent/voice-agent.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 
 @Module({
   imports: [
@@ -43,7 +45,9 @@ import { VoiceModule } from "./modules/voice/voice.module";
     HealthModule,
     SalesModule,
     AiModule,
-    VoiceModule
+    VoiceModule,
+    VoiceAgentModule,
+    NotificationsModule
   ],
   providers: [
     // Apply ThrottlerGuard globally to all routes

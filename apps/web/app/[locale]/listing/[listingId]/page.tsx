@@ -2,6 +2,16 @@ import type { Metadata } from "next";
 import { fetchApi } from "../../../../lib/api";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
 import Link from "next/link";
+import {
+  MapPin,
+  Camera,
+  ShieldCheck,
+  Clock,
+  Shield,
+  HomeIcon,
+  CheckCircle2,
+  ChevronRight
+} from "lucide-react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -81,9 +91,9 @@ export default async function ListingDetailPage({
 
   if (!payload) {
     return (
-      <div className="empty-state" style={{ minHeight: "60vh" }}>
+      <div className="container empty-state" style={{ minHeight: "60vh" }}>
         <span className="empty-state__icon" aria-hidden="true">
-          🏚️
+          <HomeIcon size={48} />
         </span>
         <h3>Listing Unavailable</h3>
         <p>This listing may have been removed or is temporarily unavailable.</p>
@@ -119,155 +129,173 @@ export default async function ListingDetailPage({
     }
   };
 
+  // BreadcrumbList JSON-LD for rich navigation in SERPs
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: `${BASE_URL}/${params.locale}` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: listing.city,
+        item: `${BASE_URL}/${params.locale}/search?city=${listing.city.toLowerCase()}`
+      },
+      { "@type": "ListItem", position: 3, name: listing.title }
+    ]
+  };
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
 
-      {/* Breadcrumb */}
-      <nav
-        className="body-sm text-secondary"
-        style={{
-          marginBottom: "var(--space-4)",
-          display: "flex",
-          gap: "var(--space-2)",
-          alignItems: "center"
-        }}
+      <div
+        className="container"
+        style={{ paddingTop: "var(--space-8)", paddingBottom: "var(--space-16)" }}
       >
-        <Link
-          href={`/${params.locale}`}
-          className="text-brand"
-          style={{ textDecoration: "underline" }}
+        {/* Breadcrumb */}
+        <nav
+          className="body-sm text-secondary"
+          style={{
+            marginBottom: "var(--space-5)",
+            display: "flex",
+            gap: "var(--space-1)",
+            alignItems: "center"
+          }}
         >
-          Home
-        </Link>
-        <span aria-hidden="true">/</span>
-        <Link
-          href={`/${params.locale}/search?city=${listing.city.toLowerCase()}`}
-          className="text-brand"
-          style={{ textDecoration: "underline" }}
-        >
-          {listing.city}
-        </Link>
-        <span aria-hidden="true">/</span>
-        <span className="truncate" style={{ maxWidth: 200 }}>
-          {listing.title}
-        </span>
-      </nav>
+          <Link href={`/${params.locale}`} style={{ color: "var(--text-secondary)" }}>
+            Home
+          </Link>
+          <ChevronRight size={14} style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
+          <Link
+            href={`/${params.locale}/search?city=${listing.city.toLowerCase()}`}
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {listing.city}
+          </Link>
+          <ChevronRight size={14} style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
+          <span className="truncate" style={{ maxWidth: 200, color: "var(--text-primary)" }}>
+            {listing.title}
+          </span>
+        </nav>
 
-      {/* Gallery Placeholder */}
-      <div className="gallery">
-        <div className="gallery-placeholder">
-          <span aria-hidden="true">📸</span>
-          <span>Photos coming soon</span>
+        {/* Gallery Placeholder */}
+        <div className="gallery">
+          <div className="gallery-placeholder">
+            <Camera size={40} strokeWidth={1.5} style={{ color: "var(--text-tertiary)" }} />
+            <span>Photos coming soon</span>
+          </div>
         </div>
-      </div>
 
-      {/* Detail Layout: Content + Sidebar */}
-      <div className="detail-layout">
-        <div className="detail-layout__content">
-          {/* Title Block */}
-          <div style={{ marginBottom: "var(--space-6)" }}>
-            <div className="flex items-center gap-3" style={{ marginBottom: "var(--space-2)" }}>
-              {isVerified && <span className="badge badge--verified">✓ Verified</span>}
-              {!isVerified && listing.verification_status === "pending" && (
-                <span className="badge badge--pending">Verification Pending</span>
-              )}
-              <span className="badge badge--brand">{typeLabel}</span>
+        {/* Detail Layout: Content + Sidebar */}
+        <div className="detail-layout">
+          <div className="detail-layout__content">
+            {/* Title Block */}
+            <div style={{ marginBottom: "var(--space-6)" }}>
+              <div className="flex items-center gap-3" style={{ marginBottom: "var(--space-2)" }}>
+                {isVerified && (
+                  <span className="badge badge--verified">
+                    <ShieldCheck size={14} style={{ marginRight: 4 }} /> Verified
+                  </span>
+                )}
+                {!isVerified && listing.verification_status === "pending" && (
+                  <span className="badge badge--pending">
+                    <Clock size={14} style={{ marginRight: 4 }} /> Verification Pending
+                  </span>
+                )}
+                <span className="badge badge--brand">{typeLabel}</span>
+              </div>
+              <h1 style={{ marginBottom: "var(--space-2)" }}>{listing.title}</h1>
+              <p className="text-secondary flex items-center gap-2">
+                <MapPin size={16} aria-hidden="true" />
+                {listing.city}
+                {listing.locality ? `, ${listing.locality}` : ""}
+              </p>
             </div>
-            <h1 style={{ marginBottom: "var(--space-2)" }}>{listing.title}</h1>
-            <p className="text-secondary flex items-center gap-2">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
-              {listing.city}
-              {listing.locality ? `, ${listing.locality}` : ""}
-            </p>
-          </div>
 
-          {/* Price */}
-          <div className="price-hero">
-            <span className="price-hero__amount">
-              ₹{listing.monthly_rent.toLocaleString("en-IN")}
-            </span>
-            <span className="price-hero__period">/month</span>
-          </div>
-
-          {/* Trust Info */}
-          <div className="trust-strip" style={{ marginBottom: "var(--space-6)" }}>
-            <span className="trust-strip__item">
-              <span aria-hidden="true">{isVerified ? "✅" : "⏳"}</span>
-              {isVerified ? "Verified Owner" : "Verification Pending"}
-            </span>
-            {payload.owner_trust.no_response_refund && (
-              <span className="trust-strip__item">
-                <span aria-hidden="true">🛡️</span>
-                Auto-refund if no response in 12h
+            {/* Price */}
+            <div className="price-hero">
+              <span className="price-hero__amount">
+                ₹{listing.monthly_rent.toLocaleString("en-IN")}
               </span>
-            )}
+              <span className="price-hero__period">/month</span>
+            </div>
+
+            {/* Trust Info */}
+            <div className="trust-strip" style={{ marginBottom: "var(--space-6)" }}>
+              <span className="trust-strip__item">
+                {isVerified ? (
+                  <CheckCircle2 size={16} style={{ color: "var(--trust)" }} />
+                ) : (
+                  <Clock size={16} style={{ color: "var(--amber)" }} />
+                )}
+                {isVerified ? "Verified Owner" : "Verification Pending"}
+              </span>
+              {payload.owner_trust.no_response_refund && (
+                <span className="trust-strip__item">
+                  <Shield size={16} style={{ color: "var(--brand)" }} />
+                  Auto-refund if no response in 12h
+                </span>
+              )}
+            </div>
+
+            <hr className="divider" />
+
+            {/* Description */}
+            <section style={{ marginBottom: "var(--space-6)" }}>
+              <h3 style={{ marginBottom: "var(--space-3)" }}>About this property</h3>
+              <p className="text-secondary" style={{ lineHeight: 1.7 }}>
+                {listing.description || "No description available for this property."}
+              </p>
+            </section>
+
+            <hr className="divider" />
+
+            {/* Key Details */}
+            <section style={{ marginBottom: "var(--space-6)" }}>
+              <h3 style={{ marginBottom: "var(--space-3)" }}>Key Details</h3>
+              <div className="stats-row">
+                <div className="stat-item">
+                  <span className="stat-item__value">{typeLabel}</span>
+                  <span className="stat-item__label">Property Type</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-item__value">{listing.city}</span>
+                  <span className="stat-item__label">City</span>
+                </div>
+                {listing.locality && (
+                  <div className="stat-item">
+                    <span className="stat-item__value">{listing.locality}</span>
+                    <span className="stat-item__label">Locality</span>
+                  </div>
+                )}
+                <div className="stat-item">
+                  <span className="stat-item__value" style={{ textTransform: "capitalize" }}>
+                    {listing.verification_status.replace("_", " ")}
+                  </span>
+                  <span className="stat-item__label">Status</span>
+                </div>
+              </div>
+            </section>
           </div>
 
-          <hr className="divider" />
-
-          {/* Description */}
-          <section style={{ marginBottom: "var(--space-6)" }}>
-            <h3 style={{ marginBottom: "var(--space-3)" }}>About this property</h3>
-            <p className="text-secondary" style={{ lineHeight: 1.7 }}>
-              {listing.description || "No description available for this property."}
-            </p>
-          </section>
-
-          <hr className="divider" />
-
-          {/* Key Details */}
-          <section style={{ marginBottom: "var(--space-6)" }}>
-            <h3 style={{ marginBottom: "var(--space-3)" }}>Key Details</h3>
-            <div className="stats-row">
-              <div className="stat-item">
-                <span className="stat-item__value">{typeLabel}</span>
-                <span className="stat-item__label">Property Type</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-item__value">{listing.city}</span>
-                <span className="stat-item__label">City</span>
-              </div>
-              {listing.locality && (
-                <div className="stat-item">
-                  <span className="stat-item__value">{listing.locality}</span>
-                  <span className="stat-item__label">Locality</span>
-                </div>
-              )}
-              <div className="stat-item">
-                <span className="stat-item__value" style={{ textTransform: "capitalize" }}>
-                  {listing.verification_status.replace("_", " ")}
-                </span>
-                <span className="stat-item__label">Status</span>
-              </div>
+          {/* Sidebar */}
+          <div className="detail-layout__sidebar">
+            <div className="detail-sidebar-card">
+              <h4 style={{ marginBottom: "var(--space-4)" }}>Contact Owner</h4>
+              <UnlockContactPanel listingId={params.listingId} />
             </div>
-          </section>
-        </div>
-
-        {/* Sidebar */}
-        <div className="detail-layout__sidebar">
-          <div className="detail-sidebar-card">
-            <h4 style={{ marginBottom: "var(--space-4)" }}>Contact Owner</h4>
-            <UnlockContactPanel listingId={params.listingId} />
           </div>
         </div>
       </div>
+      {/* /container */}
 
       {/* Mobile CTA bar */}
       <div className="cta-bar">

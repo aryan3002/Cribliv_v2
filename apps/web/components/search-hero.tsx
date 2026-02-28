@@ -8,6 +8,7 @@ import { trackEvent } from "../lib/analytics";
 import { buildSearchQuery, fetchApi } from "../lib/api";
 import { VoiceSearchButton } from "./voice-search-button";
 import { useGooglePlaces, type PlacePrediction } from "../lib/google-places";
+import { MapPin, Building2, Home, Mic, Search } from "lucide-react";
 
 interface AgenticRouteResponse {
   intent: string;
@@ -225,6 +226,11 @@ export function SearchHero({ locale }: { locale: Locale }) {
     <div className="search-hero-wrapper" ref={wrapperRef}>
       <form className="hero-search" onSubmit={onSubmit}>
         <div className="hero-search__input-row">
+          <Search
+            size={18}
+            style={{ flexShrink: 0, color: "#94a3b8", pointerEvents: "none" }}
+            aria-hidden="true"
+          />
           <input
             aria-label="Agentic search"
             value={query}
@@ -258,7 +264,8 @@ export function SearchHero({ locale }: { locale: Locale }) {
             }}
           />
           <button type="submit" className="hero-search__btn" disabled={loading}>
-            {loading ? "Routing..." : "Search"}
+            <Search size={16} aria-hidden="true" />
+            <span className="search-btn-label">{loading ? "Searching…" : "Search"}</span>
           </button>
         </div>
       </form>
@@ -274,13 +281,15 @@ export function SearchHero({ locale }: { locale: Locale }) {
                 onClick={() => handleSuggestionClick(s)}
               >
                 <span className="hero-search__suggestion-icon">
-                  {s.source === "google"
-                    ? "📍"
-                    : s.data.type === "city"
-                      ? "🏙️"
-                      : s.data.type === "locality"
-                        ? "🏘️"
-                        : "🏠"}
+                  {s.source === "google" ? (
+                    <MapPin size={16} />
+                  ) : s.data.type === "city" ? (
+                    <Building2 size={16} />
+                  ) : s.data.type === "locality" ? (
+                    <Building2 size={16} />
+                  ) : (
+                    <Home size={16} />
+                  )}
                 </span>
                 <span className="hero-search__suggestion-text">
                   {s.source === "google" ? s.data.description : s.data.label}
@@ -330,23 +339,5 @@ export function SearchHero({ locale }: { locale: Locale }) {
 }
 
 function VoiceBadge() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ verticalAlign: "-2px", marginRight: 4 }}
-      aria-hidden="true"
-    >
-      <rect x="9" y="1" width="6" height="14" rx="3" />
-      <path d="M5 10a7 7 0 0 0 14 0" />
-      <line x1="12" y1="21" x2="12" y2="17" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-    </svg>
-  );
+  return <Mic size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} aria-hidden="true" />;
 }

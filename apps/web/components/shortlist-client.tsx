@@ -10,6 +10,7 @@ import {
 } from "../lib/client-auth";
 import { fetchApi } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
+import { Heart, Building, MapPin, AlertTriangle, ShieldCheck } from "lucide-react";
 
 interface ListingCard {
   id: string;
@@ -132,7 +133,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
 
       {error && (
         <div className="alert alert--error" style={{ marginBottom: "var(--space-4)" }}>
-          <span aria-hidden="true">⚠️</span>
+          <AlertTriangle size={16} style={{ flexShrink: 0 }} />
           {error}
         </div>
       )}
@@ -140,7 +141,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
       {!items.length ? (
         <div className="empty-state">
           <span className="empty-state__icon" aria-hidden="true">
-            💜
+            <Heart size={48} style={{ color: "var(--accent)" }} />
           </span>
           <h3>No shortlisted homes yet</h3>
           <p>Browse verified rentals and tap the heart icon to save them here.</p>
@@ -154,11 +155,13 @@ export function ShortlistClient({ locale }: { locale: string }) {
             <article key={item.id} className="card">
               <div className="card__image">
                 <div className="card__image-placeholder" aria-hidden="true">
-                  🏠
+                  <Building size={36} style={{ color: "var(--text-tertiary)" }} />
                 </div>
                 {item.verification_status === "verified" && (
                   <span className="card__badge">
-                    <span className="badge badge--verified">✓ Verified</span>
+                    <span className="badge badge--verified">
+                      <ShieldCheck size={12} style={{ marginRight: 2 }} /> Verified
+                    </span>
                   </span>
                 )}
                 <button
@@ -166,26 +169,13 @@ export function ShortlistClient({ locale }: { locale: string }) {
                   onClick={() => void removeItem(item.id)}
                   aria-label={`Remove ${item.title} from shortlist`}
                 >
-                  ♥
+                  <Heart size={16} fill="currentColor" />
                 </button>
               </div>
               <div className="card__body">
                 <div className="card__title">{item.title}</div>
                 <div className="card__location">
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                    <circle cx="12" cy="10" r="3" />
-                  </svg>
+                  <MapPin size={14} aria-hidden="true" />
                   {item.city ?? "City unavailable"}
                   {item.listing_type
                     ? ` · ${item.listing_type === "flat_house" ? "Flat/House" : "PG"}`

@@ -8,7 +8,12 @@ export type ListingType = "flat_house" | "pg";
 export type Furnishing = "" | "unfurnished" | "semi_furnished" | "fully_furnished";
 export type SharingType = "" | "single" | "double" | "triple" | "quad";
 export type PgPath = "self_serve" | "sales_assist" | null;
-export type CaptureMode = "entry" | "voice_recording" | "assisted_confirmation" | "wizard";
+export type CaptureMode =
+  | "entry"
+  | "voice_recording"
+  | "assisted_confirmation"
+  | "voice_agent"
+  | "wizard";
 export type RecorderState = "idle" | "recording" | "processing";
 
 export interface WizardForm {

@@ -22,6 +22,8 @@ export interface FeatureFlags {
   ff_ai_conversation_context: boolean;
   /** Phase C – Voice */
   ff_voice_search: boolean;
+  /** Phase D – Conversational Hindi Voice Agent */
+  ff_voice_agent_enabled: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -47,7 +49,9 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_ai_ranking: false,
   ff_ai_conversation_context: false,
   /** Phase C – Voice (default OFF) */
-  ff_voice_search: false
+  ff_voice_search: false,
+  /** Phase D – Conversational Hindi Voice Agent (default OFF) */
+  ff_voice_agent_enabled: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -140,6 +144,10 @@ export function readFeatureFlags(): FeatureFlags {
       "FF_AI_CONVERSATION_CONTEXT",
       defaultFeatureFlags.ff_ai_conversation_context
     ),
-    ff_voice_search: parseBooleanEnv("FF_VOICE_SEARCH", defaultFeatureFlags.ff_voice_search)
+    ff_voice_search: parseBooleanEnv("FF_VOICE_SEARCH", defaultFeatureFlags.ff_voice_search),
+    ff_voice_agent_enabled: parseBooleanEnv(
+      "FF_VOICE_AGENT_ENABLED",
+      defaultFeatureFlags.ff_voice_agent_enabled
+    )
   };
 }

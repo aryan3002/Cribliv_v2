@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition, useEffect } from "react";
 import { buildSearchQuery } from "../../../lib/api";
+import { Search, MapPin, Building2, Home, Building } from "lucide-react";
 
 interface SortOption {
   key: string;
@@ -147,7 +148,7 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
               autoComplete="off"
             />
             <button type="submit" className="btn btn--primary btn--sm" aria-label="Search">
-              🔍
+              <Search size={16} />
             </button>
           </form>
           {showSuggestions && suggestions.length > 0 && (
@@ -160,7 +161,13 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
                     onClick={() => handleSuggestionClick(s)}
                   >
                     <span className="search-filters__suggestion-type">
-                      {s.type === "city" ? "📍" : s.type === "locality" ? "🏘️" : "🏠"}
+                      {s.type === "city" ? (
+                        <MapPin size={16} />
+                      ) : s.type === "locality" ? (
+                        <Building2 size={16} />
+                      ) : (
+                        <Home size={16} />
+                      )}
                     </span>
                     <span>{s.label}</span>
                     <span className="search-filters__suggestion-badge">{s.type}</span>
@@ -221,14 +228,14 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
               setFilter("listing_type", filters.listing_type === "flat_house" ? "" : "flat_house")
             }
           >
-            🏠 Flat
+            <Home size={14} style={{ marginRight: 4 }} /> Flat
           </button>
           <button
             type="button"
             className={`search-filters__toggle-btn${filters.listing_type === "pg" ? " search-filters__toggle-btn--active" : ""}`}
             onClick={() => setFilter("listing_type", filters.listing_type === "pg" ? "" : "pg")}
           >
-            🏢 PG
+            <Building size={14} style={{ marginRight: 4 }} /> PG
           </button>
         </div>
 

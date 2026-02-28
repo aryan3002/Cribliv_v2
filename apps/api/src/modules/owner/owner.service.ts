@@ -9,12 +9,15 @@ import {
 import { randomUUID } from "crypto";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
+import { NotificationService } from "../notifications/notification.service";
+import { logTelemetry } from "../../common/telemetry";
 
 @Injectable()
 export class OwnerService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
-    @Inject(DatabaseService) private readonly database: DatabaseService
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(NotificationService) private readonly notifications: NotificationService
   ) {}
 
   async listOwnerListings(
@@ -473,6 +476,15 @@ export class OwnerService {
         throw new NotFoundException({ code: "not_found", message: "Listing not found" });
       }
 
+      // Fire-and-forget: confirm listing submission to owner via WhatsApp
+      this.notifyListingSubmitted(ownerUserId, listingId).catch((err) => {
+        logTelemetry("notification.error", {
+          type: "owner.listing_submitted",
+          listing_id: listingId,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
+
       return { listing_id: updated.rows[0].id, status: updated.rows[0].status };
     }
 
@@ -494,6 +506,30 @@ export class OwnerService {
 
     listing.status = "pending_review";
     return { listing_id: listing.id, status: listing.status };
+  }
+
+  private async notifyListingSubmitted(ownerUserId: string, listingId: string) {
+    if (!this.database.isEnabled()) return;
+
+    const listingInfo = await this.database.query<{ title: string }>(
+      `
+      SELECT COALESCE(NULLIF(title_en, ''), NULLIF(title_hi, ''), 'आपकी प्रॉपर्टी') AS title
+      FROM listings
+      WHERE id = $1::uuid
+      LIMIT 1
+      `,
+      [listingId]
+    );
+
+    await this.notifications.send({
+      type: "owner.listing_submitted",
+      recipientUserId: ownerUserId,
+      payload: {
+        listing_title: listingInfo.rows[0]?.title ?? "आपकी प्रॉपर्टी",
+        listing_id: listingId
+      },
+      mode: "immediate"
+    });
   }
 
   async presignPhotos(
