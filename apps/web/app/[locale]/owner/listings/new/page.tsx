@@ -10,6 +10,7 @@ import {
   createSalesLead,
   createOwnerListing,
   extractOwnerListingFromAudio,
+  generateListingContent,
   listOwnerListings,
   makeIdempotencyKey,
   presignListingPhotos,
@@ -42,12 +43,18 @@ import { CaptureEntry } from "../../../../../components/listing-wizard/CaptureEn
 import { VoiceRecordingPanel } from "../../../../../components/listing-wizard/VoiceRecordingPanel";
 import { CaptureConfirmation } from "../../../../../components/listing-wizard/CaptureConfirmation";
 import { VoiceAgentPanel } from "../../../../../components/listing-wizard/VoiceAgentPanel";
+import {
+  VoiceAgentInline,
+  VoiceMicButton
+} from "../../../../../components/listing-wizard/VoiceAgentInline";
 import { WizardStepIndicator } from "../../../../../components/listing-wizard/WizardStepIndicator";
 import { BasicsStep } from "../../../../../components/listing-wizard/BasicsStep";
 import { LocationStep } from "../../../../../components/listing-wizard/LocationStep";
 import { DetailsStep } from "../../../../../components/listing-wizard/DetailsStep";
 import { PhotosStep } from "../../../../../components/listing-wizard/PhotosStep";
 import { ReviewStep } from "../../../../../components/listing-wizard/ReviewStep";
+import { TitleDescriptionStep } from "../../../../../components/listing-wizard/TitleDescriptionStep";
+import type { VoiceAgentDraft, VoiceAgentPhase } from "@cribliv/shared-types";
 
 const STORAGE_KEY = "cribliv:wizard-draft";
 
@@ -62,6 +69,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
   /* ——— Core wizard state ——— */
   const [step, setStep] = useState(0);
+  const [voiceTargetStep, setVoiceTargetStep] = useState(0);
   const [form, setForm] = useState<WizardForm>(EMPTY_FORM);
   const [listingId, setListingId] = useState<string | null>(editId);
   const [saving, setSaving] = useState(false);
@@ -75,7 +83,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const [uploads, setUploads] = useState<UploadFile[]>([]);
 
   /* ——— Capture / voice state ——— */
-  const [captureMode, setCaptureMode] = useState<CaptureMode>(editId ? "wizard" : "entry");
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(editId ? "wizard" : "wizard");
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [aiFillingFields, setAiFillingFields] = useState<Set<string>>(new Set());
   const [recorderState, setRecorderState] = useState<RecorderState>("idle");
   const [captureSeconds, setCaptureSeconds] = useState(0);
   const [captureError, setCaptureError] = useState<string | null>(null);
@@ -159,6 +169,21 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       recorderStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
+
+  /* ================================================================
+     Voice auto-advance: advance ONE step when a new phase fires.
+     User can always go back manually without being pushed forward.
+     ================================================================ */
+  const lastVoiceStep = useRef(0);
+  useEffect(() => {
+    // Only advance if voiceTargetStep actually increased (new phase event)
+    // and only advance one step from current position.
+    if (voiceTargetStep > lastVoiceStep.current && voiceTargetStep > step) {
+      lastVoiceStep.current = voiceTargetStep;
+      const timer = setTimeout(() => setStep((s) => Math.min(s + 1, voiceTargetStep)), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [voiceTargetStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ================================================================
      PG segmentation
@@ -354,6 +379,246 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     }));
   }
 
+  /* ════════════════════════════════════════════════════════════════
+     Inline voice agent callbacks
+     ════════════════════════════════════════════════════════════════ */
+
+  /** Typewriter-fill a single string field over ~300ms */
+  function typewriterFill(key: keyof WizardForm, value: string) {
+    setAiFillingFields((prev) => new Set(prev).add(key));
+    let i = 0;
+    const step = () => {
+      if (i <= value.length) {
+        setForm((prev) => ({ ...prev, [key]: value.slice(0, i) }));
+        i++;
+        requestAnimationFrame(step);
+      } else {
+        // Remove from filling set after a brief delay (show green pulse)
+        setTimeout(() => {
+          setAiFillingFields((prev) => {
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
+        }, 400);
+      }
+    };
+    requestAnimationFrame(step);
+  }
+
+  /** Apply voice agent draft update to the form with animation */
+  function handleVoiceDraftUpdate(draft: VoiceAgentDraft, _fieldsCollected: string[]) {
+    // Map VoiceAgentDraft fields → WizardForm fields with typewriter for strings
+    if (draft.listing_type && draft.listing_type !== form.listing_type) {
+      updateField("listing_type", draft.listing_type);
+    }
+    if (typeof draft.rent === "number" && String(draft.rent) !== form.monthly_rent) {
+      setAiFillingFields((prev) => new Set(prev).add("monthly_rent"));
+      updateField("monthly_rent", String(draft.rent));
+      setTimeout(
+        () =>
+          setAiFillingFields((prev) => {
+            const n = new Set(prev);
+            n.delete("monthly_rent");
+            return n;
+          }),
+        600
+      );
+    }
+    if (typeof draft.deposit === "number" && String(draft.deposit) !== form.deposit) {
+      setAiFillingFields((prev) => new Set(prev).add("deposit"));
+      updateField("deposit", String(draft.deposit));
+      setTimeout(
+        () =>
+          setAiFillingFields((prev) => {
+            const n = new Set(prev);
+            n.delete("deposit");
+            return n;
+          }),
+        600
+      );
+    }
+    if (draft.location?.city && draft.location.city !== form.city) {
+      setAiFillingFields((prev) => new Set(prev).add("city"));
+      updateField("city", draft.location.city);
+      setTimeout(
+        () =>
+          setAiFillingFields((prev) => {
+            const n = new Set(prev);
+            n.delete("city");
+            return n;
+          }),
+        600
+      );
+    }
+    if (draft.location?.locality && draft.location.locality !== form.locality) {
+      typewriterFill("locality", draft.location.locality);
+    }
+    if (draft.property_fields?.furnishing && draft.property_fields.furnishing !== form.furnishing) {
+      setAiFillingFields((prev) => new Set(prev).add("furnishing"));
+      updateField("furnishing", draft.property_fields.furnishing);
+      setTimeout(
+        () =>
+          setAiFillingFields((prev) => {
+            const n = new Set(prev);
+            n.delete("furnishing");
+            return n;
+          }),
+        600
+      );
+    }
+    if (
+      typeof draft.property_fields?.bhk === "number" &&
+      String(draft.property_fields.bhk) !== form.bedrooms
+    ) {
+      setAiFillingFields((prev) => new Set(prev).add("bedrooms"));
+      updateField("bedrooms", String(draft.property_fields.bhk));
+      setTimeout(
+        () =>
+          setAiFillingFields((prev) => {
+            const n = new Set(prev);
+            n.delete("bedrooms");
+            return n;
+          }),
+        600
+      );
+    }
+    if (
+      typeof draft.property_fields?.bathrooms === "number" &&
+      String(draft.property_fields.bathrooms) !== form.bathrooms
+    ) {
+      updateField("bathrooms", String(draft.property_fields.bathrooms));
+    }
+    if (
+      typeof draft.property_fields?.area_sqft === "number" &&
+      String(draft.property_fields.area_sqft) !== form.area_sqft
+    ) {
+      setAiFillingFields((prev) => new Set(prev).add("area_sqft"));
+      updateField("area_sqft", String(draft.property_fields.area_sqft));
+      setTimeout(
+        () =>
+          setAiFillingFields((prev) => {
+            const n = new Set(prev);
+            n.delete("area_sqft");
+            return n;
+          }),
+        600
+      );
+    }
+    if (
+      typeof draft.pg_fields?.total_beds === "number" &&
+      String(draft.pg_fields.total_beds) !== form.beds
+    ) {
+      setAiFillingFields((prev) => new Set(prev).add("beds"));
+      updateField("beds", String(draft.pg_fields.total_beds));
+      setTimeout(
+        () =>
+          setAiFillingFields((prev) => {
+            const n = new Set(prev);
+            n.delete("beds");
+            return n;
+          }),
+        600
+      );
+    }
+    if (
+      draft.pg_fields?.room_sharing_options?.[0] &&
+      draft.pg_fields.room_sharing_options[0] !== form.sharing_type
+    ) {
+      updateField(
+        "sharing_type",
+        draft.pg_fields.room_sharing_options[0] as WizardForm["sharing_type"]
+      );
+    }
+    if (
+      typeof draft.pg_fields?.food_included === "boolean" &&
+      draft.pg_fields.food_included !== form.meals_included
+    ) {
+      updateField("meals_included", draft.pg_fields.food_included);
+    }
+    if (
+      typeof draft.pg_fields?.attached_bathroom === "boolean" &&
+      draft.pg_fields.attached_bathroom !== form.attached_bathroom
+    ) {
+      updateField("attached_bathroom", draft.pg_fields.attached_bathroom);
+    }
+    if (
+      draft.amenities?.length &&
+      JSON.stringify(draft.amenities) !== JSON.stringify(form.amenities)
+    ) {
+      setForm((prev) => ({ ...prev, amenities: draft.amenities ?? prev.amenities }));
+    }
+    if (draft.preferred_tenant && draft.preferred_tenant !== form.preferred_tenant) {
+      updateField("preferred_tenant", draft.preferred_tenant);
+    }
+    if (draft.location?.address_line1 && draft.location.address_line1 !== form.address) {
+      typewriterFill("address", draft.location.address_line1);
+    }
+  }
+
+  /** Auto-advance wizard step when voice agent phase changes */
+  function handleVoicePhaseChange(_phase: VoiceAgentPhase, suggestedStep: number) {
+    // Only advance forward by one step at a time, let user control pace
+    if (suggestedStep > step && suggestedStep <= 3) {
+      setVoiceTargetStep(step + 1);
+    }
+  }
+
+  /** Voice agent session completed */
+  function handleVoiceComplete(draft: VoiceAgentDraft, _sessionId: string) {
+    // Apply any remaining fields
+    const snakeDraft: Partial<OwnerDraftPayloadSnakeCase> = {
+      listing_type: draft.listing_type,
+      rent: draft.rent,
+      deposit: draft.deposit,
+      location: draft.location,
+      property_fields: draft.property_fields,
+      pg_fields: draft.pg_fields
+    };
+    const updatedForm = applyCaptureDraftToForm(form, snakeDraft);
+    if (draft.amenities?.length) updatedForm.amenities = draft.amenities;
+    if (draft.preferred_tenant) updatedForm.preferred_tenant = draft.preferred_tenant;
+    setForm(updatedForm);
+    setVoiceActive(false);
+    // Don't force-jump — advance one step from current, let user navigate naturally
+    const resolved = resolveWizardStepForForm(updatedForm);
+    if (resolved > step) {
+      setVoiceTargetStep(step + 1);
+    }
+    // Auto-trigger AI content generation
+    if (accessToken) {
+      void generateListingContent(accessToken, {
+        listing_type: updatedForm.listing_type,
+        monthly_rent: updatedForm.monthly_rent ? Number(updatedForm.monthly_rent) : undefined,
+        deposit: updatedForm.deposit ? Number(updatedForm.deposit) : undefined,
+        furnishing: updatedForm.furnishing || undefined,
+        city: updatedForm.city || undefined,
+        locality: updatedForm.locality || undefined,
+        bedrooms: updatedForm.bedrooms ? Number(updatedForm.bedrooms) : undefined,
+        bathrooms: updatedForm.bathrooms ? Number(updatedForm.bathrooms) : undefined,
+        area_sqft: updatedForm.area_sqft ? Number(updatedForm.area_sqft) : undefined,
+        amenities: updatedForm.amenities.length > 0 ? updatedForm.amenities : undefined,
+        preferred_tenant: updatedForm.preferred_tenant || undefined,
+        beds: updatedForm.beds ? Number(updatedForm.beds) : undefined,
+        sharing_type: updatedForm.sharing_type || undefined,
+        meals_included: updatedForm.meals_included || undefined,
+        attached_bathroom: updatedForm.attached_bathroom || undefined
+      })
+        .then((result) => {
+          typewriterFill("title", result.title);
+          setTimeout(() => typewriterFill("description", result.description), 400);
+        })
+        .catch(() => {
+          /* user can still type manually */
+        });
+    }
+    trackEvent("voice_agent_inline_completed", {
+      fields_filled: Object.keys(snakeDraft).filter(
+        (k) => (snakeDraft as Record<string, unknown>)[k] != null
+      ).length
+    });
+  }
+
   function buildDraftInput(): OwnerListingDraftInput {
     const isPg = form.listing_type === "pg";
     return {
@@ -486,7 +751,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
      Navigation
      ================================================================ */
   async function goNext() {
-    if (step >= 4) return;
+    if (step >= 5) return;
     setAuthHint(null);
 
     // Per-step validation
@@ -638,9 +903,11 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const canProceed = useMemo(() => {
     switch (step) {
       case 0:
-        return form.title.trim().length > 0 && form.monthly_rent.trim().length > 0;
+        return form.monthly_rent.trim().length > 0;
       case 1:
         return form.city.trim().length > 0;
+      case 3:
+        return form.title.trim().length >= 5;
       default:
         return true;
     }
@@ -651,10 +918,27 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
      ================================================================ */
   return (
     <section className="wizard-page">
-      <div className="wizard-page__header">
+      <div
+        className="wizard-page__header"
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+      >
         <h1 className="wizard-page__title">
           {editId ? t(locale, "editListing") : t(locale, "createListing")}
         </h1>
+        {nextAuthSession?.user?.id && captureMode === "wizard" && (
+          <VoiceMicButton
+            active={voiceActive}
+            onClick={() => {
+              if (voiceActive) {
+                // Turning off — disconnect happens inside VoiceAgentInline unmount
+                setVoiceActive(false);
+              } else {
+                setVoiceActive(true);
+                trackEvent("voice_agent_inline_started");
+              }
+            }}
+          />
+        )}
       </div>
 
       {error ? (
@@ -673,7 +957,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </div>
       ) : null}
 
-      {/* ——— Voice Agent (default entry) ——— */}
+      {/* ——— Voice Agent (default entry — DEPRECATED, kept for fallback) ——— */}
       {captureMode === "entry" && nextAuthSession?.user?.id ? (
         <VoiceAgentPanel
           userId={nextAuthSession.user.id}
@@ -729,17 +1013,40 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         />
       ) : null}
 
-      {/* ——— Wizard form ——— */}
+      {/* ——— Wizard form (always visible now) ——— */}
       {captureMode === "wizard" ? (
         <>
           <WizardStepIndicator currentStep={step} />
 
+          {/* ── Inline voice agent status bar ── */}
+          {voiceActive && nextAuthSession?.user?.id && (
+            <VoiceAgentInline
+              userId={nextAuthSession.user.id}
+              locale={locale === "hi" ? "hi-IN" : "en-IN"}
+              listingTypeHint={form.listing_type}
+              onDraftUpdate={handleVoiceDraftUpdate}
+              onPhaseChange={handleVoicePhaseChange}
+              onComplete={handleVoiceComplete}
+              onError={(msg) => setError(msg)}
+            />
+          )}
+
           <div className="wizard-form-section">
             {step === 0 ? (
-              <BasicsStep form={form} errors={stepErrors} updateField={updateField} />
+              <BasicsStep
+                form={form}
+                errors={stepErrors}
+                updateField={updateField}
+                aiFillingFields={aiFillingFields}
+              />
             ) : null}
             {step === 1 ? (
-              <LocationStep form={form} errors={stepErrors} updateField={updateField} />
+              <LocationStep
+                form={form}
+                errors={stepErrors}
+                updateField={updateField}
+                aiFillingFields={aiFillingFields}
+              />
             ) : null}
             {step === 2 ? (
               <DetailsStep
@@ -748,9 +1055,19 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
                 pgPath={pgPath}
                 updateField={updateField}
                 toggleAmenity={toggleAmenity}
+                aiFillingFields={aiFillingFields}
               />
             ) : null}
             {step === 3 ? (
+              <TitleDescriptionStep
+                form={form}
+                errors={stepErrors}
+                accessToken={accessToken}
+                updateField={updateField}
+                aiFillingFields={aiFillingFields}
+              />
+            ) : null}
+            {step === 4 ? (
               <PhotosStep
                 uploads={uploads}
                 saving={saving}
@@ -759,7 +1076,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
                 onRemove={removeUpload}
               />
             ) : null}
-            {step === 4 ? (
+            {step === 5 ? (
               <ReviewStep form={form} uploads={uploads} pgPath={pgPath} locale={locale} />
             ) : null}
           </div>
@@ -774,7 +1091,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               {t(locale, "back")}
             </button>
 
-            {step < 4 ? (
+            {step < 5 ? (
               <button
                 type="button"
                 className="btn btn--primary"

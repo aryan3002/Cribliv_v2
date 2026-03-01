@@ -6,43 +6,20 @@ interface Props {
   form: WizardForm;
   errors: StepError[];
   updateField: <K extends keyof WizardForm>(key: K, value: WizardForm[K]) => void;
+  /** Fields currently being filled by AI voice agent (glow effect) */
+  aiFillingFields?: Set<string>;
 }
 
-export function BasicsStep({ form, errors, updateField }: Props) {
+export function BasicsStep({ form, errors, updateField, aiFillingFields }: Props) {
+  function aiClass(field: string) {
+    return aiFillingFields?.has(field) ? " field--ai-filling" : "";
+  }
   function fieldError(field: string) {
     return errors.find((e) => e.field === field)?.message;
   }
 
   return (
     <>
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-title">
-          Listing title
-        </label>
-        <input
-          id="wiz-title"
-          className={`input${fieldError("title") ? " input--error" : ""}`}
-          value={form.title}
-          onChange={(e) => updateField("title", e.target.value)}
-          placeholder="e.g. Spacious 2BHK near Metro"
-        />
-        {fieldError("title") ? <p className="form-error">{fieldError("title")}</p> : null}
-      </div>
-
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-desc">
-          Description
-        </label>
-        <textarea
-          id="wiz-desc"
-          className="textarea"
-          value={form.description}
-          onChange={(e) => updateField("description", e.target.value)}
-          placeholder="Describe your property — condition, nearby landmarks, best suited for..."
-          rows={3}
-        />
-      </div>
-
       <div className="form-row">
         <div className="form-group">
           <label className="form-label" htmlFor="wiz-type">
@@ -65,7 +42,7 @@ export function BasicsStep({ form, errors, updateField }: Props) {
           </label>
           <select
             id="wiz-furnishing"
-            className="input"
+            className={`input${aiClass("furnishing")}`}
             value={form.furnishing}
             onChange={(e) => updateField("furnishing", e.target.value as Furnishing)}
           >
@@ -85,7 +62,7 @@ export function BasicsStep({ form, errors, updateField }: Props) {
           <input
             id="wiz-rent"
             type="number"
-            className={`input${fieldError("monthly_rent") ? " input--error" : ""}`}
+            className={`input${fieldError("monthly_rent") ? " input--error" : ""}${aiClass("monthly_rent")}`}
             value={form.monthly_rent}
             onChange={(e) => updateField("monthly_rent", e.target.value)}
             placeholder="e.g. 15000"
@@ -103,7 +80,7 @@ export function BasicsStep({ form, errors, updateField }: Props) {
           <input
             id="wiz-deposit"
             type="number"
-            className={`input${fieldError("deposit") ? " input--error" : ""}`}
+            className={`input${fieldError("deposit") ? " input--error" : ""}${aiClass("deposit")}`}
             value={form.deposit}
             onChange={(e) => updateField("deposit", e.target.value)}
             placeholder="e.g. 30000"

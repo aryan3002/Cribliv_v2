@@ -54,6 +54,8 @@ export declare const analyticsEvents: readonly [
   "voice_agent_error",
   "voice_agent_barge_in",
   "voice_agent_text_fallback",
-  "voice_agent_manual_fallback"
+  "voice_agent_manual_fallback",
+  "voice_agent_inline_started",
+  "voice_agent_inline_completed"
 ];
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

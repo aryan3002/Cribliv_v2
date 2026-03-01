@@ -9,9 +9,21 @@ interface Props {
   pgPath: PgPath;
   updateField: <K extends keyof WizardForm>(key: K, value: WizardForm[K]) => void;
   toggleAmenity: (amenity: string) => void;
+  /** Fields currently being filled by AI voice agent (glow effect) */
+  aiFillingFields?: Set<string>;
 }
 
-export function DetailsStep({ form, errors, pgPath, updateField, toggleAmenity }: Props) {
+export function DetailsStep({
+  form,
+  errors,
+  pgPath,
+  updateField,
+  toggleAmenity,
+  aiFillingFields
+}: Props) {
+  function aiClass(field: string) {
+    return aiFillingFields?.has(field) ? " field--ai-filling" : "";
+  }
   const isPg = form.listing_type === "pg";
 
   function fieldError(field: string) {
@@ -30,7 +42,7 @@ export function DetailsStep({ form, errors, pgPath, updateField, toggleAmenity }
               <input
                 id="wiz-beds"
                 type="number"
-                className={`input${fieldError("beds") ? " input--error" : ""}`}
+                className={`input${fieldError("beds") ? " input--error" : ""}${aiClass("beds")}`}
                 value={form.beds}
                 onChange={(e) => updateField("beds", e.target.value)}
                 placeholder="e.g. 20"
@@ -102,7 +114,7 @@ export function DetailsStep({ form, errors, pgPath, updateField, toggleAmenity }
               <input
                 id="wiz-bedrooms"
                 type="number"
-                className={`input${fieldError("bedrooms") ? " input--error" : ""}`}
+                className={`input${fieldError("bedrooms") ? " input--error" : ""}${aiClass("bedrooms")}`}
                 value={form.bedrooms}
                 onChange={(e) => updateField("bedrooms", e.target.value)}
                 placeholder="e.g. 2"
@@ -158,7 +170,7 @@ export function DetailsStep({ form, errors, pgPath, updateField, toggleAmenity }
         <input
           id="wiz-area"
           type="number"
-          className={`input${fieldError("area_sqft") ? " input--error" : ""}`}
+          className={`input${fieldError("area_sqft") ? " input--error" : ""}${aiClass("area_sqft")}`}
           value={form.area_sqft}
           onChange={(e) => updateField("area_sqft", e.target.value)}
           placeholder="e.g. 850"

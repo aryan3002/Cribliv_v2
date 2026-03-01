@@ -559,3 +559,34 @@ export async function requestRoleUpgrade(
     body: JSON.stringify({ requested_role: requestedRole })
   });
 }
+
+/* ─── AI listing content generation ─────────────────────────────── */
+
+export interface GenerateListingContentInput {
+  listing_type: "flat_house" | "pg";
+  monthly_rent?: number;
+  deposit?: number;
+  furnishing?: string;
+  city?: string;
+  locality?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  area_sqft?: number;
+  amenities?: string[];
+  preferred_tenant?: string;
+  beds?: number;
+  sharing_type?: string;
+  meals_included?: boolean;
+  attached_bathroom?: boolean;
+}
+
+export async function generateListingContent(
+  accessToken: string,
+  input: GenerateListingContentInput
+): Promise<{ title: string; description: string }> {
+  return fetchApi<{ title: string; description: string }>("/owner/listings/generate-content", {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+}

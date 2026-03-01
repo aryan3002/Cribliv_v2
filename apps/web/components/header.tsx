@@ -48,8 +48,15 @@ export function Header({ locale }: { locale: Locale }) {
       <div className="container nav-row">
         {/* Logo */}
         <Link href={`/${locale}`} className="logo" aria-label="Cribliv Home">
-          <Image src="/cribliv.png" alt="" width={58} height={54} priority className="logo-img" />
-          <span className="logo-wordmark">Cribliv</span>
+          <Image src="/cribliv.png" alt="" width={40} height={36} priority className="logo-img" />
+          <Image
+            src="/criblivFont.png"
+            alt="Cribliv"
+            width={90}
+            height={30}
+            priority
+            className="logo-font"
+          />
         </Link>
 
         {/* Navigation Links */}

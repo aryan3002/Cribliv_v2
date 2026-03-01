@@ -336,12 +336,16 @@ h4, .h4 {
   object-fit: contain;
 }
 
+.logo-font {
+  height: 40px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+  margin-left: var(--space-2);
+}
+
 .logo-wordmark {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 22px;
-  letter-spacing: -0.01em;
-  color: var(--brand);
+  display: none;
 }
 
 .nav-links {

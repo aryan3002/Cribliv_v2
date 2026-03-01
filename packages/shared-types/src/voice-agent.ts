@@ -98,6 +98,9 @@ export interface VoiceAgentServerEvents {
   /** Agent speaking – streamed audio chunk */
   agent_audio: (data: ArrayBuffer) => void;
 
+  /** Signals end of an agent audio response (all chunks sent) */
+  agent_audio_end: () => void;
+
   /** Agent's text transcript (arrives alongside or instead of audio) */
   agent_text: (payload: { text: string; phase: VoiceAgentPhase }) => void;
 

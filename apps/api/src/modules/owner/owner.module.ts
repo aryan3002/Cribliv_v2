@@ -6,12 +6,19 @@ import { OwnerCaptureController } from "./owner.capture.controller";
 import { OwnerCaptureService } from "./owner.capture.service";
 import { AzureSpeechClient } from "./azure-speech.client";
 import { AzureOpenAiExtractorClient } from "./azure-openai-extractor.client";
+import { ListingContentGeneratorService } from "./listing-content-generator.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
   imports: [ContactsModule, NotificationsModule],
   controllers: [OwnerController, OwnerCaptureController],
-  providers: [OwnerService, OwnerCaptureService, AzureSpeechClient, AzureOpenAiExtractorClient],
+  providers: [
+    OwnerService,
+    OwnerCaptureService,
+    AzureSpeechClient,
+    AzureOpenAiExtractorClient,
+    ListingContentGeneratorService
+  ],
   exports: [AzureSpeechClient]
 })
 export class OwnerModule {}

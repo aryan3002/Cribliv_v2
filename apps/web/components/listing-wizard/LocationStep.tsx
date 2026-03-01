@@ -7,9 +7,14 @@ interface Props {
   form: WizardForm;
   errors: StepError[];
   updateField: <K extends keyof WizardForm>(key: K, value: WizardForm[K]) => void;
+  /** Fields currently being filled by AI voice agent (glow effect) */
+  aiFillingFields?: Set<string>;
 }
 
-export function LocationStep({ form, errors, updateField }: Props) {
+export function LocationStep({ form, errors, updateField, aiFillingFields }: Props) {
+  function aiClass(field: string) {
+    return aiFillingFields?.has(field) ? " field--ai-filling" : "";
+  }
   function fieldError(field: string) {
     return errors.find((e) => e.field === field)?.message;
   }
@@ -22,7 +27,7 @@ export function LocationStep({ form, errors, updateField }: Props) {
         </label>
         <select
           id="wiz-city"
-          className={`input${fieldError("city") ? " input--error" : ""}`}
+          className={`input${fieldError("city") ? " input--error" : ""}${aiClass("city")}`}
           value={form.city}
           onChange={(e) => updateField("city", e.target.value)}
         >

@@ -110,7 +110,7 @@ export class StreamingTTSService {
     voiceName: string,
     options?: { rate?: string; pitch?: string }
   ): string {
-    const rate = options?.rate ?? "-5%"; // slightly slower for natural feel
+    const rate = options?.rate ?? "+10%"; // slightly faster for natural conversational feel
     const pitch = options?.pitch ?? "+0Hz";
 
     return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"

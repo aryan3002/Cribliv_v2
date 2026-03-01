@@ -106,6 +106,42 @@ async function seed() {
   }
 
   console.log(`Seeded ${cities.length} cities and ${localities.length} localities.`);
+
+  // ── Dev seed users ─────────────────────────────────────────────────────────
+  // These are idempotent: safe to re-run. They only exist in dev environments.
+  const seedUsers = [
+    { phone: "+919999999901", role: "owner" },
+    { phone: "+919999999902", role: "tenant" },
+    { phone: "+919999999903", role: "admin" },
+    { phone: "+919999999904", role: "pg_operator" }
+  ];
+
+  for (const u of seedUsers) {
+    await client.query(
+      `
+      INSERT INTO users (phone_e164, role, preferred_language)
+      VALUES ($1, $2::user_role, 'en')
+      ON CONFLICT (phone_e164) DO UPDATE SET
+        role = EXCLUDED.role,
+        is_blocked = false
+      `,
+      [u.phone, u.role]
+    );
+  }
+
+  // Give tenant seed user 2 credits; ensure all have wallets
+  await client.query(`
+    INSERT INTO wallets (user_id, balance_credits, free_credits_granted)
+    SELECT id,
+      CASE WHEN role = 'tenant' THEN 2 ELSE 0 END,
+      CASE WHEN role = 'tenant' THEN 2 ELSE 0 END
+    FROM users
+    WHERE phone_e164 IN ('+919999999901','+919999999902','+919999999903','+919999999904')
+    ON CONFLICT (user_id) DO NOTHING
+  `);
+
+  console.log("Seeded dev users: owner/tenant/admin/pg_operator (phones ending 901–904).");
+
   await client.end();
 }
 

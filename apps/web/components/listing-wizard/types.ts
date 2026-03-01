@@ -48,7 +48,14 @@ export interface UploadFile {
   errorMessage?: string;
 }
 
-export const STEPS = ["Basics", "Location", "Details", "Photos", "Review"] as const;
+export const STEPS = [
+  "Basics",
+  "Location",
+  "Details",
+  "Title & Description",
+  "Photos",
+  "Review"
+] as const;
 export const STORAGE_KEY = "cribliv:wizard-draft";
 
 export const CITIES = [
@@ -368,9 +375,10 @@ export function formatCaptureValue(path: string, value: unknown): string {
 }
 
 export function resolveWizardStepForForm(form: WizardForm): number {
-  if (!form.title.trim() || !form.monthly_rent.trim()) return 0;
+  if (!form.monthly_rent.trim()) return 0;
   if (!form.city.trim()) return 1;
-  return 2;
+  if (!form.title.trim()) return 3;
+  return 3;
 }
 
 export function applyCaptureDraftToForm(
@@ -417,9 +425,6 @@ export function validateStep(step: number, form: WizardForm): StepError[] {
   const errors: StepError[] = [];
   switch (step) {
     case 0: {
-      if (!form.title.trim()) errors.push({ field: "title", message: "Title is required" });
-      if (form.title.trim().length > 0 && form.title.trim().length < 5)
-        errors.push({ field: "title", message: "Title must be at least 5 characters" });
       if (!form.monthly_rent.trim())
         errors.push({ field: "monthly_rent", message: "Rent is required" });
       const rent = Number(form.monthly_rent);
@@ -453,6 +458,12 @@ export function validateStep(step: number, form: WizardForm): StepError[] {
         if (!Number.isFinite(area) || area < 50 || area > 100000)
           errors.push({ field: "area_sqft", message: "Area must be 50-100,000 sq ft" });
       }
+      break;
+    }
+    case 3: {
+      if (!form.title.trim()) errors.push({ field: "title", message: "Title is required" });
+      if (form.title.trim().length > 0 && form.title.trim().length < 5)
+        errors.push({ field: "title", message: "Title must be at least 5 characters" });
       break;
     }
     default:

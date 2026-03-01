@@ -19,6 +19,10 @@ import { OwnerService } from "./owner.service";
 import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { ContactsService } from "../contacts/contacts.service";
 import { CreateListingDto, UpdateListingDto, SubmitListingDto } from "./dto/listing.dto";
+import {
+  ListingContentGeneratorService,
+  type GenerateContentInput
+} from "./listing-content-generator.service";
 
 @Controller("owner")
 @UseGuards(AuthGuard, RolesGuard)
@@ -26,7 +30,9 @@ import { CreateListingDto, UpdateListingDto, SubmitListingDto } from "./dto/list
 export class OwnerController {
   constructor(
     @Inject(OwnerService) private readonly ownerService: OwnerService,
-    @Inject(ContactsService) private readonly contactsService: ContactsService
+    @Inject(ContactsService) private readonly contactsService: ContactsService,
+    @Inject(ListingContentGeneratorService)
+    private readonly contentGenerator: ListingContentGeneratorService
   ) {}
 
   @Get("listings")
@@ -97,5 +103,11 @@ export class OwnerController {
     @Body() body: { channel: "call" | "whatsapp" | "sms" }
   ) {
     return ok(await this.contactsService.markOwnerResponded(req.user.id, unlockId, body.channel));
+  }
+
+  @Post("listings/generate-content")
+  async generateContent(@Body() body: GenerateContentInput) {
+    const result = await this.contentGenerator.generate(body);
+    return ok(result);
   }
 }

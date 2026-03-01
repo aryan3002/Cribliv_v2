@@ -1,0 +1,237 @@
+/* ═══════════════════════════════════════════════════════════════════
+ * Voice Agent Inline — CSS
+ *
+ * Compact status bar + field fill animations for the inline voice
+ * agent that lives inside the manual form wizard.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Status bar ─────────────────────────────────────────────────── */
+.vai-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+.vai-bar--listening {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+.vai-bar--speaking {
+  border-color: #10b981;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+.vai-bar--thinking {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+/* ── Waveform ───────────────────────────────────────────────────── */
+.vai-wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.vai-wave__bar {
+  width: 3px;
+  height: 8px;
+  border-radius: 2px;
+  background: #94a3b8;
+  transition: background 0.3s;
+}
+.vai-bar--listening .vai-wave__bar {
+  background: #3b82f6;
+  animation: vai-wave-listen 0.8s ease-in-out infinite;
+}
+.vai-bar--speaking .vai-wave__bar {
+  background: #10b981;
+  animation: vai-wave-speak 0.6s ease-in-out infinite;
+}
+.vai-bar--thinking .vai-wave__bar {
+  background: #f59e0b;
+  animation: vai-wave-think 1.2s ease-in-out infinite;
+}
+.vai-wave__bar:nth-child(1) { animation-delay: 0s; }
+.vai-wave__bar:nth-child(2) { animation-delay: 0.1s; }
+.vai-wave__bar:nth-child(3) { animation-delay: 0.2s; }
+.vai-wave__bar:nth-child(4) { animation-delay: 0.3s; }
+.vai-wave__bar:nth-child(5) { animation-delay: 0.15s; }
+
+@keyframes vai-wave-listen {
+  0%, 100% { height: 6px; }
+  50% { height: 20px; }
+}
+@keyframes vai-wave-speak {
+  0%, 100% { height: 4px; }
+  30% { height: 18px; }
+  60% { height: 10px; }
+}
+@keyframes vai-wave-think {
+  0%, 100% { height: 6px; opacity: 0.5; }
+  50% { height: 12px; opacity: 1; }
+}
+
+/* ── State label ────────────────────────────────────────────────── */
+.vai-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vai-bar--listening .vai-label { color: #1d4ed8; }
+.vai-bar--speaking .vai-label { color: #059669; }
+.vai-bar--thinking .vai-label { color: #d97706; }
+
+/* ── Mic toggle button (in header) ──────────────────────────────── */
+.vai-mic-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1.5px solid #e2e8f0;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  transition: all 0.2s ease;
+}
+.vai-mic-btn:hover {
+  border-color: #6366f1;
+  color: #4f46e5;
+  background: #f5f3ff;
+}
+.vai-mic-btn--active {
+  background: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+.vai-mic-btn--active:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: white;
+}
+
+/* ── Stop / done buttons in bar ─────────────────────────────────── */
+.vai-bar__btn {
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.vai-bar__btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+.vai-bar__btn--stop {
+  color: #ef4444;
+  border-color: #fecaca;
+}
+.vai-bar__btn--stop:hover {
+  background: #fef2f2;
+}
+
+/* ── Text fallback input in bar ─────────────────────────────────── */
+.vai-text-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.vai-text-input input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: #334155;
+  outline: none;
+}
+.vai-text-input input::placeholder {
+  color: #94a3b8;
+}
+.vai-text-input button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6366f1;
+  padding: 2px;
+  display: flex;
+}
+.vai-text-input button:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * Field fill animations
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Blue glow while AI is typing into a field */
+.field--ai-filling {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4) !important;
+  border-color: #818cf8 !important;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* Brief green pulse after field is filled */
+.field--ai-filled {
+  animation: vai-field-filled 0.8s ease-out;
+}
+
+@keyframes vai-field-filled {
+  0% {
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.5);
+    border-color: #34d399;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    border-color: #e2e8f0;
+  }
+}
+
+/* Checkbox AI fill highlight */
+.checkbox--ai-filled label {
+  animation: vai-check-pulse 0.6s ease-out;
+}
+@keyframes vai-check-pulse {
+  0% { color: #10b981; font-weight: 600; }
+  100% { color: inherit; font-weight: inherit; }
+}
+
+/* ── Mic denied inline ──────────────────────────────────────────── */
+.vai-mic-denied {
+  font-size: 13px;
+  color: #ef4444;
+  margin-top: 4px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .vai-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .vai-mic-btn span.vai-mic-btn__text {
+    display: none;
+  }
+}

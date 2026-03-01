@@ -20,8 +20,8 @@ import type { VoiceAgentPhase, VoiceAgentDraft, ConversationTurn } from "@cribli
 const PHASE_ORDER: VoiceAgentPhase[] = [
   "greeting",
   "property_type",
-  "location",
   "basics",
+  "location",
   "details",
   "amenities",
   "confirmation",
@@ -57,14 +57,16 @@ const FALLBACK_PROMPTS: Record<VoiceAgentPhase, string> = {
   greeting:
     "नमस्ते! मैं आपकी property list करने में help करूँगी। चलिए शुरू करते हैं — आपकी property flat है या PG?",
   property_type: "Aapki property flat hai ya PG/hostel?",
-  location: "Aapki property kahan located hai? City aur area bata dijiye.",
   basics:
-    "Acha, ab basic details bataiye — kitne BHK hai? Monthly rent kitna soch rakha hai? Aur deposit?",
-  details: "Furnishing kaisi hai — unfurnished, semi ya fully furnished? Aur koi preferred tenant?",
+    "Acha, ab basic details bataiye — monthly rent kitna soch rakha hai? Deposit kitna? Aur furnishing kaisi hai — furnished, semi-furnished ya unfurnished?",
+  location:
+    "Ab bataiye aapki property kahan located hai? City, area aur poora address bata dijiye — landmark aur pincode bhi agar pata ho.",
+  details: "Kitne BHK hai ya kitne beds hain? Bathrooms? Area sq ft mein? Aur preferred tenant?",
   amenities: "Kya-kya facilities hain — WiFi, AC, parking, lift, washing machine?",
   confirmation:
     "Bahut badhiya! Main ek baar saari details repeat kar deti hoon, aap confirm kar dijiye.",
-  complete: "Perfect! Aapki listing tayaar hai. Ab photos add kar dijiye aur submit kar dijiye!"
+  complete:
+    "Perfect! Aapki listing tayaar hai. Ab title aur description generate karte hain, photos add kar dijiye aur submit kar dijiye!"
 };
 
 /* ─── LLM System Prompt ──────────────────────────────────────────── */
@@ -83,9 +85,14 @@ CONVERSATION RULES:
 4. After collecting critical info (type, location, rent), confirm by repeating: "Toh 2BHK flat hai Noida Sector 62 mein, rent 15 hazaar — sahi hai?"
 5. If user goes off-topic, gently bring back: "Haan haan, wo toh hai! Acha bataaiye..."
 6. If user corrects something: "Okay, got it! Maine update kar diya."
-7. Keep responses SHORT — 1-2 sentences max unless confirming all details.
+7. Keep responses ULTRA SHORT — maximum 1 short sentence (15 words or less). NEVER repeat back all details unless in confirmation phase.
 8. Always sound warm and encouraging.
-9. When a field is optional and user doesn't know, move on: "Koi baat nahi, baad mein bhi add kar sakte hain."
+9. When a field is optional and user doesn't know, move on: "Koi baat nahi, chhod dete hain."
+
+PHASE-SPECIFIC RULES:
+- In "basics" phase: You MUST ask for rent, deposit, AND furnishing (furnished/semi-furnished/unfurnished). Do NOT move to location phase until user has answered about furnishing. If they give rent but skip furnishing, ASK AGAIN: "Aur furnishing kaisi hai — furnished, semi-furnished ya unfurnished?"
+- In "location" phase: Ask for city AND locality/area first. Then ALSO ask: "Poora address bhi bata dijiye — landmark, pincode, society name etc. Ye verification ke liye chahiye, tenants ko nahi dikhega." Extract into location.address_line1 field. Do NOT move to details until user has given at least city + some address info.
+- Do NOT skip phases. Follow order: greeting → property_type → basics → location → details → amenities → confirmation → complete.
 
 You MUST respond with a JSON object in this EXACT shape:
 {
@@ -93,13 +100,22 @@ You MUST respond with a JSON object in this EXACT shape:
   "extracted_fields": {
     "listing_type": "flat_house",
     "rent": 15000,
-    "location": { "city": "noida", "locality": "sector-62" }
+    "deposit": 30000,
+    "location": { "city": "noida", "locality": "sector-62", "address_line1": "B-42, Sector 62, near Metro" },
+    "property_fields": { "furnishing": "semi_furnished", "bhk": 2, "bathrooms": 2, "area_sqft": 850 },
+    "pg_fields": { "total_beds": 10, "room_sharing_options": ["double"], "food_included": true, "attached_bathroom": false },
+    "amenities": ["WiFi", "AC", "Parking"],
+    "preferred_tenant": "family"
   },
   "fields_to_confirm": ["rent", "location.city"],
   "next_phase": "basics",
   "phase_complete": true,
   "is_correction": false
 }
+
+IMPORTANT: furnishing MUST go inside "property_fields" object, NOT at the top level.
+deposit goes at the top level (NOT inside property_fields).
+Only include fields that were mentioned in THIS turn.
 
 FIELD RULES:
 - listing_type: "flat_house" or "pg" only
@@ -142,10 +158,10 @@ export class ConversationOrchestratorService {
   /* ────── Get greeting text ──────────────────────────────────────── */
   getGreeting(listingTypeHint?: "flat_house" | "pg"): string {
     if (listingTypeHint === "pg") {
-      return "नमस्ते! मैं आपकी PG listing बनाने में help करूँगी। चलिए शुरू करते हैं — aapka PG kahan located hai? City aur area bata dijiye.";
+      return "नमस्ते! मैं आपकी PG listing बनाने में help करूँगी। चलिए शुरू करते हैं — monthly rent kitna hai? Deposit? Aur furnishing kaisi hai?";
     }
     if (listingTypeHint === "flat_house") {
-      return "नमस्ते! मैं आपकी flat listing बनाने में help करूँगी। चलिए शुरू करते हैं — aapka flat kahan located hai? City aur area bata dijiye.";
+      return "नमस्ते! मैं आपकी flat listing बनाने में help करूँगी। चलिए शुरू करते हैं — monthly rent kitna hai? Deposit? Aur furnishing kaisi hai?";
     }
     return FALLBACK_PROMPTS.greeting;
   }
@@ -220,7 +236,7 @@ current_draft=${JSON.stringify(input.currentDraft)}`
         body: JSON.stringify({
           messages,
           temperature: 0.7,
-          max_tokens: 500,
+          max_tokens: 300,
           response_format: { type: "json_object" }
         }),
         signal: controller.signal
@@ -235,12 +251,30 @@ current_draft=${JSON.stringify(input.currentDraft)}`
       }
 
       const llmResponse = JSON.parse(payload.choices[0].message.content) as LlmConversationResponse;
+      this.logger.debug(`LLM raw response: ${JSON.stringify(llmResponse.extracted_fields)}`);
+      this.logger.debug(
+        `LLM next_phase: ${llmResponse.next_phase}, current: ${input.currentPhase}`
+      );
 
       // Merge extracted fields into draft
       const updatedDraft = this.mergeDraft(input.currentDraft, llmResponse.extracted_fields);
       const fieldsCollected = this.computeCollectedFields(updatedDraft);
       const fieldsRemaining = this.computeRemainingFields(fieldsCollected);
-      const nextPhase = llmResponse.next_phase || input.currentPhase;
+
+      // IMPORTANT: Don't trust the LLM's next_phase blindly — constrain it
+      // using our own field-based logic so phases can't be skipped.
+      const llmPhase = llmResponse.next_phase || input.currentPhase;
+      const rulePhase = this.advancePhaseByFields(input.currentPhase, fieldsCollected);
+      // Use the more conservative of (LLM suggestion, rule-based), but never go backwards
+      const currentIdx = PHASE_ORDER.indexOf(input.currentPhase);
+      const llmIdx = PHASE_ORDER.indexOf(llmPhase);
+      const ruleIdx = PHASE_ORDER.indexOf(rulePhase);
+      // Allow advancing at most to whichever is lower (more conservative), but at least current
+      const nextIdx = Math.max(currentIdx, Math.min(llmIdx, ruleIdx));
+      const nextPhase = PHASE_ORDER[nextIdx] ?? input.currentPhase;
+      this.logger.debug(
+        `Phase decision: llm=${llmPhase}(${llmIdx}), rule=${rulePhase}(${ruleIdx}), final=${nextPhase}(${nextIdx}), fields=[${fieldsCollected.join(",")}]`
+      );
       const isComplete = nextPhase === "complete" || fieldsRemaining.length === 0;
 
       return {
@@ -327,6 +361,44 @@ current_draft=${JSON.stringify(input.currentDraft)}`
       };
     }
 
+    // Furnishing
+    if (text.includes("unfurnished") || text.includes("अनफर्निश")) {
+      draft.property_fields = { ...draft.property_fields, furnishing: "unfurnished" };
+    } else if (
+      text.includes("semi furnished") ||
+      text.includes("semi-furnished") ||
+      text.includes("semi furnish") ||
+      text.includes("सेमी फर्निश")
+    ) {
+      draft.property_fields = { ...draft.property_fields, furnishing: "semi_furnished" };
+    } else if (
+      text.includes("fully furnished") ||
+      text.includes("full furnished") ||
+      text.includes("furnished") ||
+      text.includes("फर्निश")
+    ) {
+      draft.property_fields = { ...draft.property_fields, furnishing: "fully_furnished" };
+    }
+
+    // Deposit
+    const depositMatch = text.match(/deposit\s+(\d+)\s*(hazaar|हजार|thousand|k\b|lakh|लाख)?/i);
+    if (depositMatch) {
+      const val = parseInt(depositMatch[1], 10);
+      const unit = (depositMatch[2] || "").toLowerCase();
+      if (unit.includes("lakh") || unit.includes("लाख")) {
+        draft.deposit = val * 100000;
+      } else if (
+        unit.includes("hazaar") ||
+        unit.includes("हजार") ||
+        unit.includes("thousand") ||
+        unit === "k"
+      ) {
+        draft.deposit = val * 1000;
+      } else {
+        draft.deposit = val;
+      }
+    }
+
     const fieldsCollected = this.computeCollectedFields(draft);
     const fieldsRemaining = this.computeRemainingFields(fieldsCollected);
 
@@ -352,6 +424,9 @@ current_draft=${JSON.stringify(input.currentDraft)}`
 
     const draft: VoiceAgentDraft = { ...existing };
 
+    // Handle top-level fields that LLM might misplace
+    const ext = extracted as Record<string, unknown>;
+
     if (extracted.listing_type) draft.listing_type = extracted.listing_type;
     if (extracted.title) draft.title = extracted.title;
     if (extracted.description) draft.description = extracted.description;
@@ -360,6 +435,18 @@ current_draft=${JSON.stringify(input.currentDraft)}`
     if (extracted.preferred_tenant) draft.preferred_tenant = extracted.preferred_tenant;
     if (extracted.amenities?.length) {
       draft.amenities = [...new Set([...(draft.amenities ?? []), ...extracted.amenities])];
+    }
+
+    // LLM sometimes puts furnishing at top level instead of property_fields
+    const topFurnishing = ext.furnishing as string | undefined;
+    if (
+      topFurnishing &&
+      ["unfurnished", "semi_furnished", "fully_furnished"].includes(topFurnishing)
+    ) {
+      draft.property_fields = {
+        ...draft.property_fields,
+        furnishing: topFurnishing as "unfurnished" | "semi_furnished" | "fully_furnished"
+      };
     }
 
     if (extracted.location) {
@@ -428,7 +515,7 @@ current_draft=${JSON.stringify(input.currentDraft)}`
   }
 
   private computeRemainingFields(collected: string[]): string[] {
-    const required = ["listing_type", "title", "rent", "location.city"];
+    const required = ["listing_type", "rent", "location.city"];
     return required.filter((f) => !collected.includes(f));
   }
 
@@ -439,21 +526,30 @@ current_draft=${JSON.stringify(input.currentDraft)}`
     // Phase completion checks
     const hasType = collected.includes("listing_type");
     const hasLocation = collected.includes("location.city");
-    const hasBasics = collected.includes("rent");
+    const hasAddress = collected.includes("location.address_line1");
+    const hasRent = collected.includes("rent");
+    const hasBasics =
+      hasRent &&
+      (collected.includes("deposit") || collected.includes("property_fields.furnishing"));
     const hasDetails =
       collected.includes("property_fields.bhk") ||
       collected.includes("pg_fields.total_beds") ||
-      collected.includes("property_fields.furnishing");
+      collected.includes("property_fields.bathrooms") ||
+      collected.includes("property_fields.area_sqft");
     const hasAmenities = collected.includes("amenities");
-    const allRequired = ["listing_type", "title", "rent", "location.city"].every((f) =>
+    const allRequired = ["listing_type", "rent", "location.city"].every((f) =>
       collected.includes(f)
     );
 
     if (allRequired && hasDetails && hasAmenities) return "confirmation";
     if (allRequired && hasDetails) return "amenities";
     if (hasBasics && hasLocation && hasType) return "details";
-    if (hasLocation && hasType) return "basics";
-    if (hasType) return "location";
+    if (hasBasics && hasType) return "location";
+    if (hasRent && hasType) {
+      // If user gave rent but not deposit/furnishing, stay on basics
+      return "basics";
+    }
+    if (hasType) return "basics";
     if (current === "greeting") return "property_type";
 
     // Don't go backwards
