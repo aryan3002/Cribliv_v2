@@ -141,13 +141,28 @@ export function ShortlistClient({ locale }: { locale: string }) {
       {!items.length ? (
         <div className="empty-state">
           <span className="empty-state__icon" aria-hidden="true">
-            <Heart size={48} style={{ color: "var(--accent)" }} />
+            <Heart size={40} style={{ color: "var(--accent)" }} />
           </span>
           <h3>No shortlisted homes yet</h3>
-          <p>Browse verified rentals and tap the heart icon to save them here.</p>
-          <Link href={`/${locale}/search`} className="btn btn--primary">
-            Browse Listings
-          </Link>
+          <p>
+            Browse verified rentals and tap the heart icon to save them here. Your favorites will be
+            waiting when you come back.
+          </p>
+          <div
+            style={{
+              display: "flex",
+              gap: "var(--space-3)",
+              flexWrap: "wrap",
+              justifyContent: "center"
+            }}
+          >
+            <Link href={`/${locale}/search`} className="btn btn--primary">
+              Browse Listings
+            </Link>
+            <Link href={`/${locale}`} className="btn btn--secondary">
+              Explore Cities
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="listing-grid">

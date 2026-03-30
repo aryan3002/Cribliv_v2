@@ -253,11 +253,43 @@ export default async function SearchResultsPage({
         </div>
       )}
 
-      {/* Error */}
+      {/* Error — illustrated recovery state */}
       {fetchError && (
         <div className="container">
-          <div className="alert alert--warning" style={{ marginTop: "var(--space-4)" }}>
-            <AlertTriangle size={16} style={{ flexShrink: 0 }} /> {fetchError}
+          <div className="error-state" style={{ marginTop: "var(--space-4)" }}>
+            <div className="error-state__icon">
+              <AlertTriangle size={36} />
+            </div>
+            <h3>We couldn&apos;t reach our servers</h3>
+            <p>
+              This might be a temporary issue. Try refreshing the page, or browse by city below.
+            </p>
+            <div className="error-state__actions">
+              <Link
+                href={`/${params.locale}/search?${buildSearchQuery(filters)}`}
+                className="btn btn--primary"
+              >
+                Retry Search
+              </Link>
+              <Link href={`/${params.locale}/search`} className="btn btn--secondary">
+                Clear Filters
+              </Link>
+            </div>
+            <p className="body-sm text-secondary" style={{ marginBottom: "var(--space-4)" }}>
+              Or try one of these popular cities:
+            </p>
+            <div className="error-state__cities">
+              {CITIES.slice(0, 4).map((city) => (
+                <Link
+                  key={city.slug}
+                  href={`/${params.locale}/search?city=${city.slug}`}
+                  className="error-state__city-link"
+                >
+                  <MapPin size={16} />
+                  {city.label}
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -9,9 +9,19 @@ type Dictionary = Record<string, { en: string; hi: string }>;
 
 const dictionary: Dictionary = {
   searchPlaceholder: {
-    en: "Describe what you need. Example: 2BHK near Cyber City under 35k",
-    hi: "अपनी जरूरत लिखें। उदाहरण: साइबर सिटी के पास 2BHK, 35k तक"
+    en: "e.g. 2BHK near Cyber City under 35k",
+    hi: "उदा. साइबर सिटी के पास 2BHK, 35k तक"
   },
+  heroSearchPlaceholder: {
+    en: "Describe what you need — 2BHK near Cyber City under 35k",
+    hi: "अपनी जरूरत लिखें — साइबर सिटी के पास 2BHK, 35k तक"
+  },
+  navSearch: { en: "Search", hi: "खोजें" },
+  navShortlist: { en: "Shortlist", hi: "पसंदीदा" },
+  navPostProperty: { en: "Post Property", hi: "प्रॉपर्टी पोस्ट करें" },
+  navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
+  navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },
+  navAdmin: { en: "Admin", hi: "एडमिन" },
   postProperty: {
     en: "Post Property",
     hi: "प्रॉपर्टी पोस्ट करें"

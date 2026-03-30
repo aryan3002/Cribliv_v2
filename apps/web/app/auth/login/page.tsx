@@ -38,12 +38,17 @@ function canAccessPath(role: UserRole | undefined, path: string): boolean {
 }
 
 function normalizePhone(phone: string): string {
-  return phone.trim().replace(/\s+/g, "");
+  const cleaned = phone.trim().replace(/\s+/g, "").replace(/^0+/, "");
+  // If user already typed +91 prefix, keep it
+  if (cleaned.startsWith("+91")) return cleaned;
+  // If just digits, prepend +91
+  return `+91${cleaned}`;
 }
 
 function validatePhone(phone: string): string | null {
-  if (!/^\+91\d{10}$/.test(normalizePhone(phone))) {
-    return "Enter a valid Indian mobile number (e.g. +919999999901)";
+  const normalized = normalizePhone(phone);
+  if (!/^\+91\d{10}$/.test(normalized)) {
+    return "Enter a valid 10-digit mobile number";
   }
   return null;
 }
@@ -207,7 +212,7 @@ function LoginPageInner() {
           Cribliv
         </div>
         <h1 className="auth-card__title">Welcome</h1>
-        <p className="auth-card__subtitle">Sign in with your mobile number to continue</p>
+        <p className="auth-card__subtitle">Sign in to save listings &amp; unlock owner contacts</p>
 
         {/* Tab switcher */}
         <div className="auth-tabs">
@@ -236,19 +241,25 @@ function LoginPageInner() {
             <label htmlFor="phone" className="form-label">
               Mobile number
             </label>
-            <input
-              id="phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+919999999901"
-              disabled={loading}
-              onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-              className="input"
-              autoFocus
-              autoComplete="tel"
-              aria-label="Mobile number"
-            />
+            <div className="auth-phone-group">
+              <span className="auth-phone-prefix">
+                <span className="auth-phone-prefix__flag">🇮🇳</span>
+                +91
+              </span>
+              <input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="9999999901"
+                disabled={loading}
+                onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+                className="input"
+                autoFocus
+                autoComplete="tel"
+                aria-label="Mobile number"
+              />
+            </div>
             <button
               onClick={handleSendOtp}
               disabled={loading}

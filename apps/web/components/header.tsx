@@ -18,6 +18,7 @@ import {
   Settings
 } from "lucide-react";
 import type { Locale } from "../lib/i18n";
+import { t } from "../lib/i18n";
 import type { UserRole } from "../auth.config";
 
 export function Header({ locale }: { locale: Locale }) {
@@ -70,7 +71,7 @@ export function Header({ locale }: { locale: Locale }) {
             onClick={() => setMobileOpen(false)}
           >
             <Search size={16} aria-hidden="true" />
-            Search
+            {t(locale, "navSearch")}
           </Link>
           <Link
             href={`/${locale}/shortlist`}
@@ -78,7 +79,7 @@ export function Header({ locale }: { locale: Locale }) {
             onClick={() => setMobileOpen(false)}
           >
             <Heart size={16} aria-hidden="true" />
-            Shortlist
+            {t(locale, "navShortlist")}
           </Link>
           {(role === "owner" || role === "pg_operator") && (
             <Link
@@ -87,7 +88,7 @@ export function Header({ locale }: { locale: Locale }) {
               onClick={() => setMobileOpen(false)}
             >
               <Home size={16} aria-hidden="true" />
-              My Listings
+              {t(locale, "navMyListings")}
             </Link>
           )}
           {role === "admin" && (
@@ -97,7 +98,7 @@ export function Header({ locale }: { locale: Locale }) {
               onClick={() => setMobileOpen(false)}
             >
               <LayoutGrid size={16} aria-hidden="true" />
-              Admin
+              {t(locale, "navAdmin")}
             </Link>
           )}
           {!session && !isLoading && (
@@ -107,7 +108,7 @@ export function Header({ locale }: { locale: Locale }) {
               onClick={() => setMobileOpen(false)}
             >
               <Plus size={16} aria-hidden="true" />
-              Post Property
+              {t(locale, "navPostProperty")}
             </Link>
           )}
         </nav>
@@ -170,7 +171,7 @@ export function Header({ locale }: { locale: Locale }) {
             </div>
           ) : (
             <Link href="/auth/login" className="btn btn--primary btn--sm">
-              Login / Sign up
+              {t(locale, "navLoginSignup")}
             </Link>
           )}
 

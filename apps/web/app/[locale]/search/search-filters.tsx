@@ -272,7 +272,7 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
           <input
             type="number"
             className="search-filters__rent-input"
-            placeholder="Min ₹"
+            placeholder="Min ₹/mo"
             value={filters.min_rent ?? ""}
             onChange={(e) => setFilter("min_rent", e.target.value)}
             min={0}
@@ -282,7 +282,7 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
           <input
             type="number"
             className="search-filters__rent-input"
-            placeholder="Max ₹"
+            placeholder="Max ₹/mo"
             value={filters.max_rent ?? ""}
             onChange={(e) => setFilter("max_rent", e.target.value)}
             min={0}
