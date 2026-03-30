@@ -3,6 +3,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { ok } from "../../common/response";
 import { VoiceService, VoiceLocale } from "./voice.service";
 import { Request } from "express";
+import type {} from "multer"; // type-only: makes Express.Multer.File available, no runtime import
 
 @Controller("voice")
 export class VoiceController {
