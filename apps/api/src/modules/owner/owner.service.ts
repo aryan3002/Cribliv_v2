@@ -214,12 +214,10 @@ export class OwnerService {
             pincode,
             lat,
             lng,
-            masked_address,
-            geo_point
+            masked_address
           )
           VALUES (
-            $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9,
-            ${hasGeo ? "ST_SetSRID(ST_MakePoint($8::float8, $7::float8), 4326)::geography" : "NULL"}
+            $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9
           )
           `,
           [
@@ -234,6 +232,19 @@ export class OwnerService {
             body.location.masked_address ?? `${body.location.locality ?? city}`
           ]
         );
+
+        if (hasGeo) {
+          await client.query("SAVEPOINT before_geo_point");
+          try {
+            await client.query(
+              `UPDATE listing_locations SET geo_point = ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 4326)::geography WHERE listing_id = $3::uuid`,
+              [locLng, locLat, listingId]
+            );
+            await client.query("RELEASE SAVEPOINT before_geo_point");
+          } catch {
+            await client.query("ROLLBACK TO SAVEPOINT before_geo_point");
+          }
+        }
 
         if (body.listing_type === "pg" && body.pg_fields?.total_beds) {
           const totalBeds = Number(body.pg_fields.total_beds);
@@ -397,7 +408,6 @@ export class OwnerService {
               lat = COALESCE($7, lat),
               lng = COALESCE($8, lng),
               masked_address = COALESCE($9, masked_address),
-              geo_point = ${hasUpdateGeo ? "ST_SetSRID(ST_MakePoint($8::float8, $7::float8), 4326)::geography" : "COALESCE(geo_point, NULL)"},
               updated_at = now()
             WHERE listing_id = $1::uuid
             `,
@@ -413,6 +423,19 @@ export class OwnerService {
               body.location.masked_address ?? null
             ]
           );
+
+          if (hasUpdateGeo) {
+            await client.query("SAVEPOINT before_geo_point");
+            try {
+              await client.query(
+                `UPDATE listing_locations SET geo_point = ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 4326)::geography WHERE listing_id = $3::uuid`,
+                [updateLng, updateLat, listingId]
+              );
+              await client.query("RELEASE SAVEPOINT before_geo_point");
+            } catch {
+              await client.query("ROLLBACK TO SAVEPOINT before_geo_point");
+            }
+          }
         }
 
         await client.query("COMMIT");

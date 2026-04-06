@@ -14,8 +14,8 @@ import {
   Menu,
   X,
   LogOut,
-  User,
-  Settings
+  Settings,
+  ChevronDown
 } from "lucide-react";
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
@@ -138,40 +138,31 @@ export function Header({ locale }: { locale: Locale }) {
           {isLoading ? (
             <div className="skeleton skeleton--btn" style={{ width: 80 }} />
           ) : session ? (
-            <div className="flex items-center gap-3">
-              <Link
-                href={`/${locale}/settings`}
-                className="body-sm text-secondary hide-mobile"
-                style={{
-                  maxWidth: 160,
-                  textDecoration: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4
-                }}
-                title="Account Settings"
-              >
-                <User size={14} aria-hidden="true" />
-                {phone ? formatPhone(phone) : session.user?.name}
-                {role && (
-                  <span className="badge badge--brand" style={{ marginLeft: 4 }}>
-                    {role}
+            <div className="nav-user-area">
+              {/* User profile pill */}
+              <Link href={`/${locale}/settings`} className="nav-user-pill" title="Account Settings">
+                <span className="nav-user-pill__avatar">
+                  {phone
+                    ? phone.replace(/\D/g, "").slice(-2, -1)
+                    : session.user?.name?.charAt(0) || "U"}
+                </span>
+                <span className="nav-user-pill__info">
+                  <span className="nav-user-pill__phone">
+                    {phone ? formatPhone(phone) : session.user?.name}
                   </span>
-                )}
+                  {role && <span className="nav-user-pill__role">{role}</span>}
+                </span>
+                <ChevronDown size={12} className="nav-user-pill__chevron" aria-hidden="true" />
               </Link>
-              <Link
-                href={`/${locale}/settings`}
-                className="btn btn--secondary btn--sm"
-                title="Settings"
-              >
-                <Settings size={14} aria-hidden="true" />
-              </Link>
+
+              {/* Sign out */}
               <button
                 onClick={() => void signOut({ callbackUrl: `/${locale}` })}
-                className="btn btn--secondary btn--sm"
+                className="nav-signout-btn"
+                title="Sign out"
+                aria-label="Sign out"
               >
-                <LogOut size={14} aria-hidden="true" />
-                Sign out
+                <LogOut size={15} aria-hidden="true" />
               </button>
             </div>
           ) : (

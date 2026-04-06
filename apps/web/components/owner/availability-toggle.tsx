@@ -8,13 +8,15 @@ interface AvailabilityToggleProps {
   currentStatus: "active" | "paused";
   accessToken: string;
   onStatusChange?: (newStatus: "active" | "paused") => void;
+  showLabel?: boolean;
 }
 
 export function AvailabilityToggle({
   listingId,
   currentStatus,
   accessToken,
-  onStatusChange
+  onStatusChange,
+  showLabel = true
 }: AvailabilityToggleProps) {
   const id = useId();
   const [status, setStatus] = useState(currentStatus);
@@ -129,15 +131,17 @@ export function AvailabilityToggle({
           )}
         </span>
 
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: isActive ? "#166534" : "#6b7280"
-          }}
-        >
-          {isActive ? "Active" : "Paused"}
-        </span>
+        {showLabel && (
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: isActive ? "#166534" : "#6b7280"
+            }}
+          >
+            {isActive ? "Active" : "Paused"}
+          </span>
+        )}
       </label>
 
       {error && (

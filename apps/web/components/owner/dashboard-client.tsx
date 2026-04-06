@@ -29,6 +29,7 @@ import {
   Building,
   Clock,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   XCircle
 } from "lucide-react";
@@ -247,21 +248,6 @@ export function DashboardClient({ locale }: { locale: string }) {
         >
           <Plus size={15} /> {createListingLabel}
         </Link>
-        {accessToken && (
-          <Link
-            className="btn btn--secondary btn--sm"
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            href={`/${locale}/owner/leads` as any}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontWeight: 500
-            }}
-          >
-            <BarChart3 size={14} /> All Leads
-          </Link>
-        )}
         <Link
           className="btn btn--secondary btn--sm"
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -277,12 +263,7 @@ export function DashboardClient({ locale }: { locale: string }) {
         </Link>
       </div>
 
-      {/* ═══ LEAD STATS ═══ */}
-      {accessToken && (
-        <div style={{ marginBottom: "var(--space-5)" }}>
-          <LeadStatsWidget accessToken={accessToken} />
-        </div>
-      )}
+      {/* LeadStatsWidget moved into Leads tab panel */}
 
       {/* ═══ TABS: Listings / Leads ═══ */}
       <div
@@ -332,39 +313,74 @@ export function DashboardClient({ locale }: { locale: string }) {
       {/* ═══ LISTINGS PANEL ═══ */}
       {activeTab === "listings" && (
         <>
-          {/* Status filter chips */}
-          {listings.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                gap: "var(--space-2)",
-                marginBottom: "var(--space-4)",
-                flexWrap: "wrap",
-                paddingTop: "var(--space-2)"
-              }}
-            >
-              {STATUS_FILTERS.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setStatusFilter(filter.value)}
-                  style={{
-                    padding: "4px 12px",
-                    borderRadius: "var(--radius-full)",
-                    fontSize: 13,
-                    fontWeight: statusFilter === filter.value ? 600 : 400,
-                    background: statusFilter === filter.value ? "var(--brand)" : "var(--surface)",
-                    color: statusFilter === filter.value ? "white" : "var(--text-secondary)",
-                    border: `1px solid ${statusFilter === filter.value ? "var(--brand)" : "var(--border)"}`,
-                    cursor: "pointer",
-                    transition: "all 150ms ease"
-                  }}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Status summary + filter chips */}
+          {listings.length > 0 &&
+            (() => {
+              const statusCounts = listings.reduce<Record<string, number>>((acc, l) => {
+                acc[l.status] = (acc[l.status] ?? 0) + 1;
+                return acc;
+              }, {});
+              const summaryParts = [
+                statusCounts.active && `${statusCounts.active} active`,
+                statusCounts.pending_review && `${statusCounts.pending_review} pending`,
+                statusCounts.draft && `${statusCounts.draft} draft`,
+                statusCounts.paused && `${statusCounts.paused} paused`,
+                statusCounts.rejected && `${statusCounts.rejected} rejected`
+              ].filter(Boolean);
+              return (
+                <div style={{ paddingTop: "var(--space-2)", marginBottom: "var(--space-4)" }}>
+                  {summaryParts.length > 0 && (
+                    <p
+                      style={{
+                        margin: "0 0 var(--space-2)",
+                        fontSize: 13,
+                        color: "var(--text-tertiary)",
+                        fontWeight: 500
+                      }}
+                    >
+                      {summaryParts.join(" · ")}
+                    </p>
+                  )}
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "var(--space-2)",
+                      flexWrap: "wrap"
+                    }}
+                  >
+                    {STATUS_FILTERS.map((filter) => {
+                      const count =
+                        filter.value === "all"
+                          ? listings.length
+                          : (statusCounts[filter.value] ?? 0);
+                      return (
+                        <button
+                          key={filter.value}
+                          type="button"
+                          onClick={() => setStatusFilter(filter.value)}
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "var(--radius-full)",
+                            fontSize: 13,
+                            fontWeight: statusFilter === filter.value ? 600 : 400,
+                            background:
+                              statusFilter === filter.value ? "var(--brand)" : "var(--surface)",
+                            color:
+                              statusFilter === filter.value ? "white" : "var(--text-secondary)",
+                            border: `1px solid ${statusFilter === filter.value ? "var(--brand)" : "var(--border)"}`,
+                            cursor: "pointer",
+                            transition: "all 150ms ease"
+                          }}
+                        >
+                          {filter.label}
+                          {count > 0 ? ` (${count})` : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
           {boostNotice && (
             <div className="alert alert--success" style={{ marginBottom: "var(--space-4)" }}>
@@ -498,8 +514,9 @@ export function DashboardClient({ locale }: { locale: string }) {
                   {/* Accent bar */}
                   <div
                     style={{
-                      width: 3,
+                      width: 4,
                       flexShrink: 0,
+                      borderRadius: "var(--radius-lg) 0 0 var(--radius-lg)",
                       background: STATUS_ACCENT[listing.status] ?? "var(--border)"
                     }}
                   />
@@ -632,6 +649,9 @@ export function DashboardClient({ locale }: { locale: string }) {
                           {listing.verificationStatus === "verified" && <CheckCircle2 size={11} />}
                           {listing.verificationStatus === "pending" && <Clock size={11} />}
                           {listing.verificationStatus === "failed" && <XCircle size={11} />}
+                          {listing.verificationStatus !== "verified" &&
+                            listing.verificationStatus !== "pending" &&
+                            listing.verificationStatus !== "failed" && <AlertCircle size={11} />}
                           {VERIFICATION_LABEL[listing.verificationStatus]}
                         </span>
                       </div>
@@ -651,6 +671,7 @@ export function DashboardClient({ locale }: { locale: string }) {
                               listingId={listing.id}
                               currentStatus={listing.status as "active" | "paused"}
                               accessToken={accessToken}
+                              showLabel={false}
                               onStatusChange={(newStatus) =>
                                 setListings((prev) =>
                                   prev.map((l) =>
@@ -678,6 +699,22 @@ export function DashboardClient({ locale }: { locale: string }) {
                             {listing.status === "rejected" ? "Fix & Resubmit" : "Edit & Submit"}
                           </Link>
                         )}
+                        {/* Edit for pending_review */}
+                        {listing.status === "pending_review" && (
+                          <Link
+                            className="btn btn--secondary btn--sm"
+                            href={`/${locale}/owner/listings/new?edit=${listing.id}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              fontSize: 12,
+                              padding: "4px 10px"
+                            }}
+                          >
+                            <Pencil size={12} /> Edit
+                          </Link>
+                        )}
                         {(listing.status === "active" || listing.status === "paused") && (
                           <Link
                             className="btn btn--secondary btn--sm"
@@ -698,20 +735,14 @@ export function DashboardClient({ locale }: { locale: string }) {
                         {listing.status === "active" && (
                           <button
                             type="button"
+                            className="btn btn--boost btn--sm"
                             onClick={() => setBoostTarget(listing)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
                               gap: 4,
-                              padding: "4px 10px",
                               fontSize: 12,
-                              fontWeight: 700,
-                              background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "var(--radius-sm)",
-                              cursor: "pointer",
-                              transition: "opacity 150ms ease"
+                              padding: "4px 10px"
                             }}
                           >
                             <Zap size={12} /> Boost
@@ -730,6 +761,9 @@ export function DashboardClient({ locale }: { locale: string }) {
       {/* ═══ LEADS PANEL ═══ */}
       {activeTab === "leads" && accessToken && (
         <div style={{ marginTop: "var(--space-4)" }}>
+          <div style={{ marginBottom: "var(--space-5)" }}>
+            <LeadStatsWidget accessToken={accessToken} />
+          </div>
           <LeadsPipeline accessToken={accessToken} />
         </div>
       )}

@@ -489,18 +489,15 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
 
       {/* ── How It Works ── */}
       <AnimateOnScroll delay={100}>
-        <section className="section section--alt" style={{ padding: "var(--space-16) 0" }}>
-          <div
-            className="section-header"
-            style={{
-              justifyContent: "center",
-              maxWidth: "var(--container-max)",
-              margin: "0 auto var(--space-10)",
-              paddingLeft: "var(--space-6)",
-              paddingRight: "var(--space-6)"
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
+        <section
+          style={{
+            background: "var(--surface)",
+            padding: "var(--space-16) 0",
+            width: "100%"
+          }}
+        >
+          <div className="container">
+            <div style={{ textAlign: "center", marginBottom: "var(--space-10)" }}>
               <p
                 className="overline"
                 style={{ marginBottom: "var(--space-2)", color: "var(--brand)" }}
@@ -525,68 +522,64 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   : "Find your dream home in three simple steps — no brokers, no hassle"}
               </p>
             </div>
-          </div>
-          <div
-            className="grid grid-3"
-            style={{
-              maxWidth: "var(--container-max)",
-              margin: "0 auto",
-              paddingLeft: "var(--space-6)",
-              paddingRight: "var(--space-6)"
-            }}
-          >
-            {HOW_IT_WORKS.map((step, i) => {
-              const Icon = step.icon;
-              return (
-                <div
-                  key={i}
-                  className="feature-card"
-                  style={{
-                    position: "relative",
-                    padding: "var(--space-8) var(--space-6)",
-                    borderTop: `3px solid var(--${step.color})`
-                  }}
-                >
-                  <span
+            <div className="grid grid-3">
+              {HOW_IT_WORKS.map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <div
+                    key={i}
+                    className="feature-card"
                     style={{
-                      position: "absolute",
-                      top: -14,
-                      left: "50%",
-                      transform: "translateX(-50%)",
-                      width: 28,
-                      height: 28,
-                      borderRadius: "50%",
-                      background: `var(--${step.color})`,
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 13,
-                      fontWeight: 700,
-                      boxShadow: `0 2px 8px color-mix(in srgb, var(--${step.color}) 40%, transparent)`
+                      position: "relative",
+                      padding: "var(--space-8) var(--space-6)",
+                      borderTop: `3px solid var(--${step.color})`
                     }}
                   >
-                    {i + 1}
-                  </span>
-                  <div
-                    className={`icon-circle icon-circle--${step.color}`}
-                    style={{ margin: "var(--space-2) auto var(--space-4)", width: 56, height: 56 }}
-                    aria-hidden="true"
-                  >
-                    <Icon size={26} />
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: -14,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: `var(--${step.color})`,
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        boxShadow: `0 2px 8px color-mix(in srgb, var(--${step.color}) 40%, transparent)`
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <div
+                      className={`icon-circle icon-circle--${step.color}`}
+                      style={{
+                        margin: "var(--space-2) auto var(--space-4)",
+                        width: 56,
+                        height: 56
+                      }}
+                      aria-hidden="true"
+                    >
+                      <Icon size={26} />
+                    </div>
+                    <h3
+                      className="feature-card__title"
+                      style={{ fontSize: 17, marginBottom: "var(--space-2)" }}
+                    >
+                      {isHindi ? step.titleHi : step.title}
+                    </h3>
+                    <p className="feature-card__desc" style={{ lineHeight: 1.6 }}>
+                      {isHindi ? step.descHi : step.desc}
+                    </p>
                   </div>
-                  <h3
-                    className="feature-card__title"
-                    style={{ fontSize: 17, marginBottom: "var(--space-2)" }}
-                  >
-                    {isHindi ? step.titleHi : step.title}
-                  </h3>
-                  <p className="feature-card__desc" style={{ lineHeight: 1.6 }}>
-                    {isHindi ? step.descHi : step.desc}
-                  </p>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </section>
       </AnimateOnScroll>
@@ -678,44 +671,83 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
 
       {/* ── Social Proof Stats ── */}
       <AnimateOnScroll delay={100}>
-        <section
-          style={{
-            background: "linear-gradient(135deg, #080E1A 0%, #0B1E42 50%, #0044AA 100%)",
-            padding: "var(--space-14) 0"
-          }}
-        >
+        <section className="section--sm">
           <div
             style={{
-              maxWidth: "var(--container-max)",
-              margin: "0 auto",
-              paddingLeft: "var(--space-6)",
-              paddingRight: "var(--space-6)"
+              background: "linear-gradient(135deg, #0B1628 0%, #0F2847 40%, #0052CC 100%)",
+              borderRadius: "var(--radius-xl)",
+              padding: "var(--space-12) var(--space-8)",
+              position: "relative",
+              overflow: "hidden"
             }}
           >
-            <div style={{ textAlign: "center", marginBottom: "var(--space-8)" }}>
-              <h2
-                style={{ color: "#fff", fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}
+            {/* Subtle decorative glow */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: "-40%",
+                right: "-10%",
+                width: 400,
+                height: 400,
+                background: "radial-gradient(circle, rgba(0,102,255,0.2) 0%, transparent 70%)",
+                pointerEvents: "none"
+              }}
+            />
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                bottom: "-30%",
+                left: "-5%",
+                width: 300,
+                height: 300,
+                background: "radial-gradient(circle, rgba(0,102,255,0.15) 0%, transparent 70%)",
+                pointerEvents: "none"
+              }}
+            />
+
+            <div
+              style={{ textAlign: "center", marginBottom: "var(--space-8)", position: "relative" }}
+            >
+              <p
+                className="overline"
+                style={{ marginBottom: "var(--space-2)", color: "rgba(255,255,255,0.5)" }}
               >
-                {isHindi ? "हमारे आंकड़े" : "Trusted by Renters Across North India"}
+                {isHindi ? "हमारे आंकड़े" : "Our Impact"}
+              </p>
+              <h2
+                style={{
+                  color: "#fff",
+                  fontSize: 26,
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em"
+                }}
+              >
+                {isHindi
+                  ? "उत्तर भारत के किरायेदारों का भरोसा"
+                  : "Trusted by Renters Across North India"}
               </h2>
             </div>
-            <div className="grid grid-4">
+
+            <div className="grid grid-4" style={{ position: "relative" }}>
               {PLATFORM_STATS.map((stat, i) => (
                 <div
                   key={stat.label}
                   style={{
                     textAlign: "center",
-                    padding: "var(--space-6)",
+                    padding: "var(--space-6) var(--space-4)",
                     borderRadius: "var(--radius-lg)",
-                    background: "rgba(255,255,255,0.06)",
-                    backdropFilter: "blur(8px)",
-                    border: "1px solid rgba(255,255,255,0.08)"
+                    background: "rgba(255,255,255,0.07)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    transition: "all 0.25s ease"
                   }}
                 >
                   <div
                     style={{
                       fontFamily: "var(--font-heading)",
-                      fontSize: 36,
+                      fontSize: 38,
                       fontWeight: 800,
                       color: "#fff",
                       lineHeight: 1
@@ -735,9 +767,10 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   <div
                     style={{
                       marginTop: "var(--space-2)",
-                      fontSize: 14,
-                      color: "rgba(255,255,255,0.65)",
-                      fontWeight: 500
+                      fontSize: 13,
+                      color: "rgba(255,255,255,0.6)",
+                      fontWeight: 500,
+                      letterSpacing: "0.02em"
                     }}
                   >
                     {stat.label}
@@ -751,15 +784,14 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
 
       {/* ── Testimonials ── */}
       <AnimateOnScroll delay={100}>
-        <section className="section section--alt" style={{ padding: "var(--space-14) 0" }}>
-          <div
-            style={{
-              maxWidth: "var(--container-max)",
-              margin: "0 auto",
-              paddingLeft: "var(--space-6)",
-              paddingRight: "var(--space-6)"
-            }}
-          >
+        <section
+          style={{
+            background: "var(--surface)",
+            padding: "var(--space-16) 0",
+            width: "100%"
+          }}
+        >
+          <div className="container">
             <div style={{ textAlign: "center", marginBottom: "var(--space-10)" }}>
               <p
                 className="overline"
@@ -768,66 +800,177 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 {isHindi ? "किरायेदारों की राय" : "Loved by Tenants"}
               </p>
               <h2>{isHindi ? "वे क्या कहते हैं" : "What Renters Say"}</h2>
+              <p
+                className="text-secondary"
+                style={{
+                  marginTop: "var(--space-3)",
+                  fontSize: 15,
+                  maxWidth: 440,
+                  marginLeft: "auto",
+                  marginRight: "auto"
+                }}
+              >
+                {isHindi
+                  ? "हज़ारों किरायेदार Cribliv पर भरोसा करते हैं"
+                  : "Real stories from tenants who found their home through Cribliv"}
+              </p>
             </div>
             <div className="grid grid-3">
-              {TESTIMONIALS.map((testimonial, idx) => (
-                <div key={testimonial.name} className="feature-card" style={{ textAlign: "left" }}>
-                  <div style={{ display: "flex", gap: 2, marginBottom: "var(--space-3)" }}>
-                    {Array.from({ length: testimonial.rating }).map((_, i) => (
-                      <svg
-                        key={i}
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="var(--amber)"
-                        aria-hidden="true"
-                      >
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                      </svg>
-                    ))}
-                  </div>
-                  <p
-                    className="text-secondary"
-                    style={{ lineHeight: 1.65, marginBottom: "var(--space-4)", fontSize: 15 }}
+              {TESTIMONIALS.map((testimonial, idx) => {
+                const accentColors = ["var(--brand)", "var(--accent)", "var(--trust)"];
+                const bgTints = [
+                  "linear-gradient(135deg, rgba(0,102,255,0.03) 0%, transparent 100%)",
+                  "linear-gradient(135deg, rgba(255,90,95,0.03) 0%, transparent 100%)",
+                  "linear-gradient(135deg, rgba(13,159,79,0.03) 0%, transparent 100%)"
+                ];
+                return (
+                  <div
+                    key={testimonial.name}
+                    style={{
+                      background: bgTints[idx % 3],
+                      border: "1px solid var(--border)",
+                      borderLeft: `3px solid ${accentColors[idx % 3]}`,
+                      borderRadius: "var(--radius-lg)",
+                      padding: "var(--space-6)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      transition: "all 0.25s ease",
+                      position: "relative"
+                    }}
                   >
-                    &ldquo;{testimonial.text}&rdquo;
-                  </p>
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-                    <div className={`testimonial-avatar testimonial-avatar--${(idx % 3) + 1}`}>
-                      {testimonial.name.charAt(0)}
-                    </div>
+                    {/* Decorative quote */}
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: 16,
+                        right: 20,
+                        fontSize: 48,
+                        lineHeight: 1,
+                        fontFamily: "Georgia, serif",
+                        color: accentColors[idx % 3],
+                        opacity: 0.1,
+                        fontWeight: 700
+                      }}
+                    >
+                      &ldquo;
+                    </span>
+
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>
-                        {testimonial.name}
+                      {/* Stars */}
+                      <div style={{ display: "flex", gap: 3, marginBottom: "var(--space-4)" }}>
+                        {Array.from({ length: testimonial.rating }).map((_, i) => (
+                          <svg
+                            key={i}
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="var(--amber)"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                        ))}
                       </div>
-                      <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-                        {testimonial.city}
+
+                      {/* Quote text */}
+                      <p
+                        style={{
+                          lineHeight: 1.7,
+                          marginBottom: "var(--space-5)",
+                          fontSize: 15,
+                          color: "var(--text-secondary)",
+                          fontStyle: "italic"
+                        }}
+                      >
+                        &ldquo;{testimonial.text}&rdquo;
+                      </p>
+                    </div>
+
+                    {/* Author */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "var(--space-3)",
+                        paddingTop: "var(--space-4)",
+                        borderTop: "1px solid var(--border)"
+                      }}
+                    >
+                      <div className={`testimonial-avatar testimonial-avatar--${(idx % 3) + 1}`}>
+                        {testimonial.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            fontSize: 14,
+                            color: "var(--text-primary)"
+                          }}
+                        >
+                          {testimonial.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "var(--text-tertiary)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                        >
+                          <MapPin size={10} />
+                          {testimonial.city}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
       </AnimateOnScroll>
 
       {/* ── CTA Banner ── */}
-      <section
-        className="cta-banner"
-        style={{ marginLeft: "var(--space-6)", marginRight: "var(--space-6)" }}
-      >
-        <h2>{isHindi ? "अपनी प्रॉपर्टी लिस्ट करें" : "Own a property? List it free"}</h2>
-        <p>
-          {isHindi
-            ? "AI-सत्यापित लिस्टिंग बनाएं और भरोसेमंद किरायेदारों से जुड़ें।"
-            : "Create an AI-verified listing in under 5 minutes and connect with trusted tenants across North India."}
-        </p>
-        <Link href={`/${params.locale}/owner/dashboard`} className="btn btn--lg">
-          {isHindi ? "अभी लिस्ट करें" : "List Your Property"}
-          <ArrowRight size={18} />
-        </Link>
-      </section>
+      <div className="container" style={{ paddingBottom: "var(--space-16)" }}>
+        <section className="cta-banner" style={{ margin: 0 }}>
+          {/* Decorative dot grid */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage: "radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
+              pointerEvents: "none",
+              zIndex: 0
+            }}
+          />
+          <p
+            className="overline"
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              marginBottom: "var(--space-3)",
+              position: "relative",
+              zIndex: 1
+            }}
+          >
+            {isHindi ? "मालिकों के लिए" : "For Property Owners"}
+          </p>
+          <h2>{isHindi ? "अपनी प्रॉपर्टी लिस्ट करें" : "Own a property? List it free"}</h2>
+          <p>
+            {isHindi
+              ? "AI-सत्यापित लिस्टिंग बनाएं और भरोसेमंद किरायेदारों से जुड़ें।"
+              : "Create an AI-verified listing in under 5 minutes and connect with trusted tenants across North India."}
+          </p>
+          <Link href={`/${params.locale}/owner/dashboard`} className="btn btn--lg">
+            {isHindi ? "अभी लिस्ट करें" : "List Your Property"}
+            <ArrowRight size={18} />
+          </Link>
+        </section>
+      </div>
     </>
   );
 }

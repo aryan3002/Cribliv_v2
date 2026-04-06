@@ -783,11 +783,14 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
     const token = accessToken;
     if (token) {
-      // Always save when moving forward from step 1+.
-      // This handles the capture flow where the wizard can jump
-      // directly to step 2 before a listing has ever been created
-      // (listingId === null), so we can't gate on listingId.
-      if (step >= 1) {
+      // For NEW listings: the backend requires listing_type, title, rent, and
+      // location.city to CREATE a record. We can't call createOwnerListing until
+      // the user has filled the title (step 3). Steps 1-2 are sessionStorage-only.
+      //
+      // For EXISTING listings (editing/resuming with a listingId): we can PATCH
+      // at any step because UpdateListingDto has all fields optional.
+      const shouldSave = listingId ? step >= 1 : step >= 3;
+      if (shouldSave) {
         const savedId = await saveDraft();
         if (!savedId) return;
       }
