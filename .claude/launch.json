@@ -1,0 +1,32 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Web (Next.js)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@cribliv/web", "dev"],
+      "port": 3000,
+      "autoPort": false
+    },
+    {
+      "name": "API (NestJS)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@cribliv/api", "dev"],
+      "port": 4000,
+      "autoPort": false
+    },
+    {
+      "name": "Worker (background jobs)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@cribliv/api", "worker"],
+      "port": null
+    },
+    {
+      "name": "Full Stack (Turbo — all in parallel)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3000,
+      "autoPort": false
+    }
+  ]
+}

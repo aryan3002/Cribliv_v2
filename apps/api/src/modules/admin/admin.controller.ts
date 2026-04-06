@@ -21,6 +21,7 @@ import { logTelemetry } from "../../common/telemetry";
 import type { Role } from "../../common/types";
 import { NotificationService } from "../notifications/notification.service";
 import type { NotificationType } from "../notifications/notification.templates";
+import { AdminAnalyticsService } from "./admin-analytics.service";
 
 @Controller("admin")
 @UseGuards(AuthGuard, RolesGuard)
@@ -29,7 +30,8 @@ export class AdminController {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(NotificationService) private readonly notifications: NotificationService
+    @Inject(NotificationService) private readonly notifications: NotificationService,
+    @Inject(AdminAnalyticsService) private readonly analytics: AdminAnalyticsService
   ) {}
 
   @Get("review/listings")
@@ -789,6 +791,38 @@ export class AdminController {
       status: result.status,
       decided_at: result.decidedAt ? new Date(result.decidedAt).toISOString() : null
     });
+  }
+
+  // ── Analytics ────────────────────────────────────────────────────────────
+
+  @Get("analytics/overview")
+  async analyticsOverview() {
+    return ok(await this.analytics.getOverview());
+  }
+
+  @Get("analytics/listings")
+  async analyticsListings() {
+    return ok(await this.analytics.getListingsByArea());
+  }
+
+  @Get("analytics/leads")
+  async analyticsLeads(@Query("days") days?: string) {
+    return ok(await this.analytics.getDailyLeadCounts(Number(days) || 30));
+  }
+
+  @Get("analytics/response-rates")
+  async analyticsResponseRates() {
+    return ok(await this.analytics.getOwnerResponseRates());
+  }
+
+  @Get("analytics/revenue")
+  async analyticsRevenue(@Query("days") days?: string) {
+    return ok(await this.analytics.getFeaturedRevenue(Number(days) || 30));
+  }
+
+  @Get("analytics/funnel")
+  async analyticsFunnel(@Query("days") days?: string) {
+    return ok(await this.analytics.getConversionFunnel(Number(days) || 30));
   }
 
   // ---------------------------------------------------------------------------

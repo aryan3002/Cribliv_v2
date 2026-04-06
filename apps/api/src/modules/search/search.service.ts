@@ -411,6 +411,49 @@ export class SearchService {
         clauses.push(`l.verification_status = 'verified'`);
       }
 
+      // ── Geo-search: radius filter (Phase 0A) ──
+      if (query.lat && query.lng && query.radius_km) {
+        const lat = Number(query.lat);
+        const lng = Number(query.lng);
+        const radiusM = Number(query.radius_km) * 1000;
+        if (
+          Number.isFinite(lat) &&
+          Number.isFinite(lng) &&
+          Number.isFinite(radiusM) &&
+          radiusM > 0
+        ) {
+          params.push(lng, lat, radiusM);
+          clauses.push(
+            `ll.geo_point IS NOT NULL AND ST_DWithin(ll.geo_point, ST_SetSRID(ST_MakePoint($${params.length - 2}, $${params.length - 1}), 4326)::geography, $${params.length})`
+          );
+        }
+      }
+
+      // ── Extended filters (Phase 3B) ──
+      if (query.min_deposit) {
+        params.push(Number(query.min_deposit));
+        clauses.push(`l.security_deposit >= $${params.length}`);
+      }
+
+      if (query.max_deposit) {
+        params.push(Number(query.max_deposit));
+        clauses.push(`l.security_deposit <= $${params.length}`);
+      }
+
+      if (query.preferred_tenant) {
+        params.push(query.preferred_tenant);
+        clauses.push(`l.preferred_tenant = $${params.length}::tenant_pref`);
+      }
+
+      if (query.availability) {
+        if (query.availability === "immediate") {
+          clauses.push(`(l.available_from IS NULL OR l.available_from <= CURRENT_DATE)`);
+        } else {
+          params.push(query.availability);
+          clauses.push(`l.available_from >= $${params.length}::date`);
+        }
+      }
+
       const page = parsePage(query.page);
       const pageSize = 20;
       const offset = (page - 1) * pageSize;
@@ -429,8 +472,8 @@ export class SearchService {
               ? `CASE WHEN l.verification_status = 'verified' THEN 0 WHEN l.verification_status = 'pending' THEN 1 ELSE 2 END ASC, l.created_at DESC`
               : normalizedSort === "newest"
                 ? "l.created_at DESC"
-                : // relevance: use materialized score + text rank, sorted in SQL
-                  `(COALESCE(ls.composite_score, 0.35) + ${hasFts ? ftsRankExpr : "0"}) DESC, l.created_at DESC`;
+                : // relevance: featured first, then materialized score + text rank
+                  `COALESCE(ls.featured_score, 0) DESC, (COALESCE(ls.composite_score, 0.35) + ${hasFts ? ftsRankExpr : "0"}) DESC, l.created_at DESC`;
 
       const where = clauses.join(" AND ");
 
@@ -547,6 +590,170 @@ export class SearchService {
 
     // In-memory fallback when DB is not available
     return { items: [], total: 0, page: 1, page_size: 20 };
+  }
+
+  /**
+   * Map-based search: return listing pins within viewport bounds.
+   */
+  async searchListingsForMap(
+    bounds: {
+      sw_lat: number;
+      sw_lng: number;
+      ne_lat: number;
+      ne_lng: number;
+    },
+    limit = 200
+  ): Promise<
+    Array<{
+      id: string;
+      lat: number;
+      lng: number;
+      title: string;
+      monthly_rent: number;
+      listing_type: string;
+    }>
+  > {
+    if (!this.database.isEnabled()) return [];
+
+    const result = await this.database.query<{
+      id: string;
+      lat: number;
+      lng: number;
+      title: string;
+      monthly_rent: number;
+      listing_type: string;
+    }>(
+      `SELECT
+         l.id::text,
+         ST_Y(ll.geo_point::geometry) AS lat,
+         ST_X(ll.geo_point::geometry) AS lng,
+         COALESCE(NULLIF(l.title_en, ''), 'Listing') AS title,
+         l.monthly_rent,
+         l.listing_type::text
+       FROM listings l
+       JOIN listing_locations ll ON ll.listing_id = l.id
+       WHERE l.status = 'active'
+         AND ll.geo_point IS NOT NULL
+         AND ST_Intersects(
+           ll.geo_point,
+           ST_MakeEnvelope($1, $2, $3, $4, 4326)::geography
+         )
+       ORDER BY l.created_at DESC
+       LIMIT $5`,
+      [bounds.sw_lng, bounds.sw_lat, bounds.ne_lng, bounds.ne_lat, limit]
+    );
+
+    return result.rows;
+  }
+
+  /**
+   * Similar listings: same locality/city + similar rent (0.7x-1.3x).
+   */
+  async getSimilarListings(
+    listingId: string,
+    limit = 6
+  ): Promise<
+    Array<{
+      id: string;
+      title: string;
+      monthly_rent: number;
+      listing_type: string;
+      city: string;
+      locality: string | null;
+      cover_photo: string | null;
+    }>
+  > {
+    if (!this.database.isEnabled()) return [];
+
+    const result = await this.database.query<{
+      id: string;
+      title: string;
+      monthly_rent: number;
+      listing_type: string;
+      city: string;
+      locality: string | null;
+      cover_photo: string | null;
+    }>(
+      `WITH ref AS (
+         SELECT l.monthly_rent, ll.locality_id, ll.city_id, l.listing_type
+         FROM listings l
+         JOIN listing_locations ll ON ll.listing_id = l.id
+         WHERE l.id = $1::uuid
+         LIMIT 1
+       )
+       SELECT
+         l.id::text,
+         COALESCE(NULLIF(l.title_en, ''), 'Listing') AS title,
+         l.monthly_rent,
+         l.listing_type::text,
+         c.slug AS city,
+         loc.name_en AS locality,
+         (SELECT lp.blob_path FROM listing_photos lp WHERE lp.listing_id = l.id AND lp.is_cover = true LIMIT 1) AS cover_photo
+       FROM listings l
+       JOIN listing_locations ll ON ll.listing_id = l.id
+       JOIN cities c ON c.id = ll.city_id
+       LEFT JOIN localities loc ON loc.id = ll.locality_id
+       CROSS JOIN ref
+       WHERE l.status = 'active'
+         AND l.id != $1::uuid
+         AND ll.city_id = ref.city_id
+         AND l.monthly_rent BETWEEN ref.monthly_rent * 0.7 AND ref.monthly_rent * 1.3
+       ORDER BY
+         CASE WHEN ll.locality_id = ref.locality_id THEN 0 ELSE 1 END,
+         ABS(l.monthly_rent - ref.monthly_rent) ASC
+       LIMIT $2`,
+      [listingId, limit]
+    );
+
+    return result.rows;
+  }
+
+  /**
+   * Popular localities: localities with highest active listing count.
+   */
+  async getPopularLocalities(
+    citySlug?: string,
+    limit = 12
+  ): Promise<
+    Array<{
+      slug: string;
+      name: string;
+      city: string;
+      listing_count: number;
+    }>
+  > {
+    if (!this.database.isEnabled()) return [];
+
+    const params: unknown[] = [limit];
+    let cityClause = "";
+    if (citySlug) {
+      params.push(citySlug);
+      cityClause = `AND c.slug = $${params.length}`;
+    }
+
+    const result = await this.database.query<{
+      slug: string;
+      name: string;
+      city: string;
+      listing_count: number;
+    }>(
+      `SELECT
+         loc.slug,
+         loc.name_en AS name,
+         c.slug AS city,
+         count(*)::int AS listing_count
+       FROM listings l
+       JOIN listing_locations ll ON ll.listing_id = l.id
+       JOIN cities c ON c.id = ll.city_id
+       JOIN localities loc ON loc.id = ll.locality_id
+       WHERE l.status = 'active' ${cityClause}
+       GROUP BY loc.slug, loc.name_en, c.slug
+       ORDER BY listing_count DESC
+       LIMIT $1`,
+      params
+    );
+
+    return result.rows;
   }
 
   async searchFiltersMetadata() {
@@ -708,5 +915,79 @@ export class SearchService {
     }
 
     return results.slice(0, limit);
+  }
+
+  /**
+   * Pricing intelligence: P25/P50/P75 rent for comparable active listings.
+   * Gated by ff_pricing_intel_enabled.
+   */
+  async getPricingIntel(params: {
+    city?: string;
+    locality_id?: number;
+    bhk?: number;
+    listing_type?: "flat_house" | "pg";
+  }): Promise<{
+    p25: number | null;
+    p50: number | null;
+    p75: number | null;
+    sample_size: number;
+  }> {
+    const { readFeatureFlags } = await import("../../config/feature-flags");
+    const flags = readFeatureFlags();
+    if (!flags.ff_pricing_intel_enabled || !this.database.isEnabled()) {
+      return { p25: null, p50: null, p75: null, sample_size: 0 };
+    }
+
+    const citySlug = params.city ? this.normalizeCitySlug(params.city) : null;
+
+    const result = await this.database.query<{
+      p25: number | null;
+      p50: number | null;
+      p75: number | null;
+      sample_size: number;
+    }>(
+      `SELECT
+         percentile_cont(0.25) WITHIN GROUP (ORDER BY l.monthly_rent)::numeric(10,2) AS p25,
+         percentile_cont(0.50) WITHIN GROUP (ORDER BY l.monthly_rent)::numeric(10,2) AS p50,
+         percentile_cont(0.75) WITHIN GROUP (ORDER BY l.monthly_rent)::numeric(10,2) AS p75,
+         count(*)::int AS sample_size
+       FROM listings l
+       JOIN listing_locations ll ON ll.listing_id = l.id
+       LEFT JOIN cities c ON c.id = ll.city_id
+       WHERE l.status = 'active'
+         AND ($1::text  IS NULL OR c.slug         = $1)
+         AND ($2::int   IS NULL OR ll.locality_id = $2)
+         AND ($3::int   IS NULL OR l.bhk          = $3)
+         AND ($4::text  IS NULL OR l.listing_type = $4::listing_type)`,
+      [
+        citySlug ?? null,
+        params.locality_id ?? null,
+        params.bhk ?? null,
+        params.listing_type ?? null
+      ]
+    );
+
+    const row = result.rows[0];
+    return {
+      p25: row?.p25 ? Number(row.p25) : null,
+      p50: row?.p50 ? Number(row.p50) : null,
+      p75: row?.p75 ? Number(row.p75) : null,
+      sample_size: row?.sample_size ?? 0
+    };
+  }
+
+  private normalizeCitySlug(city: string): string {
+    const CITY_ALIASES_LOCAL: Record<string, string> = {
+      lucknow: "lucknow",
+      लखनऊ: "lucknow",
+      delhi: "delhi",
+      "new delhi": "delhi",
+      दिल्ली: "delhi",
+      gurugram: "gurugram",
+      gurgaon: "gurugram",
+      noida: "noida",
+      jaipur: "jaipur"
+    };
+    return CITY_ALIASES_LOCAL[city.toLowerCase().trim()] ?? city.toLowerCase().trim();
   }
 }

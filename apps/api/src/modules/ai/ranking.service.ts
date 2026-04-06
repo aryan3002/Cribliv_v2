@@ -7,12 +7,13 @@ import type { ScoredListing } from "./ai.types";
 // These weights match the existing hardcoded formula but are now configurable.
 
 const DEFAULT_WEIGHTS = {
-  verification: 0.3,
-  freshness: 0.2,
-  photo_quality: 0.2,
-  response_rate: 0.15,
-  completeness: 0.1,
-  engagement: 0.05
+  featured: 0.4,
+  verification: 0.18,
+  freshness: 0.12,
+  photo_quality: 0.12,
+  response_rate: 0.09,
+  completeness: 0.06,
+  engagement: 0.03
 } as const;
 
 @Injectable()
@@ -98,6 +99,8 @@ export class RankingService {
         unlock_count: number;
         response_count: number;
         save_count: number;
+        has_featured: boolean;
+        has_boost: boolean;
       }>(
         `SELECT
            l.id::text,
@@ -116,7 +119,10 @@ export class RankingService {
            -- Engagement signals
            COALESCE((SELECT count(*)::int FROM contact_unlocks cu WHERE cu.listing_id = l.id), 0) AS unlock_count,
            COALESCE((SELECT count(*)::int FROM contact_unlocks cu WHERE cu.listing_id = l.id AND cu.owner_response_status = 'responded'), 0) AS response_count,
-           COALESCE((SELECT count(*)::int FROM shortlist_items si WHERE si.listing_id = l.id), 0) AS save_count
+           COALESCE((SELECT count(*)::int FROM shortlist_items si WHERE si.listing_id = l.id), 0) AS save_count,
+           -- Featured/boost signals
+           EXISTS(SELECT 1 FROM listing_boosts lb WHERE lb.listing_id = l.id AND lb.is_active = true AND lb.expires_at > now() AND lb.boost_type = 'featured') AS has_featured,
+           EXISTS(SELECT 1 FROM listing_boosts lb WHERE lb.listing_id = l.id AND lb.is_active = true AND lb.expires_at > now() AND lb.boost_type = 'boost') AS has_boost
          FROM listings l
          WHERE l.status = 'active'
          ORDER BY l.created_at DESC
@@ -149,7 +155,11 @@ export class RankingService {
         const engagementRaw = Math.min((row.save_count + row.unlock_count) / 20, 1);
         const engagement = engagementRaw || 0.5; // Floor at 0.5 for new listings
 
+        // Featured/Boost signal: featured = 1.0, boost = 0.5, none = 0.0
+        const featuredScore = row.has_featured ? 1.0 : row.has_boost ? 0.5 : 0.0;
+
         const composite =
+          DEFAULT_WEIGHTS.featured * featuredScore +
           DEFAULT_WEIGHTS.verification * verification +
           DEFAULT_WEIGHTS.freshness * freshness +
           DEFAULT_WEIGHTS.photo_quality * photoScore +
@@ -160,8 +170,9 @@ export class RankingService {
         await this.database.query(
           `INSERT INTO listing_scores
              (listing_id, verification_score, freshness_score, photo_score,
-              response_rate_score, completeness_score, engagement_score, composite_score, computed_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+              response_rate_score, completeness_score, engagement_score,
+              featured_score, boost_score, composite_score, computed_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
            ON CONFLICT (listing_id) DO UPDATE SET
              verification_score = EXCLUDED.verification_score,
              freshness_score = EXCLUDED.freshness_score,
@@ -169,6 +180,8 @@ export class RankingService {
              response_rate_score = EXCLUDED.response_rate_score,
              completeness_score = EXCLUDED.completeness_score,
              engagement_score = EXCLUDED.engagement_score,
+             featured_score = EXCLUDED.featured_score,
+             boost_score = EXCLUDED.boost_score,
              composite_score = EXCLUDED.composite_score,
              computed_at = now()`,
           [
@@ -179,6 +192,8 @@ export class RankingService {
             Number(responseRate.toFixed(4)),
             Number(completeness.toFixed(4)),
             Number(engagement.toFixed(4)),
+            Number(featuredScore.toFixed(4)),
+            row.has_boost ? 1.0 : 0.0,
             Number(composite.toFixed(4))
           ]
         );

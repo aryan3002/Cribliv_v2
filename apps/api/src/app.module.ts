@@ -22,6 +22,12 @@ import { AiModule } from "./modules/ai/ai.module";
 import { VoiceModule } from "./modules/voice/voice.module";
 import { VoiceAgentModule } from "./modules/voice-agent/voice-agent.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { AnalyticsModule } from "./modules/analytics/analytics.module";
+import { LeadsModule } from "./modules/leads/leads.module";
+import { FraudModule } from "./modules/fraud/fraud.module";
+import { BoostModule } from "./modules/boost/boost.module";
+import { SubscriptionModule } from "./modules/subscriptions/subscription.module";
+import { AlertsModule } from "./modules/alerts/alerts.module";
 
 @Module({
   imports: [
@@ -47,7 +53,13 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
     AiModule,
     VoiceModule,
     VoiceAgentModule,
-    NotificationsModule
+    NotificationsModule,
+    AnalyticsModule,
+    LeadsModule,
+    FraudModule,
+    BoostModule,
+    SubscriptionModule,
+    AlertsModule
   ],
   providers: [
     // Apply ThrottlerGuard globally to all routes

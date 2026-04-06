@@ -11,6 +11,16 @@ import {
   parseWebhookEvent
 } from "./payments.util";
 
+// Boost plan durations — kept in sync with boost.service.ts BOOST_PLANS.
+// Inlined here to avoid cross-module coupling in the webhook handler.
+const BOOST_PLAN_DURATIONS: Record<string, { hours: number; type: "featured" | "boost" }> = {
+  featured_7d: { hours: 7 * 24, type: "featured" },
+  featured_15d: { hours: 15 * 24, type: "featured" },
+  featured_30d: { hours: 30 * 24, type: "featured" },
+  boost_48h: { hours: 48, type: "boost" },
+  boost_72h: { hours: 72, type: "boost" }
+};
+
 type WebhookRequest = {
   headers: Record<string, string | string[] | undefined>;
   rawBody?: Buffer;
@@ -282,9 +292,10 @@ export class PaymentsController {
         provider_order_id: string;
         status: "created" | "authorized" | "captured" | "failed" | "refunded";
         credits_to_grant: number;
+        metadata: Record<string, unknown>;
       }>(
         `
-        SELECT id::text, user_id::text, provider_order_id, status::text, credits_to_grant
+        SELECT id::text, user_id::text, provider_order_id, status::text, credits_to_grant, metadata
         FROM payment_orders
         WHERE provider = $1::payment_provider
           AND provider_order_id = $2
@@ -393,6 +404,65 @@ export class PaymentsController {
             `,
             [order.user_id, Number(order.credits_to_grant)]
           );
+        }
+
+        // ── Boost activation ──────────────────────────────────────────────────
+        // Boost payment orders have credits_to_grant = 0 and carry listing_id +
+        // plan_id in metadata. Activate the boost now that payment is confirmed.
+        const meta = order.metadata ?? {};
+        const boostListingId = meta.listing_id as string | undefined;
+        const boostPlanId = meta.plan_id as string | undefined;
+        const plan = boostPlanId ? BOOST_PLAN_DURATIONS[boostPlanId] : undefined;
+
+        if (boostListingId && plan) {
+          await client.query(
+            `
+            INSERT INTO listing_boosts
+              (listing_id, owner_user_id, boost_type, payment_order_id, starts_at, expires_at)
+            SELECT
+              l.id, l.owner_user_id, $2::boost_type, $3::uuid,
+              now(), now() + make_interval(hours => $4)
+            FROM listings l
+            WHERE l.id = $1::uuid
+            ON CONFLICT DO NOTHING
+            `,
+            [boostListingId, plan.type, order.id, plan.hours]
+          );
+          logTelemetry("payments.boost_activated", {
+            mode: "db",
+            order_id: order.id,
+            listing_id: boostListingId,
+            plan_id: boostPlanId,
+            boost_type: plan.type,
+            duration_hours: plan.hours
+          });
+        }
+
+        // ── Subscription activation ───────────────────────────────────────────
+        // Subscription orders carry subscription_plan_id in metadata.
+        const subscriptionPlanId = meta.subscription_plan_id as string | undefined;
+        if (subscriptionPlanId) {
+          await client.query(
+            `
+            INSERT INTO owner_subscriptions
+              (owner_user_id, plan_id, status, starts_at, expires_at, payment_order_id)
+            SELECT
+              $1::uuid, sp.plan_id, 'active',
+              now(), now() + make_interval(days => sp.duration_days),
+              $2::uuid
+            FROM subscription_plans sp
+            WHERE sp.plan_id = $3
+              AND sp.is_active = true
+            ON CONFLICT DO NOTHING
+            `,
+            [order.user_id, order.id, subscriptionPlanId]
+          );
+          logTelemetry("payments.subscription_activated", {
+            mode: "db",
+            order_id: order.id,
+            owner_user_id: order.user_id,
+            plan_id: subscriptionPlanId
+          });
         }
 
         await client.query(

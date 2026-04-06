@@ -199,6 +199,10 @@ export class OwnerService {
         );
 
         const listingId = listingResult.rows[0].id;
+        const locLat = body.location.lat ?? null;
+        const locLng = body.location.lng ?? null;
+        const hasGeo = locLat != null && locLng != null;
+
         await client.query(
           `
           INSERT INTO listing_locations(
@@ -210,9 +214,13 @@ export class OwnerService {
             pincode,
             lat,
             lng,
-            masked_address
+            masked_address,
+            geo_point
           )
-          VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+          VALUES (
+            $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9,
+            ${hasGeo ? "ST_SetSRID(ST_MakePoint($8::float8, $7::float8), 4326)::geography" : "NULL"}
+          )
           `,
           [
             listingId,
@@ -221,8 +229,8 @@ export class OwnerService {
             body.location.address_line1 ?? `${city} property`,
             body.location.landmark ?? null,
             body.location.pincode ?? null,
-            body.location.lat ?? null,
-            body.location.lng ?? null,
+            locLat,
+            locLng,
             body.location.masked_address ?? `${body.location.locality ?? city}`
           ]
         );
@@ -373,6 +381,10 @@ export class OwnerService {
             localityId = locality.rows[0]?.id ?? null;
           }
 
+          const updateLat = body.location.lat ?? null;
+          const updateLng = body.location.lng ?? null;
+          const hasUpdateGeo = updateLat != null && updateLng != null;
+
           await client.query(
             `
             UPDATE listing_locations
@@ -385,6 +397,7 @@ export class OwnerService {
               lat = COALESCE($7, lat),
               lng = COALESCE($8, lng),
               masked_address = COALESCE($9, masked_address),
+              geo_point = ${hasUpdateGeo ? "ST_SetSRID(ST_MakePoint($8::float8, $7::float8), 4326)::geography" : "COALESCE(geo_point, NULL)"},
               updated_at = now()
             WHERE listing_id = $1::uuid
             `,
@@ -395,8 +408,8 @@ export class OwnerService {
               body.location.address_line1 ?? null,
               body.location.landmark ?? null,
               body.location.pincode ?? null,
-              body.location.lat ?? null,
-              body.location.lng ?? null,
+              updateLat,
+              updateLng,
               body.location.masked_address ?? null
             ]
           );
@@ -530,6 +543,43 @@ export class OwnerService {
       },
       mode: "immediate"
     });
+  }
+
+  async toggleAvailability(
+    ownerUserId: string,
+    listingId: string,
+    available: boolean
+  ): Promise<{ listing_id: string; status: string }> {
+    if (this.database.isEnabled()) {
+      const newStatus = available ? "active" : "paused";
+      const result = await this.database.query<{ id: string; status: string }>(
+        `UPDATE listings
+         SET status = $3::listing_status,
+             last_owner_activity_at = now(),
+             updated_at = now()
+         WHERE id = $1::uuid
+           AND owner_user_id = $2::uuid
+           AND status IN ('active', 'paused')
+         RETURNING id::text, status::text`,
+        [listingId, ownerUserId, newStatus]
+      );
+
+      if (!result.rowCount) {
+        throw new NotFoundException({
+          code: "not_found",
+          message: "Listing not found or not eligible"
+        });
+      }
+
+      return { listing_id: result.rows[0].id, status: result.rows[0].status };
+    }
+
+    const listing = this.appState.listings.get(listingId);
+    if (!listing || listing.ownerUserId !== ownerUserId) {
+      throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+    }
+    listing.status = available ? "active" : "paused";
+    return { listing_id: listing.id, status: listing.status };
   }
 
   async presignPhotos(

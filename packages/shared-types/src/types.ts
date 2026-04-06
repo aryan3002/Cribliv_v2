@@ -67,6 +67,60 @@ export interface SalesLead {
   created_at: string;
 }
 
+// ── Geo Search ──────────────────────────────────────────────────────────────
+
+export interface GeoSearchParams {
+  lat?: number;
+  lng?: number;
+  radius_km?: number;
+}
+
+// ── Listing Events / Analytics ──────────────────────────────────────────────
+
+export type ListingEventType =
+  | "view"
+  | "enquiry"
+  | "shortlist"
+  | "share"
+  | "call_click"
+  | "search_impression";
+
+// ── Lead Management ─────────────────────────────────────────────────────────
+
+export type LeadStatus = "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost";
+
+export interface Lead {
+  id: string;
+  listing_id: string;
+  owner_user_id: string;
+  tenant_user_id: string;
+  contact_unlock_id?: string | null;
+  status: LeadStatus;
+  tenant_phone_masked?: string | null;
+  owner_notes?: string | null;
+  status_changed_at: string;
+  created_at: string;
+}
+
+// ── Fraud Detection ─────────────────────────────────────────────────────────
+
+export type FraudFlagType = "duplicate_listing" | "tenant_report" | "stale" | "broker_detected";
+
+export type FraudSeverity = "low" | "medium" | "high" | "critical";
+
+// ── Featured / Boost ────────────────────────────────────────────────────────
+
+export type BoostType = "featured" | "boost";
+
+export interface ListingBoost {
+  id: string;
+  listing_id: string;
+  boost_type: BoostType;
+  starts_at: string;
+  expires_at: string;
+  is_active: boolean;
+}
+
 export interface ApiError {
   error: {
     code: string;

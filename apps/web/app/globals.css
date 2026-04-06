@@ -879,12 +879,12 @@ h4, .h4 {
   display: flex; align-items: center; justify-content: center;
   gap: var(--space-8); padding: var(--space-4) var(--space-6);
   background: var(--surface-sunken); border: none;
-  border-radius: var(--radius-full); font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.95);
+  border-radius: var(--radius-full); font-size: 14px; font-weight: 600; color: var(--text-secondary);
 }
 .trust-strip__item {
   display: flex; align-items: center; gap: var(--space-2); white-space: nowrap;
 }
-.trust-strip__item svg { color: rgba(255,255,255,0.85); }
+.trust-strip__item svg { color: inherit; }
 
 @media (max-width: 640px) {
   .trust-strip { flex-direction: column; gap: var(--space-3); text-align: center; border-radius: var(--radius-lg); }

@@ -24,6 +24,25 @@ export interface FeatureFlags {
   ff_voice_search: boolean;
   /** Phase D – Conversational Hindi Voice Agent */
   ff_voice_agent_enabled: boolean;
+  /** Phase E – Geo, Analytics, Leads, Fraud, Boost, Map, Admin */
+  ff_geo_search_enabled: boolean;
+  ff_listing_analytics_enabled: boolean;
+  ff_lead_management_enabled: boolean;
+  ff_fraud_detection_enabled: boolean;
+  ff_availability_toggle_enabled: boolean;
+  ff_featured_listings_enabled: boolean;
+  ff_map_browsing_enabled: boolean;
+  ff_extended_search_filters_enabled: boolean;
+  ff_similar_listings_enabled: boolean;
+  ff_popular_localities_enabled: boolean;
+  ff_admin_analytics_enabled: boolean;
+  ff_partial_phone_reveal_enabled: boolean;
+  /** Phase F – Monetisation / Alerts / Verification */
+  ff_subscription_plans_enabled: boolean;
+  ff_pricing_intel_enabled: boolean;
+  ff_saved_search_alerts_enabled: boolean;
+  ff_bill_ocr_enabled: boolean;
+  ff_aadhaar_ekyc_enabled: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -51,7 +70,26 @@ export const defaultFeatureFlags: FeatureFlags = {
   /** Phase C – Voice (default OFF) */
   ff_voice_search: false,
   /** Phase D – Conversational Hindi Voice Agent (default OFF) */
-  ff_voice_agent_enabled: false
+  ff_voice_agent_enabled: false,
+  /** Phase E – Platform features (default OFF) */
+  ff_geo_search_enabled: false,
+  ff_listing_analytics_enabled: false,
+  ff_lead_management_enabled: false,
+  ff_fraud_detection_enabled: false,
+  ff_availability_toggle_enabled: false,
+  ff_featured_listings_enabled: false,
+  ff_map_browsing_enabled: false,
+  ff_extended_search_filters_enabled: false,
+  ff_similar_listings_enabled: false,
+  ff_popular_localities_enabled: false,
+  ff_admin_analytics_enabled: false,
+  ff_partial_phone_reveal_enabled: false,
+  /** Phase F – Monetisation / Alerts / Verification (default OFF) */
+  ff_subscription_plans_enabled: false,
+  ff_pricing_intel_enabled: false,
+  ff_saved_search_alerts_enabled: false,
+  ff_bill_ocr_enabled: false,
+  ff_aadhaar_ekyc_enabled: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -148,6 +186,74 @@ export function readFeatureFlags(): FeatureFlags {
     ff_voice_agent_enabled: parseBooleanEnv(
       "FF_VOICE_AGENT_ENABLED",
       defaultFeatureFlags.ff_voice_agent_enabled
+    ),
+    ff_geo_search_enabled: parseBooleanEnv(
+      "FF_GEO_SEARCH_ENABLED",
+      defaultFeatureFlags.ff_geo_search_enabled
+    ),
+    ff_listing_analytics_enabled: parseBooleanEnv(
+      "FF_LISTING_ANALYTICS_ENABLED",
+      defaultFeatureFlags.ff_listing_analytics_enabled
+    ),
+    ff_lead_management_enabled: parseBooleanEnv(
+      "FF_LEAD_MANAGEMENT_ENABLED",
+      defaultFeatureFlags.ff_lead_management_enabled
+    ),
+    ff_fraud_detection_enabled: parseBooleanEnv(
+      "FF_FRAUD_DETECTION_ENABLED",
+      defaultFeatureFlags.ff_fraud_detection_enabled
+    ),
+    ff_availability_toggle_enabled: parseBooleanEnv(
+      "FF_AVAILABILITY_TOGGLE_ENABLED",
+      defaultFeatureFlags.ff_availability_toggle_enabled
+    ),
+    ff_featured_listings_enabled: parseBooleanEnv(
+      "FF_FEATURED_LISTINGS_ENABLED",
+      defaultFeatureFlags.ff_featured_listings_enabled
+    ),
+    ff_map_browsing_enabled: parseBooleanEnv(
+      "FF_MAP_BROWSING_ENABLED",
+      defaultFeatureFlags.ff_map_browsing_enabled
+    ),
+    ff_extended_search_filters_enabled: parseBooleanEnv(
+      "FF_EXTENDED_SEARCH_FILTERS_ENABLED",
+      defaultFeatureFlags.ff_extended_search_filters_enabled
+    ),
+    ff_similar_listings_enabled: parseBooleanEnv(
+      "FF_SIMILAR_LISTINGS_ENABLED",
+      defaultFeatureFlags.ff_similar_listings_enabled
+    ),
+    ff_popular_localities_enabled: parseBooleanEnv(
+      "FF_POPULAR_LOCALITIES_ENABLED",
+      defaultFeatureFlags.ff_popular_localities_enabled
+    ),
+    ff_admin_analytics_enabled: parseBooleanEnv(
+      "FF_ADMIN_ANALYTICS_ENABLED",
+      defaultFeatureFlags.ff_admin_analytics_enabled
+    ),
+    ff_partial_phone_reveal_enabled: parseBooleanEnv(
+      "FF_PARTIAL_PHONE_REVEAL_ENABLED",
+      defaultFeatureFlags.ff_partial_phone_reveal_enabled
+    ),
+    ff_subscription_plans_enabled: parseBooleanEnv(
+      "FF_SUBSCRIPTION_PLANS_ENABLED",
+      defaultFeatureFlags.ff_subscription_plans_enabled
+    ),
+    ff_pricing_intel_enabled: parseBooleanEnv(
+      "FF_PRICING_INTEL_ENABLED",
+      defaultFeatureFlags.ff_pricing_intel_enabled
+    ),
+    ff_saved_search_alerts_enabled: parseBooleanEnv(
+      "FF_SAVED_SEARCH_ALERTS_ENABLED",
+      defaultFeatureFlags.ff_saved_search_alerts_enabled
+    ),
+    ff_bill_ocr_enabled: parseBooleanEnv(
+      "FF_BILL_OCR_ENABLED",
+      defaultFeatureFlags.ff_bill_ocr_enabled
+    ),
+    ff_aadhaar_ekyc_enabled: parseBooleanEnv(
+      "FF_AADHAAR_EKYC_ENABLED",
+      defaultFeatureFlags.ff_aadhaar_ekyc_enabled
     )
   };
 }

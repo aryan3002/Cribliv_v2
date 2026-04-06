@@ -77,7 +77,7 @@ function createClientKey() {
 
 export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
   // NextAuth session — used as auth source when localStorage token is absent
-  const { data: nextAuthSession } = useSession();
+  const { data: nextAuthSession, status: sessionStatus } = useSession();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [phone, setPhone] = useState("+91");
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -114,7 +114,9 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
       setWalletSnapshot(null);
       return;
     }
-    void refreshWalletSnapshot(accessToken);
+    // .catch(() => {}) prevents this from surfacing as an unhandled rejection
+    // in React dev mode when the wallet endpoint returns a non-ok response.
+    void refreshWalletSnapshot(accessToken).catch(() => {});
   }, [accessToken]);
 
   const refundTimeLabel = useMemo(() => {
@@ -224,9 +226,24 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
         setUnlockErrorCode(err.code ?? null);
       }
       if (message.toLowerCase().includes("unauthorized")) {
+        // Clear any stale localStorage token — it's no longer valid.
         clearAuthSession();
-        setAccessToken(null);
-        setAuthStep("otp_send");
+
+        // Only fall back to the OTP form if there is genuinely no active session.
+        // If NextAuth still has a valid session (user logged in via the navbar),
+        // keep that token and just surface the error — the user can refresh the
+        // page to get a fresh API JWT without re-entering their phone number.
+        const freshNextAuthToken =
+          (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
+
+        if (freshNextAuthToken) {
+          // Session is still active — restore the NextAuth token and stay put.
+          setAccessToken(freshNextAuthToken);
+        } else {
+          // Genuinely logged out — ask for OTP.
+          setAccessToken(null);
+          setAuthStep("otp_send");
+        }
       }
     } finally {
       setLoading(false);
@@ -234,6 +251,10 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
   }
 
   async function onUnlockClick() {
+    // If the NextAuth session is still initialising, wait — don't prematurely
+    // show the OTP form just because the token hasn't arrived yet.
+    if (sessionStatus === "loading") return;
+
     if (!accessToken) {
       setAuthStep("otp_send");
       return;
@@ -380,209 +401,250 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
     purchaseState === "creating_intent" || purchaseState === "checking_status";
 
   return (
-    <div className="card unlock-panel">
-      <div className="card__body">
-        <p>Unlock contact for 1 credit. Auto-refund if no response in 12 hours.</p>
+    <div>
+      <p
+        className="body-sm"
+        style={{ color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}
+      >
+        Unlock contact for 1 credit. Auto-refund if no response in 12 hours.
+      </p>
+
+      {accessToken ? (
         <div
           style={{
             display: "flex",
-            gap: "var(--space-3)",
-            flexWrap: "wrap",
-            marginTop: "var(--space-3)"
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--surface-sunken)",
+            borderRadius: "var(--radius-md)",
+            padding: "var(--space-2) var(--space-3)",
+            marginBottom: "var(--space-4)"
           }}
         >
-          <button className="btn btn--primary" onClick={onUnlockClick} disabled={loading}>
-            {loading ? "Processing..." : "Unlock Number"}
-          </button>
-          <button className="btn btn--secondary" onClick={toggleShortlist} disabled={loading}>
-            {shortlisted ? "Remove from Shortlist" : "Save to Shortlist"}
+          <span className="caption" style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
+            Wallet balance
+          </span>
+          <span className="caption" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+            {walletSnapshot?.balance_credits ?? "—"} credit
+            {walletSnapshot?.balance_credits !== 1 ? "s" : ""}
+          </span>
+        </div>
+      ) : null}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+        <button
+          className="btn btn--primary"
+          onClick={onUnlockClick}
+          disabled={loading || sessionStatus === "loading"}
+          style={{ width: "100%" }}
+        >
+          {loading ? "Processing..." : sessionStatus === "loading" ? "Loading..." : "Unlock Number"}
+        </button>
+        <button
+          className="btn btn--secondary"
+          onClick={toggleShortlist}
+          disabled={loading}
+          style={{ width: "100%" }}
+        >
+          {shortlisted ? "Remove from Shortlist" : "Save to Shortlist"}
+        </button>
+      </div>
+
+      {!accessToken ? (
+        <p
+          className="caption"
+          style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
+        >
+          Guest browsing is open. OTP is required only for unlock.
+        </p>
+      ) : null}
+
+      {authStep === "otp_send" ? (
+        <div style={{ marginTop: "var(--space-4)" }}>
+          <label className="form-label" htmlFor="unlock-phone">
+            Phone number
+          </label>
+          <input
+            id="unlock-phone"
+            className="input"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <button
+            className="btn btn--primary"
+            onClick={requestOtp}
+            disabled={loading}
+            style={{ marginTop: "var(--space-2)", width: "100%" }}
+          >
+            Send OTP
           </button>
         </div>
+      ) : null}
 
-        {!accessToken ? (
-          <p
-            className="caption"
-            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
+      {authStep === "otp_verify" ? (
+        <div style={{ marginTop: "var(--space-4)" }}>
+          <label className="form-label" htmlFor="unlock-otp">
+            Enter OTP
+          </label>
+          <input
+            id="unlock-otp"
+            className="input"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+          />
+          <button
+            className="btn btn--primary"
+            onClick={verifyOtpAndUnlock}
+            disabled={loading}
+            style={{ marginTop: "var(--space-2)", width: "100%" }}
           >
-            Guest browsing is open. OTP is required only for unlock.
+            Verify & Unlock
+          </button>
+        </div>
+      ) : null}
+
+      {unlock ? (
+        <div className="alert alert--success" style={{ marginTop: "var(--space-4)" }}>
+          <p>
+            Owner Contact: <strong>{unlock.owner_contact.phone_e164}</strong>
           </p>
-        ) : null}
+          <p>Credits remaining: {unlock.credits_remaining}</p>
+          <p>Refund auto-check at: {refundTimeLabel}</p>
+        </div>
+      ) : null}
 
-        {authStep === "otp_send" ? (
-          <div style={{ marginTop: "var(--space-4)" }}>
-            <label className="form-label" htmlFor="unlock-phone">
-              Phone number
-            </label>
-            <input
-              id="unlock-phone"
-              className="input"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-            <button
-              className="btn btn--primary"
-              onClick={requestOtp}
-              disabled={loading}
-              style={{ marginTop: "var(--space-2)" }}
-            >
-              Send OTP
-            </button>
-          </div>
-        ) : null}
-
-        {authStep === "otp_verify" ? (
-          <div style={{ marginTop: "var(--space-4)" }}>
-            <label className="form-label" htmlFor="unlock-otp">
-              Enter OTP
-            </label>
-            <input
-              id="unlock-otp"
-              className="input"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-            />
-            <button
-              className="btn btn--primary"
-              onClick={verifyOtpAndUnlock}
-              disabled={loading}
-              style={{ marginTop: "var(--space-2)" }}
-            >
-              Verify & Unlock
-            </button>
-          </div>
-        ) : null}
-
-        {unlock ? (
-          <div className="alert alert--success" style={{ marginTop: "var(--space-4)" }}>
-            <p>
-              Owner Contact: <strong>{unlock.owner_contact.phone_e164}</strong>
-            </p>
-            <p>Credits remaining: {unlock.credits_remaining}</p>
-            <p>Refund auto-check at: {refundTimeLabel}</p>
-          </div>
-        ) : null}
-
-        {accessToken ? (
-          <p
-            className="caption"
-            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
-          >
-            Wallet credits: {walletSnapshot?.balance_credits ?? "—"}
+      {canShowBuyCredits ? (
+        <div
+          className="alert alert--warning"
+          data-testid="buy-credits-panel"
+          style={{ marginTop: "var(--space-4)" }}
+        >
+          <p style={{ fontWeight: 600, marginBottom: "var(--space-1)" }}>Not enough credits</p>
+          <p className="caption" style={{ color: "var(--text-secondary)" }}>
+            Buy credits to unlock this listing.
           </p>
-        ) : null}
-
-        {canShowBuyCredits ? (
           <div
-            className="alert alert--warning"
-            data-testid="buy-credits-panel"
-            style={{ marginTop: "var(--space-4)" }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "var(--space-2)",
+              marginTop: "var(--space-3)"
+            }}
           >
-            <p>
-              You don&apos;t have enough credits to unlock this listing. Buy credits to continue.
-            </p>
-            <div
-              style={{
-                display: "flex",
-                gap: "var(--space-3)",
-                flexWrap: "wrap",
-                marginTop: "var(--space-3)"
-              }}
-            >
-              <button
-                className="btn btn--primary"
-                onClick={startBuyCredits}
-                disabled={purchaseInProgress}
-              >
-                {purchaseState === "creating_intent" ? "Creating Purchase..." : "Buy Credits"}
-              </button>
-              <button
-                className="btn btn--secondary"
-                onClick={refreshPurchaseStatus}
-                disabled={purchaseInProgress || purchaseState === "idle"}
-              >
-                {purchaseState === "checking_status"
-                  ? "Refreshing..."
-                  : "I completed payment - Refresh balance"}
-              </button>
-            </div>
-            {purchaseIntent ? (
-              <div
-                className="caption"
-                style={{ marginTop: "var(--space-3)", color: "var(--text-tertiary)" }}
-              >
-                <p>
-                  Order: <strong>{purchaseIntent.order_id}</strong>
-                </p>
-                <p>
-                  Amount: <strong>₹{(purchaseIntent.amount_paise / 100).toFixed(2)}</strong> for{" "}
-                  <strong>{purchaseIntent.credits_to_grant}</strong> credits
-                </p>
-                {purchaseIntent.provider_payload?.deep_link ? (
-                  <a
-                    href={purchaseIntent.provider_payload.deep_link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn btn--secondary btn--sm"
-                    style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}
-                  >
-                    Open UPI App
-                  </a>
-                ) : null}
-              </div>
-            ) : null}
-            {purchaseState === "pending_payment" ? (
-              <p
-                className="caption"
-                style={{ color: "var(--text-tertiary)", marginTop: "var(--space-2)" }}
-              >
-                Waiting for payment confirmation. Use refresh after completing payment.
-              </p>
-            ) : null}
-            {purchaseState === "success" ? (
-              <div className="alert alert--success" style={{ marginTop: "var(--space-3)" }}>
-                <p>
-                  Credits updated. New balance:{" "}
-                  <strong>{walletSnapshot?.balance_credits ?? 0}</strong>
-                </p>
-                {recentWalletTxns.length > 0 ? (
-                  <div>
-                    <p className="caption" style={{ color: "var(--text-tertiary)" }}>
-                      Recent wallet activity:
-                    </p>
-                    <ul>
-                      {recentWalletTxns.map((txn) => (
-                        <li key={txn.id}>
-                          {txn.txn_type}: {txn.credits_delta > 0 ? "+" : ""}
-                          {txn.credits_delta}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {purchaseError ? <p className="alert alert--error">{purchaseError}</p> : null}
-          </div>
-        ) : null}
-
-        {accessToken && walletSnapshot ? (
-          <p
-            className="caption"
-            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
-          >
-            Wallet transactions: {walletSnapshot.total_transactions}{" "}
             <button
-              className="btn btn--ghost btn--sm"
-              onClick={() => refreshWalletSnapshot(accessToken)}
-              disabled={walletRefreshing}
+              className="btn btn--primary"
+              onClick={startBuyCredits}
+              disabled={purchaseInProgress}
+              style={{ width: "100%" }}
             >
-              {walletRefreshing ? "Refreshing..." : "Refresh Wallet"}
+              {purchaseState === "creating_intent" ? "Creating Purchase..." : "Buy Credits"}
             </button>
-          </p>
-        ) : null}
+            <button
+              className="btn btn--secondary"
+              onClick={refreshPurchaseStatus}
+              disabled={purchaseInProgress || purchaseState === "idle"}
+              style={{ width: "100%" }}
+            >
+              {purchaseState === "checking_status" ? "Refreshing..." : "Refresh Balance"}
+            </button>
+          </div>
+          {purchaseIntent ? (
+            <div
+              className="caption"
+              style={{ marginTop: "var(--space-3)", color: "var(--text-tertiary)" }}
+            >
+              <p>
+                Order: <strong>{purchaseIntent.order_id}</strong>
+              </p>
+              <p>
+                Amount: <strong>₹{(purchaseIntent.amount_paise / 100).toFixed(2)}</strong> for{" "}
+                <strong>{purchaseIntent.credits_to_grant}</strong> credits
+              </p>
+              {purchaseIntent.provider_payload?.deep_link ? (
+                <a
+                  href={purchaseIntent.provider_payload.deep_link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn--secondary btn--sm"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    textDecoration: "none",
+                    marginTop: "var(--space-2)"
+                  }}
+                >
+                  Open UPI App
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          {purchaseState === "pending_payment" ? (
+            <p
+              className="caption"
+              style={{ color: "var(--text-tertiary)", marginTop: "var(--space-2)" }}
+            >
+              Waiting for payment confirmation. Tap Refresh Balance after paying.
+            </p>
+          ) : null}
+          {purchaseState === "success" ? (
+            <div className="alert alert--success" style={{ marginTop: "var(--space-3)" }}>
+              <p>
+                Credits updated. New balance:{" "}
+                <strong>{walletSnapshot?.balance_credits ?? 0}</strong>
+              </p>
+              {recentWalletTxns.length > 0 ? (
+                <div>
+                  <p className="caption" style={{ color: "var(--text-tertiary)" }}>
+                    Recent wallet activity:
+                  </p>
+                  <ul>
+                    {recentWalletTxns.map((txn) => (
+                      <li key={txn.id}>
+                        {txn.txn_type}: {txn.credits_delta > 0 ? "+" : ""}
+                        {txn.credits_delta}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {purchaseError ? (
+            <p className="alert alert--error" style={{ marginTop: "var(--space-2)" }}>
+              {purchaseError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
-        {error ? <p className="alert alert--error">{error}</p> : null}
-      </div>
+      {accessToken && walletSnapshot ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: "var(--space-4)"
+          }}
+        >
+          <span className="caption" style={{ color: "var(--text-tertiary)" }}>
+            {walletSnapshot.total_transactions} transaction
+            {walletSnapshot.total_transactions !== 1 ? "s" : ""}
+          </span>
+          <button
+            className="btn btn--ghost btn--sm"
+            onClick={() => refreshWalletSnapshot(accessToken)}
+            disabled={walletRefreshing}
+          >
+            {walletRefreshing ? "Refreshing..." : "Refresh Wallet"}
+          </button>
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="alert alert--error" style={{ marginTop: "var(--space-3)" }}>
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

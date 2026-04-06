@@ -96,6 +96,15 @@ export class OwnerController {
     );
   }
 
+  @Patch("listings/:listing_id/availability")
+  async toggleAvailability(
+    @Req() req: { user: { id: string } },
+    @Param("listing_id") listingId: string,
+    @Body() body: { available: boolean }
+  ) {
+    return ok(await this.ownerService.toggleAvailability(req.user.id, listingId, body.available));
+  }
+
   @Post("contact-unlocks/:unlock_id/responded")
   async markResponded(
     @Req() req: { user: { id: string } },

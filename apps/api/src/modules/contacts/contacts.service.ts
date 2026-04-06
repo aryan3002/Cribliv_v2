@@ -12,13 +12,15 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
 import { NotificationService } from "../notifications/notification.service";
+import { LeadsService } from "../leads/leads.service";
 
 @Injectable()
 export class ContactsService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(NotificationService) private readonly notifications: NotificationService
+    @Inject(NotificationService) private readonly notifications: NotificationService,
+    @Inject(LeadsService) private readonly leadsService: LeadsService
   ) {}
 
   async unlockContact(userId: string, listingId: string, idempotencyKey: string) {
@@ -38,12 +40,49 @@ export class ContactsService {
       });
     });
 
+    // Fire-and-forget: create lead for owner's inbox
+    this.createLeadFromUnlock(listingId, userId, result.unlock_id).catch((err) => {
+      logTelemetry("lead.creation_error", {
+        listing_id: listingId,
+        tenant_user_id: userId,
+        error: err instanceof Error ? err.message : String(err)
+      });
+    });
+
     return result;
   }
 
   /**
    * Notify the listing owner that a tenant unlocked their contact info.
    */
+  private async createLeadFromUnlock(listingId: string, tenantUserId: string, unlockId: string) {
+    if (!this.database.isEnabled()) return;
+
+    // Get owner_user_id and tenant phone for the lead
+    const listingInfo = await this.database.query<{ owner_user_id: string }>(
+      `SELECT owner_user_id::text FROM listings WHERE id = $1::uuid LIMIT 1`,
+      [listingId]
+    );
+    const ownerUserId = listingInfo.rows[0]?.owner_user_id;
+    if (!ownerUserId) return;
+
+    const tenantInfo = await this.database.query<{ phone_e164: string }>(
+      `SELECT phone_e164 FROM users WHERE id = $1::uuid LIMIT 1`,
+      [tenantUserId]
+    );
+    const phone = tenantInfo.rows[0]?.phone_e164 ?? "";
+    const masked =
+      phone.length >= 4 ? phone.slice(0, -4).replace(/./g, "X") + phone.slice(-4) : null;
+
+    await this.leadsService.createLead({
+      listing_id: listingId,
+      owner_user_id: ownerUserId,
+      tenant_user_id: tenantUserId,
+      contact_unlock_id: unlockId,
+      tenant_phone_masked: masked ?? undefined
+    });
+  }
+
   private async notifyOwnerContactUnlocked(listingId: string, tenantUserId: string) {
     if (this.database.isEnabled()) {
       const ownerInfo = await this.database.query<{
