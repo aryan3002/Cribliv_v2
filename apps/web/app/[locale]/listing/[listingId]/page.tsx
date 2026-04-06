@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { fetchApi } from "../../../../lib/api";
+import { toTitleCase, VERIFICATION_LABELS } from "../../../../lib/utils";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
 import Link from "next/link";
 import {
@@ -25,12 +26,20 @@ interface ListingDetailResponse {
     verification_status: "unverified" | "pending" | "verified" | "failed";
     city: string;
     locality?: string | null;
+    bhk?: number | null;
   };
   owner_trust: {
     verification_status: string;
     no_response_refund: boolean;
   };
   contact_locked: boolean;
+}
+
+interface PricingIntelResponse {
+  p25: number | null;
+  p50: number | null;
+  p75: number | null;
+  sample_size: number;
 }
 
 async function fetchListing(listingId: string): Promise<ListingDetailResponse | null> {
@@ -50,12 +59,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const payload = await fetchListing(params.listingId);
   if (!payload) {
-    return { title: "Listing Not Found — Cribliv" };
+    return { title: "Listing Not Found" };
   }
 
   const listing = payload.listing_detail;
   const typeLabel = listing.listing_type === "flat_house" ? "Flat/House" : "PG";
-  const title = `${listing.title} — ${typeLabel} for Rent in ${listing.city} | Cribliv`;
+  const title = `${listing.title} — ${typeLabel} for Rent in ${toTitleCase(listing.city)}`;
   const description = listing.description
     ? listing.description.slice(0, 160)
     : `${typeLabel} for rent in ${listing.city}${listing.locality ? `, ${listing.locality}` : ""} at ₹${listing.monthly_rent.toLocaleString("en-IN")}/month. Verified on Cribliv.`;
@@ -107,6 +116,23 @@ export default async function ListingDetailPage({
   const listing = payload.listing_detail;
   const typeLabel = listing.listing_type === "flat_house" ? "Flat/House" : "PG";
   const isVerified = listing.verification_status === "verified";
+
+  // Fetch market rate data
+  let pricingIntel: PricingIntelResponse | null = null;
+  if (listing.bhk) {
+    try {
+      pricingIntel = await fetchApi<PricingIntelResponse>(
+        `/listings/pricing-intel?city=${encodeURIComponent(listing.city)}&bhk=${listing.bhk}&listing_type=${listing.listing_type}`,
+        undefined,
+        { server: true }
+      );
+      if (!pricingIntel || pricingIntel.sample_size < 3 || pricingIntel.p50 === null) {
+        pricingIntel = null;
+      }
+    } catch {
+      pricingIntel = null;
+    }
+  }
 
   // JSON-LD structured data for rich search results
   const jsonLd = {
@@ -178,7 +204,7 @@ export default async function ListingDetailPage({
             href={`/${params.locale}/search?city=${listing.city.toLowerCase()}`}
             style={{ color: "var(--text-secondary)" }}
           >
-            {listing.city}
+            {toTitleCase(listing.city)}
           </Link>
           <ChevronRight size={14} style={{ color: "var(--text-tertiary)" }} aria-hidden="true" />
           <span className="truncate" style={{ maxWidth: 200, color: "var(--text-primary)" }}>
@@ -215,7 +241,7 @@ export default async function ListingDetailPage({
               <h1 style={{ marginBottom: "var(--space-2)" }}>{listing.title}</h1>
               <p className="text-secondary flex items-center gap-2">
                 <MapPin size={16} aria-hidden="true" />
-                {listing.city}
+                {toTitleCase(listing.city)}
                 {listing.locality ? `, ${listing.locality}` : ""}
               </p>
             </div>
@@ -267,7 +293,7 @@ export default async function ListingDetailPage({
                   <span className="stat-item__label">Property Type</span>
                 </div>
                 <div className="stat-item">
-                  <span className="stat-item__value">{listing.city}</span>
+                  <span className="stat-item__value">{toTitleCase(listing.city)}</span>
                   <span className="stat-item__label">City</span>
                 </div>
                 {listing.locality && (
@@ -277,13 +303,130 @@ export default async function ListingDetailPage({
                   </div>
                 )}
                 <div className="stat-item">
-                  <span className="stat-item__value" style={{ textTransform: "capitalize" }}>
-                    {listing.verification_status.replace("_", " ")}
+                  <span className="stat-item__value">
+                    {VERIFICATION_LABELS[listing.verification_status] ??
+                      listing.verification_status}
                   </span>
                   <span className="stat-item__label">Status</span>
                 </div>
               </div>
             </section>
+
+            {/* Market Rate Widget */}
+            {pricingIntel &&
+              pricingIntel.p25 !== null &&
+              pricingIntel.p50 !== null &&
+              pricingIntel.p75 !== null &&
+              (() => {
+                const p25 = pricingIntel.p25!;
+                const p50 = pricingIntel.p50!;
+                const p75 = pricingIntel.p75!;
+                const rent = listing.monthly_rent;
+                const range = p75 - p25;
+                const markerPct =
+                  range > 0 ? Math.min(100, Math.max(0, ((rent - p25) / range) * 100)) : 50;
+                const markerColor =
+                  rent <= p50
+                    ? "var(--trust, #22c55e)"
+                    : rent <= p75
+                      ? "var(--amber, #f59e0b)"
+                      : "#ef4444";
+                const label =
+                  rent <= p50 ? "Great deal" : rent <= p75 ? "Fair price" : "Above market";
+                const fmt = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+
+                return (
+                  <>
+                    <hr className="divider" />
+                    <section style={{ marginBottom: "var(--space-6)" }}>
+                      <h3 style={{ marginBottom: "var(--space-3)" }}>
+                        Market Rate for {listing.bhk}BHK in {toTitleCase(listing.city)}
+                      </h3>
+
+                      {/* P25 / P50 / P75 stats */}
+                      <div className="stats-row" style={{ marginBottom: "var(--space-4)" }}>
+                        <div className="stat-item">
+                          <span className="stat-item__value">{fmt(p25)}</span>
+                          <span className="stat-item__label">Budget (P25)</span>
+                        </div>
+                        <div className="stat-item">
+                          <span className="stat-item__value">{fmt(p50)}</span>
+                          <span className="stat-item__label">Fair Market (P50)</span>
+                        </div>
+                        <div className="stat-item">
+                          <span className="stat-item__value">{fmt(p75)}</span>
+                          <span className="stat-item__label">Premium (P75)</span>
+                        </div>
+                      </div>
+
+                      {/* Progress bar with marker */}
+                      <div
+                        style={{
+                          position: "relative",
+                          height: 8,
+                          borderRadius: 4,
+                          background: "var(--surface-2, #f3f4f6)",
+                          marginBottom: "var(--space-3)"
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            borderRadius: 4,
+                            background: `linear-gradient(to right, var(--trust, #22c55e), var(--amber, #f59e0b), #ef4444)`
+                          }}
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "50%",
+                            left: `${markerPct}%`,
+                            transform: "translate(-50%, -50%)",
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            background: markerColor,
+                            border: "3px solid #fff",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.2)"
+                          }}
+                        />
+                      </div>
+
+                      {/* Label */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "var(--space-2)",
+                          marginBottom: "var(--space-2)"
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            padding: "2px 10px",
+                            borderRadius: "var(--radius-full)",
+                            background: markerColor,
+                            color: "#fff",
+                            fontSize: 13,
+                            fontWeight: 600
+                          }}
+                        >
+                          {label}
+                        </span>
+                        <span className="body-sm text-secondary">This listing: {fmt(rent)}/mo</span>
+                      </div>
+
+                      <p className="body-sm text-tertiary">
+                        Based on {pricingIntel.sample_size} active listings · Data from Cribliv
+                      </p>
+                    </section>
+                  </>
+                );
+              })()}
           </div>
 
           {/* Sidebar */}
@@ -297,7 +440,7 @@ export default async function ListingDetailPage({
       </div>
       {/* /container */}
 
-      {/* Mobile CTA bar */}
+      {/* Mobile CTA bar — price only; unlock action lives in the sidebar panel */}
       <div className="cta-bar">
         <div>
           <div className="card__price">
@@ -305,7 +448,9 @@ export default async function ListingDetailPage({
             <span className="card__price-period">/mo</span>
           </div>
         </div>
-        <button className="btn btn--primary">Unlock Contact</button>
+        <a href="#main-content" className="btn btn--primary btn--sm">
+          View Contact
+        </a>
       </div>
     </>
   );

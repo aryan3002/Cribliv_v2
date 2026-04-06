@@ -1,6 +1,36 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MapPin, Building, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { fetchApi, buildSearchQuery } from "../../../../lib/api";
+
+interface ListingCard {
+  id: string;
+  title: string;
+  city: string;
+  locality?: string | null;
+  listing_type: "flat_house" | "pg";
+  monthly_rent: number;
+  bhk?: number | null;
+  furnishing?: string | null;
+  area_sqft?: number | null;
+  verification_status: "unverified" | "pending" | "verified" | "failed";
+  cover_photo?: string | null;
+}
+
+interface SearchResponse {
+  items: ListingCard[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+function furnishLabel(f: string): string {
+  return f === "fully_furnished"
+    ? "Fully Furnished"
+    : f === "semi_furnished"
+      ? "Semi-Furnished"
+      : "Unfurnished";
+}
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -32,8 +62,8 @@ export async function generateMetadata({
   const isHindi = params.locale === "hi";
 
   const title = isHindi
-    ? `${cityCapitalized} में किराये के मकान और PG — Cribliv`
-    : `Verified Rentals in ${cityCapitalized} — Flats, PGs & Houses | Cribliv`;
+    ? `${cityCapitalized} में किराये के मकान और PG`
+    : `Verified Rentals in ${cityCapitalized} — Flats, PGs & Houses`;
   const description = isHindi
     ? `${cityCapitalized} में सत्यापित किराये के मकान, PG और फ्लैट खोजें। AI-संचालित खोज, मालिक सत्यापन और 12-घंटे रिफंड गारंटी।`
     : `Find verified flats, PGs, and houses for rent in ${cityCapitalized}. AI-powered search with owner verification and 12-hour refund guarantee.`;
@@ -60,10 +90,27 @@ export async function generateMetadata({
   };
 }
 
-export default function CityPage({ params }: { params: { locale: string; citySlug: string } }) {
+export default async function CityPage({
+  params
+}: {
+  params: { locale: string; citySlug: string };
+}) {
   const city = params.citySlug.replace(/-/g, " ");
   const cityCapitalized = city.replace(/\b\w/g, (c) => c.toUpperCase());
   const isHindi = params.locale === "hi";
+
+  // Fetch top listings for this city
+  let listings: ListingCard[] = [];
+  try {
+    const response = await fetchApi<SearchResponse>(
+      `/listings/search?${buildSearchQuery({ city: params.citySlug, page_size: "9" })}`,
+      undefined,
+      { server: true }
+    );
+    listings = response.items;
+  } catch {
+    // Silent — page still renders without listings
+  }
 
   const budgetChips = ["Under ₹8,000", "₹8k–₹15k", "₹15k–₹25k", "₹25k+"];
   const typeChips = ["Flat/House", "PG", "1 BHK", "2 BHK", "Furnished"];
@@ -223,6 +270,108 @@ export default function CityPage({ params }: { params: { locale: string; citySlu
             ))}
           </div>
         </section>
+
+        {/* Featured Listings */}
+        {listings.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "var(--space-4)"
+              }}
+            >
+              <h3 style={{ margin: 0 }}>
+                {isHindi ? `${cityCapitalized} में लिस्टिंग` : `Listings in ${cityCapitalized}`}
+              </h3>
+              <Link
+                href={`/${params.locale}/search?city=${params.citySlug}`}
+                className="body-sm text-brand"
+                style={{
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4
+                }}
+              >
+                {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
+              </Link>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: "var(--space-4)"
+              }}
+            >
+              {listings.map((item) => (
+                <article key={item.id} className="card">
+                  <Link href={`/${params.locale}/listing/${item.id}`} className="card__image-link">
+                    <div className="card__image">
+                      {item.cover_photo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.cover_photo} alt={item.title} loading="lazy" />
+                      ) : (
+                        <div className="card__image-placeholder" aria-hidden="true">
+                          <Building size={36} style={{ color: "var(--text-tertiary)" }} />
+                        </div>
+                      )}
+                      {item.verification_status === "verified" && (
+                        <span className="card__badge">
+                          <span className="badge badge--verified">
+                            <ShieldCheck size={12} style={{ marginRight: 2 }} /> Verified
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  </Link>
+                  <div className="card__body">
+                    <div className="card__title">{item.title}</div>
+                    <div className="card__location">
+                      <MapPin size={14} aria-hidden="true" />
+                      {item.locality ? `${item.locality}, ` : ""}
+                      {cityCapitalized}
+                      {" \u00b7 "}
+                      {item.listing_type === "flat_house" ? "Flat/House" : "PG"}
+                    </div>
+                    {(item.bhk || item.area_sqft || item.furnishing) && (
+                      <div className="card__meta">
+                        {item.bhk ? <span className="card__meta-item">{item.bhk} BHK</span> : null}
+                        {item.area_sqft ? (
+                          <span className="card__meta-item">{item.area_sqft} sqft</span>
+                        ) : null}
+                        {item.furnishing ? (
+                          <span className="card__meta-item">{furnishLabel(item.furnishing)}</span>
+                        ) : null}
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginTop: "var(--space-2)"
+                      }}
+                    >
+                      <div className="card__price">
+                        ₹{item.monthly_rent?.toLocaleString("en-IN") ?? "—"}
+                        <span className="card__price-period">/month</span>
+                      </div>
+                      <Link
+                        className="btn btn--primary btn--sm"
+                        href={`/${params.locale}/listing/${item.id}`}
+                      >
+                        View
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* FAQ */}
         <section>

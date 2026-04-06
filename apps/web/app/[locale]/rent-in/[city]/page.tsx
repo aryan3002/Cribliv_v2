@@ -426,8 +426,8 @@ export async function generateMetadata({
 
   const isHindi = params.locale === "hi";
   const title = isHindi
-    ? `${city.name} में किराये पर फ्लैट और PG — शून्य ब्रोकरेज | Cribliv`
-    : `Rent Flats & PGs in ${city.name} — Zero Brokerage, Verified Owners | Cribliv`;
+    ? `${city.name} में किराये पर फ्लैट और PG — शून्य ब्रोकरेज`
+    : `Rent Flats & PGs in ${city.name} — Zero Brokerage, Verified Owners`;
   const description = city.description;
 
   return {

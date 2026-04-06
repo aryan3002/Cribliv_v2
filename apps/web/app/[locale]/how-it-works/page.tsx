@@ -21,9 +21,7 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi
-    ? "कैसे काम करता है — Cribliv सत्यापित किराया"
-    : "How It Works — Cribliv Verified Rentals";
+  const title = isHindi ? "कैसे काम करता है" : "How It Works";
   const description = isHindi
     ? "3 आसान चरणों में Cribliv पर सत्यापित किराये का मकान खोजें। AI खोज, मालिक सत्यापन, और 12-घंटे गारंटी।"
     : "Find a verified rental on Cribliv in 3 simple steps. AI-powered search, owner verification, and a 12-hour refund guarantee.";
@@ -157,6 +155,26 @@ export default function HowItWorksPage({ params }: { params: { locale: string } 
       >
         <div className="hero-glow" aria-hidden="true" />
         <div className="container" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+          <nav
+            className="breadcrumb"
+            style={{
+              marginBottom: "var(--space-6)",
+              fontSize: "var(--text-sm)",
+              display: "flex",
+              justifyContent: "center",
+              gap: "var(--space-2)"
+            }}
+          >
+            <a
+              href={`/${params.locale}`}
+              className="text-secondary"
+              style={{ textDecoration: "none", color: "rgba(255,255,255,0.5)" }}
+            >
+              Home
+            </a>
+            <span style={{ color: "rgba(255,255,255,0.35)" }}>{" / "}</span>
+            <span style={{ color: "rgba(255,255,255,0.8)" }}>How It Works</span>
+          </nav>
           <p
             className="overline animate-in"
             style={{

@@ -408,13 +408,39 @@ export function VoiceAgentInline({
  * Mic Toggle Button — rendered in the page header
  * ═══════════════════════════════════════════════════════════════════ */
 
-export function VoiceMicButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+export function VoiceMicButton({
+  active,
+  onClick,
+  locale
+}: {
+  active: boolean;
+  onClick: () => void;
+  locale?: string;
+}) {
+  const isHindi = locale === "hi" || locale === "hi-IN";
   return (
     <button
       type="button"
       className={`vai-mic-btn ${active ? "vai-mic-btn--active" : ""}`}
       onClick={onClick}
-      title={active ? "Voice agent band karein" : "Voice agent se form bharein"}
+      aria-label={
+        active
+          ? isHindi
+            ? "Voice agent band karein"
+            : "Stop voice agent"
+          : isHindi
+            ? "Voice agent se form bharein"
+            : "Fill form using voice"
+      }
+      title={
+        active
+          ? isHindi
+            ? "Voice agent band karein"
+            : "Stop voice agent"
+          : isHindi
+            ? "Voice agent se form bharein"
+            : "Fill form using voice"
+      }
     >
       {active ? (
         <svg

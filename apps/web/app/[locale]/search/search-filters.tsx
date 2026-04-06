@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useTransition, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { buildSearchQuery } from "../../../lib/api";
-import { Search, MapPin, Building2, Home, Building } from "lucide-react";
+import { Search, MapPin, Building2, Home, Building, Bell, BellRing } from "lucide-react";
 
 interface SortOption {
   key: string;
@@ -32,13 +33,54 @@ const BHKS = [1, 2, 3, 4, 5];
 const FURNISHING_OPTIONS = [
   { key: "", label: "Any Furnishing" },
   { key: "fully_furnished", label: "Fully Furnished" },
-  { key: "semi_furnished", label: "Semi Furnished" },
+  { key: "semi_furnished", label: "Semi-Furnished" },
   { key: "unfurnished", label: "Unfurnished" }
 ];
 
 export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFiltersProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const { data: session } = useSession();
+  const accessToken = session?.accessToken ?? null;
+
+  // Save search state
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const hasFilters = !!(filters.city || filters.bhk || filters.max_rent || filters.listing_type);
+
+  async function handleSaveSearch() {
+    if (!accessToken) {
+      router.push(`/${locale}/auth/login?from=/${locale}/search?${buildSearchQuery(filters)}`);
+      return;
+    }
+    setSaveState("saving");
+    try {
+      const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000").replace(
+        /\/+$/,
+        ""
+      );
+      const base = apiBase.endsWith("/v1") ? apiBase : `${apiBase}/v1`;
+      const body: Record<string, unknown> = {};
+      if (filters.city) body.city_slug = filters.city;
+      if (filters.bhk) body.bhk = Number(filters.bhk);
+      if (filters.max_rent) body.max_rent = Number(filters.max_rent);
+      if (filters.listing_type) body.listing_type = filters.listing_type;
+
+      const res = await fetch(`${base}/tenant/saved-searches`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error("failed");
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 3000);
+    } catch {
+      setSaveState("error");
+      setTimeout(() => setSaveState("idle"), 3000);
+    }
+  }
 
   // Text search state
   const [searchText, setSearchText] = useState(filters.q ?? "");
@@ -190,6 +232,30 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
             </option>
           ))}
         </select>
+
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          disabled={!hasFilters || saveState === "saving" || saveState === "saved"}
+          onClick={handleSaveSearch}
+          title={!hasFilters ? "Add filters to save a search" : undefined}
+          style={{
+            whiteSpace: "nowrap",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            ...(saveState === "saved"
+              ? { borderColor: "var(--trust, #22c55e)", color: "var(--trust, #22c55e)" }
+              : {}),
+            ...(saveState === "error" ? { borderColor: "#ef4444", color: "#ef4444" } : {})
+          }}
+        >
+          {saveState === "saved" ? <BellRing size={15} /> : <Bell size={15} />}
+          {saveState === "idle" && "Save Search"}
+          {saveState === "saving" && "Saving…"}
+          {saveState === "saved" && "✓ Saved!"}
+          {saveState === "error" && "Failed — retry?"}
+        </button>
       </div>
 
       {/* ── Row 2: Filter Controls ── */}

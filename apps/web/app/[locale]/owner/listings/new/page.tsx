@@ -21,6 +21,25 @@ import {
 import { ApiError } from "../../../../../lib/api";
 import type { OwnerListingDraftInput } from "../../../../../lib/owner-api";
 
+function friendlyApiMessage(err: unknown): string {
+  if (err instanceof ApiError) {
+    switch (err.status) {
+      case 400:
+        return "Please fill in all required fields before continuing.";
+      case 401:
+        return "Your session has expired. Please log in again.";
+      case 409:
+        return "This listing already exists. Check your dashboard.";
+      case 422:
+        return "Some fields are invalid. Please review and try again.";
+      default:
+        return "Something went wrong. Please try again.";
+    }
+  }
+  if (err instanceof Error) return err.message;
+  return "Something went wrong. Please try again.";
+}
+
 import {
   type WizardForm,
   type CaptureMode,
@@ -684,8 +703,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       trackEvent("owner_listing_draft_saved", { listing_id: listingId, is_new: false });
       return listingId;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to save listing";
-      if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
+      const message = friendlyApiMessage(err);
+      if (err instanceof ApiError && err.status === 401) void signOut({ redirect: false });
       setError(message);
       return null;
     } finally {
@@ -739,8 +758,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       sessionStorage.removeItem(STORAGE_KEY);
       router.push(`/${locale}/owner/dashboard`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to submit listing";
-      if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
+      const message = friendlyApiMessage(err);
+      if (err instanceof ApiError && err.status === 401) void signOut({ redirect: false });
       setError(message);
     } finally {
       setSaving(false);
@@ -928,6 +947,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         {nextAuthSession?.user?.id && captureMode === "wizard" && (
           <VoiceMicButton
             active={voiceActive}
+            locale={locale}
             onClick={() => {
               if (voiceActive) {
                 // Turning off — disconnect happens inside VoiceAgentInline unmount
@@ -1082,14 +1102,13 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </div>
 
           <div className="wizard-nav">
-            <button
-              type="button"
-              className="btn btn--secondary"
-              onClick={goBack}
-              disabled={step === 0}
-            >
-              {t(locale, "back")}
-            </button>
+            {step > 0 ? (
+              <button type="button" className="btn btn--secondary" onClick={goBack}>
+                {t(locale, "back")}
+              </button>
+            ) : (
+              <div />
+            )}
 
             {step < 5 ? (
               <button

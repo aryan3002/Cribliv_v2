@@ -12,6 +12,7 @@ import {
 import { useSession } from "next-auth/react";
 import { trackEvent } from "../../../../lib/analytics";
 import { t, type Locale } from "../../../../lib/i18n";
+import { VERIFICATION_LABELS } from "../../../../lib/utils";
 
 interface ListingOption {
   id: string;
@@ -71,7 +72,7 @@ function resultToOverall(result: "pending" | "pass" | "fail" | "manual_review") 
 
 export default function OwnerVerificationPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
-  const { data: nextAuthSession } = useSession();
+  const { data: nextAuthSession, status: sessionStatus } = useSession();
   const accessToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
 
   const [listings, setListings] = useState<ListingOption[]>([]);
@@ -162,7 +163,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
     }
 
     if (!selectedListingId || !videoArtifactPath.trim()) {
-      setError("Select listing and provide artifact path for video verification.");
+      setError("Please select a listing and upload a verification video.");
       return;
     }
 
@@ -199,7 +200,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
     }
 
     if (!selectedListingId || !consumerId.trim() || !addressText.trim()) {
-      setError("Select listing, consumer ID, and address for electricity verification.");
+      setError("Please select a listing and provide your consumer ID and address.");
       return;
     }
 
@@ -220,7 +221,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
         address_match_score: result.addressMatchScore,
         result: result.result
       });
-      setSubmitSuccess(`Electricity verification submitted (score: ${result.addressMatchScore}%).`);
+      setSubmitSuccess("Electricity verification submitted successfully.");
       await loadStatus(selectedListingId);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Electricity submission failed";
@@ -251,7 +252,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
         ? "score-bar__fill--fail"
         : "score-bar__fill--review";
 
-  if (loading) {
+  if (sessionStatus === "loading" || loading) {
     return (
       <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
         <h1 className="h2">{t(locale, "verification")}</h1>
@@ -342,7 +343,9 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
                 </p>
               ) : null}
             </div>
-            <span className={`status-pill status-pill--${uiStatus}`}>{uiStatus}</span>
+            <span className={`status-pill status-pill--${uiStatus}`}>
+              {VERIFICATION_LABELS[uiStatus] ?? uiStatus}
+            </span>
           </div>
 
           {latestScore != null ? (
@@ -352,15 +355,9 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
                   className={`score-bar__fill ${scoreClass}`}
                   style={{ width: `${Math.min(latestScore, 100)}%` }}
                 />
-                <div
-                  className="score-bar__threshold"
-                  style={{ left: `${threshold}%` }}
-                  title={`Threshold: ${threshold}%`}
-                />
               </div>
               <div className="score-bar__label">
-                <span>Score: {latestScore}%</span>
-                <span>Threshold: {threshold}%</span>
+                <span>Match score: {latestScore}%</span>
               </div>
             </div>
           ) : (
@@ -368,7 +365,7 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
               className="caption"
               style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
             >
-              No address match score yet. Threshold is fixed at 85%.
+              Complete a verification step to see results.
             </p>
           )}
         </div>
@@ -379,26 +376,26 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
           <h3 className="card__title">Video verification</h3>
           <div style={{ marginBottom: "var(--space-3)" }}>
             <label className="form-label" htmlFor="video-artifact-path">
-              Artifact blob path
+              Upload verification video
             </label>
             <input
               id="video-artifact-path"
               className="input"
               value={videoArtifactPath}
               onChange={(event) => setVideoArtifactPath(event.target.value)}
-              placeholder="verification-artifacts/video-selfie.mp4"
+              placeholder="Select or drag your verification video"
             />
           </div>
           <div style={{ marginBottom: "var(--space-3)" }}>
             <label className="form-label" htmlFor="video-vendor-ref">
-              Vendor reference (optional)
+              Reference code (if any)
             </label>
             <input
               id="video-vendor-ref"
               className="input"
               value={videoVendorReference}
               onChange={(event) => setVideoVendorReference(event.target.value)}
-              placeholder="vendor-ref-123"
+              placeholder="e.g. REF-12345"
             />
           </div>
           <button
@@ -430,14 +427,14 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
             </div>
             <div>
               <label className="form-label" htmlFor="bill-artifact-path">
-                Bill artifact path (optional)
+                Upload electricity bill (optional)
               </label>
               <input
                 id="bill-artifact-path"
                 className="input"
                 value={billArtifactPath}
                 onChange={(event) => setBillArtifactPath(event.target.value)}
-                placeholder="verification-artifacts/electricity-bill.pdf"
+                placeholder="Select or drag your electricity bill"
               />
             </div>
           </div>
@@ -453,12 +450,6 @@ export default function OwnerVerificationPage({ params }: { params: { locale: st
               onChange={(event) => setAddressText(event.target.value)}
               placeholder="Enter bill address text for fuzzy match"
             />
-            <p
-              className="caption"
-              style={{ marginTop: "var(--space-1)", color: "var(--text-tertiary)" }}
-            >
-              Address match threshold is 85%.
-            </p>
           </div>
 
           <button

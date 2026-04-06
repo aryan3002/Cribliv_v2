@@ -8,9 +8,7 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi
-    ? "किफायती मूल्य निर्धारण — Cribliv"
-    : "Transparent Pricing — Zero Brokerage Rentals | Cribliv";
+  const title = isHindi ? "किफायती मूल्य निर्धारण" : "Transparent Pricing — Zero Brokerage Rentals";
   const description = isHindi
     ? "Cribliv पर पारदर्शी मूल्य — शून्य ब्रोकरेज, सस्ता कॉन्टैक्ट अनलॉक, 12 घंटे की रिफंड गारंटी।"
     : "Cribliv pricing explained — zero brokerage, affordable contact unlock fees, wallet credits, and 12-hour refund guarantee. No hidden charges.";
@@ -101,7 +99,7 @@ export default function PricingPage({ params }: { params: { locale: string } }) 
               Home
             </a>
             <span className="text-tertiary" style={{ margin: "0 var(--space-2)" }}>
-              /
+              {" / "}
             </span>
             <span className="text-primary">Pricing</span>
           </nav>

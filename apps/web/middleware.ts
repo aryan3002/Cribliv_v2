@@ -80,6 +80,17 @@ export default auth((req) => {
     return NextResponse.redirect(new URL(`/${locale}`, req.url));
   }
 
+  // 1b. /auth/login → redirect to /{locale}/auth/login
+  if (pathname === "/auth/login" || pathname === "/auth/login/") {
+    const localeCookie = req.cookies.get("locale")?.value;
+    const locale =
+      localeCookie && (locales as readonly string[]).includes(localeCookie) ? localeCookie : "en";
+    const url = new URL(`/${locale}/auth/login`, req.url);
+    // Preserve query params like ?from=...
+    req.nextUrl.searchParams.forEach((value, key) => url.searchParams.set(key, value));
+    return NextResponse.redirect(url);
+  }
+
   // 2. Public paths — let them through immediately
   if (isPublicPath(pathname)) {
     return NextResponse.next();
@@ -142,6 +153,7 @@ export const config = {
      *   - Static files            (.ico, .svg, .png …)
      */
     "/",
+    "/auth/login",
     "/en/tenant/:path*",
     "/en/owner/:path*",
     "/en/admin/:path*",

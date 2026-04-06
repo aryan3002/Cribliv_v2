@@ -237,3 +237,307 @@ export async function updateAdminLeadStatus(
     status: response.status
   };
 }
+
+/* ── Analytics Types ──────────────────────────────────────────────────── */
+
+export interface AdminAnalyticsOverview {
+  totalListings: number;
+  activeListings: number;
+  totalUsers: number;
+  totalLeads: number;
+  totalUnlocks: number;
+  totalRevenuePaise: number;
+}
+
+export interface AdminFunnelMetrics {
+  views: number;
+  enquiries: number;
+  unlocks: number;
+  leadsCreated: number;
+}
+
+export interface AdminResponseRate {
+  avgResponseRate: number;
+  totalUnlocks: number;
+  responded: number;
+}
+
+export interface AdminRevenue {
+  totalPaise: number;
+  orderCount: number;
+}
+
+export interface AdminCityCount {
+  city: string;
+  locality: string;
+  count: number;
+}
+
+/* ── User & Role Types ────────────────────────────────────────────────── */
+
+export interface AdminUserVm {
+  id: string;
+  phone: string;
+  role: string;
+  fullName?: string;
+  createdAt: string;
+}
+
+export interface AdminRoleRequestVm {
+  id: string;
+  userId: string;
+  phone: string;
+  requestedRole: string;
+  status: string;
+  createdAt: string;
+  decidedAt?: string;
+}
+
+/* ── Fraud Types ──────────────────────────────────────────────────────── */
+
+export interface AdminFraudFlagVm {
+  id: string;
+  flagType: string;
+  reportedByUserId: string;
+  targetUserId?: string;
+  targetListingId?: string;
+  resolved: boolean;
+  createdAt: string;
+}
+
+/* ── Analytics Functions ──────────────────────────────────────────────── */
+
+export async function fetchAdminAnalyticsOverview(
+  accessToken: string
+): Promise<AdminAnalyticsOverview> {
+  const raw = await fetchApi<{
+    total_listings: number;
+    active_listings: number;
+    total_users: number;
+    total_leads: number;
+    total_unlocks: number;
+    total_revenue_paise: number;
+  }>("/admin/analytics/overview", {
+    headers: authHeaders(accessToken)
+  });
+
+  return {
+    totalListings: raw.total_listings ?? 0,
+    activeListings: raw.active_listings ?? 0,
+    totalUsers: raw.total_users ?? 0,
+    totalLeads: raw.total_leads ?? 0,
+    totalUnlocks: raw.total_unlocks ?? 0,
+    totalRevenuePaise: raw.total_revenue_paise ?? 0
+  };
+}
+
+export async function fetchAdminAnalyticsFunnel(
+  accessToken: string,
+  days = 30
+): Promise<AdminFunnelMetrics> {
+  const raw = await fetchApi<{
+    views: number;
+    enquiries: number;
+    unlocks: number;
+    leads_created: number;
+  }>(`/admin/analytics/funnel?days=${days}`, {
+    headers: authHeaders(accessToken)
+  });
+
+  return {
+    views: raw.views ?? 0,
+    enquiries: raw.enquiries ?? 0,
+    unlocks: raw.unlocks ?? 0,
+    leadsCreated: raw.leads_created ?? 0
+  };
+}
+
+export async function fetchAdminAnalyticsResponseRates(
+  accessToken: string
+): Promise<AdminResponseRate> {
+  const raw = await fetchApi<{
+    avg_response_rate: number;
+    total_unlocks: number;
+    responded: number;
+  }>("/admin/analytics/response-rates", {
+    headers: authHeaders(accessToken)
+  });
+
+  return {
+    avgResponseRate: raw.avg_response_rate ?? 0,
+    totalUnlocks: raw.total_unlocks ?? 0,
+    responded: raw.responded ?? 0
+  };
+}
+
+export async function fetchAdminAnalyticsRevenue(
+  accessToken: string,
+  days = 30
+): Promise<AdminRevenue> {
+  const raw = await fetchApi<{
+    total_paise: number;
+    order_count: number;
+  }>(`/admin/analytics/revenue?days=${days}`, {
+    headers: authHeaders(accessToken)
+  });
+
+  return {
+    totalPaise: raw.total_paise ?? 0,
+    orderCount: raw.order_count ?? 0
+  };
+}
+
+export async function fetchAdminAnalyticsByCity(accessToken: string): Promise<AdminCityCount[]> {
+  const raw = await fetchApi<{
+    items: Array<{ city: string; locality: string; count: number }>;
+  }>("/admin/analytics/listings", {
+    headers: authHeaders(accessToken)
+  });
+
+  return (raw.items ?? []).map((r) => ({
+    city: r.city,
+    locality: r.locality,
+    count: r.count
+  }));
+}
+
+/* ── User & Role Functions ────────────────────────────────────────────── */
+
+export async function fetchAdminUsers(accessToken: string) {
+  const raw = await fetchApi<{
+    items: Array<{
+      id: string;
+      phone: string;
+      role: string;
+      full_name?: string;
+      created_at: string;
+    }>;
+  }>("/admin/users", {
+    headers: authHeaders(accessToken)
+  });
+
+  return (raw.items ?? []).map((u) => ({
+    id: u.id,
+    phone: u.phone,
+    role: u.role,
+    fullName: u.full_name ?? undefined,
+    createdAt: u.created_at
+  })) as AdminUserVm[];
+}
+
+export async function changeAdminUserRole(accessToken: string, userId: string, role: string) {
+  return fetchApi<{ user_id: string; new_role: string }>(`/admin/users/${userId}/role`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ role })
+  });
+}
+
+export async function fetchAdminRoleRequests(accessToken: string) {
+  const raw = await fetchApi<{
+    items: Array<{
+      id: string;
+      user_id: string;
+      phone: string;
+      requested_role: string;
+      status: string;
+      created_at: string;
+      decided_at?: string;
+    }>;
+  }>("/admin/role-requests", {
+    headers: authHeaders(accessToken)
+  });
+
+  return (raw.items ?? []).map((r) => ({
+    id: r.id,
+    userId: r.user_id,
+    phone: r.phone,
+    requestedRole: r.requested_role,
+    status: r.status,
+    createdAt: r.created_at,
+    decidedAt: r.decided_at ?? undefined
+  })) as AdminRoleRequestVm[];
+}
+
+export async function decideAdminRoleRequest(
+  accessToken: string,
+  requestId: string,
+  decision: "approve" | "reject"
+) {
+  return fetchApi<{ request_id: string; status: string }>(
+    `/admin/role-requests/${requestId}/decision`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ decision })
+    }
+  );
+}
+
+/* ── Fraud Functions ──────────────────────────────────────────────────── */
+
+export async function fetchAdminFraudFlags(accessToken: string) {
+  const raw = await fetchApi<{
+    items: Array<{
+      id: string;
+      flag_type: string;
+      reported_by_user_id: string;
+      target_user_id?: string;
+      target_listing_id?: string;
+      resolved: boolean;
+      created_at: string;
+    }>;
+  }>("/admin/fraud/flags", {
+    headers: authHeaders(accessToken)
+  });
+
+  return (raw.items ?? []).map((f) => ({
+    id: f.id,
+    flagType: f.flag_type,
+    reportedByUserId: f.reported_by_user_id,
+    targetUserId: f.target_user_id ?? undefined,
+    targetListingId: f.target_listing_id ?? undefined,
+    resolved: f.resolved,
+    createdAt: f.created_at
+  })) as AdminFraudFlagVm[];
+}
+
+export async function resolveAdminFraudFlag(accessToken: string, flagId: string) {
+  return fetchApi<{ flag_id: string; resolved: boolean }>(`/admin/fraud/flags/${flagId}/resolve`, {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+}
+
+/* ── System / AI / Wallet Functions ───────────────────────────────────── */
+
+export async function triggerAiBackfill(accessToken: string) {
+  return fetchApi<{ message: string }>("/admin/ai/backfill-embeddings", {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function triggerAiRecomputeScores(accessToken: string) {
+  return fetchApi<{ message: string }>("/admin/ai/recompute-scores", {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function adjustAdminWallet(
+  accessToken: string,
+  userId: string,
+  creditsDelta: number,
+  reason: string
+) {
+  return fetchApi<{ user_id: string; new_balance: number }>("/admin/wallet/adjust", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({
+      user_id: userId,
+      credits_delta: creditsDelta,
+      reason
+    })
+  });
+}

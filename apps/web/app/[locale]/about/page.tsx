@@ -23,8 +23,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
   const title = isHindi
-    ? "Cribliv के बारे में — भारत का भरोसेमंद रेंटल प्लेटफॉर्म"
-    : "About Cribliv — India's Most Trusted Rental Platform";
+    ? "हमारे बारे में — भारत का भरोसेमंद रेंटल प्लेटफॉर्म"
+    : "About — India's Most Trusted Rental Platform";
   const description = isHindi
     ? "Cribliv AI-संचालित सत्यापित किराये का प्लेटफॉर्म है। हमारे मिशन, टीम और विजन के बारे में जानें।"
     : "Cribliv is an AI-powered verified rental platform. Learn about our mission to eliminate broker fraud and make renting trustworthy in India.";
@@ -118,6 +118,26 @@ export default function AboutPage({ params }: { params: { locale: string } }) {
       >
         <div className="hero-glow" aria-hidden="true" />
         <div className="container" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+          <nav
+            className="breadcrumb"
+            style={{
+              marginBottom: "var(--space-6)",
+              fontSize: "var(--text-sm)",
+              display: "flex",
+              justifyContent: "center",
+              gap: "var(--space-2)"
+            }}
+          >
+            <a
+              href={`/${params.locale}`}
+              className="text-secondary"
+              style={{ textDecoration: "none", color: "rgba(255,255,255,0.5)" }}
+            >
+              Home
+            </a>
+            <span style={{ color: "rgba(255,255,255,0.35)" }}>{" / "}</span>
+            <span style={{ color: "rgba(255,255,255,0.8)" }}>About</span>
+          </nav>
           <p
             className="overline animate-in"
             style={{ color: "rgba(255,255,255,0.5)", marginBottom: "var(--space-3)" }}

@@ -120,7 +120,15 @@ export function Footer({ locale }: { locale: Locale }) {
         <div className="footer__bottom">
           <span>&copy; {year} Cribliv. All rights reserved.</span>
           <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            Made with <Heart size={14} fill="var(--accent)" stroke="var(--accent)" /> in India
+            Made with{" "}
+            <Heart
+              size={14}
+              fill="var(--accent)"
+              stroke="var(--accent)"
+              role="img"
+              aria-label="love"
+            />{" "}
+            in India
           </span>
         </div>
       </div>

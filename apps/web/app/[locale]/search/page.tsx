@@ -11,8 +11,27 @@ import {
   Building,
   Home,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2
 } from "lucide-react";
+
+const QUERY_NORMALIZE_MAP: Record<string, string> = {
+  "1bhk": "1 BHK",
+  "2bhk": "2 BHK",
+  "3bhk": "3 BHK",
+  "4bhk": "4 BHK",
+  "5bhk": "5 BHK",
+  pg: "PG"
+};
+
+function normalizeQuery(q: string): string {
+  const lower = q.toLowerCase().trim();
+  return QUERY_NORMALIZE_MAP[lower] ?? q;
+}
+
+function toDisplayCity(slug: string): string {
+  return slug.charAt(0).toUpperCase() + slug.slice(1).toLowerCase();
+}
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -69,14 +88,20 @@ export async function generateMetadata({
   const city = typeof searchParams.city === "string" ? searchParams.city : "";
   const isHindi = params.locale === "hi";
 
-  const titleParts = [query, city].filter(Boolean);
+  const displayQuery = query ? normalizeQuery(query) : "";
+  const displayCity = city ? toDisplayCity(city) : "";
+
+  const titleParts = [displayQuery, displayCity].filter(Boolean);
   const title = titleParts.length
     ? isHindi
-      ? `${titleParts.join(", ")} — किराये पर खोज | Cribliv`
-      : `${titleParts.join(", ")} — Rentals Search | Cribliv`
+      ? `${titleParts.join(", ")} — किराये पर खोज`
+      : `${displayQuery ? displayQuery + " in " : ""}${displayCity || ""} — Rentals`.replace(
+          / in  —/,
+          " —"
+        )
     : isHindi
-      ? "किराये पर मकान खोजें — Cribliv"
-      : "Search Verified Rentals — Cribliv";
+      ? "किराये पर मकान खोजें"
+      : "Search Verified Rentals";
 
   const description = isHindi
     ? "AI-संचालित सत्यापित किराये की खोज। फ्लैट, PG और मकान खोजें।"
@@ -114,7 +139,7 @@ function furnishLabel(f: string): string {
   return f === "fully_furnished"
     ? "Fully Furnished"
     : f === "semi_furnished"
-      ? "Semi Furnished"
+      ? "Semi-Furnished"
       : "Unfurnished";
 }
 
@@ -214,7 +239,7 @@ export default async function SearchResultsPage({
           <div>
             <h1 style={{ fontSize: "1.25rem", margin: 0, letterSpacing: "-0.01em" }}>
               {queryStr || cityStr
-                ? `Rentals ${cityStr ? `in ${cityLabel(cityStr)}` : ""}${queryStr ? ` — "${queryStr}"` : ""}`
+                ? `Rentals ${cityStr ? `in ${toDisplayCity(cityStr)}` : ""}${queryStr ? ` — "${normalizeQuery(queryStr)}"` : ""}`
                 : "Search Verified Rentals"}
             </h1>
           </div>
@@ -342,16 +367,34 @@ export default async function SearchResultsPage({
                     {" · "}
                     {item.listing_type === "flat_house" ? "Flat/House" : "PG"}
                   </div>
-                  {(item.bhk || item.area_sqft || item.furnishing) && (
+                  {item.listing_type === "pg" ? (
                     <div className="card__meta">
-                      {item.bhk ? <span className="card__meta-item">{item.bhk} BHK</span> : null}
-                      {item.area_sqft ? (
-                        <span className="card__meta-item">{item.area_sqft} sqft</span>
-                      ) : null}
-                      {item.furnishing ? (
-                        <span className="card__meta-item">{furnishLabel(item.furnishing)}</span>
-                      ) : null}
+                      <span
+                        className="card__meta-item"
+                        style={{
+                          background: "rgba(80,70,229,0.08)",
+                          color: "#5046e5",
+                          fontWeight: 600
+                        }}
+                      >
+                        PG
+                      </span>
+                      <span className="card__meta-item">
+                        {item.furnishing ? furnishLabel(item.furnishing) : "—"}
+                      </span>
                     </div>
+                  ) : (
+                    (item.bhk || item.area_sqft || item.furnishing) && (
+                      <div className="card__meta">
+                        {item.bhk ? <span className="card__meta-item">{item.bhk} BHK</span> : null}
+                        {item.area_sqft ? (
+                          <span className="card__meta-item">{item.area_sqft} sqft</span>
+                        ) : null}
+                        {item.furnishing ? (
+                          <span className="card__meta-item">{furnishLabel(item.furnishing)}</span>
+                        ) : null}
+                      </div>
+                    )
                   )}
                   <div
                     style={{
@@ -372,6 +415,25 @@ export default async function SearchResultsPage({
                       View
                     </Link>
                   </div>
+                  {item.verification_status === "verified" && (
+                    <div style={{ marginTop: "var(--space-2)" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "var(--trust)",
+                          background: "rgba(34,197,94,0.08)",
+                          padding: "2px 8px",
+                          borderRadius: "var(--radius-full)"
+                        }}
+                      >
+                        <CheckCircle2 size={12} /> Verified
+                      </span>
+                    </div>
+                  )}
                 </div>
               </article>
             ))}

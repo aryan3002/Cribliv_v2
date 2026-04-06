@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { fetchLeadStats, type LeadStats } from "../../lib/owner-api";
+import { Inbox, Phone, CalendarCheck, CheckCircle2, XCircle } from "lucide-react";
 
 interface Props {
   accessToken: string;
@@ -12,31 +13,31 @@ const STAT_CONFIG: Array<{
   label: string;
   color: string;
   bgColor: string;
-  icon: string;
+  Icon: typeof Inbox;
 }> = [
-  { key: "new", label: "New", color: "#3b82f6", bgColor: "rgba(59,130,246,0.08)", icon: "✉️" },
+  { key: "new", label: "New", color: "#3b82f6", bgColor: "rgba(59,130,246,0.08)", Icon: Inbox },
   {
     key: "contacted",
     label: "Contacted",
     color: "#f59e0b",
     bgColor: "rgba(245,158,11,0.08)",
-    icon: "📞"
+    Icon: Phone
   },
   {
     key: "visit_scheduled",
     label: "Visit Scheduled",
-    color: "#5046e5",
-    bgColor: "rgba(80,70,229,0.08)",
-    icon: "📅"
+    color: "#7c3aed",
+    bgColor: "rgba(124,58,237,0.08)",
+    Icon: CalendarCheck
   },
   {
     key: "deal_done",
     label: "Deal Done",
     color: "#22c55e",
     bgColor: "rgba(34,197,94,0.08)",
-    icon: "✅"
+    Icon: CheckCircle2
   },
-  { key: "lost", label: "Lost", color: "#94a3b8", bgColor: "rgba(148,163,184,0.08)", icon: "❌" }
+  { key: "lost", label: "Lost", color: "#94a3b8", bgColor: "rgba(148,163,184,0.08)", Icon: XCircle }
 ];
 
 export function LeadStatsWidget({ accessToken }: Props) {
@@ -66,15 +67,14 @@ export function LeadStatsWidget({ accessToken }: Props) {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(5, 1fr)",
-          gap: "var(--space-3)",
-          marginBottom: "var(--space-5)"
+          gap: "var(--space-3)"
         }}
       >
         {STAT_CONFIG.map((s) => (
           <div
             key={s.key}
             className="skeleton-card"
-            style={{ height: 88, borderRadius: "var(--radius-lg)" }}
+            style={{ height: 80, borderRadius: "var(--radius-lg)" }}
           />
         ))}
       </div>
@@ -85,104 +85,99 @@ export function LeadStatsWidget({ accessToken }: Props) {
 
   const total = stats.total ?? 0;
 
+  // When all stats are 0, show a subdued message
+  if (total === 0) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-3)",
+          padding: "var(--space-4)",
+          borderRadius: "var(--radius-lg)",
+          background: "var(--surface-sunken)",
+          color: "var(--text-tertiary)",
+          fontSize: 14
+        }}
+      >
+        <Inbox size={18} style={{ opacity: 0.5 }} />
+        <span>No leads yet — share your listings to start receiving enquiries.</span>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(5, 1fr)",
-        gap: "var(--space-3)",
-        marginBottom: "var(--space-5)"
+        gap: "var(--space-3)"
       }}
     >
       {STAT_CONFIG.map((s) => {
         const value = stats[s.key] ?? 0;
-        const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+        const IconComponent = s.Icon;
 
         return (
           <div
             key={s.key}
-            className="card"
             style={{
-              padding: "var(--space-4)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "var(--space-1)",
+              padding: "var(--space-4) var(--space-3)",
               borderRadius: "var(--radius-lg)",
               background: "var(--surface)",
-              cursor: "default",
-              transition: "transform var(--transition-base), box-shadow var(--transition-base)"
+              border: "1px solid var(--border)",
+              transition: "box-shadow 150ms ease, transform 150ms ease",
+              cursor: "default"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)";
+              e.currentTarget.style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = "none";
+              e.currentTarget.style.transform = "none";
             }}
           >
-            {/* Icon + value row */}
             <div
               style={{
+                width: 32,
+                height: 32,
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "var(--space-2)"
+                justifyContent: "center",
+                borderRadius: "var(--radius-md)",
+                background: s.bgColor
               }}
             >
-              <span
-                style={{
-                  fontSize: 18,
-                  width: 36,
-                  height: 36,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: "var(--radius-md)",
-                  background: s.bgColor
-                }}
-              >
-                {s.icon}
-              </span>
-              <span
-                style={{
-                  fontFamily: "var(--font-heading)",
-                  fontSize: 26,
-                  fontWeight: 700,
-                  color: s.color,
-                  lineHeight: 1
-                }}
-              >
-                {value}
-              </span>
+              <IconComponent size={16} style={{ color: s.color }} />
             </div>
-
-            {/* Label */}
-            <p
+            <span
               style={{
-                fontSize: 12,
+                fontFamily: "var(--font-heading)",
+                fontSize: 24,
+                fontWeight: 700,
+                color: s.color,
+                lineHeight: 1
+              }}
+            >
+              {value}
+            </span>
+            <span
+              style={{
+                fontSize: 11,
                 fontWeight: 600,
                 color: "var(--text-secondary)",
-                marginBottom: "var(--space-2)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis"
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                whiteSpace: "nowrap"
               }}
             >
               {s.label}
-            </p>
-
-            {/* Progress bar */}
-            <div
-              style={{
-                height: 3,
-                borderRadius: 99,
-                background: "var(--surface-sunken)",
-                overflow: "hidden"
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${pct}%`,
-                  borderRadius: 99,
-                  background: s.color,
-                  transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)"
-                }}
-              />
-            </div>
-            <p style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
-              {pct}% of {total}
-            </p>
+            </span>
           </div>
         );
       })}

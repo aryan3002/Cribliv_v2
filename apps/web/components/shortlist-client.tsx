@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   clearAuthSession,
   readAuthSession,
@@ -11,6 +12,7 @@ import {
 import { fetchApi } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
 import { Heart, Building, MapPin, AlertTriangle, ShieldCheck } from "lucide-react";
+import { toTitleCase } from "../lib/utils";
 
 interface ListingCard {
   id: string;
@@ -22,20 +24,27 @@ interface ListingCard {
 }
 
 export function ShortlistClient({ locale }: { locale: string }) {
+  const { data: nextAuthSession, status: sessionStatus } = useSession();
   const [loading, setLoading] = useState(true);
   const [isGuestMode, setIsGuestMode] = useState(true);
   const [items, setItems] = useState<ListingCard[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (sessionStatus === "loading") return;
     void loadShortlist();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus]);
 
   async function loadShortlist() {
     setLoading(true);
     setError(null);
-    const session = readAuthSession();
-    if (!session?.access_token) {
+
+    const localSession = readAuthSession();
+    const nextAuthToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
+    const token = localSession?.access_token ?? nextAuthToken;
+
+    if (!token) {
       setIsGuestMode(true);
       const ids = readGuestShortlist();
       const fetched = await Promise.all(
@@ -57,7 +66,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
     try {
       const response = await fetchApi<{ items: ListingCard[]; total: number }>("/shortlist", {
         headers: {
-          Authorization: `Bearer ${session.access_token}`
+          Authorization: `Bearer ${token}`
         }
       });
       setItems(response.items);
@@ -74,8 +83,10 @@ export function ShortlistClient({ locale }: { locale: string }) {
 
   async function removeItem(listingId: string) {
     setError(null);
-    const session = readAuthSession();
-    if (!session?.access_token) {
+    const localSession = readAuthSession();
+    const nextAuthToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
+    const token = localSession?.access_token ?? nextAuthToken;
+    if (!token) {
       const next = readGuestShortlist().filter((id) => id !== listingId);
       writeGuestShortlist(next);
       setItems((prev) => prev.filter((item) => item.id !== listingId));
@@ -87,7 +98,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
       await fetchApi<{ success: true }>(`/shortlist/${listingId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${session.access_token}`
+          Authorization: `Bearer ${token}`
         }
       });
       setItems((prev) => prev.filter((item) => item.id !== listingId));
@@ -97,7 +108,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
     }
   }
 
-  if (loading) {
+  if (sessionStatus === "loading" || loading) {
     return (
       <section>
         <h1 style={{ marginBottom: "var(--space-6)" }}>Shortlist</h1>
@@ -191,7 +202,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
                 <div className="card__title">{item.title}</div>
                 <div className="card__location">
                   <MapPin size={14} aria-hidden="true" />
-                  {item.city ?? "City unavailable"}
+                  {item.city ? toTitleCase(item.city) : "City unavailable"}
                   {item.listing_type
                     ? ` · ${item.listing_type === "flat_house" ? "Flat/House" : "PG"}`
                     : ""}

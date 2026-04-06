@@ -8,7 +8,7 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi ? "सेवा की शर्तें — Cribliv" : "Terms of Service — Cribliv";
+  const title = isHindi ? "सेवा की शर्तें" : "Terms of Service";
   const description = isHindi
     ? "Cribliv की सेवा की शर्तें — प्लेटफॉर्म उपयोग, भुगतान, रिफंड नीति और उपयोगकर्ता जिम्मेदारियाँ।"
     : "Cribliv Terms of Service — platform usage, payments, 12-hour refund policy, user responsibilities, and property listing guidelines.";

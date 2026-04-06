@@ -117,9 +117,7 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi
-    ? "अक्सर पूछे जाने वाले प्रश्न — Cribliv"
-    : "Frequently Asked Questions — Cribliv";
+  const title = isHindi ? "अक्सर पूछे जाने वाले प्रश्न" : "Frequently Asked Questions";
   const description = isHindi
     ? "Cribliv के FAQ — किराये की खोज, भुगतान, रिफंड, मालिक सत्यापन और बहुत कुछ।"
     : "Find answers to common questions about Cribliv — rental search, pricing, 12-hour refund guarantee, owner verification, voice search, and more.";
@@ -196,7 +194,7 @@ export default function FAQPage({ params }: { params: { locale: string } }) {
             Home
           </a>
           <span className="text-tertiary" style={{ margin: "0 var(--space-2)" }}>
-            /
+            {" / "}
           </span>
           <span className="text-primary">FAQ</span>
         </nav>

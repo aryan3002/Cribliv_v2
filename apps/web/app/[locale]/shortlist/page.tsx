@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { ShortlistClient } from "../../../components/shortlist-client";
+
+export const metadata: Metadata = {
+  title: "My Shortlist"
+};
 
 export default function ShortlistPage({ params }: { params: { locale: string } }) {
   return (

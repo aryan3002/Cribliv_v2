@@ -63,7 +63,7 @@ export function CountUp({
   duration?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const [display, setDisplay] = useState(0);
+  const [display, setDisplay] = useState(value);
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
@@ -84,13 +84,13 @@ export function CountUp({
 
   useEffect(() => {
     if (!started) return;
+    setDisplay(0);
     const startTime = performance.now();
     let raf: number;
 
     function tick(now: number) {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // ease out cubic for smooth deceleration
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(eased * value));
       if (progress < 1) {

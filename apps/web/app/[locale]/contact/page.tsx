@@ -10,7 +10,7 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi ? "संपर्क करें — Cribliv सहायता" : "Contact Us — Cribliv Support";
+  const title = isHindi ? "संपर्क करें" : "Contact Us";
   const description = isHindi
     ? "Cribliv सहायता टीम से संपर्क करें। किराये के सवाल, रिफंड, या मालिक सहायता के लिए।"
     : "Get in touch with the Cribliv support team. We help with rental queries, refunds, owner verification, and more.";
@@ -54,22 +54,22 @@ const CHANNELS = [
   {
     icon: Mail,
     title: "Email",
-    value: "help@cribliv.com",
-    href: "mailto:help@cribliv.com",
+    value: "info@cribliv.com",
+    href: "mailto:info@cribliv.com",
     desc: "Best for detailed queries — we respond within 4 hours."
   },
   {
     icon: MessageCircle,
     title: "WhatsApp",
-    value: "+91-XXXXX-XXXXX",
-    href: "#",
+    value: "+91 80621 79562",
+    href: "https://wa.me/918062179562",
     desc: "Quick questions and refund status checks."
   },
   {
     icon: Phone,
     title: "Phone",
-    value: "+91-XXXXX-XXXXX",
-    href: "#",
+    value: "+91 80621 79562",
+    href: "tel:+918062179562",
     desc: "Mon–Sat, 9 AM – 7 PM IST. Hindi & English."
   }
 ];
@@ -87,7 +87,7 @@ export default function ContactPage({ params }: { params: { locale: string } }) 
       contactPoint: [
         {
           "@type": "ContactPoint",
-          email: "help@cribliv.com",
+          email: "info@cribliv.com",
           contactType: "customer service",
           availableLanguage: ["English", "Hindi"],
           areaServed: "IN"
@@ -124,6 +124,26 @@ export default function ContactPage({ params }: { params: { locale: string } }) 
       >
         <div className="hero-glow" aria-hidden="true" />
         <div className="container" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+          <nav
+            className="breadcrumb"
+            style={{
+              marginBottom: "var(--space-6)",
+              fontSize: "var(--text-sm)",
+              display: "flex",
+              justifyContent: "center",
+              gap: "var(--space-2)"
+            }}
+          >
+            <a
+              href={`/${params.locale}`}
+              className="text-secondary"
+              style={{ textDecoration: "none", color: "rgba(255,255,255,0.5)" }}
+            >
+              Home
+            </a>
+            <span style={{ color: "rgba(255,255,255,0.35)" }}>{" / "}</span>
+            <span style={{ color: "rgba(255,255,255,0.8)" }}>Contact</span>
+          </nav>
           <p
             className="overline animate-in"
             style={{ color: "rgba(255,255,255,0.5)", marginBottom: "var(--space-3)" }}

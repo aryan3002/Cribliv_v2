@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { t, type Locale } from "../../lib/i18n";
+import { fetchApi } from "../../lib/api";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -21,6 +22,8 @@ import {
   ArrowRight,
   Sparkles
 } from "lucide-react";
+
+/* City photos: Unsplash free license — unsplash.com/license */
 
 const SearchHero = dynamic(
   () => import("../../components/search-hero").then((mod) => mod.SearchHero),
@@ -62,9 +65,7 @@ export async function generateMetadata({
   params: { locale: Locale };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi
-    ? "Cribliv — तेज, भरोसेमंद घर खोज"
-    : "Cribliv — Fast, Trustworthy Home Search in North India";
+  const title = isHindi ? "तेज, भरोसेमंद घर खोज" : "Fast, Trustworthy Home Search in North India";
   const description = isHindi
     ? "AI-संचालित सत्यापित किराये की खोज। दिल्ली, गुरुग्राम, नोएडा और अन्य शहरों में।"
     : "AI-powered verified rental search. Find flats, PGs, and houses in Delhi, Gurugram, Noida, and more.";
@@ -93,26 +94,54 @@ export async function generateMetadata({
 }
 
 const CITIES = [
-  { name: "Delhi", icon: Landmark, gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" },
+  {
+    name: "Delhi",
+    photo: "delhi",
+    icon: Landmark,
+    gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+  },
   {
     name: "Gurugram",
+    photo: "gurugram",
     icon: Building2,
     gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
   },
-  { name: "Noida", icon: Building, gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)" },
-  { name: "Ghaziabad", icon: Home, gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)" },
+  {
+    name: "Noida",
+    photo: "noida",
+    icon: Building,
+    gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+  },
+  {
+    name: "Ghaziabad",
+    photo: "ghaziabad",
+    icon: Home,
+    gradient: "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+  },
   {
     name: "Faridabad",
+    photo: "faridabad",
     icon: MapPin,
     gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
   },
   {
     name: "Chandigarh",
+    photo: "chandigarh",
     icon: TreePine,
     gradient: "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)"
   },
-  { name: "Jaipur", icon: Castle, gradient: "linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)" },
-  { name: "Lucknow", icon: Tent, gradient: "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)" }
+  {
+    name: "Jaipur",
+    photo: "jaipur",
+    icon: Castle,
+    gradient: "linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)"
+  },
+  {
+    name: "Lucknow",
+    photo: "lucknow",
+    icon: Tent,
+    gradient: "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)"
+  }
 ];
 
 const HOW_IT_WORKS = [
@@ -170,8 +199,25 @@ const PLATFORM_STATS = [
   { value: "₹0", numericValue: 0, prefix: "₹", suffix: "", label: "Brokerage" }
 ];
 
-export default function HomePage({ params }: { params: { locale: Locale } }) {
+export default async function HomePage({ params }: { params: { locale: Locale } }) {
   const isHindi = params.locale === "hi";
+
+  // Fetch popular localities for the bar
+  let popularLocalities: Array<{
+    locality_id: number;
+    locality_name: string;
+    listing_count: number;
+    city_slug: string;
+  }> = [];
+  try {
+    popularLocalities = await fetchApi<typeof popularLocalities>(
+      "/listings/search/popular-localities?city=lucknow&limit=10",
+      undefined,
+      { server: true }
+    );
+  } catch {
+    /* silent */
+  }
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -218,7 +264,15 @@ export default function HomePage({ params }: { params: { locale: Locale } }) {
       />
 
       {/* ── Full-bleed Hero ── */}
-      <section className="hero--landing">
+      <section
+        className="hero--landing"
+        style={{
+          backgroundImage: "url('/images/ui/hero-bg.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center top",
+          backgroundBlendMode: "luminosity"
+        }}
+      >
         <div className="hero-glow" aria-hidden="true" />
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <p
@@ -306,28 +360,132 @@ export default function HomePage({ params }: { params: { locale: Locale } }) {
             </Link>
           </div>
           <div className="grid grid-4 cities-grid">
-            {CITIES.map((city) => {
-              const Icon = city.icon;
-              return (
-                <Link
-                  key={city.name}
-                  href={`/${params.locale}/city/${city.name.toLowerCase()}`}
-                  className="city-card"
+            {CITIES.map((city) => (
+              <Link
+                key={city.name}
+                href={`/${params.locale}/city/${city.name.toLowerCase()}`}
+                className="city-card city-card--photo"
+                style={{ textDecoration: "none" }}
+              >
+                <div
+                  style={{
+                    backgroundImage: `url('/images/cities/${city.photo}.jpg')`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    borderRadius: "var(--radius-lg)",
+                    height: 180,
+                    width: "100%",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}
                 >
-                  <span
-                    className="icon-circle"
-                    style={{ background: city.gradient, color: "#fff", width: 44, height: 44 }}
-                    aria-hidden="true"
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background:
+                        "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.05) 100%)"
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: 14,
+                      left: 14,
+                      right: 14,
+                      display: "flex",
+                      alignItems: "flex-end",
+                      justifyContent: "space-between"
+                    }}
                   >
-                    <Icon size={20} />
-                  </span>
-                  {city.name}
-                </Link>
-              );
-            })}
+                    <span
+                      style={{
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: 17,
+                        textShadow: "0 1px 6px rgba(0,0,0,0.5)",
+                        letterSpacing: "-0.01em"
+                      }}
+                    >
+                      {city.name}
+                    </span>
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.85)",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3
+                      }}
+                    >
+                      <ArrowRight size={12} />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
       </AnimateOnScroll>
+
+      {/* ── Popular Localities ── */}
+      {popularLocalities.length > 0 && (
+        <AnimateOnScroll>
+          <section
+            className="section--sm"
+            style={{ paddingTop: "var(--space-4)", paddingBottom: "var(--space-4)" }}
+          >
+            <div className="section-header">
+              <h2>{isHindi ? "लखनऊ में लोकप्रिय" : "Popular in Lucknow"}</h2>
+              <Link
+                href={`/${params.locale}/search?city=lucknow`}
+                className="section-header__action"
+              >
+                {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
+              </Link>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "var(--space-2)",
+                overflowX: "auto",
+                paddingBottom: "var(--space-2)",
+                scrollbarWidth: "none",
+                WebkitOverflowScrolling: "touch"
+              }}
+            >
+              {popularLocalities.map((loc) => (
+                <Link
+                  key={loc.locality_id}
+                  href={`/${params.locale}/search?city=${loc.city_slug}&q=${encodeURIComponent(loc.locality_name)}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 14px",
+                    borderRadius: "var(--radius-full)",
+                    background: "var(--surface-2, #f3f4f6)",
+                    border: "1px solid var(--border)",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: "var(--text-primary)",
+                    whiteSpace: "nowrap",
+                    textDecoration: "none",
+                    transition: "background 0.15s"
+                  }}
+                >
+                  <MapPin size={13} style={{ color: "var(--brand)" }} />
+                  {loc.locality_name}
+                  <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 400 }}>
+                    {loc.listing_count}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </AnimateOnScroll>
+      )}
 
       {/* ── How It Works ── */}
       <AnimateOnScroll delay={100}>
@@ -337,7 +495,7 @@ export default function HomePage({ params }: { params: { locale: Locale } }) {
             style={{
               justifyContent: "center",
               maxWidth: "var(--container-max)",
-              margin: "0 auto var(--space-8)",
+              margin: "0 auto var(--space-10)",
               paddingLeft: "var(--space-6)",
               paddingRight: "var(--space-6)"
             }}
@@ -349,7 +507,23 @@ export default function HomePage({ params }: { params: { locale: Locale } }) {
               >
                 {isHindi ? "सरल प्रक्रिया" : "Simple Process"}
               </p>
-              <h2>{isHindi ? "यह कैसे काम करता है" : "How It Works"}</h2>
+              <h2 style={{ fontSize: 28, letterSpacing: "-0.02em" }}>
+                {isHindi ? "यह कैसे काम करता है" : "How It Works"}
+              </h2>
+              <p
+                className="text-secondary"
+                style={{
+                  marginTop: "var(--space-3)",
+                  fontSize: 15,
+                  maxWidth: 480,
+                  marginLeft: "auto",
+                  marginRight: "auto"
+                }}
+              >
+                {isHindi
+                  ? "तीन आसान चरणों में अपना सपनों का घर खोजें"
+                  : "Find your dream home in three simple steps — no brokers, no hassle"}
+              </p>
             </div>
           </div>
           <div
@@ -364,27 +538,52 @@ export default function HomePage({ params }: { params: { locale: Locale } }) {
             {HOW_IT_WORKS.map((step, i) => {
               const Icon = step.icon;
               return (
-                <div key={i} className="feature-card">
-                  <div
+                <div
+                  key={i}
+                  className="feature-card"
+                  style={{
+                    position: "relative",
+                    padding: "var(--space-8) var(--space-6)",
+                    borderTop: `3px solid var(--${step.color})`
+                  }}
+                >
+                  <span
                     style={{
+                      position: "absolute",
+                      top: -14,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      background: `var(--${step.color})`,
+                      color: "#fff",
                       display: "flex",
                       alignItems: "center",
-                      gap: "var(--space-3)",
-                      marginBottom: "var(--space-4)",
-                      justifyContent: "center"
+                      justifyContent: "center",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      boxShadow: `0 2px 8px color-mix(in srgb, var(--${step.color}) 40%, transparent)`
                     }}
                   >
-                    <span className={`step-number step-number--${step.color}`}>{i + 1}</span>
-                  </div>
+                    {i + 1}
+                  </span>
                   <div
                     className={`icon-circle icon-circle--${step.color}`}
-                    style={{ margin: "0 auto var(--space-4)" }}
+                    style={{ margin: "var(--space-2) auto var(--space-4)", width: 56, height: 56 }}
                     aria-hidden="true"
                   >
-                    <Icon size={24} />
+                    <Icon size={26} />
                   </div>
-                  <h3 className="feature-card__title">{isHindi ? step.titleHi : step.title}</h3>
-                  <p className="feature-card__desc">{isHindi ? step.descHi : step.desc}</p>
+                  <h3
+                    className="feature-card__title"
+                    style={{ fontSize: 17, marginBottom: "var(--space-2)" }}
+                  >
+                    {isHindi ? step.titleHi : step.title}
+                  </h3>
+                  <p className="feature-card__desc" style={{ lineHeight: 1.6 }}>
+                    {isHindi ? step.descHi : step.desc}
+                  </p>
                 </div>
               );
             })}
@@ -397,61 +596,82 @@ export default function HomePage({ params }: { params: { locale: Locale } }) {
         <section className="section--sm">
           <div className="section-header">
             <h2>{isHindi ? "किराये के प्रकार" : "Browse by Type"}</h2>
+            <Link href={`/${params.locale}/search`} className="section-header__action">
+              {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
+            </Link>
           </div>
           <div className="grid grid-3">
-            <Link
-              href={`/${params.locale}/search?listing_type=flat_house`}
-              className="feature-card"
-              style={{ textDecoration: "none" }}
-            >
-              <div
-                className="icon-circle icon-circle--brand"
-                style={{ margin: "0 auto var(--space-4)" }}
-                aria-hidden="true"
-              >
-                <Building size={24} />
-              </div>
-              <h3 className="feature-card__title">
-                {isHindi ? "फ्लैट और मकान" : "Flats & Houses"}
-              </h3>
-              <p className="feature-card__desc">
-                {isHindi ? "1BHK से 4BHK तक" : "1BHK to 4BHK apartments and independent houses"}
-              </p>
-            </Link>
-            <Link
-              href={`/${params.locale}/search?listing_type=pg`}
-              className="feature-card"
-              style={{ textDecoration: "none" }}
-            >
-              <div
-                className="icon-circle icon-circle--accent"
-                style={{ margin: "0 auto var(--space-4)" }}
-                aria-hidden="true"
-              >
-                <Home size={24} />
-              </div>
-              <h3 className="feature-card__title">{isHindi ? "PG और हॉस्टल" : "PGs & Hostels"}</h3>
-              <p className="feature-card__desc">
-                {isHindi ? "खाने और वाईफाई के साथ" : "With meals, WiFi, and shared amenities"}
-              </p>
-            </Link>
-            <Link
-              href={`/${params.locale}/search?listing_type=flat_house&furnished=true`}
-              className="feature-card"
-              style={{ textDecoration: "none" }}
-            >
-              <div
-                className="icon-circle icon-circle--amber"
-                style={{ margin: "0 auto var(--space-4)" }}
-                aria-hidden="true"
-              >
-                <Sofa size={24} />
-              </div>
-              <h3 className="feature-card__title">{isHindi ? "फर्निश्ड" : "Furnished Homes"}</h3>
-              <p className="feature-card__desc">
-                {isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture and appliances"}
-              </p>
-            </Link>
+            {[
+              {
+                href: `/${params.locale}/search?listing_type=flat_house`,
+                icon: Building,
+                color: "brand" as const,
+                title: isHindi ? "फ्लैट और मकान" : "Flats & Houses",
+                desc: isHindi
+                  ? "1BHK से 4BHK तक"
+                  : "1BHK to 4BHK apartments and independent houses",
+                gradient: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)"
+              },
+              {
+                href: `/${params.locale}/search?listing_type=pg`,
+                icon: Home,
+                color: "accent" as const,
+                title: isHindi ? "PG और हॉस्टल" : "PGs & Hostels",
+                desc: isHindi ? "खाने और वाईफाई के साथ" : "With meals, WiFi, and shared amenities",
+                gradient: "linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)"
+              },
+              {
+                href: `/${params.locale}/search?listing_type=flat_house&furnished=true`,
+                icon: Sofa,
+                color: "amber" as const,
+                title: isHindi ? "फर्निश्ड" : "Furnished Homes",
+                desc: isHindi
+                  ? "सब कुछ तैयार, बस आइए"
+                  : "Move-in ready with furniture and appliances",
+                gradient: "linear-gradient(135deg, #fffbeb 0%, #fde68a 100%)"
+              }
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className="feature-card"
+                  style={{
+                    textDecoration: "none",
+                    background: item.gradient,
+                    border: "none",
+                    padding: "var(--space-8) var(--space-6)",
+                    transition: "transform 0.2s, box-shadow 0.2s"
+                  }}
+                >
+                  <div
+                    className={`icon-circle icon-circle--${item.color}`}
+                    style={{ margin: "0 auto var(--space-4)", width: 56, height: 56 }}
+                    aria-hidden="true"
+                  >
+                    <Icon size={26} />
+                  </div>
+                  <h3 className="feature-card__title" style={{ fontSize: 17 }}>
+                    {item.title}
+                  </h3>
+                  <p className="feature-card__desc">{item.desc}</p>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      marginTop: "var(--space-3)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: `var(--${item.color})`
+                    }}
+                  >
+                    {isHindi ? "खोजें" : "Explore"} <ArrowRight size={13} />
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </section>
       </AnimateOnScroll>
@@ -459,41 +679,72 @@ export default function HomePage({ params }: { params: { locale: Locale } }) {
       {/* ── Social Proof Stats ── */}
       <AnimateOnScroll delay={100}>
         <section
-          className="section--sm"
-          style={{ paddingTop: "var(--space-12)", paddingBottom: "var(--space-4)" }}
+          style={{
+            background: "linear-gradient(135deg, #080E1A 0%, #0B1E42 50%, #0044AA 100%)",
+            padding: "var(--space-14) 0"
+          }}
         >
-          <div className="grid grid-4">
-            {PLATFORM_STATS.map((stat, i) => (
-              <div
-                key={stat.label}
-                className="feature-card"
-                style={{ padding: "var(--space-6)", textAlign: "center" }}
+          <div
+            style={{
+              maxWidth: "var(--container-max)",
+              margin: "0 auto",
+              paddingLeft: "var(--space-6)",
+              paddingRight: "var(--space-6)"
+            }}
+          >
+            <div style={{ textAlign: "center", marginBottom: "var(--space-8)" }}>
+              <h2
+                style={{ color: "#fff", fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" }}
               >
+                {isHindi ? "हमारे आंकड़े" : "Trusted by Renters Across North India"}
+              </h2>
+            </div>
+            <div className="grid grid-4">
+              {PLATFORM_STATS.map((stat, i) => (
                 <div
+                  key={stat.label}
                   style={{
-                    fontFamily: "var(--font-heading)",
-                    fontSize: 32,
-                    fontWeight: 800,
-                    color: "var(--brand)",
-                    lineHeight: 1
+                    textAlign: "center",
+                    padding: "var(--space-6)",
+                    borderRadius: "var(--radius-lg)",
+                    background: "rgba(255,255,255,0.06)",
+                    backdropFilter: "blur(8px)",
+                    border: "1px solid rgba(255,255,255,0.08)"
                   }}
                 >
-                  {stat.label === "Brokerage" ? (
-                    "₹0"
-                  ) : (
-                    <CountUp
-                      value={stat.numericValue}
-                      prefix={stat.prefix || ""}
-                      suffix={stat.suffix || ""}
-                      duration={1400 + i * 200}
-                    />
-                  )}
+                  <div
+                    style={{
+                      fontFamily: "var(--font-heading)",
+                      fontSize: 36,
+                      fontWeight: 800,
+                      color: "#fff",
+                      lineHeight: 1
+                    }}
+                  >
+                    {stat.label === "Brokerage" ? (
+                      "₹0"
+                    ) : (
+                      <CountUp
+                        value={stat.numericValue}
+                        prefix={stat.prefix || ""}
+                        suffix={stat.suffix || ""}
+                        duration={1400 + i * 200}
+                      />
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "var(--space-2)",
+                      fontSize: 14,
+                      color: "rgba(255,255,255,0.65)",
+                      fontWeight: 500
+                    }}
+                  >
+                    {stat.label}
+                  </div>
                 </div>
-                <div className="body-sm text-secondary" style={{ marginTop: "var(--space-2)" }}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
       </AnimateOnScroll>

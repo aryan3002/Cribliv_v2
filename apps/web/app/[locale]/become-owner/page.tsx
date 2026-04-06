@@ -1,324 +1,266 @@
-"use client";
-
-/**
- * /en/become-owner
- *
- * Role upgrade request page.
- *
- * In-memory (dev) mode  → role is granted IMMEDIATELY, session is refreshed
- *                          and user is redirected to the owner dashboard.
- * DB (prod) mode         → pending request is created; admin must approve.
- */
-
-import { useState } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useSession, signIn } from "next-auth/react";
-import { requestRoleUpgrade } from "../../../lib/owner-api";
+import {
+  ShieldCheck,
+  FileText,
+  Users,
+  ArrowRight,
+  CheckCircle2,
+  BadgeIndianRupee,
+  Sparkles
+} from "lucide-react";
+import { BecomeOwnerClient } from "../../../components/become-owner-client";
 
-type RoleChoice = "owner" | "pg_operator";
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
-const ROLE_INFO: Record<RoleChoice, { label: string; description: string; examples: string[] }> = {
-  owner: {
-    label: "Property Owner",
-    description: "I own a flat, house, apartment or villa that I want to rent out.",
-    examples: ["1 BHK / 2 BHK flat", "Independent house", "Builder floor", "Studio apartment"]
+export async function generateMetadata({
+  params
+}: {
+  params: { locale: string };
+}): Promise<Metadata> {
+  const isHindi = params.locale === "hi";
+  const title = isHindi ? "अपनी प्रॉपर्टी लिस्ट करें" : "List Your Property";
+  const description = isHindi
+    ? "Cribliv पर अपनी प्रॉपर्टी फ्री में लिस्ट करें। शून्य कमीशन, सत्यापित किरायेदार, AI-मैच्ड लीड।"
+    : "List your property on Cribliv for free. Zero commission, verified tenants, AI-matched leads across North India.";
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: `${BASE_URL}/en/become-owner`,
+      languages: { en: `${BASE_URL}/en/become-owner`, hi: `${BASE_URL}/hi/become-owner` }
+    },
+    openGraph: {
+      title,
+      description,
+      url: `${BASE_URL}/${params.locale}/become-owner`,
+      siteName: "Cribliv",
+      type: "website"
+    }
+  };
+}
+
+const STEPS = [
+  {
+    icon: FileText,
+    title: "Create Your Listing",
+    titleHi: "लिस्टिंग बनाएं",
+    desc: "Fill in property details or use our voice-assisted AI to generate your listing in under 5 minutes.",
+    descHi: "प्रॉपर्टी डिटेल भरें या 5 मिनट में AI असिस्टेंट से लिस्टिंग बनाएं।"
   },
-  pg_operator: {
-    label: "PG Operator",
-    description:
-      "I run a paying guest accommodation with shared / private rooms and common facilities.",
-    examples: ["Boys / Girls PG", "Co-living space", "Hostel", "Serviced accommodation"]
+  {
+    icon: ShieldCheck,
+    title: "Get Verified",
+    titleHi: "वेरिफाई हों",
+    desc: "Complete a quick Aadhaar or electricity bill verification. Verified owners get 3x more leads.",
+    descHi:
+      "आधार या बिजली बिल से तुरंत वेरिफिकेशन करें। वेरिफाइड ओनर को 3 गुना ज़्यादा लीड मिलती हैं।"
+  },
+  {
+    icon: Users,
+    title: "Receive Tenant Leads",
+    titleHi: "किरायेदार लीड पाएं",
+    desc: "AI matches your property with serious tenants. Get direct enquiries — no brokers in between.",
+    descHi: "AI आपकी प्रॉपर्टी को सही किरायेदारों से जोड़ता है। बिना ब्रोकर के सीधी पूछताछ।"
   }
-};
+];
+
+const TRUST_POINTS = [
+  { text: "Zero commission forever", textHi: "हमेशा शून्य कमीशन" },
+  { text: "AI-matched tenant leads", textHi: "AI-मैच्ड किरायेदार" },
+  { text: "Verified badge for trust", textHi: "भरोसे के लिए वेरिफाइड बैज" }
+];
 
 export default function BecomeOwnerPage({ params }: { params: { locale: string } }) {
-  const { locale } = params;
-  const { data: session, status, update: updateSession } = useSession();
-  const router = useRouter();
-  const accessToken = session?.accessToken ?? null;
-  const userRole = session?.user?.role;
-
-  const [selected, setSelected] = useState<RoleChoice>("owner");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [grantedRole, setGrantedRole] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  //  Not logged in
-  if (status === "loading") {
-    return (
-      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-        <div className="skeleton-card" style={{ height: 120 }} />
-      </section>
-    );
-  }
-
-  if (!session) {
-    return (
-      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-        <div className="card" style={{ textAlign: "center" }}>
-          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
-            <h2 className="h3">Sign in first</h2>
-            <p
-              className="caption"
-              style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-4)" }}
-            >
-              You need to be logged in to request a role upgrade.
-            </p>
-            <Link href={`/auth/login?from=/${locale}/become-owner`} className="btn btn--primary">
-              Login / Sign up
-            </Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  //  Already an owner or pg_operator
-  if (userRole === "owner" || userRole === "pg_operator") {
-    return (
-      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-        <div className="card" style={{ textAlign: "center" }}>
-          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
-            <div className="alert alert--success" style={{ marginBottom: "var(--space-5)" }}>
-              <h2 className="h3" style={{ margin: "0 0 var(--space-2)" }}>
-                ✓ You&apos;re already a{""}
-                {userRole === "pg_operator" ? "PG Operator" : "Property Owner"}
-              </h2>
-              <p style={{ margin: 0 }}>
-                Your role is active. Manage your listings from the dashboard.
-              </p>
-            </div>
-            <Link href={`/${locale}/owner/dashboard`} className="btn btn--primary">
-              Go to Dashboard
-            </Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  //  Role granted (immediate, dev mode)
-  if (grantedRole) {
-    const roleLabel = grantedRole === "pg_operator" ? "PG Operator" : "Property Owner";
-    return (
-      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-        <div className="card" style={{ textAlign: "center" }}>
-          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
-            <div style={{ fontSize: 48, marginBottom: "var(--space-3)" }}>🎉</div>
-            <h2 className="h3" style={{ margin: "0 0 var(--space-2)" }}>
-              ✓ You are now a {roleLabel}!
-            </h2>
-            <p className="caption" style={{ color: "var(--text-tertiary)" }}>
-              Your account has been upgraded. Redirecting to dashboard
-            </p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  //  Pending admin approval (DB / prod mode)
-  if (submitted) {
-    return (
-      <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-        <div className="card" style={{ textAlign: "center" }}>
-          <div className="card__body" style={{ padding: "var(--space-8) var(--space-5)" }}>
-            <h2 className="h3" style={{ margin: "0 0 var(--space-2)" }}>
-              Request submitted! 🎉
-            </h2>
-            <p
-              className="caption"
-              style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-5)" }}
-            >
-              Your request to become a{""}
-              <strong>{ROLE_INFO[selected].label}</strong> is pending admin approval (usually within
-              24 hours).
-            </p>
-            <Link href={`/${locale}`} className="btn btn--secondary">
-              ← Back to home
-            </Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  //  Request form
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    // Guard: stale / missing token  send user to login
-    if (!accessToken) {
-      void signIn(undefined, { callbackUrl: `/${locale}/become-owner` });
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const result = await requestRoleUpgrade(accessToken, selected);
-
-      if (result.status === "granted") {
-        // In-memory mode: role was granted immediately
-        // 1. Force NextAuth to re-fetch /auth/me so session.user.role updates
-        await updateSession();
-        setGrantedRole(result.role ?? selected);
-        // 2. Redirect to owner dashboard after a short tick so the banner updates
-        setTimeout(() => {
-          router.push(`/${locale}/owner/dashboard`);
-        }, 1500);
-      } else if (result.status === "already_granted") {
-        // User already has this role (idempotent)
-        await updateSession();
-        router.push(`/${locale}/owner/dashboard`);
-      } else {
-        // DB mode: pending admin approval
-        setSubmitted(true);
-      }
-    } catch (err) {
-      const isApiError = err && typeof err === "object" && "status" in err;
-      const status = isApiError ? (err as { status: number }).status : 0;
-
-      if (status === 401) {
-        // Session token expired (API restarted)  force re-login
-        void signIn(undefined, { callbackUrl: `/${locale}/become-owner` });
-        return;
-      }
-
-      const msg = err instanceof Error ? err.message : "Something went wrong. Please try again.";
-      if (msg.includes("already_pending")) {
-        setError("You already have a pending request. An admin will review it shortly.");
-      } else if (msg.includes("already_has_role")) {
-        // Already upgraded  just go to dashboard
-        await updateSession();
-        router.push(`/${locale}/owner/dashboard`);
-      } else {
-        setError(msg);
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  const isHindi = params.locale === "hi";
 
   return (
-    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-      <h1 className="h2" style={{ marginBottom: "var(--space-2)" }}>
-        List your property on CribLiv
-      </h1>
-      <p
-        className="caption"
-        style={{ color: "var(--text-tertiary)", marginBottom: "var(--space-6)" }}
+    <>
+      {/* Hero */}
+      <section
+        className="hero--landing"
+        style={{ paddingTop: "var(--space-16)", paddingBottom: "var(--space-10)" }}
       >
-        Select your role below and get instant access.
-      </p>
+        <div className="hero-glow" aria-hidden="true" />
+        <div className="container" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+          <p
+            className="overline animate-in"
+            style={{ color: "rgba(255,255,255,0.5)", marginBottom: "var(--space-3)" }}
+          >
+            <Sparkles
+              size={14}
+              style={{ display: "inline", verticalAlign: "middle", marginRight: 6 }}
+            />
+            {isHindi ? "प्रॉपर्टी ओनर के लिए" : "For Property Owners"}
+          </p>
+          <h1
+            className="display animate-in animate-in-delay-1"
+            style={{ maxWidth: 650, margin: "0 auto var(--space-5)" }}
+          >
+            {isHindi ? "Cribliv पर अपनी प्रॉपर्टी लिस्ट करें" : "List Your Property on Cribliv"}
+          </h1>
+          <p
+            className="hero-subtitle animate-in animate-in-delay-2"
+            style={{ maxWidth: 520, margin: "0 auto var(--space-8)" }}
+          >
+            {isHindi
+              ? "शून्य कमीशन। सत्यापित किरायेदार। AI-मैच्ड लीड — सब कुछ फ्री।"
+              : "Zero commission. Verified tenants. AI-matched leads — all for free. Join hundreds of owners across North India."}
+          </p>
+          <Link
+            href={`/${params.locale}/owner/listings/new`}
+            className="btn btn--lg animate-in animate-in-delay-3"
+          >
+            {isHindi ? "अभी लिस्ट करें" : "Start Listing Now"} <ArrowRight size={18} />
+          </Link>
+        </div>
+      </section>
 
-      <form onSubmit={handleSubmit}>
-        {/* Role selector cards */}
-        <div className="grid grid--2" style={{ marginBottom: "var(--space-5)" }}>
-          {(["owner", "pg_operator"] as RoleChoice[]).map((role) => {
-            const info = ROLE_INFO[role];
-            const active = selected === role;
+      {/* 3-Step Process */}
+      <section className="section--sm">
+        <div
+          className="section-header"
+          style={{ justifyContent: "center", marginBottom: "var(--space-8)" }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <p
+              className="overline"
+              style={{ marginBottom: "var(--space-2)", color: "var(--brand)" }}
+            >
+              {isHindi ? "सरल प्रक्रिया" : "How It Works"}
+            </p>
+            <h2>{isHindi ? "3 आसान कदम" : "3 Simple Steps to Start Earning"}</h2>
+          </div>
+        </div>
+        <div className="grid grid-3">
+          {STEPS.map((step, i) => {
+            const Icon = step.icon;
             return (
-              <button
-                key={role}
-                type="button"
-                onClick={() => setSelected(role)}
-                className="card"
-                style={{
-                  textAlign: "left",
-                  padding: "var(--space-4)",
-                  border: active ? "2px solid var(--brand)" : "1px solid var(--border)",
-                  background: active ? "var(--bg-raised)" : "var(--bg-card)",
-                  cursor: "pointer",
-                  transition: "border 0.15s"
-                }}
-                aria-pressed={active}
-              >
+              <div key={i} className="feature-card">
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: "var(--space-2)"
+                    alignItems: "center",
+                    gap: "var(--space-3)",
+                    marginBottom: "var(--space-4)",
+                    justifyContent: "center"
                   }}
                 >
-                  <strong>{info.label}</strong>
-                  {active && (
-                    <span
-                      className="badge badge--brand"
-                      style={{
-                        borderRadius: "50%",
-                        width: 20,
-                        height: 20,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 10,
-                        padding: 0
-                      }}
-                    >
-                      ✓
-                    </span>
-                  )}
+                  <span className="step-number step-number--brand">{i + 1}</span>
                 </div>
-                <p
-                  className="caption"
-                  style={{ margin: "0 0 var(--space-3)", color: "var(--text-tertiary)" }}
+                <div
+                  className="icon-circle icon-circle--brand"
+                  style={{ margin: "0 auto var(--space-4)" }}
+                  aria-hidden="true"
                 >
-                  {info.description}
-                </p>
-                <ul
-                  style={{
-                    margin: 0,
-                    paddingLeft: 16,
-                    fontSize: "var(--text-xs)",
-                    color: "var(--text-tertiary)",
-                    listStyle: "disc"
-                  }}
-                >
-                  {info.examples.map((ex) => (
-                    <li key={ex}>{ex}</li>
-                  ))}
-                </ul>
-              </button>
+                  <Icon size={24} />
+                </div>
+                <h3 className="feature-card__title">{isHindi ? step.titleHi : step.title}</h3>
+                <p className="feature-card__desc">{isHindi ? step.descHi : step.desc}</p>
+              </div>
             );
           })}
         </div>
+      </section>
 
-        {error && (
-          <div
-            className="alert alert--error"
-            role="alert"
-            style={{ marginBottom: "var(--space-4)" }}
-          >
-            {error}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          className="btn btn--primary"
-          disabled={submitting}
-          style={{ width: "100%" }}
-        >
-          {submitting ? "Activating…" : `Get ${ROLE_INFO[selected].label} access →`}
-        </button>
-
-        <p
-          className="caption"
+      {/* Trust Row */}
+      <section className="section--sm" style={{ paddingTop: 0 }}>
+        <div
+          className="trust-strip"
           style={{
-            marginTop: "var(--space-3)",
-            textAlign: "center",
-            color: "var(--text-tertiary)"
+            maxWidth: 700,
+            margin: "0 auto"
           }}
         >
-          By submitting you agree to CribLiv&apos;s owner terms. We may contact you for
-          verification.
+          {TRUST_POINTS.map((point) => (
+            <span key={point.text} className="trust-strip__item">
+              <CheckCircle2 size={16} style={{ color: "var(--trust)" }} />
+              {isHindi ? point.textHi : point.text}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      {/* Stats Row */}
+      <section className="section--sm" style={{ paddingTop: 0, paddingBottom: "var(--space-4)" }}>
+        <div className="grid grid-3" style={{ maxWidth: 600, margin: "0 auto" }}>
+          <div className="feature-card" style={{ textAlign: "center", padding: "var(--space-5)" }}>
+            <div
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontSize: 28,
+                fontWeight: 800,
+                color: "var(--brand)"
+              }}
+            >
+              100%
+            </div>
+            <div className="body-sm text-secondary" style={{ marginTop: "var(--space-1)" }}>
+              {isHindi ? "फ्री लिस्टिंग" : "Free to List"}
+            </div>
+          </div>
+          <div className="feature-card" style={{ textAlign: "center", padding: "var(--space-5)" }}>
+            <div
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontSize: 28,
+                fontWeight: 800,
+                color: "var(--trust)"
+              }}
+            >
+              3x
+            </div>
+            <div className="body-sm text-secondary" style={{ marginTop: "var(--space-1)" }}>
+              {isHindi ? "ज़्यादा लीड (वेरिफाइड)" : "More Leads (Verified)"}
+            </div>
+          </div>
+          <div className="feature-card" style={{ textAlign: "center", padding: "var(--space-5)" }}>
+            <div
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontSize: 28,
+                fontWeight: 800,
+                color: "var(--brand)"
+              }}
+            >
+              8
+            </div>
+            <div className="body-sm text-secondary" style={{ marginTop: "var(--space-1)" }}>
+              {isHindi ? "शहर" : "Cities Covered"}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Role Upgrade Form */}
+      <section className="section" style={{ paddingTop: "var(--space-8)" }}>
+        <div
+          style={{
+            maxWidth: 640,
+            margin: "0 auto",
+            paddingLeft: "var(--space-6)",
+            paddingRight: "var(--space-6)"
+          }}
+        >
+          <BecomeOwnerClient locale={params.locale} />
+        </div>
+      </section>
+
+      {/* CTA Banner */}
+      <section
+        className="cta-banner"
+        style={{ marginLeft: "var(--space-6)", marginRight: "var(--space-6)" }}
+      >
+        <h2>{isHindi ? "आज ही शुरू करें" : "Ready to list your property?"}</h2>
+        <p>
+          {isHindi
+            ? "5 मिनट में AI-सत्यापित लिस्टिंग बनाएं।"
+            : "Create an AI-verified listing in under 5 minutes. No fees, no commission, ever."}
         </p>
-      </form>
-    </section>
+        <Link href={`/${params.locale}/owner/listings/new`} className="btn btn--lg">
+          {isHindi ? "अभी लिस्ट करें" : "Create Listing"} <ArrowRight size={18} />
+        </Link>
+      </section>
+    </>
   );
 }

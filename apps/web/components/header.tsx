@@ -21,6 +21,11 @@ import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import type { UserRole } from "../auth.config";
 
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(-10);
+  return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+}
+
 export function Header({ locale }: { locale: Locale }) {
   const { data: session, status } = useSession();
   const role = session?.user?.role;
@@ -66,7 +71,7 @@ export function Header({ locale }: { locale: Locale }) {
           aria-label="Main navigation"
         >
           <Link
-            href={`/${locale}/search?city=noida`}
+            href={`/${locale}/search`}
             className="nav-link"
             onClick={() => setMobileOpen(false)}
           >
@@ -147,7 +152,7 @@ export function Header({ locale }: { locale: Locale }) {
                 title="Account Settings"
               >
                 <User size={14} aria-hidden="true" />
-                {phone ?? session.user?.name}
+                {phone ? formatPhone(phone) : session.user?.name}
                 {role && (
                   <span className="badge badge--brand" style={{ marginLeft: 4 }}>
                     {role}
