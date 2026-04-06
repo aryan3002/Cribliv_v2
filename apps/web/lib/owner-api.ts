@@ -590,3 +590,180 @@ export async function generateListingContent(
     body: JSON.stringify(input)
   });
 }
+
+// ── Leads ──────────────────────────────────────────────────────────────────
+
+export type LeadStatus = "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost";
+
+export interface LeadVm {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  tenantName: string;
+  tenantPhoneMasked: string | null;
+  status: LeadStatus;
+  statusChangedAt: string;
+  ownerNotes: string | null;
+  createdAt: string;
+}
+
+export interface LeadStats {
+  new: number;
+  contacted: number;
+  visit_scheduled: number;
+  deal_done: number;
+  lost: number;
+  total: number;
+}
+
+function mapLeadRow(row: Record<string, unknown>): LeadVm {
+  return {
+    id: String(row.id ?? ""),
+    listingId: String(row.listing_id ?? ""),
+    listingTitle: String(row.listing_title ?? "Listing"),
+    tenantName: String(row.tenant_name ?? "Tenant"),
+    tenantPhoneMasked: row.tenant_phone_masked ? String(row.tenant_phone_masked) : null,
+    status: (row.status as LeadStatus) ?? "new",
+    statusChangedAt: String(row.status_changed_at ?? row.created_at ?? ""),
+    ownerNotes: row.owner_notes ? String(row.owner_notes) : null,
+    createdAt: String(row.created_at ?? "")
+  };
+}
+
+export async function fetchOwnerLeads(
+  accessToken: string,
+  opts?: { status?: LeadStatus; page?: number }
+): Promise<{ items: LeadVm[]; total: number; page: number; pageSize: number }> {
+  const params = new URLSearchParams();
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.page) params.set("page", String(opts.page));
+  const qs = params.toString();
+  const result = await fetchApi<{
+    items: Record<string, unknown>[];
+    total: number;
+    page: number;
+    page_size: number;
+  }>(`/owner/leads${qs ? "?" + qs : ""}`, { headers: authHeaders(accessToken) });
+  return {
+    items: (result.items ?? []).map(mapLeadRow),
+    total: result.total ?? 0,
+    page: result.page ?? 1,
+    pageSize: result.page_size ?? 20
+  };
+}
+
+export async function fetchLeadStats(accessToken: string): Promise<LeadStats> {
+  return fetchApi<LeadStats>("/owner/leads/stats", { headers: authHeaders(accessToken) });
+}
+
+export async function updateLeadStatus(
+  accessToken: string,
+  leadId: string,
+  status: LeadStatus,
+  notes?: string
+): Promise<{ leadId: string; status: LeadStatus }> {
+  const result = await fetchApi<{ lead_id: string; status: string }>(
+    `/owner/leads/${leadId}/status`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ status, notes })
+    }
+  );
+  return { leadId: result.lead_id, status: result.status as LeadStatus };
+}
+
+// ── Boost ───────────────────────────────────────────────────────────────────
+
+export interface BoostPlan {
+  planId: string;
+  boostType: "featured" | "boost";
+  durationHours: number;
+  amountPaise: number;
+  label: string;
+}
+
+export interface BoostOrderResult {
+  orderId: string;
+  razorpayOrderId?: string;
+  amountPaise: number;
+  boostType: string;
+  planLabel: string;
+}
+
+export async function fetchBoostPlans(accessToken: string): Promise<BoostPlan[]> {
+  const result = await fetchApi<
+    Array<{
+      plan_id: string;
+      boost_type: "featured" | "boost";
+      duration_hours: number;
+      amount_paise: number;
+      label: string;
+    }>
+  >("/owner/boost/plans", { headers: authHeaders(accessToken) });
+  return (result ?? []).map((p) => ({
+    planId: p.plan_id,
+    boostType: p.boost_type,
+    durationHours: p.duration_hours,
+    amountPaise: p.amount_paise,
+    label: p.label
+  }));
+}
+
+export async function createBoostOrder(
+  accessToken: string,
+  listingId: string,
+  planId: string
+): Promise<BoostOrderResult> {
+  const result = await fetchApi<{
+    order_id: string;
+    razorpay_order_id?: string;
+    amount_paise: number;
+    boost_type: string;
+    plan_label: string;
+  }>(`/owner/listings/${listingId}/boost`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ plan_id: planId })
+  });
+  return {
+    orderId: result.order_id,
+    razorpayOrderId: result.razorpay_order_id,
+    amountPaise: result.amount_paise,
+    boostType: result.boost_type,
+    planLabel: result.plan_label
+  };
+}
+
+export async function fetchBoostStatus(
+  accessToken: string,
+  listingId: string
+): Promise<{ hasBoost: boolean; boostType?: string; expiresAt?: string }> {
+  const result = await fetchApi<{ has_boost: boolean; boost_type?: string; expires_at?: string }>(
+    `/owner/listings/${listingId}/boost`,
+    { headers: authHeaders(accessToken) }
+  );
+  return {
+    hasBoost: result.has_boost,
+    boostType: result.boost_type,
+    expiresAt: result.expires_at
+  };
+}
+
+// ── Availability ─────────────────────────────────────────────────────────────
+
+export async function toggleListingAvailability(
+  accessToken: string,
+  listingId: string,
+  available: boolean
+): Promise<{ listingId: string; status: "active" | "paused" }> {
+  const result = await fetchApi<{ listing_id: string; status: string }>(
+    `/owner/listings/${listingId}/availability`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ available })
+    }
+  );
+  return { listingId: result.listing_id, status: result.status as "active" | "paused" };
+}

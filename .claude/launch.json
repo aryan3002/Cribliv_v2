@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "Web (Next.js)",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@cribliv/web", "dev"],
+      "runtimeExecutable": "/Users/aryantripathi/Developer/Cribliv_v2/.claude/run-web.sh",
+      "runtimeArgs": [],
       "port": 3000,
       "autoPort": false
     },
