@@ -635,7 +635,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
               return (
                 <Link
                   key={item.title}
-                  href={item.href}
+                  href={item.href as `/${string}`}
                   className="feature-card"
                   style={{
                     textDecoration: "none",
