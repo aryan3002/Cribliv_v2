@@ -341,18 +341,18 @@ h4, .h4 {
 }
 
 .logo-img {
-  height: 34px;
+  height: 25px;
   width: auto;
   display: block;
   object-fit: contain;
 }
 
 .logo-font {
-  height: 40px;
+  height: 22px;
   width: auto;
   display: block;
   object-fit: contain;
-  margin-left: var(--space-2);
+  margin-left: var(--space-1);
 }
 
 .logo-wordmark {
