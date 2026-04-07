@@ -867,27 +867,100 @@ h4, .h4 {
 .search-bar__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Hero Search Bar (BEM) ──────────────────────────────────────── */
-.search-hero-wrapper { position: relative; width: 100%; }
+.search-hero-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* ── Aurora glow — lives on the outer hero-search-wrap div ── */
+.hero-search-glow-wrap {
+  /* NOTE: do NOT use isolation:isolate — it would trap z-index:-1 below the bar */
+  overflow: visible;
+}
+
+/* Main aurora layer */
+.hero-search-glow-wrap::before {
+  content: '';
+  position: absolute;
+  /* Extend well beyond the bar so the glow bleeds out visibly */
+  inset: -14px -20px;
+  z-index: -1;
+  border-radius: 120px;
+  /* Gold (warm) left → Blue (cool) right */
+  background: linear-gradient(
+    90deg,
+    rgba(201, 168, 76, 0)    0%,
+    rgba(201, 168, 76, 0.85) 22%,
+    rgba(77, 171, 255, 0.85) 78%,
+    rgba(77, 171, 255, 0)    100%
+  );
+  filter: blur(24px);
+  opacity: 0.9;
+  animation: auroraGlowBreathe 4s ease-in-out infinite;
+}
+
+/* Wider, softer secondary halo for depth */
+.hero-search-glow-wrap::after {
+  content: '';
+  position: absolute;
+  inset: -28px -36px;
+  z-index: -2;
+  border-radius: 140px;
+  background: linear-gradient(
+    90deg,
+    rgba(201, 168, 76, 0)    0%,
+    rgba(201, 168, 76, 0.35) 30%,
+    rgba(77, 171, 255, 0.35) 70%,
+    rgba(77, 171, 255, 0)    100%
+  );
+  filter: blur(40px);
+  opacity: 0.7;
+  animation: auroraGlowBreathe 4s ease-in-out infinite reverse;
+}
+
+/* Intensify on input focus */
+.hero-search-glow-wrap:has(.hero-search__input:focus)::before {
+  opacity: 1;
+  filter: blur(28px);
+}
+.hero-search-glow-wrap:has(.hero-search__input:focus)::after {
+  opacity: 0.9;
+  filter: blur(48px);
+}
+
+@keyframes auroraGlowBreathe {
+  0%, 100% { opacity: 0.75; transform: scaleY(0.88) scaleX(0.98); }
+  50%       { opacity: 1;    transform: scaleY(1.12) scaleX(1.01); }
+}
 
 .hero-search { width: 100%; }
 
+/* Sleek pill row */
 .hero-search__input-row {
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.97);
-  border: 2px solid transparent;
+  /* Slightly frosted, not pure white */
+  background: rgba(255, 255, 255, 0.93);
+  border: 1.5px solid rgba(255, 255, 255, 0.65);
   border-radius: 100px;
-  padding: 6px 6px 6px 24px;
+  padding: 5px 5px 5px 22px;
   gap: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 102, 255, 0.10);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-  min-height: 64px;
-  backdrop-filter: blur(12px);
+  /* Removed heavy drop-shadow — the glow pseudo-element replaces it */
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  min-height: 58px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 .hero-search__input-row:focus-within {
-  border-color: var(--brand);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.28), 0 0 0 4px rgba(0, 102, 255, 0.12);
+  border-color: rgba(77, 171, 255, 0.5);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255,255,255,1);
 }
 
 .hero-search__input {
@@ -896,12 +969,13 @@ h4, .h4 {
   height: 100%;
   border: none;
   background: transparent;
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 400;
-  color: #1a1a2e;
+  color: #0f172a;
   padding: 0;
   line-height: 1.4;
   font-family: var(--font-body);
+  letter-spacing: -0.01em;
 }
 .hero-search__input::placeholder {
   color: #94a3b8;
@@ -912,8 +986,8 @@ h4, .h4 {
 /* Voice button inside the pill */
 .hero-search__input-row .voice-btn {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 1.5px solid #e2e8f0;
   background: #f8fafc;
@@ -924,39 +998,62 @@ h4, .h4 {
   cursor: pointer;
   transition: all 0.18s ease;
 }
-.hero-search__input-row .voice-btn:hover { background: #eff6ff; border-color: var(--brand); color: var(--brand); }
-.hero-search__input-row .voice-btn.recording { background: #fef2f2; border-color: #ef4444; color: #ef4444; animation: pulse-ring 1.4s ease infinite; }
+.hero-search__input-row .voice-btn:hover {
+  background: #eff6ff;
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.hero-search__input-row .voice-btn.recording {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #ef4444;
+  animation: pulse-ring 1.4s ease infinite;
+}
 
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.35); }
-  70% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+  0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.35); }
+  70%  { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
   100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
 }
 
-/* Submit button — gradient pill inside */
+/* Submit button — gradient, sleek */
 .hero-search__btn {
   flex-shrink: 0;
-  height: 52px;
-  padding: 0 28px;
+  height: 48px;
+  padding: 0 26px;
   border-radius: 100px;
   border: none;
-  background: linear-gradient(135deg, #0066ff 0%, #0044cc 100%);
+  background: linear-gradient(135deg, #1a7fff 0%, #0044cc 100%);
   color: #fff;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   font-family: var(--font-body);
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: all 0.18s ease;
-  box-shadow: 0 4px 14px rgba(0,102,255,0.38);
+  gap: 7px;
+  transition: all 0.2s ease;
+  box-shadow:
+    0 3px 12px rgba(0,102,255,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.18);
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
 }
+/* Shimmer sweep on hover */
+.hero-search__btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  transition: left 0.4s ease;
+}
+.hero-search__btn:hover:not(:disabled)::after { left: 140%; }
 .hero-search__btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0052d4 0%, #003399 100%);
-  box-shadow: 0 6px 20px rgba(0,102,255,0.50);
+  background: linear-gradient(135deg, #0066ff 0%, #0033bb 100%);
+  box-shadow: 0 5px 18px rgba(0,102,255,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
   transform: translateY(-1px);
 }
 .hero-search__btn:active:not(:disabled) { transform: translateY(0); }
@@ -966,20 +1063,22 @@ h4, .h4 {
 .hero-search__btn svg { flex-shrink: 0; }
 
 @media (max-width: 640px) {
+  .search-hero-wrapper::before { filter: blur(12px); }
   .hero-search__input-row {
-    border-radius: 20px;
-    padding: 6px 6px 6px 18px;
-    min-height: 56px;
+    border-radius: 18px;
+    padding: 5px 5px 5px 16px;
+    min-height: 52px;
     gap: 6px;
   }
   .hero-search__btn {
-    height: 44px;
-    padding: 0 18px;
+    height: 42px;
+    padding: 0 16px;
     font-size: 14px;
   }
   .hero-search__btn .search-btn-label { display: none; }
   .hero-search__btn svg { margin: 0; }
 }
+
 
 /* ── Filter Bar ──────────────────────────────────────────────────────── */
 .filter-bar {
@@ -2594,4 +2693,161 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 .hero-stat-pill:hover {
   background: rgba(255,255,255,0.12);
   border-color: rgba(0,102,255,0.45);
+}
+
+/* ── Homepage Map Hero ────────────────────────────────────────── */
+.hero--map {
+  position: relative;
+}
+/* Suppress the old decorative blobs on map hero */
+.hero--map::before,
+.hero--map::after {
+  display: none;
+}
+
+/* Animated map pin markers */
+.map-pins-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.map-pin {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(77, 171, 255, 0.9);
+  box-shadow:
+    0 0 8px 2px rgba(77, 171, 255, 0.5),
+    0 0 24px 4px rgba(77, 171, 255, 0.2);
+  animation: mapPinPulse 3s ease-in-out infinite;
+}
+.map-pin--sm {
+  width: 8px;
+  height: 8px;
+  background: rgba(77, 171, 255, 0.7);
+  box-shadow:
+    0 0 6px 1px rgba(77, 171, 255, 0.4),
+    0 0 16px 3px rgba(77, 171, 255, 0.15);
+}
+
+/* Stagger the pulse animation */
+.map-pin:nth-child(1) { animation-delay: 0s; }
+.map-pin:nth-child(2) { animation-delay: 0.4s; }
+.map-pin:nth-child(3) { animation-delay: 0.8s; }
+.map-pin:nth-child(4) { animation-delay: 1.2s; }
+.map-pin:nth-child(5) { animation-delay: 1.6s; }
+.map-pin:nth-child(6) { animation-delay: 0.6s; }
+.map-pin:nth-child(7) { animation-delay: 1.0s; }
+.map-pin:nth-child(8) { animation-delay: 1.4s; }
+
+@keyframes mapPinPulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px 2px rgba(77,171,255,0.5), 0 0 24px 4px rgba(77,171,255,0.2);
+  }
+  50% {
+    transform: scale(1.5);
+    box-shadow: 0 0 16px 4px rgba(77,171,255,0.7), 0 0 40px 8px rgba(77,171,255,0.3);
+  }
+}
+
+/* ── Blueprint City Cards ─────────────────────────────────────── */
+.city-card--map {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.city-card--map:hover {
+  background: transparent;
+  border: none;
+  transform: translateY(-5px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+}
+
+.city-card__map-bg {
+  border-radius: var(--radius-lg);
+  height: 180px;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+.city-card--map:hover .city-card__map-bg {
+  box-shadow: inset 0 0 0 1px rgba(192, 158, 80, 0.35);
+}
+
+/* Centered typographic block */
+.city-card__map-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 12px;
+}
+
+/* Large spaced city name — Space Grotesk, gold */
+.city-card__map-title {
+  font-family: var(--font-space-grotesk, var(--font-manrope));
+  font-size: clamp(18px, 2.4vw, 28px);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: #c9a84c;
+  text-transform: uppercase;
+  line-height: 1;
+  text-align: center;
+  transition: color 0.25s ease, letter-spacing 0.25s ease;
+}
+.city-card--map:hover .city-card__map-title {
+  color: #e2bf6a;
+  letter-spacing: 0.27em;
+}
+
+/* Thin gold horizontal rule */
+.city-card__map-rule {
+  display: block;
+  width: 56px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, #c9a84c 30%, #c9a84c 70%, transparent);
+  border-radius: 1px;
+  transition: width 0.25s ease, opacity 0.25s ease;
+  opacity: 0.85;
+}
+.city-card--map:hover .city-card__map-rule {
+  width: 72px;
+  opacity: 1;
+}
+
+/* Small brand tag */
+.city-card__map-brand {
+  font-family: var(--font-space-grotesk, var(--font-manrope));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(201, 168, 76, 0.65);
+  text-transform: uppercase;
+  transition: color 0.25s ease;
+}
+.city-card--map:hover .city-card__map-brand {
+  color: rgba(226, 191, 106, 0.85);
+}
+
+@media (max-width: 1024px) {
+  .city-card__map-title { font-size: clamp(15px, 2vw, 22px); }
+}
+
+@media (max-width: 640px) {
+  .city-card__map-bg { height: 130px; }
+  .city-card__map-title { font-size: 15px; letter-spacing: 0.18em; }
+  .city-card__map-rule { width: 44px; }
+  .city-card__map-brand { font-size: 9px; }
+  .map-pin { display: none; }
 }

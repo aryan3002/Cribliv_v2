@@ -263,17 +263,46 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
 
-      {/* ── Full-bleed Hero ── */}
+      {/* ── Full-bleed Map Hero ── */}
       <section
-        className="hero--landing"
+        className="hero--landing hero--map"
         style={{
-          backgroundImage: "url('/images/ui/hero-bg.jpg')",
+          backgroundImage: `linear-gradient(to bottom,
+            rgba(4,12,28,0.25) 0%,
+            rgba(4,12,28,0.18) 20%,
+            rgba(4,12,28,0.40) 50%,
+            rgba(4,12,28,0.78) 72%,
+            rgba(4,12,28,0.95) 88%,
+            rgba(4,12,28,1.00) 100%
+          ), url('/images/india-map-hero.jpg')`,
           backgroundSize: "cover",
-          backgroundPosition: "center top",
-          backgroundBlendMode: "luminosity"
+          backgroundPosition: "center 30%"
         }}
       >
-        <div className="hero-glow" aria-hidden="true" />
+        {/* Animated city pins overlaid on the map */}
+        <div className="map-pins-layer" aria-hidden="true">
+          <span className="map-pin" style={{ top: "24%", left: "38%" }} title="Delhi" />
+          <span
+            className="map-pin map-pin--sm"
+            style={{ top: "29%", left: "37.5%" }}
+            title="Gurugram"
+          />
+          <span className="map-pin map-pin--sm" style={{ top: "27%", left: "40%" }} title="Noida" />
+          <span
+            className="map-pin map-pin--sm"
+            style={{ top: "25%", left: "41%" }}
+            title="Ghaziabad"
+          />
+          <span
+            className="map-pin map-pin--sm"
+            style={{ top: "31%", left: "38.5%" }}
+            title="Faridabad"
+          />
+          <span className="map-pin" style={{ top: "18%", left: "33%" }} title="Chandigarh" />
+          <span className="map-pin" style={{ top: "36%", left: "31%" }} title="Jaipur" />
+          <span className="map-pin" style={{ top: "32%", left: "48%" }} title="Lucknow" />
+        </div>
+
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <p
             className="overline animate-in"
@@ -286,7 +315,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
               gap: 6
             }}
           >
-            <Sparkles size={14} style={{ color: "rgba(255,255,255,0.6)" }} />
+            <Sparkles size={14} style={{ color: "rgba(0,180,255,0.7)" }} />
             {isHindi ? "AI-संचालित किराया खोज" : "AI-Powered Rental Search"}
           </p>
           <h1
@@ -298,10 +327,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             ) : (
               <>
                 Find your perfect home,{" "}
-                <span className="highlight-word" style={{ color: "var(--accent)" }}>
-                  verified
-                </span>{" "}
-                &amp; hassle-free
+                <span style={{ color: "#4dabff", textDecoration: "none" }}>verified</span> &amp;
+                hassle-free
               </>
             )}
           </h1>
@@ -315,32 +342,34 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
           </p>
 
           {/* Search */}
-          <div className="hero-search-wrap animate-in animate-in-delay-3">
+          <div className="hero-search-wrap hero-search-glow-wrap animate-in animate-in-delay-3">
             <SearchHero locale={params.locale} />
           </div>
 
-          {/* Trust Strip */}
+          {/* Trust Strip — glassmorphism */}
           <div
             className="trust-strip animate-in animate-in-delay-4"
             style={{
               maxWidth: 640,
               margin: "var(--space-10) auto 0",
               background: "rgba(255,255,255,0.06)",
-              backdropFilter: "blur(12px)",
-              color: "rgba(255,255,255,0.8)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.85)",
               borderRadius: "var(--radius-full)"
             }}
           >
             <span className="trust-strip__item">
-              <ShieldCheck size={16} aria-hidden="true" />
+              <ShieldCheck size={16} style={{ color: "#4dabff" }} aria-hidden="true" />
               {isHindi ? "सत्यापित मकान मालिक" : "Verified Owners"}
             </span>
             <span className="trust-strip__item">
-              <Clock size={16} aria-hidden="true" />
+              <Clock size={16} style={{ color: "#4dabff" }} aria-hidden="true" />
               {isHindi ? "12 घंटे की रिफंड गारंटी" : "12-Hour Refund"}
             </span>
             <span className="trust-strip__item">
-              <BadgeIndianRupee size={16} aria-hidden="true" />
+              <BadgeIndianRupee size={16} style={{ color: "#4dabff" }} aria-hidden="true" />
               {isHindi ? "कोई ब्रोकर नहीं" : "Zero Brokerage"}
             </span>
           </div>
@@ -350,7 +379,20 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
         </div>
       </section>
 
-      {/* ── Top Cities ── */}
+      {/* Fade from hero into content */}
+      <div
+        aria-hidden="true"
+        style={{
+          height: 80,
+          marginTop: -80,
+          background: "linear-gradient(to bottom, transparent, var(--surface-page, #f8fafc))",
+          position: "relative",
+          zIndex: 1,
+          pointerEvents: "none"
+        }}
+      />
+
+      {/* ── Top Cities — Blueprint Map Cards ── */}
       <AnimateOnScroll>
         <section className="section--sm">
           <div className="section-header">
@@ -360,71 +402,34 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             </Link>
           </div>
           <div className="grid grid-4 cities-grid">
-            {CITIES.map((city) => (
-              <Link
-                key={city.name}
-                href={`/${params.locale}/city/${city.name.toLowerCase()}`}
-                className="city-card city-card--photo"
-                style={{ textDecoration: "none" }}
-              >
-                <div
-                  style={{
-                    backgroundImage: `url('/images/cities/${city.photo}.jpg')`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    borderRadius: "var(--radius-lg)",
-                    height: 180,
-                    width: "100%",
-                    position: "relative",
-                    overflow: "hidden"
-                  }}
+            {CITIES.map((city) => {
+              return (
+                <Link
+                  key={city.name}
+                  href={`/${params.locale}/city/${city.name.toLowerCase()}`}
+                  className="city-card city-card--map"
+                  style={{ textDecoration: "none" }}
                 >
                   <div
+                    className="city-card__map-bg"
                     style={{
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.15) 50%, rgba(0,0,0,0.05) 100%)"
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: 14,
-                      left: 14,
-                      right: 14,
-                      display: "flex",
-                      alignItems: "flex-end",
-                      justifyContent: "space-between"
+                      backgroundImage: `linear-gradient(
+                        rgba(4,12,28,0.52) 0%,
+                        rgba(4,12,28,0.44) 100%
+                      ), url('/images/cities/${city.name.toLowerCase()}-map.jpg')`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center"
                     }}
                   >
-                    <span
-                      style={{
-                        color: "#fff",
-                        fontWeight: 700,
-                        fontSize: 17,
-                        textShadow: "0 1px 6px rgba(0,0,0,0.5)",
-                        letterSpacing: "-0.01em"
-                      }}
-                    >
-                      {city.name}
-                    </span>
-                    <span
-                      style={{
-                        color: "rgba(255,255,255,0.85)",
-                        fontSize: 12,
-                        fontWeight: 500,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 3
-                      }}
-                    >
-                      <ArrowRight size={12} />
-                    </span>
+                    <div className="city-card__map-center">
+                      <span className="city-card__map-title">{city.name.toUpperCase()}</span>
+                      <span className="city-card__map-rule" aria-hidden="true" />
+                      <span className="city-card__map-brand">CRIBLIV</span>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </section>
       </AnimateOnScroll>

@@ -2,7 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "../components/auth/session-provider";
-import { Inter, Manrope } from "next/font/google";
+import { Inter, Manrope, Space_Grotesk } from "next/font/google";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,6 +16,13 @@ const manrope = Manrope({
   weight: ["500", "600", "700", "800"],
   display: "swap",
   variable: "--font-manrope"
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["700"],
+  display: "swap",
+  variable: "--font-space-grotesk"
 });
 
 export const metadata: Metadata = {
@@ -42,7 +49,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${manrope.variable}`}>
+    <html lang="en" className={`${inter.variable} ${manrope.variable} ${spaceGrotesk.variable}`}>
       <body>
         <a href="#main-content" className="skip-link">
           Skip to content
