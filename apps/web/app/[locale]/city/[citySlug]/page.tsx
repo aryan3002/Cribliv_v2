@@ -90,6 +90,106 @@ export async function generateMetadata({
   };
 }
 
+/** Per-city hero metadata — map image, stat pills, CTA copy */
+const CITY_META: Record<
+  string,
+  {
+    mapImage: string;
+    pills: { label: string; value: string }[];
+    ctaEn: string;
+    ctaHi: string;
+  }
+> = {
+  noida: {
+    mapImage: "/images/cities/noida-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹4,000/mo" },
+      { label: "1 BHK", value: "from ₹8,000/mo" },
+      { label: "2 BHK", value: "from ₹12,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Noida Rentals",
+    ctaHi: "नोएडा में खोजें"
+  },
+  delhi: {
+    mapImage: "/images/cities/delhi-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹5,000/mo" },
+      { label: "1 BHK", value: "from ₹10,000/mo" },
+      { label: "2 BHK", value: "from ₹18,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Delhi Rentals",
+    ctaHi: "दिल्ली में खोजें"
+  },
+  gurugram: {
+    mapImage: "/images/cities/gurugram-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹6,000/mo" },
+      { label: "1 BHK", value: "from ₹12,000/mo" },
+      { label: "2 BHK", value: "from ₹20,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Gurugram Rentals",
+    ctaHi: "गुरुग्राम में खोजें"
+  },
+  ghaziabad: {
+    mapImage: "/images/cities/ghaziabad-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹3,500/mo" },
+      { label: "1 BHK", value: "from ₹7,000/mo" },
+      { label: "2 BHK", value: "from ₹11,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Ghaziabad Rentals",
+    ctaHi: "गाज़ियाबाद में खोजें"
+  },
+  faridabad: {
+    mapImage: "/images/cities/faridabad-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹3,500/mo" },
+      { label: "1 BHK", value: "from ₹7,000/mo" },
+      { label: "2 BHK", value: "from ₹11,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Faridabad Rentals",
+    ctaHi: "फ़रीदाबाद में खोजें"
+  },
+  chandigarh: {
+    mapImage: "/images/cities/chandigarh-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹5,000/mo" },
+      { label: "1 BHK", value: "from ₹9,000/mo" },
+      { label: "2 BHK", value: "from ₹14,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Chandigarh Rentals",
+    ctaHi: "चंडीगढ़ में खोजें"
+  },
+  jaipur: {
+    mapImage: "/images/cities/jaipur-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹4,000/mo" },
+      { label: "1 BHK", value: "from ₹7,500/mo" },
+      { label: "2 BHK", value: "from ₹12,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Jaipur Rentals",
+    ctaHi: "जयपुर में खोजें"
+  },
+  lucknow: {
+    mapImage: "/images/cities/lucknow-map.jpg",
+    pills: [
+      { label: "PG", value: "from ₹3,500/mo" },
+      { label: "1 BHK", value: "from ₹7,000/mo" },
+      { label: "2 BHK", value: "from ₹11,000/mo" },
+      { label: "Zero Brokerage", value: "Direct Owners" }
+    ],
+    ctaEn: "Browse Lucknow Rentals",
+    ctaHi: "लखनऊ में खोजें"
+  }
+};
+
 export default async function CityPage({
   params
 }: {
@@ -112,6 +212,7 @@ export default async function CityPage({
     // Silent — page still renders without listings
   }
 
+  const cityMeta = CITY_META[params.citySlug] ?? null;
   const budgetChips = ["Under ₹8,000", "₹8k–₹15k", "₹15k–₹25k", "₹25k+"];
   const typeChips = ["Flat/House", "PG", "1 BHK", "2 BHK", "Furnished"];
   const localities = CITY_LOCALITIES[params.citySlug] ?? ["Sector 1", "Sector 2", "Central"];
@@ -177,13 +278,34 @@ export default async function CityPage({
       {/* City Hero */}
       <section
         className="hero hero--landing"
-        style={{
-          paddingTop: "var(--space-16)",
-          paddingBottom: "var(--space-12)",
-          textAlign: "center"
-        }}
+        style={
+          cityMeta
+            ? {
+                textAlign: "center",
+                backgroundImage: `linear-gradient(to bottom,
+                  rgba(4,12,28,0.08) 0%,
+                  rgba(4,12,28,0.12) 28%,
+                  rgba(4,12,28,0.60) 56%,
+                  rgba(4,12,28,0.88) 76%,
+                  rgba(4,12,28,1.00) 100%
+                ), url('${cityMeta.mapImage}')`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                minHeight: 480,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
+                paddingTop: "var(--space-8)",
+                paddingBottom: "var(--space-12)"
+              }
+            : {
+                paddingTop: "var(--space-16)",
+                paddingBottom: "var(--space-12)",
+                textAlign: "center"
+              }
+        }
       >
-        <div className="hero-glow" aria-hidden="true" />
+        {!cityMeta && <div className="hero-glow" aria-hidden="true" />}
         <div className="container" style={{ position: "relative", zIndex: 1 }}>
           <p
             className="overline animate-in"
@@ -204,8 +326,68 @@ export default async function CityPage({
               ? "AI-संचालित खोज, मालिक सत्यापन और 12-घंटे रिफंड गारंटी।"
               : "AI-powered search with owner verification and 12-hour refund guarantee."}
           </p>
+
+          {/* Rent-range stat pills — all map-hero cities */}
+          {cityMeta && (
+            <div
+              className="animate-in"
+              style={{
+                display: "flex",
+                gap: "var(--space-3)",
+                justifyContent: "center",
+                flexWrap: "wrap",
+                marginTop: "var(--space-6)"
+              }}
+            >
+              {cityMeta.pills.map(({ label, value }) => (
+                <div key={label} className="hero-stat-pill">
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.95)",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      letterSpacing: "0.05em"
+                    }}
+                  >
+                    {label}
+                  </div>
+                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 2 }}>
+                    {value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Hero CTA — all map-hero cities */}
+          {cityMeta && (
+            <div
+              className="animate-in"
+              style={{ marginTop: "var(--space-6)", animationDelay: "300ms" }}
+            >
+              <Link
+                href={`/${params.locale}/search?city=${params.citySlug}`}
+                className="btn btn--primary btn--lg"
+              >
+                {isHindi ? cityMeta.ctaHi : cityMeta.ctaEn} <ArrowRight size={16} />
+              </Link>
+            </div>
+          )}
         </div>
       </section>
+      {cityMeta && (
+        <div
+          aria-hidden="true"
+          style={{
+            height: 72,
+            marginTop: -72,
+            background: "linear-gradient(to bottom, transparent, var(--surface-page, #f8fafc))",
+            position: "relative",
+            zIndex: 1,
+            pointerEvents: "none"
+          }}
+        />
+      )}
 
       <div
         className="container"
@@ -249,7 +431,21 @@ export default async function CityPage({
 
         {/* Locality Clusters */}
         <section style={{ marginBottom: "var(--space-10)" }}>
-          <h3 style={{ marginBottom: "var(--space-4)" }}>
+          <h3
+            style={{
+              marginBottom: "var(--space-4)",
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-2)"
+            }}
+          >
+            {cityMeta && (
+              <MapPin
+                size={18}
+                style={{ color: "var(--brand)", flexShrink: 0 }}
+                aria-hidden="true"
+              />
+            )}
             {isHindi ? "लोकप्रिय इलाके" : `Popular Areas in ${cityCapitalized}`}
           </h3>
           <div
@@ -263,6 +459,18 @@ export default async function CityPage({
                 className="card"
                 style={{ textDecoration: "none", padding: "var(--space-5)", textAlign: "center" }}
               >
+                {cityMeta && (
+                  <MapPin
+                    size={14}
+                    style={{
+                      color: "var(--brand)",
+                      marginBottom: "var(--space-1)",
+                      display: "block",
+                      margin: "0 auto var(--space-1)"
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
                 <span className="body-sm text-brand" style={{ fontWeight: 600 }}>
                   {loc}
                 </span>
