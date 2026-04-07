@@ -23,6 +23,14 @@ export function AnimateOnScroll({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+
+    // Immediately reveal if already in viewport (handles direct navigation / programmatic scroll)
+    const rect = el.getBoundingClientRect();
+    if (rect.top < window.innerHeight && rect.bottom > 0) {
+      setVisible(true);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -30,7 +38,7 @@ export function AnimateOnScroll({
           observer.unobserve(el);
         }
       },
-      { threshold }
+      { threshold, rootMargin: "0px 0px -40px 0px" }
     );
     observer.observe(el);
     return () => observer.disconnect();

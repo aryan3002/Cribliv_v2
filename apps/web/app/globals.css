@@ -1331,7 +1331,7 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 /* ── Footer ──────────────────────────────────────────────────────────── */
 .footer {
   background: #0C111D; color: var(--text-inverse);
-  padding: var(--space-16) 0 var(--space-8); margin-top: var(--space-16);
+  padding: var(--space-16) 0 var(--space-8); margin-top: var(--space-4);
   border-top: none;
 }
 .footer__grid { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: var(--space-8); margin-bottom: var(--space-12); }

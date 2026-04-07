@@ -159,7 +159,7 @@ const HOW_IT_WORKS = [
     titleHi: "सत्यापित लिस्टिंग",
     desc: "Every owner is verified. No fake listings, no brokers, no hidden charges.",
     descHi: "हर मालिक सत्यापित है। कोई फर्जी लिस्टिंग नहीं, कोई दलाल नहीं।",
-    color: "trust" as const
+    color: "brand" as const
   },
   {
     icon: KeyRound,
@@ -167,7 +167,7 @@ const HOW_IT_WORKS = [
     titleHi: "जुड़ें और शिफ्ट करें",
     desc: "Unlock owner contacts instantly. 12-hour refund if no response.",
     descHi: "मालिक के संपर्क तुरंत अनलॉक करें। 12 घंटे में रिफंड।",
-    color: "accent" as const
+    color: "brand" as const
   }
 ];
 
@@ -193,10 +193,10 @@ const TESTIMONIALS = [
 ];
 
 const PLATFORM_STATS = [
-  { value: "8", numericValue: 8, suffix: "+", label: "Cities" },
+  { value: "₹0", numericValue: 0, prefix: "₹", suffix: "", label: "Brokerage" },
   { value: "100", numericValue: 100, suffix: "%", label: "Owner Verified" },
   { value: "12", numericValue: 12, suffix: "hr", label: "Refund Guarantee" },
-  { value: "₹0", numericValue: 0, prefix: "₹", suffix: "", label: "Brokerage" }
+  { value: "8", numericValue: 8, suffix: "+", label: "Cities" }
 ];
 
 export default async function HomePage({ params }: { params: { locale: Locale } }) {
@@ -396,7 +396,15 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
       <AnimateOnScroll>
         <section className="section--sm">
           <div className="section-header">
-            <h2>{isHindi ? "लोकप्रिय शहर" : "Explore Top Cities"}</h2>
+            <div>
+              <p
+                className="overline"
+                style={{ marginBottom: "var(--space-1)", color: "var(--brand)" }}
+              >
+                {isHindi ? "शहर खोजें" : "Top Locations"}
+              </p>
+              <h2>{isHindi ? "लोकप्रिय शहर" : "Explore Top Cities"}</h2>
+            </div>
             <Link href={`/${params.locale}/search`} className="section-header__action">
               {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
             </Link>
@@ -435,14 +443,22 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
       </AnimateOnScroll>
 
       {/* ── Popular Localities ── */}
-      {popularLocalities.length > 0 && (
+      {popularLocalities.filter((loc) => loc.city_slug && loc.locality_name).length > 0 && (
         <AnimateOnScroll>
           <section
             className="section--sm"
             style={{ paddingTop: "var(--space-4)", paddingBottom: "var(--space-4)" }}
           >
             <div className="section-header">
-              <h2>{isHindi ? "लखनऊ में लोकप्रिय" : "Popular in Lucknow"}</h2>
+              <div>
+                <p
+                  className="overline"
+                  style={{ marginBottom: "var(--space-1)", color: "var(--brand)" }}
+                >
+                  {isHindi ? "अभी उपलब्ध" : "Featured Listings"}
+                </p>
+                <h2>{isHindi ? "लखनऊ में लोकप्रिय" : "Popular in Lucknow"}</h2>
+              </div>
               <Link
                 href={`/${params.locale}/search?city=lucknow`}
                 className="section-header__action"
@@ -460,33 +476,35 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 WebkitOverflowScrolling: "touch"
               }}
             >
-              {popularLocalities.map((loc) => (
-                <Link
-                  key={loc.locality_id}
-                  href={`/${params.locale}/search?city=${loc.city_slug}&q=${encodeURIComponent(loc.locality_name)}`}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "6px 14px",
-                    borderRadius: "var(--radius-full)",
-                    background: "var(--surface-2, #f3f4f6)",
-                    border: "1px solid var(--border)",
-                    fontSize: 14,
-                    fontWeight: 500,
-                    color: "var(--text-primary)",
-                    whiteSpace: "nowrap",
-                    textDecoration: "none",
-                    transition: "background 0.15s"
-                  }}
-                >
-                  <MapPin size={13} style={{ color: "var(--brand)" }} />
-                  {loc.locality_name}
-                  <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 400 }}>
-                    {loc.listing_count}
-                  </span>
-                </Link>
-              ))}
+              {popularLocalities
+                .filter((loc) => loc.city_slug && loc.locality_name)
+                .map((loc) => (
+                  <Link
+                    key={loc.locality_id}
+                    href={`/${params.locale}/search?city=${loc.city_slug ?? "lucknow"}&q=${encodeURIComponent(loc.locality_name ?? "")}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 14px",
+                      borderRadius: "var(--radius-full)",
+                      background: "var(--surface-2, #f3f4f6)",
+                      border: "1px solid var(--border)",
+                      fontSize: 14,
+                      fontWeight: 500,
+                      color: "var(--text-primary)",
+                      whiteSpace: "nowrap",
+                      textDecoration: "none",
+                      transition: "background 0.15s"
+                    }}
+                  >
+                    <MapPin size={13} style={{ color: "var(--brand)" }} />
+                    {loc.locality_name}
+                    <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 400 }}>
+                      {loc.listing_count}
+                    </span>
+                  </Link>
+                ))}
             </div>
           </section>
         </AnimateOnScroll>
@@ -593,7 +611,15 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
       <AnimateOnScroll delay={100}>
         <section className="section--sm">
           <div className="section-header">
-            <h2>{isHindi ? "किराये के प्रकार" : "Browse by Type"}</h2>
+            <div>
+              <p
+                className="overline"
+                style={{ marginBottom: "var(--space-1)", color: "var(--brand)" }}
+              >
+                {isHindi ? "संपत्ति प्रकार" : "Property Types"}
+              </p>
+              <h2>{isHindi ? "किराये के प्रकार" : "Browse by Type"}</h2>
+            </div>
             <Link href={`/${params.locale}/search`} className="section-header__action">
               {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
             </Link>
@@ -650,7 +676,10 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   >
                     <Icon size={26} />
                   </div>
-                  <h3 className="feature-card__title" style={{ fontSize: 17 }}>
+                  <h3
+                    className="feature-card__title"
+                    style={{ fontSize: 17, color: "var(--text-primary)" }}
+                  >
                     {item.title}
                   </h3>
                   <p className="feature-card__desc">{item.desc}</p>
@@ -939,7 +968,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
       </AnimateOnScroll>
 
       {/* ── CTA Banner ── */}
-      <div className="container" style={{ paddingBottom: "var(--space-16)" }}>
+      <div className="container" style={{ paddingBottom: "var(--space-4)" }}>
         <section className="cta-banner" style={{ margin: 0 }}>
           {/* Decorative dot grid */}
           <div
