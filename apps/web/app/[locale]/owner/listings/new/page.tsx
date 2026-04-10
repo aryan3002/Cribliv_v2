@@ -76,6 +76,7 @@ import { TitleDescriptionStep } from "../../../../../components/listing-wizard/T
 import type { VoiceAgentDraft, VoiceAgentPhase } from "@cribliv/shared-types";
 
 const STORAGE_KEY = "cribliv:wizard-draft";
+const MAX_PARALLEL_UPLOADS = 4;
 
 export default function OwnerListingWizardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
@@ -831,9 +832,10 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     });
   }
 
-  async function uploadFile(upload: UploadFile) {
+  async function uploadFile(upload: UploadFile, listingIdOverride?: string) {
     const token = accessToken;
-    if (!token || !listingId) {
+    const activeListingId = listingIdOverride ?? listingId;
+    if (!token || !activeListingId) {
       setError("Login and save draft before uploading photos.");
       return;
     }
@@ -847,7 +849,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     try {
       const presignResult = await presignListingPhotos(
         token,
-        listingId,
+        activeListingId,
         [
           {
             clientUploadId: upload.clientUploadId,
@@ -859,12 +861,52 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       );
       const first = presignResult.uploads[0];
       if (!first) throw new Error("Failed to get upload URL");
+
       setUploads((c) =>
-        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 70 } : i))
+        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 45 } : i))
       );
+
+      let uploaded = false;
+      const contentType = upload.file.type || "image/jpeg";
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          const putResponse = await fetch(first.uploadUrl, {
+            method: "PUT",
+            headers: {
+              "x-ms-blob-type": "BlockBlob",
+              "Content-Type": contentType
+            },
+            body: upload.file
+          });
+
+          if (putResponse.ok) {
+            uploaded = true;
+            break;
+          }
+
+          const retriable = [408, 429, 500, 502, 503, 504].includes(putResponse.status);
+          if (!retriable || attempt === 3) {
+            throw new Error(`Photo upload failed (HTTP ${putResponse.status})`);
+          }
+        } catch (error) {
+          if (attempt === 3) {
+            if (error instanceof Error) throw error;
+            throw new Error("Photo upload failed due to a network error");
+          }
+        }
+      }
+
+      if (!uploaded) {
+        throw new Error("Photo upload failed");
+      }
+
+      setUploads((c) =>
+        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 80 } : i))
+      );
+
       await completeListingPhotos(
         token,
-        listingId,
+        activeListingId,
         [
           {
             clientUploadId: upload.clientUploadId,
@@ -902,13 +944,29 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
   async function uploadAllPending() {
     // Auto-save draft first if no listing yet (creates listing ID for photo association)
+    let activeListingId = listingId;
     if (!listingId && accessToken) {
       const savedId = await saveDraft();
       if (!savedId) return;
+      activeListingId = savedId;
     }
-    for (const upload of uploads.filter((i) => i.status === "pending")) {
-      await uploadFile(upload);
-    }
+
+    const pending = uploads.filter((i) => i.status === "pending");
+    const workerCount = Math.min(MAX_PARALLEL_UPLOADS, pending.length);
+    if (workerCount === 0) return;
+
+    let cursor = 0;
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (cursor < pending.length) {
+        const index = cursor;
+        cursor += 1;
+        const current = pending[index];
+        if (!current) continue;
+        await uploadFile(current, activeListingId ?? undefined);
+      }
+    });
+
+    await Promise.all(workers);
   }
 
   function removeUpload(clientUploadId: string) {

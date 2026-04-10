@@ -10,6 +10,15 @@ const nextConfig = {
     optimizePackageImports: ["lucide-react"],
   },
   async headers() {
+    const toOrigin = (value) => {
+      if (!value) return "";
+      try {
+        return new URL(value).origin;
+      } catch {
+        return "";
+      }
+    };
+
     // Strip path (e.g. /v1) from API URL so connect-src allows all sub-paths.
     // CSP spec: a source with a path (no trailing slash) matches only that exact path.
     // Using just origin (scheme+host+port) matches all paths on that host.
@@ -17,6 +26,26 @@ const nextConfig = {
     const apiOrigin = apiUrl.replace(/\/v\d+\/?$/, "").replace(/\/$/, "") || "http://localhost:4000";
     // WebSocket origins need ws:// / wss:// schemes — http:// does NOT cover them in CSP.
     const wsOrigin = apiOrigin.replace(/^https:\/\//, "wss://").replace(/^http:\/\//, "ws://");
+    const photoPublicOrigin = toOrigin(process.env.PHOTO_PUBLIC_BASE_URL);
+    const storageAccount = process.env.AZURE_STORAGE_ACCOUNT_NAME?.trim();
+    const storageAccountOrigin = storageAccount
+      ? `https://${storageAccount}.blob.core.windows.net`
+      : "";
+
+    const connectSrc = [
+      "'self'",
+      apiOrigin,
+      wsOrigin,
+      "https://*.stt.speech.microsoft.com",
+      "https://*.openai.azure.com",
+      // Required for direct browser PUT uploads to Azure Blob SAS URLs.
+      "https://*.blob.core.windows.net",
+      photoPublicOrigin,
+      storageAccountOrigin
+    ]
+      .filter(Boolean)
+      .join(" ");
+
     return [
       {
         source: "/(.*)",
@@ -30,7 +59,7 @@ const nextConfig = {
               "img-src 'self' data: https: blob:",
               "font-src 'self'",
               // Allow API calls (http + ws) + Azure Speech REST API for voice search
-              `connect-src 'self' ${apiOrigin} ${wsOrigin} https://*.stt.speech.microsoft.com https://*.openai.azure.com`,
+              `connect-src ${connectSrc}`,
               "media-src 'self' blob:",
               "frame-ancestors 'none'",
               "object-src 'none'",

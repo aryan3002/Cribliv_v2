@@ -11,13 +11,16 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { NotificationService } from "../notifications/notification.service";
 import { logTelemetry } from "../../common/telemetry";
+import { AzureBlobPhotoStorageService } from "./azure-blob-photo-storage.service";
 
 @Injectable()
 export class OwnerService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(NotificationService) private readonly notifications: NotificationService
+    @Inject(NotificationService) private readonly notifications: NotificationService,
+    @Inject(AzureBlobPhotoStorageService)
+    private readonly photoStorage: AzureBlobPhotoStorageService
   ) {}
 
   async listOwnerListings(
@@ -609,8 +612,41 @@ export class OwnerService {
     ownerUserId: string,
     listingId: string,
     idempotencyKey: string,
-    files: Array<{ client_upload_id: string }>
+    files: Array<{ client_upload_id: string; content_type: string; size_bytes: number }>
   ) {
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new BadRequestException({
+        code: "validation_error",
+        message: "At least one file is required"
+      });
+    }
+
+    if (files.length > 30) {
+      throw new BadRequestException({
+        code: "validation_error",
+        message: "Maximum 30 files can be presigned per request"
+      });
+    }
+
+    const seenUploadIds = new Set<string>();
+    for (const file of files) {
+      const uploadId = String(file.client_upload_id ?? "").trim();
+      if (!uploadId) {
+        throw new BadRequestException({
+          code: "validation_error",
+          message: "client_upload_id is required"
+        });
+      }
+      if (seenUploadIds.has(uploadId)) {
+        throw new BadRequestException({
+          code: "duplicate_client_upload_id",
+          message: `Duplicate client_upload_id in request: ${uploadId}`
+        });
+      }
+      seenUploadIds.add(uploadId);
+      this.photoStorage.validatePresignRequest(file.content_type, Number(file.size_bytes));
+    }
+
     if (this.database.isEnabled()) {
       const route = `owner:${listingId}:photos/presign`;
       const cached = await this.getIdempotentResponse(ownerUserId, route, idempotencyKey);
@@ -626,15 +662,20 @@ export class OwnerService {
       }
 
       await this.assertListingOwner(ownerUserId, listingId);
-
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       const response = {
-        uploads: files.map((file) => ({
-          client_upload_id: file.client_upload_id,
-          upload_url: `https://blob.example/upload/${listingId}/${file.client_upload_id}`,
-          blob_path: `${listingId}/${file.client_upload_id}`,
-          expires_at: expiresAt
-        }))
+        uploads: files.map((file) => {
+          const uploadTarget = this.photoStorage.createUploadTarget({
+            listingId,
+            clientUploadId: file.client_upload_id,
+            contentType: file.content_type
+          });
+          return {
+            client_upload_id: file.client_upload_id,
+            upload_url: uploadTarget.uploadUrl,
+            blob_path: uploadTarget.blobPath,
+            expires_at: uploadTarget.expiresAt
+          };
+        })
       };
 
       await this.storeIdempotentResponse(ownerUserId, route, idempotencyKey, response);
@@ -647,12 +688,20 @@ export class OwnerService {
     }
 
     return {
-      uploads: files.map((file) => ({
-        client_upload_id: file.client_upload_id,
-        upload_url: `https://blob.example/upload/${listingId}/${file.client_upload_id}`,
-        blob_path: `${listingId}/${file.client_upload_id}`,
-        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString()
-      }))
+      uploads: files.map((file) => {
+        const uploadTarget = this.photoStorage.createUploadTarget({
+          listingId,
+          clientUploadId: file.client_upload_id,
+          contentType: file.content_type
+        });
+
+        return {
+          client_upload_id: file.client_upload_id,
+          upload_url: uploadTarget.uploadUrl,
+          blob_path: uploadTarget.blobPath,
+          expires_at: uploadTarget.expiresAt
+        };
+      })
     };
   }
 
@@ -667,6 +716,44 @@ export class OwnerService {
       sort_order?: number;
     }>
   ) {
+    if (!Array.isArray(files) || files.length === 0) {
+      throw new BadRequestException({
+        code: "validation_error",
+        message: "At least one file is required"
+      });
+    }
+
+    const seenUploadIds = new Set<string>();
+    let coverCount = 0;
+    for (const file of files) {
+      const uploadId = String(file.client_upload_id ?? "").trim();
+      const blobPath = String(file.blob_path ?? "").trim();
+      if (!uploadId || !blobPath) {
+        throw new BadRequestException({
+          code: "validation_error",
+          message: "client_upload_id and blob_path are required"
+        });
+      }
+      if (seenUploadIds.has(uploadId)) {
+        throw new BadRequestException({
+          code: "duplicate_client_upload_id",
+          message: `Duplicate client_upload_id in request: ${uploadId}`
+        });
+      }
+      seenUploadIds.add(uploadId);
+
+      if (Boolean(file.is_cover)) {
+        coverCount += 1;
+      }
+    }
+
+    if (coverCount > 1) {
+      throw new BadRequestException({
+        code: "validation_error",
+        message: "Only one photo can be marked as cover"
+      });
+    }
+
     if (this.database.isEnabled()) {
       const route = `owner:${listingId}:photos/complete`;
       const cached = await this.getIdempotentResponse(ownerUserId, route, idempotencyKey);
@@ -674,13 +761,36 @@ export class OwnerService {
         return cached as { photo_ids: string[]; accepted_count: number };
       }
 
+      await this.assertListingOwner(ownerUserId, listingId);
+
+      await Promise.all(
+        files.map((file) => this.photoStorage.validateUploadedBlob(listingId, file.blob_path))
+      );
+
       const client = await this.database.getClient();
       try {
         await client.query("BEGIN");
-        await this.assertListingOwner(ownerUserId, listingId, client);
+
+        if (coverCount === 1) {
+          await client.query(
+            `
+            UPDATE listing_photos
+            SET is_cover = false,
+                updated_at = now()
+            WHERE listing_id = $1::uuid
+              AND is_cover = true
+            `,
+            [listingId]
+          );
+        }
 
         const photoIds: string[] = [];
         for (const file of files) {
+          const rawSortOrder = Number(file.sort_order);
+          const normalizedSortOrder = Number.isFinite(rawSortOrder)
+            ? Math.max(Math.min(Math.trunc(rawSortOrder), 32767), 0)
+            : 0;
+
           const inserted = await client.query<{ id: string }>(
             `
             INSERT INTO listing_photos(listing_id, blob_path, sort_order, is_cover, moderation_status, client_upload_id)
@@ -691,7 +801,7 @@ export class OwnerService {
             [
               listingId,
               file.blob_path,
-              file.sort_order ?? 0,
+              normalizedSortOrder,
               Boolean(file.is_cover ?? false),
               file.client_upload_id
             ]

@@ -168,6 +168,8 @@ function parseRentFilters(text: string) {
 
 @Injectable()
 export class SearchService {
+  private readonly photoPublicBaseUrl = this.resolvePhotoPublicBaseUrl();
+
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
@@ -575,7 +577,7 @@ export class SearchService {
           furnishing: row.furnishing,
           area_sqft: row.area_sqft,
           verification_status: row.verification_status,
-          cover_photo: row.cover_photo,
+          cover_photo: this.toPhotoUrl(row.cover_photo),
           score: Number(score.toFixed(4))
         };
       });
@@ -588,8 +590,103 @@ export class SearchService {
       };
     }
 
-    // In-memory fallback when DB is not available
-    return { items: [], total: 0, page: 1, page_size: 20 };
+    // In-memory fallback when DB is not available (used by integration tests/local fallback mode).
+    const page = parsePage(query.page);
+    const pageSize = 20;
+
+    let rows = [...this.appState.listings.values()].filter(
+      (listing) => listing.status === "active"
+    );
+
+    if (query.q?.trim()) {
+      const q = query.q.trim().toLowerCase();
+      rows = rows.filter((listing) => listing.title.toLowerCase().includes(q));
+    }
+
+    if (query.city) {
+      const city = query.city.toLowerCase();
+      rows = rows.filter((listing) => listing.city === city);
+    }
+
+    if (query.listing_type) {
+      rows = rows.filter((listing) => listing.listingType === query.listing_type);
+    }
+
+    if (query.locality) {
+      const locality = query.locality.toLowerCase();
+      rows = rows.filter((listing) => (listing.locality ?? "").toLowerCase() === locality);
+    }
+
+    if (query.min_rent) {
+      const minRent = Number(query.min_rent);
+      if (Number.isFinite(minRent)) {
+        rows = rows.filter((listing) => listing.monthlyRent >= minRent);
+      }
+    }
+
+    if (query.max_rent) {
+      const maxRent = Number(query.max_rent);
+      if (Number.isFinite(maxRent)) {
+        rows = rows.filter((listing) => listing.monthlyRent <= maxRent);
+      }
+    }
+
+    if (query.bhk) {
+      const bhk = Number(query.bhk);
+      if (Number.isFinite(bhk)) {
+        rows = rows.filter(
+          (listing) =>
+            listing.listingType === "flat_house" &&
+            (listing.title.toLowerCase().includes(`${bhk}bhk`) ||
+              listing.title.toLowerCase().includes(`${bhk} bhk`))
+        );
+      }
+    }
+
+    if (query.furnishing) {
+      rows = rows.filter((listing) => listing.furnishing === query.furnishing);
+    }
+
+    if (query.verified_only === "true") {
+      rows = rows.filter((listing) => listing.verificationStatus === "verified");
+    }
+
+    rows.sort((a, b) => {
+      if (normalizedSort === "rent_asc") return a.monthlyRent - b.monthlyRent;
+      if (normalizedSort === "rent_desc") return b.monthlyRent - a.monthlyRent;
+      if (normalizedSort === "verified") {
+        const rank = (status: string) => (status === "verified" ? 0 : status === "pending" ? 1 : 2);
+        return rank(a.verificationStatus) - rank(b.verificationStatus);
+      }
+
+      // Default relevance/newest approximation for in-memory mode.
+      return b.createdAt - a.createdAt;
+    });
+
+    const total = rows.length;
+    const offset = (page - 1) * pageSize;
+    const paged = rows.slice(offset, offset + pageSize);
+
+    return {
+      items: paged.map((row) => ({
+        id: row.id,
+        title: row.title,
+        city: row.city,
+        city_name: row.city,
+        locality: row.locality ?? null,
+        listing_type: row.listingType,
+        monthly_rent: row.monthlyRent,
+        bhk: null,
+        furnishing: row.furnishing ?? null,
+        area_sqft: null,
+        verification_status: row.verificationStatus,
+        cover_photo: null,
+        score: 0.5
+      })),
+      total,
+      page,
+      page_size: pageSize
+    };
   }
 
   /**
@@ -705,7 +802,10 @@ export class SearchService {
       [listingId, limit]
     );
 
-    return result.rows;
+    return result.rows.map((row) => ({
+      ...row,
+      cover_photo: this.toPhotoUrl(row.cover_photo)
+    }));
   }
 
   /**
@@ -989,5 +1089,29 @@ export class SearchService {
       jaipur: "jaipur"
     };
     return CITY_ALIASES_LOCAL[city.toLowerCase().trim()] ?? city.toLowerCase().trim();
+  }
+
+  private resolvePhotoPublicBaseUrl() {
+    const explicit = process.env.PHOTO_PUBLIC_BASE_URL?.trim();
+    if (explicit) {
+      return explicit.replace(/\/+$/, "");
+    }
+
+    const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME?.trim();
+    const container =
+      process.env.AZURE_STORAGE_CONTAINER_LISTING_PHOTOS?.trim() || "listing-photos";
+
+    if (!accountName) {
+      return "";
+    }
+
+    return `https://${accountName}.blob.core.windows.net/${container}`;
+  }
+
+  private toPhotoUrl(blobPath: string | null) {
+    if (!blobPath) return null;
+    if (/^https?:\/\//i.test(blobPath)) return blobPath;
+    if (!this.photoPublicBaseUrl) return blobPath;
+    return `${this.photoPublicBaseUrl}/${blobPath.replace(/^\/+/, "")}`;
   }
 }

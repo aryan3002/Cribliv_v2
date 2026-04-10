@@ -473,7 +473,11 @@ export function validateStep(step: number, form: WizardForm): StepError[] {
 }
 
 export function generateClientUploadId(file: File): string {
-  return `${file.name}-${file.size}`;
+  const randomPart =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID().slice(0, 8)
+      : `${Date.now()}`;
+  return `${file.name}-${file.size}-${file.lastModified}-${randomPart}`;
 }
 
 export {

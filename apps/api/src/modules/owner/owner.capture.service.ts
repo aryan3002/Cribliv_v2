@@ -254,12 +254,30 @@ export class OwnerCaptureService {
       transcript = sttResult.text;
       detectedLocale = sttResult.detectedLocale;
     } catch (err) {
-      // Provide structured error so frontend can distinguish STT failure
-      const code = err instanceof BadGatewayException ? "stt_failed" : "stt_unavailable";
+      // Preserve upstream structured error when available for stable API contracts.
+      let upstreamCode: string | undefined;
+      let upstreamMessage: string | undefined;
+      if (err instanceof BadGatewayException) {
+        const response = err.getResponse();
+        if (response && typeof response === "object") {
+          const code = (response as { code?: unknown }).code;
+          const message = (response as { message?: unknown }).message;
+          if (typeof code === "string" && code.trim()) {
+            upstreamCode = code;
+          }
+          if (typeof message === "string" && message.trim()) {
+            upstreamMessage = message;
+          }
+        }
+      }
+
+      const code =
+        upstreamCode ?? (err instanceof BadGatewayException ? "stt_failed" : "stt_unavailable");
       const message =
-        err instanceof Error
+        upstreamMessage ??
+        (err instanceof Error
           ? `Speech transcription failed: ${err.message}`
-          : "Azure Speech transcription is unavailable";
+          : "Azure Speech transcription is unavailable");
       throw new BadGatewayException({ code, message });
     }
 

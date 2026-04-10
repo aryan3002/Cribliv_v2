@@ -5,13 +5,33 @@ import { DatabaseService } from "../src/common/database.service";
 
 function createService() {
   delete process.env.DATABASE_URL;
-  return new SearchService(new AppStateService(), new DatabaseService());
+  const intentClassifier = {
+    classify: async () => null
+  };
+
+  const queryParser = {
+    getOrCreateSession: async () => null,
+    mergeFilters: (existing: Record<string, unknown>, incoming: Record<string, unknown>) => ({
+      ...existing,
+      ...incoming
+    }),
+    appendTurn: async () => undefined
+  };
+
+  return new SearchService(
+    new AppStateService(),
+    new DatabaseService(),
+    intentClassifier as any,
+    {} as any,
+    {} as any,
+    queryParser as any
+  );
 }
 
 describe("SearchService routeQuery", () => {
-  it("parses Hindi/Hinglish query into city/type/bhk/max_rent filters", () => {
+  it("parses Hindi/Hinglish query into city/type/bhk/max_rent filters", async () => {
     const service = createService();
-    const result = service.routeQuery("Noida me 2BHK 25k tak", "en");
+    const result = await service.routeQuery("Noida me 2BHK 25k tak", "en");
 
     expect(result.route).toBe("/search");
     expect(result.filters).toMatchObject({
@@ -23,44 +43,44 @@ describe("SearchService routeQuery", () => {
     expect(result.clarifying_question).toBeUndefined();
   });
 
-  it("routes city-only query to city browse page", () => {
+  it("routes city-only query to city browse page", async () => {
     const service = createService();
-    const result = service.routeQuery("दिल्ली", "hi");
+    const result = await service.routeQuery("दिल्ली", "hi");
 
     expect(result.intent).toBe("city_browse");
     expect(result.route).toBe("/city/delhi");
     expect(result.filters).toMatchObject({ city: "delhi" });
   });
 
-  it("routes post intent to owner dashboard", () => {
+  it("routes post intent to owner dashboard", async () => {
     const service = createService();
-    const result = service.routeQuery("I want to post my flat in gurgaon", "en");
+    const result = await service.routeQuery("I want to post my flat in gurgaon", "en");
 
     expect(result.intent).toBe("post_listing");
     expect(result.route).toBe("/owner/dashboard");
   });
 
-  it("routes uuid-like query directly to listing detail", () => {
+  it("routes uuid-like query directly to listing detail", async () => {
     const service = createService();
     const listingId = "11a9357e-b130-4f64-8cb9-3f91595f5f19";
-    const result = service.routeQuery(`show listing ${listingId}`, "en");
+    const result = await service.routeQuery(`show listing ${listingId}`, "en");
 
     expect(result.intent).toBe("open_listing");
     expect(result.route).toBe(`/listing/${listingId}`);
   });
 
-  it("asks clarification when city and type are missing", () => {
+  it("asks clarification when no actionable filters are parsed", async () => {
     const service = createService();
-    const result = service.routeQuery("near metro under 20k", "en");
+    const result = await service.routeQuery("near metro", "en");
 
     expect(result.route).toBe("/search");
     expect(result.clarifying_question?.id).toBe("missing_city");
     expect(result.clarifying_question?.options?.length).toBeGreaterThan(0);
   });
 
-  it("parses range rents from Hinglish pattern", () => {
+  it("parses range rents from Hinglish pattern", async () => {
     const service = createService();
-    const result = service.routeQuery("pg noida between 15k and 20k", "en");
+    const result = await service.routeQuery("pg noida between 15k and 20k", "en");
 
     expect(result.filters).toMatchObject({
       city: "noida",
