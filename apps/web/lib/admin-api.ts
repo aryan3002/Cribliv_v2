@@ -64,7 +64,7 @@ export async function fetchAdminListings(accessToken: string) {
       monthly_rent?: number;
     }>;
     total: number;
-  }>("/admin/review/listings", {
+  }>("/admin/review/listings?status=pending_review", {
     headers: authHeaders(accessToken)
   });
 
@@ -317,9 +317,12 @@ export async function fetchAdminAnalyticsOverview(
     total_leads: number;
     total_unlocks: number;
     total_revenue_paise: number;
-  }>("/admin/analytics/overview", {
+  } | null>("/admin/analytics/overview", {
     headers: authHeaders(accessToken)
   });
+
+  if (!raw)
+    throw new Error("Analytics endpoint returned no data — check API server or feature flags");
 
   return {
     totalListings: raw.total_listings ?? 0,
@@ -359,9 +362,11 @@ export async function fetchAdminAnalyticsResponseRates(
     avg_response_rate: number;
     total_unlocks: number;
     responded: number;
-  }>("/admin/analytics/response-rates", {
+  } | null>("/admin/analytics/response-rates", {
     headers: authHeaders(accessToken)
   });
+
+  if (!raw) return { avgResponseRate: 0, totalUnlocks: 0, responded: 0 };
 
   return {
     avgResponseRate: raw.avg_response_rate ?? 0,

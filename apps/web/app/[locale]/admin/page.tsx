@@ -111,13 +111,19 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   /* ── Users ─────────────────────────────────────────────────────────── */
   const [users, setUsers] = useState<AdminUserVm[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [usersSearch, setUsersSearch] = useState("");
   const [roleRequests, setRoleRequests] = useState<AdminRoleRequestVm[]>([]);
   const [roleRequestProcessing, setRoleRequestProcessing] = useState<Record<string, boolean>>({});
 
   /* ── Fraud ─────────────────────────────────────────────────────────── */
   const [fraudFlags, setFraudFlags] = useState<AdminFraudFlagVm[]>([]);
   const [fraudLoading, setFraudLoading] = useState(false);
+  const [fraudError, setFraudError] = useState<string | null>(null);
   const [fraudProcessing, setFraudProcessing] = useState<Record<string, boolean>>({});
+
+  /* ── Error states for previously-silent loaders ────────────────────── */
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [usersError, setUsersError] = useState<string | null>(null);
 
   /* ── System Panel ──────────────────────────────────────────────────── */
   const [systemOpen, setSystemOpen] = useState(false);
@@ -143,11 +149,12 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     const token = getToken();
     if (!token) return;
     setLoadingOverview(true);
+    setOverviewError(null);
     try {
       const data = await fetchAdminAnalyticsOverview(token);
       setOverview(data);
-    } catch {
-      /* silent */
+    } catch (err) {
+      setOverviewError(err instanceof Error ? err.message : "Failed to load stats");
     }
     setLoadingOverview(false);
   }, [getToken]);
@@ -232,12 +239,13 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     const token = getToken();
     if (!token) return;
     setUsersLoading(true);
+    setUsersError(null);
     try {
       const [u, rr] = await Promise.all([fetchAdminUsers(token), fetchAdminRoleRequests(token)]);
       setUsers(u);
       setRoleRequests(rr.filter((r) => r.status === "pending"));
-    } catch {
-      /* silent */
+    } catch (err) {
+      setUsersError(err instanceof Error ? err.message : "Failed to load users");
     }
     setUsersLoading(false);
   }, [getToken]);
@@ -246,11 +254,12 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     const token = getToken();
     if (!token) return;
     setFraudLoading(true);
+    setFraudError(null);
     try {
       const flags = await fetchAdminFraudFlags(token);
       setFraudFlags(flags.filter((f) => !f.resolved));
-    } catch {
-      /* silent */
+    } catch (err) {
+      setFraudError(err instanceof Error ? err.message : "Failed to load fraud flags");
     }
     setFraudLoading(false);
   }, [getToken]);
@@ -541,17 +550,28 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     ];
 
     return (
-      <div className="admin-kpi-grid">
-        {kpis.map((kpi) => (
-          <div key={kpi.label} className="admin-kpi-card" style={{ borderTopColor: kpi.color }}>
-            <span className="admin-kpi-card__icon">{kpi.icon}</span>
-            <span className="admin-kpi-card__value">
-              {loadingOverview && typeof kpi.value !== "number" ? "…" : kpi.value}
-            </span>
-            <span className="admin-kpi-card__label">{kpi.label}</span>
+      <>
+        {overviewError && (
+          <div
+            className="alert alert--error"
+            role="alert"
+            style={{ marginBottom: "var(--space-3)" }}
+          >
+            Stats unavailable: {overviewError}
           </div>
-        ))}
-      </div>
+        )}
+        <div className="admin-kpi-grid">
+          {kpis.map((kpi) => (
+            <div key={kpi.label} className="admin-kpi-card" style={{ borderTopColor: kpi.color }}>
+              <span className="admin-kpi-card__icon">{kpi.icon}</span>
+              <span className="admin-kpi-card__value">
+                {loadingOverview && typeof kpi.value !== "number" ? "…" : kpi.value}
+              </span>
+              <span className="admin-kpi-card__label">{kpi.label}</span>
+            </div>
+          ))}
+        </div>
+      </>
     );
   }
 
@@ -691,7 +711,16 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
               <div key={listing.id} className="queue-card">
                 <div className="queue-card__header">
                   <div>
-                    <h3 className="queue-card__title">{listing.title || "Untitled"}</h3>
+                    <h3 className="queue-card__title">
+                      <a
+                        href={`/${locale}/listings/${listing.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "inherit", textDecoration: "underline" }}
+                      >
+                        {listing.title || "Untitled"}
+                      </a>
+                    </h3>
                     <div className="queue-card__meta">
                       {listing.city || "City unknown"} &middot;{" "}
                       {listing.listingType === "pg" ? "PG" : "Flat/House"}
@@ -914,7 +943,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     Tab: Sales (unchanged)
+     Tab: CRM / Sales
      ══════════════════════════════════════════════════════════════════════ */
   function renderSalesTab() {
     if (leadsLoading) return renderSkeleton();
@@ -937,87 +966,370 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
       );
     }
 
+    /* ── Compute CRM metrics ─────────────────────────────────────────── */
+    const total = leads.length;
+    const byStatus = {
+      new: 0,
+      contacted: 0,
+      qualified: 0,
+      closed_won: 0,
+      closed_lost: 0
+    } as Record<LeadStatus, number>;
+    leads.forEach((l) => {
+      byStatus[l.status] = (byStatus[l.status] || 0) + 1;
+    });
+
+    const bySource = { pg_sales_assist: 0, property_management: 0 } as Record<string, number>;
+    leads.forEach((l) => {
+      bySource[l.source] = (bySource[l.source] || 0) + 1;
+    });
+
+    const syncCounts = { synced: 0, pending: 0, error: 0 };
+    leads.forEach((l) => {
+      const s = (l.crmSyncStatus ?? "").toLowerCase();
+      if (s === "synced") syncCounts.synced++;
+      else if (s === "error" || s === "failed") syncCounts.error++;
+      else syncCounts.pending++;
+    });
+
+    const winRate = total > 0 ? Math.round((byStatus.closed_won / total) * 100) : 0;
+    const activeInPipeline = byStatus.new + byStatus.contacted + byStatus.qualified;
+
+    const pipelineStages: { label: string; key: LeadStatus; color: string; bg: string }[] = [
+      { label: "New", key: "new", color: "#6366f1", bg: "#ede9fe" },
+      { label: "Contacted", key: "contacted", color: "#3b82f6", bg: "#dbeafe" },
+      { label: "Qualified", key: "qualified", color: "#f59e0b", bg: "#fef3c7" },
+      { label: "Closed Won", key: "closed_won", color: "#10b981", bg: "#d1fae5" },
+      { label: "Closed Lost", key: "closed_lost", color: "#ef4444", bg: "#fee2e2" }
+    ];
+
+    const maxStageCount = Math.max(...pipelineStages.map((s) => byStatus[s.key]), 1);
+
     return (
       <div>
-        {leads.map((lead) => {
-          const processing = leadProcessing[lead.id] || false;
-          const fieldError = leadErrors[lead.id] || "";
-          return (
-            <div key={lead.id} className="queue-card">
-              <div className="queue-card__header">
-                <div>
-                  <h3 className="queue-card__title">
-                    {lead.source === "pg_sales_assist"
-                      ? "PG Sales Assist Lead"
-                      : "Property Management Lead"}
-                  </h3>
+        {/* ── CRM KPI Row ─────────────────────────────────────────────── */}
+        <div className="crm-kpi-row">
+          <div className="crm-kpi-card">
+            <span className="crm-kpi-card__icon">📋</span>
+            <span className="crm-kpi-card__value">{total}</span>
+            <span className="crm-kpi-card__label">Total Leads</span>
+          </div>
+          <div className="crm-kpi-card">
+            <span className="crm-kpi-card__icon">🚀</span>
+            <span className="crm-kpi-card__value" style={{ color: "#6366f1" }}>
+              {activeInPipeline}
+            </span>
+            <span className="crm-kpi-card__label">Active in Pipeline</span>
+          </div>
+          <div className="crm-kpi-card">
+            <span className="crm-kpi-card__icon">🏆</span>
+            <span className="crm-kpi-card__value" style={{ color: "#10b981" }}>
+              {winRate}%
+            </span>
+            <span className="crm-kpi-card__label">Win Rate</span>
+          </div>
+          <div className="crm-kpi-card">
+            <span className="crm-kpi-card__icon">✅</span>
+            <span className="crm-kpi-card__value" style={{ color: "#10b981" }}>
+              {byStatus.closed_won}
+            </span>
+            <span className="crm-kpi-card__label">Closed Won</span>
+          </div>
+          <div className={`crm-kpi-card${syncCounts.error > 0 ? " crm-kpi-card--alert" : ""}`}>
+            <span className="crm-kpi-card__icon">{syncCounts.error > 0 ? "⚠️" : "🔄"}</span>
+            <span
+              className="crm-kpi-card__value"
+              style={{ color: syncCounts.error > 0 ? "#ef4444" : "#10b981" }}
+            >
+              {syncCounts.error > 0 ? syncCounts.error : syncCounts.synced}
+            </span>
+            <span className="crm-kpi-card__label">
+              {syncCounts.error > 0 ? "Sync Errors" : "CRM Synced"}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Pipeline Bar Chart ──────────────────────────────────────── */}
+        <div className="crm-section">
+          <h3 className="h4 crm-section__title">Sales Pipeline</h3>
+          <div className="crm-pipeline">
+            {pipelineStages.map((stage) => {
+              const count = byStatus[stage.key];
+              const heightPct = Math.round((count / maxStageCount) * 100);
+              const ofTotal = total > 0 ? Math.round((count / total) * 100) : 0;
+              return (
+                <div key={stage.key} className="crm-pipeline__stage">
+                  <div className="crm-pipeline__count" style={{ color: stage.color }}>
+                    {count}
+                  </div>
+                  <div className="crm-pipeline__bar-wrap">
+                    <div
+                      className="crm-pipeline__bar-fill"
+                      style={{
+                        height: `${Math.max(heightPct, count > 0 ? 6 : 0)}%`,
+                        background: stage.color
+                      }}
+                    />
+                  </div>
+                  <div className="crm-pipeline__pct" style={{ color: stage.color }}>
+                    {ofTotal}%
+                  </div>
+                  <div className="crm-pipeline__label">{stage.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Source Distribution + Sync Health ──────────────────────── */}
+        <div className="crm-metrics-grid">
+          {/* Source */}
+          <div className="crm-metric-card">
+            <h4 className="h4 crm-section__title">Lead Sources</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+              {(
+                [
+                  { label: "PG Sales Assist", key: "pg_sales_assist", color: "#6366f1" },
+                  { label: "Property Management", key: "property_management", color: "#3b82f6" }
+                ] as const
+              ).map((src) => {
+                const count = bySource[src.key] ?? 0;
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                return (
+                  <div key={src.key}>
+                    <div className="crm-bar-label-row">
+                      <span>{src.label}</span>
+                      <span>
+                        <strong>{count}</strong>{" "}
+                        <span style={{ color: "var(--text-tertiary)", fontWeight: 400 }}>
+                          ({pct}%)
+                        </span>
+                      </span>
+                    </div>
+                    <div className="crm-bar-track">
+                      <div
+                        className="crm-bar-fill"
+                        style={{ width: `${pct}%`, background: src.color }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Sync Health */}
+          <div className="crm-metric-card">
+            <h4 className="h4 crm-section__title">CRM Sync Health</h4>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-3)",
+                marginBottom: "var(--space-4)"
+              }}
+            >
+              {(
+                [
+                  { label: "Synced", count: syncCounts.synced, color: "#10b981", bg: "#d1fae5" },
+                  { label: "Pending", count: syncCounts.pending, color: "#f59e0b", bg: "#fef3c7" },
+                  { label: "Errors", count: syncCounts.error, color: "#ef4444", bg: "#fee2e2" }
+                ] as const
+              ).map((s) => (
+                <div
+                  key={s.label}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{s.label}</span>
+                  <span className="crm-sync-badge" style={{ background: s.bg, color: s.color }}>
+                    {s.count}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {/* Stacked sync bar */}
+            <div className="crm-bar-track crm-bar-track--stacked">
+              {total > 0 && (
+                <>
+                  <div
+                    className="crm-bar-fill"
+                    style={{
+                      width: `${Math.round((syncCounts.synced / total) * 100)}%`,
+                      background: "#10b981",
+                      borderRadius: 0
+                    }}
+                  />
+                  <div
+                    className="crm-bar-fill"
+                    style={{
+                      width: `${Math.round((syncCounts.pending / total) * 100)}%`,
+                      background: "#f59e0b",
+                      borderRadius: 0
+                    }}
+                  />
+                  <div
+                    className="crm-bar-fill"
+                    style={{
+                      width: `${Math.round((syncCounts.error / total) * 100)}%`,
+                      background: "#ef4444",
+                      borderRadius: 0
+                    }}
+                  />
+                </>
+              )}
+            </div>
+            <div className="crm-sync-legend">
+              <span style={{ color: "#10b981" }}>● Synced</span>
+              <span style={{ color: "#f59e0b" }}>● Pending</span>
+              <span style={{ color: "#ef4444" }}>● Errors</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Stage Breakdown Pills ────────────────────────────────────── */}
+        <div className="crm-section">
+          <h3 className="h4 crm-section__title">
+            All Leads{" "}
+            <span style={{ fontWeight: 400, color: "var(--text-tertiary)", fontSize: 14 }}>
+              ({total})
+            </span>
+          </h3>
+
+          {/* Stage filter pills */}
+          <div className="crm-stage-pills">
+            {pipelineStages.map((stage) => (
+              <div
+                key={stage.key}
+                className="crm-stage-pill"
+                style={{ background: stage.bg, color: stage.color, borderColor: stage.color }}
+              >
+                <span className="crm-stage-pill__count">{byStatus[stage.key]}</span>
+                <span className="crm-stage-pill__label">{stage.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Lead cards */}
+          <div style={{ marginTop: "var(--space-4)" }}>
+            {leads.map((lead) => {
+              const processing = leadProcessing[lead.id] || false;
+              const fieldError = leadErrors[lead.id] || "";
+              const stageColor =
+                pipelineStages.find((s) => s.key === lead.status)?.color ?? "var(--border)";
+              return (
+                <div
+                  key={lead.id}
+                  className="queue-card crm-lead-card"
+                  style={{ borderLeftColor: stageColor }}
+                >
+                  <div className="queue-card__header">
+                    <div>
+                      <h3 className="queue-card__title">
+                        {lead.source === "pg_sales_assist"
+                          ? "PG Sales Assist"
+                          : "Property Management"}
+                      </h3>
+                      <div className="queue-card__meta">
+                        Owner:{" "}
+                        <code style={{ fontSize: 12 }}>{lead.createdByUserId.slice(0, 8)}…</code>
+                        {lead.listingId && (
+                          <>
+                            {" "}
+                            · Listing:{" "}
+                            <code style={{ fontSize: 12 }}>{lead.listingId.slice(0, 8)}…</code>
+                          </>
+                        )}
+                        {lead.notes && (
+                          <>
+                            {" "}
+                            · <em>{lead.notes}</em>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: "var(--space-1)"
+                      }}
+                    >
+                      <span className={`status-pill status-pill--${lead.status}`}>
+                        {lead.status.replace(/_/g, " ")}
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+                        CRM: {lead.crmSyncStatus}
+                      </span>
+                    </div>
+                  </div>
                   <div className="queue-card__meta">
-                    Owner: {lead.createdByUserId}
-                    {lead.listingId && <> &middot; Listing: {lead.listingId}</>}
-                    {lead.notes && <> &middot; {lead.notes}</>}
+                    Created: {dateShort(lead.createdAt)}
+                    {lead.lastCrmPushAt && (
+                      <>
+                        {" "}
+                        · Last sync:{" "}
+                        {new Date(lead.lastCrmPushAt).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })}
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <label htmlFor={`reason-lead-${lead.id}`} className="form-label">
+                      Note (optional)
+                    </label>
+                    <textarea
+                      id={`reason-lead-${lead.id}`}
+                      className="textarea"
+                      placeholder="Add context for this status change..."
+                      value={leadReasons[lead.id] || ""}
+                      onChange={(e) => setLeadReasons((p) => ({ ...p, [lead.id]: e.target.value }))}
+                    />
+                    {fieldError && <p className="form-error">{fieldError}</p>}
+                  </div>
+                  <div className="queue-card__actions">
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--sm"
+                      disabled={processing}
+                      onClick={() => handleLeadStatus(lead.id, "contacted")}
+                    >
+                      Mark Contacted
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      disabled={processing}
+                      onClick={() => handleLeadStatus(lead.id, "qualified")}
+                    >
+                      Mark Qualified
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      disabled={processing}
+                      onClick={() => handleLeadStatus(lead.id, "closed_won")}
+                    >
+                      Close Won
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--danger btn--sm"
+                      disabled={processing}
+                      onClick={() => handleLeadStatus(lead.id, "closed_lost")}
+                    >
+                      Close Lost
+                    </button>
                   </div>
                 </div>
-                <span className={`status-pill status-pill--${lead.status}`}>
-                  {lead.status.replace(/_/g, " ")}
-                </span>
-              </div>
-              <div className="queue-card__meta">
-                Created: {dateShort(lead.createdAt)}
-                {" · "}CRM: {lead.crmSyncStatus}
-                {lead.lastCrmPushAt && (
-                  <> (last push {new Date(lead.lastCrmPushAt).toLocaleString("en-IN")})</>
-                )}
-              </div>
-              <div>
-                <label htmlFor={`reason-lead-${lead.id}`} className="form-label">
-                  Note (optional)
-                </label>
-                <textarea
-                  id={`reason-lead-${lead.id}`}
-                  className="textarea"
-                  placeholder="Add context for this status change..."
-                  value={leadReasons[lead.id] || ""}
-                  onChange={(e) => setLeadReasons((p) => ({ ...p, [lead.id]: e.target.value }))}
-                />
-                {fieldError && <p className="form-error">{fieldError}</p>}
-              </div>
-              <div className="queue-card__actions">
-                <button
-                  type="button"
-                  className="btn btn--secondary btn--sm"
-                  disabled={processing}
-                  onClick={() => handleLeadStatus(lead.id, "contacted")}
-                >
-                  Mark Contacted
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--primary btn--sm"
-                  disabled={processing}
-                  onClick={() => handleLeadStatus(lead.id, "qualified")}
-                >
-                  Mark Qualified
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  disabled={processing}
-                  onClick={() => handleLeadStatus(lead.id, "closed_won")}
-                >
-                  Close Won
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--danger btn--sm"
-                  disabled={processing}
-                  onClick={() => handleLeadStatus(lead.id, "closed_lost")}
-                >
-                  Close Lost
-                </button>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   }
@@ -1027,6 +1339,12 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
      ══════════════════════════════════════════════════════════════════════ */
   function renderUsersTab() {
     if (usersLoading) return renderSkeleton();
+    if (usersError)
+      return (
+        <div className="alert alert--error" role="alert">
+          {usersError}
+        </div>
+      );
 
     return (
       <>
@@ -1072,6 +1390,16 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
         )}
 
         {/* User Table */}
+        <div style={{ marginBottom: "var(--space-3)" }}>
+          <input
+            type="search"
+            className="input"
+            placeholder="Search by phone or name..."
+            value={usersSearch}
+            onChange={(e) => setUsersSearch(e.target.value)}
+            style={{ maxWidth: "320px" }}
+          />
+        </div>
         <div
           style={{
             border: "1px solid var(--border)",
@@ -1086,15 +1414,25 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
             <span style={{ flex: "0 0 140px" }}>Joined</span>
             <span style={{ flex: "0 0 140px" }}>Change Role</span>
           </div>
-          {users.length === 0 ? (
-            <div
-              style={{ padding: "var(--space-6)", textAlign: "center" }}
-              className="text-tertiary"
-            >
-              No users found
-            </div>
-          ) : (
-            users.map((user) => (
+          {(() => {
+            const q = usersSearch.trim().toLowerCase();
+            const filtered = q
+              ? users.filter(
+                  (u) =>
+                    u.phone.toLowerCase().includes(q) ||
+                    (u.fullName ?? "").toLowerCase().includes(q)
+                )
+              : users;
+            if (filtered.length === 0)
+              return (
+                <div
+                  style={{ padding: "var(--space-6)", textAlign: "center" }}
+                  className="text-tertiary"
+                >
+                  {users.length === 0 ? "No users found" : "No users match your search"}
+                </div>
+              );
+            return filtered.map((user) => (
               <div key={user.id} className="admin-user-row">
                 <span style={{ flex: "0 0 160px", fontWeight: 600, fontSize: "14px" }}>
                   {user.phone}
@@ -1129,8 +1467,8 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                   </select>
                 </span>
               </div>
-            ))
-          )}
+            ));
+          })()}
         </div>
       </>
     );
@@ -1141,6 +1479,12 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
      ══════════════════════════════════════════════════════════════════════ */
   function renderFraudTab() {
     if (fraudLoading) return renderSkeleton();
+    if (fraudError)
+      return (
+        <div className="alert alert--error" role="alert">
+          {fraudError}
+        </div>
+      );
 
     if (fraudFlags.length === 0) {
       return (
@@ -1261,7 +1605,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
                   <input
                     type="text"
                     className="input"
-                    placeholder="User UUID"
+                    placeholder="UUID or phone (+91...)"
                     value={walletUserId}
                     onChange={(e) => setWalletUserId(e.target.value)}
                     style={{ width: 220, height: 36 }}
@@ -1320,7 +1664,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     { key: "overview", label: "Overview" },
     { key: "content", label: t(locale, "listingReviewQueue"), count: listings.length },
     { key: "verify", label: t(locale, "verificationQueue"), count: verifications.length },
-    { key: "sales", label: "Sales Leads", count: leads.length },
+    { key: "sales", label: "CRM", count: leads.length },
     { key: "users", label: "Users" },
     { key: "fraud", label: "Fraud", count: fraudFlags.length }
   ];
@@ -1331,7 +1675,7 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
       <div className="admin-page-header">
         <h1 className="h2 admin-page-header__title">{t(locale, "adminDashboard")}</h1>
         <div className="admin-page-header__right">
-          <span>
+          <span suppressHydrationWarning>
             Last refreshed:{" "}
             {lastRefreshed.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
           </span>

@@ -522,6 +522,23 @@ export class AdminController {
         });
       }
 
+      // Accept phone number (e.g. +919999999902) as well as UUID
+      let resolvedUserId = body.user_id;
+      const looksLikePhone = body.user_id.startsWith("+") || /^\d{7,}$/.test(body.user_id);
+      if (looksLikePhone) {
+        const found = await this.database.query<{ id: string }>(
+          `SELECT id::text FROM users WHERE phone_e164 = $1 LIMIT 1`,
+          [body.user_id]
+        );
+        if (!found.rows[0]) {
+          throw new BadRequestException({
+            code: "user_not_found",
+            message: `No user found with phone number ${body.user_id}`
+          });
+        }
+        resolvedUserId = found.rows[0].id;
+      }
+
       const client = await this.database.getClient();
       try {
         await client.query("BEGIN");
@@ -531,7 +548,7 @@ export class AdminController {
           VALUES ($1::uuid, 0, 0)
           ON CONFLICT (user_id) DO NOTHING
           `,
-          [body.user_id]
+          [resolvedUserId]
         );
 
         const txn = await client.query<{ id: string }>(
@@ -547,7 +564,7 @@ export class AdminController {
           VALUES ($1::uuid, 'admin_adjustment', $2, 'admin', $3::uuid, $4::jsonb)
           RETURNING id::text
           `,
-          [body.user_id, body.credits_delta, req.user.id, JSON.stringify({ reason: body.reason })]
+          [resolvedUserId, body.credits_delta, req.user.id, JSON.stringify({ reason: body.reason })]
         );
 
         const wallet = await client.query<{ balance_credits: number }>(
@@ -558,7 +575,7 @@ export class AdminController {
           WHERE user_id = $1::uuid
           RETURNING balance_credits
           `,
-          [body.user_id, body.credits_delta]
+          [resolvedUserId, body.credits_delta]
         );
 
         await client.query(
@@ -568,7 +585,7 @@ export class AdminController {
           `,
           [
             req.user.id,
-            body.user_id,
+            resolvedUserId,
             body.reason,
             JSON.stringify({ credits_delta: body.credits_delta })
           ]
@@ -639,15 +656,18 @@ export class AdminController {
         params
       );
 
-      return ok({ users: result.rows, total: result.rowCount ?? 0 });
+      return ok({
+        items: result.rows.map((u) => ({ ...u, phone: u.phone_e164 })),
+        total: result.rowCount ?? 0
+      });
     }
 
     const all = [...this.appState.users.values()];
     const filtered = role ? all.filter((u) => u.role === role) : all;
     return ok({
-      users: filtered.map((u) => ({
+      items: filtered.map((u) => ({
         id: u.id,
-        phone_e164: u.phone,
+        phone: u.phone,
         role: u.role,
         preferred_language: u.preferred_language,
         full_name: u.full_name ?? null
@@ -750,7 +770,10 @@ export class AdminController {
       };
     });
 
-    return ok({ requests: enriched, total: enriched.length });
+    return ok({
+      items: enriched.map((r) => ({ ...r, phone: r.phone_e164 })),
+      total: enriched.length
+    });
   }
 
   /**

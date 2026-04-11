@@ -82,7 +82,7 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_extended_search_filters_enabled: false,
   ff_similar_listings_enabled: false,
   ff_popular_localities_enabled: false,
-  ff_admin_analytics_enabled: false,
+  ff_admin_analytics_enabled: true,
   ff_partial_phone_reveal_enabled: false,
   /** Phase F – Monetisation / Alerts / Verification (default OFF) */
   ff_subscription_plans_enabled: false,
