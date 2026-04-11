@@ -832,7 +832,12 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     });
   }
 
-  async function uploadFile(upload: UploadFile, listingIdOverride?: string) {
+  async function uploadFile(
+    upload: UploadFile,
+    listingIdOverride?: string,
+    sortOrder = 0,
+    isCover = false
+  ) {
     const token = accessToken;
     const activeListingId = listingIdOverride ?? listingId;
     if (!token || !activeListingId) {
@@ -911,8 +916,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           {
             clientUploadId: upload.clientUploadId,
             blobPath: first.blobPath,
-            isCover: false,
-            sortOrder: 0
+            isCover,
+            sortOrder
           }
         ],
         makeIdempotencyKey("photo-complete")
@@ -962,7 +967,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         cursor += 1;
         const current = pending[index];
         if (!current) continue;
-        await uploadFile(current, activeListingId ?? undefined);
+        await uploadFile(current, activeListingId ?? undefined, index, index === 0);
       }
     });
 

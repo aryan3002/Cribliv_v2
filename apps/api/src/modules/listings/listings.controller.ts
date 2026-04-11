@@ -4,6 +4,23 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 
+function buildPhotoPublicBaseUrl() {
+  const explicit = process.env.PHOTO_PUBLIC_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME?.trim();
+  const container = process.env.AZURE_STORAGE_CONTAINER_LISTING_PHOTOS?.trim() || "listing-photos";
+  if (!accountName) return "";
+  return `https://${accountName}.blob.core.windows.net/${container}`;
+}
+
+function toBlobUrl(blobPath: string | null): string | null {
+  if (!blobPath) return null;
+  if (/^https?:\/\//i.test(blobPath)) return blobPath;
+  const base = buildPhotoPublicBaseUrl();
+  if (!base) return blobPath;
+  return `${base}/${blobPath.replace(/^\/+/, "")}`;
+}
+
 @Controller()
 export class ListingsController {
   constructor(
@@ -24,6 +41,7 @@ export class ListingsController {
         city: string;
         locality: string | null;
         owner_phone: string | null;
+        photos: string[];
       }>(
         `
         SELECT
@@ -35,7 +53,14 @@ export class ListingsController {
           l.verification_status::text,
           c.slug AS city,
           loc.slug AS locality,
-          u.phone_e164 AS owner_phone
+          u.phone_e164 AS owner_phone,
+          COALESCE(
+            (SELECT json_agg(lp.blob_path ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC)
+             FROM listing_photos lp
+             WHERE lp.listing_id = l.id
+               AND lp.moderation_status != 'rejected'),
+            '[]'
+          ) AS photos
         FROM listings l
         JOIN listing_locations ll ON ll.listing_id = l.id
         JOIN cities c ON c.id = ll.city_id
@@ -59,6 +84,12 @@ export class ListingsController {
           ownerPhoneMasked = phone.slice(0, -4).replace(/\d/g, "X") + phone.slice(-4);
         }
 
+        const rawPhotos: unknown[] = Array.isArray(listing.photos) ? listing.photos : [];
+        const photoUrls = rawPhotos
+          .filter((p): p is string => typeof p === "string" && p.length > 0)
+          .map((p) => toBlobUrl(p))
+          .filter((p): p is string => p !== null);
+
         return ok({
           listing_detail: {
             id: listing.id,
@@ -68,7 +99,8 @@ export class ListingsController {
             monthly_rent: listing.monthly_rent,
             verification_status: listing.verification_status,
             city: listing.city,
-            locality: listing.locality
+            locality: listing.locality,
+            photos: photoUrls
           },
           owner_trust: {
             verification_status: listing.verification_status,

@@ -27,6 +27,7 @@ interface ListingDetailResponse {
     city: string;
     locality?: string | null;
     bhk?: number | null;
+    photos?: string[];
   };
   owner_trust: {
     verification_status: string;
@@ -212,13 +213,27 @@ export default async function ListingDetailPage({
           </span>
         </nav>
 
-        {/* Gallery Placeholder */}
-        <div className="gallery">
+        {/* Gallery */}
+        {listing.photos && listing.photos.length > 0 ? (
+          <div className="gallery">
+            <div className="gallery__main">
+              <img src={listing.photos[0]} alt={listing.title} loading="eager" />
+            </div>
+            {listing.photos.slice(1, 5).map((url, i) => (
+              <div key={url} className="gallery__thumb">
+                <img src={url} alt={`${listing.title} - photo ${i + 2}`} loading="lazy" />
+                {i === 3 && listing.photos!.length > 5 && (
+                  <div className="gallery__count">+{listing.photos!.length - 5} more</div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
           <div className="gallery-placeholder">
             <Camera size={40} strokeWidth={1.5} style={{ color: "var(--text-tertiary)" }} />
             <span>Photos coming soon</span>
           </div>
-        </div>
+        )}
 
         {/* Detail Layout: Content + Sidebar */}
         <div className="detail-layout">
