@@ -438,6 +438,26 @@ export async function changeAdminUserRole(accessToken: string, userId: string, r
   });
 }
 
+export async function createAdminUser(
+  accessToken: string,
+  phone_e164: string,
+  role: string,
+  full_name?: string
+) {
+  return fetchApi<{
+    id: string;
+    phone: string;
+    role: string;
+    full_name?: string;
+    created_at: string;
+    is_new: boolean;
+  }>("/admin/users", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ phone_e164, role, full_name: full_name || undefined })
+  });
+}
+
 export async function fetchAdminRoleRequests(accessToken: string) {
   const raw = await fetchApi<{
     items: Array<{

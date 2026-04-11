@@ -627,6 +627,140 @@ export class AdminController {
   // ── User & Role Management ───────────────────────────────────────────────
 
   /**
+   * POST /admin/users
+   * Create a new user (or upsert if phone already exists) and assign a role.
+   * Body: { phone_e164: string; role: Role; full_name?: string }
+   */
+  @Post("users")
+  async createUser(
+    @Req() req: { user: { id: string } },
+    @Body() body: { phone_e164: string; role: string; full_name?: string }
+  ) {
+    const VALID_ROLES = ["tenant", "owner", "pg_operator", "admin"];
+    if (!body.phone_e164 || !/^\+91\d{10}$/.test(body.phone_e164)) {
+      throw new BadRequestException({
+        code: "invalid_phone",
+        message: "Phone must be in E.164 format: +91XXXXXXXXXX"
+      });
+    }
+    if (!VALID_ROLES.includes(body.role)) {
+      throw new BadRequestException({ code: "invalid_role", message: "Invalid role" });
+    }
+
+    if (this.database.isEnabled()) {
+      const { randomUUID } = await import("crypto");
+      const client = await this.database.getClient();
+      try {
+        await client.query("BEGIN");
+
+        // Upsert user: create if phone doesn't exist, update role if it does
+        const result = await client.query<{
+          id: string;
+          phone_e164: string;
+          role: string;
+          full_name: string | null;
+          is_new: boolean;
+        }>(
+          `
+          INSERT INTO users(phone_e164, role, preferred_language, full_name)
+          VALUES ($1, $2::user_role, 'en', $3)
+          ON CONFLICT (phone_e164)
+          DO UPDATE SET
+            role = EXCLUDED.role,
+            full_name = COALESCE(EXCLUDED.full_name, users.full_name),
+            updated_at = now()
+          RETURNING id::text, phone_e164, role::text, full_name,
+            (xmax = 0) AS is_new
+          `,
+          [body.phone_e164, body.role, body.full_name ?? null]
+        );
+
+        const user = result.rows[0];
+        if (!user)
+          throw new BadRequestException({ code: "db_error", message: "Failed to create user" });
+
+        // If brand new user, provision wallet with 0 credits
+        if (user.is_new) {
+          await client.query(
+            `INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
+             VALUES ($1::uuid, 0, 0) ON CONFLICT (user_id) DO NOTHING`,
+            [user.id]
+          );
+        }
+
+        await client.query(
+          `INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+           VALUES ($1::uuid, 'user', $2::uuid, 'update_lead'::admin_action_type, null, null, $3::jsonb)`,
+          [req.user.id, user.id, JSON.stringify({ role: body.role, created_by_admin: true })]
+        );
+
+        await client.query("COMMIT");
+
+        logTelemetry("admin.user_created", {
+          user_id: user.id,
+          phone: body.phone_e164,
+          role: body.role,
+          admin_user_id: req.user.id
+        });
+
+        return ok({
+          id: user.id,
+          phone: user.phone_e164,
+          role: user.role,
+          full_name: user.full_name ?? undefined,
+          created_at: new Date().toISOString(),
+          is_new: user.is_new
+        });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    // ── In-memory (dev) path ──────────────────────────────────────────────
+    const { randomUUID } = await import("crypto");
+    let user = this.appState.usersByPhone.get(body.phone_e164);
+    let isNew = false;
+    if (!user) {
+      const userId = randomUUID();
+      user = {
+        id: userId,
+        phone: body.phone_e164,
+        role: body.role as "tenant" | "owner" | "pg_operator" | "admin",
+        preferred_language: "en",
+        full_name: body.full_name
+      };
+      this.appState.users.set(userId, user);
+      this.appState.usersByPhone.set(body.phone_e164, user);
+      this.appState.wallets.set(userId, 0);
+      this.appState.walletTxns.set(userId, []);
+      isNew = true;
+    } else {
+      user.role = body.role as "tenant" | "owner" | "pg_operator" | "admin";
+      if (body.full_name) user.full_name = body.full_name;
+    }
+
+    logTelemetry("admin.user_created", {
+      mode: "in_memory",
+      user_id: user.id,
+      phone: body.phone_e164,
+      role: body.role,
+      admin_user_id: req.user.id
+    });
+
+    return ok({
+      id: user.id,
+      phone: user.phone,
+      role: user.role,
+      full_name: user.full_name ?? undefined,
+      created_at: new Date().toISOString(),
+      is_new: isNew
+    });
+  }
+
+  /**
    * GET /admin/users
    * List all users with id, phone, role, preferred_language.
    * Supports optional ?role= filter.

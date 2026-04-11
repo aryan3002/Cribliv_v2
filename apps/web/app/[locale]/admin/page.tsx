@@ -17,6 +17,7 @@ import {
   fetchAdminAnalyticsByCity,
   fetchAdminUsers,
   changeAdminUserRole,
+  createAdminUser,
   fetchAdminRoleRequests,
   decideAdminRoleRequest,
   fetchAdminFraudFlags,
@@ -114,6 +115,15 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
   const [usersSearch, setUsersSearch] = useState("");
   const [roleRequests, setRoleRequests] = useState<AdminRoleRequestVm[]>([]);
   const [roleRequestProcessing, setRoleRequestProcessing] = useState<Record<string, boolean>>({});
+
+  /* ── Add User Modal ─────────────────────────────────────────────────── */
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [addUserPhone, setAddUserPhone] = useState("");
+  const [addUserName, setAddUserName] = useState("");
+  const [addUserRole, setAddUserRole] = useState("tenant");
+  const [addUserLoading, setAddUserLoading] = useState(false);
+  const [addUserError, setAddUserError] = useState("");
+  const [addUserSuccess, setAddUserSuccess] = useState("");
 
   /* ── Fraud ─────────────────────────────────────────────────────────── */
   const [fraudFlags, setFraudFlags] = useState<AdminFraudFlagVm[]>([]);
@@ -432,6 +442,68 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
     } catch {
       /* silent */
     }
+  }
+
+  async function handleCreateUser() {
+    const token = getToken();
+    if (!token) return;
+    setAddUserError("");
+    setAddUserSuccess("");
+
+    const phone = addUserPhone.trim();
+    if (!phone) {
+      setAddUserError("Phone number is required");
+      return;
+    }
+    // Auto-prefix +91 if user types a 10-digit number
+    const normalizedPhone = phone.startsWith("+")
+      ? phone
+      : phone.startsWith("91") && phone.length === 12
+        ? `+${phone}`
+        : phone.length === 10
+          ? `+91${phone}`
+          : phone;
+    if (!/^\+91\d{10}$/.test(normalizedPhone)) {
+      setAddUserError("Enter a valid Indian mobile number (10 digits or +91XXXXXXXXXX)");
+      return;
+    }
+
+    setAddUserLoading(true);
+    try {
+      const result = await createAdminUser(
+        token,
+        normalizedPhone,
+        addUserRole,
+        addUserName.trim() || undefined
+      );
+      const newUser: AdminUserVm = {
+        id: result.id,
+        phone: result.phone,
+        role: result.role,
+        fullName: result.full_name,
+        createdAt: result.created_at
+      };
+      if (result.is_new) {
+        setUsers((p) => [newUser, ...p]);
+        setAddUserSuccess(`✅ User ${normalizedPhone} created as ${humanize(addUserRole)}`);
+      } else {
+        setUsers((p) => p.map((u) => (u.id === result.id ? newUser : u)));
+        setAddUserSuccess(
+          `✅ Existing user ${normalizedPhone} role updated to ${humanize(addUserRole)}`
+        );
+      }
+      setAddUserPhone("");
+      setAddUserName("");
+      setAddUserRole("tenant");
+      // Auto-close after brief delay
+      setTimeout(() => {
+        setAddUserOpen(false);
+        setAddUserSuccess("");
+      }, 2000);
+    } catch (err) {
+      setAddUserError(err instanceof Error ? err.message : "Failed to create user");
+    }
+    setAddUserLoading(false);
   }
 
   async function handleResolveFraud(flagId: string) {
@@ -1389,17 +1461,192 @@ export default function AdminDashboardPage({ params }: { params: { locale: strin
           </div>
         )}
 
-        {/* User Table */}
-        <div style={{ marginBottom: "var(--space-3)" }}>
+        {/* User Table toolbar */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-3)",
+            marginBottom: "var(--space-4)",
+            flexWrap: "wrap"
+          }}
+        >
           <input
             type="search"
             className="input"
             placeholder="Search by phone or name..."
             value={usersSearch}
             onChange={(e) => setUsersSearch(e.target.value)}
-            style={{ maxWidth: "320px" }}
+            style={{ flex: "1", minWidth: "200px", maxWidth: "320px" }}
           />
+          <button
+            id="admin-add-user-btn"
+            type="button"
+            className="btn btn--primary"
+            style={{ display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}
+            onClick={() => {
+              setAddUserOpen(true);
+              setAddUserError("");
+              setAddUserSuccess("");
+            }}
+          >
+            <span style={{ fontSize: "18px", lineHeight: 1 }}>+</span> Add User
+          </button>
         </div>
+
+        {/* ── Add User Modal ──────────────────────────────────────────── */}
+        {addUserOpen && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.55)",
+              zIndex: 1000,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "var(--space-4)"
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add User Dialog"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setAddUserOpen(false);
+            }}
+          >
+            <div
+              style={{
+                background: "var(--surface)",
+                borderRadius: "var(--radius-xl)",
+                padding: "var(--space-6)",
+                width: "100%",
+                maxWidth: "480px",
+                boxShadow: "0 24px 64px rgba(0,0,0,0.3)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-4)"
+              }}
+            >
+              {/* Modal header */}
+              <div
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+              >
+                <h2 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>👤 Create New User</h2>
+                <button
+                  type="button"
+                  onClick={() => setAddUserOpen(false)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "22px",
+                    color: "var(--text-tertiary)",
+                    lineHeight: 1,
+                    padding: "4px"
+                  }}
+                  aria-label="Close dialog"
+                >
+                  ×
+                </button>
+              </div>
+
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--text-secondary)" }}>
+                Create a new user account or update an existing user&apos;s role. No OTP is required
+                — the user can log in via their phone number.
+              </p>
+
+              {/* Phone */}
+              <div>
+                <label htmlFor="add-user-phone" className="form-label">
+                  Mobile Number <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <input
+                  id="add-user-phone"
+                  type="tel"
+                  className="input"
+                  placeholder="+91XXXXXXXXXX or 10-digit number"
+                  value={addUserPhone}
+                  onChange={(e) => {
+                    setAddUserPhone(e.target.value);
+                    setAddUserError("");
+                  }}
+                  disabled={addUserLoading}
+                  autoFocus
+                />
+              </div>
+
+              {/* Full name (optional) */}
+              <div>
+                <label htmlFor="add-user-name" className="form-label">
+                  Full Name{" "}
+                  <span style={{ color: "var(--text-tertiary)", fontWeight: 400 }}>(optional)</span>
+                </label>
+                <input
+                  id="add-user-name"
+                  type="text"
+                  className="input"
+                  placeholder="e.g. Arjun Sharma"
+                  value={addUserName}
+                  onChange={(e) => setAddUserName(e.target.value)}
+                  disabled={addUserLoading}
+                />
+              </div>
+
+              {/* Role */}
+              <div>
+                <label htmlFor="add-user-role" className="form-label">
+                  Role <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                <select
+                  id="add-user-role"
+                  className="admin-role-select"
+                  style={{ width: "100%" }}
+                  value={addUserRole}
+                  onChange={(e) => setAddUserRole(e.target.value)}
+                  disabled={addUserLoading}
+                >
+                  <option value="tenant">Tenant</option>
+                  <option value="owner">Owner</option>
+                  <option value="pg_operator">PG Operator</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              {/* Error / Success */}
+              {addUserError && (
+                <p className="form-error" style={{ margin: 0 }}>
+                  {addUserError}
+                </p>
+              )}
+              {addUserSuccess && (
+                <p style={{ margin: 0, color: "var(--trust)", fontSize: "14px", fontWeight: 500 }}>
+                  {addUserSuccess}
+                </p>
+              )}
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setAddUserOpen(false)}
+                  disabled={addUserLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  id="add-user-submit-btn"
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={handleCreateUser}
+                  disabled={addUserLoading || !addUserPhone.trim()}
+                >
+                  {addUserLoading ? "Creating…" : "Create User"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div
           style={{
             border: "1px solid var(--border)",
