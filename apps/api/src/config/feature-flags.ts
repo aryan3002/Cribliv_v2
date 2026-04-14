@@ -43,6 +43,10 @@ export interface FeatureFlags {
   ff_saved_search_alerts_enabled: boolean;
   ff_bill_ocr_enabled: boolean;
   ff_aadhaar_ekyc_enabled: boolean;
+  /** Phase G – CriblMap Advanced */
+  ff_seeker_pins_enabled: boolean;
+  ff_locality_insights_enabled: boolean;
+  ff_alert_zones_enabled: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -89,7 +93,11 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_pricing_intel_enabled: false,
   ff_saved_search_alerts_enabled: false,
   ff_bill_ocr_enabled: false,
-  ff_aadhaar_ekyc_enabled: false
+  ff_aadhaar_ekyc_enabled: false,
+  /** Phase G – CriblMap Advanced (default OFF) */
+  ff_seeker_pins_enabled: false,
+  ff_locality_insights_enabled: false,
+  ff_alert_zones_enabled: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -254,6 +262,18 @@ export function readFeatureFlags(): FeatureFlags {
     ff_aadhaar_ekyc_enabled: parseBooleanEnv(
       "FF_AADHAAR_EKYC_ENABLED",
       defaultFeatureFlags.ff_aadhaar_ekyc_enabled
+    ),
+    ff_seeker_pins_enabled: parseBooleanEnv(
+      "FF_SEEKER_PINS_ENABLED",
+      defaultFeatureFlags.ff_seeker_pins_enabled
+    ),
+    ff_locality_insights_enabled: parseBooleanEnv(
+      "FF_LOCALITY_INSIGHTS_ENABLED",
+      defaultFeatureFlags.ff_locality_insights_enabled
+    ),
+    ff_alert_zones_enabled: parseBooleanEnv(
+      "FF_ALERT_ZONES_ENABLED",
+      defaultFeatureFlags.ff_alert_zones_enabled
     )
   };
 }

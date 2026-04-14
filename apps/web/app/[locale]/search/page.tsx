@@ -4,6 +4,7 @@ import { buildSearchQuery, fetchApi } from "../../../lib/api";
 import { SearchFilters } from "./search-filters";
 import {
   MapPin,
+  Map as MapIcon,
   Search as SearchIcon,
   X,
   ChevronLeft,
@@ -243,9 +244,30 @@ export default async function SearchResultsPage({
                 : "Search Verified Rentals"}
             </h1>
           </div>
-          <p className="text-secondary body-sm" style={{ margin: 0 }}>
-            {response.total} result{response.total === 1 ? "" : "s"}
-          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+            <p className="text-secondary body-sm" style={{ margin: 0 }}>
+              {response.total} result{response.total === 1 ? "" : "s"}
+            </p>
+            <Link
+              href={`/${params.locale}/map${Object.keys(filters).length ? `?${buildSearchQuery(filters)}` : ""}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 14px",
+                borderRadius: "9999px",
+                border: "1px solid var(--border)",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "var(--text-secondary)",
+                transition: "all 150ms ease",
+                textDecoration: "none",
+                whiteSpace: "nowrap"
+              }}
+            >
+              <MapIcon size={14} /> View on Map
+            </Link>
+          </div>
         </div>
       </section>
 

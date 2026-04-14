@@ -18,7 +18,8 @@ export type NotificationType =
   | "owner.listing_rejected"
   | "owner.listing_paused"
   | "owner.listing_submitted"
-  | "tenant.contact_unlocked";
+  | "tenant.contact_unlocked"
+  | "tenant.alert_zone_match";
 
 export interface NotificationTemplate {
   type: NotificationType;
@@ -100,6 +101,20 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     buildBodyParams: (payload) => [
       String(payload.listing_title ?? "प्रॉपर्टी"),
       String(payload.owner_phone ?? "")
+    ]
+  },
+
+  "tenant.alert_zone_match": {
+    type: "tenant.alert_zone_match",
+    templateName: "tenant_alert_zone_match_hi",
+    languageCode: "hi",
+    description:
+      "Sent to tenant when new listings match their alert zone. Params: listing_title, bhk_text, rent, zone_label",
+    buildBodyParams: (payload) => [
+      String(payload.listing_title ?? "नई प्रॉपर्टी"),
+      String(payload.bhk_text ?? ""),
+      String(payload.rent ?? ""),
+      String(payload.zone_label ?? "आपका अलर्ट ज़ोन")
     ]
   }
 };

@@ -17,6 +17,8 @@ const RANKING_RECOMPUTE_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const LEAD_NUDGE_MS = 15 * 60 * 1000; // every 15 minutes
 const SUBSCRIPTION_RENEWAL_MS = 24 * 60 * 60 * 1000; // daily
 const SAVED_SEARCH_ALERT_MS = 24 * 60 * 60 * 1000; // daily
+const SEEKER_PIN_CLEANUP_MS = 24 * 60 * 60 * 1000; // daily
+const ALERT_ZONE_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
 
 async function runRefundSweepDb(pool: Pool) {
   const client = await pool.connect();
@@ -1092,6 +1094,118 @@ async function run() {
       }
     };
     setInterval(runSavedSearchAlerts, SAVED_SEARCH_ALERT_MS);
+
+    // ── Seeker pin cleanup (daily) ──
+    const runSeekerPinCleanup = async () => {
+      try {
+        const result = await pool.query(
+          `UPDATE seeker_pins SET is_active = false WHERE is_active = true AND expires_at < NOW()`
+        );
+        const count = result.rowCount ?? 0;
+        if (count > 0) {
+          console.log(
+            JSON.stringify({
+              job: "seeker_pin_cleanup",
+              deactivated_count: count,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "seeker_pin_cleanup",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runSeekerPinCleanup, SEEKER_PIN_CLEANUP_MS);
+
+    // ── Alert zone sweep (every 6 hours) ──
+    const runAlertZoneSweep = async () => {
+      try {
+        const zones = await pool.query<{
+          id: string;
+          user_id: string;
+          sw_lat: number;
+          sw_lng: number;
+          ne_lat: number;
+          ne_lng: number;
+          filters: Record<string, unknown>;
+          label: string;
+        }>(
+          `SELECT az.id::text, az.user_id::text, az.sw_lat, az.sw_lng, az.ne_lat, az.ne_lng, az.filters, az.label
+           FROM alert_zones az
+           WHERE az.is_active = true
+             AND (az.last_triggered IS NULL OR az.last_triggered < NOW() - INTERVAL '6 hours')`
+        );
+
+        let triggeredCount = 0;
+        for (const zone of zones.rows) {
+          const listings = await pool.query<{
+            id: string;
+            title: string;
+            bhk: number;
+            monthly_rent: number;
+          }>(
+            `SELECT l.id::text, COALESCE(NULLIF(l.title_en, ''), 'Listing') AS title, l.bhk, l.monthly_rent
+             FROM listings l
+             JOIN listing_locations ll ON ll.listing_id = l.id
+             WHERE l.status = 'active'
+               AND l.created_at >= NOW() - INTERVAL '6 hours'
+               AND ll.lat IS NOT NULL
+               AND ll.lat::float8 BETWEEN $1 AND $2
+               AND ll.lng::float8 BETWEEN $3 AND $4
+             LIMIT 5`,
+            [zone.sw_lat, zone.ne_lat, zone.sw_lng, zone.ne_lng]
+          );
+
+          if ((listings.rowCount ?? 0) > 0) {
+            const first = listings.rows[0];
+            await pool.query(
+              `INSERT INTO outbound_events (event_type, recipient_user_id, payload, status)
+               VALUES ('notification.whatsapp.alert_zone_match', $1::uuid, $2::jsonb, 'pending')`,
+              [
+                zone.user_id,
+                JSON.stringify({
+                  listing_title: first.title,
+                  bhk_text: first.bhk ? `${first.bhk}BHK` : "",
+                  rent: `₹${first.monthly_rent?.toLocaleString("en-IN")}`,
+                  zone_label: zone.label,
+                  match_count: listings.rowCount
+                })
+              ]
+            );
+
+            await pool.query(`UPDATE alert_zones SET last_triggered = NOW() WHERE id = $1::uuid`, [
+              zone.id
+            ]);
+            triggeredCount++;
+          }
+        }
+
+        if (triggeredCount > 0) {
+          console.log(
+            JSON.stringify({
+              job: "alert_zone_sweep",
+              triggered_count: triggeredCount,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "alert_zone_sweep",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runAlertZoneSweep, ALERT_ZONE_SWEEP_MS);
   }
 
   console.log(
@@ -1106,7 +1220,9 @@ async function run() {
         "ranking_recompute",
         "lead_nudge_sweep",
         "subscription_renewal_sweep",
-        "saved_search_alert_sweep"
+        "saved_search_alert_sweep",
+        "seeker_pin_cleanup",
+        "alert_zone_sweep"
       ],
       mode: pool ? "db" : "in_memory",
       whatsapp_enabled: whatsAppEnabled,
@@ -1117,7 +1233,9 @@ async function run() {
         ranking_recompute: RANKING_RECOMPUTE_MS,
         lead_nudge_sweep: LEAD_NUDGE_MS,
         subscription_renewal_sweep: SUBSCRIPTION_RENEWAL_MS,
-        saved_search_alert_sweep: SAVED_SEARCH_ALERT_MS
+        saved_search_alert_sweep: SAVED_SEARCH_ALERT_MS,
+        seeker_pin_cleanup: SEEKER_PIN_CLEANUP_MS,
+        alert_zone_sweep: ALERT_ZONE_SWEEP_MS
       }
     })
   );

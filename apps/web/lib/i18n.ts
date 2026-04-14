@@ -105,6 +105,40 @@ const dictionary: Dictionary = {
   reasonRequired: {
     en: "Please provide a reason.",
     hi: "कृपया कारण दें।"
+  },
+  // CriblMap keys
+  cmapTitle: {
+    en: "CriblMap — Verified Rent Intelligence",
+    hi: "CriblMap — सत्यापित किराया मानचित्र"
+  },
+  cmapAreaStats: { en: "Area Statistics", hi: "क्षेत्र आँकड़े" },
+  cmapListingsInArea: { en: "listings in area", hi: "इस क्षेत्र में लिस्टिंग" },
+  cmapVerified: { en: "verified", hi: "सत्यापित" },
+  cmapRentsRising: { en: "Rents rising", hi: "किराया बढ़ रहा है" },
+  cmapRentsFalling: { en: "Rents falling", hi: "किराया घट रहा है" },
+  cmapRentsStable: { en: "Rents stable", hi: "किराया स्थिर" },
+  cmapSaveAsAlert: { en: "Save as Alert Zone", hi: "अलर्ट ज़ोन सेव करें" },
+  cmapClearSelection: { en: "Clear Selection", hi: "चयन साफ करें" },
+  cmapDrawInstruction: {
+    en: "Tap two corners to define your area",
+    hi: "अपना क्षेत्र बनाने के लिए दो कोने टैप करें"
+  },
+  cmapMetroLines: { en: "Metro Lines", hi: "मेट्रो लाइन" },
+  cmapDropSearchPin: { en: "Drop Search Pin", hi: "खोज पिन छोड़ें" },
+  cmapDemandView: { en: "Demand View", hi: "माँग दृश्य" },
+  cmapCommuteOverlay: { en: "Commute Overlay", hi: "आवागमन ओवरले" },
+  cmapLocalityInsight: { en: "Locality Insight", hi: "इलाके की जानकारी" },
+  cmapIsMyRentFair: { en: "Is my rent fair?", hi: "क्या मेरा किराया सही है?" },
+  cmapAlertZone: { en: "Alert Zone", hi: "अलर्ट ज़ोन" },
+  cmapActiveSeekers: { en: "active seekers in view", hi: "दृश्य में सक्रिय खोजकर्ता" },
+  cmapAvgBudget: { en: "Avg budget", hi: "औसत बजट" },
+  cmapBelowMarket: { en: "Below market", hi: "बाजार से कम" },
+  cmapAtMarket: { en: "At market", hi: "बाजार के अनुसार" },
+  cmapAboveMarket: { en: "Above market", hi: "बाजार से ऊपर" },
+  cmapNoListings: { en: "No listings in this area", hi: "इस क्षेत्र में कोई लिस्टिंग नहीं" },
+  cmapZoomOut: {
+    en: "Try zooming out or adjusting your filters",
+    hi: "ज़ूम आउट करें या फ़िल्टर बदलें"
   }
 };
 

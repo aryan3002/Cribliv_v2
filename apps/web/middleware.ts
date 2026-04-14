@@ -39,6 +39,8 @@ const PUBLIC_PREFIXES = [
   "/en/listing",
   "/en/shortlist",
   "/en/pg",
+  "/en/map",
+  "/hi/map",
   "/_next",
   "/favicon",
   "/public"

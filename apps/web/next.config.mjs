@@ -54,12 +54,14 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
+              // Google Maps JS API loads scripts from maps.googleapis.com
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
-              "font-src 'self'",
-              // Allow API calls (http + ws) + Azure Speech REST API for voice search
-              `connect-src ${connectSrc}`,
+              "font-src 'self' https://fonts.gstatic.com",
+              // Allow API calls, Azure services, and Google Maps tiles + geocoding
+              `connect-src ${connectSrc} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com`,
+              "worker-src 'self' blob:",
               "media-src 'self' blob:",
               "frame-ancestors 'none'",
               "object-src 'none'",

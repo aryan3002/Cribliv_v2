@@ -424,9 +424,14 @@ export class SearchService {
           Number.isFinite(radiusM) &&
           radiusM > 0
         ) {
-          params.push(lng, lat, radiusM);
+          // Bounding box approximation for radius (PostGIS not available):
+          // 1m ≈ 1/111111° lat, 1/100000° lng at Delhi latitudes
+          params.push(lat, lng, radiusM);
+          const iLat = params.length - 2;
+          const iLng = params.length - 1;
+          const iR = params.length;
           clauses.push(
-            `ll.geo_point IS NOT NULL AND ST_DWithin(ll.geo_point, ST_SetSRID(ST_MakePoint($${params.length - 2}, $${params.length - 1}), 4326)::geography, $${params.length})`
+            `ll.lat IS NOT NULL AND ll.lat::float8 BETWEEN $${iLat}::float8 - $${iR}::float8/111111.0 AND $${iLat}::float8 + $${iR}::float8/111111.0 AND ll.lng::float8 BETWEEN $${iLng}::float8 - $${iR}::float8/100000.0 AND $${iLng}::float8 + $${iR}::float8/100000.0`
           );
         }
       }
@@ -699,7 +704,13 @@ export class SearchService {
       ne_lat: number;
       ne_lng: number;
     },
-    limit = 200
+    limit = 200,
+    filters: {
+      bhk?: number;
+      max_rent?: number;
+      listing_type?: "flat_house" | "pg";
+      verified_only?: boolean;
+    } = {}
   ): Promise<
     Array<{
       id: string;
@@ -708,9 +719,24 @@ export class SearchService {
       title: string;
       monthly_rent: number;
       listing_type: string;
+      bhk: number | null;
+      verification_status: string;
+      furnishing: string | null;
     }>
   > {
     if (!this.database.isEnabled()) return [];
+
+    const params: (string | number | boolean | null)[] = [
+      bounds.sw_lng,
+      bounds.sw_lat,
+      bounds.ne_lng,
+      bounds.ne_lat,
+      limit,
+      filters.bhk ?? null,
+      filters.max_rent ?? null,
+      filters.listing_type ?? null,
+      filters.verified_only ?? false
+    ];
 
     const result = await this.database.query<{
       id: string;
@@ -719,25 +745,33 @@ export class SearchService {
       title: string;
       monthly_rent: number;
       listing_type: string;
+      bhk: number | null;
+      verification_status: string;
+      furnishing: string | null;
     }>(
       `SELECT
          l.id::text,
-         ST_Y(ll.geo_point::geometry) AS lat,
-         ST_X(ll.geo_point::geometry) AS lng,
+         ll.lat::float8 AS lat,
+         ll.lng::float8 AS lng,
          COALESCE(NULLIF(l.title_en, ''), 'Listing') AS title,
          l.monthly_rent,
-         l.listing_type::text
+         l.listing_type::text,
+         l.bhk,
+         l.verification_status::text,
+         l.furnishing::text
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
        WHERE l.status = 'active'
-         AND ll.geo_point IS NOT NULL
-         AND ST_Intersects(
-           ll.geo_point,
-           ST_MakeEnvelope($1, $2, $3, $4, 4326)::geography
-         )
+         AND ll.lat IS NOT NULL
+         AND ll.lat::float8 BETWEEN $2 AND $4
+         AND ll.lng::float8 BETWEEN $1 AND $3
+         AND ($6::smallint IS NULL OR l.bhk = $6)
+         AND ($7::int IS NULL OR l.monthly_rent <= $7)
+         AND ($8::text IS NULL OR l.listing_type::text = $8)
+         AND ($9::boolean IS NOT TRUE OR l.verification_status = 'verified')
        ORDER BY l.created_at DESC
        LIMIT $5`,
-      [bounds.sw_lng, bounds.sw_lat, bounds.ne_lng, bounds.ne_lat, limit]
+      params
     );
 
     return result.rows;

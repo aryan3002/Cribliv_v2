@@ -78,6 +78,10 @@ export class SearchController {
       ne_lat: string;
       ne_lng: string;
       limit?: string;
+      bhk?: string;
+      max_rent?: string;
+      listing_type?: string;
+      verified_only?: string;
     }
   ) {
     const bounds = {
@@ -87,7 +91,13 @@ export class SearchController {
       ne_lng: Number(query.ne_lng)
     };
     const limit = Math.min(Math.max(Number(query.limit) || 200, 1), 500);
-    return ok(await this.searchService.searchListingsForMap(bounds, limit));
+    const filters = {
+      bhk: query.bhk ? Number(query.bhk) : undefined,
+      max_rent: query.max_rent ? Number(query.max_rent) : undefined,
+      listing_type: query.listing_type as "flat_house" | "pg" | undefined,
+      verified_only: query.verified_only === "true"
+    };
+    return ok(await this.searchService.searchListingsForMap(bounds, limit, filters));
   }
 
   @Get("listings/:listing_id/similar")
