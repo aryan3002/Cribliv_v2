@@ -7,77 +7,84 @@ interface Props {
   form: WizardForm;
   errors: StepError[];
   updateField: <K extends keyof WizardForm>(key: K, value: WizardForm[K]) => void;
-  /** Fields currently being filled by AI voice agent (glow effect) */
   aiFillingFields?: Set<string>;
 }
 
 export function LocationStep({ form, errors, updateField, aiFillingFields }: Props) {
-  function aiClass(field: string) {
-    return aiFillingFields?.has(field) ? " field--ai-filling" : "";
+  function fillCls(field: string) {
+    return aiFillingFields?.has(field) ? " cz-fill" : "";
   }
-  function fieldError(field: string) {
+  function err(field: string) {
     return errors.find((e) => e.field === field)?.message;
   }
 
   return (
-    <>
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-city">
-          City
-        </label>
-        <select
-          id="wiz-city"
-          className={`input${fieldError("city") ? " input--error" : ""}${aiClass("city")}`}
-          value={form.city}
-          onChange={(e) => updateField("city", e.target.value)}
-        >
-          <option value="">Select city...</option>
-          {CITIES.map((city) => (
-            <option key={city} value={city.toLowerCase()}>
-              {city}
-            </option>
-          ))}
-        </select>
-        {fieldError("city") ? <p className="form-error">{fieldError("city")}</p> : null}
+    <div className="cz-card cz-fade cz-fade--2">
+      <div className="cz-card__eyebrow">II · Where it sits</div>
+      <h2 className="cz-card__title">A neighbourhood is half the story.</h2>
+      <p className="cz-card__intent">
+        Anchor the listing somewhere a tenant can picture themselves arriving at.
+      </p>
+
+      <div className="cz-row">
+        <div className="cz-field">
+          <label className="cz-label" htmlFor="cz-city">
+            City
+          </label>
+          <select
+            id="cz-city"
+            className={`cz-select${fillCls("city")}`}
+            value={form.city}
+            onChange={(e) => updateField("city", e.target.value)}
+          >
+            <option value="">Pick a city…</option>
+            {CITIES.map((city) => (
+              <option key={city} value={city.toLowerCase()}>
+                {city}
+              </option>
+            ))}
+          </select>
+          {err("city") ? <p className="cz-error">{err("city")}</p> : null}
+        </div>
+
+        <div className="cz-field">
+          <label className="cz-label" htmlFor="cz-locality">
+            Locality
+          </label>
+          <input
+            id="cz-locality"
+            className={`cz-input${fillCls("locality")}`}
+            value={form.locality}
+            onChange={(e) => updateField("locality", e.target.value)}
+            placeholder="Indiranagar, DLF Phase 3, …"
+          />
+        </div>
       </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-locality">
-          Locality / Area
-        </label>
-        <input
-          id="wiz-locality"
-          className="input"
-          value={form.locality}
-          onChange={(e) => updateField("locality", e.target.value)}
-          placeholder="e.g. Sector 62, DLF Phase 3"
-        />
-      </div>
-
-      <div className="form-row">
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-landmark">
+      <div className="cz-row" style={{ marginTop: 24 }}>
+        <div className="cz-field">
+          <label className="cz-label" htmlFor="cz-landmark">
             Nearest landmark
           </label>
           <input
-            id="wiz-landmark"
-            className="input"
+            id="cz-landmark"
+            className={`cz-input${fillCls("landmark")}`}
             value={form.landmark}
             onChange={(e) => updateField("landmark", e.target.value)}
-            placeholder="e.g. Near Huda City Centre Metro"
+            placeholder="Near Huda City Centre Metro"
           />
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="wiz-pincode">
+        <div className="cz-field">
+          <label className="cz-label" htmlFor="cz-pincode">
             Pincode
           </label>
           <input
-            id="wiz-pincode"
-            className="input"
+            id="cz-pincode"
+            className={`cz-input cz-input--numeric${fillCls("pincode")}`}
             value={form.pincode}
             onChange={(e) => updateField("pincode", e.target.value)}
-            placeholder="e.g. 122002"
+            placeholder="122002"
             maxLength={6}
             inputMode="numeric"
             pattern="[0-9]*"
@@ -85,25 +92,20 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
         </div>
       </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-address">
+      <div className="cz-field cz-field--full" style={{ marginTop: 24 }}>
+        <label className="cz-label" htmlFor="cz-address">
           Full address
         </label>
         <textarea
-          id="wiz-address"
-          className="textarea"
+          id="cz-address"
+          className={`cz-textarea${fillCls("address")}`}
           value={form.address}
           onChange={(e) => updateField("address", e.target.value)}
-          placeholder="Complete address (kept private, used for verification only)"
+          placeholder="House number, street, sector — anything that helps a verifier reach the door."
           rows={2}
         />
-        <p
-          className="caption"
-          style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
-        >
-          Your full address is never shown to tenants. It is used only for owner verification.
-        </p>
+        <p className="cz-help">Kept private. Tenants only see locality + landmark.</p>
       </div>
-    </>
+    </div>
   );
 }

@@ -2,7 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "../components/auth/session-provider";
-import { Inter, Manrope, Space_Grotesk } from "next/font/google";
+import { Inter, Manrope, Space_Grotesk, Fraunces, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -23,6 +23,24 @@ const spaceGrotesk = Space_Grotesk({
   weight: ["700"],
   display: "swap",
   variable: "--font-space-grotesk"
+});
+
+// "The Concierge" editorial display serif.
+// Used by the listing wizard concierge layout; loaded once globally so
+// the rest of the site can opt in via `--font-display` if they want.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--font-display"
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+  variable: "--font-mono"
 });
 
 export const metadata: Metadata = {
@@ -49,7 +67,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${manrope.variable} ${spaceGrotesk.variable}`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${manrope.variable} ${spaceGrotesk.variable} ${fraunces.variable} ${jetbrainsMono.variable}`}
+    >
       <body>
         <a href="#main-content" className="skip-link">
           Skip to content

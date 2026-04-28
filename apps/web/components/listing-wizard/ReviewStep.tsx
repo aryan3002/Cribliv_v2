@@ -1,7 +1,7 @@
 "use client";
 
 import type { WizardForm, UploadFile, PgPath } from "./types";
-import { t, type Locale } from "../../lib/i18n";
+import type { Locale } from "../../lib/i18n";
 
 interface Props {
   form: WizardForm;
@@ -10,154 +10,107 @@ interface Props {
   locale: Locale;
 }
 
-export function ReviewStep({ form, uploads, pgPath, locale }: Props) {
+export function ReviewStep({ form, uploads, pgPath }: Props) {
   const isPg = form.listing_type === "pg";
-  const completedUploads = uploads.filter((u) => u.status === "complete");
+  const completed = uploads.filter((u) => u.status === "complete");
+  const hero = completed[0]?.previewUrl;
 
   return (
-    <>
-      <div className="info-box">{t(locale, "reviewInfo")}</div>
+    <div className="cz-card cz-fade cz-fade--2">
+      <div className="cz-card__eyebrow">VI · One last look</div>
+      <h2 className="cz-card__title">A printed property card.</h2>
+      <p className="cz-card__intent">
+        This is what tenants will see at a glance. If anything reads off, jump back and tweak.
+      </p>
 
-      {/* Listing card preview */}
-      <div className="review-card">
-        {completedUploads.length > 0 ? (
-          <div className="review-card__gallery">
-            {completedUploads.slice(0, 4).map((u, i) => (
-              <img
-                key={u.clientUploadId}
-                src={u.previewUrl}
-                alt=""
-                className={`review-card__photo${i === 0 ? " review-card__photo--main" : ""}`}
-              />
-            ))}
-            {completedUploads.length > 4 ? (
-              <div className="review-card__more">+{completedUploads.length - 4}</div>
-            ) : null}
-          </div>
-        ) : (
-          <div className="review-card__gallery review-card__gallery--empty">
-            <svg
-              width="40"
-              height="40"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--text-tertiary)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+      <article className="cz-review">
+        <div className="cz-review__hero">
+          {hero ? (
+            <img src={hero} alt="" />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--c-slate-soft)",
+                fontStyle: "italic",
+                fontFamily: "var(--c-display)"
+              }}
             >
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-            <p className="caption">No photos added</p>
-          </div>
-        )}
+              No photos yet — your hero shot will land here.
+            </div>
+          )}
+        </div>
 
-        <div className="review-card__body">
-          <div className="review-card__row">
-            <span className="review-card__type badge">{isPg ? "PG / Hostel" : "Flat / House"}</span>
-            {form.furnishing ? (
-              <span className="badge badge--outline">{form.furnishing.replace(/_/g, " ")}</span>
-            ) : null}
-          </div>
-
-          <h3 className="review-card__title">{form.title || "Untitled Listing"}</h3>
-
-          <p className="review-card__location">
-            {[form.locality, form.city].filter(Boolean).join(", ") || "Location not set"}
-            {form.landmark ? ` • near ${form.landmark}` : ""}
+        <div className="cz-review__body">
+          <div className="cz-review__type">{isPg ? "PG / Hostel" : "Flat / House"}</div>
+          <h3 className="cz-review__title">{form.title || "An untitled home"}</h3>
+          <p className="cz-review__loc">
+            {[form.locality, capitalize(form.city)].filter(Boolean).join(", ") ||
+              "Location to be confirmed"}
+            {form.landmark ? ` — near ${form.landmark}` : ""}
           </p>
 
+          <div className="cz-review__rule" />
+
           {form.monthly_rent ? (
-            <p className="review-card__rent">
+            <div className="cz-review__rent">
               ₹{Number(form.monthly_rent).toLocaleString("en-IN")}
-              <span className="review-card__rent-period">/month</span>
-            </p>
+              <small>/ month</small>
+            </div>
           ) : null}
 
-          {form.deposit ? (
-            <p className="review-card__detail">
-              Deposit: ₹{Number(form.deposit).toLocaleString("en-IN")}
-            </p>
+          <div className="cz-review__grid">
+            {!isPg && form.bedrooms ? <Stat label="Bedrooms" value={form.bedrooms} /> : null}
+            {!isPg && form.bathrooms ? <Stat label="Bathrooms" value={form.bathrooms} /> : null}
+            {isPg && form.beds ? <Stat label="Beds" value={form.beds} /> : null}
+            {isPg && form.sharing_type ? <Stat label="Sharing" value={form.sharing_type} /> : null}
+            {form.area_sqft ? <Stat label="Sq ft" value={form.area_sqft} /> : null}
+            {form.furnishing ? (
+              <Stat label="Furnishing" value={form.furnishing.replace(/_/g, " ")} />
+            ) : null}
+            {form.deposit ? (
+              <Stat label="Deposit" value={`₹${Number(form.deposit).toLocaleString("en-IN")}`} />
+            ) : null}
+          </div>
+
+          {form.description ? <p className="cz-review__desc">{form.description}</p> : null}
+
+          {form.amenities.length > 0 ? (
+            <div className="cz-review__amenities">
+              {form.amenities.map((a) => (
+                <span key={a} className="cz-review__amenity">
+                  {a}
+                </span>
+              ))}
+            </div>
           ) : null}
-
-          {form.description ? <p className="review-card__desc">{form.description}</p> : null}
         </div>
-
-        <div className="review-card__details">
-          <h4>Property details</h4>
-          <div className="review-card__grid">
-            {!isPg && form.bedrooms ? (
-              <div className="review-stat">
-                <span className="review-stat__value">{form.bedrooms}</span>
-                <span className="review-stat__label">Bedrooms</span>
-              </div>
-            ) : null}
-            {!isPg && form.bathrooms ? (
-              <div className="review-stat">
-                <span className="review-stat__value">{form.bathrooms}</span>
-                <span className="review-stat__label">Bathrooms</span>
-              </div>
-            ) : null}
-            {isPg && form.beds ? (
-              <div className="review-stat">
-                <span className="review-stat__value">{form.beds}</span>
-                <span className="review-stat__label">Beds</span>
-              </div>
-            ) : null}
-            {isPg && form.sharing_type ? (
-              <div className="review-stat">
-                <span className="review-stat__value">{form.sharing_type}</span>
-                <span className="review-stat__label">Sharing</span>
-              </div>
-            ) : null}
-            {form.area_sqft ? (
-              <div className="review-stat">
-                <span className="review-stat__value">{form.area_sqft}</span>
-                <span className="review-stat__label">Sq ft</span>
-              </div>
-            ) : null}
-            {isPg ? (
-              <>
-                <div className="review-stat">
-                  <span className="review-stat__value">{form.meals_included ? "Yes" : "No"}</span>
-                  <span className="review-stat__label">Meals</span>
-                </div>
-                <div className="review-stat">
-                  <span className="review-stat__value">
-                    {form.attached_bathroom ? "Yes" : "No"}
-                  </span>
-                  <span className="review-stat__label">Attached bath</span>
-                </div>
-              </>
-            ) : null}
-            {!isPg && form.preferred_tenant && form.preferred_tenant !== "any" ? (
-              <div className="review-stat">
-                <span className="review-stat__value">{form.preferred_tenant}</span>
-                <span className="review-stat__label">Preferred</span>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {form.amenities.length > 0 ? (
-          <div className="review-card__amenities">
-            {form.amenities.map((a) => (
-              <span key={a} className="badge">
-                {a}
-              </span>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      </article>
 
       {pgPath === "sales_assist" ? (
-        <div className="segment-banner segment-banner--sales-assist">
-          As a large PG operator, our team will be in touch after submission to assist with
+        <div className="cz-banner cz-banner--gold" style={{ marginTop: 16 }}>
+          As a large PG operator, our team will reach out after submission to assist with
           onboarding.
         </div>
       ) : null}
-    </>
+    </div>
   );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="cz-review__stat">
+      <div className="label">{label}</div>
+      <div className="value">{value}</div>
+    </div>
+  );
+}
+
+function capitalize(s: string) {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

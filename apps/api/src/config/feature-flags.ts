@@ -24,6 +24,8 @@ export interface FeatureFlags {
   ff_voice_search: boolean;
   /** Phase D – Conversational Hindi Voice Agent */
   ff_voice_agent_enabled: boolean;
+  /** Phase D.2 – Azure OpenAI Realtime concierge ("Maya") via WebRTC */
+  ff_voice_agent_realtime: boolean;
   /** Phase E – Geo, Analytics, Leads, Fraud, Boost, Map, Admin */
   ff_geo_search_enabled: boolean;
   ff_listing_analytics_enabled: boolean;
@@ -75,6 +77,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_voice_search: false,
   /** Phase D – Conversational Hindi Voice Agent (default OFF) */
   ff_voice_agent_enabled: false,
+  /** Phase D.2 – Azure OpenAI Realtime concierge (default OFF until deployment configured) */
+  ff_voice_agent_realtime: false,
   /** Phase E – Platform features (default OFF) */
   ff_geo_search_enabled: false,
   ff_listing_analytics_enabled: false,
@@ -194,6 +198,10 @@ export function readFeatureFlags(): FeatureFlags {
     ff_voice_agent_enabled: parseBooleanEnv(
       "FF_VOICE_AGENT_ENABLED",
       defaultFeatureFlags.ff_voice_agent_enabled
+    ),
+    ff_voice_agent_realtime: parseBooleanEnv(
+      "FF_VOICE_AGENT_REALTIME",
+      defaultFeatureFlags.ff_voice_agent_realtime
     ),
     ff_geo_search_enabled: parseBooleanEnv(
       "FF_GEO_SEARCH_ENABLED",

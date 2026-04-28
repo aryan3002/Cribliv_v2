@@ -9,7 +9,6 @@ interface Props {
   pgPath: PgPath;
   updateField: <K extends keyof WizardForm>(key: K, value: WizardForm[K]) => void;
   toggleAmenity: (amenity: string) => void;
-  /** Fields currently being filled by AI voice agent (glow effect) */
   aiFillingFields?: Set<string>;
 }
 
@@ -21,47 +20,55 @@ export function DetailsStep({
   toggleAmenity,
   aiFillingFields
 }: Props) {
-  function aiClass(field: string) {
-    return aiFillingFields?.has(field) ? " field--ai-filling" : "";
+  function fillCls(field: string) {
+    return aiFillingFields?.has(field) ? " cz-fill" : "";
   }
-  const isPg = form.listing_type === "pg";
-
-  function fieldError(field: string) {
+  function err(field: string) {
     return errors.find((e) => e.field === field)?.message;
   }
 
+  const isPg = form.listing_type === "pg";
+
   return (
-    <>
+    <div className="cz-card cz-fade cz-fade--2">
+      <div className="cz-card__eyebrow">III · The character</div>
+      <h2 className="cz-card__title">Tell me what makes it livable.</h2>
+      <p className="cz-card__intent">
+        {isPg
+          ? "How big is the PG, how do you share rooms, what comes with it?"
+          : "How many rooms, how big, who lives best in it?"}
+      </p>
+
       {isPg ? (
         <>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label" htmlFor="wiz-beds">
+          <div className="cz-row">
+            <div className="cz-field">
+              <label className="cz-label" htmlFor="cz-beds">
                 Total beds
               </label>
               <input
-                id="wiz-beds"
+                id="cz-beds"
                 type="number"
-                className={`input${fieldError("beds") ? " input--error" : ""}${aiClass("beds")}`}
+                className={`cz-input cz-input--numeric${fillCls("beds")}`}
                 value={form.beds}
                 onChange={(e) => updateField("beds", e.target.value)}
-                placeholder="e.g. 20"
+                placeholder="20"
                 min="1"
               />
-              {fieldError("beds") ? <p className="form-error">{fieldError("beds")}</p> : null}
+              {err("beds") ? <p className="cz-error">{err("beds")}</p> : null}
             </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="wiz-sharing">
-                Sharing type
+            <div className="cz-field">
+              <label className="cz-label" htmlFor="cz-sharing">
+                Sharing
               </label>
               <select
-                id="wiz-sharing"
-                className="input"
+                id="cz-sharing"
+                className={`cz-select${fillCls("sharing_type")}`}
                 value={form.sharing_type}
                 onChange={(e) => updateField("sharing_type", e.target.value as SharingType)}
               >
-                <option value="">Select...</option>
+                <option value="">Choose…</option>
                 <option value="single">Single</option>
                 <option value="double">Double</option>
                 <option value="triple">Triple</option>
@@ -70,84 +77,78 @@ export function DetailsStep({
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="checkbox-row">
-              <input
-                type="checkbox"
-                id="wiz-meals"
-                checked={form.meals_included}
-                onChange={(e) => updateField("meals_included", e.target.checked)}
-              />
-              <label htmlFor="wiz-meals">Meals included</label>
-            </div>
-
-            <div className="checkbox-row">
-              <input
-                type="checkbox"
-                id="wiz-attached-bath"
-                checked={form.attached_bathroom}
-                onChange={(e) => updateField("attached_bathroom", e.target.checked)}
-              />
-              <label htmlFor="wiz-attached-bath">Attached bathroom</label>
-            </div>
+          <div className="cz-pill-row" style={{ marginTop: 22 }}>
+            <button
+              type="button"
+              className="cz-toggle"
+              onClick={() => updateField("meals_included", !form.meals_included)}
+            >
+              <input type="checkbox" checked={form.meals_included} readOnly aria-hidden />
+              Meals included
+            </button>
+            <button
+              type="button"
+              className="cz-toggle"
+              onClick={() => updateField("attached_bathroom", !form.attached_bathroom)}
+            >
+              <input type="checkbox" checked={form.attached_bathroom} readOnly aria-hidden />
+              Attached bathroom
+            </button>
           </div>
 
           {pgPath === "self_serve" ? (
-            <div className="segment-banner segment-banner--self-serve">
-              With {form.beds} beds, you can manage your listing yourself through our self-serve
-              platform.
+            <div className="cz-banner cz-banner--gold" style={{ marginTop: 18 }}>
+              With {form.beds} beds, you can manage this listing yourself — fully self-serve.
             </div>
           ) : null}
           {pgPath === "sales_assist" ? (
-            <div className="segment-banner segment-banner--sales-assist">
-              With {form.beds}+ beds, our team will help you with onboarding and dedicated support.
+            <div className="cz-banner cz-banner--coral" style={{ marginTop: 18 }}>
+              With {form.beds}+ beds, our team will reach out to help you onboard properly.
             </div>
           ) : null}
         </>
       ) : (
         <>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label" htmlFor="wiz-bedrooms">
+          <div className="cz-row">
+            <div className="cz-field">
+              <label className="cz-label" htmlFor="cz-bedrooms">
                 Bedrooms
               </label>
               <input
-                id="wiz-bedrooms"
+                id="cz-bedrooms"
                 type="number"
-                className={`input${fieldError("bedrooms") ? " input--error" : ""}${aiClass("bedrooms")}`}
+                className={`cz-input cz-input--numeric${fillCls("bedrooms")}`}
                 value={form.bedrooms}
                 onChange={(e) => updateField("bedrooms", e.target.value)}
-                placeholder="e.g. 2"
+                placeholder="2"
                 min="0"
               />
-              {fieldError("bedrooms") ? (
-                <p className="form-error">{fieldError("bedrooms")}</p>
-              ) : null}
+              {err("bedrooms") ? <p className="cz-error">{err("bedrooms")}</p> : null}
             </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="wiz-bathrooms">
+            <div className="cz-field">
+              <label className="cz-label" htmlFor="cz-bathrooms">
                 Bathrooms
               </label>
               <input
-                id="wiz-bathrooms"
+                id="cz-bathrooms"
                 type="number"
-                className="input"
+                className={`cz-input cz-input--numeric${fillCls("bathrooms")}`}
                 value={form.bathrooms}
                 onChange={(e) => updateField("bathrooms", e.target.value)}
-                placeholder="e.g. 1"
+                placeholder="2"
                 min="0"
               />
             </div>
           </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="wiz-preferred-tenant">
+          <div className="cz-field" style={{ marginTop: 22 }}>
+            <label className="cz-label" htmlFor="cz-tenant">
               Preferred tenant
             </label>
             <select
-              id="wiz-preferred-tenant"
-              className="input"
+              id="cz-tenant"
+              className={`cz-select${fillCls("preferred_tenant")}`}
               value={form.preferred_tenant}
               onChange={(e) =>
                 updateField("preferred_tenant", e.target.value as WizardForm["preferred_tenant"])
@@ -163,38 +164,55 @@ export function DetailsStep({
         </>
       )}
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-area">
-          Area (sq ft)
+      <div className="cz-field cz-field--full" style={{ marginTop: 22 }}>
+        <label className="cz-label" htmlFor="cz-area">
+          Carpet area (sq ft)
         </label>
         <input
-          id="wiz-area"
+          id="cz-area"
           type="number"
-          className={`input${fieldError("area_sqft") ? " input--error" : ""}${aiClass("area_sqft")}`}
+          className={`cz-input cz-input--numeric${fillCls("area_sqft")}`}
           value={form.area_sqft}
           onChange={(e) => updateField("area_sqft", e.target.value)}
-          placeholder="e.g. 850"
+          placeholder="850"
           min="0"
         />
-        {fieldError("area_sqft") ? <p className="form-error">{fieldError("area_sqft")}</p> : null}
+        {err("area_sqft") ? <p className="cz-error">{err("area_sqft")}</p> : null}
       </div>
 
-      <div className="form-group">
-        <label className="form-label">Amenities</label>
-        <div className="amenity-grid">
-          {(isPg ? AMENITIES_PG : AMENITIES_FLAT).map((amenity) => (
-            <div key={amenity} className="checkbox-row">
-              <input
-                id={`amenity-${amenity}`}
-                type="checkbox"
-                checked={form.amenities.includes(amenity)}
-                onChange={() => toggleAmenity(amenity)}
-              />
-              <label htmlFor={`amenity-${amenity}`}>{amenity}</label>
-            </div>
-          ))}
+      <div className="cz-field cz-field--full" style={{ marginTop: 26 }}>
+        <label className="cz-label">Amenities</label>
+        <div className="cz-pill-row">
+          {(isPg ? AMENITIES_PG : AMENITIES_FLAT).map((amenity) => {
+            const on = form.amenities.includes(amenity);
+            return (
+              <button
+                key={amenity}
+                type="button"
+                className="cz-pill"
+                aria-pressed={on}
+                onClick={() => toggleAmenity(amenity)}
+              >
+                <span className="cz-pill__check" aria-hidden>
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </span>
+                {amenity}
+              </button>
+            );
+          })}
         </div>
       </div>
-    </>
+    </div>
   );
 }

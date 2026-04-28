@@ -59,7 +59,14 @@ export const analyticsEvents = [
   "voice_agent_text_fallback",
   "voice_agent_manual_fallback",
   "voice_agent_inline_started",
-  "voice_agent_inline_completed"
+  "voice_agent_inline_completed",
+  // Phase E.2 – Realtime concierge (Azure OpenAI Realtime via WebRTC)
+  "voice_realtime_started",
+  "voice_realtime_stopped",
+  "voice_realtime_tool_called",
+  "voice_realtime_field_filled",
+  "voice_realtime_step_jump",
+  "voice_realtime_error"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

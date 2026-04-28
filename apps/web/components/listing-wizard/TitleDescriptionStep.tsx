@@ -9,8 +9,9 @@ interface Props {
   errors: StepError[];
   accessToken: string | null;
   updateField: <K extends keyof WizardForm>(key: K, value: WizardForm[K]) => void;
-  /** Fields currently being filled by AI (glow effect) */
   aiFillingFields?: Set<string>;
+  /** When set, the parent already has a typewriter routine — skip ours. */
+  externalGenerate?: () => Promise<void>;
 }
 
 export function TitleDescriptionStep({
@@ -18,21 +19,34 @@ export function TitleDescriptionStep({
   errors,
   accessToken,
   updateField,
-  aiFillingFields
+  aiFillingFields,
+  externalGenerate
 }: Props) {
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
 
-  function aiClass(field: string) {
-    return aiFillingFields?.has(field) ? " field--ai-filling" : "";
+  function fillCls(field: string) {
+    return aiFillingFields?.has(field) ? " cz-fill" : "";
   }
-  function fieldError(field: string) {
+  function err(field: string) {
     return errors.find((e) => e.field === field)?.message;
   }
 
   async function handleGenerate() {
+    if (externalGenerate) {
+      setGenerating(true);
+      setGenError(null);
+      try {
+        await externalGenerate();
+      } catch (e) {
+        setGenError(e instanceof Error ? e.message : "Failed to draft.");
+      } finally {
+        setGenerating(false);
+      }
+      return;
+    }
     if (!accessToken) {
-      setGenError("Login required to generate content.");
+      setGenError("Login required to draft.");
       return;
     }
     setGenerating(true);
@@ -55,12 +69,10 @@ export function TitleDescriptionStep({
         meals_included: form.meals_included || undefined,
         attached_bathroom: form.attached_bathroom || undefined
       });
-      // Typewriter-style fill for title
       typewriterSet("title", result.title);
-      // Slight delay then fill description
       setTimeout(() => typewriterSet("description", result.description), 400);
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : "Failed to generate content");
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : "Failed to generate content");
     } finally {
       setGenerating(false);
     }
@@ -81,85 +93,84 @@ export function TitleDescriptionStep({
   const hasEnoughInfo = form.monthly_rent.trim().length > 0 && form.city.trim().length > 0;
 
   return (
-    <>
-      <div style={{ marginBottom: 16 }}>
-        <p style={{ color: "#64748b", fontSize: 14, margin: "0 0 12px" }}>
-          We&apos;ll generate a title and description based on the details you&apos;ve provided. You
-          can edit them anytime.
-        </p>
+    <div className="cz-card cz-fade cz-fade--2">
+      <div className="cz-card__eyebrow">IV · How you&apos;d describe it</div>
+      <h2 className="cz-card__title">A title that fits like a poem.</h2>
+      <p className="cz-card__intent">
+        Use what we&apos;ve gathered to draft something honest and inviting — then make it yours.
+      </p>
+
+      <div style={{ marginBottom: 22 }}>
         <button
           type="button"
-          className="btn btn--primary"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 14,
-            padding: "8px 20px"
-          }}
+          className="cz-btn cz-btn--gold"
           onClick={handleGenerate}
           disabled={generating || !hasEnoughInfo}
         >
           {generating ? (
             <>
-              <span
-                className="spinner"
-                aria-hidden="true"
-                style={{
-                  width: 16,
-                  height: 16,
-                  border: "2px solid #fff",
-                  borderTopColor: "transparent",
-                  borderRadius: "50%",
-                  animation: "spin 0.6s linear infinite",
-                  display: "inline-block"
-                }}
-              />
-              Generating…
+              <Spinner /> Drafting…
             </>
           ) : (
-            <>✨ Generate Title &amp; Description</>
+            <>Draft for me</>
           )}
         </button>
-        {!hasEnoughInfo && (
-          <p style={{ color: "#94a3b8", fontSize: 12, marginTop: 6 }}>
-            Fill in rent and city first to enable generation.
+        {!hasEnoughInfo ? (
+          <p className="cz-help" style={{ marginTop: 8 }}>
+            Add rent and city first to draft a title.
           </p>
-        )}
-        {genError && (
-          <p className="form-error" style={{ marginTop: 6 }}>
+        ) : null}
+        {genError ? (
+          <p className="cz-error" style={{ marginTop: 8 }}>
             {genError}
           </p>
-        )}
+        ) : null}
       </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-title">
-          Listing title
+      <div className="cz-field cz-field--full">
+        <label className="cz-label" htmlFor="cz-title">
+          Title
         </label>
         <input
-          id="wiz-title"
-          className={`input${fieldError("title") ? " input--error" : ""}${aiClass("title")}`}
+          id="cz-title"
+          className={`cz-input${fillCls("title")}`}
           value={form.title}
           onChange={(e) => updateField("title", e.target.value)}
-          placeholder="e.g. Spacious 2BHK near Metro"
+          placeholder="Sunlit 2BHK on a quiet lane near Indiranagar Metro"
         />
-        {fieldError("title") && <p className="form-error">{fieldError("title")}</p>}
+        {err("title") ? <p className="cz-error">{err("title")}</p> : null}
       </div>
 
-      <div className="form-group">
-        <label className="form-label" htmlFor="wiz-desc">
+      <div className="cz-field cz-field--full" style={{ marginTop: 22 }}>
+        <label className="cz-label" htmlFor="cz-desc">
           Description
         </label>
         <textarea
-          id="wiz-desc"
-          className={`textarea${aiClass("description")}`}
+          id="cz-desc"
+          className={`cz-textarea${fillCls("description")}`}
           value={form.description}
           onChange={(e) => updateField("description", e.target.value)}
-          placeholder="Describe your property — condition, nearby landmarks, best suited for..."
-          rows={4}
+          placeholder="Two paragraphs about the layout, the view, the people who fit best, the corners that make it feel like home…"
+          rows={6}
         />
       </div>
-    </>
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: 14,
+        height: 14,
+        borderRadius: "50%",
+        border: "2px solid currentColor",
+        borderTopColor: "transparent",
+        display: "inline-block",
+        animation: "spin 0.6s linear infinite"
+      }}
+    />
   );
 }

@@ -15,15 +15,17 @@ export function PhotosStep({ uploads, saving, onFilesSelected, onUploadAll, onRe
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <>
-      <p className="caption">
-        Add photos of your property. Good photos help tenants decide faster.
+    <div className="cz-card cz-fade cz-fade--2">
+      <div className="cz-card__eyebrow">V · The pictures</div>
+      <h2 className="cz-card__title">A few honest photos.</h2>
+      <p className="cz-card__intent">
+        Three or four is plenty — natural light, the living room, a clean kitchen, and the view if
+        you have one.
       </p>
 
-      <div
-        className="upload-zone"
-        role="button"
-        tabIndex={0}
+      <button
+        type="button"
+        className="cz-dropzone"
         onClick={() => fileInputRef.current?.click()}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -36,25 +38,25 @@ export function PhotosStep({ uploads, saving, onFilesSelected, onUploadAll, onRe
           e.preventDefault();
           onFilesSelected(e.dataTransfer.files);
         }}
+        aria-label="Upload photos"
       >
         <svg
-          width="40"
-          height="40"
+          className="cz-dropzone__icon"
+          width="44"
+          height="44"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--text-tertiary)"
-          strokeWidth="1.5"
+          stroke="currentColor"
+          strokeWidth="1.4"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <circle cx="8.5" cy="8.5" r="1.5" />
+          <rect x="3" y="3" width="18" height="18" rx="3" />
+          <circle cx="8.5" cy="9" r="1.5" />
           <polyline points="21 15 16 10 5 21" />
         </svg>
-        <p style={{ marginTop: 8 }}>Click or drag photos here</p>
-        <p className="caption" style={{ color: "var(--text-tertiary)" }}>
-          JPG, PNG up to 10 MB each
-        </p>
+        <div className="cz-dropzone__title">Click or drop photos here</div>
+        <div className="cz-dropzone__hint">JPG / PNG · up to 10 MB each</div>
         <input
           ref={fileInputRef}
           type="file"
@@ -62,70 +64,53 @@ export function PhotosStep({ uploads, saving, onFilesSelected, onUploadAll, onRe
           multiple
           hidden
           onChange={(e) => onFilesSelected(e.target.files)}
-          aria-label="Select photos"
         />
-      </div>
+      </button>
 
       {uploads.length > 0 ? (
         <>
-          <div className="upload-list">
+          <div className="cz-contact-sheet">
             {uploads.map((upload) => (
-              <div key={upload.clientUploadId} className="upload-item">
-                <img
-                  className="upload-item__preview"
-                  src={upload.previewUrl}
-                  alt={upload.file.name}
-                />
-                <div className="upload-item__info">
-                  <div className="upload-item__name">{upload.file.name}</div>
-                  <div
-                    className={`upload-item__status${
-                      upload.status === "complete"
-                        ? " upload-item__status--success"
-                        : upload.status === "error"
-                          ? " upload-item__status--error"
-                          : ""
-                    }`}
-                  >
-                    {upload.status === "pending" ? "Ready to upload" : null}
-                    {upload.status === "uploading" ? "Uploading..." : null}
-                    {upload.status === "complete" ? "Uploaded" : null}
-                    {upload.status === "error" ? upload.errorMessage || "Upload failed" : null}
+              <figure key={upload.clientUploadId} className="cz-polaroid">
+                <img src={upload.previewUrl} alt={upload.file.name} className="cz-polaroid__img" />
+                {upload.status === "uploading" ? (
+                  <div className="cz-polaroid__progress">
+                    <span style={{ width: `${upload.progress}%` }} />
                   </div>
-                  {upload.status === "uploading" ? (
-                    <div className="progress-bar">
-                      <div
-                        className="progress-bar__fill"
-                        style={{ width: `${upload.progress}%` }}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
+                ) : null}
+                <figcaption className="cz-polaroid__caption">
+                  {upload.status === "complete"
+                    ? "Uploaded"
+                    : upload.status === "error"
+                      ? upload.errorMessage || "Upload failed"
+                      : upload.status === "uploading"
+                        ? "Uploading…"
+                        : upload.file.name}
+                </figcaption>
                 <button
                   type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => onRemove(upload.clientUploadId)}
+                  className="cz-polaroid__remove"
                   aria-label={`Remove ${upload.file.name}`}
+                  onClick={() => onRemove(upload.clientUploadId)}
                 >
-                  &times;
+                  ×
                 </button>
-              </div>
+              </figure>
             ))}
           </div>
 
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 18 }}>
             <button
               type="button"
-              className="btn btn--primary"
+              className="cz-btn cz-btn--primary"
               onClick={onUploadAll}
               disabled={saving || uploads.every((u) => u.status !== "pending")}
             >
-              Upload All
+              Upload all
             </button>
           </div>
         </>
       ) : null}
-    </>
+    </div>
   );
 }
