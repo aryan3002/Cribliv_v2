@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { LeadVm, LeadStatus } from "../../lib/owner-api";
+import { Clock, StickyNote } from "lucide-react";
 
 interface LeadCardProps {
   lead: LeadVm;
@@ -15,7 +16,7 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: stri
     contacted: { label: "Contacted", color: "#92400e", bg: "#fffbeb", dot: "#f59e0b" },
     visit_scheduled: { label: "Visit Scheduled", color: "#3730a3", bg: "#eef2ff", dot: "#5046e5" },
     deal_done: { label: "Deal Done", color: "#166534", bg: "#f0fdf4", dot: "#22c55e" },
-    lost: { label: "Lost", color: "#6b7280", bg: "#f9fafb", dot: "#9ca3af" }
+    lost: { label: "Lost", color: "#4b5563", bg: "#f9fafb", dot: "#9ca3af" }
   };
 
 const ACTIONS: Record<
@@ -67,138 +68,38 @@ export function LeadCard({ lead, onStatusChange, updating }: LeadCardProps) {
   }
 
   return (
-    <article
-      className="card"
-      style={{
-        borderRadius: "var(--radius-lg)",
-        overflow: "hidden",
-        opacity: updating ? 0.6 : 1,
-        transition: "opacity var(--transition-fast)"
-      }}
-    >
-      {/* Top color accent bar */}
-      <div style={{ height: 3, background: cfg.dot }} />
+    <article className="lead-card" style={{ opacity: updating ? 0.65 : 1 }}>
+      {/* Status accent bar at top */}
+      <div className="lead-card__accent" style={{ background: cfg.dot }} />
 
-      <div className="card__body" style={{ padding: "var(--space-4)" }}>
-        {/* Header: listing title + status pill */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "var(--space-2)",
-            marginBottom: "var(--space-3)"
-          }}
-        >
-          <h4
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: 14,
-              fontWeight: 600,
-              color: "var(--text-primary)",
-              lineHeight: 1.3,
-              margin: 0,
-              flex: 1,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden"
-            }}
-          >
-            {lead.listingTitle}
-          </h4>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "3px 10px",
-              borderRadius: "var(--radius-full)",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.02em",
-              background: cfg.bg,
-              color: cfg.color,
-              flexShrink: 0,
-              whiteSpace: "nowrap"
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: cfg.dot,
-                flexShrink: 0
-              }}
-            />
+      <div className="lead-card__inner">
+        {/* Header: listing title + status */}
+        <div className="lead-card__header">
+          <h4 className="lead-card__listing-title">{lead.listingTitle}</h4>
+          <span className="lead-card__status" style={{ background: cfg.bg, color: cfg.color }}>
+            <span className="lead-card__status-dot" style={{ background: cfg.dot }} />
             {cfg.label}
           </span>
         </div>
 
         {/* Tenant info */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-3)",
-            padding: "var(--space-3)",
-            background: "var(--surface-sunken)",
-            borderRadius: "var(--radius-md)",
-            marginBottom: "var(--space-3)"
-          }}
-        >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              background: "var(--brand-light)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 14,
-              fontWeight: 700,
-              color: "var(--brand)",
-              flexShrink: 0
-            }}
-          >
-            {lead.tenantName.charAt(0).toUpperCase()}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <p
-              style={{
-                fontSize: 14,
-                fontWeight: 600,
-                color: "var(--text-primary)",
-                margin: 0,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap"
-              }}
-            >
-              {lead.tenantName}
-            </p>
+        <div className="lead-card__tenant">
+          <div className="lead-card__avatar">{lead.tenantName.charAt(0).toUpperCase()}</div>
+          <div className="lead-card__tenant-info">
+            <p className="lead-card__tenant-name">{lead.tenantName}</p>
             {lead.tenantPhoneMasked && (
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0 }}>
-                {lead.tenantPhoneMasked}
-              </p>
+              <p className="lead-card__tenant-phone">{lead.tenantPhoneMasked}</p>
             )}
           </div>
         </div>
 
         {/* Dates */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "var(--space-3)",
-            fontSize: 12,
-            color: "var(--text-tertiary)"
-          }}
-        >
+        <div className="lead-card__dates">
+          <Clock size={11} aria-hidden="true" />
           <span>Enquired {formatDate(lead.createdAt)}</span>
+          {lead.statusChangedAt !== lead.createdAt && (
+            <span className="lead-card__dates-sep">·</span>
+          )}
           {lead.statusChangedAt !== lead.createdAt && (
             <span>Updated {formatDate(lead.statusChangedAt)}</span>
           )}
@@ -206,89 +107,47 @@ export function LeadCard({ lead, onStatusChange, updating }: LeadCardProps) {
 
         {/* Existing notes preview */}
         {lead.ownerNotes && !showNotes && (
-          <div
-            style={{
-              padding: "var(--space-2) var(--space-3)",
-              background: "var(--amber-light)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: 12,
-              color: "#78350f",
-              marginBottom: "var(--space-3)",
-              borderLeft: "3px solid var(--amber)"
-            }}
-          >
+          <div className="lead-card__notes-preview">
+            <StickyNote size={11} aria-hidden="true" />
             {lead.ownerNotes}
           </div>
         )}
 
-        {/* Deal Done terminal state */}
+        {/* Deal done terminal state */}
         {lead.status === "deal_done" && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              padding: "var(--space-3)",
-              background: "rgba(34,197,94,0.08)",
-              borderRadius: "var(--radius-md)",
-              fontSize: 13,
-              fontWeight: 600,
-              color: "#166534"
-            }}
-          >
-            <span style={{ fontSize: 16 }}>✅</span>
-            Deal completed
+          <div className="lead-card__deal-done">
+            <span aria-hidden="true">🎉</span>
+            Deal completed — great work!
           </div>
         )}
 
-        {/* Notes textarea (collapsible) */}
+        {/* Notes textarea */}
         {showNotes && lead.status !== "deal_done" && (
-          <div style={{ marginBottom: "var(--space-3)" }}>
-            <textarea
-              className="textarea"
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Add notes about this lead…"
-              style={{ minHeight: 72, fontSize: 13 }}
-            />
-          </div>
+          <textarea
+            className="textarea lead-card__textarea"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Add notes about this lead…"
+          />
         )}
 
-        {/* Action buttons */}
+        {/* Actions */}
         {lead.status !== "deal_done" && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-2)",
-              marginTop: "var(--space-2)"
-            }}
-          >
-            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          <div className="lead-card__actions">
+            <div className="lead-card__action-btns">
               {ACTIONS[lead.status].map((action) => (
                 <button
                   key={action.next}
                   type="button"
                   disabled={updating || pendingStatus !== null}
                   onClick={() => void handleAction(action.next)}
-                  className={`btn btn--sm btn--${action.variant}`}
-                  style={{ flex: action.variant === "primary" ? 1 : "none", minWidth: 0 }}
+                  className={`btn btn--sm btn--${action.variant}${action.variant === "primary" ? " lead-card__action-primary" : ""}`}
                 >
                   {pendingStatus === action.next ? (
-                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span
-                        style={{
-                          width: 12,
-                          height: 12,
-                          border: "2px solid currentColor",
-                          borderTopColor: "transparent",
-                          borderRadius: "50%",
-                          display: "inline-block",
-                          animation: "spin 0.7s linear infinite"
-                        }}
-                      />
+                    <>
+                      <span className="lead-card__spinner" aria-hidden="true" />
                       Saving…
-                    </span>
+                    </>
                   ) : (
                     action.label
                   )}
@@ -298,30 +157,15 @@ export function LeadCard({ lead, onStatusChange, updating }: LeadCardProps) {
 
             <button
               type="button"
+              className="lead-card__notes-toggle"
               onClick={() => setShowNotes((v) => !v)}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: 12,
-                color: "var(--text-tertiary)",
-                textAlign: "left",
-                padding: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: 4
-              }}
             >
-              <span style={{ fontSize: 10 }}>{showNotes ? "▲" : "▼"}</span>
+              <StickyNote size={12} aria-hidden="true" />
               {showNotes ? "Hide notes" : lead.ownerNotes ? "Edit notes" : "Add notes"}
             </button>
           </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </article>
   );
 }

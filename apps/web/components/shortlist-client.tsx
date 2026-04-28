@@ -11,16 +11,21 @@ import {
 } from "../lib/client-auth";
 import { fetchApi } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
-import { Heart, Building, MapPin, AlertTriangle, ShieldCheck } from "lucide-react";
-import { toTitleCase } from "../lib/utils";
+import { Heart, AlertTriangle } from "lucide-react";
+import { ListingCardItem } from "./listing-card";
 
 interface ListingCard {
   id: string;
   title: string;
   city?: string;
+  locality?: string | null;
   listing_type?: "flat_house" | "pg";
   monthly_rent?: number;
   verification_status?: "unverified" | "pending" | "verified" | "failed";
+  cover_photo?: string | null;
+  bhk?: number | null;
+  furnishing?: string | null;
+  area_sqft?: number | null;
 }
 
 export function ShortlistClient({ locale }: { locale: string }) {
@@ -178,48 +183,36 @@ export function ShortlistClient({ locale }: { locale: string }) {
       ) : (
         <div className="listing-grid">
           {items.map((item) => (
-            <article key={item.id} className="card">
-              <div className="card__image">
-                <div className="card__image-placeholder" aria-hidden="true">
-                  <Building size={36} style={{ color: "var(--text-tertiary)" }} />
-                </div>
-                {item.verification_status === "verified" && (
-                  <span className="card__badge">
-                    <span className="badge badge--verified">
-                      <ShieldCheck size={12} style={{ marginRight: 2 }} /> Verified
-                    </span>
-                  </span>
-                )}
+            <ListingCardItem
+              key={item.id}
+              locale={locale}
+              listing={{
+                id: item.id,
+                title: item.title,
+                city: item.city,
+                locality: item.locality ?? null,
+                listing_type: item.listing_type,
+                monthly_rent: item.monthly_rent,
+                bhk: item.bhk ?? null,
+                furnishing: item.furnishing ?? null,
+                area_sqft: item.area_sqft ?? null,
+                verification_status: item.verification_status,
+                cover_photo: item.cover_photo ?? null
+              }}
+              heartSlot={
                 <button
-                  className="card__heart card__heart--active"
-                  onClick={() => void removeItem(item.id)}
+                  type="button"
+                  className="listing-card__heart listing-card__heart--active"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void removeItem(item.id);
+                  }}
                   aria-label={`Remove ${item.title} from shortlist`}
                 >
-                  <Heart size={16} fill="currentColor" />
+                  <Heart size={16} fill="currentColor" aria-hidden="true" />
                 </button>
-              </div>
-              <div className="card__body">
-                <div className="card__title">{item.title}</div>
-                <div className="card__location">
-                  <MapPin size={14} aria-hidden="true" />
-                  {item.city ? toTitleCase(item.city) : "City unavailable"}
-                  {item.listing_type
-                    ? ` · ${item.listing_type === "flat_house" ? "Flat/House" : "PG"}`
-                    : ""}
-                </div>
-                <div className="card__price">
-                  {item.monthly_rent
-                    ? `₹${item.monthly_rent.toLocaleString("en-IN")}`
-                    : "Rent unavailable"}
-                  {item.monthly_rent && <span className="card__price-period">/month</span>}
-                </div>
-                <div className="card__meta">
-                  <Link className="btn btn--primary btn--sm" href={`/${locale}/listing/${item.id}`}>
-                    View Details
-                  </Link>
-                </div>
-              </div>
-            </article>
+              }
+            />
           ))}
         </div>
       )}

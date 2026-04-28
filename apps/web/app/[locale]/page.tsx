@@ -22,6 +22,8 @@ import {
   ArrowRight,
   Sparkles
 } from "lucide-react";
+import { ListingCarousel } from "../../components/listing-carousel";
+import type { ListingCardData } from "../../components/listing-card";
 
 /* City photos: Unsplash free license — unsplash.com/license */
 
@@ -218,6 +220,32 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
   } catch {
     /* silent */
   }
+
+  // Fetch real Lucknow listings (3 buckets) for the homepage carousels.
+  // All endpoints already exist on the backend; we tolerate failures silently.
+  type ListingsSearchResponse = {
+    items: ListingCardData[];
+    total: number;
+    page: number;
+    page_size: number;
+  };
+
+  async function safeFetchListings(qs: string): Promise<ListingCardData[]> {
+    try {
+      const res = await fetchApi<ListingsSearchResponse>(`/listings/search?${qs}`, undefined, {
+        server: true
+      });
+      return res.items ?? [];
+    } catch {
+      return [];
+    }
+  }
+
+  const [popularHomes, trendingPgs, furnishedHomes] = await Promise.all([
+    safeFetchListings("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
+    safeFetchListings("city=lucknow&listing_type=pg&sort=newest&page=1"),
+    safeFetchListings("city=lucknow&listing_type=flat_house&furnishing=fully_furnished&page=1")
+  ]);
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -507,6 +535,59 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 ))}
             </div>
           </section>
+        </AnimateOnScroll>
+      )}
+
+      {/* ── Lucknow listing carousels (Airbnb-style rows) ── */}
+      {popularHomes.length > 0 && (
+        <AnimateOnScroll delay={100}>
+          <div className="container">
+            <ListingCarousel
+              locale={params.locale}
+              title={isHindi ? "लखनऊ में लोकप्रिय घर" : "Popular homes in Lucknow"}
+              subtitle={
+                isHindi
+                  ? "सत्यापित मालिकों से, बिना दलाली"
+                  : "Hand-picked verified flats and houses"
+              }
+              viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house`}
+              items={popularHomes}
+            />
+          </div>
+        </AnimateOnScroll>
+      )}
+
+      {trendingPgs.length > 0 && (
+        <AnimateOnScroll delay={100}>
+          <div className="container">
+            <ListingCarousel
+              locale={params.locale}
+              title={isHindi ? "लखनऊ में ट्रेंडिंग PG" : "Trending PGs in Lucknow"}
+              subtitle={
+                isHindi
+                  ? "खाने, वाईफाई और साझा सुविधाओं के साथ"
+                  : "With meals, WiFi and shared amenities"
+              }
+              viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=pg`}
+              items={trendingPgs}
+            />
+          </div>
+        </AnimateOnScroll>
+      )}
+
+      {furnishedHomes.length > 0 && (
+        <AnimateOnScroll delay={100}>
+          <div className="container">
+            <ListingCarousel
+              locale={params.locale}
+              title={isHindi ? "फर्निश्ड घर — लखनऊ" : "Furnished homes in Lucknow"}
+              subtitle={
+                isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture and appliances"
+              }
+              viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house&furnishing=fully_furnished`}
+              items={furnishedHomes}
+            />
+          </div>
         </AnimateOnScroll>
       )}
 

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, MapPin, Building, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
+import { ListingCardItem } from "../../../../components/listing-card";
 
 interface ListingCard {
   id: string;
@@ -22,14 +23,6 @@ interface SearchResponse {
   total: number;
   page: number;
   page_size: number;
-}
-
-function furnishLabel(f: string): string {
-  return f === "fully_furnished"
-    ? "Fully Furnished"
-    : f === "semi_furnished"
-      ? "Semi-Furnished"
-      : "Unfurnished";
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
@@ -511,71 +504,28 @@ export default async function CityPage({
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: "var(--space-4)"
+                gap: "var(--space-6)"
               }}
             >
               {listings.map((item) => (
-                <article key={item.id} className="card">
-                  <Link href={`/${params.locale}/listing/${item.id}`} className="card__image-link">
-                    <div className="card__image">
-                      {item.cover_photo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={item.cover_photo} alt={item.title} loading="lazy" />
-                      ) : (
-                        <div className="card__image-placeholder" aria-hidden="true">
-                          <Building size={36} style={{ color: "var(--text-tertiary)" }} />
-                        </div>
-                      )}
-                      {item.verification_status === "verified" && (
-                        <span className="card__badge">
-                          <span className="badge badge--verified">
-                            <ShieldCheck size={12} style={{ marginRight: 2 }} /> Verified
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                  <div className="card__body">
-                    <div className="card__title">{item.title}</div>
-                    <div className="card__location">
-                      <MapPin size={14} aria-hidden="true" />
-                      {item.locality ? `${item.locality}, ` : ""}
-                      {cityCapitalized}
-                      {" \u00b7 "}
-                      {item.listing_type === "flat_house" ? "Flat/House" : "PG"}
-                    </div>
-                    {(item.bhk || item.area_sqft || item.furnishing) && (
-                      <div className="card__meta">
-                        {item.bhk ? <span className="card__meta-item">{item.bhk} BHK</span> : null}
-                        {item.area_sqft ? (
-                          <span className="card__meta-item">{item.area_sqft} sqft</span>
-                        ) : null}
-                        {item.furnishing ? (
-                          <span className="card__meta-item">{furnishLabel(item.furnishing)}</span>
-                        ) : null}
-                      </div>
-                    )}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginTop: "var(--space-2)"
-                      }}
-                    >
-                      <div className="card__price">
-                        ₹{item.monthly_rent?.toLocaleString("en-IN") ?? "—"}
-                        <span className="card__price-period">/month</span>
-                      </div>
-                      <Link
-                        className="btn btn--primary btn--sm"
-                        href={`/${params.locale}/listing/${item.id}`}
-                      >
-                        View
-                      </Link>
-                    </div>
-                  </div>
-                </article>
+                <ListingCardItem
+                  key={item.id}
+                  locale={params.locale}
+                  listing={{
+                    id: item.id,
+                    title: item.title,
+                    city: item.city,
+                    city_name: cityCapitalized,
+                    locality: item.locality ?? null,
+                    listing_type: item.listing_type,
+                    monthly_rent: item.monthly_rent,
+                    bhk: item.bhk ?? null,
+                    furnishing: item.furnishing ?? null,
+                    area_sqft: item.area_sqft ?? null,
+                    verification_status: item.verification_status,
+                    cover_photo: item.cover_photo ?? null
+                  }}
+                />
               ))}
             </div>
           </section>

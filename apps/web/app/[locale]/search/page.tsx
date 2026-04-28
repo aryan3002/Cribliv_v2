@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
 import { SearchFilters } from "./search-filters";
+import { ListingCardItem } from "../../../components/listing-card";
 import {
   MapPin,
   Map as MapIcon,
@@ -9,11 +10,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Building,
-  Home,
-  AlertTriangle,
-  ShieldCheck,
-  CheckCircle2
+  AlertTriangle
 } from "lucide-react";
 
 const QUERY_NORMALIZE_MAP: Record<string, string> = {
@@ -360,104 +357,24 @@ export default async function SearchResultsPage({
         ) : (
           <div className="listing-grid">
             {response.items.map((item) => (
-              <article key={item.id} className="card">
-                <Link href={`/${params.locale}/listing/${item.id}`} className="card__image-link">
-                  <div className="card__image">
-                    {item.cover_photo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.cover_photo} alt={item.title} loading="lazy" />
-                    ) : (
-                      <div className="card__image-placeholder" aria-hidden="true">
-                        <Building size={36} style={{ color: "var(--text-tertiary)" }} />
-                      </div>
-                    )}
-                    {item.verification_status === "verified" && (
-                      <span className="card__badge">
-                        <span className="badge badge--verified">
-                          <ShieldCheck size={12} style={{ marginRight: 2 }} /> Verified
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                </Link>
-                <div className="card__body">
-                  <div className="card__title">{item.title}</div>
-                  <div className="card__location">
-                    <MapPin size={14} aria-hidden="true" />
-                    {item.locality ? `${item.locality}, ` : ""}
-                    {item.city_name ?? cityLabel(item.city)}
-                    {" · "}
-                    {item.listing_type === "flat_house" ? "Flat/House" : "PG"}
-                  </div>
-                  {item.listing_type === "pg" ? (
-                    <div className="card__meta">
-                      <span
-                        className="card__meta-item"
-                        style={{
-                          background: "rgba(80,70,229,0.08)",
-                          color: "#5046e5",
-                          fontWeight: 600
-                        }}
-                      >
-                        PG
-                      </span>
-                      <span className="card__meta-item">
-                        {item.furnishing ? furnishLabel(item.furnishing) : "—"}
-                      </span>
-                    </div>
-                  ) : (
-                    (item.bhk || item.area_sqft || item.furnishing) && (
-                      <div className="card__meta">
-                        {item.bhk ? <span className="card__meta-item">{item.bhk} BHK</span> : null}
-                        {item.area_sqft ? (
-                          <span className="card__meta-item">{item.area_sqft} sqft</span>
-                        ) : null}
-                        {item.furnishing ? (
-                          <span className="card__meta-item">{furnishLabel(item.furnishing)}</span>
-                        ) : null}
-                      </div>
-                    )
-                  )}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginTop: "var(--space-2)"
-                    }}
-                  >
-                    <div className="card__price">
-                      ₹{item.monthly_rent?.toLocaleString("en-IN") ?? "—"}
-                      <span className="card__price-period">/month</span>
-                    </div>
-                    <Link
-                      className="btn btn--primary btn--sm"
-                      href={`/${params.locale}/listing/${item.id}`}
-                    >
-                      View
-                    </Link>
-                  </div>
-                  {item.verification_status === "verified" && (
-                    <div style={{ marginTop: "var(--space-2)" }}>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: "var(--trust)",
-                          background: "rgba(34,197,94,0.08)",
-                          padding: "2px 8px",
-                          borderRadius: "var(--radius-full)"
-                        }}
-                      >
-                        <CheckCircle2 size={12} /> Verified
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </article>
+              <ListingCardItem
+                key={item.id}
+                locale={params.locale}
+                listing={{
+                  id: item.id,
+                  title: item.title,
+                  city: item.city,
+                  city_name: item.city_name ?? cityLabel(item.city),
+                  locality: item.locality,
+                  listing_type: item.listing_type,
+                  monthly_rent: item.monthly_rent,
+                  bhk: item.bhk ?? null,
+                  furnishing: item.furnishing ?? null,
+                  area_sqft: item.area_sqft ?? null,
+                  verification_status: item.verification_status,
+                  cover_photo: item.cover_photo ?? null
+                }}
+              />
             ))}
           </div>
         )}

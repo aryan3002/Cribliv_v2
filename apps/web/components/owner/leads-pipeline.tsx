@@ -114,12 +114,12 @@ export function LeadsPipeline({ accessToken }: Props) {
 
   return (
     <div>
-      {/* Status filter tabs */}
+      {/* Status filter row */}
       <div
-        className="tab-row"
+        className="dash-filter-row"
         role="tablist"
         aria-label="Filter leads by status"
-        style={{ marginBottom: "var(--space-4)" }}
+        style={{ marginBottom: "var(--space-5)" }}
       >
         {TABS.map((tab) => (
           <button
@@ -127,9 +127,8 @@ export function LeadsPipeline({ accessToken }: Props) {
             type="button"
             role="tab"
             aria-selected={activeStatus === tab.value}
-            className={`tab-btn${activeStatus === tab.value ? " tab-btn--active" : ""}`}
+            className={`dash-filter-chip${activeStatus === tab.value ? " dash-filter-chip--active" : ""}`}
             onClick={() => setActiveStatus(tab.value)}
-            style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
             {tab.color && (
               <span
@@ -137,27 +136,15 @@ export function LeadsPipeline({ accessToken }: Props) {
                   width: 7,
                   height: 7,
                   borderRadius: "50%",
-                  background: activeStatus === tab.value ? tab.color : "var(--border-strong)",
                   flexShrink: 0,
+                  background: activeStatus === tab.value ? tab.color : "var(--border-strong)",
                   transition: "background var(--transition-fast)"
                 }}
               />
             )}
             {tab.label}
             {tabCounts[tab.value] !== undefined && (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "1px 6px",
-                  borderRadius: "var(--radius-full)",
-                  background:
-                    activeStatus === tab.value ? "rgba(0,102,255,0.12)" : "var(--surface-sunken)",
-                  color: activeStatus === tab.value ? "var(--brand)" : "var(--text-tertiary)"
-                }}
-              >
-                {tabCounts[tab.value]}
-              </span>
+              <span className="dash-filter-chip__count">{tabCounts[tab.value]}</span>
             )}
           </button>
         ))}

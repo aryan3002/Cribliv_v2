@@ -22,6 +22,41 @@ const dictionary: Dictionary = {
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
   navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },
   navAdmin: { en: "Admin", hi: "एडमिन" },
+  menuOpen: { en: "Open menu", hi: "मेनू खोलें" },
+  menuAccountSettings: { en: "Account settings", hi: "अकाउंट सेटिंग्स" },
+  menuMyShortlist: { en: "My shortlist", hi: "मेरी पसंदीदा" },
+  menuSearchRentals: { en: "Search rentals", hi: "किराया खोजें" },
+  menuBecomeOwner: { en: "Become an owner", hi: "मालिक बनें" },
+  menuHowItWorks: { en: "How it works", hi: "यह कैसे काम करता है" },
+  menuHelpFaq: { en: "Help & FAQ", hi: "मदद और FAQ" },
+  menuSignOut: { en: "Sign out", hi: "साइन आउट" },
+  menuMyListings: { en: "My listings", hi: "मेरी लिस्टिंग" },
+  menuAdmin: { en: "Admin", hi: "एडमिन" },
+  rowPopularHomesLucknow: {
+    en: "Popular homes in Lucknow",
+    hi: "लखनऊ में लोकप्रिय घर"
+  },
+  rowPopularHomesLucknowSub: {
+    en: "Hand-picked verified flats and houses",
+    hi: "सत्यापित मालिकों से, बिना दलाली"
+  },
+  rowTrendingPgsLucknow: {
+    en: "Trending PGs in Lucknow",
+    hi: "लखनऊ में ट्रेंडिंग PG"
+  },
+  rowTrendingPgsLucknowSub: {
+    en: "With meals, WiFi and shared amenities",
+    hi: "खाने, वाईफाई और साझा सुविधाओं के साथ"
+  },
+  rowFurnishedLucknow: {
+    en: "Furnished homes in Lucknow",
+    hi: "फर्निश्ड घर — लखनऊ"
+  },
+  rowFurnishedLucknowSub: {
+    en: "Move-in ready with furniture and appliances",
+    hi: "सब कुछ तैयार, बस आइए"
+  },
+  viewAll: { en: "View all", hi: "सभी देखें" },
   postProperty: {
     en: "Post Property",
     hi: "प्रॉपर्टी पोस्ट करें"
