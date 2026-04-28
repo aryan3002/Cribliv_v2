@@ -174,7 +174,106 @@ const dictionary: Dictionary = {
   cmapZoomOut: {
     en: "Try zooming out or adjusting your filters",
     hi: "ज़ूम आउट करें या फ़िल्टर बदलें"
-  }
+  },
+  // Listing detail page
+  aboutThisProperty: {
+    en: "About this property",
+    hi: "इस प्रॉपर्टी के बारे में"
+  },
+  whatThisPlaceOffers: {
+    en: "What this place offers",
+    hi: "यहाँ क्या-क्या मिलेगा"
+  },
+  showAllAmenities: {
+    en: "Show all amenities",
+    hi: "सभी सुविधाएं देखें"
+  },
+  listedBy: {
+    en: "Listed by",
+    hi: "लिस्टिंग — "
+  },
+  memberSince: {
+    en: "On Cribliv since",
+    hi: "Cribliv पर जुड़े"
+  },
+  whatsappReady: {
+    en: "WhatsApp ready",
+    hi: "WhatsApp उपलब्ध"
+  },
+  thingsToKnow: {
+    en: "Things to know",
+    hi: "जानने योग्य बातें"
+  },
+  moveInAndLease: {
+    en: "Move-in & lease",
+    hi: "मूव-इन और किराया अनुबंध"
+  },
+  tenantPreferences: {
+    en: "Preferred tenants",
+    hi: "किरायेदार प्राथमिकताएं"
+  },
+  criblivGuarantees: {
+    en: "Cribliv guarantees",
+    hi: "Cribliv की गारंटी"
+  },
+  whereYoullBe: {
+    en: "Where you'll be",
+    hi: "लोकेशन"
+  },
+  exactAddressAfterUnlock: {
+    en: "Exact address shared after you unlock the owner's contact.",
+    hi: "ओनर का नंबर अनलॉक करने पर पूरा पता मिलेगा।"
+  },
+  similarProperties: {
+    en: "Similar properties nearby",
+    hi: "आस-पास की इसी तरह की प्रॉपर्टी"
+  },
+  showAllPhotos: {
+    en: "Show all photos",
+    hi: "सभी फोटो देखें"
+  },
+  noChargeUntilUnlock: {
+    en: "You won't be charged unless the owner picks up — auto-refund in 12h.",
+    hi: "ओनर के जवाब देने तक कोई शुल्क नहीं — 12 घंटे में ऑटो-रिफंड।"
+  },
+  keyHighlights: {
+    en: "Key highlights",
+    hi: "मुख्य बातें"
+  },
+  bhkLabel: { en: "BHK", hi: "BHK" },
+  bathLabel: { en: "Bathrooms", hi: "बाथरूम" },
+  areaLabel: { en: "Carpet Area", hi: "क्षेत्रफल" },
+  furnishingLabel: { en: "Furnishing", hi: "फर्निशिंग" },
+  propertyTypeLabel: { en: "Type", hi: "प्रकार" },
+  perMonth: { en: "/month", hi: "/महीना" },
+  depositShort: { en: "deposit", hi: "जमा" },
+  availableFrom: { en: "Available from", hi: "उपलब्ध" },
+  availableNow: { en: "Available now", hi: "तुरंत उपलब्ध" },
+  totalBeds: { en: "Total beds", hi: "कुल बेड" },
+  occupancyType: { en: "Occupancy", hi: "ऑक्यूपेंसी" },
+  sharing: { en: "Sharing options", hi: "शेयरिंग विकल्प" },
+  mealsIncluded: { en: "Meals included", hi: "भोजन शामिल" },
+  curfew: { en: "Curfew", hi: "कर्फ्यू" },
+  attachedBath: { en: "Attached bathroom", hi: "अटैच्ड बाथरूम" },
+  leaseTerm: { en: "11-month rent agreement", hi: "11-महीने का किराया अनुबंध" },
+  noBrokerSpam: { en: "No broker spam — direct from owner", hi: "कोई दलाल नहीं — सीधे ओनर से" },
+  verifiedOwner: { en: "Verified owner", hi: "वेरिफाइड ओनर" },
+  autoRefund12h: {
+    en: "Auto-refund credit if no response in 12h",
+    hi: "12 घंटे में जवाब न मिले तो ऑटो-रिफंड"
+  },
+  saveListing: { en: "Save", hi: "सेव करें" },
+  shareListing: { en: "Share", hi: "शेयर करें" },
+  closeLabel: { en: "Close", hi: "बंद करें" },
+  amenityCategoryConnectivity: { en: "Connectivity", hi: "कनेक्टिविटी" },
+  amenityCategoryComfort: { en: "Comfort & climate", hi: "कम्फर्ट" },
+  amenityCategorySafety: { en: "Safety & security", hi: "सुरक्षा" },
+  amenityCategoryLifestyle: { en: "Lifestyle", hi: "लाइफस्टाइल" },
+  amenityCategoryKitchen: { en: "Kitchen & laundry", hi: "किचन और लॉन्ड्री" },
+  amenityCategoryServices: { en: "Services", hi: "सर्विसेज" },
+  amenityCategoryOther: { en: "Other", hi: "अन्य" },
+  notIncluded: { en: "Not included", hi: "उपलब्ध नहीं" },
+  exploreOnMap: { en: "Explore on CriblMap", hi: "CriblMap पर देखें" }
 };
 
 export function t(locale: Locale, key: string): string {
