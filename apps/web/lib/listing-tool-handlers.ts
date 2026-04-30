@@ -58,6 +58,52 @@ function asNumberString(value: unknown): string | null {
   return null;
 }
 
+/**
+ * Extract all positive integers from a transcript string.
+ * Strips currency symbols, commas, and the Indian number word "hazaar"
+ * so "Rs. 4,000" → [4000], "chaar hazaar" → [4] (raw), "25000" → [25000].
+ * Used only for cross-checking — not for primary extraction.
+ */
+function numbersInTranscript(transcript: string): number[] {
+  // Strip common currency markers and normalise
+  const cleaned = transcript
+    .replace(/[₹Rs.]+/gi, "")
+    .replace(/,/g, "")
+    .replace(/hazaar|thousand/gi, "000") // crude but catches common cases
+    .replace(/lakh/gi, "00000");
+  const matches = cleaned.match(/\d+/g);
+  if (!matches) return [];
+  return matches.map((s) => Number(s)).filter((n) => Number.isFinite(n) && n > 0);
+}
+
+/**
+ * Given a candidate money value (from the model's tool call) and the owner's
+ * recent transcript, return the "corrected" value if the model produced an
+ * obvious 10× or 100× multiple of what the owner actually said.
+ *
+ * This is a defensive layer — the system prompt is the primary fix, but
+ * this catches cases where the model still mishears in spite of instructions.
+ *
+ * Only applies when: candidate >= 10000, a transcript number exists,
+ * and the ratio is exactly 10 or 100 (floating-point tolerant).
+ */
+function guardMoneyValue(candidate: number, transcript: string): number {
+  if (!transcript || candidate < 1000) return candidate;
+  const mentioned = numbersInTranscript(transcript);
+  for (const spoken of mentioned) {
+    if (spoken <= 0) continue;
+    const ratio = candidate / spoken;
+    // Exactly 10× or 100× off → use what the owner said
+    if (Math.abs(ratio - 10) < 0.5 || Math.abs(ratio - 100) < 0.5) {
+      console.warn(
+        `[guardMoneyValue] Model wrote ${candidate} but transcript mentions ${spoken} — using ${spoken}.`
+      );
+      return spoken;
+    }
+  }
+  return candidate;
+}
+
 function asString(value: unknown): string | null {
   if (typeof value === "string" && value.trim().length > 0) return value.trim();
   return null;
@@ -102,7 +148,9 @@ function normaliseCity(value: unknown): string | null {
 
 export function applyUpdateListingFields(
   prev: WizardForm,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  /** The owner's most recent voice transcript — used to cross-check money values. */
+  userTranscript = ""
 ): ToolDispatchResult {
   const next: WizardForm = { ...prev };
   const animated: (keyof WizardForm)[] = [];
@@ -119,12 +167,18 @@ export function applyUpdateListingFields(
   }
 
   if ("monthly_rent" in args) {
-    const v = asNumberString(args.monthly_rent);
-    if (v) set("monthly_rent", v);
+    const raw = asNumberString(args.monthly_rent);
+    if (raw) {
+      const guarded = guardMoneyValue(Number(raw), userTranscript);
+      set("monthly_rent", String(guarded));
+    }
   }
   if ("deposit" in args) {
-    const v = asNumberString(args.deposit);
-    if (v) set("deposit", v);
+    const raw = asNumberString(args.deposit);
+    if (raw) {
+      const guarded = guardMoneyValue(Number(raw), userTranscript);
+      set("deposit", String(guarded));
+    }
   }
   if (typeof args.furnishing === "string") {
     const f = args.furnishing as Furnishing;
@@ -279,11 +333,13 @@ export function applySummarize(prev: WizardForm): ToolDispatchResult {
 export function dispatchToolCall(
   toolName: string,
   args: Record<string, unknown>,
-  prev: WizardForm
+  prev: WizardForm,
+  /** Owner's most recent voice transcript for money-value cross-checking. */
+  userTranscript = ""
 ): ToolDispatchResult | null {
   switch (toolName) {
     case "update_listing_fields":
-      return applyUpdateListingFields(prev, args);
+      return applyUpdateListingFields(prev, args, userTranscript);
     case "navigate_to_step":
       return applyNavigateToStep(prev, args);
     case "generate_title_and_description":

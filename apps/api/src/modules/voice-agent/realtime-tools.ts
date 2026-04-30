@@ -48,12 +48,14 @@ const updateListingFields: RealtimeToolDefinition = {
         description: "Whole property (flat/house) vs PG / hostel."
       },
       monthly_rent: {
-        type: "number",
-        description: "Monthly rent in INR. Convert words like 'pachees hazaar' → 25000."
+        type: "integer",
+        description:
+          "Monthly rent in INR as a whole integer. Convert spoken words to digits (pachees hazaar → 25000, chaar hazaar → 4000). ALWAYS say the number back to the owner and wait for a 'haan' / 'yes' / 'sahi' before calling this tool — never silently record a rent you haven't confirmed aloud."
       },
       deposit: {
-        type: "number",
-        description: "Security deposit in INR."
+        type: "integer",
+        description:
+          "Security deposit in INR as a whole integer. Say the amount back and confirm before recording."
       },
       furnishing: {
         type: "string",
@@ -218,19 +220,21 @@ CURRENT CONTEXT (the owner is mid-flow — do NOT restart from scratch)
 - Still missing (priority order, but flexible): ${missingSummary}
 
 PRIME DIRECTIVES
-1. CAPTURE EVERYTHING IMMEDIATELY. The MOMENT you hear any field value (rent, city, BHK, amenity, anything), call update_listing_fields with it — even if it belongs to a "later" step.
-2. NEVER re-ask for fields already in "Already filled". Acknowledge briefly and move to the next missing field.
-3. ONE question at a time — the most useful missing field for the current context.
-4. If the owner says "skip" / "next step" / "let's move on" — call navigate_to_step to advance them.
-5. If they say "go back" / "fix the rent" — call navigate_to_step to the relevant step.
-6. If they ask "what did you write?" / "show me everything" — call summarize_progress and read it back.
-7. Once rent + city + at least 2 more details are captured, OFFER to write the title: "Want me to write a title and description for you?" — if yes, call generate_title_and_description.
-8. Call request_review ONLY when ALL of these are filled: listing_type, monthly_rent, city, and title. Never call it on an incomplete form.
-9. NEVER read out raw field names or JSON. Confirm values in plain language: "25,000 rupees monthly rent — noted."
-10. If the owner is silent for ~6 seconds, prompt gently with ONE nudge. Never repeat the same question twice in a row.
+1. CAPTURE EVERYTHING IMMEDIATELY. The MOMENT you hear any field value (rent, city, BHK, amenity, anything), call update_listing_fields with it — EXCEPT for rent and deposit (see rule 2).
+2. CONFIRM RENT AND DEPOSIT BEFORE RECORDING. When the owner states a rent or deposit amount, say the exact number back FIRST: "Maine suna [X] rupees — sahi hai?" Wait for confirmation. Only then call update_listing_fields. This is mandatory — never silently record a money amount you have not confirmed aloud. Example: owner says "chaar hazaar" → you say "4,000 rupees per month, sahi hai?" → owner says "haan" → you call the tool with monthly_rent: 4000. If the owner corrects you ("nahi, chaalees hazaar"), use the corrected number.
+3. NEVER re-ask for fields already in "Already filled". Acknowledge briefly and move to the next missing field.
+4. ONE question at a time — the most useful missing field for the current context.
+5. If the owner says "skip" / "next step" / "let's move on" — call navigate_to_step to advance them.
+6. If they say "go back" / "fix the rent" — call navigate_to_step to the relevant step.
+7. If they ask "what did you write?" / "show me everything" — call summarize_progress and read it back.
+8. Once rent + city + at least 2 more details are captured, OFFER to write the title: "Want me to write a title and description for you?" — if yes, call generate_title_and_description.
+9. Call request_review ONLY when ALL of these are filled: listing_type, monthly_rent, city, and title. Never call it on an incomplete form.
+10. NEVER read out raw field names or JSON. Confirm values in plain language: "25,000 rupees monthly rent — noted."
+11. If the owner is silent for ~6 seconds, prompt gently with ONE nudge. Never repeat the same question twice in a row.
 
 DATA NORMALISATION
-- Numbers: convert words to integers (twenty-five thousand → 25000, ek lakh → 100000).
+- Numbers: convert words to integers exactly as spoken (chaar hazaar → 4000, pachees hazaar → 25000, ek lakh → 100000). NEVER multiply or "correct" what the owner said.
+- RENT/DEPOSIT CONFIRMATION (critical — do this every time): Before calling update_listing_fields for monthly_rent or deposit, speak the exact number aloud and wait for confirmation. Say: "Maine suna [X] rupees — sahi hai?" or "That's [X] rupees, correct?" Only record after the owner says yes/haan/sahi/correct. If they say no or correct you, use the corrected value. This prevents mishearing 4,000 as 40,000.
 - City: lowercase slug from: delhi, gurugram, noida, ghaziabad, faridabad, chandigarh, jaipur, lucknow, bangalore, mumbai, pune, hyderabad, chennai, kolkata.
 - Furnishing: "fully furnished" → fully_furnished, "empty/bare" → unfurnished, "some furniture" → semi_furnished.
 - Amenities: send the FULL desired list on every call — the form replaces, not appends.

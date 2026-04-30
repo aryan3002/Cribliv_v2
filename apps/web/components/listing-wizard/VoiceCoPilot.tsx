@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   RealtimeClient,
   isRealtimeSupported,
@@ -37,45 +36,39 @@ import { VoiceOrb } from "./VoiceOrb";
  * orb / mic button toggles the live session.
  * ──────────────────────────────────────────────────────────────────── */
 
-interface CapturedChip {
-  key: string;
-  label: string;
-  step: number;
+/* ─── Human labels (no field keys ever shown to the user) ───────────── */
+const ATELIER_FIELDS: { key: keyof WizardForm; label: string; step: number }[] = [
+  { key: "listing_type", label: "Property type", step: 0 },
+  { key: "monthly_rent", label: "Monthly rent", step: 0 },
+  { key: "deposit", label: "Deposit", step: 0 },
+  { key: "furnishing", label: "Furnishing", step: 0 },
+  { key: "city", label: "City", step: 1 },
+  { key: "locality", label: "Neighborhood", step: 1 },
+  { key: "bedrooms", label: "Bedrooms", step: 2 },
+  { key: "bathrooms", label: "Bathrooms", step: 2 },
+  { key: "area_sqft", label: "Area", step: 2 },
+  { key: "amenities", label: "Amenities", step: 2 },
+  { key: "title", label: "Listing title", step: 3 }
+];
+
+function isFilled(form: WizardForm, key: keyof WizardForm): boolean {
+  const value = form[key];
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return value != null;
 }
 
-const CHIP_DEFINITIONS: { key: keyof WizardForm; step: number; render: (v: unknown) => string }[] =
-  [
-    { key: "listing_type", step: 0, render: (v) => (v === "pg" ? "PG" : "Flat / House") },
-    { key: "monthly_rent", step: 0, render: (v) => `₹${Number(v).toLocaleString("en-IN")}/mo` },
-    { key: "deposit", step: 0, render: (v) => `Dep ₹${Number(v).toLocaleString("en-IN")}` },
-    { key: "furnishing", step: 0, render: (v) => String(v).replace(/_/g, " ") },
-    { key: "city", step: 1, render: (v) => String(v).charAt(0).toUpperCase() + String(v).slice(1) },
-    { key: "locality", step: 1, render: (v) => String(v) },
-    { key: "bedrooms", step: 2, render: (v) => `${v} BHK` },
-    { key: "beds", step: 2, render: (v) => `${v} beds` },
-    { key: "area_sqft", step: 2, render: (v) => `${v} sqft` },
-    { key: "amenities", step: 2, render: (v) => `${(v as string[]).length} amenities` },
-    { key: "title", step: 3, render: () => "Title set" }
-  ];
+function formatINR(raw: string): string {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return raw;
+  return `₹${n.toLocaleString("en-IN")}`;
+}
 
-function buildChips(form: WizardForm): CapturedChip[] {
-  const chips: CapturedChip[] = [];
-  for (const def of CHIP_DEFINITIONS) {
-    const value = form[def.key];
-    const has = Array.isArray(value)
-      ? value.length > 0
-      : typeof value === "string"
-        ? value.trim().length > 0
-        : value != null;
-    if (has) {
-      chips.push({
-        key: String(def.key),
-        label: def.render(value),
-        step: def.step
-      });
-    }
-  }
-  return chips;
+function titleCase(s: string): string {
+  return s
+    .split(/\s+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""))
+    .join(" ");
 }
 
 interface VoiceCoPilotProps {
@@ -136,6 +129,9 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
   const onFormApplyRef = useRef(onFormApply);
   const onNavigateRef = useRef(onNavigate);
   const onUiActionRef = useRef(onUiAction);
+  // Tracks the latest user voice transcript so onToolCall closures can
+  // cross-reference money values against what the owner actually said.
+  const userTextRef = useRef("");
   formRef.current = form;
   stepRef.current = step;
   onFormApplyRef.current = onFormApply;
@@ -173,11 +169,15 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
           else setAssistantLevel(rms);
         },
         onTranscript: (role, text, _isFinal) => {
-          if (role === "assistant") setAssistantText(text);
-          else setUserText(text);
+          if (role === "assistant") {
+            setAssistantText(text);
+          } else {
+            setUserText(text);
+            userTextRef.current = text;
+          }
         },
         onToolCall: (name, args, callId) => {
-          const result = dispatchToolCall(name, args, formRef.current);
+          const result = dispatchToolCall(name, args, formRef.current, userTextRef.current);
           if (!result) {
             client.sendToolOutput(callId, { ok: false, error: "Unknown tool" });
             return;
@@ -218,28 +218,6 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, step]);
 
-  /* ── Status label ───────────────────────────────────────────────── */
-  const statusLabel = (() => {
-    switch (agentState) {
-      case "idle":
-        return voiceActive ? "STARTING" : "TAP TO TALK";
-      case "connecting":
-        return "CONNECTING";
-      case "listening":
-        return "LISTENING";
-      case "thinking":
-        return "THINKING";
-      case "speaking":
-        return "SPEAKING";
-      case "ended":
-        return "ENDED";
-      case "error":
-        return "ERROR";
-      default:
-        return "";
-    }
-  })();
-
   /* ── Caption helpers — choose what to show ──────────────────────── */
   const showAssistant = assistantText.length > 0;
   const showUser = userText.length > 0;
@@ -269,7 +247,26 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
     setTextInput("");
   }
 
-  const chips = buildChips(form);
+  const cueLabel = (() => {
+    switch (agentState) {
+      case "idle":
+        return voiceActive ? "starting up" : "ready when you are";
+      case "connecting":
+        return "connecting";
+      case "listening":
+        return "listening";
+      case "thinking":
+        return "thinking";
+      case "speaking":
+        return "speaking";
+      case "ended":
+        return "session ended";
+      case "error":
+        return "something went wrong";
+      default:
+        return "";
+    }
+  })();
 
   return (
     <aside
@@ -284,9 +281,12 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
         onClick={() => setDrawerCollapsed((v) => !v)}
       />
       <div className="cz-copilot__head">
-        <div className="cz-copilot__name">Maya, your concierge</div>
-        <div className="cz-copilot__status" data-state={agentState}>
-          {statusLabel}
+        <div className="cz-copilot__masthead">
+          <div className="cz-copilot__name">Maya</div>
+          <div className="cz-copilot__role">your listing concierge</div>
+        </div>
+        <div className="cz-copilot__cue" data-state={agentState} aria-live="polite">
+          {cueLabel}
         </div>
       </div>
 
@@ -298,12 +298,14 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
       ) : null}
       {errorBanner ? <div className="cz-error-banner">{errorBanner}</div> : null}
 
-      <VoiceOrb
-        state={agentState}
-        userLevel={userLevel}
-        assistantLevel={assistantLevel}
-        onClick={handleMicClick}
-      />
+      <div className="cz-orb-stage">
+        <VoiceOrb
+          state={agentState}
+          userLevel={userLevel}
+          assistantLevel={assistantLevel}
+          onClick={handleMicClick}
+        />
+      </div>
 
       <div className="cz-cap-stack">
         <CaptionBlock
@@ -312,42 +314,11 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
           show={showAssistant}
           state={agentState}
         />
+        <div className="cz-cap-rule" aria-hidden="true" />
         <CaptionBlock role="user" text={userText} show={showUser} state={agentState} />
       </div>
 
-      <div className="cz-chips-label">Captured so far</div>
-      <div className="cz-chips">
-        <AnimatePresence initial={false}>
-          {chips.length === 0 ? (
-            <motion.span
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}
-            >
-              Nothing yet — start talking and watch this fill.
-            </motion.span>
-          ) : (
-            chips.map((chip) => (
-              <motion.button
-                key={chip.key}
-                type="button"
-                className="cz-chip"
-                initial={{ opacity: 0, scale: 0.85, y: 6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ type: "spring", stiffness: 260, damping: 22 }}
-                onClick={() => onChipJump(chip.step)}
-                title={`Jump to step ${chip.step + 1}`}
-              >
-                <span className="cz-chip__key">{chip.key}</span>
-                <span>{chip.label}</span>
-              </motion.button>
-            ))
-          )}
-        </AnimatePresence>
-      </div>
+      <AtelierPreview form={form} onJump={onChipJump} />
 
       <div className="cz-copilot__actions">
         <button
@@ -357,7 +328,11 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
           onClick={handleMicClick}
           disabled={!supported}
         >
-          {voiceActive ? "End voice" : supported ? "Tap to talk to Maya" : "Voice unavailable"}
+          {voiceActive
+            ? "End conversation"
+            : supported
+              ? "Tap to talk to Maya"
+              : "Voice unavailable"}
         </button>
         {showTextFallback ? (
           <div className="cz-text-fallback">
@@ -383,7 +358,7 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
             className="cz-fallback-link"
             onClick={() => setShowTextFallback(true)}
           >
-            switch to typing
+            or switch to typing
           </button>
         )}
       </div>
@@ -403,8 +378,10 @@ function CaptionBlock({ role, text, show, state }: CaptionBlockProps) {
     role === "assistant"
       ? state === "speaking"
         ? "…"
-        : "Maya is listening for your first sentence."
-      : "I'll show what I hear here.";
+        : state === "thinking"
+          ? "Thinking it through…"
+          : "Maya is ready when you are."
+      : "Your words will appear here, in your voice.";
 
   return (
     <div
@@ -414,5 +391,216 @@ function CaptionBlock({ role, text, show, state }: CaptionBlockProps) {
       <div className="cz-cap__role">{role === "assistant" ? "Maya" : "You"}</div>
       <div className="cz-cap__body">{empty ? placeholder : text}</div>
     </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  AtelierPreview — the listing taking shape
+ *
+ *  A miniature of the listing card the owner will publish. As Maya
+ *  captures facts, they materialize *into* this card with a gold-leaf
+ *  shimmer (reusing cz-glow). No field keys are ever shown — every
+ *  label is human English. Click any region to jump back to that step
+ *  and edit it.
+ * ════════════════════════════════════════════════════════════════════ */
+
+interface AtelierPreviewProps {
+  form: WizardForm;
+  onJump: (step: number) => void;
+}
+
+function AtelierPreview({ form, onJump }: AtelierPreviewProps) {
+  // Track which fields just transitioned from empty → filled, so we can
+  // briefly attach the cz-fill class to the corresponding region.
+  const prevFilledRef = useRef<Set<string>>(new Set());
+  const [recentlyFilled, setRecentlyFilled] = useState<Set<string>>(new Set());
+
+  const filledNow = useMemo(() => {
+    const set = new Set<string>();
+    for (const f of ATELIER_FIELDS) if (isFilled(form, f.key)) set.add(String(f.key));
+    return set;
+  }, [form]);
+
+  useEffect(() => {
+    const prev = prevFilledRef.current;
+    const newlyFilled = new Set<string>();
+    for (const k of filledNow) if (!prev.has(k)) newlyFilled.add(k);
+    if (newlyFilled.size > 0) {
+      setRecentlyFilled(newlyFilled);
+      const t = setTimeout(() => setRecentlyFilled(new Set()), 1400);
+      prevFilledRef.current = filledNow;
+      return () => clearTimeout(t);
+    }
+    prevFilledRef.current = filledNow;
+    return undefined;
+  }, [filledNow]);
+
+  const filledCount = filledNow.size;
+  const totalCount = ATELIER_FIELDS.length;
+  const remaining = ATELIER_FIELDS.filter((f) => !filledNow.has(String(f.key)));
+
+  const flash = (k: keyof WizardForm) => (recentlyFilled.has(String(k)) ? " cz-fill" : "");
+  const flashAny = (...keys: (keyof WizardForm)[]) =>
+    keys.some((k) => recentlyFilled.has(String(k))) ? " cz-fill" : "";
+
+  // ── Title block ──────────────────────────────────────────────────
+  const hasTitle = isFilled(form, "title");
+
+  // ── Location line ────────────────────────────────────────────────
+  const locParts: string[] = [];
+  if (form.listing_type === "pg") locParts.push("PG");
+  else locParts.push("Flat");
+  if (isFilled(form, "locality")) locParts.push(titleCase(form.locality));
+  if (isFilled(form, "city")) locParts.push(titleCase(form.city));
+  const hasLocation = isFilled(form, "city") || isFilled(form, "locality");
+
+  // ── Stats trio ───────────────────────────────────────────────────
+  const isPg = form.listing_type === "pg";
+  const statBhk = isPg
+    ? isFilled(form, "beds")
+      ? `${form.beds} beds`
+      : null
+    : isFilled(form, "bedrooms")
+      ? `${form.bedrooms} BHK`
+      : null;
+  const statBath = isFilled(form, "bathrooms")
+    ? `${form.bathrooms} bath${Number(form.bathrooms) === 1 ? "" : "s"}`
+    : null;
+  const statArea = isFilled(form, "area_sqft") ? `${form.area_sqft} sqft` : null;
+
+  return (
+    <section className="cz-atelier" aria-label="Your listing taking shape">
+      <div className="cz-atelier__top">
+        <div className="cz-atelier__eyebrow">Your listing — taking shape</div>
+        <div className="cz-atelier__count" aria-label={`${filledCount} of ${totalCount} captured`}>
+          <strong>{filledCount}</strong>
+          <span> of {totalCount}</span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className={`cz-atelier__loc${hasLocation ? "" : " cz-atelier__loc--empty"}${flashAny("city", "locality", "listing_type")}`}
+        onClick={() => onJump(hasLocation ? 1 : 1)}
+      >
+        {hasLocation ? (
+          <>
+            <span>{locParts[0]}</span>
+            {locParts.length > 1 && <span className="cz-atelier__loc-dot" />}
+            <span>{locParts.slice(1).join(", ")}</span>
+          </>
+        ) : (
+          <span>A new home, somewhere wonderful…</span>
+        )}
+      </button>
+
+      <button
+        type="button"
+        className={`cz-atelier__title-btn${flash("title")}`}
+        onClick={() => onJump(3)}
+        aria-label="Edit title"
+      >
+        <h3 className={`cz-atelier__title${hasTitle ? "" : " cz-atelier__title--placeholder"}`}>
+          {hasTitle ? form.title : "Untitled draft"}
+        </h3>
+      </button>
+
+      <button
+        type="button"
+        className={`cz-atelier__price-btn${flashAny("monthly_rent", "deposit")}`}
+        onClick={() => onJump(0)}
+        aria-label="Edit rent and deposit"
+      >
+        {isFilled(form, "monthly_rent") ? (
+          <span className="cz-atelier__rent">
+            {formatINR(form.monthly_rent)}
+            <small> /month</small>
+          </span>
+        ) : (
+          <span className="cz-atelier__rent cz-atelier__rent--placeholder">Rent — to be set</span>
+        )}
+        {isFilled(form, "deposit") && (
+          <span className="cz-atelier__deposit">
+            {formatINR(form.deposit)}
+            <em>deposit</em>
+          </span>
+        )}
+      </button>
+
+      <div className="cz-atelier__rule" aria-hidden="true" />
+
+      <button
+        type="button"
+        className={`cz-atelier__stats${flashAny("bedrooms", "beds", "bathrooms", "area_sqft")}`}
+        onClick={() => onJump(2)}
+        disabled={!statBhk && !statBath && !statArea}
+        aria-label="Edit property details"
+      >
+        <div className="cz-atelier__stat">
+          <span className="cz-atelier__stat-label">{isPg ? "Beds" : "BHK"}</span>
+          <span
+            className={`cz-atelier__stat-value${statBhk ? "" : " cz-atelier__stat-value--placeholder"}`}
+          >
+            {statBhk ?? "—"}
+          </span>
+        </div>
+        <div className="cz-atelier__stat">
+          <span className="cz-atelier__stat-label">Baths</span>
+          <span
+            className={`cz-atelier__stat-value${statBath ? "" : " cz-atelier__stat-value--placeholder"}`}
+          >
+            {statBath ?? "—"}
+          </span>
+        </div>
+        <div className="cz-atelier__stat">
+          <span className="cz-atelier__stat-label">Area</span>
+          <span
+            className={`cz-atelier__stat-value${statArea ? "" : " cz-atelier__stat-value--placeholder"}`}
+          >
+            {statArea ?? "—"}
+          </span>
+        </div>
+      </button>
+
+      {isFilled(form, "amenities") && (
+        <button
+          type="button"
+          className={`cz-atelier__amenities${flash("amenities")}`}
+          onClick={() => onJump(2)}
+        >
+          <span className="cz-atelier__amenities-count">+{form.amenities.length}</span>
+          handpicked amenit{form.amenities.length === 1 ? "y" : "ies"}
+        </button>
+      )}
+
+      {remaining.length > 0 ? (
+        <div className="cz-atelier__remaining">
+          <div className="cz-atelier__remaining-label">Still to capture</div>
+          <div className="cz-atelier__remaining-list">
+            {remaining.map((f, i) => (
+              <span
+                key={String(f.key)}
+                style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                <button
+                  type="button"
+                  className="cz-atelier__remaining-item"
+                  onClick={() => onJump(f.step)}
+                >
+                  {f.label}
+                </button>
+                {i < remaining.length - 1 && <span className="cz-atelier__remaining-sep">·</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="cz-atelier__remaining">
+          <div className="cz-atelier__remaining--done">
+            <em>Everything's in. Time to review.</em>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

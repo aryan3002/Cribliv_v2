@@ -54,13 +54,13 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              // Google Maps JS API loads scripts from maps.googleapis.com
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com",
+              // Google Maps JS API + PostHog SDK
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://*.posthog.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              // Allow API calls, Azure services, and Google Maps tiles + geocoding
-              `connect-src ${connectSrc} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com`,
+              // Allow API calls, Azure services, Google Maps, PostHog ingestion + replay
+              `connect-src ${connectSrc} https://maps.googleapis.com https://maps.gstatic.com https://*.googleapis.com https://*.posthog.com https://*.i.posthog.com`,
               "worker-src 'self' blob:",
               "media-src 'self' blob:",
               "frame-ancestors 'none'",

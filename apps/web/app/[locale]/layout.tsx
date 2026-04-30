@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Header } from "../../components/header";
 import { Footer } from "../../components/footer";
+import { PageviewTracker } from "../../components/analytics/pageview-tracker";
 import { isValidLocale } from "../../lib/i18n";
 import { notFound } from "next/navigation";
 
@@ -36,6 +38,9 @@ export default function LocaleLayout({
 
   return (
     <>
+      <Suspense fallback={null}>
+        <PageviewTracker locale={params.locale} />
+      </Suspense>
       <Header locale={params.locale} />
       <main id="main-content" className="page-content">
         {children}

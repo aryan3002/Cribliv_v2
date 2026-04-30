@@ -14,11 +14,13 @@
     "@cribliv/shared-types": "workspace:*",
     "@cribliv/ui": "workspace:*",
     "@googlemaps/js-api-loader": "^2.0.2",
+    "@hello-pangea/dnd": "^17.0.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.575.0",
     "next": "14.2.13",
     "next-auth": "5.0.0-beta.30",
+    "posthog-js": "^1.184.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "socket.io-client": "^4.8.3"

@@ -632,11 +632,12 @@ function mapLeadRow(row: Record<string, unknown>): LeadVm {
 
 export async function fetchOwnerLeads(
   accessToken: string,
-  opts?: { status?: LeadStatus; page?: number }
+  opts?: { status?: LeadStatus; page?: number; pageSize?: number }
 ): Promise<{ items: LeadVm[]; total: number; page: number; pageSize: number }> {
   const params = new URLSearchParams();
   if (opts?.status) params.set("status", opts.status);
   if (opts?.page) params.set("page", String(opts.page));
+  if (opts?.pageSize) params.set("page_size", String(opts.pageSize));
   const qs = params.toString();
   const result = await fetchApi<{
     items: Record<string, unknown>[];
