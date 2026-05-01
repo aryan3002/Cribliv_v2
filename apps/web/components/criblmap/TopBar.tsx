@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { Search, Map, List, ChevronDown } from "lucide-react";
@@ -205,7 +206,7 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
           <Map size={14} /> Map
         </span>
         <Link
-          href={`/${locale}/search${filterParams ? `?${filterParams}` : ""}`}
+          href={`/${locale}/search${filterParams ? `?${filterParams}` : ""}` as Route}
           className="cmap-view-toggle__btn"
         >
           <List size={14} /> List

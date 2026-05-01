@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { Route } from "next";
 import Link from "next/link";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
 import { SearchFilters } from "./search-filters";
@@ -246,7 +247,9 @@ export default async function SearchResultsPage({
               {response.total} result{response.total === 1 ? "" : "s"}
             </p>
             <Link
-              href={`/${params.locale}/map${Object.keys(filters).length ? `?${buildSearchQuery(filters)}` : ""}`}
+              href={
+                `/${params.locale}/map${Object.keys(filters).length ? `?${buildSearchQuery(filters)}` : ""}` as Route
+              }
               style={{
                 display: "inline-flex",
                 alignItems: "center",

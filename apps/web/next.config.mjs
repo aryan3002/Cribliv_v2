@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: {
+    // eslint-config-next@16 uses flat config internally, incompatible with ESLint v8 legacy config.
+    // Run linting separately via `pnpm lint`.
+    ignoreDuringBuilds: true,
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
