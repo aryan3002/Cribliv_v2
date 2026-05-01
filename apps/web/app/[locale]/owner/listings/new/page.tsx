@@ -57,15 +57,15 @@ function friendlyApiMessage(err: unknown): string {
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
-        return "Please fill the required fields before continuing.";
+        return "Couldn't save your draft right now — your progress is still here. Try submitting again at the end.";
       case 401:
         return "Your session has expired. Please log in again.";
       case 409:
         return "This listing already exists. Check your dashboard.";
       case 422:
-        return "Some fields are invalid. Please review and try again.";
+        return "Some details look off. Please review your entries and try again.";
       default:
-        return "Something went wrong. Please try again.";
+        return "Something went wrong saving your draft. Your progress is preserved — please try again.";
     }
   }
   if (err instanceof Error) return err.message;
@@ -447,13 +447,18 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     if (accessToken) {
       const shouldSave = listingId ? step >= 1 : step >= 3;
       if (shouldSave) {
-        const id = await saveDraft();
-        if (!id) return;
+        // Fire the draft save but don't block navigation on failure —
+        // the form data is preserved in session storage and the user
+        // can still submit at the end. A soft error banner is shown.
+        void saveDraft().then((id) => {
+          if (id) setListingId(id);
+        });
       }
     } else if (step === 0) {
       setAuthHint("You can keep filling the form. Login is needed to save and submit.");
     }
     setStep((s) => s + 1);
+    setError(null); // clear any stale banner from previous steps
   }
 
   function goBack() {
@@ -646,22 +651,16 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       <div className="cz-shell">
         <header className="cz-topbar cz-fade cz-fade--1">
           <div>
-            <div className="cz-eyebrow">CribLiv · Owner concierge</div>
-            <h1 className="cz-title">
-              {editId ? (
-                "Refining your listing"
-              ) : (
-                <>
-                  Let&apos;s list <em>your</em> place.
-                </>
-              )}
-            </h1>
+            <div className="cz-eyebrow">CribLiv · New listing</div>
+            <h1 className="cz-title">{editId ? "Refining your listing" : "Create your listing"}</h1>
             <p className="cz-subtitle">
               {voiceActive
-                ? "Maya is on the line — describe anything in any order, she will write it down."
-                : "Type, or tap Maya to talk — she fills the form as you speak."}
+                ? "Maya is listening — describe your property and she'll fill in the details."
+                : "Fill in the details below, or tap Maya to use voice input."}
             </p>
-            <p style={{ marginTop: 4, fontSize: 13, color: "var(--c-slate-soft)" }}>{headline}</p>
+            <p style={{ marginTop: 4, fontSize: 13, color: "var(--c-text-tertiary)" }}>
+              {headline}
+            </p>
           </div>
           {REALTIME_FLAG_ENABLED && userId ? (
             <button
@@ -680,8 +679,29 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </header>
 
         {error ? (
-          <div role="alert" className="cz-banner cz-banner--coral" style={{ gridColumn: "1 / -1" }}>
-            {error}
+          <div
+            role="alert"
+            className="cz-banner cz-banner--coral"
+            style={{ gridColumn: "1 / -1", justifyContent: "space-between", alignItems: "center" }}
+          >
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              aria-label="Dismiss"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "inherit",
+                fontSize: 18,
+                lineHeight: 1,
+                padding: "0 0 0 12px",
+                opacity: 0.7
+              }}
+            >
+              ×
+            </button>
           </div>
         ) : null}
         {authHint ? (

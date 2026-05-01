@@ -20,11 +20,9 @@ export function BasicsStep({ form, errors, updateField, aiFillingFields }: Props
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
-      <div className="cz-card__eyebrow">I · The Basics</div>
-      <h2 className="cz-card__title">Let&apos;s start with the bones.</h2>
-      <p className="cz-card__intent">
-        What kind of place are we listing, and what does it cost the tenant each month?
-      </p>
+      <div className="cz-card__eyebrow">Step 1</div>
+      <h2 className="cz-card__title">Property basics</h2>
+      <p className="cz-card__intent">What type of property is this and how much does it cost?</p>
 
       <div className="cz-row">
         <div className="cz-field">

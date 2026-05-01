@@ -20,11 +20,9 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
-      <div className="cz-card__eyebrow">II · Where it sits</div>
-      <h2 className="cz-card__title">A neighbourhood is half the story.</h2>
-      <p className="cz-card__intent">
-        Anchor the listing somewhere a tenant can picture themselves arriving at.
-      </p>
+      <div className="cz-card__eyebrow">Step 2</div>
+      <h2 className="cz-card__title">Property location</h2>
+      <p className="cz-card__intent">Where is the property located? Help tenants find it easily.</p>
 
       <div className="cz-row">
         <div className="cz-field">

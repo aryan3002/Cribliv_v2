@@ -15,7 +15,18 @@ export class DatabaseService implements OnModuleDestroy {
     }
 
     if (connectionString) {
-      this.pool = new Pool({ connectionString });
+      this.pool = new Pool({
+        connectionString,
+        // Fail fast when the DB host is unreachable (e.g. firewall, VPN off).
+        // Without this, a blocked connection hangs the request until the OS
+        // TCP timeout fires — often 60+ seconds.
+        connectionTimeoutMillis: 5_000,
+        // Kill any query that takes longer than 8 s at the server level.
+        query_timeout: 8_000,
+        // Keep the pool small during development to surface issues quickly.
+        max: 10,
+        idleTimeoutMillis: 30_000
+      });
     }
   }
 

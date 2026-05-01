@@ -17,26 +17,20 @@ import type { WizardForm } from "./types";
 import { VoiceOrb } from "./VoiceOrb";
 
 /* ──────────────────────────────────────────────────────────────────────
- * VoiceCoPilot
+ * VoiceCoPilot — compact concierge panel
  *
- * The always-visible right-column panel (desktop) / bottom-drawer
- * (mobile) that hosts Maya. It owns the RealtimeClient lifecycle and
- * surfaces three things to the rest of the page via callbacks:
+ * The right-column panel (desktop) / bottom drawer (mobile) that hosts
+ * Maya. It owns the RealtimeClient lifecycle and surfaces:
+ *   1. onFormApply(nextForm, animatedFields) — page swaps WizardForm
+ *      and animates the named fields.
+ *   2. onNavigate(step)                      — jump wizard step.
+ *   3. onUiAction(action)                    — generate_title, etc.
  *
- *   1. onFormApply(nextForm, animatedFields)  — every time Maya
- *      updates fields. The page swaps its WizardForm and animates
- *      the named fields.
- *   2. onNavigate(step) — when Maya wants to move the wizard forward
- *      or back.
- *   3. onUiAction(action) — special events ("generate_title",
- *      "request_review", "summarize") so the page can hook in the
- *      existing AI title generator etc.
- *
- * The panel renders (and stays alive) regardless of voice state. The
- * orb / mic button toggles the live session.
+ * The conversation surface is a *capture feed* derived from the
+ * fieldsAnimated returned by every tool dispatch — never raw ASR text.
+ * That keeps the UI honest even when transcription mishears.
  * ──────────────────────────────────────────────────────────────────── */
 
-/* ─── Human labels (no field keys ever shown to the user) ───────────── */
 const ATELIER_FIELDS: { key: keyof WizardForm; label: string; step: number }[] = [
   { key: "listing_type", label: "Property type", step: 0 },
   { key: "monthly_rent", label: "Monthly rent", step: 0 },
@@ -50,6 +44,8 @@ const ATELIER_FIELDS: { key: keyof WizardForm; label: string; step: number }[] =
   { key: "amenities", label: "Amenities", step: 2 },
   { key: "title", label: "Listing title", step: 3 }
 ];
+
+const FIELD_BY_KEY = new Map(ATELIER_FIELDS.map((f) => [String(f.key), f]));
 
 function isFilled(form: WizardForm, key: keyof WizardForm): boolean {
   const value = form[key];
@@ -69,6 +65,100 @@ function titleCase(s: string): string {
     .split(/\s+/)
     .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""))
     .join(" ");
+}
+
+function furnishingLabel(value: string): string {
+  switch (value) {
+    case "unfurnished":
+      return "Unfurnished";
+    case "semi_furnished":
+      return "Semi-furnished";
+    case "fully_furnished":
+      return "Fully furnished";
+    default:
+      return titleCase(value.replace(/_/g, " "));
+  }
+}
+
+interface CaptureEntry {
+  id: string;
+  field: string; // keyof WizardForm as string — used for de-dupe
+  label: string; // human label shown on the row
+  value: string; // human value shown on the row
+  step: number; // wizard step to jump to
+  ts: number;
+}
+
+/** Build a feed entry from a current form + a field key that just changed. */
+function entryFor(field: keyof WizardForm, form: WizardForm): CaptureEntry | null {
+  const meta = FIELD_BY_KEY.get(String(field));
+  if (!meta) return null;
+  if (!isFilled(form, field)) return null;
+
+  let label = meta.label;
+  let value = "";
+
+  switch (field) {
+    case "listing_type":
+      label = "Property";
+      value = form.listing_type === "pg" ? "PG" : "Flat / House";
+      break;
+    case "monthly_rent":
+      label = "Rent";
+      value = `${formatINR(form.monthly_rent)} / mo`;
+      break;
+    case "deposit":
+      label = "Deposit";
+      value = formatINR(form.deposit);
+      break;
+    case "furnishing":
+      label = "Furnishing";
+      value = furnishingLabel(form.furnishing);
+      break;
+    case "city":
+      label = "City";
+      value = titleCase(form.city);
+      break;
+    case "locality":
+      label = "Neighborhood";
+      value = titleCase(form.locality);
+      break;
+    case "bedrooms":
+      label = "Bedrooms";
+      value = form.listing_type === "pg" ? `${form.bedrooms}` : `${form.bedrooms} BHK`;
+      break;
+    case "bathrooms": {
+      const n = Number(form.bathrooms);
+      label = "Bathrooms";
+      value = `${form.bathrooms} bath${n === 1 ? "" : "s"}`;
+      break;
+    }
+    case "area_sqft":
+      label = "Area";
+      value = `${form.area_sqft} sqft`;
+      break;
+    case "amenities": {
+      const c = form.amenities.length;
+      label = "Amenities";
+      value = `${c} selected`;
+      break;
+    }
+    case "title":
+      label = "Title";
+      value = form.title.length > 32 ? `${form.title.slice(0, 30)}…` : form.title;
+      break;
+    default:
+      return null;
+  }
+
+  return {
+    id: `${String(field)}-${Date.now()}`,
+    field: String(field),
+    label,
+    value,
+    step: meta.step,
+    ts: Date.now()
+  };
 }
 
 interface VoiceCoPilotProps {
@@ -108,13 +198,13 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
   const [agentState, setAgentState] = useState<RealtimeAgentState>("idle");
   const [userLevel, setUserLevel] = useState(0);
   const [assistantLevel, setAssistantLevel] = useState(0);
-  const [assistantText, setAssistantText] = useState("");
-  const [userText, setUserText] = useState("");
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [showTextFallback, setShowTextFallback] = useState(false);
   const [drawerCollapsed, setDrawerCollapsed] = useState(false);
   const [supported, setSupported] = useState(true);
+  const [captureLog, setCaptureLog] = useState<CaptureEntry[]>([]);
+  const [pulseField, setPulseField] = useState<string | null>(null);
 
   useEffect(() => {
     setSupported(isRealtimeSupported());
@@ -129,8 +219,8 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
   const onFormApplyRef = useRef(onFormApply);
   const onNavigateRef = useRef(onNavigate);
   const onUiActionRef = useRef(onUiAction);
-  // Tracks the latest user voice transcript so onToolCall closures can
-  // cross-reference money values against what the owner actually said.
+  // Tracks the latest user voice transcript so guardMoneyValue can compare
+  // numbers — kept as a ref only, never rendered (transcription is unreliable).
   const userTextRef = useRef("");
   formRef.current = form;
   stepRef.current = step;
@@ -169,12 +259,11 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
           else setAssistantLevel(rms);
         },
         onTranscript: (role, text, _isFinal) => {
-          if (role === "assistant") {
-            setAssistantText(text);
-          } else {
-            setUserText(text);
+          if (role === "user") {
             userTextRef.current = text;
           }
+          // Assistant transcripts are intentionally not surfaced — the
+          // capture feed shows what Maya actually did, not what she said.
         },
         onToolCall: (name, args, callId) => {
           const result = dispatchToolCall(name, args, formRef.current, userTextRef.current);
@@ -183,6 +272,16 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
             return;
           }
           onFormApplyRef.current(result.nextForm, result.fieldsAnimated, result.nextStep);
+
+          // The capture log itself is recomputed by the form-watching effect
+          // below — here we only flag the most-recently-touched field so its
+          // row gets the pulse animation.
+          if (result.fieldsAnimated.length > 0) {
+            const last = result.fieldsAnimated[result.fieldsAnimated.length - 1];
+            setPulseField(String(last));
+            setTimeout(() => setPulseField(null), 1400);
+          }
+
           if (result.nextStep != null && result.nextStep !== stepRef.current) {
             onNavigateRef.current(result.nextStep, result.toast);
           }
@@ -203,8 +302,6 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
       setAgentState("idle");
       setUserLevel(0);
       setAssistantLevel(0);
-      setUserText("");
-      setAssistantText("");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voiceActive, accessToken]);
@@ -218,9 +315,54 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, step]);
 
-  /* ── Caption helpers — choose what to show ──────────────────────── */
-  const showAssistant = assistantText.length > 0;
-  const showUser = userText.length > 0;
+  /* ── Re-derive the capture log from the live form on every change ──
+   * Manual edits (typing in inputs, toggling chips) and tool-driven edits
+   * both flow through the same WizardForm. We rebuild the log here so the
+   * displayed value always matches the current field value (e.g. while
+   * typing "30000" the row updates from ₹3 → ₹30 → ₹300 → ₹30,000 instead
+   * of freezing at the first keystroke). Order is preserved across rebuilds
+   * so existing rows stay put — only newly-filled fields get appended.
+   */
+  useEffect(() => {
+    setCaptureLog((prev) => {
+      const order: string[] = [];
+      // Existing rows that are still filled keep their position.
+      for (const e of prev) {
+        if (isFilled(form, e.field as keyof WizardForm) && !order.includes(e.field)) {
+          order.push(e.field);
+        }
+      }
+      // Newly-filled fields land at the end, in canonical order.
+      for (const f of ATELIER_FIELDS) {
+        if (isFilled(form, f.key) && !order.includes(String(f.key))) {
+          order.push(String(f.key));
+        }
+      }
+      const prevById = new Map(prev.map((e) => [e.field, e]));
+      const next: CaptureEntry[] = [];
+      for (const k of order) {
+        const fresh = entryFor(k as keyof WizardForm, form);
+        if (!fresh) continue;
+        const existing = prevById.get(k);
+        next.push(
+          existing
+            ? { ...existing, label: fresh.label, value: fresh.value, step: fresh.step }
+            : fresh
+        );
+      }
+      // Avoid an unnecessary state replacement if nothing actually changed —
+      // keeps React from re-rendering the feed each keystroke when only an
+      // unrelated field updated.
+      if (
+        next.length === prev.length &&
+        next.every((e, i) => e.value === prev[i].value && e.field === prev[i].field)
+      ) {
+        return prev;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
 
   /* ── Mic toggle ─────────────────────────────────────────────────── */
   function handleMicClick() {
@@ -238,19 +380,16 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
     if (voiceActive) {
       clientRef.current?.sendText(trimmed);
     } else {
-      // If voice isn't on, kicking off a session is the simplest path —
-      // user can also just type once it's live.
       onToggleVoice(true);
       setTimeout(() => clientRef.current?.sendText(trimmed), 1200);
     }
-    setUserText(trimmed);
     setTextInput("");
   }
 
   const cueLabel = (() => {
     switch (agentState) {
       case "idle":
-        return voiceActive ? "starting up" : "ready when you are";
+        return voiceActive ? "starting up" : "ready";
       case "connecting":
         return "connecting";
       case "listening":
@@ -260,6 +399,27 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
       case "speaking":
         return "speaking";
       case "ended":
+        return "ended";
+      case "error":
+        return "error";
+      default:
+        return "";
+    }
+  })();
+
+  const heroLine = (() => {
+    switch (agentState) {
+      case "idle":
+        return voiceActive ? "starting up…" : "tap the orb when you're ready";
+      case "connecting":
+        return "connecting to Maya…";
+      case "listening":
+        return "I'm listening — speak naturally";
+      case "thinking":
+        return "thinking it through…";
+      case "speaking":
+        return "Maya is talking";
+      case "ended":
         return "session ended";
       case "error":
         return "something went wrong";
@@ -267,6 +427,12 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
         return "";
     }
   })();
+
+  const filledCount = useMemo(() => {
+    let n = 0;
+    for (const f of ATELIER_FIELDS) if (isFilled(form, f.key)) n++;
+    return n;
+  }, [form]);
 
   return (
     <aside
@@ -280,47 +446,63 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
         aria-label="Toggle drawer"
         onClick={() => setDrawerCollapsed((v) => !v)}
       />
-      <div className="cz-copilot__head">
-        <div className="cz-copilot__masthead">
-          <div className="cz-copilot__name">Maya</div>
-          <div className="cz-copilot__role">your listing concierge</div>
+
+      {/* ── Crest: Maya + status pill ─────────────────────────────── */}
+      <header className="cz-crest">
+        <div className="cz-crest__title">
+          <div className="cz-crest__name">Maya</div>
+          <div className="cz-crest__role">your listing concierge</div>
         </div>
-        <div className="cz-copilot__cue" data-state={agentState} aria-live="polite">
+        <div className="cz-crest__pill" data-state={agentState} aria-live="polite">
+          <span className="cz-crest__dot" aria-hidden="true" />
           {cueLabel}
         </div>
-      </div>
+      </header>
 
       {!supported ? (
         <div className="cz-error-banner">
-          Voice concierge needs a recent Chrome, Safari, or Edge with mic permission. The form works
-          without voice — fill it manually and Maya will join when supported.
+          Voice concierge needs Chrome, Safari, or Edge with mic permission. The form still works
+          manually — Maya will join when supported.
         </div>
       ) : null}
       {errorBanner ? <div className="cz-error-banner">{errorBanner}</div> : null}
 
-      <div className="cz-orb-stage">
-        <VoiceOrb
-          state={agentState}
-          userLevel={userLevel}
-          assistantLevel={assistantLevel}
-          onClick={handleMicClick}
-        />
+      {/* ── Hero: smaller orb + single status line ─────────────────── */}
+      <div className="cz-hero">
+        <div className="cz-hero__stage">
+          <VoiceOrb
+            state={agentState}
+            userLevel={userLevel}
+            assistantLevel={assistantLevel}
+            onClick={handleMicClick}
+            size={120}
+          />
+        </div>
+        <div className="cz-hero__line" aria-live="polite">
+          {heroLine}
+        </div>
       </div>
 
-      <div className="cz-cap-stack">
-        <CaptionBlock
-          role="assistant"
-          text={assistantText}
-          show={showAssistant}
-          state={agentState}
-        />
-        <div className="cz-cap-rule" aria-hidden="true" />
-        <CaptionBlock role="user" text={userText} show={showUser} state={agentState} />
-      </div>
+      {/* ── Capture feed: what Maya actually filled in ─────────────── */}
+      <CaptureFeed
+        entries={captureLog}
+        form={form}
+        filledCount={filledCount}
+        totalCount={ATELIER_FIELDS.length}
+        pulseField={pulseField}
+        onJump={onChipJump}
+      />
 
-      <AtelierPreview form={form} onJump={onChipJump} />
+      {/* ── Progress crest: 11 segments ────────────────────────────── */}
+      <ProgressCrest
+        form={form}
+        total={ATELIER_FIELDS.length}
+        filled={filledCount}
+        pulseField={pulseField}
+      />
 
-      <div className="cz-copilot__actions">
+      {/* ── Action: mic + typing fallback ──────────────────────────── */}
+      <div className="cz-action">
         <button
           type="button"
           className="cz-mic-btn"
@@ -366,241 +548,127 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
   );
 }
 
-interface CaptionBlockProps {
-  role: RealtimeRole;
-  text: string;
-  show: boolean;
-  state: RealtimeAgentState;
+/* ════════════════════════════════════════════════════════════════════
+ *  CaptureFeed — what Maya has captured so far
+ * ════════════════════════════════════════════════════════════════════ */
+
+interface CaptureFeedProps {
+  entries: CaptureEntry[];
+  form: WizardForm;
+  filledCount: number;
+  totalCount: number;
+  pulseField: string | null;
+  onJump: (step: number) => void;
 }
-function CaptionBlock({ role, text, show, state }: CaptionBlockProps) {
-  const empty = !show;
-  const placeholder =
-    role === "assistant"
-      ? state === "speaking"
-        ? "…"
-        : state === "thinking"
-          ? "Thinking it through…"
-          : "Maya is ready when you are."
-      : "Your words will appear here, in your voice.";
+
+function CaptureFeed({
+  entries,
+  filledCount,
+  totalCount,
+  pulseField,
+  form,
+  onJump
+}: CaptureFeedProps) {
+  // Show the most recent 4 captured entries (newest at the bottom).
+  const visible = entries.slice(-4);
+
+  // Pending = ATELIER_FIELDS not yet filled, in declaration order.
+  const pending = useMemo(() => ATELIER_FIELDS.filter((f) => !isFilled(form, f.key)), [form]);
+
+  const isEmpty = entries.length === 0;
 
   return (
-    <div
-      className={`cz-cap cz-cap--${role}${empty ? " cz-cap--empty" : ""}`}
-      aria-live={role === "assistant" ? "polite" : "off"}
-    >
-      <div className="cz-cap__role">{role === "assistant" ? "Maya" : "You"}</div>
-      <div className="cz-cap__body">{empty ? placeholder : text}</div>
-    </div>
+    <section className="cz-feed" aria-label="Captured listing details">
+      <div className="cz-feed__head">
+        <span className="cz-feed__eyebrow">What we've captured</span>
+        <span className="cz-feed__count">
+          <strong>{filledCount}</strong>
+          <span> / {totalCount}</span>
+        </span>
+      </div>
+
+      {isEmpty ? (
+        <div className="cz-feed__empty">
+          Tap the orb and start talking. As Maya catches each detail it lands here — no typos, even
+          if she mishears the words.
+        </div>
+      ) : (
+        <ul className="cz-feed__list">
+          {visible.map((e) => {
+            const pulsing = pulseField === e.field;
+            return (
+              <li key={e.field} className={`cz-feed__row${pulsing ? " cz-feed__row--pulse" : ""}`}>
+                <button
+                  type="button"
+                  onClick={() => onJump(e.step)}
+                  className="cz-feed__btn"
+                  aria-label={`Edit ${e.label}`}
+                >
+                  <span className="cz-feed__dot" aria-hidden="true" />
+                  <span className="cz-feed__label">{e.label}</span>
+                  <span className="cz-feed__value">{e.value}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {pending.length > 0 ? (
+        <button
+          type="button"
+          className="cz-feed__pending"
+          onClick={() => onJump(pending[0].step)}
+          aria-label={`Next up: ${pending[0].label}`}
+        >
+          <span className="cz-feed__pending-label">next</span>
+          <span className="cz-feed__pending-value">
+            {pending
+              .slice(0, 3)
+              .map((p) => p.label.toLowerCase())
+              .join(" · ")}
+            {pending.length > 3 ? " · …" : ""}
+          </span>
+        </button>
+      ) : (
+        <div className="cz-feed__done">Everything's in. Time to review.</div>
+      )}
+    </section>
   );
 }
 
 /* ════════════════════════════════════════════════════════════════════
- *  AtelierPreview — the listing taking shape
- *
- *  A miniature of the listing card the owner will publish. As Maya
- *  captures facts, they materialize *into* this card with a gold-leaf
- *  shimmer (reusing cz-glow). No field keys are ever shown — every
- *  label is human English. Click any region to jump back to that step
- *  and edit it.
+ *  ProgressCrest — 11 segments showing capture progress
  * ════════════════════════════════════════════════════════════════════ */
 
-interface AtelierPreviewProps {
+interface ProgressCrestProps {
   form: WizardForm;
-  onJump: (step: number) => void;
+  total: number;
+  filled: number;
+  pulseField: string | null;
 }
 
-function AtelierPreview({ form, onJump }: AtelierPreviewProps) {
-  // Track which fields just transitioned from empty → filled, so we can
-  // briefly attach the cz-fill class to the corresponding region.
-  const prevFilledRef = useRef<Set<string>>(new Set());
-  const [recentlyFilled, setRecentlyFilled] = useState<Set<string>>(new Set());
-
-  const filledNow = useMemo(() => {
-    const set = new Set<string>();
-    for (const f of ATELIER_FIELDS) if (isFilled(form, f.key)) set.add(String(f.key));
-    return set;
-  }, [form]);
-
-  useEffect(() => {
-    const prev = prevFilledRef.current;
-    const newlyFilled = new Set<string>();
-    for (const k of filledNow) if (!prev.has(k)) newlyFilled.add(k);
-    if (newlyFilled.size > 0) {
-      setRecentlyFilled(newlyFilled);
-      const t = setTimeout(() => setRecentlyFilled(new Set()), 1400);
-      prevFilledRef.current = filledNow;
-      return () => clearTimeout(t);
-    }
-    prevFilledRef.current = filledNow;
-    return undefined;
-  }, [filledNow]);
-
-  const filledCount = filledNow.size;
-  const totalCount = ATELIER_FIELDS.length;
-  const remaining = ATELIER_FIELDS.filter((f) => !filledNow.has(String(f.key)));
-
-  const flash = (k: keyof WizardForm) => (recentlyFilled.has(String(k)) ? " cz-fill" : "");
-  const flashAny = (...keys: (keyof WizardForm)[]) =>
-    keys.some((k) => recentlyFilled.has(String(k))) ? " cz-fill" : "";
-
-  // ── Title block ──────────────────────────────────────────────────
-  const hasTitle = isFilled(form, "title");
-
-  // ── Location line ────────────────────────────────────────────────
-  const locParts: string[] = [];
-  if (form.listing_type === "pg") locParts.push("PG");
-  else locParts.push("Flat");
-  if (isFilled(form, "locality")) locParts.push(titleCase(form.locality));
-  if (isFilled(form, "city")) locParts.push(titleCase(form.city));
-  const hasLocation = isFilled(form, "city") || isFilled(form, "locality");
-
-  // ── Stats trio ───────────────────────────────────────────────────
-  const isPg = form.listing_type === "pg";
-  const statBhk = isPg
-    ? isFilled(form, "beds")
-      ? `${form.beds} beds`
-      : null
-    : isFilled(form, "bedrooms")
-      ? `${form.bedrooms} BHK`
-      : null;
-  const statBath = isFilled(form, "bathrooms")
-    ? `${form.bathrooms} bath${Number(form.bathrooms) === 1 ? "" : "s"}`
-    : null;
-  const statArea = isFilled(form, "area_sqft") ? `${form.area_sqft} sqft` : null;
-
+function ProgressCrest({ form, total, filled, pulseField }: ProgressCrestProps) {
   return (
-    <section className="cz-atelier" aria-label="Your listing taking shape">
-      <div className="cz-atelier__top">
-        <div className="cz-atelier__eyebrow">Your listing — taking shape</div>
-        <div className="cz-atelier__count" aria-label={`${filledCount} of ${totalCount} captured`}>
-          <strong>{filledCount}</strong>
-          <span> of {totalCount}</span>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        className={`cz-atelier__loc${hasLocation ? "" : " cz-atelier__loc--empty"}${flashAny("city", "locality", "listing_type")}`}
-        onClick={() => onJump(hasLocation ? 1 : 1)}
-      >
-        {hasLocation ? (
-          <>
-            <span>{locParts[0]}</span>
-            {locParts.length > 1 && <span className="cz-atelier__loc-dot" />}
-            <span>{locParts.slice(1).join(", ")}</span>
-          </>
-        ) : (
-          <span>A new home, somewhere wonderful…</span>
-        )}
-      </button>
-
-      <button
-        type="button"
-        className={`cz-atelier__title-btn${flash("title")}`}
-        onClick={() => onJump(3)}
-        aria-label="Edit title"
-      >
-        <h3 className={`cz-atelier__title${hasTitle ? "" : " cz-atelier__title--placeholder"}`}>
-          {hasTitle ? form.title : "Untitled draft"}
-        </h3>
-      </button>
-
-      <button
-        type="button"
-        className={`cz-atelier__price-btn${flashAny("monthly_rent", "deposit")}`}
-        onClick={() => onJump(0)}
-        aria-label="Edit rent and deposit"
-      >
-        {isFilled(form, "monthly_rent") ? (
-          <span className="cz-atelier__rent">
-            {formatINR(form.monthly_rent)}
-            <small> /month</small>
-          </span>
-        ) : (
-          <span className="cz-atelier__rent cz-atelier__rent--placeholder">Rent — to be set</span>
-        )}
-        {isFilled(form, "deposit") && (
-          <span className="cz-atelier__deposit">
-            {formatINR(form.deposit)}
-            <em>deposit</em>
-          </span>
-        )}
-      </button>
-
-      <div className="cz-atelier__rule" aria-hidden="true" />
-
-      <button
-        type="button"
-        className={`cz-atelier__stats${flashAny("bedrooms", "beds", "bathrooms", "area_sqft")}`}
-        onClick={() => onJump(2)}
-        disabled={!statBhk && !statBath && !statArea}
-        aria-label="Edit property details"
-      >
-        <div className="cz-atelier__stat">
-          <span className="cz-atelier__stat-label">{isPg ? "Beds" : "BHK"}</span>
+    <div
+      className="cz-segments"
+      role="progressbar"
+      aria-valuenow={filled}
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-label={`${filled} of ${total} captured`}
+    >
+      {ATELIER_FIELDS.map((f) => {
+        const on = isFilled(form, f.key);
+        const pulsing = pulseField === String(f.key);
+        return (
           <span
-            className={`cz-atelier__stat-value${statBhk ? "" : " cz-atelier__stat-value--placeholder"}`}
-          >
-            {statBhk ?? "—"}
-          </span>
-        </div>
-        <div className="cz-atelier__stat">
-          <span className="cz-atelier__stat-label">Baths</span>
-          <span
-            className={`cz-atelier__stat-value${statBath ? "" : " cz-atelier__stat-value--placeholder"}`}
-          >
-            {statBath ?? "—"}
-          </span>
-        </div>
-        <div className="cz-atelier__stat">
-          <span className="cz-atelier__stat-label">Area</span>
-          <span
-            className={`cz-atelier__stat-value${statArea ? "" : " cz-atelier__stat-value--placeholder"}`}
-          >
-            {statArea ?? "—"}
-          </span>
-        </div>
-      </button>
-
-      {isFilled(form, "amenities") && (
-        <button
-          type="button"
-          className={`cz-atelier__amenities${flash("amenities")}`}
-          onClick={() => onJump(2)}
-        >
-          <span className="cz-atelier__amenities-count">+{form.amenities.length}</span>
-          handpicked amenit{form.amenities.length === 1 ? "y" : "ies"}
-        </button>
-      )}
-
-      {remaining.length > 0 ? (
-        <div className="cz-atelier__remaining">
-          <div className="cz-atelier__remaining-label">Still to capture</div>
-          <div className="cz-atelier__remaining-list">
-            {remaining.map((f, i) => (
-              <span
-                key={String(f.key)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
-              >
-                <button
-                  type="button"
-                  className="cz-atelier__remaining-item"
-                  onClick={() => onJump(f.step)}
-                >
-                  {f.label}
-                </button>
-                {i < remaining.length - 1 && <span className="cz-atelier__remaining-sep">·</span>}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="cz-atelier__remaining">
-          <div className="cz-atelier__remaining--done">
-            <em>Everything's in. Time to review.</em>
-          </div>
-        </div>
-      )}
-    </section>
+            key={String(f.key)}
+            className={`cz-segment${on ? " cz-segment--on" : ""}${pulsing ? " cz-segment--pulse" : ""}`}
+            aria-hidden="true"
+          />
+        );
+      })}
+    </div>
   );
 }

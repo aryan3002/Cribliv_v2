@@ -9,6 +9,13 @@
       "autoPort": false
     },
     {
+      "name": "Web (Next.js, alt port)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@cribliv/web", "exec", "next", "dev", "-p", "3100"],
+      "port": 3100,
+      "autoPort": false
+    },
+    {
       "name": "API (NestJS)",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@cribliv/api", "dev"],

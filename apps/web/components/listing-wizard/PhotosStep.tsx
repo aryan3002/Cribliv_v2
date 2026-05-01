@@ -16,11 +16,11 @@ export function PhotosStep({ uploads, saving, onFilesSelected, onUploadAll, onRe
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
-      <div className="cz-card__eyebrow">V · The pictures</div>
-      <h2 className="cz-card__title">A few honest photos.</h2>
+      <div className="cz-card__eyebrow">Step 5</div>
+      <h2 className="cz-card__title">Add photos</h2>
       <p className="cz-card__intent">
-        Three or four is plenty — natural light, the living room, a clean kitchen, and the view if
-        you have one.
+        Upload high-quality photos of your property. Well-lit photos of living spaces, bedrooms, and
+        kitchen attract more tenants.
       </p>
 
       <button

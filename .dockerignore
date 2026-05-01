@@ -1,0 +1,34 @@
+# Git history
+.git
+
+# Node modules — Docker installs its own
+**/node_modules
+
+# Build artefacts — Docker rebuilds these
+**/dist
+**/.next
+
+# Secrets — never bake into the image
+.env
+.env.*
+!.env.example
+
+# Web app source — only package.json needed for workspace resolution
+apps/web/**
+!apps/web/package.json
+
+# Non-API packages — exclude source, keep manifests for workspace resolution
+packages/config/**
+!packages/config/package.json
+packages/ui/**
+!packages/ui/package.json
+
+# Infra scripts — not part of the runtime image
+infra/
+
+# Tooling and caches
+.turbo
+.github
+.husky
+.vscode
+*.local

@@ -17,10 +17,10 @@ export function ReviewStep({ form, uploads, pgPath }: Props) {
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
-      <div className="cz-card__eyebrow">VI · One last look</div>
-      <h2 className="cz-card__title">A printed property card.</h2>
+      <div className="cz-card__eyebrow">Step 6</div>
+      <h2 className="cz-card__title">Review your listing</h2>
       <p className="cz-card__intent">
-        This is what tenants will see at a glance. If anything reads off, jump back and tweak.
+        Here's how your listing will appear to tenants. Go back to any step to make changes.
       </p>
 
       <article className="cz-review">
@@ -35,12 +35,11 @@ export function ReviewStep({ form, uploads, pgPath }: Props) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--c-slate-soft)",
-                fontStyle: "italic",
-                fontFamily: "var(--c-display)"
+                color: "var(--c-text-tertiary)",
+                fontFamily: "var(--c-heading)"
               }}
             >
-              No photos yet — your hero shot will land here.
+              No photos yet — your cover image will appear here.
             </div>
           )}
         </div>

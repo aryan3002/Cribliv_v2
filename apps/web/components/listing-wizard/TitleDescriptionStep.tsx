@@ -94,16 +94,16 @@ export function TitleDescriptionStep({
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
-      <div className="cz-card__eyebrow">IV · How you&apos;d describe it</div>
-      <h2 className="cz-card__title">A title that fits like a poem.</h2>
+      <div className="cz-card__eyebrow">Step 4</div>
+      <h2 className="cz-card__title">Title & description</h2>
       <p className="cz-card__intent">
-        Use what we&apos;ve gathered to draft something honest and inviting — then make it yours.
+        Create a compelling title and description, or let AI generate one for you.
       </p>
 
       <div style={{ marginBottom: 22 }}>
         <button
           type="button"
-          className="cz-btn cz-btn--gold"
+          className="cz-btn cz-btn--primary"
           onClick={handleGenerate}
           disabled={generating || !hasEnoughInfo}
         >

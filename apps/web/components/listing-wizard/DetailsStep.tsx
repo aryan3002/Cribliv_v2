@@ -31,12 +31,12 @@ export function DetailsStep({
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
-      <div className="cz-card__eyebrow">III · The character</div>
-      <h2 className="cz-card__title">Tell me what makes it livable.</h2>
+      <div className="cz-card__eyebrow">Step 3</div>
+      <h2 className="cz-card__title">Property details</h2>
       <p className="cz-card__intent">
         {isPg
-          ? "How big is the PG, how do you share rooms, what comes with it?"
-          : "How many rooms, how big, who lives best in it?"}
+          ? "Share your PG's room configuration, sharing options, and included amenities."
+          : "Add room configuration, area, and amenities to attract the right tenants."}
       </p>
 
       {isPg ? (
