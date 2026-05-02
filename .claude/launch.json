@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "Web (Next.js, prod build)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@cribliv/web", "exec", "next", "start", "-p", "50737"],
+      "port": 50737,
+      "autoPort": false
+    },
+    {
       "name": "Web (Next.js)",
       "runtimeExecutable": "/Users/aryantripathi/Developer/Cribliv_v2/.claude/run-web.sh",
       "runtimeArgs": [],

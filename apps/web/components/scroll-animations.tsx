@@ -18,19 +18,25 @@ export function AnimateOnScroll({
   threshold?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+  // Default to visible so SSR + first paint show content immediately and
+  // count toward LCP. We only flip to hidden-then-animate AFTER mount
+  // for elements that are still below the fold — and only if the user
+  // hasn't asked for reduced motion.
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    // Immediately reveal if already in viewport (handles direct navigation / programmatic scroll)
-    const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight && rect.bottom > 0) {
-      setVisible(true);
-      return;
-    }
+    // Respect reduced-motion: leave content visible, no animation.
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
 
+    const rect = el.getBoundingClientRect();
+    // Above the fold? Already visible — no animation needed, no CLS.
+    if (rect.top < window.innerHeight && rect.bottom > 0) return;
+
+    // Below the fold — hide now, animate in on intersect.
+    setVisible(false);
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
