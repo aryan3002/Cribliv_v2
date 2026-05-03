@@ -1,10 +1,9 @@
-import type { Metadata } from "next";
-import { LeadsClient } from "../../../../components/owner/leads-client";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Leads Pipeline"
-};
+interface PageProps {
+  params: { locale: string };
+}
 
-export default function OwnerLeadsPage({ params }: { params: { locale: string } }) {
-  return <LeadsClient locale={params.locale} />;
+export default function OwnerLeadsPage({ params }: PageProps) {
+  redirect(`/${params.locale}/owner/dashboard?tab=leads`);
 }

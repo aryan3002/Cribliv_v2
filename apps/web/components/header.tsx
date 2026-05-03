@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Search, Heart, Globe, Plus } from "lucide-react";
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { HeaderMenu } from "./header-menu";
+import { BrandLockup } from "./brand/brand-lockup";
 
 export function Header({ locale }: { locale: Locale }) {
   const [scrolled, setScrolled] = useState(false);
@@ -31,15 +31,7 @@ export function Header({ locale }: { locale: Locale }) {
       <div className="container nav-row">
         {/* ── Left: Logo ───────────────────────────────────────────── */}
         <Link href={`/${locale}`} className="logo" aria-label="Cribliv Home">
-          <Image src="/cribliv.png" alt="" width={28} height={25} priority className="logo-img" />
-          <Image
-            src="/criblivFont.png"
-            alt="Cribliv"
-            width={72}
-            height={24}
-            priority
-            className="logo-font"
-          />
+          <BrandLockup size="md" priority />
         </Link>
 
         {/* ── Center: Primary nav (desktop only) ──────────────────── */}

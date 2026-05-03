@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import { DashboardClient } from "../../../../components/owner/dashboard-client";
 
 export const metadata: Metadata = {
-  title: "Your Listings"
+  title: "Owner workspace · Cribliv"
 };
 
-export default function OwnerDashboardPage({ params }: { params: { locale: string } }) {
-  return <DashboardClient locale={params.locale} />;
+interface PageProps {
+  params: { locale: string };
+  searchParams?: { tab?: string };
+}
+
+export default function OwnerDashboardPage({ params, searchParams }: PageProps) {
+  const initialTab = searchParams?.tab === "leads" ? "leads" : "listings";
+  return <DashboardClient locale={params.locale} initialTab={initialTab} />;
 }

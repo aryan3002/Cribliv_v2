@@ -13,6 +13,8 @@ export interface OwnerListingVm {
   status: ListingStatus;
   verificationStatus: VerificationStatus;
   createdAt?: string;
+  coverImage?: string;
+  photos?: string[];
 }
 
 export interface OwnerListingDraftInput {
@@ -125,6 +127,38 @@ interface OwnerListingApiRow {
   verification_status?: VerificationStatus;
   createdAt?: number | string;
   created_at?: string;
+  coverImage?: string | null;
+  cover_image?: string | null;
+  cover_image_url?: string | null;
+  cover_photo_url?: string | null;
+  coverPhotoUrl?: string | null;
+  photos?: Array<string | { url?: string; src?: string } | null> | null;
+  images?: Array<string | { url?: string; src?: string } | null> | null;
+  photo_urls?: Array<string | null> | null;
+}
+
+function pickFirstString(...values: Array<string | null | undefined>): string | undefined {
+  for (const v of values) {
+    if (typeof v === "string" && v.trim().length > 0) return v;
+  }
+  return undefined;
+}
+
+function normalizePhotoList(
+  raw:
+    | OwnerListingApiRow["photos"]
+    | OwnerListingApiRow["images"]
+    | OwnerListingApiRow["photo_urls"]
+): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const urls = raw
+    .map((entry) => {
+      if (typeof entry === "string") return entry;
+      if (entry && typeof entry === "object") return entry.url ?? entry.src ?? null;
+      return null;
+    })
+    .filter((u): u is string => typeof u === "string" && u.trim().length > 0);
+  return urls.length > 0 ? urls : undefined;
 }
 
 function mapOwnerListingRow(row: OwnerListingApiRow): OwnerListingVm {
@@ -136,6 +170,20 @@ function mapOwnerListingRow(row: OwnerListingApiRow): OwnerListingVm {
         ? new Date(createdAtValue).toISOString()
         : undefined;
 
+  const photos =
+    normalizePhotoList(row.photos) ??
+    normalizePhotoList(row.images) ??
+    normalizePhotoList(row.photo_urls);
+
+  const coverImage =
+    pickFirstString(
+      row.coverImage,
+      row.cover_image,
+      row.cover_image_url,
+      row.cover_photo_url,
+      row.coverPhotoUrl
+    ) ?? photos?.[0];
+
   return {
     id: row.id ?? "",
     title: row.title ?? "Listing",
@@ -145,7 +193,9 @@ function mapOwnerListingRow(row: OwnerListingApiRow): OwnerListingVm {
     monthlyRent: row.monthlyRent ?? row.monthly_rent,
     status: row.status ?? "draft",
     verificationStatus: row.verificationStatus ?? row.verification_status ?? "unverified",
-    createdAt: createdAtIso
+    createdAt: createdAtIso,
+    coverImage,
+    photos
   };
 }
 

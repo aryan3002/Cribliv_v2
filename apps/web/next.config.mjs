@@ -8,6 +8,9 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
+      // Azure Blob Storage — listing photos uploaded by owners.
+      // Wildcard covers any storage account configured via AZURE_STORAGE_ACCOUNT_NAME.
+      { protocol: "https", hostname: "*.blob.core.windows.net" },
     ],
   },
   experimental: {

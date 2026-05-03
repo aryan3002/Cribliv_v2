@@ -11,6 +11,7 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { NotificationService } from "../notifications/notification.service";
 import { logTelemetry } from "../../common/telemetry";
+import { toBlobUrl } from "../../common/photo-url";
 import { AzureBlobPhotoStorageService } from "./azure-blob-photo-storage.service";
 
 @Injectable()
@@ -44,6 +45,7 @@ export class OwnerService {
         verification_status: "unverified" | "pending" | "verified" | "failed";
         status: "draft" | "pending_review" | "active" | "rejected" | "paused" | "archived";
         created_at: string;
+        photos: string[] | null;
       }>(
         `
         SELECT
@@ -55,7 +57,16 @@ export class OwnerService {
           l.monthly_rent,
           l.verification_status::text,
           l.status::text,
-          l.created_at::text
+          l.created_at::text,
+          COALESCE(
+            (
+              SELECT json_agg(lp.blob_path ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC)
+              FROM listing_photos lp
+              WHERE lp.listing_id = l.id
+                AND lp.moderation_status <> 'rejected'
+            ),
+            '[]'::json
+          ) AS photos
         FROM listings l
         JOIN listing_locations ll ON ll.listing_id = l.id
         JOIN cities c ON c.id = ll.city_id
@@ -68,18 +79,25 @@ export class OwnerService {
       );
 
       return {
-        items: result.rows.map((row) => ({
-          id: row.id,
-          ownerUserId,
-          listingType: row.listing_type,
-          title: row.title,
-          city: row.city,
-          locality: row.locality ?? undefined,
-          monthlyRent: Number(row.monthly_rent),
-          verificationStatus: row.verification_status,
-          status: row.status,
-          createdAt: new Date(row.created_at).getTime()
-        })),
+        items: result.rows.map((row) => {
+          const photoUrls = (row.photos ?? [])
+            .map((path) => toBlobUrl(path))
+            .filter((url): url is string => Boolean(url));
+          return {
+            id: row.id,
+            ownerUserId,
+            listingType: row.listing_type,
+            title: row.title,
+            city: row.city,
+            locality: row.locality ?? undefined,
+            monthlyRent: Number(row.monthly_rent),
+            verificationStatus: row.verification_status,
+            status: row.status,
+            createdAt: new Date(row.created_at).getTime(),
+            photos: photoUrls,
+            coverImage: photoUrls[0] ?? null
+          };
+        }),
         total: result.rowCount ?? 0
       };
     }

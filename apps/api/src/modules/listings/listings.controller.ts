@@ -3,23 +3,7 @@ import { ok } from "../../common/response";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
-
-function buildPhotoPublicBaseUrl() {
-  const explicit = process.env.PHOTO_PUBLIC_BASE_URL?.trim();
-  if (explicit) return explicit.replace(/\/+$/, "");
-  const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME?.trim();
-  const container = process.env.AZURE_STORAGE_CONTAINER_LISTING_PHOTOS?.trim() || "listing-photos";
-  if (!accountName) return "";
-  return `https://${accountName}.blob.core.windows.net/${container}`;
-}
-
-function toBlobUrl(blobPath: string | null): string | null {
-  if (!blobPath) return null;
-  if (/^https?:\/\//i.test(blobPath)) return blobPath;
-  const base = buildPhotoPublicBaseUrl();
-  if (!base) return blobPath;
-  return `${base}/${blobPath.replace(/^\/+/, "")}`;
-}
+import { toBlobUrl } from "../../common/photo-url";
 
 function firstName(fullName: string | null): string | null {
   if (!fullName) return null;

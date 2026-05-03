@@ -1,42 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { motion } from "framer-motion";
 import {
   createSalesLead,
   type ListingStatus,
   makeIdempotencyKey,
   type OwnerListingVm,
-  listOwnerListings
+  type LeadVm,
+  listOwnerListings,
+  fetchOwnerLeads
 } from "../../lib/owner-api";
 import { trackEvent } from "../../lib/analytics";
+import { track } from "../../lib/track";
 import { t, type Locale } from "../../lib/i18n";
-import { toTitleCase, VERIFICATION_LABELS } from "../../lib/utils";
 import { LeadStatsWidget } from "./lead-stats-widget";
 import { LeadsPipeline } from "./leads-pipeline";
+import { LeadKanban, LeadKanbanSkeleton } from "./lead-kanban";
 import { BoostModal } from "./boost-modal";
-import { AvailabilityToggle } from "./availability-toggle";
+import { ListingCardLuxe } from "./listing-card-luxe";
 import {
   Plus,
   Settings,
-  MapPin,
-  Pencil,
-  Zap,
   ShieldCheck,
   Building,
-  Clock,
   AlertTriangle,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
   Home,
   BarChart3,
   ArrowRight,
-  Layers
+  Layers,
+  LayoutGrid,
+  List,
+  Search,
+  Download,
+  Sparkles
 } from "lucide-react";
 
-/* ─── Constants ──────────────────────────────────────────────────────────── */
+type Tab = "listings" | "leads";
+type ViewMode = "board" | "list";
+const VIEW_KEY = "cribliv:owner_leads_view";
 
 const STATUS_FILTERS: Array<{ value: ListingStatus | "all"; label: string }> = [
   { value: "all", label: "All" },
@@ -47,22 +52,6 @@ const STATUS_FILTERS: Array<{ value: ListingStatus | "all"; label: string }> = [
   { value: "paused", label: "Paused" }
 ];
 
-const STATUS_META: Record<
-  ListingStatus,
-  { label: string; color: string; bg: string; dot: string }
-> = {
-  active: { label: "Active", color: "#166534", bg: "#f0fdf4", dot: "#22c55e" },
-  pending_review: { label: "Pending", color: "#5046e5", bg: "#eef2ff", dot: "#5046e5" },
-  draft: { label: "Draft", color: "#6b7280", bg: "#f9fafb", dot: "#d1d5db" },
-  rejected: { label: "Rejected", color: "#b91c1c", bg: "#fef2f2", dot: "#ef4444" },
-  paused: { label: "Paused", color: "#92400e", bg: "#fffbeb", dot: "#f59e0b" },
-  archived: { label: "Archived", color: "#6b7280", bg: "#f3f4f6", dot: "#9ca3af" }
-};
-
-const VERIFICATION_LABEL = VERIFICATION_LABELS;
-
-/* ─── Greeting helper ────────────────────────────────────────────────────── */
-
 function getGreeting(): string {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -70,71 +59,138 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-/* ─── Status pill ────────────────────────────────────────────────────────── */
-
-function StatusPill({ status }: { status: ListingStatus }) {
-  const meta = STATUS_META[status] ?? STATUS_META.draft;
-  return (
-    <span className="dash-status-pill" style={{ background: meta.bg, color: meta.color }}>
-      <span className="dash-status-pill__dot" style={{ background: meta.dot }} />
-      {meta.label}
-    </span>
-  );
+function useViewMode(): [ViewMode, (v: ViewMode) => void] {
+  const [view, setView] = useState<ViewMode>("board");
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(VIEW_KEY) as ViewMode | null;
+      if (saved === "board" || saved === "list") setView(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const update = useCallback((next: ViewMode) => {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* ignore */
+    }
+    track("kanban_view_toggled", { view: next });
+  }, []);
+  return [view, update];
 }
 
-/* ─── Verification badge ─────────────────────────────────────────────────── */
-
-function VerifBadge({ status }: { status: string }) {
-  const isVerified = status === "verified";
-  const isPending = status === "pending";
-  const isFailed = status === "failed";
-  return (
-    <span className={`dash-verif-badge${isVerified ? " dash-verif-badge--ok" : ""}`}>
-      {isVerified && <CheckCircle2 size={11} aria-hidden="true" />}
-      {isPending && <Clock size={11} aria-hidden="true" />}
-      {isFailed && <XCircle size={11} aria-hidden="true" />}
-      {!isVerified && !isPending && !isFailed && <AlertCircle size={11} aria-hidden="true" />}
-      {VERIFICATION_LABEL[status as keyof typeof VERIFICATION_LABEL]}
-    </span>
-  );
+function useCanDrag(): boolean {
+  const [can, setCan] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const m = window.matchMedia("(hover: hover) and (pointer: fine) and (min-width: 1024px)");
+    const update = () => setCan(m.matches);
+    update();
+    m.addEventListener?.("change", update);
+    return () => m.removeEventListener?.("change", update);
+  }, []);
+  return can;
 }
 
-/* ═════════════════════════════════════════════════════════════════════════ */
+interface Props {
+  locale: string;
+  initialTab?: Tab;
+}
 
-export function DashboardClient({ locale }: { locale: string }) {
+export function DashboardClient({ locale, initialTab = "listings" }: Props) {
   const loc = locale as Locale;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: nextAuthSession } = useSession();
   const accessToken = nextAuthSession?.accessToken ?? null;
   const userName = nextAuthSession?.user?.name ?? "";
   const userRole = nextAuthSession?.user?.role as "owner" | "pg_operator" | undefined;
-
   const isPgOperator = userRole === "pg_operator";
   const createListingLabel = isPgOperator ? "Add PG" : t(loc, "createListing");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const newListingHref = `/${locale}/owner/listings/new${isPgOperator ? "?type=pg" : ""}` as any;
 
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [listings, setListings] = useState<OwnerListingVm[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingListings, setLoadingListings] = useState(true);
+  const [listingsError, setListingsError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<ListingStatus | "all">("all");
   const [pmRequesting, setPmRequesting] = useState(false);
   const [pmNotice, setPmNotice] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"listings" | "leads">("listings");
   const [boostTarget, setBoostTarget] = useState<OwnerListingVm | null>(null);
   const [boostNotice, setBoostNotice] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Leads state
+  const [leads, setLeads] = useState<LeadVm[]>([]);
+  const [leadsTotal, setLeadsTotal] = useState(0);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+  const [leadsError, setLeadsError] = useState<string | null>(null);
+  const [leadSearch, setLeadSearch] = useState("");
+  const [view, setView] = useViewMode();
+  const canDrag = useCanDrag();
+
+  // Sync activeTab → URL
+  useEffect(() => {
+    const current = searchParams?.get("tab");
+    const wanted = activeTab === "leads" ? "leads" : null;
+    if (wanted === current) return;
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (wanted) params.set("tab", wanted);
+    else params.delete("tab");
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}` as never, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // React to ?tab= changes (deep-link)
+  useEffect(() => {
+    const tabParam = searchParams?.get("tab");
+    const next: Tab = tabParam === "leads" ? "leads" : "listings";
+    setActiveTab((prev) => (prev === next ? prev : next));
+  }, [searchParams]);
+
+  // Load listings whenever filter or auth changes
   useEffect(() => {
     void loadListings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, accessToken]);
 
+  // Load leads once we have a token
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    setLeadsLoading(true);
+    setLeadsError(null);
+    fetchOwnerLeads(accessToken, { pageSize: 200 })
+      .then((res) => {
+        if (cancelled) return;
+        setLeads(res.items);
+        setLeadsTotal(res.total);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to load leads";
+        if (msg.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
+        setLeadsError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) setLeadsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
   async function loadListings() {
-    setLoading(true);
-    setError(null);
+    setLoadingListings(true);
+    setListingsError(null);
     if (!accessToken) {
-      setError(t(loc, "loginRequired"));
-      setLoading(false);
+      setListingsError(t(loc, "loginRequired"));
+      setLoadingListings(false);
       return;
     }
     try {
@@ -147,9 +203,9 @@ export function DashboardClient({ locale }: { locale: string }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load listings";
       if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
-      setError(message);
+      setListingsError(message);
     } finally {
-      setLoading(false);
+      setLoadingListings(false);
     }
   }
 
@@ -178,11 +234,11 @@ export function DashboardClient({ locale }: { locale: string }) {
     }
   }
 
-  /* ── Derived ── */
+  /* Derived */
   const hasUnverified = listings.some(
     (l) => l.verificationStatus !== "verified" && l.status === "active"
   );
-  const allListings = listings; // always use unfiltered count for header stat
+  const allListings = listings;
   const statusCounts = allListings.reduce<Record<string, number>>((acc, l) => {
     acc[l.status] = (acc[l.status] ?? 0) + 1;
     return acc;
@@ -191,129 +247,168 @@ export function DashboardClient({ locale }: { locale: string }) {
   const pendingCount = statusCounts.pending_review ?? 0;
   const draftCount = statusCounts.draft ?? 0;
 
+  // Lead delta math
+  const leadDelta = useMemo(() => {
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    const thisWeek = leads.filter((l) => now - new Date(l.createdAt).getTime() <= sevenDays).length;
+    const lastWeek = leads.filter((l) => {
+      const ts = new Date(l.createdAt).getTime();
+      return now - ts > sevenDays && now - ts <= 2 * sevenDays;
+    }).length;
+    return { thisWeek, delta: thisWeek - lastWeek };
+  }, [leads]);
+
+  const handleListingStatusChange = useCallback((id: string, newStatus: "active" | "paused") => {
+    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status: newStatus } : l)));
+  }, []);
+
   return (
-    <div className="dash-page">
-      {/* ═══ GREETING BANNER ═══ */}
-      <div className="dash-greeting">
-        <div className="dash-greeting__inner container container--narrow">
-          <div className="dash-greeting__left">
-            <p className="dash-greeting__eyebrow">
-              {isPgOperator ? "PG Operator" : "Owner"} Dashboard
+    <div className="dlx">
+      {/* ─── HERO ─────────────────────────────────────────────────────── */}
+      <header className="dlx-hero">
+        <div className="dlx-hero__aurora" aria-hidden="true" />
+        <div className="dlx-hero__noise" aria-hidden="true" />
+        <div className="container container--narrow dlx-hero__inner">
+          <motion.div
+            className="dlx-hero__copy"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+          >
+            <p className="dlx-hero__eyebrow">
+              {isPgOperator ? "PG Operator" : "Owner"} workspace
               {lastUpdated && (
-                <span className="dash-greeting__time">
-                  · Updated{" "}
+                <span className="dlx-hero__time">
+                  {" · "}
+                  Synced{" "}
                   {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
             </p>
-            <h1 className="dash-greeting__title">
+            <h1 className="dlx-hero__title">
               {getGreeting()}
               {userName ? `, ${userName.split(" ")[0]}` : ""}
+              <span className="dlx-hero__title-dot">.</span>
             </h1>
-          </div>
+            <p className="dlx-hero__sub">
+              {allListings.length === 0
+                ? "Your first listing is two minutes away."
+                : `${allListings.length} listings under your roof. ${leadsTotal} tenants reaching out.`}
+            </p>
+          </motion.div>
 
-          <div className="dash-greeting__actions">
-            <Link href={newListingHref} className="btn btn--primary">
-              <Plus size={15} aria-hidden="true" />
+          <motion.div
+            className="dlx-hero__actions"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.08, ease: [0.34, 1.56, 0.64, 1] }}
+          >
+            <Link href={newListingHref} className="dlx-cta">
+              <Plus size={16} aria-hidden="true" />
               {createListingLabel}
             </Link>
             <Link
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               href={`/${locale}/settings` as any}
-              className="dash-icon-btn"
+              className="dlx-icon-btn"
               title="Account settings"
               aria-label="Account settings"
             >
               <Settings size={17} />
             </Link>
-          </div>
+          </motion.div>
         </div>
+      </header>
 
-        {/* Quick stats strip */}
-        {!loading && allListings.length > 0 && (
-          <div className="dash-stats-strip container container--narrow">
-            <div className="dash-stat-chip dash-stat-chip--active">
-              <span className="dash-stat-chip__num">{activeCount}</span>
-              <span className="dash-stat-chip__label">Active</span>
-            </div>
-            {pendingCount > 0 && (
-              <div className="dash-stat-chip dash-stat-chip--pending">
-                <span className="dash-stat-chip__num">{pendingCount}</span>
-                <span className="dash-stat-chip__label">Pending</span>
-              </div>
-            )}
-            {draftCount > 0 && (
-              <div className="dash-stat-chip">
-                <span className="dash-stat-chip__num">{draftCount}</span>
-                <span className="dash-stat-chip__label">Draft</span>
-              </div>
-            )}
-            <div className="dash-stat-chip">
-              <span className="dash-stat-chip__num">{allListings.length}</span>
-              <span className="dash-stat-chip__label">Total listings</span>
-            </div>
-          </div>
-        )}
+      {/* ─── STAT CARD (bridges hero into canvas) ──────────────────────── */}
+      <div className="container container--narrow dlx-stats-wrap">
+        <motion.div
+          className="dlx-stats"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.12, ease: [0.34, 1.56, 0.64, 1] }}
+        >
+          <StatChip tone="brand" label="Active" value={activeCount} help="Visible to tenants" />
+          <StatChip
+            tone="amber"
+            label="Pending review"
+            value={pendingCount}
+            help="With Cribliv team"
+          />
+          <StatChip tone="slate" label="Drafts" value={draftCount} help="Not yet submitted" />
+          <div className="dlx-stats__divider" aria-hidden="true" />
+          <StatChip
+            tone="trust"
+            label="New leads (7d)"
+            value={leadDelta.thisWeek}
+            help={
+              leadDelta.delta === 0
+                ? "Steady"
+                : `${leadDelta.delta > 0 ? "▲" : "▼"} ${Math.abs(leadDelta.delta)} vs prior 7d`
+            }
+            helpTone={leadDelta.delta > 0 ? "trust" : leadDelta.delta < 0 ? "danger" : undefined}
+          />
+          <StatChip
+            tone="ghost"
+            label="Total listings"
+            value={allListings.length}
+            help="All statuses"
+          />
+        </motion.div>
       </div>
 
-      {/* ═══ MAIN CONTENT ═══ */}
-      <div className="container container--narrow dash-body">
+      {/* ─── BODY ─────────────────────────────────────────────────────── */}
+      <div className="container container--narrow dlx-body">
         {/* Verification banner */}
-        {hasUnverified && (
-          <div className="dash-banner dash-banner--warn" role="alert">
-            <AlertTriangle size={16} className="dash-banner__icon" aria-hidden="true" />
-            <p className="dash-banner__text">
-              Some active listings aren't verified.{" "}
-              <Link href={`/${locale}/owner/verification`} className="dash-banner__link">
+        {hasUnverified && activeTab === "listings" && (
+          <div className="dlx-banner" role="alert">
+            <span className="dlx-banner__icon">
+              <AlertTriangle size={14} aria-hidden="true" />
+            </span>
+            <p className="dlx-banner__text">
+              Some active listings aren&rsquo;t verified yet.{" "}
+              <Link href={`/${locale}/owner/verification`} className="dlx-banner__link">
                 Complete verification
               </Link>{" "}
-              to earn the Verified badge and more tenant trust.
+              to earn the Verified badge and stronger tenant trust.
             </p>
-            <Link href={`/${locale}/owner/verification`} className="dash-banner__cta">
+            <Link href={`/${locale}/owner/verification`} className="dlx-banner__cta">
               Verify now <ArrowRight size={13} />
             </Link>
           </div>
         )}
 
-        {/* ═══ TABS ═══ */}
-        <div className="dash-tabs" role="tablist" aria-label="Dashboard sections">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "listings"}
-            className={`dash-tab${activeTab === "listings" ? " dash-tab--active" : ""}`}
+        {boostNotice && activeTab === "listings" && (
+          <div className="dlx-toast dlx-toast--success" role="status">
+            <Sparkles size={14} aria-hidden="true" /> {boostNotice}
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="dlx-tabs" role="tablist" aria-label="Dashboard sections">
+          <TabButton
+            active={activeTab === "listings"}
             onClick={() => setActiveTab("listings")}
-          >
-            <Layers size={15} aria-hidden="true" />
-            Listings
-            {allListings.length > 0 && (
-              <span className="dash-tab__badge">{allListings.length}</span>
-            )}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "leads"}
-            className={`dash-tab${activeTab === "leads" ? " dash-tab--active" : ""}`}
+            label="Listings"
+            icon={<Layers size={15} aria-hidden="true" />}
+            badge={allListings.length || undefined}
+          />
+          <TabButton
+            active={activeTab === "leads"}
             onClick={() => setActiveTab("leads")}
-          >
-            <BarChart3 size={15} aria-hidden="true" />
-            Leads
-          </button>
+            label="Leads"
+            icon={<BarChart3 size={15} aria-hidden="true" />}
+            badge={leadsTotal || undefined}
+          />
         </div>
 
-        {/* ═══ LISTINGS PANEL ═══ */}
+        {/* ── LISTINGS TAB ─────────────────────────────────────────── */}
         {activeTab === "listings" && (
-          <>
-            {boostNotice && (
-              <div className="alert alert--success" style={{ marginBottom: "var(--space-4)" }}>
-                {boostNotice}
-              </div>
-            )}
-
+          <section className="dlx-section">
             {/* Filter chips */}
             {allListings.length > 0 && (
-              <div className="dash-filter-row">
+              <div className="dlx-filter-row">
                 {STATUS_FILTERS.map((filter) => {
                   const count =
                     filter.value === "all" ? allListings.length : (statusCounts[filter.value] ?? 0);
@@ -322,200 +417,170 @@ export function DashboardClient({ locale }: { locale: string }) {
                     <button
                       key={filter.value}
                       type="button"
-                      className={`dash-filter-chip${statusFilter === filter.value ? " dash-filter-chip--active" : ""}`}
+                      className={`dlx-chip${statusFilter === filter.value ? " dlx-chip--active" : ""}`}
                       onClick={() => setStatusFilter(filter.value)}
                     >
                       {filter.label}
-                      {count > 0 && <span className="dash-filter-chip__count">{count}</span>}
+                      {count > 0 && <span className="dlx-chip__count">{count}</span>}
                     </button>
                   );
                 })}
               </div>
             )}
 
-            {/* Loading */}
-            {loading ? (
-              <div className="dash-skeleton-list">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="skeleton-card dash-skeleton-item" />
+            {loadingListings ? (
+              <div className="dlx-grid dlx-grid--listings">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="lcl lcl--skeleton" aria-hidden="true" />
                 ))}
               </div>
-            ) : error ? (
-              <div
-                className="alert alert--error"
-                role="alert"
-                style={{ marginTop: "var(--space-4)" }}
-              >
-                {error}
+            ) : listingsError ? (
+              <div className="alert alert--error" role="alert">
+                {listingsError}
               </div>
             ) : listings.length === 0 ? (
-              /* Empty state */
-              <div className="dash-empty">
-                <div className="dash-empty__icon">
-                  <Home size={30} aria-hidden="true" />
-                </div>
-                <h3 className="dash-empty__title">{t(loc, "noListings")}</h3>
-                <p className="dash-empty__desc">
-                  {isPgOperator
-                    ? "Add your first PG space to start receiving tenant enquiries."
-                    : statusFilter === "all"
-                      ? t(loc, "noListingsDescription")
-                      : `No listings with status "${STATUS_META[statusFilter as ListingStatus]?.label ?? statusFilter}".`}
-                </p>
-                <Link href={newListingHref} className="btn btn--primary">
-                  <Plus size={15} /> {createListingLabel}
-                </Link>
-              </div>
+              <EmptyListings
+                locale={locale}
+                isPgOperator={isPgOperator}
+                statusFilter={statusFilter}
+                createListingLabel={createListingLabel}
+                newListingHref={newListingHref}
+              />
             ) : (
-              /* Listing cards */
-              <ul className="dash-listing-list">
+              <div className="dlx-grid dlx-grid--listings">
                 {listings.map((listing) => (
-                  <li key={listing.id} className="dash-listing-card">
-                    {/* Left: property type icon */}
-                    <div
-                      className="dash-listing-card__thumb"
-                      style={{ opacity: listing.status === "paused" ? 0.5 : 1 }}
-                    >
-                      {listing.listingType === "pg" ? (
-                        <Building size={20} aria-hidden="true" />
-                      ) : (
-                        <Home size={20} aria-hidden="true" />
-                      )}
-                    </div>
-
-                    {/* Main content */}
-                    <div className="dash-listing-card__body">
-                      {/* Row 1: title + status */}
-                      <div className="dash-listing-card__row1">
-                        <h3 className="dash-listing-card__title">
-                          {listing.title || "Untitled listing"}
-                        </h3>
-                        <StatusPill status={listing.status} />
-                      </div>
-
-                      {/* Row 2: location + price */}
-                      <div className="dash-listing-card__row2">
-                        <span className="dash-listing-card__loc">
-                          <MapPin size={11} aria-hidden="true" />
-                          {listing.city ? toTitleCase(listing.city) : "City not set"}
-                          {" · "}
-                          {listing.listingType === "pg" ? "PG" : "Flat/House"}
-                        </span>
-                        {typeof listing.monthlyRent === "number" ? (
-                          <span className="dash-listing-card__price">
-                            ₹{listing.monthlyRent.toLocaleString("en-IN")}
-                            <span className="dash-listing-card__price-per">/mo</span>
-                          </span>
-                        ) : (
-                          <span className="dash-listing-card__price-empty">Rent not set</span>
-                        )}
-                      </div>
-
-                      {/* Row 3: verification + actions */}
-                      <div className="dash-listing-card__row3">
-                        <VerifBadge status={listing.verificationStatus} />
-
-                        <div className="dash-listing-card__actions">
-                          {/* Availability toggle */}
-                          {(listing.status === "active" || listing.status === "paused") &&
-                            accessToken && (
-                              <AvailabilityToggle
-                                listingId={listing.id}
-                                currentStatus={listing.status as "active" | "paused"}
-                                accessToken={accessToken}
-                                showLabel={false}
-                                onStatusChange={(newStatus) =>
-                                  setListings((prev) =>
-                                    prev.map((l) =>
-                                      l.id === listing.id ? { ...l, status: newStatus } : l
-                                    )
-                                  )
-                                }
-                              />
-                            )}
-
-                          {/* Edit */}
-                          {(listing.status === "draft" ||
-                            listing.status === "rejected" ||
-                            listing.status === "pending_review" ||
-                            listing.status === "active" ||
-                            listing.status === "paused") && (
-                            <Link
-                              className="dash-action-btn dash-action-btn--edit"
-                              href={`/${locale}/owner/listings/new?edit=${listing.id}`}
-                            >
-                              <Pencil size={12} aria-hidden="true" />
-                              {listing.status === "rejected" ? "Fix & Resubmit" : "Edit"}
-                            </Link>
-                          )}
-
-                          {/* Boost */}
-                          {listing.status === "active" && (
-                            <button
-                              type="button"
-                              className="dash-action-btn dash-action-btn--boost"
-                              onClick={() => setBoostTarget(listing)}
-                            >
-                              <Zap size={12} aria-hidden="true" />
-                              Boost
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </li>
+                  <ListingCardLuxe
+                    key={listing.id}
+                    listing={listing}
+                    locale={locale}
+                    accessToken={accessToken}
+                    onStatusChange={handleListingStatusChange}
+                    onBoost={(l) => setBoostTarget(l)}
+                  />
                 ))}
-              </ul>
+              </div>
             )}
-          </>
+          </section>
         )}
 
-        {/* ═══ LEADS PANEL ═══ */}
+        {/* ── LEADS TAB ────────────────────────────────────────────── */}
         {activeTab === "leads" && (
-          <div className="dash-leads-panel">
-            {accessToken ? (
+          <section className="dlx-section dlx-leads">
+            {!accessToken ? (
+              <div className="alert alert--error">Please log in to view leads.</div>
+            ) : (
               <>
+                <div className="dlx-leads__toolbar">
+                  <div>
+                    <h2 className="dlx-leads__title">Your leads</h2>
+                    <p className="dlx-leads__sub">
+                      <b>{leadsTotal}</b> total · <b>{leadDelta.thisWeek}</b> this week
+                      {leadDelta.delta !== 0 && (
+                        <span
+                          className={`dlx-leads__delta ${
+                            leadDelta.delta > 0 ? "dlx-leads__delta--up" : "dlx-leads__delta--down"
+                          }`}
+                        >
+                          {leadDelta.delta > 0 ? "▲" : "▼"} {Math.abs(leadDelta.delta)} vs last 7d
+                        </span>
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="dlx-leads__actions">
+                    <div className="dlx-search">
+                      <Search size={15} className="dlx-search__icon" aria-hidden="true" />
+                      <input
+                        type="search"
+                        placeholder="Search tenant, listing, phone…"
+                        value={leadSearch}
+                        onChange={(e) => setLeadSearch(e.target.value)}
+                        aria-label="Search leads"
+                      />
+                    </div>
+
+                    <div className="dlx-toggle" role="group" aria-label="View mode">
+                      <button
+                        type="button"
+                        aria-pressed={view === "board"}
+                        onClick={() => setView("board")}
+                      >
+                        <LayoutGrid size={13} aria-hidden="true" /> Board
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={view === "list"}
+                        onClick={() => setView("list")}
+                      >
+                        <List size={13} aria-hidden="true" /> List
+                      </button>
+                    </div>
+
+                    <a
+                      href="/v1/owner/leads/export"
+                      className="dlx-export"
+                      download
+                      onClick={() => track("lead_csv_exported")}
+                    >
+                      <Download size={13} aria-hidden="true" /> Export
+                    </a>
+                  </div>
+                </div>
+
                 <LeadStatsWidget accessToken={accessToken} />
-                <div style={{ marginTop: "var(--space-6)" }}>
-                  <LeadsPipeline accessToken={accessToken} />
+
+                <div className="dlx-leads__board">
+                  {leadsError ? (
+                    <div className="alert alert--error" role="alert">
+                      {leadsError}
+                    </div>
+                  ) : leadsLoading ? (
+                    <LeadKanbanSkeleton />
+                  ) : view === "board" ? (
+                    <LeadKanban
+                      accessToken={accessToken}
+                      leads={leads}
+                      onLeadsChange={setLeads}
+                      searchQuery={leadSearch}
+                      enableDrag={canDrag}
+                    />
+                  ) : (
+                    <LeadsPipeline accessToken={accessToken} />
+                  )}
                 </div>
               </>
-            ) : (
-              <div className="alert alert--error">Please log in to view leads.</div>
             )}
-          </div>
+          </section>
         )}
 
-        {/* ═══ FOOTER CARDS ═══ */}
-        <div className="dash-footer-cards">
-          {/* Verification */}
-          <div className="dash-footer-card">
-            <div className="dash-footer-card__icon" style={{ background: "rgba(34,197,94,0.1)" }}>
-              <ShieldCheck size={18} style={{ color: "var(--trust)" }} />
+        {/* ─── FOOTER CARDS ────────────────────────────────────────── */}
+        <div className="dlx-footer">
+          <div className="dlx-footer__card">
+            <span className="dlx-footer__icon dlx-footer__icon--trust">
+              <ShieldCheck size={18} />
+            </span>
+            <div className="dlx-footer__text">
+              <span className="dlx-footer__label">{t(loc, "verification")}</span>
+              <span className="dlx-footer__sub">Earn the verified badge in under 3 minutes.</span>
             </div>
-            <div className="dash-footer-card__text">
-              <span className="dash-footer-card__label">{t(loc, "verification")}</span>
-              <span className="dash-footer-card__sub">Get verified to earn a trust badge</span>
-            </div>
-            <Link className="dash-footer-card__btn" href={`/${locale}/owner/verification`}>
+            <Link className="dlx-footer__btn" href={`/${locale}/owner/verification`}>
               Verify <ArrowRight size={13} />
             </Link>
           </div>
 
-          {/* Property Management */}
-          <div className="dash-footer-card">
-            <div className="dash-footer-card__icon" style={{ background: "rgba(0,102,255,0.07)" }}>
-              <Building size={18} style={{ color: "var(--brand)" }} />
-            </div>
-            <div className="dash-footer-card__text">
-              <span className="dash-footer-card__label">Property management</span>
-              <span className="dash-footer-card__sub">
-                Managed onboarding &amp; operations support
+          <div className="dlx-footer__card">
+            <span className="dlx-footer__icon dlx-footer__icon--brand">
+              <Building size={18} />
+            </span>
+            <div className="dlx-footer__text">
+              <span className="dlx-footer__label">Property management</span>
+              <span className="dlx-footer__sub">
+                Hands-off onboarding & operations support from our team.
               </span>
             </div>
             <button
               type="button"
-              className="dash-footer-card__btn"
+              className="dlx-footer__btn"
               onClick={() => void requestPropertyManagementAssist()}
               disabled={pmRequesting}
             >
@@ -524,14 +589,13 @@ export function DashboardClient({ locale }: { locale: string }) {
           </div>
 
           {pmNotice && (
-            <p className="dash-pm-notice" role="status">
+            <p className="dlx-footer__notice" role="status">
               {pmNotice}
             </p>
           )}
         </div>
       </div>
 
-      {/* ═══ BOOST MODAL ═══ */}
       {boostTarget && accessToken && (
         <BoostModal
           listingId={boostTarget.id}
@@ -541,11 +605,111 @@ export function DashboardClient({ locale }: { locale: string }) {
           onClose={() => setBoostTarget(null)}
           onSuccess={(paymentId) => {
             setBoostTarget(null);
-            setBoostNotice(`Boost activated! Payment ID: ${paymentId.slice(0, 12)}…`);
+            setBoostNotice(`Boost activated. Payment ID: ${paymentId.slice(0, 12)}…`);
             setTimeout(() => setBoostNotice(null), 8000);
           }}
         />
       )}
+    </div>
+  );
+}
+
+/* ── Sub-components ─────────────────────────────────────────────────── */
+
+function StatChip({
+  tone,
+  label,
+  value,
+  help,
+  helpTone
+}: {
+  tone: "brand" | "trust" | "amber" | "slate" | "ghost";
+  label: string;
+  value: number;
+  help?: string;
+  helpTone?: "trust" | "danger";
+}) {
+  return (
+    <div className={`dlx-stat dlx-stat--${tone}`}>
+      <span className="dlx-stat__num">{value}</span>
+      <span className="dlx-stat__label">{label}</span>
+      {help && (
+        <span className={`dlx-stat__help${helpTone ? ` dlx-stat__help--${helpTone}` : ""}`}>
+          {help}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  label,
+  icon,
+  badge
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  icon: React.ReactNode;
+  badge?: number;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      className={`dlx-tab${active ? " dlx-tab--active" : ""}`}
+      onClick={onClick}
+    >
+      {icon}
+      <span>{label}</span>
+      {typeof badge === "number" && badge > 0 && <span className="dlx-tab__badge">{badge}</span>}
+      {active && (
+        <motion.span
+          className="dlx-tab__underline"
+          layoutId="dlx-tab-underline"
+          transition={{ type: "spring", stiffness: 380, damping: 28 }}
+        />
+      )}
+    </button>
+  );
+}
+
+function EmptyListings({
+  locale,
+  isPgOperator,
+  statusFilter,
+  createListingLabel,
+  newListingHref
+}: {
+  locale: string;
+  isPgOperator: boolean;
+  statusFilter: ListingStatus | "all";
+  createListingLabel: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  newListingHref: any;
+}) {
+  const loc = locale as Locale;
+  return (
+    <div className="dlx-empty">
+      <div className="dlx-empty__art" aria-hidden="true">
+        <Home size={26} />
+      </div>
+      <h3 className="dlx-empty__title" style={{ fontFamily: "var(--font-display)" }}>
+        {statusFilter === "all" ? "Your portfolio starts here." : "Nothing in this lane yet."}
+      </h3>
+      <p className="dlx-empty__desc">
+        {isPgOperator
+          ? "Add your first PG to start receiving verified tenant enquiries."
+          : statusFilter === "all"
+            ? t(loc, "noListingsDescription")
+            : "Switch filters or create a new listing to fill this lane."}
+      </p>
+      <Link href={newListingHref} className="dlx-cta dlx-cta--quiet">
+        <Plus size={15} /> {createListingLabel}
+      </Link>
     </div>
   );
 }

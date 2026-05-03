@@ -3,7 +3,10 @@
 import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, Suspense } from "react";
+import { motion } from "framer-motion";
+import { ShieldCheck, Sparkles } from "lucide-react";
 import type { UserRole } from "../../../../auth.config";
+import { BrandLockup } from "../../../../components/brand/brand-lockup";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -200,167 +203,255 @@ function LoginPageInner() {
   // ------------------------------------------------------------------
   // UI
   // ------------------------------------------------------------------
+  const fadeUp = {
+    hidden: { opacity: 0, y: 12 },
+    show: (i: number = 0) => ({
+      opacity: 1,
+      y: 0,
+      transition: { delay: 0.06 * i, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] as const }
+    })
+  };
+
+  const subtitleCopy =
+    tab === "signup" ? "Two minutes. No brokers. No passwords." : "Pick up where you left off.";
+
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <div className="auth-card__logo">
-          <span
-            className="logo-dot"
-            style={{ display: "inline-block", marginRight: 6, verticalAlign: "middle" }}
-            aria-hidden="true"
-          />
-          Cribliv
-        </div>
-        <h1 className="auth-card__title">Welcome</h1>
-        <p className="auth-card__subtitle">Sign in to save listings &amp; unlock owner contacts</p>
+    <div className="auth-canvas">
+      {/* atmospheric layers */}
+      <div className="auth-canvas__aurora" aria-hidden="true" />
+      <div className="auth-canvas__grain" aria-hidden="true" />
+      <div className="auth-canvas__orb auth-canvas__orb--a" aria-hidden="true" />
+      <div className="auth-canvas__orb auth-canvas__orb--b" aria-hidden="true" />
 
-        {/* Tab switcher */}
-        <div className="auth-tabs">
-          {(["login", "signup"] as const).map((t) => (
-            <button
-              key={t}
-              className={`auth-tab${tab === t ? " auth-tab--active" : ""}`}
-              onClick={() => {
-                setTab(t);
-                setStep(1);
-                setError(null);
-                setInfo(null);
-                setOtp("");
-                setChallengeId("");
-                setDevOtp(null);
-              }}
-            >
-              {t === "login" ? "Log in" : "Sign up"}
-            </button>
-          ))}
-        </div>
+      {/* city skyline silhouette — gives the canvas an Indian-rentals sense of place */}
+      <svg
+        className="auth-canvas__skyline"
+        viewBox="0 0 1440 220"
+        preserveAspectRatio="xMidYMax slice"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="skylineFade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="100%" stopColor="rgba(8, 18, 38, 0.85)" />
+          </linearGradient>
+          <pattern
+            id="skylineWindows"
+            x="0"
+            y="0"
+            width="6"
+            height="10"
+            patternUnits="userSpaceOnUse"
+          >
+            <rect x="2" y="2" width="2" height="2" fill="rgba(255,200,80,0.12)" />
+            <rect x="2" y="6" width="2" height="2" fill="rgba(140,180,255,0.08)" />
+          </pattern>
+        </defs>
+        <path
+          d="M0,220 L0,150 L40,150 L40,120 L80,120 L80,140 L120,140 L120,90 L160,90 L160,110 L200,110 L200,80 L240,80 L240,130 L280,130 L280,100 L320,100 L320,140 L360,140 L360,70 L400,70 L400,110 L440,110 L440,150 L480,150 L480,90 L520,90 L520,120 L560,120 L560,60 L600,60 L600,100 L640,100 L640,140 L680,140 L680,80 L720,80 L720,120 L760,120 L760,150 L800,150 L800,100 L840,100 L840,70 L880,70 L880,130 L920,130 L920,90 L960,90 L960,140 L1000,140 L1000,110 L1040,110 L1040,80 L1080,80 L1080,120 L1120,120 L1120,150 L1160,150 L1160,100 L1200,100 L1200,140 L1240,140 L1240,90 L1280,90 L1280,120 L1320,120 L1320,80 L1360,80 L1360,130 L1400,130 L1400,150 L1440,150 L1440,220 Z"
+          fill="rgba(8, 18, 38, 0.7)"
+        />
+        <path
+          d="M0,220 L0,150 L40,150 L40,120 L80,120 L80,140 L120,140 L120,90 L160,90 L160,110 L200,110 L200,80 L240,80 L240,130 L280,130 L280,100 L320,100 L320,140 L360,140 L360,70 L400,70 L400,110 L440,110 L440,150 L480,150 L480,90 L520,90 L520,120 L560,120 L560,60 L600,60 L600,100 L640,100 L640,140 L680,140 L680,80 L720,80 L720,120 L760,120 L760,150 L800,150 L800,100 L840,100 L840,70 L880,70 L880,130 L920,130 L920,90 L960,90 L960,140 L1000,140 L1000,110 L1040,110 L1040,80 L1080,80 L1080,120 L1120,120 L1120,150 L1160,150 L1160,100 L1200,100 L1200,140 L1240,140 L1240,90 L1280,90 L1280,120 L1320,120 L1320,80 L1360,80 L1360,130 L1400,130 L1400,150 L1440,150 L1440,220 Z"
+          fill="url(#skylineWindows)"
+        />
+        <rect x="0" y="0" width="1440" height="220" fill="url(#skylineFade)" />
+      </svg>
 
-        {/* Step 1 — Phone */}
-        {step === 1 && (
-          <div>
-            <label htmlFor="phone" className="form-label">
-              Mobile number
-            </label>
-            <div className="auth-phone-group">
-              <span className="auth-phone-prefix">
-                <span className="auth-phone-prefix__flag">🇮🇳</span>
-                +91
-              </span>
-              <input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="9999999901"
-                disabled={loading}
-                onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-                className="input"
-                autoFocus
-                autoComplete="tel"
-                aria-label="Mobile number"
-              />
-            </div>
-            <button
-              onClick={handleSendOtp}
-              disabled={loading}
-              className="btn btn--primary btn--full"
-              style={{ marginTop: "var(--space-4)" }}
-            >
-              {loading ? "Sending…" : "Send OTP"}
-            </button>
-          </div>
-        )}
+      <div className="auth-canvas__inner">
+        <motion.div
+          className="auth-card auth-card--glass"
+          initial="hidden"
+          animate="show"
+          transition={{ staggerChildren: 0.05 }}
+        >
+          <motion.div
+            className="auth-card__brand"
+            variants={fadeUp}
+            custom={0}
+            initial="hidden"
+            animate="show"
+          >
+            <BrandLockup size="lg" glow priority />
+          </motion.div>
 
-        {/* Step 2 — OTP */}
-        {step === 2 && (
-          <div>
-            {info && (
-              <p className="body-sm text-secondary" style={{ marginBottom: "var(--space-3)" }}>
-                {info}
-              </p>
-            )}
+          <motion.h1
+            className="auth-card__title"
+            variants={fadeUp}
+            custom={1}
+            initial="hidden"
+            animate="show"
+          >
+            {tab === "signup" ? "Welcome home." : "Welcome back."}
+          </motion.h1>
 
-            {/* Dev-only: show OTP hint when running on mock provider */}
-            {devOtp && (
-              <div
-                className="alert alert--warning"
-                style={{ marginBottom: "var(--space-4)", textAlign: "center" }}
+          <motion.p
+            className="auth-card__subtitle"
+            variants={fadeUp}
+            custom={2}
+            initial="hidden"
+            animate="show"
+          >
+            {subtitleCopy}
+          </motion.p>
+
+          {/* Tab switcher */}
+          <motion.div
+            className="auth-tabs auth-tabs--pill"
+            variants={fadeUp}
+            custom={3}
+            initial="hidden"
+            animate="show"
+            role="tablist"
+          >
+            {(["login", "signup"] as const).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                className={`auth-tab${tab === t ? " auth-tab--active" : ""}`}
+                onClick={() => {
+                  setTab(t);
+                  setStep(1);
+                  setError(null);
+                  setInfo(null);
+                  setOtp("");
+                  setChallengeId("");
+                  setDevOtp(null);
+                }}
               >
-                <div>
-                  <div className="overline" style={{ marginBottom: "var(--space-1)" }}>
-                    🔧 Dev Mode — Mock OTP (auto-filled)
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "monospace",
-                      fontSize: 32,
-                      fontWeight: 700,
-                      letterSpacing: 10,
-                      color: "#78350f"
-                    }}
-                  >
-                    {devOtp}
-                  </div>
-                  <div
-                    className="caption"
-                    style={{ marginTop: "var(--space-1)", color: "#92400e" }}
-                  >
-                    Just click Verify — no SMS sent
-                  </div>
-                </div>
+                {t === "login" ? "Log in" : "Sign up"}
+              </button>
+            ))}
+          </motion.div>
+
+          {/* Step 1 — Phone */}
+          {step === 1 && (
+            <motion.div variants={fadeUp} custom={4} initial="hidden" animate="show">
+              <label htmlFor="phone" className="form-label auth-form-label">
+                Mobile number
+              </label>
+              <div className="auth-phone-group">
+                <span className="auth-phone-prefix">
+                  <span className="auth-phone-prefix__flag">🇮🇳</span>
+                  +91
+                </span>
+                <input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="98765 43210"
+                  disabled={loading}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+                  className="input auth-input"
+                  autoFocus
+                  autoComplete="tel"
+                  aria-label="Mobile number"
+                />
               </div>
-            )}
+              <button
+                onClick={handleSendOtp}
+                disabled={loading}
+                className="btn btn--primary btn--full auth-cta"
+              >
+                {loading ? "Sending…" : "Continue with OTP"}
+              </button>
+            </motion.div>
+          )}
 
-            <label htmlFor="otp" className="form-label">
-              6-digit OTP
-            </label>
-            <input
-              id="otp"
-              type="text"
-              inputMode="numeric"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="123456"
-              disabled={loading}
-              maxLength={6}
-              onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-              className="input"
-              style={{ fontSize: 20, letterSpacing: 8, textAlign: "center" }}
-              autoFocus
-              autoComplete="one-time-code"
-              aria-label="One-time password"
-            />
-            <button
-              onClick={handleVerify}
-              disabled={loading || otp.length < 6}
-              className="btn btn--primary btn--full"
-              style={{ marginTop: "var(--space-4)", marginBottom: "var(--space-3)" }}
-            >
-              {loading ? "Verifying…" : tab === "signup" ? "Verify & Sign up" : "Verify & Sign in"}
-            </button>
-            <button
-              onClick={() => {
-                setStep(1);
-                setOtp("");
-                setChallengeId("");
-                setDevOtp(null);
-                setError(null);
-                setInfo(null);
-              }}
-              className="btn btn--ghost btn--sm"
-              style={{ padding: 0 }}
-            >
-              ← Change number
-            </button>
-          </div>
-        )}
+          {/* Step 2 — OTP */}
+          {step === 2 && (
+            <motion.div variants={fadeUp} custom={4} initial="hidden" animate="show">
+              {info && <p className="auth-info-line">{info}</p>}
 
-        {/* Error message */}
-        {error && (
-          <div className="alert alert--error" role="alert" style={{ marginTop: "var(--space-4)" }}>
-            {error}
-          </div>
-        )}
+              {/* Dev-only: show OTP hint when running on mock provider */}
+              {devOtp && (
+                <div className="auth-dev-chip" role="note">
+                  <div className="auth-dev-chip__row">
+                    <Sparkles size={13} aria-hidden="true" />
+                    <span>Dev mode — mock OTP auto-filled</span>
+                  </div>
+                  <div className="auth-dev-chip__digits">{devOtp}</div>
+                  <div className="auth-dev-chip__hint">No SMS sent. Just hit Verify.</div>
+                </div>
+              )}
+
+              <label htmlFor="otp" className="form-label auth-form-label">
+                6-digit code
+              </label>
+              <input
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="• • • • • •"
+                disabled={loading}
+                maxLength={6}
+                onKeyDown={(e) => e.key === "Enter" && handleVerify()}
+                className="input auth-input auth-input--otp"
+                autoFocus
+                autoComplete="one-time-code"
+                aria-label="One-time password"
+              />
+              <button
+                onClick={handleVerify}
+                disabled={loading || otp.length < 6}
+                className="btn btn--primary btn--full auth-cta"
+              >
+                {loading
+                  ? "Verifying…"
+                  : tab === "signup"
+                    ? "Verify & Sign up"
+                    : "Verify & Sign in"}
+              </button>
+              <button
+                onClick={() => {
+                  setStep(1);
+                  setOtp("");
+                  setChallengeId("");
+                  setDevOtp(null);
+                  setError(null);
+                  setInfo(null);
+                }}
+                className="auth-change-number"
+                type="button"
+              >
+                ← Change number
+              </button>
+            </motion.div>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <div className="auth-error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <motion.div
+            className="auth-trust-row"
+            variants={fadeUp}
+            custom={5}
+            initial="hidden"
+            animate="show"
+          >
+            <ShieldCheck size={13} aria-hidden="true" />
+            <span>Trusted by verified owners across India</span>
+          </motion.div>
+        </motion.div>
+
+        <motion.p
+          className="auth-fine-print"
+          variants={fadeUp}
+          custom={6}
+          initial="hidden"
+          animate="show"
+        >
+          By continuing, you agree to Cribliv's <a href="/en/terms">Terms</a> and{" "}
+          <a href="/en/privacy">Privacy Policy</a>.
+        </motion.p>
       </div>
     </div>
   );
