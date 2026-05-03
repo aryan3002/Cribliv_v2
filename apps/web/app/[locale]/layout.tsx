@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { Header } from "../../components/header";
-import { Footer } from "../../components/footer";
+import { LocaleChrome } from "../../components/locale-chrome";
 import { PageviewTracker } from "../../components/analytics/pageview-tracker";
-import { isValidLocale } from "../../lib/i18n";
+import { isValidLocale, type Locale } from "../../lib/i18n";
 import { notFound } from "next/navigation";
 
 export async function generateMetadata({
@@ -41,11 +40,7 @@ export default function LocaleLayout({
       <Suspense fallback={null}>
         <PageviewTracker locale={params.locale} />
       </Suspense>
-      <Header locale={params.locale} />
-      <main id="main-content" className="page-content">
-        {children}
-      </main>
-      <Footer locale={params.locale} />
+      <LocaleChrome locale={params.locale as Locale}>{children}</LocaleChrome>
     </>
   );
 }

@@ -566,3 +566,144 @@ export async function adjustAdminWallet(
     })
   });
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+ *  v2 Admin Dashboard — new aggregation endpoints
+ * ════════════════════════════════════════════════════════════════════════ */
+
+export interface LiveOpsCounters {
+  leads_24h: number;
+  unlocks_today: number;
+  fraud_open: number;
+  verifications_pending: number;
+  listings_pending_review: number;
+  online_voice_sessions: number;
+  generated_at: string;
+}
+
+export interface OpsSparklines {
+  leads: number[];
+  unlocks: number[];
+  fraud: number[];
+}
+
+export interface UnlocksHourlyBucket {
+  hour: string;
+  count: number;
+}
+
+export interface OwnerHealthRow {
+  owner_user_id: string;
+  phone: string;
+  name: string | null;
+  listings_active: number;
+  listings_paused: number;
+  avg_response_minutes: number | null;
+  unlocks_60d: number;
+  deals_done_60d: number;
+  last_login_at: string | null;
+  days_since_last_login: number | null;
+  report_count: number;
+  score: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  components: {
+    listings: { value: number; weight: number };
+    response: { value: number; weight: number };
+    deal: { value: number; weight: number };
+    freshness: { value: number; weight: number };
+    trust: { value: number; weight: number };
+  };
+}
+
+export type RevenueRange = "7d" | "30d" | "90d";
+export type RevenueGroupBy = "day" | "city" | "listing_type";
+
+export interface RevenueAttribution {
+  buckets: Array<{ key: string; revenue_paise: number; order_count: number }>;
+  total_revenue_paise: number;
+  total_orders: number;
+  range: RevenueRange;
+  group_by: RevenueGroupBy;
+}
+
+export interface RevenueCohort {
+  cohort_month: string;
+  owners_count: number;
+  total_revenue_paise: number;
+  avg_ltv_paise: number;
+  churn_30d_count: number;
+}
+
+export type FraudFeedItemKind =
+  | "raw_flag"
+  | "multi_listing_burst"
+  | "multi_report"
+  | "inactive_owner";
+
+export interface FraudFeedItem {
+  id: string;
+  kind: FraudFeedItemKind;
+  severity: "low" | "medium" | "high";
+  summary: string;
+  evidence: Record<string, unknown>;
+  related_ids: { listing_ids?: string[]; owner_user_id?: string; phone?: string };
+  detected_at: string;
+}
+
+export async function fetchAdminLiveOps(accessToken: string) {
+  return fetchApi<LiveOpsCounters>("/admin/ops/live", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminOpsSparklines(accessToken: string) {
+  return fetchApi<OpsSparklines>("/admin/ops/sparklines", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminUnlocksHourly(accessToken: string) {
+  return fetchApi<{ buckets: UnlocksHourlyBucket[] }>("/admin/ops/unlocks-hourly", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminOwnerHealth(
+  accessToken: string,
+  opts: { limit?: number; offset?: number; sort?: string } = {}
+) {
+  const params = new URLSearchParams();
+  if (opts.limit != null) params.set("limit", String(opts.limit));
+  if (opts.offset != null) params.set("offset", String(opts.offset));
+  if (opts.sort) params.set("sort", opts.sort);
+  const qs = params.toString();
+  return fetchApi<{ items: OwnerHealthRow[]; total: number }>(
+    `/admin/owners/health${qs ? `?${qs}` : ""}`,
+    { headers: authHeaders(accessToken) }
+  );
+}
+
+export async function fetchAdminRevenueAttribution(
+  accessToken: string,
+  opts: { range?: RevenueRange; group_by?: RevenueGroupBy } = {}
+) {
+  const params = new URLSearchParams();
+  if (opts.range) params.set("range", opts.range);
+  if (opts.group_by) params.set("group_by", opts.group_by);
+  const qs = params.toString();
+  return fetchApi<RevenueAttribution>(`/admin/revenue/attribution${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminRevenueCohorts(accessToken: string, months = 6) {
+  return fetchApi<{ cohorts: RevenueCohort[] }>(`/admin/revenue/cohorts?months=${months}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminFraudFeed(accessToken: string, limit = 50) {
+  return fetchApi<{ items: FraudFeedItem[]; total: number }>(`/admin/fraud/feed?limit=${limit}`, {
+    headers: authHeaders(accessToken)
+  });
+}

@@ -22,6 +22,14 @@ import type { Role } from "../../common/types";
 import { NotificationService } from "../notifications/notification.service";
 import type { NotificationType } from "../notifications/notification.templates";
 import { AdminAnalyticsService } from "./admin-analytics.service";
+import { AdminOpsService } from "./admin-ops.service";
+import { AdminOwnerHealthService } from "./admin-owner-health.service";
+import {
+  AdminRevenueService,
+  type RevenueRange,
+  type RevenueGroupBy
+} from "./admin-revenue.service";
+import { AdminFraudFeedService } from "./admin-fraud-feed.service";
 
 @Controller("admin")
 @UseGuards(AuthGuard, RolesGuard)
@@ -31,8 +39,70 @@ export class AdminController {
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(NotificationService) private readonly notifications: NotificationService,
-    @Inject(AdminAnalyticsService) private readonly analytics: AdminAnalyticsService
+    @Inject(AdminAnalyticsService) private readonly analytics: AdminAnalyticsService,
+    @Inject(AdminOpsService) private readonly ops: AdminOpsService,
+    @Inject(AdminOwnerHealthService) private readonly ownerHealth: AdminOwnerHealthService,
+    @Inject(AdminRevenueService) private readonly revenue: AdminRevenueService,
+    @Inject(AdminFraudFeedService) private readonly fraudFeed: AdminFraudFeedService
   ) {}
+
+  /* ── Live Operations dashboard ─────────────────────────────────── */
+
+  @Get("ops/live")
+  async opsLive() {
+    return ok(await this.ops.getLiveCounters());
+  }
+
+  @Get("ops/sparklines")
+  async opsSparklines() {
+    return ok(await this.ops.getRecentActivitySparklines());
+  }
+
+  @Get("ops/unlocks-hourly")
+  async opsUnlocksHourly() {
+    return ok({ buckets: await this.ops.getUnlocksHourly() });
+  }
+
+  /* ── Owner Health Score ────────────────────────────────────────── */
+
+  @Get("owners/health")
+  async ownersHealth(
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("sort") sort?: string
+  ) {
+    return ok(
+      await this.ownerHealth.listOwners({
+        limit: limit ? Number(limit) : undefined,
+        offset: offset ? Number(offset) : undefined,
+        sort
+      })
+    );
+  }
+
+  /* ── Revenue Attribution ───────────────────────────────────────── */
+
+  @Get("revenue/attribution")
+  async revenueAttribution(@Query("range") range?: string, @Query("group_by") group_by?: string) {
+    return ok(
+      await this.revenue.getAttribution({
+        range: range as RevenueRange | undefined,
+        group_by: group_by as RevenueGroupBy | undefined
+      })
+    );
+  }
+
+  @Get("revenue/cohorts")
+  async revenueCohorts(@Query("months") months?: string) {
+    return ok(await this.revenue.getCohorts(months ? Number(months) : 6));
+  }
+
+  /* ── Fraud Intelligence Feed ───────────────────────────────────── */
+
+  @Get("fraud/feed")
+  async fraudFeedItems(@Query("limit") limit?: string) {
+    return ok(await this.fraudFeed.getFeed(limit ? Number(limit) : 50));
+  }
 
   @Get("review/listings")
   async listingQueue(@Query("status") status?: string): Promise<any> {

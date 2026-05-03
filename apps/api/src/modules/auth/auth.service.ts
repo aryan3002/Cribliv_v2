@@ -249,6 +249,12 @@ export class AuthService {
           isNewUser = true;
         }
 
+        // Stamp last_login_at — used by Owner Health Score (freshness)
+        // and the Fraud Intelligence Feed (inactive-owner signal).
+        await client.query(`UPDATE users SET last_login_at = now() WHERE id = $1::uuid`, [
+          userResult.rows[0].id
+        ]);
+
         // Admin sessions are short-lived (4 hours) for security;
         // regular users get 30-day sessions
         const userRole = userResult.rows[0].role;
