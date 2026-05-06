@@ -106,6 +106,17 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
     setAccessToken(token);
     if (!token) {
       setShortlisted(readGuestShortlist().includes(listingId));
+    } else {
+      // Check shortlist status from the API for logged-in users
+      void fetchApi<{ items: { id: string }[]; total: number }>("/shortlist", {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then((res) => {
+          setShortlisted(res.items.some((item) => item.id === listingId));
+        })
+        .catch(() => {
+          // Silently ignore — default to not shortlisted
+        });
     }
   }, [listingId, nextAuthSession]);
 
@@ -264,8 +275,12 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
 
   async function toggleShortlist() {
     setError(null);
+    // Check both localStorage and NextAuth session for the token
     const session = readAuthSession();
-    if (!session?.access_token) {
+    const nextAuthToken = (nextAuthSession as { accessToken?: string } | null)?.accessToken ?? null;
+    const token = session?.access_token ?? nextAuthToken;
+
+    if (!token) {
       const next = toggleGuestShortlist(listingId);
       setShortlisted(next.active);
       return;
@@ -276,7 +291,7 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
         await fetchApi<{ success: true }>(`/shortlist/${listingId}`, {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${session.access_token}`
+            Authorization: `Bearer ${token}`
           }
         });
         setShortlisted(false);
@@ -285,7 +300,7 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
         await fetchApi<{ shortlist_id: string }>("/shortlist", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${session.access_token}`
+            Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({ listing_id: listingId })
         });
@@ -446,7 +461,7 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
           disabled={loading}
           style={{ width: "100%" }}
         >
-          {shortlisted ? "Remove from Shortlist" : "Save to Shortlist"}
+          {shortlisted ? "♥ Saved" : "Save"}
         </button>
       </div>
 

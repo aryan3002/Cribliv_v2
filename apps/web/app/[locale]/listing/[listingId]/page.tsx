@@ -288,7 +288,12 @@ export default async function ListingDetailPage({
               )}
             </div>
           </div>
-          <ListingToolbarActions locale={locale} title={listing.title} shareUrl={shareUrl} />
+          <ListingToolbarActions
+            locale={locale}
+            title={listing.title}
+            shareUrl={shareUrl}
+            listingId={params.listingId}
+          />
         </div>
 
         {/* Gallery */}

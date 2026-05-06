@@ -69,6 +69,22 @@ export function ShortlistClient({ locale }: { locale: string }) {
 
     setIsGuestMode(false);
     try {
+      // Migrate any guest shortlist items to the server before fetching
+      const guestIds = readGuestShortlist();
+      if (guestIds.length > 0) {
+        await Promise.allSettled(
+          guestIds.map((id) =>
+            fetchApi<{ shortlist_id: string }>("/shortlist", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ listing_id: id })
+            })
+          )
+        );
+        // Clear guest shortlist after migration attempt
+        writeGuestShortlist([]);
+      }
+
       const response = await fetchApi<{ items: ListingCard[]; total: number }>("/shortlist", {
         headers: {
           Authorization: `Bearer ${token}`
@@ -116,7 +132,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
   if (sessionStatus === "loading" || loading) {
     return (
       <section>
-        <h1 style={{ marginBottom: "var(--space-6)" }}>Shortlist</h1>
+        <h1 style={{ marginBottom: "var(--space-6)" }}>Saved Homes</h1>
         <div className="listing-grid">
           {[1, 2, 3].map((i) => (
             <div key={i} className="skeleton-card">
@@ -139,11 +155,11 @@ export function ShortlistClient({ locale }: { locale: string }) {
   return (
     <section>
       <div style={{ marginBottom: "var(--space-6)" }}>
-        <h1 style={{ marginBottom: "var(--space-2)" }}>Shortlist</h1>
+        <h1 style={{ marginBottom: "var(--space-2)" }}>Saved Homes</h1>
         <p className="body-sm text-secondary">
           {isGuestMode
-            ? "Guest shortlist is stored on this browser. Login to sync across devices."
-            : "Your shortlist is synced with your account."}
+            ? "Guest saves are stored on this browser. Login to sync across devices."
+            : "Your saved homes are synced with your account."}
         </p>
       </div>
 
@@ -159,7 +175,7 @@ export function ShortlistClient({ locale }: { locale: string }) {
           <span className="empty-state__icon" aria-hidden="true">
             <Heart size={40} style={{ color: "var(--accent)" }} />
           </span>
-          <h3>No shortlisted homes yet</h3>
+          <h3>No saved homes yet</h3>
           <p>
             Browse verified rentals and tap the heart icon to save them here. Your favorites will be
             waiting when you come back.

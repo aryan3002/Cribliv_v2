@@ -74,7 +74,7 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
       <div className="flex flex-col gap-3" style={{ marginBottom: "var(--space-8)" }}>
         {[
           { href: `/${locale}/search?city=noida`, label: "Browse Properties", icon: SearchIcon },
-          { href: `/${locale}/shortlist`, label: "My Shortlist", icon: Heart },
+          { href: `/${locale}/shortlist`, label: "Saved", icon: Heart },
           { href: `/${locale}`, label: "Back to Home", icon: HomeIcon }
         ].map(({ href, label, icon: Icon }) => (
           <Link

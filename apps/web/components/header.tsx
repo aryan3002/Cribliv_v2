@@ -48,7 +48,7 @@ export function Header({ locale }: { locale: Locale }) {
             className={`nav-tab${isActive(`/${locale}/shortlist`) ? " nav-tab--active" : ""}`}
           >
             <Heart size={15} aria-hidden="true" />
-            <span>{t(locale, "navShortlist")}</span>
+            <span>{t(locale, "navSaved")}</span>
           </Link>
         </nav>
 

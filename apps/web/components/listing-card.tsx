@@ -98,7 +98,7 @@ export function ListingCardItem({
           <button
             type="button"
             className="listing-card__heart"
-            aria-label="Save to shortlist"
+            aria-label="Save"
             onClick={(e) => {
               // Static fallback — the search-results page wires up real shortlist action via heartSlot.
               e.preventDefault();

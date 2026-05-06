@@ -91,7 +91,7 @@ export function SessionBanner({ locale }: { locale: Locale }) {
               Browse listings
             </Link>
             <Link href={`/${locale}/shortlist`} className="btn btn--secondary btn--sm">
-              My shortlist
+              My saved
             </Link>
             <Link
               href={`/${locale}/become-owner`}

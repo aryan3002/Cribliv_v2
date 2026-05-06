@@ -108,7 +108,7 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
         {
           href: `/${locale}/shortlist`,
           icon: <Heart size={16} aria-hidden="true" />,
-          label: t(locale, "menuMyShortlist")
+          label: t(locale, "menuMySaved")
         },
         ...(role === "owner" || role === "pg_operator"
           ? [

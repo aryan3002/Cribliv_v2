@@ -100,8 +100,8 @@ const FAQ_DATA = [
         a: "Yes! Cribliv supports AI-powered voice search in both Hindi and English. Just tap the microphone icon and speak naturally — e.g., 'Noida mein 2BHK chahiye 15 hazaar tak' or 'Show me PGs in Gurugram under 10000'."
       },
       {
-        q: "Can I save properties to a shortlist?",
-        a: "Yes. Use the heart icon on any listing to save it to your shortlist. Access your saved properties anytime from the shortlist page."
+        q: "Can I save properties?",
+        a: "Yes. Use the heart icon on any listing to save it. Access your saved properties anytime from the Saved page."
       },
       {
         q: "Is Cribliv available in Hindi?",
