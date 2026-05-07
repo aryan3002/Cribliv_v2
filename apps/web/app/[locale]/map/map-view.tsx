@@ -18,9 +18,16 @@ import { AlertZoneLayer } from "../../../components/criblmap/AlertZoneLayer";
 import { CommuteOverlay } from "../../../components/criblmap/CommuteOverlay";
 import { BenchmarkModal } from "../../../components/criblmap/overlays/BenchmarkModal";
 import { AlertZoneModal } from "../../../components/criblmap/overlays/AlertZoneModal";
+import {
+  FilterDrawer,
+  FilterDrawerTrigger
+} from "../../../components/criblmap/overlays/FilterDrawer";
+import { OnboardingTooltip } from "../../../components/criblmap/overlays/OnboardingTooltip";
+import { DemandHeatmapLayer } from "../../../components/criblmap/DemandHeatmapLayer";
 import { useMapState, useMapDispatch } from "../../../components/criblmap/hooks/useMapState";
 import { useMapPins } from "../../../components/criblmap/hooks/useMapPins";
 import { useSeekerPins } from "../../../components/criblmap/hooks/useSeekerPins";
+import { useAlertZones } from "../../../components/criblmap/hooks/useAlertZones";
 
 interface MapViewProps {
   locale: string;
@@ -51,9 +58,13 @@ export function MapView({ locale }: MapViewProps) {
   const [showBenchmark, setShowBenchmark] = useState(false);
   const [showAlertZone, setShowAlertZone] = useState(false);
   const [showCommuteInput, setShowCommuteInput] = useState(false);
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
   useMapPins();
   useSeekerPins();
+  // Load saved alert zones for authenticated users
+  const isAuthenticated = typeof document !== "undefined" && document.cookie.includes("token=");
+  useAlertZones(isAuthenticated);
 
   const handleMapReady = useCallback((map: google.maps.Map) => {
     setMapInstance(map);
@@ -125,6 +136,7 @@ export function MapView({ locale }: MapViewProps) {
         showInput={showCommuteInput}
         onCloseInput={() => setShowCommuteInput(false)}
       />
+      <DemandHeatmapLayer map={mapInstance} />
 
       {/* Draw mode instruction overlay */}
       {drawMode === "first-corner" && (
@@ -169,6 +181,13 @@ export function MapView({ locale }: MapViewProps) {
       {/* Modals */}
       {showBenchmark && <BenchmarkModal onClose={() => setShowBenchmark(false)} />}
       {showAlertZone && <AlertZoneModal onClose={() => setShowAlertZone(false)} />}
+      <FilterDrawer open={showFilterDrawer} onClose={() => setShowFilterDrawer(false)} />
+
+      {/* Mobile filter trigger */}
+      <FilterDrawerTrigger onClick={() => setShowFilterDrawer(true)} />
+
+      {/* First-visit onboarding */}
+      <OnboardingTooltip />
     </div>
   );
 }

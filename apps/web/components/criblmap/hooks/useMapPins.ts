@@ -41,7 +41,8 @@ export function useMapPins() {
         ...(filters.bhk && { bhk: filters.bhk }),
         ...(filters.max_rent && { max_rent: filters.max_rent }),
         ...(filters.listing_type && { listing_type: filters.listing_type }),
-        ...(filters.verified_only && { verified_only: "true" })
+        ...(filters.verified_only && { verified_only: "true" }),
+        ...(filters.near_metro && { near_metro: "true" })
       };
 
       const data = await fetchApi<MapPinResponse[]>(

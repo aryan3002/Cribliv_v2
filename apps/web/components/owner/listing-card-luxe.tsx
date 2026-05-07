@@ -16,6 +16,7 @@ import {
 import type { OwnerListingVm, ListingStatus } from "../../lib/owner-api";
 import { toTitleCase, VERIFICATION_LABELS } from "../../lib/utils";
 import { AvailabilityToggle } from "./availability-toggle";
+import { SeekerNearWidget } from "./seeker-near-widget";
 
 interface Props {
   listing: OwnerListingVm;
@@ -196,6 +197,10 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
             <span className="lcl__price lcl__price--empty">Rent not set</span>
           )}
         </div>
+
+        {listing.status === "active" && (
+          <SeekerNearWidget listingId={listing.id} accessToken={accessToken} />
+        )}
 
         <div className="lcl__actions">
           {(listing.status === "active" || listing.status === "paused") && accessToken && (

@@ -82,7 +82,8 @@ function readAiConfig() {
     endpoint: (process.env.AZURE_OPENAI_ENDPOINT?.trim() ?? "").replace(/\/+$/, ""),
     apiKey: process.env.AZURE_OPENAI_API_KEY?.trim() ?? "",
     deployment: process.env.AZURE_OPENAI_EXTRACT_DEPLOYMENT?.trim() ?? "",
-    timeoutMs: Math.max(Number(process.env.AZURE_AI_TIMEOUT_MS) || 5000, 2000)
+    // 2s default — if AI takes longer, user gets stats-only instantly
+    timeoutMs: Math.max(Number(process.env.AZURE_AI_TIMEOUT_MS) || 2000, 1500)
   };
 }
 
@@ -103,11 +104,20 @@ export class MapService {
     sw_lat: number,
     ne_lng: number,
     ne_lat: number,
-    listingType?: string
+    listingType?: string,
+    nearMetro?: boolean
   ): Promise<AreaStatsResponse> {
     if (!this.database.isEnabled()) {
       return { total_pins: 0, by_bhk: [], verified_count: 0, verified_pct: 0, trend: "stable" };
     }
+
+    const metroClause = nearMetro
+      ? `AND EXISTS (
+           SELECT 1 FROM metro_stations ms
+           WHERE ms.lat BETWEEN ll.lat::float8 - 0.009 AND ll.lat::float8 + 0.009
+             AND ms.lng BETWEEN ll.lng::float8 - 0.009 AND ll.lng::float8 + 0.009
+         )`
+      : "";
 
     const bhkResult = await this.database.query<AreaStatsRow>(
       `SELECT
@@ -124,6 +134,7 @@ export class MapService {
          AND ll.lat::float8 BETWEEN $1 AND $2
          AND ll.lng::float8 BETWEEN $3 AND $4
          AND ($5::text IS NULL OR l.listing_type::text = $5)
+         ${metroClause}
        GROUP BY l.bhk ORDER BY l.bhk`,
       [sw_lat, ne_lat, sw_lng, ne_lng, listingType ?? null]
     );

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import { CRIBLMAP_DARK_STYLE } from "./map-styles";
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 // "DEMO_MAP_ID" enables AdvancedMarkerElement in dev without a Cloud Map ID.
@@ -17,7 +18,8 @@ function ensureMapsLoaded(): Promise<void> {
     mapsReady = Promise.all([
       importLibrary("maps"),
       importLibrary("marker"),
-      importLibrary("places")
+      importLibrary("places"),
+      importLibrary("visualization")
     ]).then(() => {});
   }
   return mapsReady;
@@ -35,13 +37,11 @@ export function useGoogleMap(
   const mapRef = useRef<google.maps.Map | null>(null);
   const [ready, setReady] = useState(false);
 
-  const {
-    center = { lat: 28.6139, lng: 77.209 },
-    zoom = 11,
-    // styles are ignored when mapId is set (Cloud-based styling takes over);
-    // keep the reference so callers don't break, but pass mapId instead.
-    mapId = MAP_ID
-  } = options;
+  const { center = { lat: 28.6139, lng: 77.209 }, zoom = 11, styles, mapId = MAP_ID } = options;
+
+  // Use Cloud-based styling when a real Map ID is configured;
+  // fall back to inline dark styles for dev / DEMO_MAP_ID.
+  const useCloudStyle = mapId !== "DEMO_MAP_ID";
 
   useEffect(() => {
     if (!API_KEY || !containerRef.current) return;
@@ -51,10 +51,9 @@ export function useGoogleMap(
       if (cancelled || !containerRef.current) return;
       if (typeof google === "undefined") return;
 
-      const map = new google.maps.Map(containerRef.current, {
+      const mapOptions: google.maps.MapOptions = {
         center,
         zoom,
-        mapId,
         disableDefaultUI: true,
         zoomControl: true,
         zoomControlOptions: { position: google.maps.ControlPosition.LEFT_BOTTOM },
@@ -62,7 +61,17 @@ export function useGoogleMap(
         clickableIcons: false,
         minZoom: 8,
         maxZoom: 19
-      });
+      };
+
+      if (useCloudStyle) {
+        mapOptions.mapId = mapId;
+      } else {
+        // Apply dark style inline when no Cloud Map ID is available
+        mapOptions.styles = styles ?? CRIBLMAP_DARK_STYLE;
+        mapOptions.mapId = mapId; // still needed for AdvancedMarkerElement
+      }
+
+      const map = new google.maps.Map(containerRef.current, mapOptions);
 
       mapRef.current = map;
       setReady(true);

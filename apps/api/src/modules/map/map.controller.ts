@@ -30,6 +30,7 @@ export class MapController {
       ne_lat: string;
       ne_lng: string;
       listing_type?: string;
+      near_metro?: string;
     }
   ) {
     return ok(
@@ -38,7 +39,8 @@ export class MapController {
         Number(query.sw_lat),
         Number(query.ne_lng),
         Number(query.ne_lat),
-        query.listing_type
+        query.listing_type,
+        query.near_metro === "true"
       )
     );
   }

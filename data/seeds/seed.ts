@@ -142,6 +142,50 @@ async function seed() {
 
   console.log("Seeded dev users: owner/tenant/admin/pg_operator (phones ending 901–904).");
 
+  // ── Metro station seed data ────────────────────────────────────────────────
+  try {
+    const metroData = JSON.parse(
+      fs.readFileSync(path.join(seedDir, "metro-stations.json"), "utf8")
+    ) as {
+      city: string;
+      lines: Array<{
+        line_name: string;
+        line_color: string;
+        stations: Array<{ name: string; lat: number; lng: number; seq: number }>;
+      }>;
+    };
+
+    // Clear existing metro data for this city and re-insert (idempotent)
+    await client.query(`DELETE FROM metro_stations WHERE city = $1`, [metroData.city]);
+
+    let stationCount = 0;
+    for (const line of metroData.lines) {
+      for (const station of line.stations) {
+        await client.query(
+          `INSERT INTO metro_stations (city, line_name, line_color, station_name, lat, lng, sequence)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            metroData.city,
+            line.line_name,
+            line.line_color,
+            station.name,
+            station.lat,
+            station.lng,
+            station.seq
+          ]
+        );
+        stationCount++;
+      }
+    }
+
+    console.log(
+      `Seeded ${stationCount} metro stations across ${metroData.lines.length} lines for ${metroData.city}.`
+    );
+  } catch (err) {
+    // Metro table may not exist yet — non-fatal
+    console.warn("Metro station seed skipped:", err instanceof Error ? err.message : err);
+  }
+
   await client.end();
 }
 
