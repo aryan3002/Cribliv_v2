@@ -135,18 +135,56 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     }
     void (async () => {
       try {
-        const response = await listOwnerListings(accessToken);
-        const found = response.items.find((item) => item.id === editId);
+        const { getOwnerListing } = await import("../../../../../lib/owner-api");
+        const found = await getOwnerListing(accessToken, editId);
         if (!found) return;
         setForm((prev) => ({
           ...prev,
           title: found.title ?? "",
-          listing_type: found.listingType,
+          description: found.description ?? "",
+          listing_type: found.listingType || found.listing_type || "flat_house",
           city: found.city ?? "",
-          locality: found.locality ?? "",
-          monthly_rent: typeof found.monthlyRent === "number" ? String(found.monthlyRent) : ""
+          locality: (found.maskedAddress || found.masked_address) ?? found.locality ?? "",
+          monthly_rent:
+            found.monthlyRent || found.monthly_rent
+              ? String(found.monthlyRent || found.monthly_rent)
+              : "",
+          deposit:
+            found.securityDeposit || found.security_deposit
+              ? String(found.securityDeposit || found.security_deposit)
+              : "",
+          address: (found.addressLine1 || found.address_line1) ?? "",
+          landmark: found.landmark ?? "",
+          pincode: found.pincode ?? "",
+          bedrooms: found.bhk ? String(found.bhk) : "",
+          bathrooms: found.bathrooms ? String(found.bathrooms) : "",
+          area_sqft:
+            found.areaSqft || found.area_sqft ? String(found.areaSqft || found.area_sqft) : "",
+          furnishing: found.furnishing ?? "",
+          preferred_tenant: (found.preferredTenant || found.preferred_tenant) ?? "",
+          amenities: Array.isArray(found.amenities) ? found.amenities : [],
+          beds:
+            found.totalBeds || found.total_beds ? String(found.totalBeds || found.total_beds) : "",
+          sharing_type:
+            Array.isArray(found.roomSharingOptions || found.room_sharing_options) &&
+            (found.roomSharingOptions || found.room_sharing_options).length > 0
+              ? (found.roomSharingOptions || found.room_sharing_options)[0]
+              : "",
+          meals_included: (found.foodIncluded || found.food_included) ?? false,
+          attached_bathroom: (found.attachedBathroom || found.attached_bathroom) ?? false
         }));
         setListingId(editId);
+
+        if (Array.isArray(found.photos) && found.photos.length > 0) {
+          const existingUploads = found.photos.map((url: string, i: number) => ({
+            clientUploadId: `existing-${i}`,
+            file: new File([], "existing-photo"),
+            status: "complete" as const,
+            progress: 100,
+            previewUrl: url
+          }));
+          setUploads(existingUploads);
+        }
       } catch {
         /* keep draft editable */
       }
@@ -326,11 +364,13 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       pgFields: isPg
         ? {
             totalBeds: form.beds ? Number(form.beds) : undefined,
+            occupancyType: (form.sharing_type as any) || undefined,
             roomSharingOptions: form.sharing_type ? [form.sharing_type] : [],
             foodIncluded: form.meals_included,
             attachedBathroom: form.attached_bathroom
           }
-        : undefined
+        : undefined,
+      amenities: form.amenities.length > 0 ? form.amenities : undefined
     };
   }
 

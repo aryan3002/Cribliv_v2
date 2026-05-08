@@ -46,6 +46,7 @@ export interface OwnerListingDraftInput {
     curfewTime?: string;
     attachedBathroom?: boolean;
   };
+  amenities?: string[];
 }
 
 export type ConfidenceTier = "high" | "medium" | "low";
@@ -232,7 +233,8 @@ function buildOwnerPayload(input: OwnerListingDraftInput) {
           curfew_time: input.pgFields.curfewTime,
           attached_bathroom: input.pgFields.attachedBathroom
         }
-      : undefined
+      : undefined,
+    amenities: input.amenities
   };
 }
 
@@ -262,6 +264,12 @@ export async function listOwnerListings(accessToken: string, status?: ListingSta
     items: (response.items ?? []).map(mapOwnerListingRow),
     total: response.total ?? 0
   };
+}
+
+export async function getOwnerListing(accessToken: string, listingId: string) {
+  return fetchApi<any>(`/owner/listings/${listingId}`, {
+    headers: authHeaders(accessToken)
+  });
 }
 
 export async function createOwnerListing(accessToken: string, input: OwnerListingDraftInput) {

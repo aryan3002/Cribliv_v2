@@ -213,7 +213,7 @@ export class ListingsController {
         security_deposit: null,
         available_from: null,
         whatsapp_available: false,
-        amenities: [],
+        amenities: listing.amenities || [],
         rules: null,
         photos: [],
         pg_details: null

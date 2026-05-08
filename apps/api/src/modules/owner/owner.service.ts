@@ -112,6 +112,146 @@ export class OwnerService {
     };
   }
 
+  async getOwnerListing(ownerUserId: string, listingId: string): Promise<Record<string, unknown>> {
+    if (this.database.isEnabled()) {
+      const result = await this.database.query(
+        `
+        SELECT
+          l.id::text,
+          l.listing_type::text,
+          COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'Listing') AS title,
+          l.description_en AS description,
+          c.slug AS city,
+          loc.slug AS locality,
+          l.monthly_rent,
+          l.security_deposit,
+          l.bhk,
+          l.bathrooms,
+          l.area_sqft,
+          l.furnishing::text,
+          l.preferred_tenant::text,
+          l.amenities,
+          l.verification_status::text,
+          l.status::text,
+          l.created_at::text,
+          ll.address_line1,
+          ll.landmark,
+          ll.pincode,
+          ll.masked_address,
+          pg.total_beds,
+          pg.occupancy_type::text AS occupancy_type,
+          pg.room_sharing_options,
+          pg.food_included,
+          pg.curfew_time::text AS curfew_time,
+          pg.attached_bathroom,
+          COALESCE(
+            (
+              SELECT json_agg(lp.blob_path ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC)
+              FROM listing_photos lp
+              WHERE lp.listing_id = l.id
+                AND lp.moderation_status <> 'rejected'
+            ),
+            '[]'::json
+          ) AS photos
+        FROM listings l
+        JOIN listing_locations ll ON ll.listing_id = l.id
+        JOIN cities c ON c.id = ll.city_id
+        LEFT JOIN localities loc ON loc.id = ll.locality_id
+        LEFT JOIN pg_details pg ON pg.listing_id = l.id
+        WHERE l.owner_user_id = $1::uuid
+          AND l.id = $2::uuid
+        LIMIT 1
+        `,
+        [ownerUserId, listingId]
+      );
+
+      if (!result.rowCount || !result.rows[0]) {
+        throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+      }
+
+      const row = result.rows[0];
+      const photoUrls = (row.photos ?? [])
+        .map((path: any) => toBlobUrl(path as string))
+        .filter((url: any): url is string => Boolean(url));
+
+      return {
+        id: row.id,
+        ownerUserId,
+        listingType: row.listing_type,
+        title: row.title,
+        description: row.description,
+        city: row.city,
+        locality: row.locality ?? undefined,
+        monthlyRent: row.monthly_rent ? Number(row.monthly_rent) : undefined,
+        securityDeposit: row.security_deposit ? Number(row.security_deposit) : undefined,
+        bhk: row.bhk ? Number(row.bhk) : undefined,
+        bathrooms: row.bathrooms ? Number(row.bathrooms) : undefined,
+        areaSqft: row.area_sqft ? Number(row.area_sqft) : undefined,
+        furnishing: row.furnishing ?? undefined,
+        preferredTenant: row.preferred_tenant ?? undefined,
+        amenities: row.amenities ?? [],
+        verificationStatus: row.verification_status,
+        status: row.status,
+        createdAt: new Date(row.created_at as string).getTime(),
+        addressLine1: row.address_line1 ?? undefined,
+        landmark: row.landmark ?? undefined,
+        pincode: row.pincode ?? undefined,
+        maskedAddress: row.masked_address ?? undefined,
+        totalBeds: row.total_beds ? Number(row.total_beds) : undefined,
+        occupancyType: row.occupancy_type ?? undefined,
+        roomSharingOptions: row.room_sharing_options ?? [],
+        foodIncluded: row.food_included ?? undefined,
+        curfewTime: row.curfew_time ?? undefined,
+        attachedBathroom: row.attached_bathroom ?? undefined,
+        photos: photoUrls,
+        coverImage: photoUrls[0] ?? null
+      };
+    }
+
+    const listing = this.appState.listings.get(listingId);
+    if (!listing || listing.ownerUserId !== ownerUserId) {
+      throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+    }
+
+    const meta = (listing as any).meta ?? {};
+    return {
+      id: listing.id,
+      ownerUserId,
+      listingType: listing.listingType,
+      title: listing.title,
+      description: meta.description,
+      city: listing.city,
+      locality: listing.locality,
+      monthlyRent: listing.monthlyRent,
+      securityDeposit: meta.deposit ? Number(meta.deposit) : undefined,
+      bhk: meta.property_fields?.bhk ? Number(meta.property_fields.bhk) : undefined,
+      bathrooms: meta.property_fields?.bathrooms
+        ? Number(meta.property_fields.bathrooms)
+        : undefined,
+      areaSqft: meta.property_fields?.area_sqft
+        ? Number(meta.property_fields.area_sqft)
+        : undefined,
+      furnishing: listing.furnishing,
+      preferredTenant: meta.property_fields?.preferred_tenant,
+      amenities: listing.amenities ?? [],
+      verificationStatus: listing.verificationStatus,
+      status: listing.status,
+      createdAt: listing.createdAt,
+      addressLine1: meta.location?.address_line1,
+      landmark: meta.location?.landmark,
+      pincode: meta.location?.pincode,
+      maskedAddress: meta.location?.masked_address,
+      totalBeds: meta.pg_fields?.total_beds ? Number(meta.pg_fields.total_beds) : undefined,
+      occupancyType: meta.pg_fields?.occupancy_type,
+      roomSharingOptions: meta.pg_fields?.room_sharing_options ?? [],
+      foodIncluded: meta.pg_fields?.food_included,
+      curfewTime: meta.pg_fields?.curfew_time,
+      attachedBathroom: meta.pg_fields?.attached_bathroom,
+      photos: [],
+      coverImage: null
+    };
+  }
+
   async createListing(ownerUserId: string, body: any) {
     if (!body.listing_type || !body.title || !body.rent || !body.location?.city) {
       throw new BadRequestException({
@@ -181,7 +321,8 @@ export class OwnerService {
             furnishing,
             preferred_tenant,
             contact_phone_encrypted,
-            whatsapp_available
+            whatsapp_available,
+            amenities
           )
           VALUES (
             $1::uuid,
@@ -198,7 +339,8 @@ export class OwnerService {
             $10::furnishing_type,
             $11::tenant_pref,
             $12,
-            $13
+            $13,
+            $14::jsonb
           )
           RETURNING id::text, status::text
           `,
@@ -215,7 +357,8 @@ export class OwnerService {
             body.property_fields?.furnishing ?? null,
             body.property_fields?.preferred_tenant ?? null,
             ownerContact.rows[0]?.phone_e164 ?? null,
-            ownerContact.rows[0]?.whatsapp_opt_in ?? false
+            ownerContact.rows[0]?.whatsapp_opt_in ?? false,
+            body.amenities ? JSON.stringify(body.amenities) : null
           ]
         );
 
@@ -327,7 +470,8 @@ export class OwnerService {
       verificationStatus: "unverified" as const,
       status: "draft" as const,
       createdAt: Date.now(),
-      meta: body
+      meta: body,
+      amenities: body.amenities ?? []
     };
 
     this.appState.listings.set(listing.id, listing);
@@ -368,6 +512,7 @@ export class OwnerService {
             area_sqft = COALESCE($9, area_sqft),
             furnishing = COALESCE($10::furnishing_type, furnishing),
             preferred_tenant = COALESCE($11::tenant_pref, preferred_tenant),
+            amenities = COALESCE($12::jsonb, amenities),
             updated_at = now()
           WHERE id = $1::uuid
             AND owner_user_id = $2::uuid
@@ -384,7 +529,8 @@ export class OwnerService {
             body.property_fields?.bathrooms ? Number(body.property_fields.bathrooms) : null,
             body.property_fields?.area_sqft ? Number(body.property_fields.area_sqft) : null,
             body.property_fields?.furnishing ?? null,
-            body.property_fields?.preferred_tenant ?? null
+            body.property_fields?.preferred_tenant ?? null,
+            body.amenities ? JSON.stringify(body.amenities) : null
           ]
         );
 
@@ -500,6 +646,10 @@ export class OwnerService {
 
     if (body.property_fields?.furnishing) {
       listing.furnishing = body.property_fields.furnishing;
+    }
+
+    if (body.amenities) {
+      listing.amenities = body.amenities;
     }
 
     return {

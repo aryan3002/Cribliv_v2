@@ -45,6 +45,11 @@ export class OwnerController {
     return ok(await this.ownerService.createListing(req.user.id, body));
   }
 
+  @Get("listings/:listing_id")
+  async getListing(@Req() req: { user: { id: string } }, @Param("listing_id") listingId: string) {
+    return ok(await this.ownerService.getOwnerListing(req.user.id, listingId));
+  }
+
   @Patch("listings/:listing_id")
   async update(
     @Req() req: { user: { id: string } },

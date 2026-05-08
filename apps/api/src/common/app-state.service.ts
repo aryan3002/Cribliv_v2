@@ -40,6 +40,7 @@ interface ListingRecord {
   verificationStatus: "unverified" | "pending" | "verified" | "failed";
   status: "draft" | "pending_review" | "active" | "rejected" | "paused" | "archived";
   createdAt: number;
+  amenities?: string[];
 }
 
 interface WalletTxn {
