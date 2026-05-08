@@ -69,6 +69,18 @@ export class SearchController {
     return ok(await this.searchService.searchFiltersMetadata());
   }
 
+  @Get("listings/search/dictionary")
+  async dictionary() {
+    return ok(await this.searchService.searchDictionary());
+  }
+
+  @Get("listings/search/preview")
+  async preview(@Query() query: { type?: string; value?: string }) {
+    if (query.type !== "city" && query.type !== "locality") return ok(null);
+    if (!query.value) return ok(null);
+    return ok(await this.searchService.getSearchPreview(query.type, query.value));
+  }
+
   @Get("listings/search/map")
   async mapSearch(
     @Query()

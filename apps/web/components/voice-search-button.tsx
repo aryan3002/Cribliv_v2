@@ -1,184 +1,401 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { fetchApi } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
+import { VoiceSearchFallback } from "./voice-search-fallback";
+import type { VoiceSearchButtonProps, VoiceSearchResponse, VoiceStage } from "./voice-search-types";
 
-interface VoiceTranscription {
-  text: string;
-  locale: string;
-  confidence: number;
-  duration_ms: number;
+export type { VoiceSearchResponse, VoiceTranscription } from "./voice-search-types";
+
+const WAVEFORM_BARS = 7;
+const SILENCE_TIMEOUT_MS = 1500;
+const MAX_RECORDING_MS = 12_000;
+
+interface SpeechRecognitionAlternative {
+  readonly transcript: string;
+  readonly confidence: number;
 }
 
-interface VoiceSearchResponse {
-  transcription: VoiceTranscription;
-  route_result: {
-    intent: string;
-    route: string;
-    filters: Record<string, unknown>;
-    clarifying_question?: {
-      id: string;
-      text: string;
-      options: string[];
-    };
-    source: "ai" | "regex";
-  };
+interface SpeechRecognitionResult {
+  readonly isFinal: boolean;
+  readonly length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
 }
 
-type VoiceState = "idle" | "recording" | "processing" | "error";
-
-interface VoiceSearchButtonProps {
-  locale: "en" | "hi";
-  sessionToken?: string;
-  onResult: (result: VoiceSearchResponse) => void;
-  onTranscript?: (text: string) => void;
-  className?: string;
+interface SpeechRecognitionResultList {
+  readonly length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
 }
 
-export type { VoiceSearchResponse, VoiceTranscription };
+interface SpeechRecognitionEvent extends Event {
+  readonly resultIndex: number;
+  readonly results: SpeechRecognitionResultList;
+}
 
-export function VoiceSearchButton({
+interface SpeechRecognitionErrorEvent extends Event {
+  readonly error: string;
+  readonly message: string;
+}
+
+interface SpeechRecognitionLike extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onstart: ((this: SpeechRecognitionLike, ev: Event) => unknown) | null;
+  onend: ((this: SpeechRecognitionLike, ev: Event) => unknown) | null;
+  onerror: ((this: SpeechRecognitionLike, ev: SpeechRecognitionErrorEvent) => unknown) | null;
+  onresult: ((this: SpeechRecognitionLike, ev: SpeechRecognitionEvent) => unknown) | null;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionCtor;
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+  }
+}
+
+function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
+  if (typeof window === "undefined") return null;
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
+}
+
+/**
+ * Streaming voice search using the browser's on-device Web Speech API.
+ * Falls back to the Azure batch path (VoiceSearchFallback) when the API
+ * is unavailable.
+ *
+ * Pipeline:
+ *  1. getUserMedia → AnalyserNode for waveform + SpeechRecognition for STT
+ *  2. As partials arrive, push them up via onTranscript so the input
+ *     reflects the user's voice live (sub-200ms feel)
+ *  3. 1.5s of silence → recognition.stop()
+ *  4. POST final transcript to /search/agentic-route → onResult fires
+ */
+export function VoiceSearchButton(props: VoiceSearchButtonProps) {
+  const [hasSpeechRecognition, setHasSpeechRecognition] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    setHasSpeechRecognition(getSpeechRecognitionCtor() !== null);
+  }, []);
+
+  // Hold rendering until we know which path to use to avoid flicker.
+  if (hasSpeechRecognition === null) {
+    return <div className={`voice-search-container ${props.className ?? ""}`} aria-hidden="true" />;
+  }
+
+  if (!hasSpeechRecognition) {
+    return <VoiceSearchFallback {...props} />;
+  }
+
+  return <StreamingVoiceButton {...props} />;
+}
+
+function StreamingVoiceButton({
   locale,
   sessionToken,
   onResult,
   onTranscript,
+  onStageChange,
   className
 }: VoiceSearchButtonProps) {
-  const [state, setState] = useState<VoiceState>("idle");
+  const [stage, setStage] = useState<VoiceStage>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [recordingSeconds, setRecordingSeconds] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [waveform, setWaveform] = useState<number[]>(() => new Array(WAVEFORM_BARS).fill(0.2));
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalTranscriptRef = useRef("");
+  const startedAtRef = useRef(0);
+  const userStoppedRef = useRef(false);
+
+  const updateStage = useCallback(
+    (next: VoiceStage) => {
+      setStage(next);
+      onStageChange?.(next);
+    },
+    [onStageChange]
+  );
+
+  const cleanup = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (maxDurationTimerRef.current) {
+      clearTimeout(maxDurationTimerRef.current);
+      maxDurationTimerRef.current = null;
+    }
+    if (analyserRef.current) {
+      analyserRef.current.disconnect();
+      analyserRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
   }, []);
 
-  const startRecording = useCallback(async () => {
-    setErrorMessage(null);
-    setRecordingSeconds(0);
+  // Make sure we tear down on unmount
+  useEffect(() => () => cleanup(), [cleanup]);
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true
-        }
-      });
+  const renderWaveform = useCallback(() => {
+    const analyser = analyserRef.current;
+    if (!analyser) return;
+    const buffer = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(buffer);
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
+    // Pick WAVEFORM_BARS evenly-spaced bins; normalize 0..1.
+    const step = Math.max(1, Math.floor(buffer.length / WAVEFORM_BARS));
+    const next: number[] = [];
+    for (let i = 0; i < WAVEFORM_BARS; i++) {
+      const value = buffer[i * step] ?? 0;
+      // Boost low values so quiet speech still shows movement.
+      next.push(Math.min(1, Math.max(0.15, value / 200)));
+    }
+    setWaveform(next);
+    rafRef.current = requestAnimationFrame(renderWaveform);
+  }, []);
 
-      const recorder = new MediaRecorder(stream, { mimeType });
-      chunksRef.current = [];
+  const finishWithTranscript = useCallback(
+    async (text: string) => {
+      if (!text.trim()) {
+        updateStage("idle");
+        cleanup();
+        return;
+      }
+      updateStage("parsing");
 
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
-      recorder.onstop = async () => {
-        clearTimer();
-        stream.getTracks().forEach((track) => track.stop());
-
-        const audioBlob = new Blob(chunksRef.current, { type: mimeType });
-
-        if (audioBlob.size < 1000) {
-          setState("error");
-          setErrorMessage("Recording too short. Please speak for at least 2 seconds.");
-          return;
-        }
-
-        setState("processing");
-        trackEvent("voice_search_recording_complete", {
-          audio_size_bytes: audioBlob.size,
-          locale
+      try {
+        const routeResult = await fetchApi<{
+          intent: string;
+          route: string;
+          filters: Record<string, unknown>;
+          clarifying_question?: {
+            id: string;
+            text: string;
+            options: string[];
+          };
+          source?: "ai" | "regex";
+        }>("/search/agentic-route", {
+          method: "POST",
+          body: JSON.stringify({ query: text, locale })
         });
 
-        try {
-          const formData = new FormData();
-          formData.append("audio", audioBlob, "voice-search.webm");
-          formData.append("locale", locale === "hi" ? "hi-IN" : "en-IN");
-          if (sessionToken) {
-            formData.append("session_token", sessionToken);
+        updateStage("searching");
+
+        const result: VoiceSearchResponse = {
+          transcription: {
+            text,
+            locale: locale === "hi" ? "hi-IN" : "en-IN",
+            confidence: 0.9,
+            duration_ms: Date.now() - startedAtRef.current
+          },
+          route_result: {
+            intent: routeResult.intent,
+            route: routeResult.route,
+            filters: routeResult.filters ?? {},
+            clarifying_question: routeResult.clarifying_question,
+            source: routeResult.source ?? "ai"
           }
+        };
 
-          const result = await fetchApi<VoiceSearchResponse>("/voice/search", {
-            method: "POST",
-            body: formData
-          });
+        trackEvent("voice_search_result", {
+          transcript: text,
+          confidence: 0.9,
+          intent: result.route_result.intent,
+          source: result.route_result.source,
+          duration_ms: result.transcription.duration_ms,
+          path: "web_speech"
+        });
 
-          trackEvent("voice_search_result", {
-            transcript: result.transcription.text,
-            confidence: result.transcription.confidence,
-            intent: result.route_result.intent,
-            source: result.route_result.source,
-            duration_ms: result.transcription.duration_ms
-          });
+        onResult(result);
+        updateStage("idle");
+      } catch (err) {
+        updateStage("error");
+        const msg =
+          err instanceof Error && err.message ? err.message : "Could not parse your voice query.";
+        setErrorMessage(msg);
+        trackEvent("voice_search_error", { locale, error: msg, path: "web_speech" });
+      } finally {
+        cleanup();
+      }
+    },
+    [cleanup, locale, onResult, updateStage]
+  );
 
-          if (onTranscript && result.transcription.text) {
-            onTranscript(result.transcription.text);
-          }
+  const start = useCallback(async () => {
+    setErrorMessage(null);
+    finalTranscriptRef.current = "";
+    userStoppedRef.current = false;
+    startedAtRef.current = Date.now();
 
-          onResult(result);
-          setState("idle");
-        } catch (err) {
-          setState("error");
-          const msg =
-            err instanceof Error && err.message
-              ? err.message
-              : "Voice search failed. Please try again or type your search.";
-          setErrorMessage(msg);
-          trackEvent("voice_search_error", { locale, error: msg });
-        }
-      };
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) {
+      updateStage("error");
+      setErrorMessage("Voice search not supported in this browser.");
+      return;
+    }
 
-      mediaRecorderRef.current = recorder;
-      recorder.start(250);
-      setState("recording");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-      trackEvent("voice_search_started", { locale });
-
-      // Count seconds
-      timerRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
-
-      // Auto-stop after 10 seconds
-      setTimeout(() => {
-        if (recorder.state === "recording") {
-          recorder.stop();
-        }
-      }, 10000);
+      const AudioCtor =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtor) {
+        // No analyser available — proceed without waveform.
+        streamRef.current = stream;
+      } else {
+        const audioContext = new AudioCtor();
+        audioContextRef.current = audioContext;
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.6;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+        rafRef.current = requestAnimationFrame(renderWaveform);
+      }
     } catch {
-      setState("error");
+      updateStage("error");
       setErrorMessage("Microphone access denied. Please allow microphone permissions.");
       trackEvent("voice_search_mic_denied", { locale });
+      return;
     }
-  }, [locale, sessionToken, onResult, onTranscript, clearTimer]);
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current?.state === "recording") {
-      mediaRecorderRef.current.stop();
+    const recognition = new Ctor();
+    recognition.lang = locale === "hi" ? "hi-IN" : "en-IN";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      updateStage("listening");
+      trackEvent("voice_search_started", { locale, path: "web_speech" });
+    };
+
+    recognition.onerror = (event) => {
+      // "no-speech" and "aborted" are common when the user just stops; don't surface them as errors.
+      if (event.error === "no-speech" || event.error === "aborted") {
+        return;
+      }
+      updateStage("error");
+      const msg =
+        event.error === "not-allowed"
+          ? "Microphone access denied. Please allow microphone permissions."
+          : `Voice error: ${event.error}`;
+      setErrorMessage(msg);
+      trackEvent("voice_search_error", { locale, error: event.error, path: "web_speech" });
+      cleanup();
+    };
+
+    recognition.onresult = (event) => {
+      let interim = "";
+      let finalText = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const transcript = result[0].transcript;
+        if (result.isFinal) {
+          finalText += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+
+      if (finalText) {
+        finalTranscriptRef.current = (finalTranscriptRef.current + " " + finalText).trim();
+      }
+
+      const liveText = (finalTranscriptRef.current + " " + interim).trim();
+      if (liveText) onTranscript?.(liveText);
+
+      // Reset silence timer on every voice activity
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = setTimeout(() => {
+        userStoppedRef.current = true;
+        try {
+          recognition.stop();
+        } catch {
+          /* ignore */
+        }
+      }, SILENCE_TIMEOUT_MS);
+    };
+
+    recognition.onend = async () => {
+      // Move into transcribing state momentarily so the stage strip ticks.
+      updateStage("transcribing");
+      const text = finalTranscriptRef.current.trim();
+      if (!text) {
+        // No final transcript captured (e.g. user said nothing); reset cleanly.
+        updateStage("idle");
+        cleanup();
+        return;
+      }
+      await finishWithTranscript(text);
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch {
+      updateStage("error");
+      setErrorMessage("Voice search could not start.");
+      cleanup();
+      return;
+    }
+
+    maxDurationTimerRef.current = setTimeout(() => {
+      userStoppedRef.current = true;
+      try {
+        recognition.stop();
+      } catch {
+        /* ignore */
+      }
+    }, MAX_RECORDING_MS);
+  }, [cleanup, finishWithTranscript, locale, onTranscript, renderWaveform, updateStage]);
+
+  const stop = useCallback(() => {
+    userStoppedRef.current = true;
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      /* ignore */
     }
   }, []);
 
   const handleClick = useCallback(() => {
-    if (state === "recording") {
-      stopRecording();
-    } else if (state === "idle" || state === "error") {
-      startRecording();
+    if (stage === "listening") {
+      stop();
+    } else if (stage === "idle" || stage === "error") {
+      start();
     }
-  }, [state, startRecording, stopRecording]);
+  }, [stage, start, stop]);
+
+  const isActive = stage === "listening";
+  const isBusy = stage === "transcribing" || stage === "parsing" || stage === "searching";
 
   return (
     <div
@@ -188,55 +405,46 @@ export function VoiceSearchButton({
     >
       <button
         type="button"
-        className={`voice-search-btn voice-search-btn--${state}`}
+        className={`voice-search-btn voice-search-btn--${stage}`}
         onClick={handleClick}
-        disabled={state === "processing"}
+        disabled={isBusy}
         aria-label={
-          state === "recording"
+          isActive
             ? "Stop recording"
-            : state === "processing"
-              ? "Processing voice..."
-              : "Search by voice"
+            : isBusy
+              ? "Processing voice"
+              : stage === "error"
+                ? "Retry voice search"
+                : "Search by voice"
         }
-        title={state === "recording" ? "Tap to stop" : "Search by voice"}
+        title={isActive ? "Tap to stop" : "Search by voice"}
       >
-        {state === "recording" ? (
-          <MicActiveIcon />
-        ) : state === "processing" ? (
-          <SpinnerIcon />
-        ) : (
-          <MicIcon />
-        )}
+        {isActive ? <Waveform values={waveform} /> : isBusy ? <SpinnerIcon /> : <MicIcon />}
       </button>
 
       <div className="voice-search-feedback" aria-live="polite">
-        {state === "recording" && (
-          <span className="voice-search-label">
-            {locale === "hi" ? "बोलिए..." : "Listening..."}{" "}
-            <span className="voice-search-timer">{recordingSeconds}s</span>
-          </span>
-        )}
-
-        {state === "processing" && (
-          <span className="voice-search-label">
-            {locale === "hi" ? "समझ रहे हैं..." : "Processing..."}
-          </span>
-        )}
-
-        {errorMessage && state === "error" && (
+        {errorMessage && stage === "error" ? (
           <span className="voice-search-error">
             {errorMessage}{" "}
             <button type="button" className="voice-search-retry" onClick={handleClick}>
               Try again
             </button>
           </span>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
+function Waveform({ values }: { values: number[] }) {
+  return (
+    <div className="voice-waveform" aria-hidden="true">
+      {values.map((v, i) => (
+        <span key={i} className="voice-waveform__bar" style={{ transform: `scaleY(${v})` }} />
+      ))}
+    </div>
+  );
+}
 
 function MicIcon() {
   return (
@@ -253,28 +461,6 @@ function MicIcon() {
     >
       <rect x="9" y="1" width="6" height="14" rx="3" />
       <path d="M5 10a7 7 0 0 0 14 0" />
-      <line x1="12" y1="21" x2="12" y2="17" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-    </svg>
-  );
-}
-
-function MicActiveIcon() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="voice-search-pulse"
-    >
-      <rect x="9" y="1" width="6" height="14" rx="3" />
-      <path d="M5 10a7 7 0 0 0 14 0" fill="none" />
       <line x1="12" y1="21" x2="12" y2="17" />
       <line x1="8" y1="21" x2="16" y2="21" />
     </svg>

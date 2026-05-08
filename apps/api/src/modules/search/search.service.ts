@@ -166,9 +166,56 @@ function parseRentFilters(text: string) {
   return filters;
 }
 
+type SuggestRow = {
+  type: "city" | "locality" | "listing";
+  label: string;
+  value: string;
+  // City / locality enrichments
+  listing_count?: number;
+  rent_band?: { min: number; max: number };
+  // Listing enrichments
+  cover_url?: string | null;
+  rent?: number;
+  verified?: boolean;
+  locality_label?: string;
+  posted_at?: string;
+  // Locality only
+  city_slug?: string;
+};
+
+const SUGGEST_CACHE_TTL_MS = 60_000;
+const SUGGEST_CACHE_MAX_ENTRIES = 256;
+const DICTIONARY_TTL_MS = 10 * 60_000;
+const PREVIEW_CACHE_TTL_MS = 60 * 60_000;
+const PREVIEW_CACHE_MAX_ENTRIES = 512;
+
+type SearchPreview = {
+  type: "city" | "locality";
+  slug: string;
+  name: string;
+  city_slug?: string;
+  listing_count: number;
+  rent_band: { min: number; max: number } | null;
+  verified_pct: number | null;
+  avg_bhk: number | null;
+  sample_photos: string[];
+};
+
 @Injectable()
 export class SearchService {
   private readonly photoPublicBaseUrl = this.resolvePhotoPublicBaseUrl();
+
+  // Tiny LRU-ish cache for typeahead. Hot prefixes ("delhi", "lucknow",
+  // "gurg") hit memory in <1ms instead of round-tripping to Postgres.
+  private readonly suggestCache = new Map<string, { rows: SuggestRow[]; expiresAt: number }>();
+  private readonly previewCache = new Map<
+    string,
+    { value: SearchPreview | null; expiresAt: number }
+  >();
+  private dictionaryCache: {
+    value: { cities: string[]; localities: string[] };
+    expiresAt: number;
+  } | null = null;
 
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
@@ -969,19 +1016,263 @@ export class SearchService {
   }
 
   /**
-   * Typeahead / autocomplete suggestions.
-   * Returns matching cities, localities, and listing titles using pg_trgm similarity.
+   * Lightweight place-name dictionary for the client-side smart parser.
+   * Returns ALL cities + localities (not filtered by listing presence) so the
+   * parser can recognize names like "Gomti Nagar" even before any listing is
+   * tagged with that locality. Cached for 10 minutes.
    */
-  async suggest(
-    q: string,
-    limit = 8
-  ): Promise<Array<{ type: string; label: string; value: string }>> {
-    const term = (q ?? "").trim();
-    if (term.length < 2) return [];
+  async searchDictionary(): Promise<{ cities: string[]; localities: string[] }> {
+    const cached = this.dictionaryCache;
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
 
     if (!this.database.isEnabled()) {
-      // In-memory fallback: match against city names
-      const cities = CITY_ORDER.filter((c) => c.includes(term.toLowerCase())).map((c) => ({
+      const value = { cities: [...CITY_ORDER], localities: [] };
+      this.dictionaryCache = { value, expiresAt: Date.now() + DICTIONARY_TTL_MS };
+      return value;
+    }
+
+    const [cityRows, locRows] = await Promise.all([
+      this.database.query<{ slug: string }>(
+        `SELECT slug FROM cities WHERE is_active = true ORDER BY slug ASC`
+      ),
+      this.database.query<{ slug: string }>(
+        `SELECT slug FROM localities ORDER BY slug ASC LIMIT 2000`
+      )
+    ]);
+
+    const value = {
+      cities: cityRows.rows.map((r) => r.slug),
+      localities: locRows.rows.map((r) => r.slug)
+    };
+    this.dictionaryCache = { value, expiresAt: Date.now() + DICTIONARY_TTL_MS };
+    return value;
+  }
+
+  /**
+   * Locality / city preview for the dropdown's right-hand pane.
+   * Returns aggregate stats + a small set of cover photos.
+   */
+  async getSearchPreview(
+    type: "city" | "locality",
+    slug: string
+  ): Promise<{
+    type: "city" | "locality";
+    slug: string;
+    name: string;
+    city_slug?: string;
+    listing_count: number;
+    rent_band: { min: number; max: number } | null;
+    verified_pct: number | null;
+    avg_bhk: number | null;
+    sample_photos: string[];
+  } | null> {
+    if (!this.database.isEnabled() || !slug) return null;
+
+    const cacheKey = `${type}:${slug}`;
+    const cached = this.previewCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) {
+      return cached.value;
+    }
+
+    let value: Awaited<ReturnType<SearchService["getSearchPreview"]>> = null;
+
+    if (type === "city") {
+      const cityRows = await this.database.query<{
+        slug: string;
+        name_en: string;
+      }>(`SELECT slug, name_en FROM cities WHERE slug = $1 AND is_active = true LIMIT 1`, [slug]);
+      const city = cityRows.rows[0];
+      if (!city) return null;
+
+      const stats = await this.database.query<{
+        listing_count: number;
+        min_rent: number | null;
+        max_rent: number | null;
+        verified_count: number;
+        avg_bhk: number | null;
+      }>(
+        `SELECT
+           count(*)::int AS listing_count,
+           min(l.monthly_rent)::int AS min_rent,
+           max(l.monthly_rent)::int AS max_rent,
+           sum(CASE WHEN l.verification_status = 'verified' THEN 1 ELSE 0 END)::int AS verified_count,
+           avg(l.bhk)::float AS avg_bhk
+         FROM listings l
+         JOIN listing_locations ll ON ll.listing_id = l.id
+         JOIN cities c ON c.id = ll.city_id
+         WHERE c.slug = $1 AND l.status = 'active'`,
+        [slug]
+      );
+      const row = stats.rows[0] ?? {
+        listing_count: 0,
+        min_rent: null,
+        max_rent: null,
+        verified_count: 0,
+        avg_bhk: null
+      };
+
+      const photoRows = await this.database.query<{ blob_path: string }>(
+        `SELECT lp.blob_path
+         FROM listing_photos lp
+         JOIN listings l ON l.id = lp.listing_id
+         JOIN listing_locations ll ON ll.listing_id = l.id
+         JOIN cities c ON c.id = ll.city_id
+         WHERE c.slug = $1 AND l.status = 'active' AND lp.is_cover = true
+         ORDER BY l.created_at DESC
+         LIMIT 4`,
+        [slug]
+      );
+
+      value = {
+        type: "city",
+        slug,
+        name: city.name_en,
+        listing_count: row.listing_count ?? 0,
+        rent_band:
+          row.min_rent != null && row.max_rent != null
+            ? { min: row.min_rent, max: row.max_rent }
+            : null,
+        verified_pct:
+          row.listing_count > 0 ? Math.round((row.verified_count / row.listing_count) * 100) : null,
+        avg_bhk: row.avg_bhk != null ? Number(row.avg_bhk.toFixed(1)) : null,
+        sample_photos: photoRows.rows
+          .map((r) => this.toPhotoUrl(r.blob_path))
+          .filter((u): u is string => Boolean(u))
+      };
+    } else {
+      const locRows = await this.database.query<{
+        slug: string;
+        name_en: string;
+        city_slug: string;
+      }>(
+        `SELECT loc.slug, loc.name_en, c.slug AS city_slug
+         FROM localities loc
+         JOIN cities c ON c.id = loc.city_id
+         WHERE loc.slug = $1
+         LIMIT 1`,
+        [slug]
+      );
+      const loc = locRows.rows[0];
+      if (!loc) return null;
+
+      // Same fuzzy matching as the suggest endpoint: count listings whose
+      // locality_id matches OR whose title/description mentions the locality
+      // name. Catches the common case where listings weren't tagged at upload.
+      const stats = await this.database.query<{
+        listing_count: number;
+        min_rent: number | null;
+        max_rent: number | null;
+        verified_count: number;
+        avg_bhk: number | null;
+      }>(
+        `SELECT
+           count(DISTINCT l.id)::int AS listing_count,
+           min(l.monthly_rent)::int AS min_rent,
+           max(l.monthly_rent)::int AS max_rent,
+           sum(CASE WHEN l.verification_status = 'verified' THEN 1 ELSE 0 END)::int AS verified_count,
+           avg(l.bhk)::float AS avg_bhk
+         FROM listings l
+         JOIN listing_locations ll ON ll.listing_id = l.id
+         JOIN localities loc ON loc.city_id = ll.city_id
+         WHERE loc.slug = $1
+           AND l.status = 'active'
+           AND (
+             ll.locality_id = loc.id
+             OR l.title_en ILIKE '%' || loc.name_en || '%'
+             OR l.description_en ILIKE '%' || loc.name_en || '%'
+           )`,
+        [slug]
+      );
+      const row = stats.rows[0] ?? {
+        listing_count: 0,
+        min_rent: null,
+        max_rent: null,
+        verified_count: 0,
+        avg_bhk: null
+      };
+
+      const photoRows = await this.database.query<{ blob_path: string }>(
+        `SELECT DISTINCT lp.blob_path, l.created_at
+         FROM listing_photos lp
+         JOIN listings l ON l.id = lp.listing_id
+         JOIN listing_locations ll ON ll.listing_id = l.id
+         JOIN localities loc ON loc.city_id = ll.city_id
+         WHERE loc.slug = $1
+           AND l.status = 'active'
+           AND lp.is_cover = true
+           AND (
+             ll.locality_id = loc.id
+             OR l.title_en ILIKE '%' || loc.name_en || '%'
+             OR l.description_en ILIKE '%' || loc.name_en || '%'
+           )
+         ORDER BY l.created_at DESC
+         LIMIT 4`,
+        [slug]
+      );
+
+      value = {
+        type: "locality",
+        slug,
+        name: loc.name_en,
+        city_slug: loc.city_slug,
+        listing_count: row.listing_count ?? 0,
+        rent_band:
+          row.min_rent != null && row.max_rent != null
+            ? { min: row.min_rent, max: row.max_rent }
+            : null,
+        verified_pct:
+          row.listing_count > 0 ? Math.round((row.verified_count / row.listing_count) * 100) : null,
+        avg_bhk: row.avg_bhk != null ? Number(row.avg_bhk.toFixed(1)) : null,
+        sample_photos: photoRows.rows
+          .map((r) => this.toPhotoUrl(r.blob_path))
+          .filter((u): u is string => Boolean(u))
+      };
+    }
+
+    this.previewCache.set(cacheKey, { value, expiresAt: now + PREVIEW_CACHE_TTL_MS });
+    if (this.previewCache.size > PREVIEW_CACHE_MAX_ENTRIES) {
+      const oldest = this.previewCache.keys().next().value;
+      if (oldest !== undefined) this.previewCache.delete(oldest);
+    }
+    return value;
+  }
+
+  /**
+   * Typeahead / autocomplete suggestions.
+   * Returns matching cities, localities, and listing titles using pg_trgm similarity.
+   * Cached for 60s — hot prefixes hit memory in <1ms.
+   */
+  async suggest(q: string, limit = 8): Promise<SuggestRow[]> {
+    const term = (q ?? "").trim().toLowerCase();
+    if (term.length < 2) return [];
+
+    const cacheKey = `${term}|${limit}`;
+    const now = Date.now();
+    const cached = this.suggestCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      // Touch to mark recently-used (Map preserves insertion order).
+      this.suggestCache.delete(cacheKey);
+      this.suggestCache.set(cacheKey, cached);
+      return cached.rows;
+    }
+
+    const rows = await this.suggestUncached(term, limit);
+    this.suggestCache.set(cacheKey, { rows, expiresAt: now + SUGGEST_CACHE_TTL_MS });
+
+    if (this.suggestCache.size > SUGGEST_CACHE_MAX_ENTRIES) {
+      const oldestKey = this.suggestCache.keys().next().value;
+      if (oldestKey !== undefined) this.suggestCache.delete(oldestKey);
+    }
+
+    return rows;
+  }
+
+  private async suggestUncached(term: string, limit: number): Promise<SuggestRow[]> {
+    if (!this.database.isEnabled()) {
+      const cities = CITY_ORDER.filter((c) => c.includes(term)).map((c) => ({
         type: "city" as const,
         label: c.charAt(0).toUpperCase() + c.slice(1),
         value: c
@@ -989,63 +1280,152 @@ export class SearchService {
       return cities.slice(0, limit);
     }
 
-    const results: Array<{ type: string; label: string; value: string }> = [];
+    const results: SuggestRow[] = [];
 
-    // Cities
-    const cityRows = await this.database.query<{ slug: string; name_en: string; sim: number }>(
-      `SELECT slug, name_en, similarity(name_en, $1) AS sim
-       FROM cities
-       WHERE is_active = true AND (similarity(name_en, $1) > 0.15 OR name_en ILIKE '%' || $1 || '%')
+    // Cities — match name + listing aggregates from active listings.
+    const cityRows = await this.database.query<{
+      slug: string;
+      name_en: string;
+      listing_count: number;
+      min_rent: number | null;
+      max_rent: number | null;
+      sim: number;
+    }>(
+      `SELECT
+         c.slug,
+         c.name_en,
+         COALESCE(stats.listing_count, 0)::int AS listing_count,
+         stats.min_rent::int AS min_rent,
+         stats.max_rent::int AS max_rent,
+         similarity(c.name_en, $1) AS sim
+       FROM cities c
+       LEFT JOIN LATERAL (
+         SELECT count(*)::int AS listing_count,
+                min(l.monthly_rent) AS min_rent,
+                max(l.monthly_rent) AS max_rent
+         FROM listings l
+         JOIN listing_locations ll ON ll.listing_id = l.id
+         WHERE ll.city_id = c.id AND l.status = 'active'
+       ) stats ON true
+       WHERE c.is_active = true
+         AND (similarity(c.name_en, $1) > 0.15 OR c.name_en ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
       [term]
     );
     for (const row of cityRows.rows) {
-      results.push({ type: "city", label: row.name_en, value: row.slug });
+      const out: SuggestRow = {
+        type: "city",
+        label: row.name_en,
+        value: row.slug,
+        listing_count: row.listing_count
+      };
+      if (row.min_rent != null && row.max_rent != null) {
+        out.rent_band = { min: row.min_rent, max: row.max_rent };
+      }
+      results.push(out);
     }
 
-    // Localities
+    // Localities — match + same kind of aggregates. Counts listings linked
+    // via locality_id OR whose title/description mentions the locality name
+    // (catches data drift where ll.locality_id wasn't tagged at upload time).
     const locRows = await this.database.query<{
       slug: string;
       name_en: string;
       city_slug: string;
+      listing_count: number;
+      min_rent: number | null;
+      max_rent: number | null;
       sim: number;
     }>(
-      `SELECT loc.slug, loc.name_en, c.slug AS city_slug, similarity(loc.name_en, $1) AS sim
+      `SELECT
+         loc.slug,
+         loc.name_en,
+         c.slug AS city_slug,
+         COALESCE(stats.listing_count, 0)::int AS listing_count,
+         stats.min_rent::int AS min_rent,
+         stats.max_rent::int AS max_rent,
+         similarity(loc.name_en, $1) AS sim
        FROM localities loc
        JOIN cities c ON c.id = loc.city_id
-       WHERE c.is_active = true AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%')
+       LEFT JOIN LATERAL (
+         SELECT count(DISTINCT l.id)::int AS listing_count,
+                min(l.monthly_rent) AS min_rent,
+                max(l.monthly_rent) AS max_rent
+         FROM listings l
+         JOIN listing_locations ll ON ll.listing_id = l.id
+         WHERE l.status = 'active' AND ll.city_id = c.id
+           AND (
+             ll.locality_id = loc.id
+             OR l.title_en ILIKE '%' || loc.name_en || '%'
+             OR l.description_en ILIKE '%' || loc.name_en || '%'
+           )
+       ) stats ON true
+       WHERE c.is_active = true
+         AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
       [term]
     );
     for (const row of locRows.rows) {
-      results.push({
+      const out: SuggestRow = {
         type: "locality",
         label: `${row.name_en}, ${row.city_slug}`,
-        value: row.slug
-      });
+        value: row.slug,
+        city_slug: row.city_slug,
+        listing_count: row.listing_count
+      };
+      if (row.min_rent != null && row.max_rent != null) {
+        out.rent_band = { min: row.min_rent, max: row.max_rent };
+      }
+      results.push(out);
     }
 
-    // Listing titles
+    // Listings — match by title + return rent / verified / cover / locality / posted_at.
     const titleRows = await this.database.query<{
       id: string;
       title: string;
       city: string;
+      locality: string | null;
+      monthly_rent: number;
+      verification_status: string;
+      cover_path: string | null;
+      created_at: string;
       sim: number;
     }>(
-      `SELECT l.id::text, COALESCE(NULLIF(l.title_en,''), 'Listing') AS title, c.slug AS city,
-              similarity(l.title_en, $1) AS sim
+      `SELECT
+         l.id::text,
+         COALESCE(NULLIF(l.title_en,''), 'Listing') AS title,
+         c.slug AS city,
+         loc.name_en AS locality,
+         l.monthly_rent,
+         l.verification_status::text,
+         (SELECT lp.blob_path FROM listing_photos lp
+            WHERE lp.listing_id = l.id AND lp.is_cover = true LIMIT 1) AS cover_path,
+         l.created_at,
+         similarity(l.title_en, $1) AS sim
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
        JOIN cities c ON c.id = ll.city_id
-       WHERE l.status = 'active' AND (similarity(l.title_en, $1) > 0.15 OR l.title_en ILIKE '%' || $1 || '%')
+       LEFT JOIN localities loc ON loc.id = ll.locality_id
+       WHERE l.status = 'active'
+         AND (similarity(l.title_en, $1) > 0.15 OR l.title_en ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 4`,
       [term]
     );
     for (const row of titleRows.rows) {
-      results.push({ type: "listing", label: `${row.title} (${row.city})`, value: row.id });
+      results.push({
+        type: "listing",
+        label: row.title,
+        value: row.id,
+        cover_url: this.toPhotoUrl(row.cover_path),
+        rent: row.monthly_rent,
+        verified: row.verification_status === "verified",
+        locality_label: row.locality ?? row.city,
+        posted_at: row.created_at,
+        city_slug: row.city
+      });
     }
 
     return results.slice(0, limit);
