@@ -416,7 +416,10 @@ export class SearchService {
           `(
             to_tsvector('english', COALESCE(l.title_en,'') || ' ' || COALESCE(l.description_en,''))
             @@ websearch_to_tsquery('english', $${params.length})
+            OR to_tsvector('simple', COALESCE(l.title_hi,'') || ' ' || COALESCE(l.description_hi,''))
+            @@ websearch_to_tsquery('simple', $${params.length})
             OR similarity(l.title_en, $${params.length}) > 0.15
+            OR similarity(l.title_hi, $${params.length}) > 0.15
           )`
         );
       }
@@ -514,7 +517,7 @@ export class SearchService {
 
       // ── Sort: use listing_scores for relevance to fix pagination bug ──
       const ftsRankExpr = hasFts
-        ? `ts_rank(to_tsvector('english', COALESCE(l.title_en,'') || ' ' || COALESCE(l.description_en,'')), websearch_to_tsquery('english', $${ftsParamIdx}))`
+        ? `GREATEST(ts_rank(to_tsvector('english', COALESCE(l.title_en,'') || ' ' || COALESCE(l.description_en,'')), websearch_to_tsquery('english', $${ftsParamIdx})), ts_rank(to_tsvector('simple', COALESCE(l.title_hi,'') || ' ' || COALESCE(l.description_hi,'')), websearch_to_tsquery('simple', $${ftsParamIdx})))`
         : "0";
 
       const orderBy =
@@ -769,6 +772,7 @@ export class SearchService {
       bhk: number | null;
       verification_status: string;
       furnishing: string | null;
+      cover_photo: string | null;
     }>
   > {
     if (!this.database.isEnabled()) return [];
@@ -795,6 +799,7 @@ export class SearchService {
       bhk: number | null;
       verification_status: string;
       furnishing: string | null;
+      cover_photo: string | null;
     }>(
       `SELECT
          l.id::text,
@@ -805,7 +810,15 @@ export class SearchService {
          l.listing_type::text,
          l.bhk,
          l.verification_status::text,
-         l.furnishing::text
+         l.furnishing::text,
+         (
+           SELECT lp.blob_path
+           FROM listing_photos lp
+           WHERE lp.listing_id = l.id
+             AND lp.moderation_status <> 'rejected'
+           ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC
+           LIMIT 1
+         ) AS cover_photo
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
        WHERE l.status = 'active'
@@ -821,7 +834,10 @@ export class SearchService {
       params
     );
 
-    return result.rows;
+    return result.rows.map((r) => ({
+      ...r,
+      cover_photo: this.toPhotoUrl(r.cover_photo)
+    }));
   }
 
   /**
@@ -1308,7 +1324,7 @@ export class SearchService {
          WHERE ll.city_id = c.id AND l.status = 'active'
        ) stats ON true
        WHERE c.is_active = true
-         AND (similarity(c.name_en, $1) > 0.15 OR c.name_en ILIKE '%' || $1 || '%')
+         AND (similarity(c.name_en, $1) > 0.15 OR c.name_en ILIKE '%' || $1 || '%' OR c.name_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
       [term]
@@ -1362,7 +1378,7 @@ export class SearchService {
            )
        ) stats ON true
        WHERE c.is_active = true
-         AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%')
+         AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%' OR loc.name_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
       [term]
@@ -1409,7 +1425,7 @@ export class SearchService {
        JOIN cities c ON c.id = ll.city_id
        LEFT JOIN localities loc ON loc.id = ll.locality_id
        WHERE l.status = 'active'
-         AND (similarity(l.title_en, $1) > 0.15 OR l.title_en ILIKE '%' || $1 || '%')
+         AND (similarity(l.title_en, $1) > 0.15 OR l.title_en ILIKE '%' || $1 || '%' OR l.title_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 4`,
       [term]

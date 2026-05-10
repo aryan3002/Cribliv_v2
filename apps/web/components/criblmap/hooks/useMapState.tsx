@@ -14,6 +14,7 @@ export interface MapPin {
   bhk: number | null;
   verification_status: string;
   furnishing: string | null;
+  cover_photo: string | null;
   belowMarket?: boolean;
 }
 

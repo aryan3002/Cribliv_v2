@@ -14,6 +14,7 @@ interface MapPinResponse {
   bhk: number | null;
   verification_status: string;
   furnishing: string | null;
+  cover_photo: string | null;
 }
 
 export function useMapPins() {

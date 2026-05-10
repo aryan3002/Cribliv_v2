@@ -29,18 +29,27 @@ export interface ParseResult {
 const CITY_ALIASES: Record<string, string> = {
   delhi: "delhi",
   "new delhi": "delhi",
+  दिल्ली: "delhi",
   gurugram: "gurugram",
   gurgaon: "gurugram",
+  गुड़गांव: "gurugram",
+  गुरुग्राम: "gurugram",
   noida: "noida",
+  नोएडा: "noida",
   ghaziabad: "ghaziabad",
+  गाज़ियाबाद: "ghaziabad",
   faridabad: "faridabad",
+  फरीदाबाद: "faridabad",
   chandigarh: "chandigarh",
+  चंडीगढ़: "chandigarh",
   jaipur: "jaipur",
-  lucknow: "lucknow"
+  जयपुर: "jaipur",
+  lucknow: "lucknow",
+  लखनऊ: "lucknow"
 };
 
-const PG_KEYWORDS = ["pg", "hostel"];
-const FLAT_KEYWORDS = ["flat", "house", "apartment", "home"];
+const PG_KEYWORDS = ["pg", "hostel", "पीजी", "हॉस्टल"];
+const FLAT_KEYWORDS = ["flat", "house", "apartment", "home", "घर", "फ्लैट", "मकान"];
 const FURNISHING_KEYWORDS: Record<string, "furnished" | "unfurnished" | "semi_furnished"> = {
   furnished: "furnished",
   unfurnished: "unfurnished",
@@ -50,8 +59,8 @@ const FURNISHING_KEYWORDS: Record<string, "furnished" | "unfurnished" | "semi_fu
 };
 const AMENITY_KEYWORDS = ["parking", "balcony", "lift", "wifi", "ac", "geyser", "gym", "garden"];
 
-const RENT_UNIT_K = /(k|thousand)/i;
-const RENT_UNIT_LAKH = /(lakh|lac|l\b)/i;
+const RENT_UNIT_K = /(k|thousand|हजार)/i;
+const RENT_UNIT_LAKH = /(lakh|lac|l\b|लाख)/i;
 
 function formatRent(rupees: number): string {
   if (rupees >= 100_000) {
@@ -114,7 +123,7 @@ export function parseQuery(
 
   // -- Rent: explicit range --
   const rangeRe =
-    /(\d{2,6})\s*(k|lakh|lac|thousand)?\s*(?:-|to|and|–)\s*(\d{2,6})\s*(k|lakh|lac|thousand)?/i;
+    /(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?\s*(?:-|to|and|–|से)\s*(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?/i;
   const rangeMatch = lower.match(rangeRe);
   if (rangeMatch && rangeMatch.index !== undefined) {
     const low = parseRentValue(rangeMatch[1], rangeMatch[2]);
@@ -138,7 +147,8 @@ export function parseQuery(
   }
 
   // -- Rent: max ("under 25k", "up to 30000", "max 18k") --
-  const maxRe = /(?:under|below|max|upto|up to|less than)\s*(\d{2,6})\s*(k|lakh|lac|thousand)?/i;
+  const maxRe =
+    /(?:under|below|max|upto|up to|less than|तक|के अंदर|से कम)\s*(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?/i;
   const maxMatch = lower.match(maxRe);
   if (maxMatch && maxMatch.index !== undefined) {
     const parsed = parseRentValue(maxMatch[1], maxMatch[2]);
@@ -152,7 +162,8 @@ export function parseQuery(
   }
 
   // -- Rent: min ("above 10k", "starting 12k") --
-  const minRe = /(?:above|min|starting|atleast|at least)\s*(\d{2,6})\s*(k|lakh|lac|thousand)?/i;
+  const minRe =
+    /(?:above|min|starting|atleast|at least|से ज्यादा|से ऊपर)\s*(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?/i;
   const minMatch = lower.match(minRe);
   if (minMatch && minMatch.index !== undefined) {
     const parsed = parseRentValue(minMatch[1], minMatch[2]);
@@ -168,7 +179,7 @@ export function parseQuery(
   // -- Rent: bare unit ("18k", "2 lakh") if no other rent chip parsed --
   const hasRentChip = matches.some((m) => m.chip.kind === "max_rent" || m.chip.kind === "min_rent");
   if (!hasRentChip) {
-    const bareRe = /(\d{1,4})\s*(k|lakh|lac|thousand)/i;
+    const bareRe = /(\d{1,4})\s*(k|lakh|lac|thousand|हजार|लाख)/i;
     const bare = lower.match(bareRe);
     if (bare && bare.index !== undefined) {
       const parsed = parseRentValue(bare[1], bare[2]);
@@ -289,10 +300,20 @@ export function parseQuery(
 
 function findKeyword(text: string, keywords: string[]): { start: number; end: number } | null {
   for (const kw of keywords) {
-    const re = new RegExp(`\\b${kw}\\b`, "i");
-    const m = text.match(re);
-    if (m && m.index !== undefined) {
-      return { start: m.index, end: m.index + m[0].length };
+    // \b word boundary only works for ASCII characters. For Devanagari
+    // and other non-Latin scripts, fall back to simple indexOf matching.
+    const isAscii = /^[a-z0-9_ -]+$/i.test(kw);
+    if (isAscii) {
+      const re = new RegExp(`\\b${kw}\\b`, "i");
+      const m = text.match(re);
+      if (m && m.index !== undefined) {
+        return { start: m.index, end: m.index + m[0].length };
+      }
+    } else {
+      const idx = text.indexOf(kw);
+      if (idx >= 0) {
+        return { start: idx, end: idx + kw.length };
+      }
     }
   }
   return null;

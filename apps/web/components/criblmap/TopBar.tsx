@@ -2,6 +2,7 @@
 
 import type { Route } from "next";
 import { useState, useRef, useCallback, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Search, Map, List, ChevronDown } from "lucide-react";
 import { useGooglePlaces, type PlacePrediction } from "../../lib/google-places";
@@ -41,7 +42,9 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
   const [query, setQuery] = useState("");
   const [showPredictions, setShowPredictions] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [isMac, setIsMac] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -52,6 +55,28 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Detect platform once for the right keyboard glyph.
+  useEffect(() => {
+    setIsMac(typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform));
+  }, []);
+
+  // ⌘K / Ctrl+K to focus the search input — the hallmark "power tool" hotkey.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const k = e.key.toLowerCase();
+      if (k === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      } else if (k === "escape" && document.activeElement === inputRef.current) {
+        inputRef.current?.blur();
+        setShowPredictions(false);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   const handleSearchInput = useCallback(
@@ -103,20 +128,46 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
 
   return (
     <div className="cmap-topbar">
-      <Link href={`/${locale}`} className="cmap-topbar__logo">
-        Cribl<span>Map</span>
+      {/* Brand lockup: real Cribliv mark + wordmark, with a cobalt "Map"
+          suffix and a dot separator so the product reads as "Cribliv · Map". */}
+      <Link href={`/${locale}`} className="cmap-brand" aria-label="Cribliv Map — back to home">
+        <Image
+          src="/cribliv.png"
+          alt=""
+          width={28}
+          height={25}
+          priority
+          className="cmap-brand__icon"
+        />
+        <Image
+          src="/criblivFont.png"
+          alt="Cribliv"
+          width={72}
+          height={24}
+          priority
+          className="cmap-brand__wordmark"
+        />
+        <span className="cmap-brand__sep" aria-hidden="true" />
+        <span className="cmap-brand__suffix">Map</span>
       </Link>
 
       <div className="cmap-topbar__search" ref={searchRef}>
         <Search size={16} className="cmap-topbar__search-icon" />
         <input
+          ref={inputRef}
           type="text"
           className="cmap-topbar__input"
-          placeholder="Search locality or area..."
+          placeholder="Search locality or area…"
           value={query}
           onChange={(e) => handleSearchInput(e.target.value)}
           onFocus={() => predictions.length > 0 && setShowPredictions(true)}
         />
+        {!query && (
+          <kbd className="cmap-topbar__kbd" aria-label="Press Command K to focus search">
+            <span className="cmap-topbar__kbd-key">{isMac ? "⌘" : "Ctrl"}</span>
+            <span className="cmap-topbar__kbd-key">K</span>
+          </kbd>
+        )}
         {showPredictions && predictions.length > 0 && (
           <div className="cmap-topbar__predictions">
             {predictions.map((p) => (

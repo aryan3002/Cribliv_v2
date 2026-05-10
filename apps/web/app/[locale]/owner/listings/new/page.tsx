@@ -156,6 +156,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           address: (found.addressLine1 || found.address_line1) ?? "",
           landmark: found.landmark ?? "",
           pincode: found.pincode ?? "",
+          lat: typeof found.lat === "number" ? found.lat : null,
+          lng: typeof found.lng === "number" ? found.lng : null,
           bedrooms: found.bhk ? String(found.bhk) : "",
           bathrooms: found.bathrooms ? String(found.bathrooms) : "",
           area_sqft:
@@ -344,6 +346,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         addressLine1: form.address || undefined,
         landmark: form.landmark || undefined,
         pincode: form.pincode || undefined,
+        lat: form.lat ?? undefined,
+        lng: form.lng ?? undefined,
         maskedAddress: form.locality || form.city || undefined
       },
       propertyFields: isPg

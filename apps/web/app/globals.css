@@ -5259,6 +5259,59 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   min-height: 0;
 }
 
+/* ── Google Places Autocomplete (pac-container) — dark theming ──────
+   Google's Places library injects the suggestion list as a fixed-position
+   .pac-container appended to <body>, so the styles must be global. We
+   override only when CriblMap is mounted (body has the criblmap-canvas
+   present) — but since pac-container is only used inside the map UI
+   (commute autocomplete), unconditional dark theming is fine here. */
+.pac-container {
+  background: rgba(15, 15, 28, 0.96) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 102, 255, 0.06);
+  margin-top: 4px;
+  font-family: var(--font-body);
+  overflow: hidden;
+  padding: 4px 0;
+}
+.pac-container::after {
+  /* hide the "powered by Google" plate so the dropdown reads on-brand */
+  display: none !important;
+}
+.pac-item {
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.pac-item:first-child {
+  border-top: 0;
+}
+.pac-item:hover,
+.pac-item-selected {
+  background: rgba(0, 102, 255, 0.14) !important;
+  color: #fff;
+}
+.pac-item-query {
+  color: #fff;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.pac-matched {
+  color: #6aa9ff;
+  font-weight: 600;
+}
+.pac-icon {
+  /* Default icon is a tiny grayscale sprite; tint it cobalt to match the brand. */
+  filter: invert(48%) sepia(86%) saturate(2200%) hue-rotate(208deg) brightness(102%) contrast(101%);
+  opacity: 0.85;
+}
+
 /* ── Top Bar ─────────────────────────────────────────────────────── */
 
 .cmap-topbar {
@@ -5278,19 +5331,70 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   border-bottom: 1px solid var(--cmap-border);
 }
 
-.cmap-topbar__logo {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 18px;
-  color: var(--cmap-text);
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  cursor: pointer;
+/* Brand lockup — designed as a product-line marker, not co-equal text.
+   The Cribliv wordmark is the brand; "MAP" is a small tracked uppercase
+   suffix separated by a thin cobalt rule, so the identity reads as:
+   [icon] [Cribliv] │ MAP   — same cadence as Bloomberg Terminal, Apple TV+,
+   Google Maps' editorial sub-brands. */
+.cmap-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
   text-decoration: none;
+  cursor: pointer;
+  /* Optical baseline alignment for the mixed image+text lockup. */
+  line-height: 1;
+}
+.cmap-brand__icon {
+  height: 24px;
+  width: auto;
+  display: block;
+  /* Subtle cobalt halo so the mark feels at home on the dark canvas. */
+  filter: drop-shadow(0 0 10px rgba(0, 102, 255, 0.32));
+  transition: filter 200ms ease;
+}
+.cmap-brand__wordmark {
+  height: 18px;
+  width: auto;
+  display: block;
+  /* The source PNG is dark-on-light; brighten for the dark map chrome. */
+  filter: brightness(0) invert(1);
+  opacity: 0.96;
+  /* Optical lift — image baselines often sit ~1px below text caps. */
+  transform: translateY(-1px);
+}
+.cmap-brand__sep {
+  width: 1px;
+  height: 20px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(0, 102, 255, 0.55) 20%,
+    rgba(0, 102, 255, 0.7) 50%,
+    rgba(0, 102, 255, 0.55) 80%,
+    transparent 100%
+  );
+  margin: 0 2px;
   flex-shrink: 0;
 }
-.cmap-topbar__logo span {
+.cmap-brand__suffix {
+  font-family: var(--font-heading, var(--font-body));
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   color: var(--brand);
+  line-height: 1;
+  /* Optical centering against the wordmark cap-height. */
+  transform: translateY(-0.5px);
+  transition: color 200ms ease;
+}
+.cmap-brand:hover .cmap-brand__suffix {
+  color: #6aa9ff;
+}
+.cmap-brand:hover .cmap-brand__icon {
+  filter: drop-shadow(0 0 14px rgba(0, 102, 255, 0.6));
 }
 
 .cmap-topbar__search {
@@ -5302,19 +5406,62 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 .cmap-topbar__input {
   width: 100%;
   height: 40px;
-  padding: 0 var(--space-4) 0 40px;
+  /* Right padding leaves room for the ⌘K kbd hint without overlap. */
+  padding: 0 64px 0 40px;
   border-radius: var(--radius-full);
   border: 1px solid var(--cmap-border);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   color: var(--cmap-text);
   font-size: 14px;
   outline: none;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition: border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
 }
 .cmap-topbar__input::placeholder { color: var(--cmap-text-muted); }
 .cmap-topbar__input:focus {
-  border-color: var(--brand);
-  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(0, 102, 255, 0.55);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 3px rgba(0, 102, 255, 0.14);
+}
+
+/* ⌘K keyboard hint — fades when the input has focus or content. */
+.cmap-topbar__kbd {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px;
+  border-radius: 6px;
+  font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 160ms ease;
+}
+.cmap-topbar__kbd-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  line-height: 1;
+}
+.cmap-topbar__input:focus ~ .cmap-topbar__kbd {
+  opacity: 0;
 }
 
 .cmap-topbar__search-icon {
@@ -5328,28 +5475,54 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 
 .cmap-topbar__predictions {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background: var(--cmap-surface);
-  border: 1px solid var(--cmap-border-strong);
+  background: rgba(15, 15, 28, 0.96);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 102, 255, 0.06);
   z-index: 20;
 }
 .cmap-topbar__prediction-item {
+  /* Reset native <button> styling so the dropdown row inherits the dark theme
+     instead of leaking the browser's default white button background. */
+  appearance: none;
+  -webkit-appearance: none;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
+  width: 100%;
   padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: var(--cmap-text);
+  font-family: inherit;
   font-size: 14px;
+  font-weight: 500;
+  text-align: left;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: background 120ms ease, color 120ms ease;
 }
-.cmap-topbar__prediction-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+.cmap-topbar__prediction-item:last-child {
+  border-bottom: 0;
+}
+.cmap-topbar__prediction-item:hover,
+.cmap-topbar__prediction-item:focus-visible {
+  background: rgba(0, 102, 255, 0.12);
+  color: #fff;
+  outline: 0;
+}
+.cmap-topbar__prediction-item > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .cmap-topbar__filters {
@@ -5372,17 +5545,29 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: all var(--transition-fast);
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease,
+    box-shadow 180ms ease, transform 180ms ease;
   user-select: none;
 }
 .cmap-filter-chip:hover {
   background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
   color: var(--cmap-text);
 }
 .cmap-filter-chip--active {
-  background: rgba(0, 102, 255, 0.15);
-  border-color: var(--brand);
-  color: var(--cmap-text);
+  /* Active state reads as a toggled instrument: cobalt fill + inner highlight
+     for the "lit-up button" feel + outer glow that ties to the brand pin. */
+  background: linear-gradient(180deg, rgba(0, 102, 255, 0.32) 0%, rgba(0, 102, 255, 0.18) 100%);
+  border-color: rgba(0, 102, 255, 0.6);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 2px rgba(0, 102, 255, 0.12),
+    0 4px 12px rgba(0, 102, 255, 0.18);
+}
+.cmap-filter-chip--active:hover {
+  background: linear-gradient(180deg, rgba(0, 102, 255, 0.4) 0%, rgba(0, 102, 255, 0.22) 100%);
+  border-color: rgba(0, 102, 255, 0.8);
 }
 
 .cmap-filter-dropdown {
@@ -5452,23 +5637,32 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 }
 
 /* ── Pins ────────────────────────────────────────────────────────── */
+/* Trust-tier rebrand: verified = solid Cribliv blue with the brand mark
+   as the trust glyph; unverified = translucent dashed-border chip. PG is
+   layered on top of either tier as a side modifier. */
 
 .criblmap-pin {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-body);
+  cursor: pointer;
+  animation: cmap-pin-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: center bottom;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.criblmap-pin__chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
+  gap: 6px;
+  padding: 5px 10px 5px 6px;
   border-radius: 20px;
-  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
-  animation: cmap-pin-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-  transform-origin: center bottom;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
 }
 
 .criblmap-pin:hover {
@@ -5476,28 +5670,105 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   z-index: 15 !important;
 }
 
-.criblmap-pin--verified {
-  background: var(--cmap-pin-verified);
+/* ── Verified tier — Cribliv-stamped ────────────────────────────── */
+.criblmap-pin--verified .criblmap-pin__chip {
+  background: #0066ff;
   color: #fff;
+  box-shadow:
+    0 0 0 2px rgba(0, 102, 255, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+.criblmap-pin--verified {
+  transform: scale(1.05);
+}
+.criblmap-pin--verified:hover {
+  transform: scale(1.13);
+}
+
+/* Brand-mark trust glyph: real Cribliv logo on a white circle so the
+   multi-colour mark stays legible against the blue chip. */
+.criblmap-pin__brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  flex: 0 0 auto;
+}
+.criblmap-pin__brand img {
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Unverified tier — muted, lower-trust ──────────────────────── */
+.criblmap-pin--unverified .criblmap-pin__chip {
+  background: rgba(20, 20, 40, 0.85);
+  color: rgba(255, 255, 255, 0.72);
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  padding: 4px 9px 4px 9px;
+  font-weight: 500;
 }
 .criblmap-pin--unverified {
-  background: var(--cmap-pin-unverified);
-  color: #fff;
+  transform: scale(0.95);
 }
-.criblmap-pin--pg {
-  background: var(--cmap-pin-pg);
-  color: #fff;
+.criblmap-pin--unverified:hover {
+  transform: scale(1.02);
 }
-.criblmap-pin--below-market {
-  box-shadow: 0 0 0 2px var(--cmap-pin-verified), 0 2px 8px rgba(0, 0, 0, 0.4);
+.criblmap-pin__dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  flex: 0 0 auto;
 }
+
+/* ── PG side-stripe modifier ───────────────────────────────────── */
+.criblmap-pin--pg .criblmap-pin__chip {
+  box-shadow:
+    inset 3px 0 0 #7c3aed,
+    0 2px 8px rgba(0, 0, 0, 0.4);
+  padding-left: 10px;
+}
+.criblmap-pin--verified.criblmap-pin--pg .criblmap-pin__chip {
+  box-shadow:
+    inset 3px 0 0 #7c3aed,
+    0 0 0 2px rgba(0, 102, 255, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Below-market modifier — green dot top-right ───────────────── */
+.criblmap-pin--below-market .criblmap-pin__chip::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+}
+.criblmap-pin--below-market .criblmap-pin__chip {
+  position: relative;
+}
+
 .criblmap-pin--selected {
-  transform: scale(1.15);
-  box-shadow: 0 0 0 3px var(--brand), 0 4px 16px rgba(0, 0, 0, 0.5);
   z-index: 20 !important;
+}
+.criblmap-pin--selected .criblmap-pin__chip {
+  box-shadow:
+    0 0 0 3px var(--brand),
+    0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 .criblmap-pin__label { pointer-events: none; }
+
+/* Legacy badge class kept for backwards-compat with any consumer that
+   still references it; new pins use the brand glyph + popover instead. */
 .criblmap-pin__badge {
   display: inline-flex;
   align-items: center;
@@ -5509,6 +5780,134 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 @keyframes cmap-pin-enter {
   from { transform: scale(0); opacity: 0; }
   to   { transform: scale(1); opacity: 1; }
+}
+
+/* ── Hover preview popover ──────────────────────────────────────── */
+.criblmap-pin__preview {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+  max-width: 240px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(15, 15, 28, 0.96);
+  color: #fff;
+  font-family: var(--font-body);
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  z-index: 25;
+}
+.criblmap-pin__preview::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(15, 15, 28, 0.96);
+}
+.criblmap-pin:hover .criblmap-pin__preview {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.criblmap-pin__preview-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.criblmap-pin__preview-photo {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: block;
+}
+.criblmap-pin__preview-photo--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.45);
+}
+.criblmap-pin__preview-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.criblmap-pin__preview-rent {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+.criblmap-pin__preview-per {
+  font-size: 12px;
+  font-weight: 500;
+  margin-left: 4px;
+  opacity: 0.55;
+}
+.criblmap-pin__preview-meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+}
+.criblmap-pin__preview-title {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.criblmap-pin__preview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+.criblmap-pin__preview-badge--verified {
+  background: rgba(0, 102, 255, 0.18);
+  color: #6aa9ff;
+}
+.criblmap-pin__preview-badge--verified img {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  padding: 1px;
+}
+.criblmap-pin__preview-badge--unverified {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+}
+
+/* Suppress popover on touch devices — tap = navigate. */
+@media (hover: none), (max-width: 640px) {
+  .criblmap-pin__preview {
+    display: none !important;
+  }
 }
 
 /* ── Clusters ────────────────────────────────────────────────────── */
@@ -5973,6 +6372,11 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
     padding: var(--space-2) var(--space-3);
     gap: var(--space-2);
   }
+
+  .cmap-brand__icon { height: 20px; }
+  .cmap-brand__wordmark { height: 14px; }
+  .cmap-brand__sep { height: 12px; }
+  .cmap-brand__suffix { font-size: 9.5px; letter-spacing: 0.2em; }
 
   .cmap-topbar__filters {
     display: none;

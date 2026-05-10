@@ -53,6 +53,17 @@ export default function MapPage({
     initialFilters.listing_type = listing_type;
   if (verified_only) initialFilters.verified_only = true;
 
+  // Optional initial centering — used when arriving from a listing's
+  // "Explore on CriblMap" link so the map opens on that listing's pin.
+  const latParam = typeof searchParams.lat === "string" ? Number(searchParams.lat) : NaN;
+  const lngParam = typeof searchParams.lng === "string" ? Number(searchParams.lng) : NaN;
+  const zoomParam = typeof searchParams.zoom === "string" ? Number(searchParams.zoom) : NaN;
+  const initialCenter =
+    Number.isFinite(latParam) && Number.isFinite(lngParam)
+      ? { lat: latParam, lng: lngParam }
+      : undefined;
+  const initialZoom = Number.isFinite(zoomParam) ? zoomParam : undefined;
+
   return (
     <MapClient
       locale={params.locale}
@@ -64,6 +75,8 @@ export default function MapPage({
           verified_only?: boolean;
         }
       }
+      initialCenter={initialCenter}
+      initialZoom={initialZoom}
     />
   );
 }

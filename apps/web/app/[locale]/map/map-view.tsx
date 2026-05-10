@@ -5,7 +5,6 @@ import { CriblMapCanvas } from "../../../components/criblmap/CriblMapCanvas";
 import { ListingPinLayer } from "../../../components/criblmap/ListingPinLayer";
 import { TopBar } from "../../../components/criblmap/TopBar";
 import { SidePanel } from "../../../components/criblmap/panels/SidePanel";
-import { ListingDetailPanel } from "../../../components/criblmap/panels/ListingDetailPanel";
 import { AreaStatsPanel } from "../../../components/criblmap/panels/AreaStatsPanel";
 import { SeekerFormPanel } from "../../../components/criblmap/panels/SeekerFormPanel";
 import { LocalityInsightCard } from "../../../components/criblmap/panels/LocalityInsightCard";
@@ -31,12 +30,12 @@ import { useAlertZones } from "../../../components/criblmap/hooks/useAlertZones"
 
 interface MapViewProps {
   locale: string;
+  initialCenter?: { lat: number; lng: number };
+  initialZoom?: number;
 }
 
 function getPanelTitle(type: string): string {
   switch (type) {
-    case "listing":
-      return "Listing Details";
     case "area-stats":
       return "Area Statistics";
     case "seeker-form":
@@ -50,7 +49,7 @@ function getPanelTitle(type: string): string {
   }
 }
 
-export function MapView({ locale }: MapViewProps) {
+export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
   const { isLoading, pins, panelContent, drawMode, demandViewActive } = useMapState();
   const dispatch = useMapDispatch();
@@ -123,10 +122,14 @@ export function MapView({ locale }: MapViewProps) {
       onTouchStart={handleMapMouseDown}
       onTouchEnd={handleMapMouseUp}
     >
-      <CriblMapCanvas onMapReady={handleMapReady} />
+      <CriblMapCanvas
+        onMapReady={handleMapReady}
+        initialCenter={initialCenter}
+        initialZoom={initialZoom}
+      />
 
       {/* Map layers */}
-      <ListingPinLayer map={mapInstance} />
+      <ListingPinLayer map={mapInstance} locale={locale} />
       <AreaSelectOverlay map={mapInstance} />
       <MetroOverlayLayer map={mapInstance} />
       <SeekerPinLayer map={mapInstance} />
@@ -165,15 +168,19 @@ export function MapView({ locale }: MapViewProps) {
         </div>
       )}
 
-      {/* Side panel with dynamic content */}
-      {panelContent.type !== "none" && panelContent.type !== "alert-zone-form" && (
-        <SidePanel title={getPanelTitle(panelContent.type)}>
-          {panelContent.type === "listing" && <ListingDetailPanel locale={locale} />}
-          {panelContent.type === "area-stats" && <AreaStatsPanel />}
-          {panelContent.type === "seeker-form" && <SeekerFormPanel locale={locale} />}
-          {panelContent.type === "locality-insight" && <LocalityInsightCard locale={locale} />}
-        </SidePanel>
-      )}
+      {/* Side panel with dynamic content. NOTE: the "listing" case is no
+          longer rendered — clicking a pin now navigates to /listing/[id]
+          directly via ListingPinLayer. ListingDetailPanel is left in the tree
+          so we can revive an in-map preview pattern later if we want to. */}
+      {panelContent.type !== "none" &&
+        panelContent.type !== "alert-zone-form" &&
+        panelContent.type !== "listing" && (
+          <SidePanel title={getPanelTitle(panelContent.type)}>
+            {panelContent.type === "area-stats" && <AreaStatsPanel />}
+            {panelContent.type === "seeker-form" && <SeekerFormPanel locale={locale} />}
+            {panelContent.type === "locality-insight" && <LocalityInsightCard locale={locale} />}
+          </SidePanel>
+        )}
 
       <FloatingToolbar onCommuteClick={() => setShowCommuteInput(true)} />
       <BottomBar onBenchmarkClick={() => setShowBenchmark(true)} />

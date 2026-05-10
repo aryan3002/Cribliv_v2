@@ -7,14 +7,24 @@ interface ListingLocationProps {
   locale: Locale;
   city: string;
   locality: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
-export function ListingLocation({ locale, city, locality }: ListingLocationProps) {
+export function ListingLocation({ locale, city, locality, lat, lng }: ListingLocationProps) {
   const localityLabel = locality ? toTitleCase(locality) : null;
   const cityLabel = toTitleCase(city);
   const title = localityLabel ? `${localityLabel}, ${cityLabel}` : cityLabel;
 
-  const mapHref = `/${locale}/map?city=${encodeURIComponent(city)}`;
+  // Anchor the map on this listing's actual coordinates when we have them;
+  // fall back to the city slug otherwise.
+  const params = new URLSearchParams({ city });
+  if (typeof lat === "number" && typeof lng === "number") {
+    params.set("lat", String(lat));
+    params.set("lng", String(lng));
+    params.set("zoom", "15");
+  }
+  const mapHref = `/${locale}/map?${params.toString()}`;
 
   return (
     <div className="location-card">

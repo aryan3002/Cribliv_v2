@@ -138,6 +138,8 @@ export class OwnerService {
           ll.landmark,
           ll.pincode,
           ll.masked_address,
+          ll.lat::float8 AS lat,
+          ll.lng::float8 AS lng,
           pg.total_beds,
           pg.occupancy_type::text AS occupancy_type,
           pg.room_sharing_options,
@@ -197,6 +199,8 @@ export class OwnerService {
         landmark: row.landmark ?? undefined,
         pincode: row.pincode ?? undefined,
         maskedAddress: row.masked_address ?? undefined,
+        lat: row.lat != null ? Number(row.lat) : undefined,
+        lng: row.lng != null ? Number(row.lng) : undefined,
         totalBeds: row.total_beds ? Number(row.total_beds) : undefined,
         occupancyType: row.occupancy_type ?? undefined,
         roomSharingOptions: row.room_sharing_options ?? [],
@@ -408,6 +412,32 @@ export class OwnerService {
           } catch {
             await client.query("ROLLBACK TO SAVEPOINT before_geo_point");
           }
+        } else if (localityId) {
+          // Fallback: approximate from locality centroid so listing appears on map
+          await client.query("SAVEPOINT before_centroid");
+          try {
+            await client.query(
+              `UPDATE listing_locations ll
+               SET lat = loc.lat, lng = loc.lng
+               FROM localities loc
+               WHERE ll.listing_id = $1::uuid
+                 AND loc.id = $2
+                 AND loc.lat IS NOT NULL`,
+              [listingId, localityId]
+            );
+            // Also set geo_point if PostGIS is available
+            await client.query(
+              `UPDATE listing_locations
+               SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
+               WHERE listing_id = $1::uuid
+                 AND lat IS NOT NULL AND lng IS NOT NULL
+                 AND geo_point IS NULL`,
+              [listingId]
+            );
+            await client.query("RELEASE SAVEPOINT before_centroid");
+          } catch {
+            await client.query("ROLLBACK TO SAVEPOINT before_centroid");
+          }
         }
 
         if (body.listing_type === "pg" && body.pg_fields?.total_beds) {
@@ -601,6 +631,33 @@ export class OwnerService {
               await client.query("RELEASE SAVEPOINT before_geo_point");
             } catch {
               await client.query("ROLLBACK TO SAVEPOINT before_geo_point");
+            }
+          } else if (localityId) {
+            // Fallback: approximate from locality centroid on update
+            await client.query("SAVEPOINT before_centroid");
+            try {
+              await client.query(
+                `UPDATE listing_locations ll
+                 SET lat = COALESCE(ll.lat, loc.lat),
+                     lng = COALESCE(ll.lng, loc.lng)
+                 FROM localities loc
+                 WHERE ll.listing_id = $1::uuid
+                   AND loc.id = $2
+                   AND loc.lat IS NOT NULL
+                   AND ll.lat IS NULL`,
+                [listingId, localityId]
+              );
+              await client.query(
+                `UPDATE listing_locations
+                 SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
+                 WHERE listing_id = $1::uuid
+                   AND lat IS NOT NULL AND lng IS NOT NULL
+                   AND geo_point IS NULL`,
+                [listingId]
+              );
+              await client.query("RELEASE SAVEPOINT before_centroid");
+            } catch {
+              await client.query("ROLLBACK TO SAVEPOINT before_centroid");
             }
           }
         }

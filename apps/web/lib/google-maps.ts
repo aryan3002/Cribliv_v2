@@ -39,10 +39,6 @@ export function useGoogleMap(
 
   const { center = { lat: 28.6139, lng: 77.209 }, zoom = 11, styles, mapId = MAP_ID } = options;
 
-  // Use Cloud-based styling when a real Map ID is configured;
-  // fall back to inline dark styles for dev / DEMO_MAP_ID.
-  const useCloudStyle = mapId !== "DEMO_MAP_ID";
-
   useEffect(() => {
     if (!API_KEY || !containerRef.current) return;
 
@@ -51,7 +47,12 @@ export function useGoogleMap(
       if (cancelled || !containerRef.current) return;
       if (typeof google === "undefined") return;
 
-      const mapOptions: google.maps.MapOptions = {
+      // The mapId-bound Cloud style and our inline CRIBLMAP_DARK_STYLE are both
+      // dark; when a mapId is present the SDK ignores `styles` (and warns), but
+      // we keep the inline value as a fallback for any path that doesn't honour
+      // the Cloud config. `colorScheme: DARK` forces the SDK to pick the dark
+      // variant of the Cloud Map ID instead of defaulting to LIGHT.
+      const mapOptions: google.maps.MapOptions & { colorScheme?: string } = {
         center,
         zoom,
         disableDefaultUI: true,
@@ -60,16 +61,12 @@ export function useGoogleMap(
         gestureHandling: "greedy",
         clickableIcons: false,
         minZoom: 8,
-        maxZoom: 19
+        maxZoom: 19,
+        styles: styles ?? CRIBLMAP_DARK_STYLE,
+        mapId: mapId,
+        colorScheme:
+          (google.maps as unknown as { ColorScheme?: { DARK: string } }).ColorScheme?.DARK ?? "DARK"
       };
-
-      if (useCloudStyle) {
-        mapOptions.mapId = mapId;
-      } else {
-        // Apply dark style inline when no Cloud Map ID is available
-        mapOptions.styles = styles ?? CRIBLMAP_DARK_STYLE;
-        mapOptions.mapId = mapId; // still needed for AdvancedMarkerElement
-      }
 
       const map = new google.maps.Map(containerRef.current, mapOptions);
 

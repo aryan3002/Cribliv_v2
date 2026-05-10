@@ -29,6 +29,8 @@ export interface OwnerListingDraftInput {
     addressLine1?: string;
     landmark?: string;
     pincode?: string;
+    lat?: number;
+    lng?: number;
     maskedAddress?: string;
   };
   propertyFields?: {
@@ -213,6 +215,8 @@ function buildOwnerPayload(input: OwnerListingDraftInput) {
       address_line1: input.location.addressLine1,
       landmark: input.location.landmark,
       pincode: input.location.pincode,
+      lat: input.location.lat,
+      lng: input.location.lng,
       masked_address: input.location.maskedAddress
     },
     property_fields: input.propertyFields

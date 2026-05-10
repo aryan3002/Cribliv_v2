@@ -26,6 +26,8 @@ interface ListingDetailResponse {
     verification_status: "unverified" | "pending" | "verified" | "failed";
     city: string;
     locality?: string | null;
+    lat?: number | null;
+    lng?: number | null;
     bhk?: number | null;
     bathrooms?: number | null;
     area_sqft?: number | null;
@@ -388,6 +390,8 @@ export default async function ListingDetailPage({
                 locale={locale}
                 city={listing.city}
                 locality={listing.locality ?? null}
+                lat={listing.lat ?? null}
+                lng={listing.lng ?? null}
               />
             </section>
 

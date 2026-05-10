@@ -28,6 +28,10 @@ export interface WizardForm {
   address: string;
   landmark: string;
   pincode: string;
+  /** Latitude from Google Places Autocomplete or manual pin-drop */
+  lat: number | null;
+  /** Longitude from Google Places Autocomplete or manual pin-drop */
+  lng: number | null;
   bedrooms: string;
   bathrooms: string;
   area_sqft: string;
@@ -127,6 +131,8 @@ export const EMPTY_FORM: WizardForm = {
   address: "",
   landmark: "",
   pincode: "",
+  lat: null,
+  lng: null,
   bedrooms: "",
   bathrooms: "",
   area_sqft: "",
@@ -396,6 +402,8 @@ export function applyCaptureDraftToForm(
   if (draft.location?.city) next.city = draft.location.city;
   if (draft.location?.locality) next.locality = draft.location.locality;
   if (draft.location?.address_line1) next.address = draft.location.address_line1;
+  if (typeof (draft.location as any)?.lat === "number") next.lat = (draft.location as any).lat;
+  if (typeof (draft.location as any)?.lng === "number") next.lng = (draft.location as any).lng;
   if (typeof draft.property_fields?.bhk === "number")
     next.bedrooms = String(draft.property_fields.bhk);
   if (typeof draft.property_fields?.bathrooms === "number")

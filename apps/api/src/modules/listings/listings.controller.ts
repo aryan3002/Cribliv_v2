@@ -22,6 +22,8 @@ interface ListingDetailRow {
   verification_status: "unverified" | "pending" | "verified" | "failed";
   city: string;
   locality: string | null;
+  lat: number | null;
+  lng: number | null;
   bhk: number | null;
   bathrooms: number | null;
   area_sqft: number | null;
@@ -66,6 +68,8 @@ export class ListingsController {
           l.verification_status::text,
           c.slug AS city,
           loc.slug AS locality,
+          ll.lat::float8 AS lat,
+          ll.lng::float8 AS lng,
           l.bhk,
           l.bathrooms,
           l.area_sqft,
@@ -151,6 +155,8 @@ export class ListingsController {
             verification_status: listing.verification_status,
             city: listing.city,
             locality: listing.locality,
+            lat: listing.lat != null ? Number(listing.lat) : null,
+            lng: listing.lng != null ? Number(listing.lng) : null,
             bhk: listing.bhk,
             bathrooms: listing.bathrooms,
             area_sqft: listing.area_sqft,

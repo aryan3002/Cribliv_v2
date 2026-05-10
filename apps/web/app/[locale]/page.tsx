@@ -47,16 +47,19 @@ const SearchHero = dynamic(
 // SSR-render these so the layout reserves their space at first paint.
 // Disabling SSR caused the CTA banner to shift down by hundreds of pixels
 // on hydration (CLS 0.438 in Lighthouse).
-const AnimateOnScroll = dynamic(() =>
-  import("../../components/scroll-animations").then((mod) => mod.AnimateOnScroll)
+const AnimateOnScroll = dynamic(
+  () => import("../../components/scroll-animations").then((mod) => mod.AnimateOnScroll),
+  { ssr: false }
 );
 
-const CountUp = dynamic(() =>
-  import("../../components/scroll-animations").then((mod) => mod.CountUp)
+const CountUp = dynamic(
+  () => import("../../components/scroll-animations").then((mod) => mod.CountUp),
+  { ssr: false }
 );
 
-const ScrollDownIndicator = dynamic(() =>
-  import("../../components/scroll-animations").then((mod) => mod.ScrollDownIndicator)
+const ScrollDownIndicator = dynamic(
+  () => import("../../components/scroll-animations").then((mod) => mod.ScrollDownIndicator),
+  { ssr: false }
 );
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";

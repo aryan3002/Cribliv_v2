@@ -7,16 +7,20 @@ import { useMapDispatch } from "./hooks/useMapState";
 interface CriblMapCanvasProps {
   onMapReady?: (map: google.maps.Map) => void;
   mapRef?: React.MutableRefObject<google.maps.Map | null>;
+  initialCenter?: { lat: number; lng: number };
+  initialZoom?: number;
 }
 
-export function CriblMapCanvas({ onMapReady, mapRef: externalMapRef }: CriblMapCanvasProps) {
+export function CriblMapCanvas({
+  onMapReady,
+  mapRef: externalMapRef,
+  initialCenter,
+  initialZoom
+}: CriblMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // styles are intentionally omitted — mapId (set in useGoogleMap) enables
-  // AdvancedMarkerElement and is mutually exclusive with inline styles.
-  // Dark styling should be configured in the Cloud Console Map ID for production.
   const { map, ready } = useGoogleMap(containerRef, {
-    center: { lat: 28.6139, lng: 77.209 },
-    zoom: 11
+    center: initialCenter ?? { lat: 28.6139, lng: 77.209 },
+    zoom: initialZoom ?? 11
   });
   const dispatch = useMapDispatch();
   const listenerRef = useRef<google.maps.MapsEventListener | null>(null);
