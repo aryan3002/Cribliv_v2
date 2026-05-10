@@ -392,6 +392,7 @@ export default async function ListingDetailPage({
                 locality={listing.locality ?? null}
                 lat={listing.lat ?? null}
                 lng={listing.lng ?? null}
+                listingId={listing.id}
               />
             </section>
 

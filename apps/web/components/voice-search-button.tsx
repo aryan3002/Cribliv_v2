@@ -258,6 +258,48 @@ function StreamingVoiceButton({
       return;
     }
 
+    const normalizeTranscript = (text: string) => {
+      let t = text;
+      // Fix BHK with hindi numbers (e.g., charbhk -> 4 bhk)
+      const hindiToNum: Record<string, string> = {
+        ek: "1",
+        do: "2",
+        teen: "3",
+        char: "4",
+        paanch: "5",
+        panch: "5",
+        chhe: "6",
+        che: "6",
+        saat: "7",
+        aath: "8",
+        nau: "9",
+        das: "10"
+      };
+
+      t = t.replace(
+        /\b(ek|do|teen|char|paanch|panch|chhe|che|saat|aath|nau|das)\s*(bhk)\b/gi,
+        (match, p1, p2) => {
+          return `${hindiToNum[p1.toLowerCase()]} ${p2.toUpperCase()}`;
+        }
+      );
+
+      // Also fix if there is no space: charbhk -> 4 bhk
+      t = t.replace(
+        /\b(ek|do|teen|char|paanch|panch|chhe|che|saat|aath|nau|das)(bhk)\b/gi,
+        (match, p1, p2) => {
+          return `${hindiToNum[p1.toLowerCase()]} ${p2.toUpperCase()}`;
+        }
+      );
+
+      // Fix common misrecognitions for hazar
+      t = t.replace(
+        /(\d+|ek|do|teen|char|paanch|panch|chhe|che|saat|aath|nau|das)\s+(yaar|jar)\b/gi,
+        "$1 hazar"
+      );
+
+      return t;
+    };
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -327,9 +369,10 @@ function StreamingVoiceButton({
 
       if (finalText) {
         finalTranscriptRef.current = (finalTranscriptRef.current + " " + finalText).trim();
+        finalTranscriptRef.current = normalizeTranscript(finalTranscriptRef.current);
       }
 
-      const liveText = (finalTranscriptRef.current + " " + interim).trim();
+      const liveText = normalizeTranscript((finalTranscriptRef.current + " " + interim).trim());
       if (liveText) onTranscript?.(liveText);
 
       // Reset silence timer on every voice activity

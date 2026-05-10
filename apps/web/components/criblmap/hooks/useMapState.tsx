@@ -120,6 +120,12 @@ export interface MapState {
    *  city-aware overlays like the metro layer. Defaults from URL `?city=` and
    *  can be updated as the map navigates. */
   city: string;
+  /** ID of the listing the user came from (`?listing=` in the URL when
+   *  navigating from a listing detail page's "Explore on CriblMap" link).
+   *  Drives "X km from this listing" / walking-time overlays. Stays set
+   *  for the session — pin clicks now navigate, so this is the only
+   *  reliable way to know which listing is the user's "home" reference. */
+  originatingListingId: string | null;
 }
 
 /* ── Actions ──────────────────────────────────────────────────────── */
@@ -171,7 +177,8 @@ const initialState: MapState = {
   demandViewActive: false,
   alertZones: [],
   commuteOrigin: null,
-  city: "delhi"
+  city: "delhi",
+  originatingListingId: null
 };
 
 function mapReducer(state: MapState, action: MapAction): MapState {
@@ -277,16 +284,19 @@ const MapDispatchContext = createContext<Dispatch<MapAction>>(() => {});
 export function MapStateProvider({
   children,
   initialFilters,
-  initialCity
+  initialCity,
+  initialOriginatingListingId
 }: {
   children: ReactNode;
   initialFilters?: MapFilters;
   initialCity?: string;
+  initialOriginatingListingId?: string | null;
 }) {
   const [state, dispatch] = useReducer(mapReducer, {
     ...initialState,
     filters: initialFilters ?? {},
-    city: initialCity ?? initialState.city
+    city: initialCity ?? initialState.city,
+    originatingListingId: initialOriginatingListingId ?? null
   });
 
   return (

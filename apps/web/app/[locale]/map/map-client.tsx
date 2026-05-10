@@ -9,6 +9,7 @@ interface MapClientProps {
   initialCenter?: { lat: number; lng: number };
   initialZoom?: number;
   initialCity?: string;
+  initialOriginatingListingId?: string | null;
 }
 
 export default function MapClient({
@@ -16,10 +17,15 @@ export default function MapClient({
   initialFilters,
   initialCenter,
   initialZoom,
-  initialCity
+  initialCity,
+  initialOriginatingListingId
 }: MapClientProps) {
   return (
-    <MapStateProvider initialFilters={initialFilters} initialCity={initialCity}>
+    <MapStateProvider
+      initialFilters={initialFilters}
+      initialCity={initialCity}
+      initialOriginatingListingId={initialOriginatingListingId}
+    >
       <MapView locale={locale} initialCenter={initialCenter} initialZoom={initialZoom} />
     </MapStateProvider>
   );

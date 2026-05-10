@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
+import { CITY_BBOXES, SYSTEM_BY_CITY } from "./city-bboxes";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -31,6 +32,13 @@ export interface MetroStation {
 export interface MetroLine {
   line_name: string;
   line_color: string;
+  /** Operator/system, e.g. "DMRC", "Rapid Metro Gurgaon", "NMRC Aqua".
+   *  Lets the UI distinguish a city's own network from connecting lines
+   *  reaching in from neighbouring cities. */
+  system: string;
+  /** City slug this line was seeded under — also disambiguates same-named
+   *  lines across cities (Delhi "Red Line" vs Lucknow "Red Line"). */
+  city: string;
   stations: MetroStation[];
 }
 
@@ -192,8 +200,23 @@ export class MapService {
       return { lines: [] };
     }
 
+    // Cross-city reach: return any line whose stations either (a) were
+    // seeded under this city slug, or (b) physically fall inside this
+    // city's bbox. Full line shapes come back — so e.g. viewing Gurugram
+    // shows DMRC Yellow Line in its entirety, not just the slice that
+    // overlaps Gurugram. When the requested city has no bbox configured,
+    // we degrade gracefully to the original "city slug" filter.
+    const bbox = CITY_BBOXES[cityKey];
+    const params: (string | number)[] = [cityKey];
+    let bboxFilter = "FALSE";
+    if (bbox) {
+      bboxFilter = `(ms.lat BETWEEN $2 AND $3 AND ms.lng BETWEEN $4 AND $5)`;
+      params.push(bbox.sw_lat, bbox.ne_lat, bbox.sw_lng, bbox.ne_lng);
+    }
+
     const result = await this.database.query<{
       id: number;
+      city: string;
       line_name: string;
       line_color: string;
       station_name: string;
@@ -201,19 +224,35 @@ export class MapService {
       lng: number;
       sequence: number;
     }>(
-      `SELECT id, line_name, line_color, station_name, lat, lng, sequence
-       FROM metro_stations
-       WHERE city = $1
-       ORDER BY line_name, sequence`,
-      [cityKey]
+      `WITH relevant_lines AS (
+         SELECT DISTINCT city, line_name
+         FROM metro_stations ms
+         WHERE ms.city = $1 OR ${bboxFilter}
+       )
+       SELECT ms.id, ms.city, ms.line_name, ms.line_color, ms.station_name,
+              ms.lat::float8 AS lat, ms.lng::float8 AS lng, ms.sequence
+       FROM metro_stations ms
+       JOIN relevant_lines rl
+         ON ms.city = rl.city AND ms.line_name = rl.line_name
+       ORDER BY ms.city, ms.line_name, ms.sequence`,
+      params
     );
 
+    /* Group by (city, line_name) so same-named lines across cities (e.g.
+     * Delhi Red Line vs Lucknow Red Line) stay separate. */
     const lineMap = new Map<string, MetroLine>();
     for (const row of result.rows) {
-      let line = lineMap.get(row.line_name);
+      const key = `${row.city}::${row.line_name}`;
+      let line = lineMap.get(key);
       if (!line) {
-        line = { line_name: row.line_name, line_color: row.line_color, stations: [] };
-        lineMap.set(row.line_name, line);
+        line = {
+          line_name: row.line_name,
+          line_color: row.line_color,
+          system: SYSTEM_BY_CITY[row.city] ?? row.city.toUpperCase(),
+          city: row.city,
+          stations: []
+        };
+        lineMap.set(key, line);
       }
       line.stations.push({
         id: row.id,

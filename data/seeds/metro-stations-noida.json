@@ -1,0 +1,32 @@
+{
+  "city": "noida",
+  "lines": [
+    {
+      "line_name": "Aqua Line",
+      "line_color": "#06B6D4",
+      "stations": [
+        { "name": "Sector 51", "lat": 28.5848, "lng": 77.3683, "seq": 1 },
+        { "name": "Sector 50", "lat": 28.5773, "lng": 77.3702, "seq": 2 },
+        { "name": "Sector 76", "lat": 28.5712, "lng": 77.3729, "seq": 3 },
+        { "name": "Sector 101", "lat": 28.5654, "lng": 77.3754, "seq": 4 },
+        { "name": "Sector 81", "lat": 28.5586, "lng": 77.3784, "seq": 5 },
+        { "name": "NSEZ", "lat": 28.551, "lng": 77.3815, "seq": 6 },
+        { "name": "Sector 83", "lat": 28.544, "lng": 77.3848, "seq": 7 },
+        { "name": "Sector 137", "lat": 28.5358, "lng": 77.3886, "seq": 8 },
+        { "name": "Sector 142", "lat": 28.5277, "lng": 77.3923, "seq": 9 },
+        { "name": "Sector 143", "lat": 28.5198, "lng": 77.3962, "seq": 10 },
+        { "name": "Sector 144", "lat": 28.5118, "lng": 77.4001, "seq": 11 },
+        { "name": "Sector 145", "lat": 28.504, "lng": 77.404, "seq": 12 },
+        { "name": "Sector 146", "lat": 28.496, "lng": 77.4079, "seq": 13 },
+        { "name": "Sector 147", "lat": 28.488, "lng": 77.4118, "seq": 14 },
+        { "name": "Sector 148", "lat": 28.4801, "lng": 77.4157, "seq": 15 },
+        { "name": "Knowledge Park II", "lat": 28.472, "lng": 77.4196, "seq": 16 },
+        { "name": "Pari Chowk", "lat": 28.464, "lng": 77.4235, "seq": 17 },
+        { "name": "Alpha 1", "lat": 28.472, "lng": 77.5135, "seq": 18 },
+        { "name": "Delta 1", "lat": 28.4685, "lng": 77.517, "seq": 19 },
+        { "name": "GNIDA Office", "lat": 28.464, "lng": 77.521, "seq": 20 },
+        { "name": "Depot Station", "lat": 28.4602, "lng": 77.5246, "seq": 21 }
+      ]
+    }
+  ]
+}

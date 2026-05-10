@@ -71,6 +71,14 @@ export default function MapPage({
       ? searchParams.city.toLowerCase()
       : undefined;
 
+  // Originating listing (?listing=<uuid>) — set by the listing detail page's
+  // "Explore on CriblMap" link. Drives walk-time / distance-from-listing
+  // overlays in the metro tooltips.
+  const initialOriginatingListingId =
+    typeof searchParams.listing === "string" && /^[0-9a-f-]{36}$/i.test(searchParams.listing)
+      ? searchParams.listing
+      : undefined;
+
   return (
     <MapClient
       locale={params.locale}
@@ -85,6 +93,7 @@ export default function MapPage({
       initialCenter={initialCenter}
       initialZoom={initialZoom}
       initialCity={initialCity}
+      initialOriginatingListingId={initialOriginatingListingId}
     />
   );
 }

@@ -6663,27 +6663,63 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 4px color-mix(in srgb, var(--line-color, #888) 25%, transparent);
 }
 
+/* Interchange treatment: bigger dot with a bicolour conic-gradient ring
+   that splits the primary line colour from the connecting line colour,
+   plus a soft white core to make it pop. Communicates "you can switch
+   systems here" at a glance. */
+.cmap-metro-station--interchange .cmap-metro-dot {
+  width: 13px;
+  height: 13px;
+  background:
+    radial-gradient(circle, #ffffff 0 32%, transparent 33%),
+    conic-gradient(
+      from 0deg,
+      var(--line-color, #888) 0 50%,
+      var(--line-color-2, var(--line-color, #888)) 50% 100%
+    );
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.55);
+}
+.cmap-metro-station--interchange:hover .cmap-metro-dot,
+.cmap-metro-station--interchange.cmap-metro-station--active .cmap-metro-dot {
+  transform: scale(1.4);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 0 0 5px color-mix(in srgb, var(--line-color, #888) 18%, transparent),
+    0 0 0 9px color-mix(in srgb, var(--line-color-2, #888) 14%, transparent),
+    0 3px 10px rgba(0, 0, 0, 0.6);
+}
+
 .cmap-metro-tooltip {
   position: absolute;
   bottom: calc(100% + 10px);
   left: 50%;
   transform: translate(-50%, 4px);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+  max-width: 280px;
+  padding: 10px 12px;
+  border-radius: 12px;
   background: rgba(15, 15, 28, 0.96);
   backdrop-filter: blur(18px) saturate(180%);
   -webkit-backdrop-filter: blur(18px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4);
   font-family: var(--font-body);
-  white-space: nowrap;
   pointer-events: none;
   opacity: 0;
   transition: opacity 160ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 60;
+}
+.cmap-metro-tooltip__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 .cmap-metro-tooltip::after {
   content: "";
@@ -6716,21 +6752,158 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   letter-spacing: -0.005em;
 }
 
-.cmap-metro-tooltip__line-name {
+/* Legacy class kept for compat — same as system tag styling but
+   positioned at the right end of the head row. */
+.cmap-metro-tooltip__line-name,
+.cmap-metro-tooltip__system {
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--line-color, rgba(255, 255, 255, 0.55));
-  padding-left: 8px;
-  margin-left: 4px;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2px 7px;
+  margin-left: auto;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--line-color, #888) 14%, transparent);
+}
+
+/* Combined "Yellow Line · Stop 4 of 23" row — replaces the previous
+   separate `__stop` row. Reads as one breath, easier to scan. */
+.cmap-metro-tooltip__line-row {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.66);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* Interchange section: label + a wrapping row of system chips. */
+.cmap-metro-tooltip__interchange {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.cmap-metro-tooltip__interchange-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.cmap-metro-tooltip__interchange-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--chip-color, #888) 14%, transparent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmap-metro-tooltip__interchange-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chip-color, #888);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.4);
+}
+
+/* Prev / Next neighbour stations on this line. */
+.cmap-metro-tooltip__neighbours {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.cmap-metro-tooltip__neighbour {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.cmap-metro-tooltip__neighbour--next {
+  justify-content: flex-end;
+}
+.cmap-metro-tooltip__arrow {
+  color: var(--line-color, rgba(255, 255, 255, 0.7));
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Dynamic rows (distance, density, walk-time) — populated by the
+   MetroOverlayLayer effect. Empty when no data is available. */
+.cmap-metro-tooltip__dynamic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.cmap-metro-tooltip__dynamic:empty {
+  display: none;
+}
+.cmap-metro-tooltip__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+}
+.cmap-metro-tooltip__row svg {
+  flex-shrink: 0;
+  color: var(--line-color, var(--brand));
+  opacity: 0.95;
+}
+.cmap-metro-tooltip__row--dist {
+  /* Cobalt-tinted to read as "your starting point" reference info. */
+  background: rgba(0, 102, 255, 0.12);
+  color: #cfe0ff;
+}
+.cmap-metro-tooltip__row--dist svg {
+  color: #6aa9ff;
+}
+.cmap-metro-tooltip__row--walk {
+  background: rgba(225, 29, 72, 0.12);
+  color: #ffd5db;
+}
+.cmap-metro-tooltip__row--walk svg {
+  color: var(--line-color, #ff8896);
+}
+.cmap-metro-tooltip__row--density {
+  background: rgba(34, 197, 94, 0.12);
+  color: #c6f1d6;
+}
+.cmap-metro-tooltip__row--density svg {
+  color: #5fd690;
 }
 
 /* Mobile: tap-to-reveal works the same; suppress hover-only behaviour
    (it's automatically harmless because :hover doesn't fire on touch). */
 @media (max-width: 480px) {
   .cmap-metro-tooltip {
+    min-width: 200px;
+    max-width: 240px;
     font-size: 12px;
   }
 }

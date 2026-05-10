@@ -1,0 +1,22 @@
+{
+  "city": "jaipur",
+  "lines": [
+    {
+      "line_name": "Pink Line",
+      "line_color": "#EC4899",
+      "stations": [
+        { "name": "Mansarovar", "lat": 26.8542, "lng": 75.7674, "seq": 1 },
+        { "name": "New Aatish Market", "lat": 26.8635, "lng": 75.7782, "seq": 2 },
+        { "name": "Vivek Vihar", "lat": 26.8716, "lng": 75.7868, "seq": 3 },
+        { "name": "Shyam Nagar", "lat": 26.8801, "lng": 75.7958, "seq": 4 },
+        { "name": "Ram Nagar", "lat": 26.8865, "lng": 75.8055, "seq": 5 },
+        { "name": "Civil Lines", "lat": 26.8985, "lng": 75.8108, "seq": 6 },
+        { "name": "Railway Station", "lat": 26.9192, "lng": 75.7894, "seq": 7 },
+        { "name": "Sindhi Camp", "lat": 26.9205, "lng": 75.8005, "seq": 8 },
+        { "name": "Chandpole", "lat": 26.9255, "lng": 75.8155, "seq": 9 },
+        { "name": "Choti Chaupar", "lat": 26.9258, "lng": 75.8235, "seq": 10 },
+        { "name": "Badi Chaupar", "lat": 26.9249, "lng": 75.8278, "seq": 11 }
+      ]
+    }
+  ]
+}

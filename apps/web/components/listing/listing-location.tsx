@@ -9,20 +9,33 @@ interface ListingLocationProps {
   locality: string | null;
   lat?: number | null;
   lng?: number | null;
+  listingId?: string | null;
 }
 
-export function ListingLocation({ locale, city, locality, lat, lng }: ListingLocationProps) {
+export function ListingLocation({
+  locale,
+  city,
+  locality,
+  lat,
+  lng,
+  listingId
+}: ListingLocationProps) {
   const localityLabel = locality ? toTitleCase(locality) : null;
   const cityLabel = toTitleCase(city);
   const title = localityLabel ? `${localityLabel}, ${cityLabel}` : cityLabel;
 
   // Anchor the map on this listing's actual coordinates when we have them;
-  // fall back to the city slug otherwise.
+  // fall back to the city slug otherwise. Also forward the listing id so
+  // the map can show "X km from this listing" / walk times in the metro
+  // tooltip.
   const params = new URLSearchParams({ city });
   if (typeof lat === "number" && typeof lng === "number") {
     params.set("lat", String(lat));
     params.set("lng", String(lng));
     params.set("zoom", "15");
+  }
+  if (listingId) {
+    params.set("listing", listingId);
   }
   const mapHref = `/${locale}/map?${params.toString()}`;
 

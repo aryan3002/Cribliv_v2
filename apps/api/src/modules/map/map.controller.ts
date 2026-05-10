@@ -12,12 +12,16 @@ import {
   BadRequestException
 } from "@nestjs/common";
 import { MapService } from "./map.service";
+import { MetroWalkService } from "./metro-walk.service";
 import { ok } from "../../common/response";
 import { AuthGuard } from "../../common/auth.guard";
 
 @Controller("map")
 export class MapController {
-  constructor(private readonly mapService: MapService) {}
+  constructor(
+    private readonly mapService: MapService,
+    private readonly metroWalkService: MetroWalkService
+  ) {}
 
   /* ─── Phase 2: Area Stats ──────────────────────────────────────── */
 
@@ -50,6 +54,23 @@ export class MapController {
   @Get("metro")
   async getMetroStations(@Query("city") city?: string) {
     return ok(await this.mapService.getMetroStations(city ?? "delhi"));
+  }
+
+  /**
+   * Walking distance + duration from a listing to every metro station in
+   * its city. First request for a listing computes via Google Distance
+   * Matrix and caches; subsequent requests are instant DB reads.
+   *
+   *  GET /v1/map/metro/walks?listing_id=<uuid>
+   *    → { walks: [{ station_id, distance_m, duration_s }, ...] }
+   */
+  @Get("metro/walks")
+  async getMetroWalks(@Query("listing_id") listingId?: string) {
+    if (!listingId || !/^[0-9a-f-]{36}$/i.test(listingId)) {
+      throw new BadRequestException("listing_id must be a UUID");
+    }
+    const walks = await this.metroWalkService.ensureWalksForListing(listingId);
+    return ok({ walks });
   }
 
   /* ─── Phase 3: Seeker Pins ─────────────────────────────────────── */

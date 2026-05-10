@@ -59,7 +59,7 @@ const FURNISHING_KEYWORDS: Record<string, "furnished" | "unfurnished" | "semi_fu
 };
 const AMENITY_KEYWORDS = ["parking", "balcony", "lift", "wifi", "ac", "geyser", "gym", "garden"];
 
-const RENT_UNIT_K = /(k|thousand|हजार)/i;
+const RENT_UNIT_K = /(k|thousand|हजार|hazar|hazaar|jar|yaar)/i;
 const RENT_UNIT_LAKH = /(lakh|lac|l\b|लाख)/i;
 
 function formatRent(rupees: number): string {
@@ -74,15 +74,50 @@ function formatRent(rupees: number): string {
   return `₹${rupees}`;
 }
 
+const HINDI_NUMBERS: Record<string, number> = {
+  ek: 1,
+  do: 2,
+  teen: 3,
+  char: 4,
+  paanch: 5,
+  panch: 5,
+  chhe: 6,
+  che: 6,
+  saat: 7,
+  aath: 8,
+  nau: 9,
+  das: 10
+};
+
+function parseNumberValue(str: string): number | null {
+  if (/^\d+$/.test(str)) return Number(str);
+  const word = str.toLowerCase();
+  if (HINDI_NUMBERS[word] !== undefined) return HINDI_NUMBERS[word];
+  const devanagari = "०१२३४५६७८९";
+  if (str.length > 0 && devanagari.includes(str[0])) {
+    let n = "";
+    for (const char of str) {
+      const idx = devanagari.indexOf(char);
+      if (idx !== -1) n += idx;
+    }
+    return Number(n);
+  }
+  return null;
+}
+
 function parseRentValue(numStr: string, unit: string | undefined): number | null {
-  const value = Number(numStr);
-  if (!Number.isFinite(value)) return null;
+  const value = parseNumberValue(numStr);
+  if (value === null || !Number.isFinite(value)) return null;
   if (unit && RENT_UNIT_LAKH.test(unit)) return Math.round(value * 100_000);
   if (unit && RENT_UNIT_K.test(unit)) return Math.round(value * 1000);
   if (value >= 1000) return value;
   if (value >= 10 && value <= 300) return value * 1000;
   return value;
 }
+
+const numPattern = `(\\d+|ek|do|teen|char|paanch|panch|chhe|che|saat|aath|nau|das|[०-९]+)`;
+const rentNumPattern = `(\\d{1,6}|ek|do|teen|char|paanch|panch|chhe|che|saat|aath|nau|das|[०-९]+)`;
+const rentUnitPattern = `(k|lakh|lac|thousand|हजार|hazar|hazaar|jar|yaar|लाख)?`;
 
 interface Match {
   chip: ParsedChip;
@@ -110,9 +145,10 @@ export function parseQuery(
   const matches: Match[] = [];
 
   // -- BHK --
-  for (const m of lower.matchAll(/(\d+)\s*bhk/g)) {
-    const n = Number(m[1]);
-    if (Number.isFinite(n) && n > 0 && n <= 10) {
+  const bhkRegex = new RegExp(`${numPattern}\\s*bhk`, "ig");
+  for (const m of lower.matchAll(bhkRegex)) {
+    const n = parseNumberValue(m[1]);
+    if (n !== null && Number.isFinite(n) && n > 0 && n <= 10) {
       matches.push({
         chip: { kind: "bhk", value: n, label: `${n} BHK` },
         start: m.index ?? 0,
@@ -122,8 +158,10 @@ export function parseQuery(
   }
 
   // -- Rent: explicit range --
-  const rangeRe =
-    /(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?\s*(?:-|to|and|–|से)\s*(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?/i;
+  const rangeRe = new RegExp(
+    `${rentNumPattern}\\s*${rentUnitPattern}\\s*(?:-|to|and|–|से)\\s*${rentNumPattern}\\s*${rentUnitPattern}`,
+    "i"
+  );
   const rangeMatch = lower.match(rangeRe);
   if (rangeMatch && rangeMatch.index !== undefined) {
     const low = parseRentValue(rangeMatch[1], rangeMatch[2]);
@@ -147,8 +185,10 @@ export function parseQuery(
   }
 
   // -- Rent: max ("under 25k", "up to 30000", "max 18k") --
-  const maxRe =
-    /(?:under|below|max|upto|up to|less than|तक|के अंदर|से कम)\s*(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?/i;
+  const maxRe = new RegExp(
+    `(?:under|below|max|upto|up to|less than|तक|के अंदर|से कम)\\s*${rentNumPattern}\\s*${rentUnitPattern}`,
+    "i"
+  );
   const maxMatch = lower.match(maxRe);
   if (maxMatch && maxMatch.index !== undefined) {
     const parsed = parseRentValue(maxMatch[1], maxMatch[2]);
@@ -162,8 +202,10 @@ export function parseQuery(
   }
 
   // -- Rent: min ("above 10k", "starting 12k") --
-  const minRe =
-    /(?:above|min|starting|atleast|at least|से ज्यादा|से ऊपर)\s*(\d{2,6})\s*(k|lakh|lac|thousand|हजार|लाख)?/i;
+  const minRe = new RegExp(
+    `(?:above|min|starting|atleast|at least|से ज्यादा|से ऊपर)\\s*${rentNumPattern}\\s*${rentUnitPattern}`,
+    "i"
+  );
   const minMatch = lower.match(minRe);
   if (minMatch && minMatch.index !== undefined) {
     const parsed = parseRentValue(minMatch[1], minMatch[2]);
@@ -179,7 +221,10 @@ export function parseQuery(
   // -- Rent: bare unit ("18k", "2 lakh") if no other rent chip parsed --
   const hasRentChip = matches.some((m) => m.chip.kind === "max_rent" || m.chip.kind === "min_rent");
   if (!hasRentChip) {
-    const bareRe = /(\d{1,4})\s*(k|lakh|lac|thousand|हजार|लाख)/i;
+    const bareRe = new RegExp(
+      `${rentNumPattern}\\s*(k|lakh|lac|thousand|हजार|hazar|hazaar|jar|yaar|लाख)`,
+      "i"
+    );
     const bare = lower.match(bareRe);
     if (bare && bare.index !== undefined) {
       const parsed = parseRentValue(bare[1], bare[2]);

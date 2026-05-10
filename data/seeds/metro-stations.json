@@ -270,45 +270,6 @@
         { "name": "Dashrath Puri", "lat": 28.5974, "lng": 77.0685, "seq": 23 },
         { "name": "Janakpuri West", "lat": 28.631, "lng": 77.0819, "seq": 24 }
       ]
-    },
-    {
-      "line_name": "Rapid Metro Gurugram",
-      "line_color": "#00CCCC",
-      "stations": [
-        { "name": "Sikandarpur", "lat": 28.4813, "lng": 77.0904, "seq": 1 },
-        { "name": "Phase 1", "lat": 28.4727, "lng": 77.0778, "seq": 2 },
-        { "name": "Phase 2", "lat": 28.4654, "lng": 77.0661, "seq": 3 },
-        { "name": "Phase 3", "lat": 28.4573, "lng": 77.0571, "seq": 4 },
-        { "name": "Moulsari Avenue", "lat": 28.4544, "lng": 77.0643, "seq": 5 },
-        { "name": "Cyber City", "lat": 28.4944, "lng": 77.0869, "seq": 6 }
-      ]
-    },
-    {
-      "line_name": "Aqua Line (Noida)",
-      "line_color": "#00AACC",
-      "stations": [
-        { "name": "Noida Sector 51", "lat": 28.5685, "lng": 77.3595, "seq": 1 },
-        { "name": "Noida Sector 50", "lat": 28.5707, "lng": 77.3675, "seq": 2 },
-        { "name": "Noida Sector 76", "lat": 28.5722, "lng": 77.387, "seq": 3 },
-        { "name": "Noida Sector 101", "lat": 28.5654, "lng": 77.3949, "seq": 4 },
-        { "name": "Noida Sector 81", "lat": 28.5615, "lng": 77.3968, "seq": 5 },
-        { "name": "NSEZ", "lat": 28.5463, "lng": 77.3969, "seq": 6 },
-        { "name": "Noida Sector 83", "lat": 28.5361, "lng": 77.3979, "seq": 7 },
-        { "name": "Noida Sector 137", "lat": 28.5278, "lng": 77.3965, "seq": 8 },
-        { "name": "Noida Sector 142", "lat": 28.5168, "lng": 77.3993, "seq": 9 },
-        { "name": "Noida Sector 143", "lat": 28.5068, "lng": 77.3975, "seq": 10 },
-        { "name": "Noida Sector 144", "lat": 28.4933, "lng": 77.3901, "seq": 11 },
-        { "name": "Noida Sector 145", "lat": 28.4816, "lng": 77.3886, "seq": 12 },
-        { "name": "Noida Sector 146", "lat": 28.4709, "lng": 77.3812, "seq": 13 },
-        { "name": "Noida Sector 147", "lat": 28.4629, "lng": 77.3748, "seq": 14 },
-        { "name": "Noida Sector 148", "lat": 28.4551, "lng": 77.3671, "seq": 15 },
-        { "name": "Knowledge Park II", "lat": 28.4725, "lng": 77.4618, "seq": 16 },
-        { "name": "Pari Chowk", "lat": 28.4621, "lng": 77.4917, "seq": 17 },
-        { "name": "Alpha 1", "lat": 28.4503, "lng": 77.4939, "seq": 18 },
-        { "name": "Delta 1", "lat": 28.4385, "lng": 77.5004, "seq": 19 },
-        { "name": "GNIDA Office", "lat": 28.4252, "lng": 77.509, "seq": 20 },
-        { "name": "Depot", "lat": 28.4167, "lng": 77.5124, "seq": 21 }
-      ]
     }
   ]
 }
