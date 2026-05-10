@@ -52,6 +52,7 @@ export interface SeekerPin {
   move_in: string;
   listing_type: string;
   note: string | null;
+  radius_m: number;
   created_at: string;
 }
 
@@ -289,6 +290,7 @@ export class MapService {
          move_in,
          listing_type,
          note,
+         radius_m,
          created_at::text
        FROM seeker_pins
        WHERE is_active = true
@@ -315,13 +317,17 @@ export class MapService {
       move_in?: string;
       listing_type?: string;
       note?: string;
+      radius_m?: number;
     }
   ): Promise<{ id: string }> {
     if (!this.database.isEnabled()) throw new Error("Database not available");
 
+    // Clamp radius to schema bounds (100m..10km) with a sensible 1km default.
+    const radius = Math.max(100, Math.min(10000, Math.round(data.radius_m ?? 1000)));
+
     const result = await this.database.query<{ id: string }>(
-      `INSERT INTO seeker_pins (user_id, lat, lng, city, budget_min, budget_max, bhk_preference, move_in, listing_type, note)
-       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::smallint[], $8, $9, $10)
+      `INSERT INTO seeker_pins (user_id, lat, lng, city, budget_min, budget_max, bhk_preference, move_in, listing_type, note, radius_m)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::smallint[], $8, $9, $10, $11)
        RETURNING id::text`,
       [
         userId,
@@ -333,7 +339,8 @@ export class MapService {
         data.bhk_preference ?? [],
         data.move_in ?? "flexible",
         data.listing_type ?? "flat_house",
-        data.note?.slice(0, 200) ?? null
+        data.note?.slice(0, 200) ?? null,
+        radius
       ]
     );
 

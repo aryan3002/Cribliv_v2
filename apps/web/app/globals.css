@@ -6916,7 +6916,9 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   gap: 4px;
   padding: 5px 10px;
   border-radius: 20px;
-  background: var(--cmap-pin-seeker);
+  /* Per-pin urgency colour set inline via --seeker-color, falls back to the
+   * Phase-3 default for older pins without a move-in. */
+  background: var(--seeker-color, var(--cmap-pin-seeker));
   color: #fff;
   font-family: var(--font-body);
   font-size: 11px;
@@ -6924,7 +6926,10 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   line-height: 1;
   white-space: nowrap;
   cursor: default;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 0 0 1.5px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.35),
+    0 0 0 4px color-mix(in srgb, var(--seeker-color, var(--cmap-pin-seeker)) 18%, transparent);
   animation: cmap-pin-enter 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
@@ -6983,6 +6988,171 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 .cmap-seeker-form__success svg { color: var(--cmap-pin-seeker); }
 .cmap-seeker-form__success h3 { color: var(--cmap-text); font-size: 18px; font-weight: 700; }
 .cmap-seeker-form__success p { color: var(--cmap-text-secondary); font-size: 13px; line-height: 1.5; }
+
+/* ── Auth-required state (shown when the seeker isn't signed in). */
+.cmap-seeker-form__auth-required {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(0, 102, 255, 0.08);
+  border: 1px solid rgba(0, 102, 255, 0.2);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.cmap-seeker-form__auth-required svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #6aa9ff;
+}
+
+/* ── Live match preview chip — sits at the top of the form so users see
+ *     demand-side value before committing to drop a pin. */
+.cmap-seeker-form__live-match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12.5px;
+  line-height: 1.4;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+.cmap-seeker-form__live-match svg {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.5);
+  transition: color 200ms ease;
+}
+.cmap-seeker-form__live-match strong {
+  color: #fff;
+  font-weight: 700;
+}
+.cmap-seeker-form__live-match--has {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.16) 0%, rgba(34, 197, 94, 0.06) 100%);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: rgba(255, 255, 255, 0.92);
+}
+.cmap-seeker-form__live-match--has svg {
+  color: #5fd690;
+}
+
+/* ── Inline error banner. */
+.cmap-seeker-form__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  color: #ffd0d0;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.cmap-seeker-form__error svg {
+  flex-shrink: 0;
+  color: #ef4444;
+}
+
+/* ── Post-drop matches list. */
+.cmap-seeker-form__matches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.cmap-seeker-form__matches-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+}
+.cmap-seeker-form__matches-head svg {
+  color: var(--brand, #0066ff);
+}
+.cmap-seeker-form__matches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cmap-seeker-form__match-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  color: inherit;
+  text-decoration: none;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.cmap-seeker-form__match-card:hover {
+  background: rgba(0, 102, 255, 0.1);
+  border-color: rgba(0, 102, 255, 0.3);
+}
+.cmap-seeker-form__match-photo {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.06);
+}
+.cmap-seeker-form__match-photo--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+.cmap-seeker-form__match-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.cmap-seeker-form__match-rent {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+.cmap-seeker-form__match-rent-unit {
+  font-size: 10.5px;
+  font-weight: 500;
+  margin-left: 2px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.cmap-seeker-form__match-title {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.62);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmap-seeker-form__match-verified {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 102, 255, 0.18);
+  color: #6aa9ff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .cmap-seeker-form__field {
   display: flex;

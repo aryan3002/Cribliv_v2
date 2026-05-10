@@ -72,6 +72,9 @@ export interface SeekerPin {
   move_in: string;
   listing_type: string;
   note: string | null;
+  /** Search radius in metres (100..10000). Drives the circle overlay
+   *  rendered around the pin so owners see the actual search area. */
+  radius_m: number;
   created_at: string;
 }
 

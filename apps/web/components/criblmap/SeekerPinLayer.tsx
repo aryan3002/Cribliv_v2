@@ -20,19 +20,56 @@ function getSeekerLabel(pin: SeekerPin): string {
   return `Looking · ₹${formatBudget(pin.budget_max)} · ${bhk}${timing ? ` · ${timing}` : ""}`;
 }
 
+/* Urgency drives the circle/label tint so an owner scanning the map can
+ * immediately see who's moving "this week" vs. someone browsing months out. */
+function urgencyColor(moveIn: string): string {
+  switch (moveIn) {
+    case "immediate":
+      return "#ef4444"; // red
+    case "within_month":
+      return "#f59e0b"; // amber
+    case "within_3_months":
+      return "#22c55e"; // green
+    default:
+      return "#7c3aed"; // brand purple — flexible / default
+  }
+}
+
 export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
   const { seekerPins, demandViewActive } = useMapState();
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const circlesRef = useRef<google.maps.Circle[]>([]);
 
   useEffect(() => {
     for (const m of markersRef.current) m.map = null;
+    for (const c of circlesRef.current) c.setMap(null);
     markersRef.current = [];
+    circlesRef.current = [];
 
     if (!map || !demandViewActive || seekerPins.length === 0) return;
 
     for (const pin of seekerPins) {
+      const color = urgencyColor(pin.move_in);
+      const radiusM = pin.radius_m && pin.radius_m > 0 ? pin.radius_m : 1000;
+
+      // Circle: communicates the seeker's actual search area, not just a point.
+      const circle = new google.maps.Circle({
+        map,
+        center: { lat: pin.lat, lng: pin.lng },
+        radius: radiusM,
+        strokeColor: color,
+        strokeWeight: 1.5,
+        strokeOpacity: 0.55,
+        fillColor: color,
+        fillOpacity: 0.1,
+        clickable: false,
+        zIndex: 4
+      });
+      circlesRef.current.push(circle);
+
       const el = document.createElement("div");
       el.className = "cmap-seeker-pin";
+      el.style.setProperty("--seeker-color", color);
       el.innerHTML = `<span class="cmap-seeker-pin__label">${getSeekerLabel(pin)}</span>`;
 
       if (pin.note) {
@@ -51,7 +88,9 @@ export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
 
     return () => {
       for (const m of markersRef.current) m.map = null;
+      for (const c of circlesRef.current) c.setMap(null);
       markersRef.current = [];
+      circlesRef.current = [];
     };
   }, [map, seekerPins, demandViewActive]);
 

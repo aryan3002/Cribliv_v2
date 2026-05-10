@@ -110,6 +110,7 @@ export class MapController {
       move_in?: string;
       listing_type?: string;
       note?: string;
+      radius_m?: number;
     }
   ) {
     const userId = req.user?.id;
@@ -126,7 +127,8 @@ export class MapController {
         bhk_preference: body.bhk_preference,
         move_in: body.move_in,
         listing_type: body.listing_type,
-        note: body.note
+        note: body.note,
+        radius_m: body.radius_m
       })
     );
   }
