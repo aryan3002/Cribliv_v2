@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useGoogleMap } from "../../lib/google-maps";
-import { useMapDispatch } from "./hooks/useMapState";
+import { detectCityFromCoord } from "../../lib/city-bboxes";
+import { useMapDispatch, useMapState } from "./hooks/useMapState";
 
 interface CriblMapCanvasProps {
   onMapReady?: (map: google.maps.Map) => void;
@@ -23,6 +24,12 @@ export function CriblMapCanvas({
     zoom: initialZoom ?? 11
   });
   const dispatch = useMapDispatch();
+  const { city: currentCity } = useMapState();
+  const currentCityRef = useRef(currentCity);
+  useEffect(() => {
+    currentCityRef.current = currentCity;
+  }, [currentCity]);
+
   const listenerRef = useRef<google.maps.MapsEventListener | null>(null);
 
   const syncViewport = useCallback(() => {
@@ -33,6 +40,9 @@ export function CriblMapCanvas({
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const center = map.getCenter();
+    const centerLatLng = center
+      ? { lat: center.lat(), lng: center.lng() }
+      : { lat: 28.6139, lng: 77.209 };
 
     dispatch({
       type: "SET_VIEWPORT",
@@ -43,8 +53,18 @@ export function CriblMapCanvas({
         ne_lng: ne.lng()
       },
       zoom: map.getZoom() ?? 11,
-      center: center ? { lat: center.lat(), lng: center.lng() } : { lat: 28.6139, lng: 77.209 }
+      center: centerLatLng
     });
+
+    // City auto-detection: when the map's center crosses into a different
+    // known city's bbox, dispatch SET_CITY so city-aware overlays (metro
+    // lines, etc.) re-fetch for the new city. If the center sits in
+    // unknown territory (panning between cities, rural area), keep the
+    // last known city rather than clobbering it.
+    const detected = detectCityFromCoord(centerLatLng.lat, centerLatLng.lng);
+    if (detected && detected !== currentCityRef.current) {
+      dispatch({ type: "SET_CITY", city: detected });
+    }
   }, [map, dispatch]);
 
   useEffect(() => {
