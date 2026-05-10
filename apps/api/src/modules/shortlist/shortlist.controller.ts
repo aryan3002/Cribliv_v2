@@ -15,6 +15,7 @@ import { AuthGuard } from "../../common/auth.guard";
 import { ok } from "../../common/response";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
+import { toBlobUrl } from "../../common/photo-url";
 
 @Controller("shortlist")
 @UseGuards(AuthGuard)
@@ -31,24 +32,42 @@ export class ShortlistController {
         listing_id: string;
         title: string;
         city: string;
+        locality: string | null;
         listing_type: "flat_house" | "pg";
         monthly_rent: number;
+        bhk: number | null;
+        furnishing: string | null;
+        area_sqft: number | null;
         verification_status: "unverified" | "pending" | "verified" | "failed";
         shortlisted_at: string;
+        cover_photo: string | null;
       }>(
         `
         SELECT
           l.id::text AS listing_id,
           COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'Listing') AS title,
           c.slug AS city,
+          loc.slug AS locality,
           l.listing_type::text,
           l.monthly_rent,
+          l.bhk,
+          l.furnishing::text,
+          l.area_sqft,
           l.verification_status::text,
-          s.created_at::text AS shortlisted_at
+          s.created_at::text AS shortlisted_at,
+          (
+            SELECT lp.blob_path
+            FROM listing_photos lp
+            WHERE lp.listing_id = l.id
+              AND lp.moderation_status != 'rejected'
+            ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC
+            LIMIT 1
+          ) AS cover_photo
         FROM shortlists s
         JOIN listings l ON l.id = s.listing_id
         JOIN listing_locations ll ON ll.listing_id = l.id
         JOIN cities c ON c.id = ll.city_id
+        LEFT JOIN localities loc ON loc.id = ll.locality_id
         WHERE s.tenant_user_id = $1::uuid
         ORDER BY s.created_at DESC
         `,
@@ -60,10 +79,15 @@ export class ShortlistController {
           id: row.listing_id,
           title: row.title,
           city: row.city,
+          locality: row.locality,
           listing_type: row.listing_type,
           monthly_rent: Number(row.monthly_rent),
+          bhk: row.bhk,
+          furnishing: row.furnishing,
+          area_sqft: row.area_sqft,
           verification_status: row.verification_status,
-          shortlisted_at: row.shortlisted_at
+          shortlisted_at: row.shortlisted_at,
+          cover_photo: row.cover_photo ? toBlobUrl(row.cover_photo) : null
         })),
         total: result.rowCount ?? 0
       });

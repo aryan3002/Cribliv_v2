@@ -8,16 +8,18 @@ interface MapClientProps {
   initialFilters?: MapFilters;
   initialCenter?: { lat: number; lng: number };
   initialZoom?: number;
+  initialCity?: string;
 }
 
 export default function MapClient({
   locale,
   initialFilters,
   initialCenter,
-  initialZoom
+  initialZoom,
+  initialCity
 }: MapClientProps) {
   return (
-    <MapStateProvider initialFilters={initialFilters}>
+    <MapStateProvider initialFilters={initialFilters} initialCity={initialCity}>
       <MapView locale={locale} initialCenter={initialCenter} initialZoom={initialZoom} />
     </MapStateProvider>
   );

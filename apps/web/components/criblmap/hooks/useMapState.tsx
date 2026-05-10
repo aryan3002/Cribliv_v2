@@ -116,6 +116,10 @@ export interface MapState {
   // Phase 5
   alertZones: AlertZone[];
   commuteOrigin: { lat: number; lng: number; address: string } | null;
+  /** City the user is currently exploring (slug, e.g. "delhi", "lucknow"). Drives
+   *  city-aware overlays like the metro layer. Defaults from URL `?city=` and
+   *  can be updated as the map navigates. */
+  city: string;
 }
 
 /* ── Actions ──────────────────────────────────────────────────────── */
@@ -145,7 +149,8 @@ export type MapAction =
   | { type: "TOGGLE_DEMAND_VIEW" }
   // Phase 5: Alerts & Commute
   | { type: "SET_ALERT_ZONES"; zones: AlertZone[] }
-  | { type: "SET_COMMUTE_ORIGIN"; origin: { lat: number; lng: number; address: string } | null };
+  | { type: "SET_COMMUTE_ORIGIN"; origin: { lat: number; lng: number; address: string } | null }
+  | { type: "SET_CITY"; city: string };
 
 /* ── Reducer ──────────────────────────────────────────────────────── */
 
@@ -165,7 +170,8 @@ const initialState: MapState = {
   seekerPins: [],
   demandViewActive: false,
   alertZones: [],
-  commuteOrigin: null
+  commuteOrigin: null,
+  city: "delhi"
 };
 
 function mapReducer(state: MapState, action: MapAction): MapState {
@@ -255,6 +261,9 @@ function mapReducer(state: MapState, action: MapAction): MapState {
     case "SET_COMMUTE_ORIGIN":
       return { ...state, commuteOrigin: action.origin };
 
+    case "SET_CITY":
+      return { ...state, city: action.city };
+
     default:
       return state;
   }
@@ -267,14 +276,17 @@ const MapDispatchContext = createContext<Dispatch<MapAction>>(() => {});
 
 export function MapStateProvider({
   children,
-  initialFilters
+  initialFilters,
+  initialCity
 }: {
   children: ReactNode;
   initialFilters?: MapFilters;
+  initialCity?: string;
 }) {
   const [state, dispatch] = useReducer(mapReducer, {
     ...initialState,
-    filters: initialFilters ?? {}
+    filters: initialFilters ?? {},
+    city: initialCity ?? initialState.city
   });
 
   return (

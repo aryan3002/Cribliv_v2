@@ -37,33 +37,41 @@ export function MetroOverlayLayer({ map }: MetroOverlayLayerProps) {
       polylinesRef.current.push(polyline);
 
       for (const station of line.stations) {
-        const el = document.createElement("div");
-        el.className = "cmap-metro-dot";
-        el.style.setProperty("--line-color", line.line_color);
-        el.title = station.name;
+        // Wrap the dot + a hover/click tooltip in a single element so we
+        // own the styling end-to-end (Google's InfoWindow forces white
+        // chrome that's unreadable on the dark map). The tooltip is
+        // anchored above the dot via CSS, fully on-brand, and is shown
+        // on hover OR when the dot is clicked (.cmap-metro-station--active).
+        const wrapper = document.createElement("div");
+        wrapper.className = "cmap-metro-station";
+        wrapper.style.setProperty("--line-color", line.line_color);
+        wrapper.innerHTML = `
+          <span class="cmap-metro-dot" aria-label="${station.name}"></span>
+          <span class="cmap-metro-tooltip" role="tooltip">
+            <span class="cmap-metro-tooltip__swatch" aria-hidden="true"></span>
+            <span class="cmap-metro-tooltip__name">${station.name}</span>
+            <span class="cmap-metro-tooltip__line-name">${line.line_name}</span>
+          </span>
+        `;
 
         const marker = new google.maps.marker.AdvancedMarkerElement({
           map,
           position: { lat: station.lat, lng: station.lng },
-          content: el,
+          content: wrapper,
           zIndex: 55
         });
 
-        marker.addListener("click", () => {
-          const infoEl = document.createElement("div");
-          infoEl.className = "cmap-metro-tooltip";
-          infoEl.innerHTML = `
-            <span class="cmap-metro-tooltip__line" style="background: ${line.line_color}"></span>
-            <span>${station.name}</span>
-            <span class="cmap-metro-tooltip__line-name">${line.line_name}</span>
-          `;
-
-          const popup = new google.maps.InfoWindow({
-            content: infoEl,
-            position: { lat: station.lat, lng: station.lng }
-          });
-          popup.open(map);
-          setTimeout(() => popup.close(), 3000);
+        // Click pins the tooltip on for 3.2s (mobile-friendly: tap-to-reveal
+        // since :hover doesn't fire on touch). Re-tapping any station resets
+        // the timer on that station.
+        let pinTimer: ReturnType<typeof setTimeout> | null = null;
+        wrapper.addEventListener("click", (e) => {
+          e.stopPropagation();
+          wrapper.classList.add("cmap-metro-station--active");
+          if (pinTimer) clearTimeout(pinTimer);
+          pinTimer = setTimeout(() => {
+            wrapper.classList.remove("cmap-metro-station--active");
+          }, 3200);
         });
 
         markersRef.current.push(marker);

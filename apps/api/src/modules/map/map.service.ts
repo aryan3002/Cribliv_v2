@@ -92,7 +92,10 @@ function readAiConfig() {
 @Injectable()
 export class MapService {
   private readonly logger = new Logger(MapService.name);
-  private metroCache: { lines: MetroLine[]; fetchedAt: number } | null = null;
+  // Per-city cache so requests for `?city=lucknow` don't return stale Delhi
+  // data after a Delhi request warmed the cache (the previous single-key cache
+  // was keyed only on time and silently returned the first city queried).
+  private metroCache: Map<string, { lines: MetroLine[]; fetchedAt: number }> = new Map();
   private localityCache = new Map<string, { data: LocalityInsight; at: number }>();
 
   constructor(private readonly database: DatabaseService) {}
@@ -179,8 +182,10 @@ export class MapService {
   /* ─── Phase 2: Metro Data ───────────────────────────────────────── */
 
   async getMetroStations(city: string): Promise<{ lines: MetroLine[] }> {
-    if (this.metroCache && Date.now() - this.metroCache.fetchedAt < 3600_000) {
-      return { lines: this.metroCache.lines };
+    const cityKey = city.toLowerCase();
+    const cached = this.metroCache.get(cityKey);
+    if (cached && Date.now() - cached.fetchedAt < 3600_000) {
+      return { lines: cached.lines };
     }
 
     if (!this.database.isEnabled()) {
@@ -200,7 +205,7 @@ export class MapService {
        FROM metro_stations
        WHERE city = $1
        ORDER BY line_name, sequence`,
-      [city]
+      [cityKey]
     );
 
     const lineMap = new Map<string, MetroLine>();
@@ -220,7 +225,7 @@ export class MapService {
     }
 
     const lines = Array.from(lineMap.values());
-    this.metroCache = { lines, fetchedAt: Date.now() };
+    this.metroCache.set(cityKey, { lines, fetchedAt: Date.now() });
     return { lines };
   }
 

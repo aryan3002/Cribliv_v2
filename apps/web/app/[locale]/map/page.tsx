@@ -64,6 +64,13 @@ export default function MapPage({
       : undefined;
   const initialZoom = Number.isFinite(zoomParam) ? zoomParam : undefined;
 
+  // City slug (?city=lucknow) drives city-aware overlays (metro lines, etc.).
+  // Defaults to "delhi" when absent so the existing experience is unchanged.
+  const initialCity =
+    typeof searchParams.city === "string" && /^[a-z][a-z0-9_-]{1,32}$/i.test(searchParams.city)
+      ? searchParams.city.toLowerCase()
+      : undefined;
+
   return (
     <MapClient
       locale={params.locale}
@@ -77,6 +84,7 @@ export default function MapPage({
       }
       initialCenter={initialCenter}
       initialZoom={initialZoom}
+      initialCity={initialCity}
     />
   );
 }

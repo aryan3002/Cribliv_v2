@@ -1,16 +1,63 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { RectangleHorizontal, TrainFront, MapPinPlus, Flame, Navigation, Bell } from "lucide-react";
 import { useMapState, useMapDispatch } from "./hooks/useMapState";
+import { useMetroData } from "./hooks/useMetroData";
 
 interface FloatingToolbarProps {
   onCommuteClick?: () => void;
+}
+
+function prettyCity(slug: string): string {
+  return slug
+    .split(/[-_]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
   const { panelContent, drawMode, metroVisible, demandViewActive, commuteOrigin } = useMapState();
   const dispatch = useMapDispatch();
   const panelOpen = panelContent.type !== "none";
+
+  // City-aware metro data — drives "Metro lines coming soon for {city}" feedback
+  // when the toggle would otherwise no-op silently in cities with no seeded data.
+  const { loading: metroLoading, supported: metroSupported, city } = useMetroData();
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  function flashToast(message: string) {
+    setToast(message);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 3200);
+  }
+
+  function handleMetroClick() {
+    // Toggling off — no city-availability check.
+    if (metroVisible) {
+      dispatch({ type: "TOGGLE_METRO" });
+      return;
+    }
+    // Loading — optimistic toggle; the layer will render once data lands.
+    if (metroLoading) {
+      dispatch({ type: "TOGGLE_METRO" });
+      return;
+    }
+    // Loaded but empty → unsupported city. Flash a toast and skip toggling so
+    // the button doesn't get stuck in an active state while showing nothing.
+    if (!metroSupported) {
+      flashToast(`Metro lines coming soon for ${prettyCity(city)}.`);
+      return;
+    }
+    dispatch({ type: "TOGGLE_METRO" });
+  }
 
   const tools = [
     {
@@ -32,8 +79,12 @@ export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
       label: "Metro",
       icon: TrainFront,
       active: metroVisible,
-      tooltip: metroVisible ? "Hide metro lines" : "Show metro lines",
-      onClick: () => dispatch({ type: "TOGGLE_METRO" })
+      tooltip: metroVisible
+        ? "Hide metro lines"
+        : metroSupported || metroLoading
+          ? "Show metro lines"
+          : `Metro lines coming soon for ${prettyCity(city)}`,
+      onClick: handleMetroClick
     },
     {
       id: "seeker",
@@ -74,19 +125,27 @@ export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
   ];
 
   return (
-    <div className={`cmap-toolbar${panelOpen ? " cmap-toolbar--panel-open" : ""}`}>
-      {tools.map((tool) => (
-        <button
-          key={tool.id}
-          className={`cmap-toolbar__btn${tool.active ? " cmap-toolbar__btn--active" : ""}`}
-          title={tool.tooltip}
-          aria-label={tool.tooltip}
-          onClick={tool.onClick}
-        >
-          <tool.icon size={18} />
-          <span className="cmap-toolbar__btn-label">{tool.label}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className={`cmap-toolbar${panelOpen ? " cmap-toolbar--panel-open" : ""}`}>
+        {tools.map((tool) => (
+          <button
+            key={tool.id}
+            className={`cmap-toolbar__btn${tool.active ? " cmap-toolbar__btn--active" : ""}`}
+            title={tool.tooltip}
+            aria-label={tool.tooltip}
+            onClick={tool.onClick}
+          >
+            <tool.icon size={18} />
+            <span className="cmap-toolbar__btn-label">{tool.label}</span>
+          </button>
+        ))}
+      </div>
+      {toast && (
+        <div className="cmap-toolbar-toast" role="status" aria-live="polite">
+          <Bell size={14} aria-hidden="true" />
+          <span>{toast}</span>
+        </div>
+      )}
+    </>
   );
 }
