@@ -8,6 +8,7 @@ import { ListingAmenities } from "../../../../components/listing/listing-ameniti
 import { ListingHostCard } from "../../../../components/listing/listing-host-card";
 import { ListingThingsToKnow } from "../../../../components/listing/listing-things-to-know";
 import { ListingLocation } from "../../../../components/listing/listing-location";
+import { ListingDemandBadge } from "../../../../components/listing/listing-demand-badge";
 import { SimilarListings } from "../../../../components/listing/similar-listings";
 import { ListingToolbarActions } from "../../../../components/listing/listing-toolbar-actions";
 import Link from "next/link";
@@ -394,6 +395,7 @@ export default async function ListingDetailPage({
                 lng={listing.lng ?? null}
                 listingId={listing.id}
               />
+              <ListingDemandBadge listingId={listing.id} locale={locale} city={listing.city} />
             </section>
 
             {/* Market rate */}

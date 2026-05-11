@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { CITY_BBOXES, SYSTEM_BY_CITY } from "./city-bboxes";
+import { SeekerTagsService } from "./seeker-tags.service";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -53,6 +54,7 @@ export interface SeekerPin {
   listing_type: string;
   note: string | null;
   radius_m: number;
+  tags: string[];
   created_at: string;
 }
 
@@ -107,7 +109,10 @@ export class MapService {
   private metroCache: Map<string, { lines: MetroLine[]; fetchedAt: number }> = new Map();
   private localityCache = new Map<string, { data: LocalityInsight; at: number }>();
 
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly seekerTagsService: SeekerTagsService
+  ) {}
 
   /* ─── Phase 2: Area Stats ───────────────────────────────────────── */
 
@@ -291,6 +296,7 @@ export class MapService {
          listing_type,
          note,
          radius_m,
+         tags,
          created_at::text
        FROM seeker_pins
        WHERE is_active = true
@@ -318,16 +324,27 @@ export class MapService {
       listing_type?: string;
       note?: string;
       radius_m?: number;
+      tags?: string[];
     }
-  ): Promise<{ id: string }> {
+  ): Promise<{ id: string; tags: string[] }> {
     if (!this.database.isEnabled()) throw new Error("Database not available");
 
     // Clamp radius to schema bounds (100m..10km) with a sensible 1km default.
     const radius = Math.max(100, Math.min(10000, Math.round(data.radius_m ?? 1000)));
 
+    // Resolve tags. If the client passed any, sanitize against the allowed
+    // taxonomy. Otherwise, try AI extraction from the note. Tags are
+    // strictly optional — any failure path yields `[]` (see SeekerTagsService).
+    let tags: string[] = [];
+    if (Array.isArray(data.tags) && data.tags.length > 0) {
+      tags = this.seekerTagsService.sanitize(data.tags);
+    } else if (data.note && data.note.trim().length >= 10) {
+      tags = await this.seekerTagsService.extractTags(data.note);
+    }
+
     const result = await this.database.query<{ id: string }>(
-      `INSERT INTO seeker_pins (user_id, lat, lng, city, budget_min, budget_max, bhk_preference, move_in, listing_type, note, radius_m)
-       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::smallint[], $8, $9, $10, $11)
+      `INSERT INTO seeker_pins (user_id, lat, lng, city, budget_min, budget_max, bhk_preference, move_in, listing_type, note, radius_m, tags)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::smallint[], $8, $9, $10, $11, $12::text[])
        RETURNING id::text`,
       [
         userId,
@@ -340,11 +357,12 @@ export class MapService {
         data.move_in ?? "flexible",
         data.listing_type ?? "flat_house",
         data.note?.slice(0, 200) ?? null,
-        radius
+        radius,
+        tags
       ]
     );
 
-    return result.rows[0];
+    return { id: result.rows[0].id, tags };
   }
 
   async deleteSeekerPin(userId: string, pinId: string): Promise<boolean> {
@@ -363,19 +381,45 @@ export class MapService {
   ): Promise<{ count: number; avg_budget: number | null }> {
     if (!this.database.isEnabled()) return { count: 0, avg_budget: null };
 
-    // Rectangular bounding box approximation for ~2km radius at Delhi latitudes:
-    // 0.018° lat ≈ 2km, 0.022° lng ≈ 2km
+    // True spatial match: a seeker counts iff (a) the listing falls within
+    // their own `radius_m`, (b) the listing's BHK is in their preference
+    // (or they have no preference), and (c) the listing's rent fits inside
+    // their budget range. NULL bhk / rent fall through (don't disqualify)
+    // so partially-filled listings still get demand signal.
     const result = await this.database.query<{ count: number; avg_budget: number | null }>(
-      `SELECT
+      `WITH listing AS (
+         SELECT
+           ll.lat::float8 AS lat,
+           ll.lng::float8 AS lng,
+           l.bhk,
+           l.monthly_rent
+         FROM listing_locations ll
+         JOIN listings l ON l.id = ll.listing_id
+         WHERE ll.listing_id = $1::uuid
+         LIMIT 1
+       )
+       SELECT
          COUNT(*)::int AS count,
          AVG(sp.budget_max)::int AS avg_budget
-       FROM seeker_pins sp
-       JOIN listing_locations ll ON ll.listing_id = $1::uuid
+       FROM seeker_pins sp, listing
        WHERE sp.is_active = true
          AND sp.expires_at > now()
-         AND ll.lat IS NOT NULL
-         AND sp.lat BETWEEN ll.lat::float8 - 0.018 AND ll.lat::float8 + 0.018
-         AND sp.lng BETWEEN ll.lng::float8 - 0.022 AND ll.lng::float8 + 0.022`,
+         AND listing.lat IS NOT NULL
+         -- Equirectangular distance (km) <= seeker's radius (km).
+         AND (
+           POWER((sp.lat - listing.lat) * 111.0, 2)
+           + POWER((sp.lng - listing.lng) * 111.0 * COS(RADIANS(listing.lat)), 2)
+         ) <= POWER(GREATEST(sp.radius_m, 500) / 1000.0, 2)
+         AND (
+           cardinality(sp.bhk_preference) = 0
+           OR listing.bhk IS NULL
+           OR listing.bhk = ANY(sp.bhk_preference)
+         )
+         AND (
+           listing.monthly_rent IS NULL
+           OR (sp.budget_max >= listing.monthly_rent
+               AND COALESCE(sp.budget_min, 0) <= listing.monthly_rent)
+         )`,
       [listingId]
     );
 

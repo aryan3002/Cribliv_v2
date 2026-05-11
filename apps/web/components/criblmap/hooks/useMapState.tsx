@@ -75,6 +75,9 @@ export interface SeekerPin {
   /** Search radius in metres (100..10000). Drives the circle overlay
    *  rendered around the pin so owners see the actual search area. */
   radius_m: number;
+  /** Structured tags extracted from the seeker's note (taxonomy in
+   *  `seeker-tags.service.ts` ALLOWED_TAGS). Empty if no note / AI off. */
+  tags: string[];
   created_at: string;
 }
 

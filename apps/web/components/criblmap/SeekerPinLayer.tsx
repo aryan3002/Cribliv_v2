@@ -35,6 +35,28 @@ function urgencyColor(moveIn: string): string {
   }
 }
 
+/* Age decay — fresher demand looks louder; pins approaching the 30-day TTL
+ * fade out so owners focus on real, recent intent. */
+function ageOpacity(createdAt: string | undefined): number {
+  if (!createdAt) return 1;
+  const ageDays = (Date.now() - new Date(createdAt).getTime()) / 86_400_000;
+  if (!Number.isFinite(ageDays) || ageDays < 0) return 1;
+  if (ageDays < 3) return 1.0;
+  if (ageDays < 7) return 0.85;
+  if (ageDays < 14) return 0.65;
+  if (ageDays < 21) return 0.45;
+  return 0.3;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
   const { seekerPins, demandViewActive } = useMapState();
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
@@ -51,6 +73,7 @@ export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
     for (const pin of seekerPins) {
       const color = urgencyColor(pin.move_in);
       const radiusM = pin.radius_m && pin.radius_m > 0 ? pin.radius_m : 1000;
+      const opacity = ageOpacity(pin.created_at);
 
       // Circle: communicates the seeker's actual search area, not just a point.
       const circle = new google.maps.Circle({
@@ -59,9 +82,9 @@ export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
         radius: radiusM,
         strokeColor: color,
         strokeWeight: 1.5,
-        strokeOpacity: 0.55,
+        strokeOpacity: 0.55 * opacity,
         fillColor: color,
-        fillOpacity: 0.1,
+        fillOpacity: 0.1 * opacity,
         clickable: false,
         zIndex: 4
       });
@@ -70,7 +93,25 @@ export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
       const el = document.createElement("div");
       el.className = "cmap-seeker-pin";
       el.style.setProperty("--seeker-color", color);
-      el.innerHTML = `<span class="cmap-seeker-pin__label">${getSeekerLabel(pin)}</span>`;
+      el.style.setProperty("--seeker-age-opacity", opacity.toFixed(2));
+
+      // Top 3 tags as small chips under the main label — turns the pin into
+      // a real demand profile owners can scan at a glance.
+      const tags = (pin.tags ?? []).slice(0, 3);
+      const tagsHtml =
+        tags.length > 0
+          ? `<span class="cmap-seeker-pin__tags">${tags
+              .map(
+                (t) =>
+                  `<span class="cmap-seeker-pin__tag">${escapeHtml(t.replace(/-/g, " "))}</span>`
+              )
+              .join("")}</span>`
+          : "";
+
+      el.innerHTML = `
+        <span class="cmap-seeker-pin__label">${getSeekerLabel(pin)}</span>
+        ${tagsHtml}
+      `;
 
       if (pin.note) {
         el.title = pin.note;

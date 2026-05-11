@@ -86,6 +86,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
   const [radiusM, setRadiusM] = useState(1000);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [extractedTags, setExtractedTags] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   /* ─── Live match preview ───────────────────────────────────────── */
@@ -176,7 +177,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
     setErrorMsg(null);
 
     try {
-      await fetchApi("/map/seekers", {
+      const created = await fetchApi<{ id: string; tags: string[] }>("/map/seekers", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -191,6 +192,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
           radius_m: radiusM
         })
       });
+      setExtractedTags(Array.isArray(created?.tags) ? created.tags : []);
       setSubmitted(true);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -241,6 +243,22 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
             this area will see your requirement.
           </p>
         </div>
+
+        {extractedTags.length > 0 && (
+          <div className="cmap-seeker-form__tags-card">
+            <div className="cmap-seeker-form__tags-head">
+              <Sparkles size={14} />
+              <span>We picked up from your note</span>
+            </div>
+            <div className="cmap-seeker-form__tag-chips">
+              {extractedTags.map((t) => (
+                <span key={t} className="cmap-seeker-form__tag-chip">
+                  {t.replace(/-/g, " ")}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {matches.length > 0 && (
           <div className="cmap-seeker-form__matches">
