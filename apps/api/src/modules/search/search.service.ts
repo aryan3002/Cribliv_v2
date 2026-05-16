@@ -511,8 +511,20 @@ export class SearchService {
         }
       }
 
+      // ── SEO intent filters (PG-specific, joined via pg_details) ──
+      let joinPgDetails = false;
+      if (query.occupancy_type) {
+        joinPgDetails = true;
+        params.push(query.occupancy_type);
+        clauses.push(`pgd.occupancy_type = $${params.length}::occupancy_type`);
+      }
+      if (query.food_included === "true") {
+        joinPgDetails = true;
+        clauses.push(`pgd.food_included = true`);
+      }
+
       const page = parsePage(query.page);
-      const pageSize = 20;
+      const pageSize = Math.min(Math.max(Number(query.page_size) || 20, 1), 60);
       const offset = (page - 1) * pageSize;
 
       // ── Sort: use listing_scores for relevance to fix pagination bug ──
@@ -534,6 +546,8 @@ export class SearchService {
 
       const where = clauses.join(" AND ");
 
+      const pgJoinSql = joinPgDetails ? "JOIN pg_details pgd ON pgd.listing_id = l.id" : "";
+
       const countResult = await this.database.query<{ total: number }>(
         `
         SELECT count(*)::int AS total
@@ -541,6 +555,7 @@ export class SearchService {
         JOIN listing_locations ll ON ll.listing_id = l.id
         JOIN cities c ON c.id = ll.city_id
         LEFT JOIN localities loc ON loc.id = ll.locality_id
+        ${pgJoinSql}
         WHERE ${where}
         `,
         params
@@ -586,6 +601,7 @@ export class SearchService {
         JOIN cities c ON c.id = ll.city_id
         LEFT JOIN localities loc ON loc.id = ll.locality_id
         LEFT JOIN listing_scores ls ON ls.listing_id = l.id
+        ${pgJoinSql}
         WHERE ${where}
         ORDER BY ${orderBy}
         LIMIT $${resultParams.length - 1}

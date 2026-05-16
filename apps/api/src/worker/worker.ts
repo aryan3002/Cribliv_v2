@@ -19,6 +19,15 @@ const SUBSCRIPTION_RENEWAL_MS = 24 * 60 * 60 * 1000; // daily
 const SAVED_SEARCH_ALERT_MS = 24 * 60 * 60 * 1000; // daily
 const SEEKER_PIN_CLEANUP_MS = 24 * 60 * 60 * 1000; // daily
 const ALERT_ZONE_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
+const SEO_COPY_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
+
+async function runSeoCopySweep(pool: Pool): Promise<number> {
+  // Drop expired/stale AI copy. The on-demand renderer will regenerate it
+  // the next time anyone hits the page — no need to pre-warm here, since
+  // most programmatic URLs only get a few hits per month.
+  const { rowCount } = await pool.query(`DELETE FROM seo_page_copy WHERE expires_at < now()`);
+  return rowCount ?? 0;
+}
 
 async function runRefundSweepDb(pool: Pool) {
   const client = await pool.connect();
@@ -1206,6 +1215,36 @@ async function run() {
       }
     };
     setInterval(runAlertZoneSweep, ALERT_ZONE_SWEEP_MS);
+
+    // SEO copy expiry sweep — best-effort, swallows errors (table may not
+    // yet exist in pre-migration environments).
+    const runSeo = async () => {
+      try {
+        const cleared = await runSeoCopySweep(pool);
+        if (cleared > 0) {
+          console.log(
+            JSON.stringify({
+              job: "seo_copy_sweep",
+              expired_rows_cleared: cleared,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // Suppress "relation does not exist" — happens before migration 0026.
+        if (!/relation .* does not exist/i.test(message)) {
+          console.error(
+            JSON.stringify({
+              job: "seo_copy_sweep",
+              error: message,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      }
+    };
+    setInterval(runSeo, SEO_COPY_SWEEP_MS);
   }
 
   console.log(
@@ -1222,7 +1261,8 @@ async function run() {
         "subscription_renewal_sweep",
         "saved_search_alert_sweep",
         "seeker_pin_cleanup",
-        "alert_zone_sweep"
+        "alert_zone_sweep",
+        "seo_copy_sweep"
       ],
       mode: pool ? "db" : "in_memory",
       whatsapp_enabled: whatsAppEnabled,

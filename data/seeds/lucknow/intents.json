@@ -1,0 +1,298 @@
+{
+  "_doc": "Master registry of intent slugs used by programmatic SEO pages. Single source of truth for: route validation, sitemap generation, page H1/labels, and filter→API mapping. Read at build time by apps/web/lib/intent-filters.ts. Edit here, not in code.",
+
+  "categories": [
+    { "slug": "property-type", "label_en": "Property type", "label_hi": "प्रॉपर्टी का प्रकार" },
+    { "slug": "audience", "label_en": "Who it's for", "label_hi": "किसके लिए" },
+    { "slug": "budget", "label_en": "Budget", "label_hi": "बजट" },
+    { "slug": "lifestyle", "label_en": "Lifestyle", "label_hi": "लाइफस्टाइल" }
+  ],
+
+  "intents": [
+    {
+      "slug": "pg",
+      "category": "property-type",
+      "label_en": "PG accommodations",
+      "label_hi": "पीजी",
+      "h1_en": "PGs in {place}",
+      "h1_hi": "{place} में पीजी",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg" }
+    },
+
+    {
+      "slug": "1bhk",
+      "category": "property-type",
+      "label_en": "1 BHK flats",
+      "label_hi": "1 बीएचके फ्लैट",
+      "h1_en": "1 BHK Flats in {place}",
+      "h1_hi": "{place} में 1 बीएचके फ्लैट",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "flat_house", "bhk": 1 }
+    },
+
+    {
+      "slug": "2bhk",
+      "category": "property-type",
+      "label_en": "2 BHK flats",
+      "label_hi": "2 बीएचके फ्लैट",
+      "h1_en": "2 BHK Flats in {place}",
+      "h1_hi": "{place} में 2 बीएचके फ्लैट",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "flat_house", "bhk": 2 }
+    },
+
+    {
+      "slug": "3bhk",
+      "category": "property-type",
+      "label_en": "3 BHK flats",
+      "label_hi": "3 बीएचके फ्लैट",
+      "h1_en": "3 BHK Flats in {place}",
+      "h1_hi": "{place} में 3 बीएचके फ्लैट",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "flat_house", "bhk": 3 }
+    },
+
+    {
+      "slug": "flats",
+      "category": "property-type",
+      "label_en": "Flats & houses",
+      "label_hi": "फ्लैट और मकान",
+      "h1_en": "Flats & Houses in {place}",
+      "h1_hi": "{place} में फ्लैट और मकान",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "flat_house" }
+    },
+
+    {
+      "slug": "rooms",
+      "category": "property-type",
+      "label_en": "Single rooms",
+      "label_hi": "सिंगल रूम",
+      "h1_en": "Rooms for Rent in {place}",
+      "h1_hi": "{place} में किराये के कमरे",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg" }
+    },
+
+    {
+      "slug": "studio",
+      "category": "property-type",
+      "label_en": "Studio apartments",
+      "label_hi": "स्टूडियो अपार्टमेंट",
+      "h1_en": "Studio Apartments in {place}",
+      "h1_hi": "{place} में स्टूडियो अपार्टमेंट",
+      "applies_to": ["locality", "metro"],
+      "filters": { "listing_type": "flat_house", "bhk": 1, "max_area_sqft": 450 }
+    },
+
+    {
+      "slug": "pg-for-girls",
+      "category": "audience",
+      "label_en": "PG for girls",
+      "label_hi": "लड़कियों के लिए पीजी",
+      "h1_en": "PG for Girls in {place}",
+      "h1_hi": "{place} में लड़कियों के लिए पीजी",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg", "occupancy_type": "female" }
+    },
+
+    {
+      "slug": "pg-for-boys",
+      "category": "audience",
+      "label_en": "PG for boys",
+      "label_hi": "लड़कों के लिए पीजी",
+      "h1_en": "PG for Boys in {place}",
+      "h1_hi": "{place} में लड़कों के लिए पीजी",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg", "occupancy_type": "male" }
+    },
+
+    {
+      "slug": "pg-for-students",
+      "category": "audience",
+      "label_en": "PG for students",
+      "label_hi": "छात्रों के लिए पीजी",
+      "h1_en": "PG for Students in {place}",
+      "h1_hi": "{place} में छात्रों के लिए पीजी",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg" }
+    },
+
+    {
+      "slug": "pg-for-working-professionals",
+      "category": "audience",
+      "label_en": "PG for working professionals",
+      "label_hi": "वर्किंग प्रोफेशनल्स के लिए पीजी",
+      "h1_en": "PG for Working Professionals in {place}",
+      "h1_hi": "{place} में वर्किंग प्रोफेशनल्स के लिए पीजी",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg" }
+    },
+
+    {
+      "slug": "family-flats",
+      "category": "audience",
+      "label_en": "Family flats",
+      "label_hi": "परिवारों के लिए फ्लैट",
+      "h1_en": "Family Flats in {place}",
+      "h1_hi": "{place} में परिवारों के लिए फ्लैट",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "flat_house", "preferred_tenant": "family" }
+    },
+
+    {
+      "slug": "bachelor-flats",
+      "category": "audience",
+      "label_en": "Bachelor flats",
+      "label_hi": "बैचलर्स के लिए फ्लैट",
+      "h1_en": "Bachelor Flats in {place}",
+      "h1_hi": "{place} में बैचलर्स के लिए फ्लैट",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "flat_house", "preferred_tenant": "bachelor" }
+    },
+
+    {
+      "slug": "under-5000",
+      "category": "budget",
+      "label_en": "Under ₹5,000",
+      "label_hi": "₹5,000 से कम",
+      "h1_en": "Rentals Under ₹5,000 in {place}",
+      "h1_hi": "{place} में ₹5,000 से कम में किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "max_rent": 5000 }
+    },
+
+    {
+      "slug": "under-10000",
+      "category": "budget",
+      "label_en": "Under ₹10,000",
+      "label_hi": "₹10,000 से कम",
+      "h1_en": "Rentals Under ₹10,000 in {place}",
+      "h1_hi": "{place} में ₹10,000 से कम में किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "max_rent": 10000 }
+    },
+
+    {
+      "slug": "under-15000",
+      "category": "budget",
+      "label_en": "Under ₹15,000",
+      "label_hi": "₹15,000 से कम",
+      "h1_en": "Rentals Under ₹15,000 in {place}",
+      "h1_hi": "{place} में ₹15,000 से कम में किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "max_rent": 15000 }
+    },
+
+    {
+      "slug": "luxury",
+      "category": "budget",
+      "label_en": "Luxury rentals",
+      "label_hi": "लग्जरी किराये",
+      "h1_en": "Luxury Rentals in {place}",
+      "h1_hi": "{place} में लग्जरी किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "min_rent": 25000 }
+    },
+
+    {
+      "slug": "premium",
+      "category": "budget",
+      "label_en": "Premium rentals",
+      "label_hi": "प्रीमियम किराये",
+      "h1_en": "Premium Rentals in {place}",
+      "h1_hi": "{place} में प्रीमियम किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "min_rent": 15000 }
+    },
+
+    {
+      "slug": "furnished",
+      "category": "lifestyle",
+      "label_en": "Furnished",
+      "label_hi": "फर्निश्ड",
+      "h1_en": "Furnished Rentals in {place}",
+      "h1_hi": "{place} में फर्निश्ड किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "furnishing": "fully_furnished" }
+    },
+
+    {
+      "slug": "semi-furnished",
+      "category": "lifestyle",
+      "label_en": "Semi-furnished",
+      "label_hi": "सेमी-फर्निश्ड",
+      "h1_en": "Semi-furnished Rentals in {place}",
+      "h1_hi": "{place} में सेमी-फर्निश्ड किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "furnishing": "semi_furnished" }
+    },
+
+    {
+      "slug": "unfurnished",
+      "category": "lifestyle",
+      "label_en": "Unfurnished",
+      "label_hi": "अनफर्निश्ड",
+      "h1_en": "Unfurnished Rentals in {place}",
+      "h1_hi": "{place} में अनफर्निश्ड किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "furnishing": "unfurnished" }
+    },
+
+    {
+      "slug": "vegetarian-pg",
+      "category": "lifestyle",
+      "label_en": "Vegetarian PG",
+      "label_hi": "वेजिटेरियन पीजी",
+      "h1_en": "Vegetarian PG in {place}",
+      "h1_hi": "{place} में वेजिटेरियन पीजी",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg", "tag": "vegetarian" }
+    },
+
+    {
+      "slug": "pet-friendly",
+      "category": "lifestyle",
+      "label_en": "Pet-friendly",
+      "label_hi": "पेट-फ्रेंडली",
+      "h1_en": "Pet-friendly Rentals in {place}",
+      "h1_hi": "{place} में पेट-फ्रेंडली किराये",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "tag": "pet-friendly" }
+    },
+
+    {
+      "slug": "ac-rooms",
+      "category": "lifestyle",
+      "label_en": "AC rooms",
+      "label_hi": "एसी रूम",
+      "h1_en": "AC Rooms in {place}",
+      "h1_hi": "{place} में एसी रूम",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "amenity": "ac" }
+    },
+
+    {
+      "slug": "with-food",
+      "category": "lifestyle",
+      "label_en": "PG with food included",
+      "label_hi": "खाने के साथ पीजी",
+      "h1_en": "PG with Food in {place}",
+      "h1_hi": "{place} में खाने के साथ पीजी",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg", "food_included": true }
+    },
+
+    {
+      "slug": "co-living",
+      "category": "lifestyle",
+      "label_en": "Co-living",
+      "label_hi": "को-लिविंग",
+      "h1_en": "Co-living Spaces in {place}",
+      "h1_hi": "{place} में को-लिविंग स्पेस",
+      "applies_to": ["locality", "metro", "landmark"],
+      "filters": { "listing_type": "pg", "occupancy_type": "co_living" }
+    }
+  ]
+}

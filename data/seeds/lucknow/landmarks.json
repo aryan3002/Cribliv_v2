@@ -1,0 +1,812 @@
+[
+  {
+    "slug": "lucknow-university",
+    "name_en": "University of Lucknow",
+    "name_hi": "लखनऊ विश्वविद्यालय",
+    "type": "college",
+    "aka": ["LU", "Lucknow University", "लखनऊ यूनिवर्सिटी"],
+    "lat": 26.8721,
+    "lng": 80.9362,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "kgmu",
+    "name_en": "King George's Medical University",
+    "name_hi": "किंग जॉर्ज चिकित्सा विश्वविद्यालय",
+    "type": "college",
+    "aka": ["KGMU", "King George Medical College", "केजीएमयू"],
+    "lat": 26.8718,
+    "lng": 80.9112,
+    "primary_locality_slug": "chowk"
+  },
+  {
+    "slug": "kgmu-hospital",
+    "name_en": "KGMU Trauma Centre",
+    "name_hi": "केजीएमयू ट्रॉमा सेंटर",
+    "type": "hospital",
+    "aka": ["KGMU Hospital", "Medical College Hospital"],
+    "lat": 26.8721,
+    "lng": 80.9105,
+    "primary_locality_slug": "chowk"
+  },
+  {
+    "slug": "aktu",
+    "name_en": "Dr. APJ Abdul Kalam Technical University",
+    "name_hi": "डॉ. एपीजे अब्दुल कलाम तकनीकी विश्वविद्यालय",
+    "type": "college",
+    "aka": ["AKTU", "UPTU", "एकेटीयू"],
+    "lat": 26.803,
+    "lng": 81.0273,
+    "primary_locality_slug": "sushant-golf-city"
+  },
+  {
+    "slug": "bbau",
+    "name_en": "Babasaheb Bhimrao Ambedkar University",
+    "name_hi": "बाबासाहेब भीमराव अंबेडकर विश्वविद्यालय",
+    "type": "college",
+    "aka": ["BBAU", "Central University Lucknow", "बीबीएयू"],
+    "lat": 26.761,
+    "lng": 80.9415,
+    "primary_locality_slug": "rajajipuram"
+  },
+  {
+    "slug": "iim-lucknow",
+    "name_en": "IIM Lucknow",
+    "name_hi": "आईआईएम लखनऊ",
+    "type": "college",
+    "aka": ["IIM-L", "Indian Institute of Management Lucknow"],
+    "lat": 26.7949,
+    "lng": 80.8927,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "niper-raebareli",
+    "name_en": "NIPER Raebareli (Lucknow Campus)",
+    "name_hi": "निपर रायबरेली",
+    "type": "college",
+    "aka": ["NIPER", "निपर"],
+    "lat": 26.846,
+    "lng": 81.0095,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "amity-lucknow",
+    "name_en": "Amity University Lucknow",
+    "name_hi": "एमिटी विश्वविद्यालय लखनऊ",
+    "type": "college",
+    "aka": ["Amity", "Amity Lucknow"],
+    "lat": 26.7901,
+    "lng": 81.0205,
+    "primary_locality_slug": "sushant-golf-city"
+  },
+  {
+    "slug": "integral-university",
+    "name_en": "Integral University",
+    "name_hi": "इंटीग्रल विश्वविद्यालय",
+    "type": "college",
+    "aka": ["Integral", "इंटीग्रल यूनिवर्सिटी"],
+    "lat": 26.8945,
+    "lng": 81.0067,
+    "primary_locality_slug": "vikas-nagar"
+  },
+  {
+    "slug": "era-medical-college",
+    "name_en": "Era's Lucknow Medical College",
+    "name_hi": "एरा मेडिकल कॉलेज",
+    "type": "college",
+    "aka": ["Era Medical", "एरा"],
+    "lat": 26.8901,
+    "lng": 80.954,
+    "primary_locality_slug": "aliganj"
+  },
+  {
+    "slug": "it-college-lucknow",
+    "name_en": "Isabella Thoburn College",
+    "name_hi": "इसाबेला थॉबर्न कॉलेज",
+    "type": "college",
+    "aka": ["IT College", "Isabella Thoburn", "आईटी कॉलेज"],
+    "lat": 26.8623,
+    "lng": 80.9415,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "loreto-convent",
+    "name_en": "Loreto Convent Intermediate College",
+    "name_hi": "लोरेटो कान्वेंट",
+    "type": "college",
+    "aka": ["Loreto", "लोरेटो"],
+    "lat": 26.854,
+    "lng": 80.9405,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "city-montessori-school",
+    "name_en": "City Montessori School (Gomti Nagar)",
+    "name_hi": "सिटी मोंटेसरी स्कूल",
+    "type": "college",
+    "aka": ["CMS", "सीएमएस"],
+    "lat": 26.8528,
+    "lng": 81.0028,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "sgpgi",
+    "name_en": "SGPGIMS",
+    "name_hi": "एसजीपीजीआई",
+    "type": "hospital",
+    "aka": ["SGPGI", "Sanjay Gandhi Postgraduate Institute", "एसजीपीजीआईएमएस"],
+    "lat": 26.7521,
+    "lng": 80.942,
+    "primary_locality_slug": "rajajipuram"
+  },
+  {
+    "slug": "medanta-lucknow",
+    "name_en": "Medanta Hospital Lucknow",
+    "name_hi": "मेदांता अस्पताल लखनऊ",
+    "type": "hospital",
+    "aka": ["Medanta", "मेदांता"],
+    "lat": 26.839,
+    "lng": 81.0085,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "apollomedics-hospital",
+    "name_en": "Apollomedics Super Speciality Hospital",
+    "name_hi": "अपोलोमेडिक्स सुपर स्पेशियलिटी अस्पताल",
+    "type": "hospital",
+    "aka": ["Apollo Lucknow", "Apollomedics", "अपोलो"],
+    "lat": 26.8195,
+    "lng": 80.921,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "sahara-hospital",
+    "name_en": "Sahara Hospital",
+    "name_hi": "सहारा अस्पताल",
+    "type": "hospital",
+    "aka": ["Sahara", "सहारा हॉस्पिटल"],
+    "lat": 26.8512,
+    "lng": 81.0095,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "era-hospital",
+    "name_en": "Era's Lucknow Medical College & Hospital",
+    "name_hi": "एरा अस्पताल",
+    "type": "hospital",
+    "aka": ["Era Hospital"],
+    "lat": 26.8901,
+    "lng": 80.954,
+    "primary_locality_slug": "aliganj"
+  },
+  {
+    "slug": "vivekanand-polyclinic",
+    "name_en": "Vivekanand Polyclinic & Institute of Medical Sciences",
+    "name_hi": "विवेकानंद पॉलीक्लिनिक",
+    "type": "hospital",
+    "aka": ["VPIMS", "विवेकानंद"],
+    "lat": 26.8678,
+    "lng": 80.9421,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "charak-hospital",
+    "name_en": "Charak Hospital & Research Centre",
+    "name_hi": "चरक अस्पताल",
+    "type": "hospital",
+    "aka": ["Charak", "चरक"],
+    "lat": 26.8395,
+    "lng": 80.952,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "balrampur-hospital",
+    "name_en": "Balrampur Hospital",
+    "name_hi": "बलरामपुर अस्पताल",
+    "type": "hospital",
+    "aka": ["Balrampur", "बलरामपुर हॉस्पिटल"],
+    "lat": 26.8512,
+    "lng": 80.9358,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "ram-manohar-lohia-hospital",
+    "name_en": "Ram Manohar Lohia Institute of Medical Sciences",
+    "name_hi": "राम मनोहर लोहिया अस्पताल",
+    "type": "hospital",
+    "aka": ["RMLIMS", "Lohia Hospital", "लोहिया अस्पताल"],
+    "lat": 26.8395,
+    "lng": 81.0083,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "phoenix-palassio",
+    "name_en": "Phoenix Palassio Mall",
+    "name_hi": "फीनिक्स पलासियो मॉल",
+    "type": "mall",
+    "aka": ["Phoenix Mall", "Palassio", "फीनिक्स"],
+    "lat": 26.8528,
+    "lng": 81.0203,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "lulu-mall-lucknow",
+    "name_en": "Lulu Mall Lucknow",
+    "name_hi": "लुलु मॉल लखनऊ",
+    "type": "mall",
+    "aka": ["Lulu", "लुलु मॉल"],
+    "lat": 26.8472,
+    "lng": 81.004,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "riverside-mall",
+    "name_en": "Riverside Mall",
+    "name_hi": "रिवरसाइड मॉल",
+    "type": "mall",
+    "aka": ["Riverside", "रिवरसाइड"],
+    "lat": 26.8528,
+    "lng": 80.9952,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "saharaganj",
+    "name_en": "Saharaganj Mall",
+    "name_hi": "सहाराग़ंज मॉल",
+    "type": "mall",
+    "aka": ["Sahara Ganj", "सहारागंज"],
+    "lat": 26.8616,
+    "lng": 80.945,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "wave-mall",
+    "name_en": "Wave Mall",
+    "name_hi": "वेव मॉल",
+    "type": "mall",
+    "aka": ["Wave", "वेव"],
+    "lat": 26.8389,
+    "lng": 80.958,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "fun-republic",
+    "name_en": "Fun Republic Mall",
+    "name_hi": "फन रिपब्लिक मॉल",
+    "type": "mall",
+    "aka": ["Fun Republic", "फन रिपब्लिक"],
+    "lat": 26.9013,
+    "lng": 80.971,
+    "primary_locality_slug": "aliganj"
+  },
+  {
+    "slug": "one-awadh-center",
+    "name_en": "One Awadh Center",
+    "name_hi": "वन अवध सेंटर",
+    "type": "mall",
+    "aka": ["One Awadh", "वन अवध"],
+    "lat": 26.8635,
+    "lng": 80.9405,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "hazratganj-market",
+    "name_en": "Hazratganj Market",
+    "name_hi": "हजरतगंज बाजार",
+    "type": "market",
+    "aka": ["Hazratganj", "Janpath Market", "हजरतगंज मार्केट"],
+    "lat": 26.852,
+    "lng": 80.941,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "aminabad-market",
+    "name_en": "Aminabad Market",
+    "name_hi": "अमीनाबाद बाजार",
+    "type": "market",
+    "aka": ["Aminabad", "अमीनाबाद"],
+    "lat": 26.8408,
+    "lng": 80.9268,
+    "primary_locality_slug": "aminabad"
+  },
+  {
+    "slug": "chowk-market",
+    "name_en": "Chowk Bazaar",
+    "name_hi": "चौक बाजार",
+    "type": "market",
+    "aka": ["Chowk", "चौक मार्केट"],
+    "lat": 26.858,
+    "lng": 80.9123,
+    "primary_locality_slug": "chowk"
+  },
+  {
+    "slug": "bhootnath-market",
+    "name_en": "Bhootnath Market",
+    "name_hi": "भूतनाथ बाजार",
+    "type": "market",
+    "aka": ["Bhootnath", "भूतनाथ"],
+    "lat": 26.8745,
+    "lng": 80.993,
+    "primary_locality_slug": "indira-nagar"
+  },
+  {
+    "slug": "patrakarpuram",
+    "name_en": "Patrakarpuram Market",
+    "name_hi": "पत्रकारपुरम बाजार",
+    "type": "market",
+    "aka": ["Patrakarpuram", "पत्रकारपुरम"],
+    "lat": 26.8505,
+    "lng": 80.9847,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "nishatganj-market",
+    "name_en": "Nishatganj Market",
+    "name_hi": "निशातगंज बाजार",
+    "type": "market",
+    "aka": ["Nishatganj", "निशातगंज"],
+    "lat": 26.8722,
+    "lng": 80.9495,
+    "primary_locality_slug": "mahanagar"
+  },
+  {
+    "slug": "charbagh-railway-station",
+    "name_en": "Lucknow Charbagh Railway Station",
+    "name_hi": "लखनऊ चारबाग रेलवे स्टेशन",
+    "type": "station",
+    "aka": ["Charbagh", "LKO", "Lucknow Junction", "चारबाग"],
+    "lat": 26.8312,
+    "lng": 80.9189,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "lucknow-junction",
+    "name_en": "Lucknow Junction (LJN)",
+    "name_hi": "लखनऊ जंक्शन",
+    "type": "station",
+    "aka": ["LJN", "Lucknow City"],
+    "lat": 26.8318,
+    "lng": 80.9184,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "gomti-nagar-railway-station",
+    "name_en": "Gomti Nagar Railway Station",
+    "name_hi": "गोमती नगर रेलवे स्टेशन",
+    "type": "station",
+    "aka": ["Gomti Nagar Station", "गोमती नगर स्टेशन"],
+    "lat": 26.8475,
+    "lng": 81.0167,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "aishbagh-railway-station",
+    "name_en": "Aishbagh Railway Station",
+    "name_hi": "ऐशबाग रेलवे स्टेशन",
+    "type": "station",
+    "aka": ["Aishbagh", "ऐशबाग"],
+    "lat": 26.8429,
+    "lng": 80.8985,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "badshahnagar-railway-station",
+    "name_en": "Badshahnagar Railway Station",
+    "name_hi": "बादशाहनगर रेलवे स्टेशन",
+    "type": "station",
+    "aka": ["Badshahnagar", "बादशाहनगर"],
+    "lat": 26.8755,
+    "lng": 80.9603,
+    "primary_locality_slug": "mahanagar"
+  },
+  {
+    "slug": "ccs-airport",
+    "name_en": "Chaudhary Charan Singh International Airport",
+    "name_hi": "चौधरी चरण सिंह अंतर्राष्ट्रीय हवाई अड्डा",
+    "type": "airport",
+    "aka": ["LKO Airport", "Amausi Airport", "CCS", "लखनऊ एयरपोर्ट"],
+    "lat": 26.7606,
+    "lng": 80.8893,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "hcl-vibhuti-khand",
+    "name_en": "HCL Technologies Vibhuti Khand",
+    "name_hi": "एचसीएल टेक्नोलॉजीज विभूति खंड",
+    "type": "it_park",
+    "aka": ["HCL", "HCL Lucknow", "एचसीएल"],
+    "lat": 26.8512,
+    "lng": 81.0023,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "tcs-lucknow",
+    "name_en": "TCS Lucknow",
+    "name_hi": "टीसीएस लखनऊ",
+    "type": "it_park",
+    "aka": ["TCS", "टीसीएस"],
+    "lat": 26.7825,
+    "lng": 81.0125,
+    "primary_locality_slug": "sushant-golf-city"
+  },
+  {
+    "slug": "wipro-lucknow",
+    "name_en": "Wipro Technologies Lucknow",
+    "name_hi": "विप्रो लखनऊ",
+    "type": "it_park",
+    "aka": ["Wipro", "विप्रो"],
+    "lat": 26.8505,
+    "lng": 81.0095,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "infosys-chak-gajaria",
+    "name_en": "Infosys Chak Gajaria SEZ",
+    "name_hi": "इन्फोसिस चक गजरिया",
+    "type": "it_park",
+    "aka": ["Infosys", "Chak Gajaria", "इन्फोसिस"],
+    "lat": 26.7843,
+    "lng": 81.0118,
+    "primary_locality_slug": "sushant-golf-city"
+  },
+  {
+    "slug": "genpact-vibhuti-khand",
+    "name_en": "Genpact Vibhuti Khand",
+    "name_hi": "जेनपैक्ट विभूति खंड",
+    "type": "it_park",
+    "aka": ["Genpact", "जेनपैक्ट"],
+    "lat": 26.8505,
+    "lng": 81.003,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "vidhan-sabha",
+    "name_en": "Vidhan Sabha Bhawan",
+    "name_hi": "विधान सभा भवन",
+    "type": "office",
+    "aka": ["Vidhan Sabha", "Assembly", "विधानसभा"],
+    "lat": 26.839,
+    "lng": 80.9462,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "uppcl-shakti-bhawan",
+    "name_en": "Shakti Bhawan (UPPCL HQ)",
+    "name_hi": "शक्ति भवन यूपीपीसीएल",
+    "type": "office",
+    "aka": ["Shakti Bhawan", "UPPCL", "शक्ति भवन"],
+    "lat": 26.8512,
+    "lng": 80.961,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "high-court-lucknow",
+    "name_en": "Allahabad High Court Lucknow Bench",
+    "name_hi": "इलाहाबाद उच्च न्यायालय लखनऊ खंडपीठ",
+    "type": "office",
+    "aka": ["High Court", "हाई कोर्ट"],
+    "lat": 26.8512,
+    "lng": 80.958,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "secretariat-lucknow",
+    "name_en": "UP Secretariat",
+    "name_hi": "उत्तर प्रदेश सचिवालय",
+    "type": "office",
+    "aka": ["Secretariat", "सचिवालय"],
+    "lat": 26.843,
+    "lng": 80.946,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "bara-imambara",
+    "name_en": "Bara Imambara",
+    "name_hi": "बड़ा इमामबाड़ा",
+    "type": "monument",
+    "aka": ["Bara Imambara", "Asfi Mosque", "बड़ा इमामबाड़ा"],
+    "lat": 26.8693,
+    "lng": 80.9114,
+    "primary_locality_slug": "chowk"
+  },
+  {
+    "slug": "chota-imambara",
+    "name_en": "Chota Imambara",
+    "name_hi": "छोटा इमामबाड़ा",
+    "type": "monument",
+    "aka": ["Chota Imambara", "Hussainabad Imambara", "छोटा इमामबाड़ा"],
+    "lat": 26.8714,
+    "lng": 80.9082,
+    "primary_locality_slug": "chowk"
+  },
+  {
+    "slug": "rumi-darwaza",
+    "name_en": "Rumi Darwaza",
+    "name_hi": "रूमी दरवाजा",
+    "type": "monument",
+    "aka": ["Rumi Gate", "Turkish Gate", "रूमी दरवाज़ा"],
+    "lat": 26.8703,
+    "lng": 80.9108,
+    "primary_locality_slug": "chowk"
+  },
+  {
+    "slug": "british-residency",
+    "name_en": "The Residency Lucknow",
+    "name_hi": "ब्रिटिश रेज़िडेन्सी",
+    "type": "monument",
+    "aka": ["Residency", "रेज़िडेंसी"],
+    "lat": 26.8607,
+    "lng": 80.9281,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "hanuman-setu",
+    "name_en": "Hanuman Setu Mandir",
+    "name_hi": "हनुमान सेतु मंदिर",
+    "type": "religious",
+    "aka": ["Hanuman Setu", "हनुमान सेतु"],
+    "lat": 26.8696,
+    "lng": 80.9482,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "aliganj-hanuman-mandir",
+    "name_en": "Aliganj Hanuman Mandir",
+    "name_hi": "अलीगंज हनुमान मंदिर",
+    "type": "religious",
+    "aka": ["Bada Mangal", "बड़ा मंगल"],
+    "lat": 26.8889,
+    "lng": 80.9605,
+    "primary_locality_slug": "aliganj"
+  },
+  {
+    "slug": "ambedkar-park",
+    "name_en": "Dr. Bhimrao Ambedkar Samajik Parivartan Sthal",
+    "name_hi": "डॉ. भीमराव अंबेडकर पार्क",
+    "type": "park",
+    "aka": ["Ambedkar Park", "अंबेडकर पार्क"],
+    "lat": 26.852,
+    "lng": 80.997,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "janeshwar-mishra-park",
+    "name_en": "Janeshwar Mishra Park",
+    "name_hi": "जनेश्वर मिश्र पार्क",
+    "type": "park",
+    "aka": ["JM Park", "जनेश्वर मिश्र पार्क"],
+    "lat": 26.8651,
+    "lng": 81.0099,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "lohia-park",
+    "name_en": "Ram Manohar Lohia Park",
+    "name_hi": "राम मनोहर लोहिया पार्क",
+    "type": "park",
+    "aka": ["Lohia Park", "लोहिया पार्क"],
+    "lat": 26.853,
+    "lng": 80.9929,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "begum-hazrat-mahal-park",
+    "name_en": "Begum Hazrat Mahal Park",
+    "name_hi": "बेगम हजरत महल पार्क",
+    "type": "park",
+    "aka": ["Hazrat Mahal Park", "बेगम हजरत महल पार्क"],
+    "lat": 26.8514,
+    "lng": 80.943,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "ekana-stadium",
+    "name_en": "Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium",
+    "name_hi": "एकाना क्रिकेट स्टेडियम",
+    "type": "stadium",
+    "aka": ["Ekana", "BRSABV Ekana Stadium", "एकाना स्टेडियम"],
+    "lat": 26.7949,
+    "lng": 81.0093,
+    "primary_locality_slug": "sushant-golf-city"
+  },
+  {
+    "slug": "kd-singh-stadium",
+    "name_en": "KD Singh Babu Stadium",
+    "name_hi": "केडी सिंह बाबू स्टेडियम",
+    "type": "stadium",
+    "aka": ["KD Singh", "केडी सिंह"],
+    "lat": 26.8531,
+    "lng": 80.9505,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "ramabai-ambedkar-maidan",
+    "name_en": "Ramabai Ambedkar Maidan",
+    "name_hi": "रमाबाई अंबेडकर मैदान",
+    "type": "park",
+    "aka": ["Ramabai Maidan", "रमाबाई मैदान"],
+    "lat": 26.8493,
+    "lng": 80.993,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "polytechnic-chauraha",
+    "name_en": "Polytechnic Chauraha",
+    "name_hi": "पॉलिटेक्निक चौराहा",
+    "type": "office",
+    "aka": ["Polytechnic", "पॉलिटेक्निक चौराहा"],
+    "lat": 26.881,
+    "lng": 80.9999,
+    "primary_locality_slug": "indira-nagar"
+  },
+  {
+    "slug": "ssgi-engineering",
+    "name_en": "Shri Ramswaroop Memorial College",
+    "name_hi": "श्री रामस्वरूप मेमोरियल कॉलेज",
+    "type": "college",
+    "aka": ["SRMCEM", "Ramswaroop College"],
+    "lat": 26.8845,
+    "lng": 81.0212,
+    "primary_locality_slug": "vikas-nagar"
+  },
+  {
+    "slug": "lupin-bbd",
+    "name_en": "Babu Banarasi Das University",
+    "name_hi": "बाबू बनारसी दास विश्वविद्यालय",
+    "type": "college",
+    "aka": ["BBDU", "BBD", "बीबीडी"],
+    "lat": 26.8865,
+    "lng": 81.0085,
+    "primary_locality_slug": "chinhat"
+  },
+  {
+    "slug": "lda-trans-gomti",
+    "name_en": "LDA Trans-Gomti Office",
+    "name_hi": "एलडीए ट्रांस-गोमती",
+    "type": "office",
+    "aka": ["LDA", "Lucknow Development Authority", "एलडीए"],
+    "lat": 26.852,
+    "lng": 81.008,
+    "primary_locality_slug": "gomti-nagar"
+  },
+  {
+    "slug": "ansal-api",
+    "name_en": "Ansal API Office",
+    "name_hi": "अंसल एपीआई कार्यालय",
+    "type": "office",
+    "aka": ["Ansal", "अंसल"],
+    "lat": 26.7905,
+    "lng": 81.021,
+    "primary_locality_slug": "sushant-golf-city"
+  },
+  {
+    "slug": "alambagh-bus-station",
+    "name_en": "Alambagh Bus Terminal",
+    "name_hi": "आलमबाग बस अड्डा",
+    "type": "station",
+    "aka": ["Alambagh ISBT", "आलमबाग बस स्टेशन"],
+    "lat": 26.799,
+    "lng": 80.8985,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "qaiserbagh-bus-station",
+    "name_en": "Qaiserbagh Bus Station",
+    "name_hi": "कैसरबाग बस अड्डा",
+    "type": "station",
+    "aka": ["Qaiserbagh", "कैसरबाग"],
+    "lat": 26.8576,
+    "lng": 80.927,
+    "primary_locality_slug": "aminabad"
+  },
+  {
+    "slug": "polytechnic-college",
+    "name_en": "Government Polytechnic Lucknow",
+    "name_hi": "राजकीय पॉलिटेक्निक",
+    "type": "college",
+    "aka": ["Govt Polytechnic"],
+    "lat": 26.88,
+    "lng": 80.9995,
+    "primary_locality_slug": "indira-nagar"
+  },
+  {
+    "slug": "iet-lucknow",
+    "name_en": "Institute of Engineering & Technology Lucknow",
+    "name_hi": "इंजीनियरिंग एवं प्रौद्योगिकी संस्थान",
+    "type": "college",
+    "aka": ["IET", "आईईटी"],
+    "lat": 26.8485,
+    "lng": 80.9263,
+    "primary_locality_slug": "aliganj"
+  },
+  {
+    "slug": "indian-veterinary-research-institute",
+    "name_en": "ICAR-IVRI Lucknow",
+    "name_hi": "आईवीआरआई लखनऊ",
+    "type": "college",
+    "aka": ["IVRI"],
+    "lat": 26.8245,
+    "lng": 80.9095,
+    "primary_locality_slug": "alambagh"
+  },
+  {
+    "slug": "scsa",
+    "name_en": "St. Francis College",
+    "name_hi": "सेंट फ्रांसिस कॉलेज",
+    "type": "college",
+    "aka": ["St Francis", "सेंट फ्रांसिस"],
+    "lat": 26.8612,
+    "lng": 80.9358,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "la-martiniere",
+    "name_en": "La Martiniere College",
+    "name_hi": "ला मार्टिनियर कॉलेज",
+    "type": "college",
+    "aka": ["La Martiniere", "ला मार्टिनियर"],
+    "lat": 26.8429,
+    "lng": 80.9477,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "constantia",
+    "name_en": "Constantia Building",
+    "name_hi": "कांस्टेंशिया",
+    "type": "monument",
+    "aka": ["La Martiniere Boys"],
+    "lat": 26.8413,
+    "lng": 80.9485,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "munshi-pulia",
+    "name_en": "Munshi Pulia Crossing",
+    "name_hi": "मुंशी पुलिया",
+    "type": "office",
+    "aka": ["Munshipulia", "मुंशी पुलिया"],
+    "lat": 26.8865,
+    "lng": 81.0125,
+    "primary_locality_slug": "indira-nagar"
+  },
+  {
+    "slug": "purania-crossing",
+    "name_en": "Purania Crossing",
+    "name_hi": "पुरानिया चौराहा",
+    "type": "office",
+    "aka": ["Purania", "पुरानिया"],
+    "lat": 26.891,
+    "lng": 80.958,
+    "primary_locality_slug": "aliganj"
+  },
+  {
+    "slug": "halwasiya-court",
+    "name_en": "Halwasiya Court Hazratganj",
+    "name_hi": "हलवासिया कोर्ट",
+    "type": "office",
+    "aka": ["Halwasiya"],
+    "lat": 26.853,
+    "lng": 80.9415,
+    "primary_locality_slug": "hazratganj"
+  },
+  {
+    "slug": "lulu-hypermart",
+    "name_en": "Lulu Hypermarket Sushant Golf City",
+    "name_hi": "लुलु हाइपरमार्केट",
+    "type": "mall",
+    "aka": ["Lulu Hyper"],
+    "lat": 26.792,
+    "lng": 81.0142,
+    "primary_locality_slug": "sushant-golf-city"
+  },
+  {
+    "slug": "gomti-river-front",
+    "name_en": "Gomti River Front",
+    "name_hi": "गोमती रिवरफ्रंट",
+    "type": "park",
+    "aka": ["Riverfront", "गोमती रिवर फ्रंट"],
+    "lat": 26.852,
+    "lng": 80.989,
+    "primary_locality_slug": "gomti-nagar"
+  }
+]

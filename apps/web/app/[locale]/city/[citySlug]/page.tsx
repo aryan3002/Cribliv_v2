@@ -3,6 +3,12 @@ import Link from "next/link";
 import { ArrowRight, MapPin } from "lucide-react";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { ListingCardItem } from "../../../../components/listing-card";
+import {
+  fetchLocalities,
+  fetchLandmarks,
+  fetchMetroStationsForCity
+} from "../../../../lib/seo-api";
+import { intentsByCategory } from "../../../../lib/intent-filters";
 
 interface ListingCard {
   id: string;
@@ -209,6 +215,41 @@ export default async function CityPage({
   const budgetChips = ["Under ₹8,000", "₹8k–₹15k", "₹15k–₹25k", "₹25k+"];
   const typeChips = ["Flat/House", "PG", "1 BHK", "2 BHK", "Furnished"];
   const localities = CITY_LOCALITIES[params.citySlug] ?? ["Sector 1", "Sector 2", "Central"];
+
+  // Programmatic SEO enrichment — Lucknow only for now. Each fetch is best-
+  // effort and returns [] if the API is down so the page still renders.
+  const isLucknow = params.citySlug === "lucknow";
+  const [liveLocalities, liveLandmarks, liveMetros] = isLucknow
+    ? await Promise.all([
+        fetchLocalities(params.citySlug),
+        fetchLandmarks(params.citySlug),
+        fetchMetroStationsForCity(params.citySlug)
+      ])
+    : [[], [], []];
+
+  const intentGroups = isLucknow ? intentsByCategory("locality") : [];
+
+  // Group landmarks by type for "Browse by landmark" tiles
+  const landmarkGroups: Array<{
+    type: string;
+    label_en: string;
+    label_hi: string;
+    items: typeof liveLandmarks;
+  }> = [];
+  if (isLucknow && liveLandmarks.length > 0) {
+    const groupDefs = [
+      { type: "college", label_en: "Universities & colleges", label_hi: "विश्वविद्यालय और कॉलेज" },
+      { type: "hospital", label_en: "Hospitals", label_hi: "अस्पताल" },
+      { type: "mall", label_en: "Malls", label_hi: "मॉल" },
+      { type: "it_park", label_en: "IT parks & offices", label_hi: "आईटी पार्क और दफ्तर" },
+      { type: "station", label_en: "Railway & bus stations", label_hi: "रेलवे और बस स्टेशन" },
+      { type: "market", label_en: "Markets", label_hi: "बाजार" }
+    ];
+    for (const def of groupDefs) {
+      const items = liveLandmarks.filter((l) => l.type === def.type);
+      if (items.length > 0) landmarkGroups.push({ ...def, items });
+    }
+  }
 
   const FAQS_DATA = [
     {
@@ -421,6 +462,131 @@ export default async function CityPage({
             ))}
           </div>
         </section>
+
+        {/* Lucknow programmatic SEO: live localities grid (links to /city/lucknow/[locality]) */}
+        {isLucknow && liveLocalities.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <h3
+              style={{
+                marginBottom: "var(--space-4)",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)"
+              }}
+            >
+              <MapPin size={18} style={{ color: "var(--brand)" }} aria-hidden="true" />
+              {isHindi ? "लखनऊ के सभी इलाके" : "All Lucknow localities"}
+            </h3>
+            <div
+              className="listing-grid"
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}
+            >
+              {liveLocalities.slice(0, 30).map((loc) => (
+                <Link
+                  key={loc.slug}
+                  href={`/${params.locale}/city/${params.citySlug}/${loc.slug}`}
+                  className="card"
+                  style={{ textDecoration: "none", padding: "var(--space-4)", textAlign: "center" }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>
+                    {isHindi ? loc.name_hi : loc.name_en}
+                  </div>
+                  {loc.listing_count > 0 && (
+                    <div className="body-sm text-secondary" style={{ fontSize: 12 }}>
+                      {loc.listing_count} {isHindi ? "लिस्टिंग" : "listings"}
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Lucknow programmatic SEO: intent categories */}
+        {isLucknow && intentGroups.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <h3 style={{ marginBottom: "var(--space-4)" }}>
+              {isHindi ? "श्रेणी के अनुसार ब्राउज़ करें" : "Browse by category"}
+            </h3>
+            <p className="body-sm text-secondary" style={{ marginBottom: "var(--space-4)" }}>
+              {isHindi
+                ? "बजट, ऑडियंस, फर्निशिंग और जीवनशैली से लखनऊ में किराये खोजें।"
+                : "Find Lucknow rentals by property type, audience, budget, and lifestyle."}
+            </p>
+            {intentGroups.map((g) => (
+              <div key={g.category.slug} style={{ marginBottom: "var(--space-5)" }}>
+                <strong style={{ fontSize: 13 }}>
+                  {isHindi ? g.category.label_hi : g.category.label_en}
+                </strong>
+                <div className="chip-row" style={{ flexWrap: "wrap", marginTop: 6 }}>
+                  {g.intents.map((intent) => (
+                    <Link
+                      key={intent.slug}
+                      href={`/${params.locale}/search?city=${params.citySlug}&${new URLSearchParams(
+                        Object.fromEntries(
+                          Object.entries(intent.filters).map(([k, v]) => [k, String(v)])
+                        )
+                      ).toString()}`}
+                      className="chip-btn"
+                    >
+                      {isHindi ? intent.label_hi : intent.label_en}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {/* Lucknow programmatic SEO: metro stations grid */}
+        {isLucknow && liveMetros.filter((m) => m.station_name).length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <h3 style={{ marginBottom: "var(--space-4)" }}>
+              {isHindi ? "मेट्रो स्टेशन के पास" : "Browse by metro station"}
+            </h3>
+            <div className="chip-row" style={{ flexWrap: "wrap" }}>
+              {liveMetros
+                .filter((m) => m.station_name)
+                .map((m) => (
+                  <Link
+                    key={m.id}
+                    href={`/${params.locale}/city/${params.citySlug}/metro/${m.station_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                    className="chip-btn"
+                    title={m.line_name}
+                  >
+                    {m.station_name}
+                  </Link>
+                ))}
+            </div>
+          </section>
+        )}
+
+        {/* Lucknow programmatic SEO: landmarks grouped by type */}
+        {isLucknow && landmarkGroups.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <h3 style={{ marginBottom: "var(--space-4)" }}>
+              {isHindi ? "लोकप्रिय स्थानों के पास" : "Near popular landmarks"}
+            </h3>
+            {landmarkGroups.map((group) => (
+              <div key={group.type} style={{ marginBottom: "var(--space-5)" }}>
+                <strong style={{ fontSize: 13 }}>
+                  {isHindi ? group.label_hi : group.label_en}
+                </strong>
+                <div className="chip-row" style={{ flexWrap: "wrap", marginTop: 6 }}>
+                  {group.items.slice(0, 12).map((l) => (
+                    <Link
+                      key={l.slug}
+                      href={`/${params.locale}/city/${params.citySlug}/near/${l.slug}`}
+                      className="chip-btn"
+                    >
+                      {isHindi ? l.name_hi : l.name_en}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* Locality Clusters */}
         <section style={{ marginBottom: "var(--space-10)" }}>

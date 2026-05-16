@@ -17,6 +17,74 @@ const nextConfig = {
     typedRoutes: true,
     optimizePackageImports: ["lucide-react"],
   },
+  /**
+   * Common misspellings + alternate slugs that 301 to the canonical URL.
+   * Captures the way real users type these names: "lukhnow", "gomtinagar",
+   * "hazaratganj" etc. — preserves their search-equity instead of 404ing.
+   */
+  async redirects() {
+    const SOURCES = [
+      // City-level misspellings
+      ["lukhnow", "lucknow"],
+      ["luknow", "lucknow"],
+      ["lakhnaw", "lucknow"],
+      ["lakhnau", "lucknow"],
+      ["lacknow", "lucknow"]
+    ];
+    const LOCALITY_ALIASES = [
+      ["gomtinagar", "gomti-nagar"],
+      ["gomtinagr", "gomti-nagar"],
+      ["hazaratganj", "hazratganj"],
+      ["hazratgunj", "hazratganj"],
+      ["indiranagar", "indira-nagar"],
+      ["indra-nagar", "indira-nagar"],
+      ["aligunj", "aliganj"],
+      ["alig-anj", "aliganj"],
+      ["alambag", "alambagh"],
+      ["mahanagr", "mahanagar"],
+      ["lucknow-cantonment", "lucknow-cantt"],
+      ["sushant-golf", "sushant-golf-city"],
+      ["sushantgolf", "sushant-golf-city"],
+      ["vibhutikhand", "vibhuti-khand"],
+      ["vijaykhand", "vijay-khand"],
+      ["vipulkhand", "vipul-khand"]
+    ];
+    const redirects = [];
+    for (const [bad, good] of SOURCES) {
+      for (const locale of ["en", "hi"]) {
+        redirects.push({
+          source: `/${locale}/city/${bad}`,
+          destination: `/${locale}/city/${good}`,
+          permanent: true
+        });
+        redirects.push({
+          source: `/${locale}/city/${bad}/:path*`,
+          destination: `/${locale}/city/${good}/:path*`,
+          permanent: true
+        });
+        redirects.push({
+          source: `/${locale}/rent-in/${bad}`,
+          destination: `/${locale}/rent-in/${good}`,
+          permanent: true
+        });
+      }
+    }
+    for (const [bad, good] of LOCALITY_ALIASES) {
+      for (const locale of ["en", "hi"]) {
+        redirects.push({
+          source: `/${locale}/city/lucknow/${bad}`,
+          destination: `/${locale}/city/lucknow/${good}`,
+          permanent: true
+        });
+        redirects.push({
+          source: `/${locale}/city/lucknow/${bad}/:path*`,
+          destination: `/${locale}/city/lucknow/${good}/:path*`,
+          permanent: true
+        });
+      }
+    }
+    return redirects;
+  },
   async headers() {
     const toOrigin = (value) => {
       if (!value) return "";

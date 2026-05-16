@@ -53,6 +53,10 @@ export class SearchController {
       max_deposit?: string;
       preferred_tenant?: string;
       availability?: string; // 'immediate' | ISO date string
+      /** SEO intent filters (Phase 4 — programmatic landing pages) */
+      occupancy_type?: string; // 'male' | 'female' | 'co_living'
+      food_included?: string; // 'true' | 'false'
+      page_size?: string;
     }
   ) {
     return ok(await this.searchService.searchListings(query));

@@ -29,6 +29,8 @@ import { BoostModule } from "./modules/boost/boost.module";
 import { SubscriptionModule } from "./modules/subscriptions/subscription.module";
 import { AlertsModule } from "./modules/alerts/alerts.module";
 import { MapModule } from "./modules/map/map.module";
+import { LandmarksModule } from "./modules/landmarks/landmarks.module";
+import { SeoModule } from "./modules/seo/seo.module";
 
 @Module({
   imports: [
@@ -61,7 +63,9 @@ import { MapModule } from "./modules/map/map.module";
     BoostModule,
     SubscriptionModule,
     AlertsModule,
-    MapModule
+    MapModule,
+    LandmarksModule,
+    SeoModule
   ],
   providers: [
     // Apply ThrottlerGuard globally to all routes

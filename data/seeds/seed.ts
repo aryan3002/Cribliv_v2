@@ -198,6 +198,152 @@ async function seed() {
     console.warn("Metro station seed skipped:", err instanceof Error ? err.message : err);
   }
 
+  // ── Lucknow micro-localities (city-scoped sub-areas inside parent localities) ─
+  try {
+    type MicroLocality = {
+      slug: string;
+      name_en: string;
+      name_hi: string;
+      parent_slug: string;
+      lat?: number;
+      lng?: number;
+      seo_aliases?: string[];
+    };
+
+    const microPath = path.join(seedDir, "lucknow", "micro-localities.json");
+    if (fs.existsSync(microPath)) {
+      const micros = JSON.parse(fs.readFileSync(microPath, "utf8")) as MicroLocality[];
+      const lucknowId = cityBySlug.get("lucknow");
+      if (lucknowId) {
+        // Resolve parent locality ids in one query
+        const parentRows = await client.query(
+          `SELECT id, slug FROM localities WHERE city_id = $1`,
+          [lucknowId]
+        );
+        const parentBySlug = new Map(
+          parentRows.rows.map((r: { id: number; slug: string }) => [r.slug, r.id])
+        );
+
+        for (const m of micros) {
+          const parentId = parentBySlug.get(m.parent_slug) ?? null;
+          await client.query(
+            `INSERT INTO localities (city_id, slug, name_en, name_hi, lat, lng, parent_locality_id, seo_aliases)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ON CONFLICT (city_id, slug) DO UPDATE SET
+               name_en = EXCLUDED.name_en,
+               name_hi = EXCLUDED.name_hi,
+               lat = EXCLUDED.lat,
+               lng = EXCLUDED.lng,
+               parent_locality_id = EXCLUDED.parent_locality_id,
+               seo_aliases = EXCLUDED.seo_aliases`,
+            [
+              lucknowId,
+              m.slug,
+              m.name_en,
+              m.name_hi,
+              m.lat ?? null,
+              m.lng ?? null,
+              parentId,
+              m.seo_aliases ?? []
+            ]
+          );
+        }
+        console.log(`Seeded ${micros.length} Lucknow micro-localities.`);
+
+        // Best-effort: backfill geo_point if PostGIS available
+        try {
+          await client.query(
+            `UPDATE localities
+             SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
+             WHERE city_id = $1 AND lat IS NOT NULL AND lng IS NOT NULL AND geo_point IS NULL`,
+            [lucknowId]
+          );
+        } catch {
+          /* PostGIS not available, skip */
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(
+      "Lucknow micro-localities seed skipped:",
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  // ── Lucknow landmarks (colleges, hospitals, malls, etc.) ────────────────────
+  try {
+    type Landmark = {
+      slug: string;
+      name_en: string;
+      name_hi: string;
+      type: string;
+      aka?: string[];
+      lat: number;
+      lng: number;
+      primary_locality_slug?: string;
+    };
+
+    const landmarksPath = path.join(seedDir, "lucknow", "landmarks.json");
+    if (fs.existsSync(landmarksPath)) {
+      const landmarks = JSON.parse(fs.readFileSync(landmarksPath, "utf8")) as Landmark[];
+      const lucknowId = cityBySlug.get("lucknow");
+      if (lucknowId) {
+        const localityRows = await client.query(
+          `SELECT id, slug FROM localities WHERE city_id = $1`,
+          [lucknowId]
+        );
+        const localityBySlug = new Map(
+          localityRows.rows.map((r: { id: number; slug: string }) => [r.slug, r.id])
+        );
+
+        for (const l of landmarks) {
+          const primaryLocalityId = l.primary_locality_slug
+            ? (localityBySlug.get(l.primary_locality_slug) ?? null)
+            : null;
+          await client.query(
+            `INSERT INTO landmarks
+               (city_id, slug, name_en, name_hi, type, aka, lat, lng, primary_locality_id)
+             VALUES ($1, $2, $3, $4, $5::landmark_type, $6, $7, $8, $9)
+             ON CONFLICT (city_id, slug) DO UPDATE SET
+               name_en = EXCLUDED.name_en,
+               name_hi = EXCLUDED.name_hi,
+               type = EXCLUDED.type,
+               aka = EXCLUDED.aka,
+               lat = EXCLUDED.lat,
+               lng = EXCLUDED.lng,
+               primary_locality_id = EXCLUDED.primary_locality_id,
+               updated_at = now()`,
+            [
+              lucknowId,
+              l.slug,
+              l.name_en,
+              l.name_hi,
+              l.type,
+              l.aka ?? [],
+              l.lat,
+              l.lng,
+              primaryLocalityId
+            ]
+          );
+        }
+        console.log(`Seeded ${landmarks.length} Lucknow landmarks.`);
+
+        try {
+          await client.query(
+            `UPDATE landmarks
+             SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
+             WHERE city_id = $1 AND geo_point IS NULL`,
+            [lucknowId]
+          );
+        } catch {
+          /* PostGIS not available, skip */
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Lucknow landmarks seed skipped:", err instanceof Error ? err.message : err);
+  }
+
   await client.end();
 }
 
