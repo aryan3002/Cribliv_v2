@@ -7,6 +7,7 @@
 # Build artefacts — Docker rebuilds these
 **/dist
 **/.next
+**/*.tsbuildinfo
 
 # Secrets — never bake into the image
 .env
