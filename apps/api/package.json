@@ -2,6 +2,10 @@
   "name": "@cribliv/api",
   "version": "0.1.0",
   "private": true,
+  "main": "dist/main.js",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",

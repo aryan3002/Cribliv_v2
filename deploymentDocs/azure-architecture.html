@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cribliv v2 — Azure Testing Architecture</title>
+<style>
+  :root {
+    --azure-blue: #0078d4;
+    --azure-light: #c7e0f4;
+    --azure-dark: #004578;
+    --nest-red: #e0234e;
+    --green: #107c10;
+    --green-light: #dff6dd;
+    --orange: #d83b01;
+    --orange-light: #fce4d6;
+    --purple: #5c2d91;
+    --purple-light: #f4effe;
+    --gray-bg: #f3f4f6;
+    --gray-border: #d1d5db;
+    --card-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: #0f1923;
+    color: #1a1a2e;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .header .subtitle {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-top: 6px;
+  }
+  .badge {
+    display: inline-block;
+    background: var(--azure-blue);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* ── Section Labels ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 12px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--gray-border);
+  }
+
+  /* ── Deploy Flow ── */
+  .deploy-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .deploy-step {
+    background: #fff;
+    border: 2px solid var(--azure-blue);
+    border-radius: 10px;
+    padding: 14px 20px;
+    text-align: center;
+    min-width: 140px;
+  }
+  .deploy-step .step-icon { font-size: 22px; margin-bottom: 4px; }
+  .deploy-step .step-title { font-size: 13px; font-weight: 700; color: var(--azure-dark); }
+  .deploy-step .step-detail { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .deploy-arrow {
+    font-size: 20px;
+    color: var(--azure-blue);
+    padding: 0 8px;
+    font-weight: 700;
+  }
+  .deploy-time {
+    font-size: 10px;
+    color: var(--azure-blue);
+    margin-top: 4px;
+    font-weight: 600;
+  }
+
+  /* ── Main Grid ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* ── Resource Group Container ── */
+  .azure-rg {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #e8f4fd, #f0f8ff);
+    border: 2px solid var(--azure-blue);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+  }
+  .azure-rg-label {
+    position: absolute;
+    top: -14px;
+    left: 20px;
+    background: var(--azure-blue);
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Container Apps Env ── */
+  .aca-env {
+    background: rgba(255,255,255,0.7);
+    border: 1.5px dashed #0078d4;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .aca-env-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--azure-blue);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ── Container Apps ── */
+  .apps-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .container-app {
+    background: white;
+    border-radius: 10px;
+    border: 1.5px solid var(--gray-border);
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .container-app.api { border-top: 4px solid var(--nest-red); }
+  .container-app.worker { border-top: 4px solid var(--green); }
+
+  .app-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .app-name {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .app-name.api { color: var(--nest-red); }
+  .app-name.worker { color: var(--green); }
+  .app-body { padding: 0 16px 14px; }
+  .app-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  .tag-external { background: #dff6dd; color: #107c10; }
+  .tag-internal { background: #fce4d6; color: #d83b01; }
+
+  .app-detail {
+    font-size: 12px;
+    color: #374151;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .app-detail .label {
+    color: #9ca3af;
+    font-size: 11px;
+    min-width: 72px;
+    flex-shrink: 0;
+  }
+  .app-detail code {
+    background: #f3f4f6;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    color: #1f2937;
+  }
+
+  /* ── ACR ── */
+  .acr-box {
+    background: white;
+    border-radius: 10px;
+    border: 1.5px solid var(--azure-light);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .acr-icon { font-size: 24px; }
+  .acr-info { flex: 1; }
+  .acr-name { font-size: 13px; font-weight: 700; color: var(--azure-dark); }
+  .acr-detail { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .acr-badge {
+    font-size: 10px;
+    background: var(--azure-light);
+    color: var(--azure-dark);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+
+  /* ── External Services ── */
+  .services-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .service-card {
+    background: white;
+    border-radius: 10px;
+    border: 1.5px solid var(--gray-border);
+    padding: 12px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .service-icon { font-size: 20px; flex-shrink: 0; }
+  .service-name { font-size: 12px; font-weight: 700; color: #1f2937; }
+  .service-detail { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .service-var {
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--azure-dark);
+    background: var(--azure-light);
+    padding: 1px 5px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 3px;
+  }
+
+  /* ── Worker Jobs ── */
+  .jobs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 0;
+  }
+  .job-pill {
+    background: var(--green-light);
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .job-name { font-size: 11px; font-weight: 700; color: #065f46; }
+  .job-interval { font-size: 10px; color: #059669; margin-top: 2px; }
+
+  /* ── Env Vars Bugs ── */
+  .bugs-section {
+    margin-bottom: 24px;
+  }
+  .bug-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+  }
+  .bug-table th {
+    background: #fef9c3;
+    color: #713f12;
+    font-weight: 700;
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .bug-table td {
+    padding: 9px 14px;
+    border-top: 1px solid #f3f4f6;
+    color: #374151;
+  }
+  .bug-table tr:hover td { background: #fafafa; }
+  .wrong { color: #dc2626; font-family: monospace; font-size: 11px; }
+  .correct { color: #16a34a; font-family: monospace; font-size: 11px; }
+  .missing { color: #d97706; font-family: monospace; font-size: 11px; }
+  .status-icon { font-size: 14px; }
+
+  /* ── Files to change ── */
+  .files-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .file-card {
+    background: white;
+    border-radius: 10px;
+    border: 1.5px solid var(--gray-border);
+    padding: 16px;
+    box-shadow: var(--card-shadow);
+  }
+  .file-action {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .action-modify { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+  .action-create { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .file-name {
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--azure-dark);
+    margin-bottom: 6px;
+  }
+  .file-changes { list-style: none; padding: 0; }
+  .file-changes li {
+    font-size: 11px;
+    color: #6b7280;
+    padding: 3px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .file-changes li::before { content: "→"; color: var(--azure-blue); flex-shrink: 0; }
+
+  /* ── Steps ── */
+  .steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .step-item {
+    background: white;
+    border-radius: 10px;
+    border: 1.5px solid var(--gray-border);
+    padding: 14px 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    box-shadow: var(--card-shadow);
+  }
+  .step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--azure-blue);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-num.code-step { background: var(--purple); }
+  .step-num.run-step { background: var(--green); }
+  .step-content { flex: 1; }
+  .step-title { font-size: 14px; font-weight: 700; color: #1f2937; }
+  .step-desc { font-size: 12px; color: #6b7280; margin-top: 3px; }
+  .step-cmd {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    background: #1e293b;
+    color: #86efac;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-top: 8px;
+    display: inline-block;
+  }
+  .step-time {
+    font-size: 11px;
+    color: #94a3b8;
+    text-align: right;
+    white-space: nowrap;
+    align-self: center;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    border: none;
+    border-top: 1px solid #1e3a5f;
+    margin: 24px 0;
+  }
+
+  /* ── Section Heading ── */
+  .section-heading {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-heading::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #1e3a5f;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    color: #475569;
+    font-size: 12px;
+    margin-top: 32px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Cribliv v2 — Azure Testing Deployment</h1>
+    <div class="subtitle">Architecture diagram · May 2026 · Testing environment</div>
+    <div class="badge">CLI Deploy · No GitHub Actions</div>
+  </div>
+
+  <!-- Deploy Flow -->
+  <div class="section-heading">Deploy Flow</div>
+  <div class="deploy-flow" style="margin-bottom: 32px;">
+    <div class="deploy-step">
+      <div class="step-icon">💻</div>
+      <div class="step-title">Terminal</div>
+      <div class="step-detail"><code style="font-size:11px">./infra/deploy.sh</code></div>
+    </div>
+    <div class="deploy-arrow">→</div>
+    <div class="deploy-step">
+      <div class="step-icon">📦</div>
+      <div class="step-title">az acr build</div>
+      <div class="step-detail">Source uploaded + built in Azure</div>
+      <div class="deploy-time">~3 min</div>
+    </div>
+    <div class="deploy-arrow">→</div>
+    <div class="deploy-step">
+      <div class="step-icon">🔄</div>
+      <div class="step-title">containerapp update</div>
+      <div class="step-detail">API + Worker rolled to new SHA</div>
+      <div class="deploy-time">~30s each</div>
+    </div>
+    <div class="deploy-arrow">→</div>
+    <div class="deploy-step">
+      <div class="step-icon">✅</div>
+      <div class="step-title">Live</div>
+      <div class="step-detail">HTTPS URL printed in terminal</div>
+    </div>
+  </div>
+
+  <!-- Azure Architecture -->
+  <div class="section-heading">Azure Infrastructure</div>
+  <div class="azure-rg" style="margin-bottom: 24px;">
+    <div class="azure-rg-label">☁️ Azure Resource Group: Cribliv — southindia</div>
+
+    <!-- ACR -->
+    <div class="acr-box" style="margin-bottom: 16px;">
+      <div class="acr-icon">🗃️</div>
+      <div class="acr-info">
+        <div class="acr-name">criblivacr.azurecr.io</div>
+        <div class="acr-detail">Azure Container Registry · Basic SKU · Admin credentials enabled</div>
+        <div class="acr-detail" style="margin-top:4px;font-family:monospace;font-size:11px;color:#0078d4">cribliv-api:&lt;git-sha&gt; — single image, two containers</div>
+      </div>
+      <div class="acr-badge">Basic</div>
+    </div>
+
+    <!-- Container Apps Environment -->
+    <div class="aca-env">
+      <div class="aca-env-label">📦 Container Apps Environment: cribliv-env</div>
+      <div class="apps-row">
+
+        <!-- API App -->
+        <div class="container-app api">
+          <div class="app-header">
+            <span style="font-size:20px">🚀</span>
+            <div>
+              <div class="app-name api">cribliv-api</div>
+              <span class="app-tag tag-external">External HTTPS</span>
+            </div>
+          </div>
+          <div class="app-body">
+            <div class="app-detail"><span class="label">CMD</span><code>node dist/main.js</code></div>
+            <div class="app-detail"><span class="label">Port</span><code>4000</code></div>
+            <div class="app-detail"><span class="label">Replicas</span><code>1–2</code></div>
+            <div class="app-detail"><span class="label">Ingress</span><code>external</code></div>
+            <div class="app-detail"><span class="label">Socket.IO</span><code>/voice-agent namespace</code></div>
+            <div class="app-detail"><span class="label">Modules</span><code>30 NestJS modules</code></div>
+          </div>
+        </div>
+
+        <!-- Worker App -->
+        <div class="container-app worker">
+          <div class="app-header">
+            <span style="font-size:20px">⚙️</span>
+            <div>
+              <div class="app-name worker">cribliv-worker</div>
+              <span class="app-tag tag-internal">Internal Only</span>
+            </div>
+          </div>
+          <div class="app-body">
+            <div class="app-detail"><span class="label">CMD</span><code>node dist/worker/worker.js</code></div>
+            <div class="app-detail"><span class="label">Port</span><code>none</code></div>
+            <div class="app-detail"><span class="label">Replicas</span><code>1 (always on)</code></div>
+            <div class="app-detail"><span class="label">Ingress</span><code>none</code></div>
+            <div class="app-detail"><span class="label">DB mode</span><code>pg pool (direct queries)</code></div>
+            <div class="app-detail"><span class="label">Jobs</span><code>11 sweep jobs</code></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- External Azure Services -->
+    <div style="margin-top:4px">
+      <div class="section-label" style="margin-bottom:10px">Pre-existing Azure Services (connected via env vars)</div>
+      <div class="services-grid">
+
+        <div class="service-card">
+          <div class="service-icon">🐘</div>
+          <div>
+            <div class="service-name">Azure Database for PostgreSQL</div>
+            <div class="service-detail">Flexible Server · PostGIS + pgvector · 23 migrations</div>
+            <div class="service-var">DATABASE_URL</div>
+          </div>
+        </div>
+
+        <div class="service-card">
+          <div class="service-icon">📷</div>
+          <div>
+            <div class="service-name">Azure Blob Storage</div>
+            <div class="service-detail">listing-photos container · SAS presigned uploads · Direct browser PUT</div>
+            <div class="service-var">AZURE_STORAGE_ACCOUNT_NAME</div>
+            <div class="service-var" style="margin-left:4px">AZURE_STORAGE_ACCOUNT_KEY</div>
+          </div>
+        </div>
+
+        <div class="service-card">
+          <div class="service-icon">🤖</div>
+          <div>
+            <div class="service-name">Azure OpenAI</div>
+            <div class="service-detail">Chat (extract + conversation) · Embeddings · Realtime WebRTC concierge (Maya)</div>
+            <div class="service-var">AZURE_OPENAI_ENDPOINT</div>
+            <div class="service-var" style="margin-left:4px">AZURE_OPENAI_API_KEY</div>
+          </div>
+        </div>
+
+        <div class="service-card">
+          <div class="service-icon">🎙️</div>
+          <div>
+            <div class="service-name">Azure Cognitive Services Speech</div>
+            <div class="service-detail">STT (Hindi hi-IN) + TTS · Legacy voice pipeline (Socket.IO gateway)</div>
+            <div class="service-var">AZURE_SPEECH_KEY</div>
+            <div class="service-var" style="margin-left:4px">AZURE_SPEECH_REGION=southindia</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Worker Jobs -->
+  <div class="section-heading">Worker Jobs (cribliv-worker)</div>
+  <div style="background:#fff; border-radius:12px; padding:16px; margin-bottom:24px; border:1px solid var(--gray-border); box-shadow:var(--card-shadow);">
+    <div class="jobs-grid">
+      <div class="job-pill">
+        <div class="job-name">refund_due_unlocks</div>
+        <div class="job-interval">every 5 min</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">dispatch_outbound_events</div>
+        <div class="job-interval">every 1 min</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">boost_expiry_sweep</div>
+        <div class="job-interval">every 5 min</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">lead_nudge_sweep</div>
+        <div class="job-interval">every 15 min</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">alert_zone_sweep</div>
+        <div class="job-interval">every 6 h</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">ranking_recompute</div>
+        <div class="job-interval">every 6 h</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">stale_listing_sweep</div>
+        <div class="job-interval">daily</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">subscription_renewal_sweep</div>
+        <div class="job-interval">daily</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">saved_search_alert_sweep</div>
+        <div class="job-interval">daily</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">seeker_pin_cleanup</div>
+        <div class="job-interval">daily</div>
+      </div>
+      <div class="job-pill">
+        <div class="job-name">broker_detection_sweep</div>
+        <div class="job-interval">weekly</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Files to Change -->
+  <div class="section-heading">Files to Change</div>
+  <div class="files-row" style="margin-bottom:24px;">
+
+    <div class="file-card">
+      <span class="file-action action-modify">Modify</span>
+      <div class="file-name">infra/azure-setup.sh</div>
+      <ul class="file-changes">
+        <li>RG <code>cribliv-rg</code> → <code>Cribliv</code></li>
+        <li>Location <code>centralindia</code> → <code>southindia</code></li>
+        <li>Add <code>cribliv-worker</code> Container App</li>
+        <li>Use ACR admin credentials (not managed identity)</li>
+        <li>Remove GitHub Actions SP step</li>
+      </ul>
+    </div>
+
+    <div class="file-card">
+      <span class="file-action action-modify">Modify</span>
+      <div class="file-name">infra/set-env-vars.sh</div>
+      <ul class="file-changes">
+        <li>Fix 3 wrong blob var names</li>
+        <li>Add Azure OpenAI conversation + realtime vars</li>
+        <li>Move API keys to secrets (not plain env)</li>
+        <li>Add voice + AI feature flags</li>
+        <li>Add complete worker block</li>
+        <li>Fix RG → <code>Cribliv</code></li>
+      </ul>
+    </div>
+
+    <div class="file-card">
+      <span class="file-action action-create">Create</span>
+      <div class="file-name">infra/deploy.sh</div>
+      <ul class="file-changes">
+        <li><code>az acr build</code> (no local Docker)</li>
+        <li>Tag image by git SHA</li>
+        <li>Update API Container App</li>
+        <li>Update Worker Container App</li>
+        <li>Print live API URL</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- Env Var Bugs -->
+  <div class="section-heading">Env Var Bugs Found in set-env-vars.sh</div>
+  <div style="margin-bottom:24px;">
+    <table class="bug-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Script Sets</th>
+          <th>Code Actually Reads</th>
+          <th>Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="status-icon">❌</span></td>
+          <td><span class="wrong">BLOB_ACCOUNT_NAME</span></td>
+          <td><span class="correct">AZURE_STORAGE_ACCOUNT_NAME</span></td>
+          <td>Photo upload broken — storage client uninitialised</td>
+        </tr>
+        <tr>
+          <td><span class="status-icon">❌</span></td>
+          <td><span class="wrong">BLOB_ACCOUNT_KEY</span></td>
+          <td><span class="correct">AZURE_STORAGE_ACCOUNT_KEY</span></td>
+          <td>SAS generation fails — wrong var name</td>
+        </tr>
+        <tr>
+          <td><span class="status-icon">❌</span></td>
+          <td><span class="wrong">BLOB_CONTAINER_LISTING_MEDIA</span></td>
+          <td><span class="correct">AZURE_STORAGE_CONTAINER_LISTING_PHOTOS</span></td>
+          <td>Photos go to wrong container (falls back to "listing-photos" default)</td>
+        </tr>
+        <tr>
+          <td><span class="status-icon">⚠️</span></td>
+          <td><span class="missing">(missing)</span></td>
+          <td><span class="correct">AZURE_OPENAI_CONVERSATION_DEPLOYMENT</span></td>
+          <td>Voice agent conversation model undefined</td>
+        </tr>
+        <tr>
+          <td><span class="status-icon">⚠️</span></td>
+          <td><span class="missing">(missing)</span></td>
+          <td><span class="correct">AZURE_OPENAI_REALTIME_DEPLOYMENT</span></td>
+          <td>Realtime Maya concierge falls back to "gpt-realtime-mini"</td>
+        </tr>
+        <tr>
+          <td><span class="status-icon">⚠️</span></td>
+          <td><span class="missing">FF_VOICE_AGENT_ENABLED not set</span></td>
+          <td><span class="correct">defaults false</span></td>
+          <td>Voice gateway rejects all Socket.IO connections</td>
+        </tr>
+        <tr>
+          <td><span class="status-icon">⚠️</span></td>
+          <td><span class="missing">Worker block missing</span></td>
+          <td><span class="correct">cribliv-worker needs env vars</span></td>
+          <td>Worker has no DATABASE_URL → runs in in-memory mode</td>
+        </tr>
+        <tr>
+          <td><span class="status-icon">⚠️</span></td>
+          <td><span class="missing">AZURE_OPENAI_API_KEY as plain env var</span></td>
+          <td><span class="correct">should be Container App secret</span></td>
+          <td>Key visible in az containerapp show output</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Execution Steps -->
+  <div class="section-heading">Execution Order</div>
+  <div class="steps-list">
+
+    <div class="step-item">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">Verify Prerequisites</div>
+        <div class="step-desc">az CLI installed, logged in, correct subscription (462382ee-...)</div>
+        <div class="step-cmd">az account show --query "{name:name,id:id}"</div>
+      </div>
+      <div class="step-time">1 min</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num code-step">2</div>
+      <div class="step-content">
+        <div class="step-title">Update infra/azure-setup.sh</div>
+        <div class="step-desc">Replace file with fixed version (RG, location, worker app, ACR admin creds)</div>
+        <div class="step-cmd">git commit -m "infra: fix azure-setup for Cribliv RG/southindia, add worker app"</div>
+      </div>
+      <div class="step-time">code edit</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num code-step">3</div>
+      <div class="step-content">
+        <div class="step-title">Update infra/set-env-vars.sh</div>
+        <div class="step-desc">Fix var names, add all missing vars, add worker block. Commit placeholder version only.</div>
+        <div class="step-cmd">git commit -m "infra: fix blob var names, add voice/AI vars, add worker block"</div>
+      </div>
+      <div class="step-time">code edit</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num code-step">4</div>
+      <div class="step-content">
+        <div class="step-title">Create infra/deploy.sh</div>
+        <div class="step-desc">New CLI deploy script — az acr build + two containerapp update commands</div>
+        <div class="step-cmd">git commit -m "infra: add CLI deploy script"</div>
+      </div>
+      <div class="step-time">code edit</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num run-step">5</div>
+      <div class="step-content">
+        <div class="step-title">Run azure-setup.sh (one-time)</div>
+        <div class="step-desc">Creates ACR, Container Apps environment, API app, Worker app</div>
+        <div class="step-cmd">chmod +x infra/azure-setup.sh && ./infra/azure-setup.sh</div>
+      </div>
+      <div class="step-time">4–7 min</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num run-step">6</div>
+      <div class="step-content">
+        <div class="step-title">Fill set-env-vars.sh and run it</div>
+        <div class="step-desc">Fill in real PostgreSQL URL, Blob keys, OpenAI keys, Speech key. Run script. Then immediately restore the file.</div>
+        <div class="step-cmd">./infra/set-env-vars.sh && git restore infra/set-env-vars.sh</div>
+      </div>
+      <div class="step-time">5 min</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num run-step">7</div>
+      <div class="step-content">
+        <div class="step-title">Run 23 database migrations</div>
+        <div class="step-desc">Init schema, PostGIS, pgvector, voice agent sessions, leads, fraud, subscriptions, alert zones…</div>
+        <div class="step-cmd">DATABASE_URL="postgres://..." pnpm --filter=@cribliv/api db:migrate</div>
+      </div>
+      <div class="step-time">2 min</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num run-step">8</div>
+      <div class="step-content">
+        <div class="step-title">First Deploy</div>
+        <div class="step-desc">Build image in ACR from current HEAD, roll API + Worker</div>
+        <div class="step-cmd">chmod +x infra/deploy.sh && ./infra/deploy.sh</div>
+      </div>
+      <div class="step-time">~4 min</div>
+    </div>
+
+    <div class="step-item">
+      <div class="step-num run-step">9</div>
+      <div class="step-content">
+        <div class="step-title">Verify</div>
+        <div class="step-desc">Health check API, check worker logs for 11-job startup, test mock OTP login</div>
+        <div class="step-cmd">curl https://&lt;fqdn&gt;/v1/health && az containerapp logs show --name cribliv-worker ...</div>
+      </div>
+      <div class="step-time">2 min</div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    Cribliv v2 · Azure Testing Deployment · 2026-05-16 · CLI deploy · No GitHub Actions
+  </div>
+
+</div>
+</body>
+</html>

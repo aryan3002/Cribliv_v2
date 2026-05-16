@@ -1,37 +1,36 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# One-time Azure setup for Cribliv API on Container Apps
+# One-time Azure setup for Cribliv v2 — TESTING environment
 #
-# Run this ONCE from your local machine. After it succeeds, all future
-# deploys happen automatically via GitHub Actions on every push to main.
+# Creates: Resource Group → ACR (admin enabled) → Container Apps Environment
+#          → cribliv-api (external HTTPS) + cribliv-worker (internal)
 #
-# Prerequisites:
-#   brew install azure-cli    (macOS)
-#   az login
+# No GitHub Actions service principal needed — CLI deploy only.
+# Re-running is safe (resources already existing are skipped).
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# ── Customise these values ────────────────────────────────────────────────────
-RESOURCE_GROUP="cribliv-rg"
-LOCATION="centralindia"           # or eastus, westeurope, etc.
-ACR_NAME="criblivacr"             # Must be globally unique & lowercase only
+RESOURCE_GROUP="Cribliv"
+LOCATION="centralindia"
+ACR_NAME="criblivacr"
 APP_ENV="cribliv-env"
-APP_NAME="cribliv-api"
-# ─────────────────────────────────────────────────────────────────────────────
+API_APP_NAME="cribliv-api"
+WORKER_APP_NAME="cribliv-worker"
 
-echo "▶ Using subscription: $(az account show --query name -o tsv)"
-SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+echo "▶ Subscription: $(az account show --query name -o tsv)"
+echo "▶ Subscription ID: $(az account show --query id -o tsv)"
 
 echo ""
-echo "── 1. Resource Group ────────────────────────────────────────────────────"
+echo "── 1. Resource Group ─────────────────────────────────────────────────────"
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
 
 echo ""
-echo "── 2. Azure Container Registry ─────────────────────────────────────────"
+echo "── 2. Azure Container Registry (Basic SKU, admin credentials enabled) ───"
 az acr create \
   --resource-group "$RESOURCE_GROUP" \
   --name "$ACR_NAME" \
-  --sku Basic
+  --sku Basic \
+  --admin-enabled true
 
 ACR_LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
 echo "   ACR login server: $ACR_LOGIN_SERVER"
@@ -44,74 +43,68 @@ az containerapp env create \
   --location "$LOCATION"
 
 echo ""
-echo "── 4. Container App (placeholder image — real image arrives from CI) ────"
-az containerapp create \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --environment "$APP_ENV" \
-  --image "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
-  --target-port 4000 \
-  --ingress external \
-  --min-replicas 0 \
-  --max-replicas 3
+echo "── 4. API Container App (external HTTPS, port 4000) ─────────────────────"
+if az containerapp show --name "$API_APP_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+  echo "   ✓ $API_APP_NAME already exists — skipping create"
+else
+  az containerapp create \
+    --name "$API_APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --environment "$APP_ENV" \
+    --image "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
+    --target-port 4000 \
+    --ingress external \
+    --min-replicas 1 \
+    --max-replicas 2
+fi
 
 echo ""
-echo "── 5. Managed identity → AcrPull (so Container App can pull images) ─────"
-az containerapp identity assign \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --system-assigned
+echo "── 5. Worker Container App (no ingress, CMD override) ───────────────────"
+if az containerapp show --name "$WORKER_APP_NAME" --resource-group "$RESOURCE_GROUP" &>/dev/null; then
+  echo "   ✓ $WORKER_APP_NAME already exists — skipping create"
+else
+  az containerapp create \
+    --name "$WORKER_APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --environment "$APP_ENV" \
+    --image "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest" \
+    --min-replicas 1 \
+    --max-replicas 1 \
+    --command "node" "dist/worker/worker.js"
+fi
 
-PRINCIPAL_ID=$(az containerapp show \
-  --name "$APP_NAME" \
-  --resource-group "$RESOURCE_GROUP" \
-  --query identity.principalId -o tsv)
+echo ""
+echo "── 6. Wire ACR admin credentials to both Container Apps ─────────────────"
+ACR_USERNAME=$(az acr credential show --name "$ACR_NAME" --query username -o tsv)
+ACR_PASSWORD=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)
 
-ACR_ID=$(az acr show --name "$ACR_NAME" --query id -o tsv)
-
-az role assignment create \
-  --assignee "$PRINCIPAL_ID" \
-  --role AcrPull \
-  --scope "$ACR_ID"
-
-# Wire the managed identity to the container app registry config
 az containerapp registry set \
-  --name "$APP_NAME" \
+  --name "$API_APP_NAME" \
   --resource-group "$RESOURCE_GROUP" \
   --server "$ACR_LOGIN_SERVER" \
-  --identity system
+  --username "$ACR_USERNAME" \
+  --password "$ACR_PASSWORD"
 
-echo ""
-echo "── 6. Service principal for GitHub Actions ──────────────────────────────"
-echo "   Creating SP with Contributor on the resource group + AcrBuild on ACR…"
-
-SP_JSON=$(az ad sp create-for-rbac \
-  --name "github-cribliv-deploy" \
-  --role Contributor \
-  --scopes "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}" \
-  --json-auth)
-
-echo ""
-echo "════════════════════════════════════════════════════════════════════════"
-echo "  DONE. Copy the JSON below and add it as a GitHub secret:"
-echo "  Repository → Settings → Secrets → Actions → New secret"
-echo "  Name:  AZURE_CREDENTIALS"
-echo "  Value: (the JSON block below)"
-echo "════════════════════════════════════════════════════════════════════════"
-echo "$SP_JSON"
-echo ""
-
-APP_URL=$(az containerapp show \
-  --name "$APP_NAME" \
+az containerapp registry set \
+  --name "$WORKER_APP_NAME" \
   --resource-group "$RESOURCE_GROUP" \
-  --query properties.configuration.ingress.fqdn -o tsv)
+  --server "$ACR_LOGIN_SERVER" \
+  --username "$ACR_USERNAME" \
+  --password "$ACR_PASSWORD"
 
+API_URL=$(az containerapp show \
+  --name "$API_APP_NAME" \
+  --resource-group "$RESOURCE_GROUP" \
+  --query "properties.configuration.ingress.fqdn" -o tsv)
+
+echo ""
 echo "════════════════════════════════════════════════════════════════════════"
-echo "  Your Container App URL:  https://$APP_URL"
+echo "  DONE — resources created in: $RESOURCE_GROUP ($LOCATION)"
+echo "  API placeholder URL: https://$API_URL"
 echo ""
 echo "  Next steps:"
-echo "  1. Add AZURE_CREDENTIALS to GitHub → Settings → Secrets → Actions"
-echo "  2. Run infra/set-env-vars.sh to configure the API environment variables"
-echo "  3. Add to Vercel: NEXT_PUBLIC_API_BASE_URL=https://$APP_URL/v1"
-echo "  4. Push to main → CI deploys the real image automatically"
+echo "  1. Fill in real values in infra/set-env-vars.sh"
+echo "  2. Run: chmod +x infra/set-env-vars.sh && ./infra/set-env-vars.sh"
+echo "  3. Run: pnpm --filter=@cribliv/api db:migrate"
+echo "  4. Run: chmod +x infra/deploy.sh && ./infra/deploy.sh"
 echo "════════════════════════════════════════════════════════════════════════"
