@@ -13,6 +13,8 @@ import {
 } from "@nestjs/common";
 import { MapService } from "./map.service";
 import { MetroWalkService } from "./metro-walk.service";
+import { CommuteService } from "./commute.service";
+import { CITY_BBOXES } from "./city-bboxes";
 import { ok } from "../../common/response";
 import { AuthGuard } from "../../common/auth.guard";
 
@@ -20,7 +22,8 @@ import { AuthGuard } from "../../common/auth.guard";
 export class MapController {
   constructor(
     private readonly mapService: MapService,
-    private readonly metroWalkService: MetroWalkService
+    private readonly metroWalkService: MetroWalkService,
+    private readonly commuteService: CommuteService
   ) {}
 
   /* ─── Phase 2: Area Stats ──────────────────────────────────────── */
@@ -71,6 +74,37 @@ export class MapController {
     }
     const walks = await this.metroWalkService.ensureWalksForListing(listingId);
     return ok({ walks });
+  }
+
+  /**
+   * "Where Should I Live?" reverse-search reachability.
+   * Returns commute time from the office to every locality in the city.
+   *
+   *  GET /v1/map/commute/reachability?office_lat=&office_lng=&city=
+   *    → { localities: [{ slug, name, lat, lng, total_minutes,
+   *                       walk_minutes, transit_minutes,
+   *                       via_station_name, via_station_id }] }
+   *
+   * Returns an empty array for cities without metro data (Chandigarh,
+   * Faridabad, Ghaziabad) — the UI surfaces an explanatory empty state.
+   */
+  @Get("commute/reachability")
+  async getCommuteReachability(
+    @Query("office_lat") officeLatRaw?: string,
+    @Query("office_lng") officeLngRaw?: string,
+    @Query("city") cityRaw?: string
+  ) {
+    const lat = Number(officeLatRaw);
+    const lng = Number(officeLngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new BadRequestException("office_lat and office_lng must be valid numbers");
+    }
+    const city = (cityRaw ?? "").toLowerCase();
+    if (!city || !CITY_BBOXES[city]) {
+      throw new BadRequestException(`city must be one of: ${Object.keys(CITY_BBOXES).join(", ")}`);
+    }
+    const localities = await this.commuteService.computeLocalityReachability({ lat, lng }, city);
+    return ok({ localities });
   }
 
   /* ─── Phase 3: Seeker Pins ─────────────────────────────────────── */

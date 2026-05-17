@@ -15,6 +15,7 @@ import { MetroOverlayLayer } from "../../../components/criblmap/MetroOverlayLaye
 import { SeekerPinLayer } from "../../../components/criblmap/SeekerPinLayer";
 import { AlertZoneLayer } from "../../../components/criblmap/AlertZoneLayer";
 import { CommuteOverlay } from "../../../components/criblmap/CommuteOverlay";
+import { CommuteReachabilityLayer } from "../../../components/criblmap/CommuteReachabilityLayer";
 import { BenchmarkModal } from "../../../components/criblmap/overlays/BenchmarkModal";
 import { AlertZoneModal } from "../../../components/criblmap/overlays/AlertZoneModal";
 import {
@@ -127,6 +128,7 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
         showInput={showCommuteInput}
         onCloseInput={() => setShowCommuteInput(false)}
       />
+      <CommuteReachabilityLayer map={mapInstance} />
       <DemandHeatmapLayer map={mapInstance} />
 
       {/* Draw mode instruction overlay */}

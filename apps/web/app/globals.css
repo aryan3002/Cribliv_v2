@@ -7698,6 +7698,155 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
 }
 .cmap-commute-badge button:hover { color: var(--cmap-text); }
 
+/* ── Commute reverse-search panel ──────────────────────────────────
+ * Replaces the old single-line "commute badge" with a slider + result
+ * chip when an office is set. Anchored top-centre under the topbar,
+ * glass-blurred to sit on top of the heatmap circles without obscuring
+ * the map underneath. */
+.cmap-commute-panel {
+  position: absolute;
+  top: calc(var(--cmap-topbar-h) + var(--space-3));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 15, 28, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(0, 102, 255, 0.4);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 102, 255, 0.08);
+  color: var(--cmap-text);
+  font-family: var(--font-body);
+}
+.cmap-commute-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.cmap-commute-panel__header svg { color: var(--brand); flex-shrink: 0; }
+.cmap-commute-panel__address {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.88);
+}
+.cmap-commute-panel__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.cmap-commute-panel__clear:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fff;
+}
+.cmap-commute-panel__slider-label {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.7);
+}
+.cmap-commute-panel__slider-label strong {
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 700;
+}
+.cmap-commute-panel__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 102, 255, 0.7) 0%,
+    rgba(0, 102, 255, 0.7) var(--slider-fill, 50%),
+    rgba(255, 255, 255, 0.1) var(--slider-fill, 50%),
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  outline: none;
+  cursor: pointer;
+}
+.cmap-commute-panel__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--brand);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.18), 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+.cmap-commute-panel__slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.cmap-commute-panel__slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--brand);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.18), 0 2px 6px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.cmap-commute-panel__result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  color: #c6f1d6;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.cmap-commute-panel__result svg {
+  flex-shrink: 0;
+  color: #5fd690;
+}
+.cmap-commute-panel__result strong {
+  color: #fff;
+  font-weight: 700;
+}
+.cmap-commute-panel__result--warn {
+  color: #ffd5a0;
+}
+.cmap-commute-panel:has(.cmap-commute-panel__result--warn) .cmap-commute-panel__result {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+@media (max-width: 640px) {
+  .cmap-commute-panel {
+    width: calc(100vw - 24px);
+    padding: 10px 12px;
+  }
+}
+
 /* ── Filter Drawer (mobile bottom-sheet) ────────────────────────── */
 
 .cmap-filter-backdrop {

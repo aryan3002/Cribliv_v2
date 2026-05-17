@@ -3,6 +3,7 @@
 import { useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useMapState, type MapPin } from "./hooks/useMapState";
+import { haversineKm } from "../../lib/geo";
 
 interface ListingPinLayerProps {
   map: google.maps.Map | null;
@@ -97,11 +98,31 @@ function isCluster(item: MapPin | ClusterGroup): item is ClusterGroup {
 }
 
 export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
-  const { pins, selectedPinId, zoom, demandViewActive } = useMapState();
+  const { pins, selectedPinId, zoom, demandViewActive, commuteReachability, commuteMaxMinutes } =
+    useMapState();
   const router = useRouter();
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
 
   const clustered = useMemo(() => clusterPins(pins, zoom), [pins, zoom]);
+
+  /* Reachability lookup: pre-build a small list of (centre, fit-bucket) pairs
+   * so we can score each pin's nearest reachable zone in O(localities)
+   * rather than re-grouping per pin. */
+  const reachabilityZones = useMemo(() => {
+    if (!commuteReachability || commuteReachability.length === 0) return null;
+    const stretchMax = commuteMaxMinutes * 1.2;
+    return commuteReachability
+      .map((loc) => {
+        if (loc.total_minutes <= commuteMaxMinutes) {
+          return { lat: loc.lat, lng: loc.lng, bucket: "green" as const };
+        }
+        if (loc.total_minutes <= stretchMax) {
+          return { lat: loc.lat, lng: loc.lng, bucket: "amber" as const };
+        }
+        return null;
+      })
+      .filter((z): z is { lat: number; lng: number; bucket: "green" | "amber" } => z !== null);
+  }, [commuteReachability, commuteMaxMinutes]);
 
   useEffect(() => {
     if (!map || typeof google === "undefined") return;
@@ -114,8 +135,31 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
     for (const item of clustered) {
       const el = document.createElement("div");
 
+      /* Compute the commute-reachability opacity for this pin (only for
+       * single pins, not clusters — clusters span multiple zones). */
+      let reachabilityOpacity: number | null = null;
+      if (reachabilityZones && !isCluster(item)) {
+        let foundGreen = false;
+        let foundAmber = false;
+        for (const zone of reachabilityZones) {
+          const km = haversineKm(zone, item);
+          if (km > 1) continue; // Pin must be within ~1km of a reachable locality centre.
+          if (zone.bucket === "green") {
+            foundGreen = true;
+            break;
+          }
+          foundAmber = true;
+        }
+        if (foundGreen) reachabilityOpacity = 1.0;
+        else if (foundAmber) reachabilityOpacity = 0.7;
+        else reachabilityOpacity = 0.28;
+      }
+
       if (demandViewActive) {
         el.style.opacity = "0.3";
+        el.style.transition = "opacity 0.3s ease";
+      } else if (reachabilityOpacity !== null) {
+        el.style.opacity = String(reachabilityOpacity);
         el.style.transition = "opacity 0.3s ease";
       }
 
@@ -205,7 +249,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
       }
       markersRef.current = [];
     };
-  }, [map, clustered, selectedPinId, router, locale, demandViewActive]);
+  }, [map, clustered, selectedPinId, router, locale, demandViewActive, reachabilityZones]);
 
   return null;
 }

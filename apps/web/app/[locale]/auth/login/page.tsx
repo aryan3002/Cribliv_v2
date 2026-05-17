@@ -185,13 +185,30 @@ function LoginPageInner() {
         return;
       }
 
-      // Fetch session to get role for redirect
-      const session = await getSession();
+      // Resolve the session — getSession() can race with the cookie write on
+      // the first call after signIn (well-known NextAuth v5 timing window).
+      // Retry once after a short tick if role is missing.
+      let session = await getSession();
+      if (!session?.user?.role) {
+        console.warn("[auth] session role missing after signIn — retrying");
+        await new Promise((r) => setTimeout(r, 200));
+        session = await getSession();
+      }
       const role = session?.user?.role;
       const locale = "en";
-      // Only use fromPath if the logged-in role is actually allowed there
-      const safeDest =
-        fromPath && canAccessPath(role, fromPath) ? fromPath : rolePath(role, locale);
+
+      // Pick destination. If we still don't have a role (cookie still racing
+      // or /auth/me sync slow), trust the cookie and navigate to fromPath;
+      // middleware will enforce role-based access. Avoid the silent "fall
+      // back to homepage" path that made owners think login had failed.
+      let safeDest: string;
+      if (role) {
+        safeDest = fromPath && canAccessPath(role, fromPath) ? fromPath : rolePath(role, locale);
+      } else if (fromPath) {
+        safeDest = fromPath;
+      } else {
+        safeDest = `/${locale}`;
+      }
       router.push(safeDest as `/${string}`);
     } catch {
       setError("Sign-in failed. Please try again.");

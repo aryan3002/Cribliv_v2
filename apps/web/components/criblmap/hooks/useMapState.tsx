@@ -98,6 +98,21 @@ export interface AlertZone {
   created_at: string;
 }
 
+/* ── Commute reverse-search ──────────────────────────────────────── */
+
+export interface LocalityReachability {
+  locality_id: number;
+  locality_slug: string;
+  locality_name: string;
+  lat: number;
+  lng: number;
+  total_minutes: number;
+  walk_minutes: number;
+  transit_minutes: number;
+  via_station_id: number;
+  via_station_name: string;
+}
+
 /* ── State ────────────────────────────────────────────────────────── */
 
 export type DrawMode = "idle" | "first-corner" | "complete";
@@ -132,6 +147,12 @@ export interface MapState {
    *  for the session — pin clicks now navigate, so this is the only
    *  reliable way to know which listing is the user's "home" reference. */
   originatingListingId: string | null;
+  /** "Where Should I Live?" reverse-search — max acceptable commute (min). */
+  commuteMaxMinutes: number;
+  /** Per-locality reachability for the current office. `null` until the
+   *  user enters an office and the API responds; `[]` means "we have data
+   *  but no localities match" (e.g. unsupported city). */
+  commuteReachability: LocalityReachability[] | null;
 }
 
 /* ── Actions ──────────────────────────────────────────────────────── */
@@ -162,7 +183,9 @@ export type MapAction =
   // Phase 5: Alerts & Commute
   | { type: "SET_ALERT_ZONES"; zones: AlertZone[] }
   | { type: "SET_COMMUTE_ORIGIN"; origin: { lat: number; lng: number; address: string } | null }
-  | { type: "SET_CITY"; city: string };
+  | { type: "SET_CITY"; city: string }
+  | { type: "SET_COMMUTE_MAX_MINUTES"; minutes: number }
+  | { type: "SET_COMMUTE_REACHABILITY"; reachability: LocalityReachability[] | null };
 
 /* ── Reducer ──────────────────────────────────────────────────────── */
 
@@ -184,7 +207,9 @@ const initialState: MapState = {
   alertZones: [],
   commuteOrigin: null,
   city: "delhi",
-  originatingListingId: null
+  originatingListingId: null,
+  commuteMaxMinutes: 45,
+  commuteReachability: null
 };
 
 function mapReducer(state: MapState, action: MapAction): MapState {
@@ -272,10 +297,22 @@ function mapReducer(state: MapState, action: MapAction): MapState {
       return { ...state, alertZones: action.zones };
 
     case "SET_COMMUTE_ORIGIN":
-      return { ...state, commuteOrigin: action.origin };
+      // Clearing the origin also wipes derived reachability — otherwise
+      // the heatmap would linger after the user removed their office.
+      return {
+        ...state,
+        commuteOrigin: action.origin,
+        commuteReachability: action.origin == null ? null : state.commuteReachability
+      };
 
     case "SET_CITY":
       return { ...state, city: action.city };
+
+    case "SET_COMMUTE_MAX_MINUTES":
+      return { ...state, commuteMaxMinutes: action.minutes };
+
+    case "SET_COMMUTE_REACHABILITY":
+      return { ...state, commuteReachability: action.reachability };
 
     default:
       return state;
