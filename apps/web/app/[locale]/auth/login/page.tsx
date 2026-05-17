@@ -1,7 +1,7 @@
 "use client";
 
 import { signIn, getSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, useCallback, Suspense } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Sparkles } from "lucide-react";
@@ -84,7 +84,6 @@ function friendlyError(code: string | null | undefined): string {
 // Inner page component (uses useSearchParams — must be inside Suspense)
 // ---------------------------------------------------------------------------
 function LoginPageInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const fromPath = params.get("from");
 
@@ -209,13 +208,19 @@ function LoginPageInner() {
       } else {
         safeDest = `/${locale}`;
       }
-      router.push(safeDest as `/${string}`);
+
+      // Force a full page navigation instead of router.push. router.push uses
+      // the App Router's client-side cache; if middleware can't yet see the
+      // freshly-set session cookie, it silently bounces back to login and the
+      // URL doesn't change. window.location.href guarantees a fresh request
+      // that includes the new cookie, sidestepping the race entirely.
+      window.location.href = safeDest;
     } catch {
       setError("Sign-in failed. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [challengeId, otp, phone, fromPath, router]);
+  }, [challengeId, otp, phone, fromPath]);
 
   // ------------------------------------------------------------------
   // UI
