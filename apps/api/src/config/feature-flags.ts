@@ -49,6 +49,9 @@ export interface FeatureFlags {
   ff_seeker_pins_enabled: boolean;
   ff_locality_insights_enabled: boolean;
   ff_alert_zones_enabled: boolean;
+  /** Phase G – Rent Agreement v2 (backend) */
+  ff_rent_agreement_enabled: boolean;
+  ff_rent_agreement_admin_enabled: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -101,7 +104,10 @@ export const defaultFeatureFlags: FeatureFlags = {
   /** Phase G – CriblMap Advanced (default OFF) */
   ff_seeker_pins_enabled: false,
   ff_locality_insights_enabled: false,
-  ff_alert_zones_enabled: false
+  ff_alert_zones_enabled: false,
+  /** Phase G – Rent Agreement v2 (default OFF; gated until PAN key + IP salt validated at boot) */
+  ff_rent_agreement_enabled: false,
+  ff_rent_agreement_admin_enabled: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -282,6 +288,14 @@ export function readFeatureFlags(): FeatureFlags {
     ff_alert_zones_enabled: parseBooleanEnv(
       "FF_ALERT_ZONES_ENABLED",
       defaultFeatureFlags.ff_alert_zones_enabled
+    ),
+    ff_rent_agreement_enabled: parseBooleanEnv(
+      "FF_RENT_AGREEMENT_ENABLED",
+      defaultFeatureFlags.ff_rent_agreement_enabled
+    ),
+    ff_rent_agreement_admin_enabled: parseBooleanEnv(
+      "FF_RENT_AGREEMENT_ADMIN_ENABLED",
+      defaultFeatureFlags.ff_rent_agreement_admin_enabled
     )
   };
 }
