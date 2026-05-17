@@ -38,7 +38,7 @@ interface LocalityInsightCardProps {
 }
 
 export function LocalityInsightCard({ locale }: LocalityInsightCardProps) {
-  const { panelContent } = useMapState();
+  const { panelContent, city } = useMapState();
   const dispatch = useMapDispatch();
   const [insight, setInsight] = useState<LocalityInsight | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,10 +52,15 @@ export function LocalityInsightCard({ locale }: LocalityInsightCardProps) {
     let cancelled = false;
     setLoading(true);
 
+    // Use the current city from map state (auto-detected from viewport bbox
+    // — see lib/city-bboxes.ts). Was hardcoded to "delhi", which made every
+    // insight query the wrong city's localities and surfaced whatever Delhi
+    // locality happened to be nearest to the clicked coord (typically
+    // "Dwarka"). Now respects the actual city the user is exploring.
     const params = buildSearchQuery({
       lat,
       lng,
-      city: "delhi",
+      city,
       locale
     });
 
@@ -71,7 +76,7 @@ export function LocalityInsightCard({ locale }: LocalityInsightCardProps) {
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, locale]);
+  }, [lat, lng, locale, city]);
 
   if (loading) {
     return (

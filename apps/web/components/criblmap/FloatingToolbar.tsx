@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RectangleHorizontal, TrainFront, MapPinPlus, Flame, Navigation, Bell } from "lucide-react";
+import {
+  RectangleHorizontal,
+  TrainFront,
+  MapPinPlus,
+  Flame,
+  Navigation,
+  Bell,
+  Info
+} from "lucide-react";
 import { useMapState, useMapDispatch } from "./hooks/useMapState";
 import { useMetroData } from "./hooks/useMetroData";
 
@@ -17,7 +25,8 @@ function prettyCity(slug: string): string {
 }
 
 export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
-  const { panelContent, drawMode, metroVisible, demandViewActive, commuteOrigin } = useMapState();
+  const { panelContent, drawMode, metroVisible, demandViewActive, commuteOrigin, center } =
+    useMapState();
   const dispatch = useMapDispatch();
   const panelOpen = panelContent.type !== "none";
 
@@ -119,6 +128,26 @@ export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
           dispatch({ type: "SET_COMMUTE_ORIGIN", origin: null });
         } else {
           onCommuteClick?.();
+        }
+      }
+    },
+    {
+      id: "insight",
+      label: "Insight",
+      icon: Info,
+      active: panelContent.type === "locality-insight",
+      tooltip:
+        panelContent.type === "locality-insight"
+          ? "Close locality insight"
+          : "Locality insight (or right-click anywhere on the map)",
+      onClick: () => {
+        if (panelContent.type === "locality-insight") {
+          dispatch({ type: "SET_PANEL", panelContent: { type: "none" } });
+        } else {
+          dispatch({
+            type: "SET_PANEL",
+            panelContent: { type: "locality-insight", lat: center.lat, lng: center.lng }
+          });
         }
       }
     }

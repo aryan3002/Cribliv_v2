@@ -434,7 +434,11 @@ export class MapService {
     city: string,
     locale: string = "en"
   ): Promise<LocalityInsight> {
-    const cacheKey = `${lat.toFixed(3)}_${lng.toFixed(3)}_${locale}`;
+    // Cache key includes the city slug — otherwise a (lat, lng) coord that
+    // got cached under one city would silently serve the wrong city's
+    // nearest-locality answer to subsequent queries (the bug behind the
+    // "always shows Dwarka" symptom).
+    const cacheKey = `${city.toLowerCase()}_${lat.toFixed(3)}_${lng.toFixed(3)}_${locale}`;
     const cached = this.localityCache.get(cacheKey);
     if (cached && Date.now() - cached.at < 3600_000) {
       return cached.data;

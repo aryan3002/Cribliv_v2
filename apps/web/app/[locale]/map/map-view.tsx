@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { CriblMapCanvas } from "../../../components/criblmap/CriblMapCanvas";
 import { ListingPinLayer } from "../../../components/criblmap/ListingPinLayer";
 import { TopBar } from "../../../components/criblmap/TopBar";
@@ -79,32 +79,26 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
     [mapInstance]
   );
 
-  // Long-press for locality insight
-  const longPressRef = useRef<ReturnType<typeof setTimeout>>();
-  const handleMapMouseDown = useCallback(() => {
-    if (drawMode !== "idle") return;
-    longPressRef.current = setTimeout(() => {
-      if (mapInstance) {
-        const center = mapInstance.getCenter();
-        if (center) {
-          dispatch({
-            type: "SET_PANEL",
-            panelContent: {
-              type: "locality-insight",
-              lat: center.lat(),
-              lng: center.lng()
-            }
-          });
+  // Right-click on the map → locality insight for that exact point.
+  // (The old long-press handler fought with map drag — every pan over 600ms
+  // popped the panel. Right-click is intentional, doesn't conflict with
+  // drag, and uses the precise clicked coordinate.)
+  useEffect(() => {
+    if (!mapInstance) return;
+    const listener = mapInstance.addListener("rightclick", (e: google.maps.MapMouseEvent) => {
+      if (drawMode !== "idle") return;
+      if (!e.latLng) return;
+      dispatch({
+        type: "SET_PANEL",
+        panelContent: {
+          type: "locality-insight",
+          lat: e.latLng.lat(),
+          lng: e.latLng.lng()
         }
-      }
-    }, 600);
+      });
+    });
+    return () => listener.remove();
   }, [mapInstance, drawMode, dispatch]);
-
-  const handleMapMouseUp = useCallback(() => {
-    if (longPressRef.current) {
-      clearTimeout(longPressRef.current);
-    }
-  }, []);
 
   // Alert zone modal trigger from AreaStatsPanel
   useEffect(() => {
@@ -115,13 +109,7 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
   }, [panelContent.type, showAlertZone, dispatch]);
 
   return (
-    <div
-      className="criblmap-root"
-      onMouseDown={handleMapMouseDown}
-      onMouseUp={handleMapMouseUp}
-      onTouchStart={handleMapMouseDown}
-      onTouchEnd={handleMapMouseUp}
-    >
+    <div className="criblmap-root">
       <CriblMapCanvas
         onMapReady={handleMapReady}
         initialCenter={initialCenter}
