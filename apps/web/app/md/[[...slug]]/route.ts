@@ -14,18 +14,21 @@ function isLocale(s: string): s is (typeof LOCALES)[number] {
 }
 
 /**
- * Internal markdown rendering route. Reachable via the middleware-driven
- * rewrite from a public URL when the request carried `Accept: text/markdown`,
- * or directly for debugging.
+ * Internal markdown rendering route used by the Accept: text/markdown
+ * content-negotiation middleware. Not for human navigation, but kept on a
+ * public (non-underscore) path so Next's App Router will actually route it
+ * — folders prefixed with `_` are excluded from routing.
+ *
+ * Optional catch-all `[[...slug]]` so a bare `/md` also resolves to home.
  *
  * Slug shapes handled:
- *   /_md                 → root home
- *   /_md/home            → home
- *   /_md/{locale}        → locale home
- *   /_md/{locale}/{page} → static page (about, faq, pricing, ...)
- *   /_md/{locale}/listing/{id}
- *   /_md/{locale}/pg/{id}
- *   /_md/{locale}/city/{citySlug}
+ *   /md                 → home (bare)
+ *   /md/home            → home
+ *   /md/{locale}        → locale home
+ *   /md/{locale}/{page} → static page (about, faq, pricing, ...)
+ *   /md/{locale}/listing/{id}
+ *   /md/{locale}/pg/{id}
+ *   /md/{locale}/city/{citySlug}
  */
 export async function GET(_req: NextRequest, { params }: { params: { slug?: string[] } }) {
   const parts = params.slug ?? [];

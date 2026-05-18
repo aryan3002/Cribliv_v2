@@ -45,7 +45,7 @@ const PUBLIC_PREFIXES = [
   "/favicon",
   "/public",
   "/.well-known",
-  "/_md",
+  "/md",
   "/docs/api",
   "/robots.txt"
 ];
@@ -113,11 +113,12 @@ function prefersMarkdown(acceptHeader: string | null): boolean {
 
 /**
  * If the request path corresponds to a route that has a markdown variant,
- * return the path under /_md/... to rewrite to. Otherwise return null.
+ * return the path under /md/... to rewrite to. Otherwise return null.
  */
 function markdownRewritePath(pathname: string): string | null {
-  // Root → /_md
-  if (pathname === "/") return "/_md";
+  // NOTE: target uses /md/... not /_md/... — Next.js App Router treats any
+  // folder whose name starts with `_` as a private (non-routed) directory.
+  if (pathname === "/") return "/md/home";
 
   // Strip locale prefix
   const m = pathname.match(/^\/(en|hi)(\/.*)?$/);
@@ -126,18 +127,18 @@ function markdownRewritePath(pathname: string): string | null {
   const tail = (m[2] ?? "").replace(/^\/+|\/+$/g, "");
 
   if (tail === "") {
-    return `/_md/${locale}`;
+    return `/md/${locale}`;
   }
 
   const segments = tail.split("/");
   if (segments.length === 1 && MARKDOWN_NEGOTIATED_PATHS.has(segments[0])) {
-    return `/_md/${locale}/${segments[0]}`;
+    return `/md/${locale}/${segments[0]}`;
   }
   if (
     segments.length === 2 &&
     (MARKDOWN_NEGOTIATED_DYNAMIC as readonly string[]).includes(segments[0])
   ) {
-    return `/_md/${locale}/${segments[0]}/${encodeURIComponent(segments[1])}`;
+    return `/md/${locale}/${segments[0]}/${encodeURIComponent(segments[1])}`;
   }
   return null;
 }
@@ -150,7 +151,7 @@ export default auth((req) => {
   const session = req.auth;
 
   // 0. Markdown content negotiation. If the agent prefers text/markdown over
-  // text/html and the path has a markdown variant, rewrite to /_md/... so the
+  // text/html and the path has a markdown variant, rewrite to /md/... so the
   // markdown route handler can render. We do this BEFORE the locale redirect
   // so `/` with `Accept: text/markdown` returns home.md rather than 302'ing.
   if (req.method === "GET") {
@@ -260,7 +261,7 @@ export const config = {
     "/hi/owner/:path*",
     "/hi/admin/:path*",
     // Markdown content negotiation surfaces (middleware checks Accept header
-    // and may rewrite to /_md/... for agents).
+    // and may rewrite to /md/... for agents).
     "/en",
     "/hi",
     "/en/about",

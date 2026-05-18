@@ -100,4 +100,28 @@ test.describe("agent discovery surface", () => {
     const res = await request.get("/en");
     expect(res.headers()["content-type"]).toMatch(/text\/html/);
   });
+
+  // Regression: scanner hits the apex URL with Accept: text/markdown. Previously
+  // the rewrite landed on /_md (zero segments) which did not match the
+  // [...slug] catch-all → 404. The rewrite now targets /_md/home and the route
+  // is [[...slug]] so bare /_md would also resolve.
+  test("apex URL returns markdown when negotiated (not 404)", async ({ request }) => {
+    const res = await request.fetch("/", {
+      headers: { Accept: "text/markdown" },
+      maxRedirects: 0
+    });
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toMatch(/text\/markdown/);
+    expect(res.headers()["x-markdown-tokens"]).toMatch(/^\d+$/);
+    const body = await res.text();
+    expect(body).toMatch(/^#\s+Cribliv/m);
+  });
+
+  test("bare /md route also renders home (defensive fallback)", async ({ request }) => {
+    const res = await request.get("/md");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toMatch(/text\/markdown/);
+    const body = await res.text();
+    expect(body).toMatch(/^#\s+Cribliv/m);
+  });
 });
