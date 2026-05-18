@@ -122,7 +122,28 @@ const nextConfig = {
       .filter(Boolean)
       .join(" ");
 
+    // RFC 8288 Link header advertising agent-discoverable resources.
+    // Single Link header value with comma-separated link entries (RFC 8288 §3).
+    const agentLinkHeader = [
+      '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
+      '</v1/openapi.json>; rel="service-desc"; type="application/openapi+json"',
+      '</docs/api>; rel="service-doc"; type="text/html"',
+      '</.well-known/agent-skills/index.json>; rel="https://agentskills.io/rel/index"; type="application/json"',
+      '</.well-known/mcp/server-card.json>; rel="https://modelcontextprotocol.io/rel/server-card"; type="application/json"'
+    ].join(", ");
+
     return [
+      // Agent-discovery Link headers on the homepage routes only.
+      // (Per RFC 9727 the catalog hint belongs on the home/root resource,
+      // not on every URL.)
+      {
+        source: "/",
+        headers: [{ key: "Link", value: agentLinkHeader }]
+      },
+      {
+        source: "/:locale(en|hi)",
+        headers: [{ key: "Link", value: agentLinkHeader }]
+      },
       {
         source: "/(.*)",
         headers: [
@@ -131,7 +152,7 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               // Google Maps JS API + PostHog SDK
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.gstatic.com https://*.posthog.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.gstatic.com https://*.posthog.com https://cdn.redoc.ly https://cdn.jsdelivr.net",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' https://fonts.gstatic.com",

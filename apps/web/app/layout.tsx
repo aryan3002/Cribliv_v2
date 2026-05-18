@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "../components/auth/session-provider";
 import { PostHogProvider } from "../components/analytics/posthog-provider";
+import { WebMcpProvider } from "../components/agent/web-mcp-provider";
 import { Inter, Manrope, Space_Grotesk, Fraunces, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SessionProvider>
           <PostHogProvider>{children}</PostHogProvider>
         </SessionProvider>
+        <WebMcpProvider />
       </body>
     </html>
   );

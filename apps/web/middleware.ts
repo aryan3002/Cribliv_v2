@@ -43,8 +43,27 @@ const PUBLIC_PREFIXES = [
   "/hi/map",
   "/_next",
   "/favicon",
-  "/public"
+  "/public",
+  "/.well-known",
+  "/_md",
+  "/docs/api",
+  "/robots.txt"
 ];
+
+const MARKDOWN_NEGOTIATED_PATHS = new Set([
+  "",
+  "home",
+  "about",
+  "how-it-works",
+  "pricing",
+  "faq",
+  "become-owner",
+  "contact",
+  "privacy",
+  "terms"
+]);
+
+const MARKDOWN_NEGOTIATED_DYNAMIC = ["listing", "pg", "city"] as const;
 
 const locales = ["en", "hi"] as const;
 
@@ -67,12 +86,86 @@ function hasRequiredRole(userRole: UserRole | undefined, allowedRoles: UserRole[
   return allowedRoles.includes(userRole);
 }
 
+/**
+ * Returns true if the client prefers markdown over HTML.
+ *
+ * Parses the Accept header with q-values per RFC 9110 §12.5.1. We only rewrite
+ * when text/markdown's q > text/html's q (defaulting to q=1 when absent).
+ */
+function prefersMarkdown(acceptHeader: string | null): boolean {
+  if (!acceptHeader) return false;
+  if (!acceptHeader.includes("text/markdown")) return false;
+  const parts = acceptHeader.split(",").map((s) => s.trim());
+  let mdQ = 0;
+  let htmlQ = 0;
+  for (const part of parts) {
+    const [type, ...params] = part.split(";").map((s) => s.trim());
+    let q = 1;
+    for (const p of params) {
+      const m = p.match(/^q=([\d.]+)$/);
+      if (m) q = Number(m[1]);
+    }
+    if (type === "text/markdown") mdQ = Math.max(mdQ, q);
+    else if (type === "text/html") htmlQ = Math.max(htmlQ, q);
+  }
+  return mdQ > 0 && mdQ >= htmlQ;
+}
+
+/**
+ * If the request path corresponds to a route that has a markdown variant,
+ * return the path under /_md/... to rewrite to. Otherwise return null.
+ */
+function markdownRewritePath(pathname: string): string | null {
+  // Root → /_md
+  if (pathname === "/") return "/_md";
+
+  // Strip locale prefix
+  const m = pathname.match(/^\/(en|hi)(\/.*)?$/);
+  if (!m) return null;
+  const locale = m[1];
+  const tail = (m[2] ?? "").replace(/^\/+|\/+$/g, "");
+
+  if (tail === "") {
+    return `/_md/${locale}`;
+  }
+
+  const segments = tail.split("/");
+  if (segments.length === 1 && MARKDOWN_NEGOTIATED_PATHS.has(segments[0])) {
+    return `/_md/${locale}/${segments[0]}`;
+  }
+  if (
+    segments.length === 2 &&
+    (MARKDOWN_NEGOTIATED_DYNAMIC as readonly string[]).includes(segments[0])
+  ) {
+    return `/_md/${locale}/${segments[0]}/${encodeURIComponent(segments[1])}`;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Middleware (runs on the edge — all request handling here must be edge-safe)
 // ---------------------------------------------------------------------------
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
+
+  // 0. Markdown content negotiation. If the agent prefers text/markdown over
+  // text/html and the path has a markdown variant, rewrite to /_md/... so the
+  // markdown route handler can render. We do this BEFORE the locale redirect
+  // so `/` with `Accept: text/markdown` returns home.md rather than 302'ing.
+  if (req.method === "GET") {
+    const accept = req.headers.get("accept");
+    if (prefersMarkdown(accept)) {
+      const rewriteTo = markdownRewritePath(pathname);
+      if (rewriteTo) {
+        const url = req.nextUrl.clone();
+        url.pathname = rewriteTo;
+        const res = NextResponse.rewrite(url);
+        res.headers.append("Vary", "Accept");
+        return res;
+      }
+    }
+  }
 
   // 1. Root "/" → redirect to locale home
   if (pathname === "/") {
@@ -133,6 +226,10 @@ export default auth((req) => {
   if (localeMatch) {
     response.headers.set("x-locale", localeMatch[1]);
   }
+  // Negotiated paths must Vary on Accept so CDNs don't conflate html vs md.
+  if (markdownRewritePath(pathname)) {
+    response.headers.append("Vary", "Accept");
+  }
   return response;
 });
 
@@ -161,6 +258,32 @@ export const config = {
     "/en/admin/:path*",
     "/hi/tenant/:path*",
     "/hi/owner/:path*",
-    "/hi/admin/:path*"
+    "/hi/admin/:path*",
+    // Markdown content negotiation surfaces (middleware checks Accept header
+    // and may rewrite to /_md/... for agents).
+    "/en",
+    "/hi",
+    "/en/about",
+    "/en/how-it-works",
+    "/en/pricing",
+    "/en/faq",
+    "/en/become-owner",
+    "/en/contact",
+    "/en/privacy",
+    "/en/terms",
+    "/hi/about",
+    "/hi/how-it-works",
+    "/hi/pricing",
+    "/hi/faq",
+    "/hi/become-owner",
+    "/hi/contact",
+    "/hi/privacy",
+    "/hi/terms",
+    "/en/listing/:id",
+    "/hi/listing/:id",
+    "/en/pg/:id",
+    "/hi/pg/:id",
+    "/en/city/:city",
+    "/hi/city/:city"
   ]
 };

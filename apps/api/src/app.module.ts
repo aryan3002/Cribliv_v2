@@ -31,6 +31,7 @@ import { AlertsModule } from "./modules/alerts/alerts.module";
 import { MapModule } from "./modules/map/map.module";
 import { LandmarksModule } from "./modules/landmarks/landmarks.module";
 import { SeoModule } from "./modules/seo/seo.module";
+import { OpenApiModule } from "./modules/openapi/openapi.module";
 
 @Module({
   imports: [
@@ -65,7 +66,8 @@ import { SeoModule } from "./modules/seo/seo.module";
     AlertsModule,
     MapModule,
     LandmarksModule,
-    SeoModule
+    SeoModule,
+    OpenApiModule
   ],
   providers: [
     // Apply ThrottlerGuard globally to all routes
