@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import {
@@ -36,6 +37,21 @@ interface MenuItem {
   external?: boolean;
 }
 
+const MOBILE_MENU_PORTAL_MQ = "(max-width: 640px)";
+
+function useMatchMedia(query: string): boolean {
+  return useSyncExternalStore(
+    (onStoreChange) => {
+      if (typeof window === "undefined") return () => {};
+      const mq = window.matchMedia(query);
+      mq.addEventListener("change", onStoreChange);
+      return () => mq.removeEventListener("change", onStoreChange);
+    },
+    () => (typeof window === "undefined" ? false : window.matchMedia(query).matches),
+    () => false
+  );
+}
+
 export function HeaderMenu({ locale }: { locale: Locale }) {
   const { data: session, status } = useSession();
   const role = session?.user?.role;
@@ -44,19 +60,22 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
   const isLoggedIn = !!session;
 
   const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const portalRootRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const portalMenuToBody = useMatchMedia(MOBILE_MENU_PORTAL_MQ);
 
-  // Close on outside click
+  // Close on outside pointerdown (portal menu is outside triggerRef subtree)
   useEffect(() => {
     if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    const handler = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t)) return;
+      if (portalRootRef.current?.contains(t)) return;
+      setOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("pointerdown", handler);
+    return () => document.removeEventListener("pointerdown", handler);
   }, [open]);
 
   // Close on Escape
@@ -74,10 +93,10 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
     setOpen(false);
   }, [pathname]);
 
-  // Lock body scroll when mobile sheet is open
+  // Lock body scroll when mobile sheet is open (matches CSS sheet breakpoint)
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (open && window.innerWidth <= 768) {
+    if (open && window.matchMedia(MOBILE_MENU_PORTAL_MQ).matches) {
       const prev = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       return () => {
@@ -211,8 +230,42 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
     ? phone.replace(/\D/g, "").slice(-2, -1) || "U"
     : session?.user?.name?.charAt(0)?.toUpperCase() || "U";
 
+  const menuOverlay = open && (
+    <>
+      <div className="menu-popover-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
+      <div className="menu-popover" role="menu">
+        {isLoggedIn && (
+          <div className="menu-header">
+            <div className="menu-header__avatar">{initial}</div>
+            <div className="menu-header__text">
+              <span className="menu-header__name">
+                {phone ? formatPhone(phone) : session?.user?.name || "Account"}
+              </span>
+              {role && <span className="menu-header__role">{role}</span>}
+            </div>
+          </div>
+        )}
+
+        {primary.length > 0 && <div className="menu-section">{primary.map(renderMenuItem)}</div>}
+
+        {account.length > 0 && <div className="menu-section">{account.map(renderMenuItem)}</div>}
+
+        <div className="menu-divider" role="separator" />
+
+        <div className="menu-section">{explore.map(renderMenuItem)}</div>
+
+        {footer.length > 0 && (
+          <>
+            <div className="menu-divider" role="separator" />
+            <div className="menu-section">{footer.map(renderMenuItem)}</div>
+          </>
+        )}
+      </div>
+    </>
+  );
+
   return (
-    <div className="header-menu" ref={wrapperRef}>
+    <div className="header-menu" ref={triggerRef}>
       <button
         type="button"
         className={`profile-pill${open ? " profile-pill--open" : ""}`}
@@ -233,47 +286,19 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
         </span>
       </button>
 
-      {open && (
-        <>
-          <div
-            className="menu-popover-backdrop"
-            onClick={() => setOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="menu-popover" role="menu">
-            {isLoggedIn && (
-              <div className="menu-header">
-                <div className="menu-header__avatar">{initial}</div>
-                <div className="menu-header__text">
-                  <span className="menu-header__name">
-                    {phone ? formatPhone(phone) : session?.user?.name || "Account"}
-                  </span>
-                  {role && <span className="menu-header__role">{role}</span>}
-                </div>
-              </div>
-            )}
-
-            {primary.length > 0 && (
-              <div className="menu-section">{primary.map(renderMenuItem)}</div>
-            )}
-
-            {account.length > 0 && (
-              <div className="menu-section">{account.map(renderMenuItem)}</div>
-            )}
-
-            <div className="menu-divider" role="separator" />
-
-            <div className="menu-section">{explore.map(renderMenuItem)}</div>
-
-            {footer.length > 0 && (
-              <>
-                <div className="menu-divider" role="separator" />
-                <div className="menu-section">{footer.map(renderMenuItem)}</div>
-              </>
-            )}
-          </div>
-        </>
-      )}
+      {menuOverlay &&
+        (portalMenuToBody
+          ? createPortal(
+              <div
+                className="header-menu-portal-root"
+                ref={portalRootRef}
+                data-header-menu-portal=""
+              >
+                {menuOverlay}
+              </div>,
+              document.body
+            )
+          : menuOverlay)}
     </div>
   );
 }
