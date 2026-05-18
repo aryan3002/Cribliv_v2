@@ -153,6 +153,10 @@ export interface MapState {
    *  user enters an office and the API responds; `[]` means "we have data
    *  but no localities match" (e.g. unsupported city). */
   commuteReachability: LocalityReachability[] | null;
+  /** Fetch-time error for the reachability call (404, 5xx, network drop).
+   *  Distinguished from `commuteReachability === []` so the UI can show
+   *  "service unavailable" instead of misleading "city has no metro." */
+  commuteReachabilityError: string | null;
 }
 
 /* ── Actions ──────────────────────────────────────────────────────── */
@@ -185,7 +189,8 @@ export type MapAction =
   | { type: "SET_COMMUTE_ORIGIN"; origin: { lat: number; lng: number; address: string } | null }
   | { type: "SET_CITY"; city: string }
   | { type: "SET_COMMUTE_MAX_MINUTES"; minutes: number }
-  | { type: "SET_COMMUTE_REACHABILITY"; reachability: LocalityReachability[] | null };
+  | { type: "SET_COMMUTE_REACHABILITY"; reachability: LocalityReachability[] | null }
+  | { type: "SET_COMMUTE_REACHABILITY_ERROR"; error: string | null };
 
 /* ── Reducer ──────────────────────────────────────────────────────── */
 
@@ -209,7 +214,8 @@ const initialState: MapState = {
   city: "delhi",
   originatingListingId: null,
   commuteMaxMinutes: 45,
-  commuteReachability: null
+  commuteReachability: null,
+  commuteReachabilityError: null
 };
 
 function mapReducer(state: MapState, action: MapAction): MapState {
@@ -297,12 +303,14 @@ function mapReducer(state: MapState, action: MapAction): MapState {
       return { ...state, alertZones: action.zones };
 
     case "SET_COMMUTE_ORIGIN":
-      // Clearing the origin also wipes derived reachability — otherwise
-      // the heatmap would linger after the user removed their office.
+      // Clearing the origin also wipes derived reachability AND any stale
+      // error — otherwise the heatmap or error banner lingers after the
+      // user removed their office.
       return {
         ...state,
         commuteOrigin: action.origin,
-        commuteReachability: action.origin == null ? null : state.commuteReachability
+        commuteReachability: action.origin == null ? null : state.commuteReachability,
+        commuteReachabilityError: action.origin == null ? null : state.commuteReachabilityError
       };
 
     case "SET_CITY":
@@ -312,7 +320,21 @@ function mapReducer(state: MapState, action: MapAction): MapState {
       return { ...state, commuteMaxMinutes: action.minutes };
 
     case "SET_COMMUTE_REACHABILITY":
-      return { ...state, commuteReachability: action.reachability };
+      // Clear any stale error when a successful response lands.
+      return {
+        ...state,
+        commuteReachability: action.reachability,
+        commuteReachabilityError: null
+      };
+
+    case "SET_COMMUTE_REACHABILITY_ERROR":
+      // When the request fails, also wipe stale reachability data so the
+      // UI can't accidentally render half-loaded results.
+      return {
+        ...state,
+        commuteReachability: null,
+        commuteReachabilityError: action.error
+      };
 
     default:
       return state;

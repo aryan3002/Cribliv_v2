@@ -28,7 +28,8 @@ const STEP_COMMUTE = 5;
  * see plan doc for the rationale.
  */
 export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayProps) {
-  const { commuteOrigin, commuteMaxMinutes, commuteReachability, city } = useMapState();
+  const { commuteOrigin, commuteMaxMinutes, commuteReachability, commuteReachabilityError, city } =
+    useMapState();
   const dispatch = useMapDispatch();
   const originMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const [address, setAddress] = useState("");
@@ -111,8 +112,17 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
             reachability: Array.isArray(res?.localities) ? res.localities : []
           });
         })
-        .catch(() => {
-          dispatch({ type: "SET_COMMUTE_REACHABILITY", reachability: [] });
+        .catch((err: unknown) => {
+          // Treat fetch failures as a real error state — DON'T silently set
+          // reachability to []. The empty array specifically means "API
+          // confirmed no localities for this city"; an error means "we don't
+          // know yet." Conflating the two told users "city has no metro"
+          // when in fact the endpoint had 404'd / 500'd / dropped.
+          const message =
+            err instanceof Error && err.message
+              ? err.message
+              : "Couldn't reach the commute service";
+          dispatch({ type: "SET_COMMUTE_REACHABILITY_ERROR", error: message });
         })
         .finally(() => setFetching(false));
     }, 300);
@@ -124,7 +134,9 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
 
   const reachableCount =
     commuteReachability?.filter((l) => l.total_minutes <= commuteMaxMinutes).length ?? 0;
-  const unsupportedCity = commuteReachability !== null && commuteReachability.length === 0;
+  const unsupportedCity =
+    !commuteReachabilityError && commuteReachability !== null && commuteReachability.length === 0;
+  const hasError = Boolean(commuteReachabilityError);
 
   return (
     <>
@@ -186,6 +198,10 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
                 <Sparkles size={12} className="cmap-spin" />
                 <span>Computing commute…</span>
               </>
+            ) : hasError ? (
+              <span className="cmap-commute-panel__result--warn">
+                Commute service is unavailable right now — try again in a moment.
+              </span>
             ) : unsupportedCity ? (
               <span className="cmap-commute-panel__result--warn">
                 Reverse search needs a city with metro data — pick Delhi, Lucknow, Noida, Gurugram,
