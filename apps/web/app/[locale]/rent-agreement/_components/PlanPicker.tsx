@@ -7,13 +7,16 @@ export function PlanPicker(props: {
   onChange: (v: { plan: PlanId; locale: Locale }) => void;
 }) {
   const plans = usePlans();
-  if (plans.isLoading) return <p>Loading plans…</p>;
-  if (plans.isError) return <p>Failed to load plans.</p>;
+  if (plans.isLoading) return <p className="ra-loading">Loading plans…</p>;
+  if (plans.isError) return <p className="ra-error">Failed to load plans.</p>;
   return (
-    <div className="space-y-2">
-      <div role="radiogroup" aria-label="Plan" className="space-y-1">
+    <div>
+      <div role="radiogroup" aria-label="Plan" className="ra-plan-grid">
         {plans.data?.map((p) => (
-          <label key={p.id} className="flex items-center gap-2">
+          <label
+            key={p.id}
+            className={`ra-plan-card${props.value.plan === p.id ? " ra-plan-card--selected" : ""}`}
+          >
             <input
               type="radio"
               name="plan"
@@ -21,14 +24,25 @@ export function PlanPicker(props: {
               checked={props.value.plan === p.id}
               onChange={() => props.onChange({ ...props.value, plan: p.id })}
             />
-            <span className="font-medium">{p.display_name}</span>
-            <span className="text-gray-600 text-sm">₹{(p.amount_paise / 100).toFixed(2)}</span>
+            <span className="ra-plan-name">{p.display_name}</span>
+            <div className="ra-plan-price">₹{(p.amount_paise / 100).toFixed(0)}</div>
+            {p.features.length > 0 && (
+              <ul className="ra-plan-feature-list">
+                {p.features.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
+              </ul>
+            )}
           </label>
         ))}
       </div>
-      <label className="flex items-center gap-2">
-        <span>Locale:</span>
+      <label className="ra-locale-row">
+        <span>
+          <b>Agreement language</b>
+          <span className="ra-hint">Choose the language printed in the generated document.</span>
+        </span>
         <select
+          className="ra-select"
           value={props.value.locale}
           onChange={(e) => props.onChange({ ...props.value, locale: e.target.value as Locale })}
         >

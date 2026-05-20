@@ -36,6 +36,6 @@ export function StepForm({ step, agreementId, onSubmit, busy }: StepFormProps) {
     case 7:
       return <Step7Form {...props} />;
     default:
-      return <p className="text-red-700">Unknown step: {step}</p>;
+      return <p className="ra-error">Unknown step: {step}</p>;
   }
 }

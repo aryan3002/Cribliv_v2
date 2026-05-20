@@ -82,112 +82,132 @@ function PartySection({ prefix, heading, fields, onChange, isTenant }: PartySect
   const id = (key: string) => `${prefix}-${key}`;
   // Label text uses the prefix (owner/tenant) so tests can query by /owner.*full name/i or /tenant.*full name/i
   const lbl = prefix.charAt(0).toUpperCase() + prefix.slice(1); // "Owner" | "Tenant"
-  const inputCls = "border rounded px-2 py-1 w-full";
+  const inputCls = "ra-input";
 
   return (
-    <fieldset className="mb-6">
-      <legend className="text-lg font-semibold mb-3">{heading}</legend>
+    <fieldset className="ra-form-section">
+      <legend className="ra-form-section-title">{heading}</legend>
 
-      <div className="mb-3">
-        <label htmlFor={id("full_name")}>{lbl} Full Name</label>
-        <input
-          id={id("full_name")}
-          type="text"
-          className={inputCls}
-          value={fields.full_name}
-          onChange={(e) => onChange("full_name", e.target.value)}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={id("father_name")}>{lbl} Father Name</label>
-        <input
-          id={id("father_name")}
-          type="text"
-          className={inputCls}
-          value={fields.father_name}
-          onChange={(e) => onChange("father_name", e.target.value)}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={id("age")}>{lbl} Age</label>
-        <input
-          id={id("age")}
-          type="number"
-          className={inputCls}
-          value={fields.age}
-          onChange={(e) => onChange("age", e.target.value)}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={id("phone")}>{lbl} Phone</label>
-        <input
-          id={id("phone")}
-          type="text"
-          className={inputCls}
-          value={fields.phone}
-          onChange={(e) => onChange("phone", e.target.value)}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={id("email")}>{lbl} Email (optional)</label>
-        <input
-          id={id("email")}
-          type="email"
-          className={inputCls}
-          value={fields.email}
-          onChange={(e) => onChange("email", e.target.value)}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={id("permanent_address")}>{lbl} Permanent Address</label>
-        <textarea
-          id={id("permanent_address")}
-          className={inputCls}
-          value={fields.permanent_address}
-          onChange={(e) => onChange("permanent_address", e.target.value)}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={id("pan")}>{lbl} PAN (optional)</label>
-        <input
-          id={id("pan")}
-          type="text"
-          className={inputCls}
-          value={fields.pan}
-          onChange={(e) => onChange("pan", e.target.value.toUpperCase())}
-        />
-      </div>
-
-      <div className="mb-3">
-        <label htmlFor={id("aadhaar_last4")}>{lbl} Aadhaar Last 4 Digits (optional)</label>
-        <input
-          id={id("aadhaar_last4")}
-          type="text"
-          className={inputCls}
-          maxLength={4}
-          value={fields.aadhaar_last4}
-          onChange={(e) => onChange("aadhaar_last4", e.target.value)}
-        />
-      </div>
-
-      {isTenant && (
-        <div className="mb-3">
-          <label htmlFor={id("tenant_company_name")}>{lbl} Company Name (optional)</label>
+      <div className="ra-form-grid">
+        <div className="ra-field">
+          <label htmlFor={id("full_name")} className="ra-label">
+            {lbl} Full Name
+          </label>
           <input
-            id={id("tenant_company_name")}
+            id={id("full_name")}
             type="text"
             className={inputCls}
-            value={(fields as TenantFields).tenant_company_name}
-            onChange={(e) => onChange("tenant_company_name", e.target.value)}
+            value={fields.full_name}
+            onChange={(e) => onChange("full_name", e.target.value)}
           />
         </div>
-      )}
+
+        <div className="ra-field">
+          <label htmlFor={id("father_name")} className="ra-label">
+            {lbl} Father Name
+          </label>
+          <input
+            id={id("father_name")}
+            type="text"
+            className={inputCls}
+            value={fields.father_name}
+            onChange={(e) => onChange("father_name", e.target.value)}
+          />
+        </div>
+
+        <div className="ra-field">
+          <label htmlFor={id("age")} className="ra-label">
+            {lbl} Age
+          </label>
+          <input
+            id={id("age")}
+            type="number"
+            className={inputCls}
+            value={fields.age}
+            onChange={(e) => onChange("age", e.target.value)}
+          />
+        </div>
+
+        <div className="ra-field">
+          <label htmlFor={id("phone")} className="ra-label">
+            {lbl} Phone
+          </label>
+          <input
+            id={id("phone")}
+            type="text"
+            className={inputCls}
+            value={fields.phone}
+            onChange={(e) => onChange("phone", e.target.value)}
+          />
+        </div>
+
+        <div className="ra-field">
+          <label htmlFor={id("email")} className="ra-label">
+            {lbl} Email (optional)
+          </label>
+          <input
+            id={id("email")}
+            type="email"
+            className={inputCls}
+            value={fields.email}
+            onChange={(e) => onChange("email", e.target.value)}
+          />
+        </div>
+
+        <div className="ra-field-full">
+          <label htmlFor={id("permanent_address")} className="ra-label">
+            {lbl} Permanent Address
+          </label>
+          <textarea
+            id={id("permanent_address")}
+            className="ra-textarea"
+            value={fields.permanent_address}
+            onChange={(e) => onChange("permanent_address", e.target.value)}
+          />
+        </div>
+
+        <div className="ra-field">
+          <label htmlFor={id("pan")} className="ra-label">
+            {lbl} PAN (optional)
+          </label>
+          <input
+            id={id("pan")}
+            type="text"
+            className={inputCls}
+            value={fields.pan}
+            onChange={(e) => onChange("pan", e.target.value.toUpperCase())}
+          />
+        </div>
+
+        <div className="ra-field">
+          <label htmlFor={id("aadhaar_last4")} className="ra-label">
+            {lbl} Aadhaar Last 4 Digits (optional)
+          </label>
+          <input
+            id={id("aadhaar_last4")}
+            type="text"
+            className={inputCls}
+            maxLength={4}
+            value={fields.aadhaar_last4}
+            onChange={(e) => onChange("aadhaar_last4", e.target.value)}
+          />
+        </div>
+
+        {isTenant && (
+          <div className="ra-field-full">
+            <label htmlFor={id("tenant_company_name")} className="ra-label">
+              {lbl} Company Name (optional)
+            </label>
+            <input
+              id={id("tenant_company_name")}
+              type="text"
+              className={inputCls}
+              value={(fields as TenantFields).tenant_company_name}
+              onChange={(e) => onChange("tenant_company_name", e.target.value)}
+            />
+          </div>
+        )}
+      </div>
     </fieldset>
   );
 }
@@ -235,11 +255,11 @@ export function Step1Form(props: StepFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form onSubmit={handleSubmit} noValidate className="ra-form">
       {errors.length > 0 && (
-        <div className="mb-4 p-3 border border-red-400 rounded text-red-700">
-          <p className="font-semibold">Please fix the following errors:</p>
-          <ul className="list-disc list-inside">
+        <div className="ra-error-box" role="alert">
+          <b>Please fix the following errors:</b>
+          <ul>
             {errors.map((err, i) => (
               <li key={i}>{err}</li>
             ))}
@@ -257,12 +277,9 @@ export function Step1Form(props: StepFormProps) {
         isTenant
       />
 
-      <button
-        type="submit"
-        disabled={props.busy}
-        className="px-3 py-1 border rounded bg-blue-600 text-white disabled:opacity-50"
-      >
-        {props.busy ? "Submitting…" : "Advance"}
+      <button type="submit" disabled={props.busy} className="ra-button">
+        {props.busy ? "Submitting…" : "Save and continue"}
+        <span className="sr-only">Advance</span>
       </button>
     </form>
   );

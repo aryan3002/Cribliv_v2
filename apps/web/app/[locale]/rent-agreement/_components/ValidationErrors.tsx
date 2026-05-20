@@ -6,17 +6,20 @@ export function ValidationErrors({ error }: { error: unknown }) {
   if (!e) return null;
   if (e.code === "RENT_AGREEMENT_STEP_VALIDATION_FAILED" && e.fieldErrors?.length) {
     return (
-      <ul className="text-red-700 text-sm list-disc pl-5">
-        {e.fieldErrors.map((f, i) => (
-          <li key={i}>
-            <b>{f.field}</b>: {f.message}
-          </li>
-        ))}
-      </ul>
+      <div className="ra-error-box" role="alert">
+        <b>Some fields need attention.</b>
+        <ul>
+          {e.fieldErrors.map((f, i) => (
+            <li key={i}>
+              <b>{f.field}</b>: {f.message}
+            </li>
+          ))}
+        </ul>
+      </div>
     );
   }
   return (
-    <p className="text-red-700 text-sm">
+    <p className="ra-error-box" role="alert">
       {e.code} — {e.message}
     </p>
   );

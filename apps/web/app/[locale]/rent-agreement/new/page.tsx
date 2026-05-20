@@ -2,6 +2,8 @@
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, FilePlus } from "lucide-react";
 import { PlanPicker } from "../_components/PlanPicker";
 import { useCreateDraft } from "@/lib/rent-agreement/hooks/use-create-draft";
 import { newIdempotencyKey } from "@/lib/rent-agreement/state/idempotency";
@@ -27,21 +29,49 @@ export default function Page({ params }: { params: { locale: string } }) {
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">New rent agreement</h1>
-      <PlanPicker value={pick} onChange={setPick} />
+    <>
+      <div className="ra-topbar">
+        <nav className="ra-breadcrumbs" aria-label="Breadcrumb">
+          <Link href={`/${params.locale}/rent-agreement` as Route}>Rent agreements</Link>
+          <span>/</span>
+          <span>New draft</span>
+        </nav>
+        <Link href={`/${params.locale}/rent-agreement` as Route} className="ra-button-ghost">
+          <ArrowLeft size={16} aria-hidden="true" />
+          Back
+        </Link>
+      </div>
+
+      <header className="ra-page-header">
+        <div>
+          <h1 className="ra-page-title">New rent agreement</h1>
+          <p className="ra-page-copy">
+            Pick the document package and language. The next screen creates a draft and opens the
+            guided agreement workflow.
+          </p>
+        </div>
+      </header>
+
+      <section className="ra-panel" aria-labelledby="plan-picker-title">
+        <div className="ra-panel-header">
+          <h2 id="plan-picker-title" className="ra-panel-title">
+            Plan and language
+          </h2>
+        </div>
+        <div className="ra-panel-body">
+          <PlanPicker value={pick} onChange={setPick} />
+        </div>
+      </section>
+
       {createDraft.isError && (
-        <p className="text-red-700 text-sm">
+        <p className="ra-error-box" role="alert">
           {(createDraft.error as { code?: string }).code ?? "Error"}
         </p>
       )}
-      <button
-        onClick={submit}
-        disabled={createDraft.isPending}
-        className="px-3 py-1 border rounded bg-blue-600 text-white disabled:opacity-50"
-      >
+      <button onClick={submit} disabled={createDraft.isPending} className="ra-button">
+        <FilePlus size={17} aria-hidden="true" />
         {createDraft.isPending ? "Creating…" : "Create draft"}
       </button>
-    </div>
+    </>
   );
 }

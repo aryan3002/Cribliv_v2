@@ -4,8 +4,8 @@ import { useState } from "react";
 import type { StepFormProps } from "./types";
 import { step2Schema } from "@/lib/rent-agreement/schemas/step-2.zod";
 
-const INPUT_CLS = "border rounded px-2 py-1 w-full";
-const SELECT_CLS = "border rounded px-2 py-1 w-full";
+const INPUT_CLS = "ra-input";
+const SELECT_CLS = "ra-select";
 
 type PropertyType = "flat" | "house" | "villa" | "pg_room" | "shop" | "office";
 type Furnishing = "unfurnished" | "semi_furnished" | "fully_furnished";
@@ -102,164 +102,196 @@ export function Step2Form(props: StepFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="ra-form">
       {errors.length > 0 && (
-        <ul className="text-red-600 text-sm list-disc pl-4">
-          {errors.map((err, i) => (
-            <li key={i}>{err}</li>
-          ))}
-        </ul>
+        <div className="ra-error-box" role="alert">
+          <b>Please fix the following errors:</b>
+          <ul>
+            {errors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="full_address">Full Address</label>
-        <textarea
-          id="full_address"
-          className={INPUT_CLS}
-          value={fullAddress}
-          onChange={(e) => setFullAddress(e.target.value)}
-          rows={3}
-        />
-      </div>
+      <section className="ra-form-section">
+        <h2 className="ra-form-section-title">Property details</h2>
+        <div className="ra-form-grid">
+          <div className="ra-field-full">
+            <label htmlFor="full_address" className="ra-label">
+              Full Address
+            </label>
+            <textarea
+              id="full_address"
+              className="ra-textarea"
+              value={fullAddress}
+              onChange={(e) => setFullAddress(e.target.value)}
+              rows={3}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="type">Property Type</label>
-        <select
-          id="type"
-          className={SELECT_CLS}
-          value={type}
-          onChange={(e) => setType(e.target.value as PropertyType)}
-        >
-          {TYPE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="type" className="ra-label">
+              Property Type
+            </label>
+            <select
+              id="type"
+              className={SELECT_CLS}
+              value={type}
+              onChange={(e) => setType(e.target.value as PropertyType)}
+            >
+              {TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="area_sqft">Area (sq ft)</label>
-        <input
-          id="area_sqft"
-          type="number"
-          className={INPUT_CLS}
-          value={areaSqft}
-          onChange={(e) => setAreaSqft(e.target.value)}
-          min={1}
-        />
-      </div>
+          <div className="ra-field">
+            <label htmlFor="area_sqft" className="ra-label">
+              Area (sq ft)
+            </label>
+            <input
+              id="area_sqft"
+              type="number"
+              className={INPUT_CLS}
+              value={areaSqft}
+              onChange={(e) => setAreaSqft(e.target.value)}
+              min={1}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="furnishing">Furnishing</label>
-        <select
-          id="furnishing"
-          className={SELECT_CLS}
-          value={furnishing}
-          onChange={(e) => setFurnishing(e.target.value as Furnishing)}
-        >
-          {FURNISHING_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="furnishing" className="ra-label">
+              Furnishing
+            </label>
+            <select
+              id="furnishing"
+              className={SELECT_CLS}
+              value={furnishing}
+              onChange={(e) => setFurnishing(e.target.value as Furnishing)}
+            >
+              {FURNISHING_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="purpose">Purpose</label>
-        <select
-          id="purpose"
-          className={SELECT_CLS}
-          value={purpose}
-          onChange={(e) => setPurpose(e.target.value as Purpose)}
-        >
-          {PURPOSE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="purpose" className="ra-label">
+              Purpose
+            </label>
+            <select
+              id="purpose"
+              className={SELECT_CLS}
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value as Purpose)}
+            >
+              {PURPOSE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="parking">Parking (optional)</label>
-        <select
-          id="parking"
-          className={SELECT_CLS}
-          value={parking}
-          onChange={(e) => setParking(e.target.value)}
-        >
-          {PARKING_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <section className="ra-form-section">
+        <h2 className="ra-form-section-title">Identifiers and access</h2>
+        <div className="ra-form-grid">
+          <div className="ra-field">
+            <label htmlFor="parking" className="ra-label">
+              Parking (optional)
+            </label>
+            <select
+              id="parking"
+              className={SELECT_CLS}
+              value={parking}
+              onChange={(e) => setParking(e.target.value)}
+            >
+              {PARKING_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="floor_number">Floor Number (optional)</label>
-        <input
-          id="floor_number"
-          type="number"
-          className={INPUT_CLS}
-          value={floorNumber}
-          onChange={(e) => setFloorNumber(e.target.value)}
-        />
-      </div>
+          <div className="ra-field">
+            <label htmlFor="floor_number" className="ra-label">
+              Floor Number (optional)
+            </label>
+            <input
+              id="floor_number"
+              type="number"
+              className={INPUT_CLS}
+              value={floorNumber}
+              onChange={(e) => setFloorNumber(e.target.value)}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="total_floors">Total Floors (optional)</label>
-        <input
-          id="total_floors"
-          type="number"
-          className={INPUT_CLS}
-          value={totalFloors}
-          onChange={(e) => setTotalFloors(e.target.value)}
-          min={1}
-        />
-      </div>
+          <div className="ra-field">
+            <label htmlFor="total_floors" className="ra-label">
+              Total Floors (optional)
+            </label>
+            <input
+              id="total_floors"
+              type="number"
+              className={INPUT_CLS}
+              value={totalFloors}
+              onChange={(e) => setTotalFloors(e.target.value)}
+              min={1}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="flat_number">Flat Number (optional)</label>
-        <input
-          id="flat_number"
-          type="text"
-          className={INPUT_CLS}
-          value={flatNumber}
-          onChange={(e) => setFlatNumber(e.target.value)}
-        />
-      </div>
+          <div className="ra-field">
+            <label htmlFor="flat_number" className="ra-label">
+              Flat Number (optional)
+            </label>
+            <input
+              id="flat_number"
+              type="text"
+              className={INPUT_CLS}
+              value={flatNumber}
+              onChange={(e) => setFlatNumber(e.target.value)}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="municipal_number">Municipal Number (optional)</label>
-        <input
-          id="municipal_number"
-          type="text"
-          className={INPUT_CLS}
-          value={municipalNumber}
-          onChange={(e) => setMunicipalNumber(e.target.value)}
-        />
-      </div>
+          <div className="ra-field">
+            <label htmlFor="municipal_number" className="ra-label">
+              Municipal Number (optional)
+            </label>
+            <input
+              id="municipal_number"
+              type="text"
+              className={INPUT_CLS}
+              value={municipalNumber}
+              onChange={(e) => setMunicipalNumber(e.target.value)}
+            />
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="survey_number">Survey Number (optional)</label>
-        <input
-          id="survey_number"
-          type="text"
-          className={INPUT_CLS}
-          value={surveyNumber}
-          onChange={(e) => setSurveyNumber(e.target.value)}
-        />
-      </div>
+          <div className="ra-field">
+            <label htmlFor="survey_number" className="ra-label">
+              Survey Number (optional)
+            </label>
+            <input
+              id="survey_number"
+              type="text"
+              className={INPUT_CLS}
+              value={surveyNumber}
+              onChange={(e) => setSurveyNumber(e.target.value)}
+            />
+          </div>
+        </div>
+      </section>
 
-      <button
-        type="submit"
-        disabled={busy}
-        className="px-3 py-1 border rounded bg-blue-600 text-white disabled:opacity-50"
-      >
-        {busy ? "Submitting…" : "Advance"}
+      <button type="submit" disabled={busy} className="ra-button">
+        {busy ? "Submitting…" : "Save and continue"}
+        <span className="sr-only">Advance</span>
       </button>
     </form>
   );

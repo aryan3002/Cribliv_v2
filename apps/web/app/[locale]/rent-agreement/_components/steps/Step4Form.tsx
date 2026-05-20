@@ -100,239 +100,238 @@ export function Step4Form(props: StepFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Inventory Items */}
-      <fieldset>
-        <legend className="font-semibold mb-2">Inventory Items</legend>
-        {inventoryItems.map((row, index) => (
-          <div key={index} className="flex gap-2 items-center mb-2">
-            <div>
-              <label htmlFor={`item-${index}`} className="sr-only">
-                Item name
-              </label>
-              <input
-                id={`item-${index}`}
-                type="text"
-                placeholder="Item name"
-                value={row.item}
-                onChange={(e) => updateRow(index, "item", e.target.value)}
-                className="border rounded px-2 py-1"
-              />
+    <form onSubmit={handleSubmit} className="ra-form">
+      <fieldset className="ra-form-section">
+        <legend className="ra-form-section-title">Inventory Items</legend>
+        <div className="ra-row-list">
+          {inventoryItems.map((row, index) => (
+            <div key={index} className="ra-inventory-row">
+              <div className="ra-field">
+                <label htmlFor={`item-${index}`} className="sr-only">
+                  Item name
+                </label>
+                <input
+                  id={`item-${index}`}
+                  type="text"
+                  placeholder="Item name"
+                  value={row.item}
+                  onChange={(e) => updateRow(index, "item", e.target.value)}
+                  className="ra-input"
+                />
+              </div>
+              <div className="ra-field">
+                <label htmlFor={`quantity-${index}`} className="sr-only">
+                  Quantity
+                </label>
+                <input
+                  id={`quantity-${index}`}
+                  type="number"
+                  min={1}
+                  value={row.quantity}
+                  onChange={(e) => updateRow(index, "quantity", parseInt(e.target.value, 10))}
+                  className="ra-input"
+                />
+              </div>
+              <div className="ra-field">
+                <label htmlFor={`condition-${index}`} className="sr-only">
+                  Condition
+                </label>
+                <select
+                  id={`condition-${index}`}
+                  value={row.condition}
+                  onChange={(e) => updateRow(index, "condition", e.target.value)}
+                  className="ra-select"
+                >
+                  {CONDITION_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button type="button" onClick={() => removeRow(index)} className="ra-button-ghost">
+                Remove
+              </button>
             </div>
-            <div>
-              <label htmlFor={`quantity-${index}`} className="sr-only">
-                Quantity
-              </label>
-              <input
-                id={`quantity-${index}`}
-                type="number"
-                min={1}
-                value={row.quantity}
-                onChange={(e) => updateRow(index, "quantity", parseInt(e.target.value, 10))}
-                className="border rounded px-2 py-1 w-20"
-              />
-            </div>
-            <div>
-              <label htmlFor={`condition-${index}`} className="sr-only">
-                Condition
-              </label>
-              <select
-                id={`condition-${index}`}
-                value={row.condition}
-                onChange={(e) => updateRow(index, "condition", e.target.value)}
-                className="border rounded px-2 py-1"
-              >
-                {CONDITION_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="button" onClick={() => removeRow(index)} className="text-sm underline">
-              Remove
-            </button>
-          </div>
-        ))}
-        <button type="button" onClick={addRow} className="text-sm underline">
+          ))}
+        </div>
+        <button type="button" onClick={addRow} className="ra-button-secondary">
           Add item
         </button>
       </fieldset>
 
-      {/* Rent Due Day */}
-      <div>
-        <label htmlFor="rent_due_day" className="block text-sm font-medium">
-          Rent Due Day
-        </label>
-        <input
-          id="rent_due_day"
-          type="number"
-          min={1}
-          max={28}
-          value={rentDueDay}
-          onChange={(e) => setRentDueDay(e.target.value)}
-          className="border rounded px-2 py-1"
-        />
-      </div>
+      <section className="ra-form-section">
+        <h2 className="ra-form-section-title">Rent collection</h2>
+        <div className="ra-form-grid">
+          <div className="ra-field">
+            <label htmlFor="rent_due_day" className="ra-label">
+              Rent Due Day
+            </label>
+            <input
+              id="rent_due_day"
+              type="number"
+              min={1}
+              max={28}
+              value={rentDueDay}
+              onChange={(e) => setRentDueDay(e.target.value)}
+              className="ra-input"
+            />
+          </div>
 
-      {/* Rent Payment Method */}
-      <div>
-        <label htmlFor="rent_payment_method" className="block text-sm font-medium">
-          Rent Payment Method
-        </label>
-        <select
-          id="rent_payment_method"
-          value={rentPaymentMethod}
-          onChange={(e) => setRentPaymentMethod(e.target.value)}
-          className="border rounded px-2 py-1"
-        >
-          {PAYMENT_METHOD_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="rent_payment_method" className="ra-label">
+              Rent Payment Method
+            </label>
+            <select
+              id="rent_payment_method"
+              value={rentPaymentMethod}
+              onChange={(e) => setRentPaymentMethod(e.target.value)}
+              className="ra-select"
+            >
+              {PAYMENT_METHOD_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="ra-field">
+            <label htmlFor="late_payment_penalty_pct" className="ra-label">
+              Late Payment Penalty (%)
+            </label>
+            <input
+              id="late_payment_penalty_pct"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              value={latePaymentPenaltyPct}
+              onChange={(e) => setLatePaymentPenaltyPct(e.target.value)}
+              className="ra-input"
+            />
+          </div>
+        </div>
+      </section>
 
-      {/* Maintenance Included */}
-      <div className="flex items-center gap-2">
-        <input
-          id="maintenance_included"
-          type="checkbox"
-          checked={maintenanceIncluded}
-          onChange={(e) => setMaintenanceIncluded(e.target.checked)}
-        />
-        <label htmlFor="maintenance_included" className="text-sm font-medium">
-          Maintenance Included
-        </label>
-      </div>
+      <section className="ra-form-section">
+        <h2 className="ra-form-section-title">Maintenance and utilities</h2>
+        <div className="ra-form-grid">
+          <div className="ra-checkbox-row">
+            <input
+              id="maintenance_included"
+              type="checkbox"
+              checked={maintenanceIncluded}
+              onChange={(e) => setMaintenanceIncluded(e.target.checked)}
+            />
+            <label htmlFor="maintenance_included" className="ra-label">
+              Maintenance Included
+            </label>
+          </div>
 
-      {/* Maintenance Amount */}
-      <div>
-        <label htmlFor="maintenance_rupees" className="block text-sm font-medium">
-          Maintenance (₹)
-        </label>
-        <input
-          id="maintenance_rupees"
-          type="number"
-          min={0}
-          step="0.01"
-          value={maintenanceRupees}
-          placeholder="Leave blank to omit"
-          onChange={(e) => setMaintenanceRupees(e.target.value)}
-          className="border rounded px-2 py-1"
-        />
-      </div>
+          <div className="ra-field">
+            <label htmlFor="maintenance_rupees" className="ra-label">
+              Maintenance (₹)
+            </label>
+            <input
+              id="maintenance_rupees"
+              type="number"
+              min={0}
+              step="0.01"
+              value={maintenanceRupees}
+              placeholder="Leave blank to omit"
+              onChange={(e) => setMaintenanceRupees(e.target.value)}
+              className="ra-input"
+            />
+          </div>
 
-      {/* Electricity Paid By */}
-      <div>
-        <label htmlFor="electricity_paid_by" className="block text-sm font-medium">
-          Electricity Paid By
-        </label>
-        <select
-          id="electricity_paid_by"
-          value={electricityPaidBy}
-          onChange={(e) => setElectricityPaidBy(e.target.value)}
-          className="border rounded px-2 py-1"
-        >
-          {ALLOCATION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="electricity_paid_by" className="ra-label">
+              Electricity Paid By
+            </label>
+            <select
+              id="electricity_paid_by"
+              value={electricityPaidBy}
+              onChange={(e) => setElectricityPaidBy(e.target.value)}
+              className="ra-select"
+            >
+              {ALLOCATION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {/* Water Paid By */}
-      <div>
-        <label htmlFor="water_paid_by" className="block text-sm font-medium">
-          Water Paid By
-        </label>
-        <select
-          id="water_paid_by"
-          value={waterPaidBy}
-          onChange={(e) => setWaterPaidBy(e.target.value)}
-          className="border rounded px-2 py-1"
-        >
-          {ALLOCATION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="water_paid_by" className="ra-label">
+              Water Paid By
+            </label>
+            <select
+              id="water_paid_by"
+              value={waterPaidBy}
+              onChange={(e) => setWaterPaidBy(e.target.value)}
+              className="ra-select"
+            >
+              {ALLOCATION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {/* Gas Paid By */}
-      <div>
-        <label htmlFor="gas_paid_by" className="block text-sm font-medium">
-          Gas Paid By
-        </label>
-        <select
-          id="gas_paid_by"
-          value={gasPaidBy}
-          onChange={(e) => setGasPaidBy(e.target.value)}
-          className="border rounded px-2 py-1"
-        >
-          {ALLOCATION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="gas_paid_by" className="ra-label">
+              Gas Paid By
+            </label>
+            <select
+              id="gas_paid_by"
+              value={gasPaidBy}
+              onChange={(e) => setGasPaidBy(e.target.value)}
+              className="ra-select"
+            >
+              {ALLOCATION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {/* Society Charges Paid By */}
-      <div>
-        <label htmlFor="society_charges_paid_by" className="block text-sm font-medium">
-          Society Charges Paid By
-        </label>
-        <select
-          id="society_charges_paid_by"
-          value={societyChargesPaidBy}
-          onChange={(e) => setSocietyChargesPaidBy(e.target.value)}
-          className="border rounded px-2 py-1"
-        >
-          {SOCIETY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="ra-field">
+            <label htmlFor="society_charges_paid_by" className="ra-label">
+              Society Charges Paid By
+            </label>
+            <select
+              id="society_charges_paid_by"
+              value={societyChargesPaidBy}
+              onChange={(e) => setSocietyChargesPaidBy(e.target.value)}
+              className="ra-select"
+            >
+              {SOCIETY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
 
-      {/* Late Payment Penalty */}
-      <div>
-        <label htmlFor="late_payment_penalty_pct" className="block text-sm font-medium">
-          Late Payment Penalty (%)
-        </label>
-        <input
-          id="late_payment_penalty_pct"
-          type="number"
-          min={0}
-          max={100}
-          step="0.01"
-          value={latePaymentPenaltyPct}
-          onChange={(e) => setLatePaymentPenaltyPct(e.target.value)}
-          className="border rounded px-2 py-1"
-        />
-      </div>
-
-      {/* Validation errors */}
       {errors.length > 0 && (
-        <ul className="text-red-600 text-sm space-y-1">
-          {errors.map((err, i) => (
-            <li key={i}>{err}</li>
-          ))}
-        </ul>
+        <div className="ra-error-box" role="alert">
+          <b>Please fix the following errors:</b>
+          <ul>
+            {errors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      {/* Submit */}
-      <button
-        type="submit"
-        disabled={props.busy}
-        className="px-3 py-1 border rounded bg-blue-600 text-white disabled:opacity-50"
-      >
-        {props.busy ? "Submitting…" : "Advance"}
+      <button type="submit" disabled={props.busy} className="ra-button">
+        {props.busy ? "Submitting…" : "Save and continue"}
+        <span className="sr-only">Advance</span>
       </button>
     </form>
   );

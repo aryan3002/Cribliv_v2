@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import type { StepFormProps } from "./types";
 import { useApiClient } from "@/lib/rent-agreement/hooks/use-api-client";
 import { RentAgreementApi } from "@/lib/rent-agreement/api/endpoints";
@@ -62,11 +62,10 @@ export function Step6Form(props: StepFormProps) {
   const bothSaved = landlord.status === "saved" && tenant.status === "saved";
 
   function statusLabel(state: PartyState) {
-    if (state.status === "uploading")
-      return <span className="text-sm text-gray-500">Uploading…</span>;
-    if (state.status === "saved") return <span className="text-sm text-green-600">✓ Saved</span>;
-    if (state.status === "error")
-      return <span className="text-sm text-red-600">{state.error}</span>;
+    if (state.status === "uploading") return <span className="ra-muted">Uploading…</span>;
+    if (state.status === "saved")
+      return <span className="ra-status ra-status--generated">✓ Saved</span>;
+    if (state.status === "error") return <span className="ra-inline-error">{state.error}</span>;
     return null;
   }
 
@@ -75,54 +74,56 @@ export function Step6Form(props: StepFormProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-lg font-semibold">Signatures</h2>
+    <div className="ra-form">
+      <section className="ra-form-section">
+        <h2 className="ra-form-section-title">Signatures</h2>
+        <div className="ra-upload-grid">
+          <div className="ra-upload-box">
+            <label htmlFor={landlordInputId} className="ra-label">
+              Landlord signature
+            </label>
+            <input
+              id={landlordInputId}
+              type="file"
+              accept="image/png,image/jpeg"
+              className="ra-input"
+              disabled={landlord.status === "uploading"}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileChange(file, "owner", setLandlord);
+              }}
+            />
+            {statusLabel(landlord)}
+          </div>
 
-      {/* Landlord signature */}
-      <div className="space-y-1">
-        <label htmlFor={landlordInputId} className="block text-sm font-medium">
-          Landlord signature
-        </label>
-        <input
-          id={landlordInputId}
-          type="file"
-          accept="image/png,image/jpeg"
-          className="border rounded px-2 py-1"
-          disabled={landlord.status === "uploading"}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFileChange(file, "owner", setLandlord);
-          }}
-        />
-        {statusLabel(landlord)}
-      </div>
-
-      {/* Tenant signature */}
-      <div className="space-y-1">
-        <label htmlFor={tenantInputId} className="block text-sm font-medium">
-          Tenant signature
-        </label>
-        <input
-          id={tenantInputId}
-          type="file"
-          accept="image/png,image/jpeg"
-          className="border rounded px-2 py-1"
-          disabled={tenant.status === "uploading"}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFileChange(file, "tenant", setTenant);
-          }}
-        />
-        {statusLabel(tenant)}
-      </div>
+          <div className="ra-upload-box">
+            <label htmlFor={tenantInputId} className="ra-label">
+              Tenant signature
+            </label>
+            <input
+              id={tenantInputId}
+              type="file"
+              accept="image/png,image/jpeg"
+              className="ra-input"
+              disabled={tenant.status === "uploading"}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileChange(file, "tenant", setTenant);
+              }}
+            />
+            {statusLabel(tenant)}
+          </div>
+        </div>
+      </section>
 
       <button
         type="button"
         onClick={handleAdvance}
         disabled={!bothSaved || props.busy}
-        className="px-3 py-1 border rounded bg-blue-600 text-white disabled:opacity-50"
+        className="ra-button"
       >
-        Advance
+        {props.busy ? "Submitting…" : "Save and continue"}
+        <span className="sr-only">Advance</span>
       </button>
     </div>
   );

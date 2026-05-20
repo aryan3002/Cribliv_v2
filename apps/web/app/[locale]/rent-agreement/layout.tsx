@@ -21,7 +21,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         <AuthProvider>
           <RaErrorBoundary>
             <ProviderModeBadge />
-            <main className="max-w-3xl mx-auto p-4">{children}</main>
+            <div className="ra-layout">
+              <div className="ra-shell">{children}</div>
+            </div>
           </RaErrorBoundary>
         </AuthProvider>
       </FlagsProvider>

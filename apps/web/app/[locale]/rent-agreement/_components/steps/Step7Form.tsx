@@ -24,31 +24,36 @@ export function Step7Form(props: StepFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <p>
-        This is the final step. Review your agreement details on the previous steps. By continuing
-        you confirm everything is correct and agree to CribLiv&apos;s rent-agreement terms of
-        service.
-      </p>
+    <form onSubmit={handleSubmit} className="ra-form">
+      <section className="ra-form-section">
+        <h2 className="ra-form-section-title">Final confirmation</h2>
+        <p className="ra-muted">
+          Review your agreement details on the previous steps. By continuing you confirm everything
+          is correct and agree to CribLiv&apos;s rent-agreement terms of service.
+        </p>
 
-      <div>
-        <input
-          id="agree-to-terms"
-          type="checkbox"
-          checked={agreeToTerms}
-          onChange={(e) => setAgreeToTerms(e.target.checked)}
-        />
-        <label htmlFor="agree-to-terms">I agree to the terms</label>
-      </div>
+        <div className="ra-checkbox-row">
+          <input
+            id="agree-to-terms"
+            type="checkbox"
+            checked={agreeToTerms}
+            onChange={(e) => setAgreeToTerms(e.target.checked)}
+          />
+          <label htmlFor="agree-to-terms" className="ra-label">
+            I agree to the terms
+          </label>
+        </div>
+      </section>
 
-      {error && <p>{error}</p>}
+      {error && (
+        <p className="ra-error-box" role="alert">
+          {error}
+        </p>
+      )}
 
-      <button
-        type="submit"
-        disabled={props.busy}
-        className="px-3 py-1 border rounded bg-blue-600 text-white disabled:opacity-50"
-      >
-        {props.busy ? "Submitting…" : "Advance"}
+      <button type="submit" disabled={props.busy} className="ra-button">
+        {props.busy ? "Submitting…" : "Continue to checkout"}
+        <span className="sr-only">Advance</span>
       </button>
     </form>
   );

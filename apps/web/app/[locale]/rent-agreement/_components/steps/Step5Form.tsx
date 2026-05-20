@@ -93,202 +93,231 @@ export function Step5Form(props: StepFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Clauses */}
-      <fieldset className="space-y-2">
-        <legend className="font-semibold">Clauses</legend>
+    <form onSubmit={handleSubmit} className="ra-form">
+      <fieldset className="ra-form-section">
+        <legend className="ra-form-section-title">Clauses</legend>
+        <div className="ra-checkbox-grid">
+          <div className="ra-checkbox-row">
+            <input
+              id="pets_allowed"
+              type="checkbox"
+              checked={petsAllowed}
+              onChange={(e) => setPetsAllowed(e.target.checked)}
+            />
+            <label htmlFor="pets_allowed" className="ra-label">
+              Pets Allowed
+            </label>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            id="pets_allowed"
-            type="checkbox"
-            checked={petsAllowed}
-            onChange={(e) => setPetsAllowed(e.target.checked)}
-          />
-          <label htmlFor="pets_allowed">Pets Allowed</label>
-        </div>
+          <div className="ra-checkbox-row">
+            <input
+              id="subletting_allowed"
+              type="checkbox"
+              checked={sublettingAllowed}
+              onChange={(e) => setSublettingAllowed(e.target.checked)}
+            />
+            <label htmlFor="subletting_allowed" className="ra-label">
+              Subletting Allowed
+            </label>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            id="subletting_allowed"
-            type="checkbox"
-            checked={sublettingAllowed}
-            onChange={(e) => setSublettingAllowed(e.target.checked)}
-          />
-          <label htmlFor="subletting_allowed">Subletting Allowed</label>
-        </div>
+          <div className="ra-checkbox-row">
+            <input
+              id="renovation_allowed"
+              type="checkbox"
+              checked={renovationAllowed}
+              onChange={(e) => setRenovationAllowed(e.target.checked)}
+            />
+            <label htmlFor="renovation_allowed" className="ra-label">
+              Renovation Allowed
+            </label>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            id="renovation_allowed"
-            type="checkbox"
-            checked={renovationAllowed}
-            onChange={(e) => setRenovationAllowed(e.target.checked)}
-          />
-          <label htmlFor="renovation_allowed">Renovation Allowed</label>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            id="commercial_use_allowed"
-            type="checkbox"
-            checked={commercialUseAllowed}
-            onChange={(e) => setCommercialUseAllowed(e.target.checked)}
-          />
-          <label htmlFor="commercial_use_allowed">Commercial Use Allowed</label>
+          <div className="ra-checkbox-row">
+            <input
+              id="commercial_use_allowed"
+              type="checkbox"
+              checked={commercialUseAllowed}
+              onChange={(e) => setCommercialUseAllowed(e.target.checked)}
+            />
+            <label htmlFor="commercial_use_allowed" className="ra-label">
+              Commercial Use Allowed
+            </label>
+          </div>
         </div>
       </fieldset>
 
-      {/* Max Occupants */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="max_occupants">Max Occupants</label>
-        <input
-          id="max_occupants"
-          type="number"
-          min={1}
-          max={50}
-          value={maxOccupants}
-          onChange={(e) => setMaxOccupants(Number(e.target.value))}
-          className="border rounded px-2 py-1 w-24"
-        />
-      </div>
-
-      {/* Additional Terms */}
-      <div className="space-y-2">
-        <p className="font-semibold">Additional Terms</p>
-        {additionalTerms.map((term, i) => (
-          <div key={i} className="flex items-center gap-2">
+      <section className="ra-form-section">
+        <h2 className="ra-form-section-title">Occupancy and terms</h2>
+        <div className="ra-form-grid">
+          <div className="ra-field">
+            <label htmlFor="max_occupants" className="ra-label">
+              Max Occupants
+            </label>
             <input
-              type="text"
-              placeholder="Additional term"
-              value={term}
-              onChange={(e) => updateTerm(i, e.target.value)}
-              className="border rounded px-2 py-1 flex-1"
+              id="max_occupants"
+              type="number"
+              min={1}
+              max={50}
+              value={maxOccupants}
+              onChange={(e) => setMaxOccupants(Number(e.target.value))}
+              className="ra-input"
             />
-            <button type="button" onClick={() => removeTerm(i)} className="text-sm underline">
-              Remove
+          </div>
+
+          <div className="ra-field-full">
+            <p className="ra-label">Additional Terms</p>
+            <div className="ra-row-list">
+              {additionalTerms.map((term, i) => (
+                <div key={i} className="ra-term-row">
+                  <input
+                    type="text"
+                    placeholder="Additional term"
+                    value={term}
+                    onChange={(e) => updateTerm(i, e.target.value)}
+                    className="ra-input"
+                  />
+                  <button type="button" onClick={() => removeTerm(i)} className="ra-button-ghost">
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addTerm} className="ra-button-secondary">
+              Add term
             </button>
           </div>
-        ))}
-        <button type="button" onClick={addTerm} className="text-sm underline">
-          Add term
-        </button>
-      </div>
-
-      {/* Witness 1 */}
-      <fieldset className="space-y-2 border p-3 rounded">
-        <legend className="font-semibold">Witness 1</legend>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w1_name">Name</label>
-          <input
-            id="w1_name"
-            type="text"
-            value={witness1.name}
-            onChange={(e) => updateWitness1("name", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
         </div>
+      </section>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w1_father_name">Father&apos;s Name</label>
-          <input
-            id="w1_father_name"
-            type="text"
-            value={witness1.father_name}
-            onChange={(e) => updateWitness1("father_name", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </div>
+      <fieldset className="ra-form-section">
+        <legend className="ra-form-section-title">Witness 1</legend>
+        <div className="ra-form-grid">
+          <div className="ra-field">
+            <label htmlFor="w1_name" className="ra-label">
+              Name
+            </label>
+            <input
+              id="w1_name"
+              type="text"
+              value={witness1.name}
+              onChange={(e) => updateWitness1("name", e.target.value)}
+              className="ra-input"
+            />
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w1_address">Address</label>
-          <input
-            id="w1_address"
-            type="text"
-            value={witness1.address}
-            onChange={(e) => updateWitness1("address", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </div>
+          <div className="ra-field">
+            <label htmlFor="w1_father_name" className="ra-label">
+              Father&apos;s Name
+            </label>
+            <input
+              id="w1_father_name"
+              type="text"
+              value={witness1.father_name}
+              onChange={(e) => updateWitness1("father_name", e.target.value)}
+              className="ra-input"
+            />
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w1_phone">Phone (optional)</label>
-          <input
-            id="w1_phone"
-            type="text"
-            value={witness1.phone}
-            onChange={(e) => updateWitness1("phone", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </div>
-      </fieldset>
+          <div className="ra-field-full">
+            <label htmlFor="w1_address" className="ra-label">
+              Address
+            </label>
+            <input
+              id="w1_address"
+              type="text"
+              value={witness1.address}
+              onChange={(e) => updateWitness1("address", e.target.value)}
+              className="ra-input"
+            />
+          </div>
 
-      {/* Witness 2 */}
-      <fieldset className="space-y-2 border p-3 rounded">
-        <legend className="font-semibold">Witness 2</legend>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w2_name">Name</label>
-          <input
-            id="w2_name"
-            type="text"
-            value={witness2.name}
-            onChange={(e) => updateWitness2("name", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w2_father_name">Father&apos;s Name</label>
-          <input
-            id="w2_father_name"
-            type="text"
-            value={witness2.father_name}
-            onChange={(e) => updateWitness2("father_name", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w2_address">Address</label>
-          <input
-            id="w2_address"
-            type="text"
-            value={witness2.address}
-            onChange={(e) => updateWitness2("address", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="w2_phone">Phone (optional)</label>
-          <input
-            id="w2_phone"
-            type="text"
-            value={witness2.phone}
-            onChange={(e) => updateWitness2("phone", e.target.value)}
-            className="border rounded px-2 py-1"
-          />
+          <div className="ra-field">
+            <label htmlFor="w1_phone" className="ra-label">
+              Phone (optional)
+            </label>
+            <input
+              id="w1_phone"
+              type="text"
+              value={witness1.phone}
+              onChange={(e) => updateWitness1("phone", e.target.value)}
+              className="ra-input"
+            />
+          </div>
         </div>
       </fieldset>
 
-      {/* Validation errors */}
+      <fieldset className="ra-form-section">
+        <legend className="ra-form-section-title">Witness 2</legend>
+        <div className="ra-form-grid">
+          <div className="ra-field">
+            <label htmlFor="w2_name" className="ra-label">
+              Name
+            </label>
+            <input
+              id="w2_name"
+              type="text"
+              value={witness2.name}
+              onChange={(e) => updateWitness2("name", e.target.value)}
+              className="ra-input"
+            />
+          </div>
+
+          <div className="ra-field">
+            <label htmlFor="w2_father_name" className="ra-label">
+              Father&apos;s Name
+            </label>
+            <input
+              id="w2_father_name"
+              type="text"
+              value={witness2.father_name}
+              onChange={(e) => updateWitness2("father_name", e.target.value)}
+              className="ra-input"
+            />
+          </div>
+
+          <div className="ra-field-full">
+            <label htmlFor="w2_address" className="ra-label">
+              Address
+            </label>
+            <input
+              id="w2_address"
+              type="text"
+              value={witness2.address}
+              onChange={(e) => updateWitness2("address", e.target.value)}
+              className="ra-input"
+            />
+          </div>
+
+          <div className="ra-field">
+            <label htmlFor="w2_phone" className="ra-label">
+              Phone (optional)
+            </label>
+            <input
+              id="w2_phone"
+              type="text"
+              value={witness2.phone}
+              onChange={(e) => updateWitness2("phone", e.target.value)}
+              className="ra-input"
+            />
+          </div>
+        </div>
+      </fieldset>
+
       {errors.length > 0 && (
-        <ul className="text-red-600 text-sm space-y-1">
-          {errors.map((err, i) => (
-            <li key={i}>{err}</li>
-          ))}
-        </ul>
+        <div className="ra-error-box" role="alert">
+          <b>Please fix the following errors:</b>
+          <ul>
+            {errors.map((err, i) => (
+              <li key={i}>{err}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
-      {/* Submit */}
-      <button
-        type="submit"
-        disabled={props.busy}
-        className="px-3 py-1 border rounded bg-blue-600 text-white disabled:opacity-50"
-      >
-        {props.busy ? "Submitting…" : "Advance"}
+      <button type="submit" disabled={props.busy} className="ra-button">
+        {props.busy ? "Submitting…" : "Save and continue"}
+        <span className="sr-only">Advance</span>
       </button>
     </form>
   );
