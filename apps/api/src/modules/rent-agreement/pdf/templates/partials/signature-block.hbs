@@ -1,0 +1,18 @@
+<div class="signature-block">
+  <div class="signature-party">
+    <h4>{{party_label}}</h4>
+    {{#if signature_data_uri}}
+    <div class="signature-image-container">
+      <img class="signature-image" src="{{safeDataUri signature_data_uri}}" alt="Signature of {{party_name}}" />
+    </div>
+    {{else}}
+    <div class="signature-line">
+      <p>___________________________</p>
+    </div>
+    {{/if}}
+    <p class="signature-name">{{party_name}}</p>
+    {{#if party_phone}}
+    <p class="signature-detail">Phone: {{party_phone}}</p>
+    {{/if}}
+  </div>
+</div>

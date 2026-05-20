@@ -368,3 +368,166 @@ describe("DraftsService.advance: step 7 (review) uses VALID_STEP7 marker", () =>
     expect(r7.terminal).toBe(true);
   });
 });
+
+describe("DraftsService state-transition mutations (Phase 13)", () => {
+  describe("markPendingPayment", () => {
+    it("flips status from draft to pending_payment and records payment_order_id", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      await svc.markPendingPayment(draft.id, "order-xyz-001");
+      const got = await svc.getOne(USER_A, draft.id);
+      expect(got?.status).toBe("pending_payment");
+      expect(got?.payment_order_id).toBe("order-xyz-001");
+    });
+
+    it("throws RENT_AGREEMENT_NOT_FOUND when agreement id unknown", async () => {
+      await expect(svc.markPendingPayment("missing-id", "order-1")).rejects.toMatchObject({
+        code: "RENT_AGREEMENT_NOT_FOUND"
+      });
+    });
+
+    it("bumps updated_at to clock now", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      now = new Date("2026-06-01T10:00:00Z");
+      await svc.markPendingPayment(draft.id, "order-1");
+      const got = await svc.getOne(USER_A, draft.id);
+      expect(got?.updated_at).toBe("2026-06-01T10:00:00.000Z");
+    });
+  });
+
+  describe("markPaid", () => {
+    it("flips status from pending_payment to paid", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      await svc.markPendingPayment(draft.id, "order-1");
+      await svc.markPaid(draft.id);
+      const got = await svc.getOne(USER_A, draft.id);
+      expect(got?.status).toBe("paid");
+    });
+
+    it("is idempotent — calling markPaid twice stays at paid (no error)", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      await svc.markPendingPayment(draft.id, "order-1");
+      await svc.markPaid(draft.id);
+      await svc.markPaid(draft.id);
+      const got = await svc.getOne(USER_A, draft.id);
+      expect(got?.status).toBe("paid");
+    });
+
+    it("throws RENT_AGREEMENT_NOT_FOUND when agreement id unknown", async () => {
+      await expect(svc.markPaid("missing")).rejects.toMatchObject({
+        code: "RENT_AGREEMENT_NOT_FOUND"
+      });
+    });
+  });
+
+  describe("markGenerated", () => {
+    it("flips status to generated and persists blob path + expiry", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      await svc.markPendingPayment(draft.id, "order-1");
+      await svc.markPaid(draft.id);
+      await svc.markGenerated(draft.id, {
+        blobPath: "2026/05/dft-0001.pdf",
+        expiresAt: "2026-08-17T12:00:00Z"
+      });
+      const got = await svc.getOne(USER_A, draft.id);
+      expect(got?.status).toBe("generated");
+      expect(got?.pdf_blob_path).toBe("2026/05/dft-0001.pdf");
+      expect(got?.expires_at).toBe("2026-08-17T12:00:00Z");
+      expect(got?.pdf_generated_at).toBe("2026-05-17T12:00:00.000Z");
+    });
+
+    it("throws RENT_AGREEMENT_NOT_FOUND when agreement id unknown", async () => {
+      await expect(
+        svc.markGenerated("missing", { blobPath: "x/y.pdf", expiresAt: "2026-06-01T00:00:00Z" })
+      ).rejects.toMatchObject({
+        code: "RENT_AGREEMENT_NOT_FOUND"
+      });
+    });
+  });
+
+  describe("incrementDownloadCount", () => {
+    it("bumps the row's download_count by 1", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      await svc.markPendingPayment(draft.id, "order-1");
+      await svc.markPaid(draft.id);
+      await svc.markGenerated(draft.id, {
+        blobPath: "x/y.pdf",
+        expiresAt: "2026-08-17T12:00:00Z"
+      });
+      await svc.incrementDownloadCount(draft.id);
+      const got = await svc.getOne(USER_A, draft.id);
+      expect(got?.download_count).toBe(1);
+      await svc.incrementDownloadCount(draft.id);
+      const got2 = await svc.getOne(USER_A, draft.id);
+      expect(got2?.download_count).toBe(2);
+    });
+
+    it("throws RENT_AGREEMENT_NOT_FOUND on unknown id", async () => {
+      await expect(svc.incrementDownloadCount("missing")).rejects.toMatchObject({
+        code: "RENT_AGREEMENT_NOT_FOUND"
+      });
+    });
+  });
+
+  describe("getByIdUnscoped (for webhook/worker callbacks without user_id)", () => {
+    it("returns row by id alone (no user_id check)", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      const got = await svc.getByIdUnscoped(draft.id);
+      expect(got?.id).toBe(draft.id);
+    });
+
+    it("returns null for unknown id", async () => {
+      const got = await svc.getByIdUnscoped("missing");
+      expect(got).toBeNull();
+    });
+  });
+
+  describe("markEStampIssued / markESignSession / markESignCompleted (Phase 15)", () => {
+    it("markEStampIssued persists e_stamp_reference on the row", async () => {
+      const d = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      await svc.markEStampIssued(d.id, "MOCK-ESTAMP-1-x");
+      const r = await svc.getOne(USER_A, d.id);
+      expect(r?.e_stamp_reference).toBe("MOCK-ESTAMP-1-x");
+    });
+
+    it("markESignSession persists e_sign_session_id on the row", async () => {
+      const d = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      await svc.markESignSession(d.id, "sess-abc");
+      const r = await svc.getOne(USER_A, d.id);
+      expect(r?.e_sign_session_id).toBe("sess-abc");
+    });
+
+    it("markESignCompleted persists e_sign_completed_at to clock now", async () => {
+      const d = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      now = new Date("2026-07-01T15:30:00Z");
+      await svc.markESignCompleted(d.id);
+      const r = await svc.getOne(USER_A, d.id);
+      expect(r?.e_sign_completed_at).toBe("2026-07-01T15:30:00.000Z");
+    });
+
+    it("all three throw NOT_FOUND for unknown agreement id", async () => {
+      await expect(svc.markEStampIssued("missing", "x")).rejects.toMatchObject({
+        code: "RENT_AGREEMENT_NOT_FOUND"
+      });
+      await expect(svc.markESignSession("missing", "x")).rejects.toMatchObject({
+        code: "RENT_AGREEMENT_NOT_FOUND"
+      });
+      await expect(svc.markESignCompleted("missing")).rejects.toMatchObject({
+        code: "RENT_AGREEMENT_NOT_FOUND"
+      });
+    });
+  });
+
+  describe("getRowByIdForRender (PAN-ct-bearing row for PDF worker)", () => {
+    it("returns the raw row including user_id (which DraftFull strips)", async () => {
+      const draft = await svc.create(USER_A, { plan_id: "basic", locale: "en" }, "idem-1");
+      const row = await svc.getRowByIdForRender(draft.id);
+      expect(row?.user_id).toBe(USER_A);
+      expect(row?.id).toBe(draft.id);
+    });
+
+    it("returns null for unknown id", async () => {
+      const row = await svc.getRowByIdForRender("missing");
+      expect(row).toBeNull();
+    });
+  });
+});

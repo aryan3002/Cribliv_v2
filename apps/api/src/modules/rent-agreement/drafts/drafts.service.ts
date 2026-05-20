@@ -208,6 +208,88 @@ export class DraftsService {
     };
   }
 
+  // ── Phase 13 state-transition mutations ──────────────────────────────────────
+  // Called from CheckoutService (markPendingPayment), webhook handler / dev pipeline
+  // (markPaid), and PDF worker callback (markGenerated). user_id is NOT checked because
+  // these flow from server-side trusted contexts (webhook signature already verified,
+  // worker dispatches its own job, checkout already authenticated the user).
+
+  async markPendingPayment(agreementId: string, paymentOrderId: string): Promise<void> {
+    const row = this.requireRowById(agreementId);
+    row.status = "pending_payment";
+    row.payment_order_id = paymentOrderId;
+    row.updated_at = this.clock().toISOString();
+  }
+
+  async markPaid(agreementId: string): Promise<void> {
+    const row = this.requireRowById(agreementId);
+    if (row.status === "paid" || row.status === "generating_pdf" || row.status === "generated") {
+      return;
+    }
+    row.status = "paid";
+    row.updated_at = this.clock().toISOString();
+  }
+
+  async markGenerated(
+    agreementId: string,
+    opts: { blobPath: string; expiresAt: string }
+  ): Promise<void> {
+    const row = this.requireRowById(agreementId);
+    const ts = this.clock().toISOString();
+    row.status = "generated";
+    row.pdf_blob_path = opts.blobPath;
+    row.pdf_generated_at = ts;
+    row.expires_at = opts.expiresAt;
+    row.updated_at = ts;
+  }
+
+  async markEStampIssued(agreementId: string, referenceId: string): Promise<void> {
+    const row = this.requireRowById(agreementId);
+    row.e_stamp_reference = referenceId;
+    row.updated_at = this.clock().toISOString();
+  }
+
+  async markESignSession(agreementId: string, sessionId: string): Promise<void> {
+    const row = this.requireRowById(agreementId);
+    row.e_sign_session_id = sessionId;
+    row.updated_at = this.clock().toISOString();
+  }
+
+  async markESignCompleted(agreementId: string): Promise<void> {
+    const row = this.requireRowById(agreementId);
+    const ts = this.clock().toISOString();
+    row.e_sign_completed_at = ts;
+    row.updated_at = ts;
+  }
+
+  async incrementDownloadCount(agreementId: string): Promise<void> {
+    const row = this.requireRowById(agreementId);
+    row.download_count = (row.download_count ?? 0) + 1;
+    row.updated_at = this.clock().toISOString();
+  }
+
+  async getByIdUnscoped(id: string): Promise<DraftFull | null> {
+    const row = this.rows.get(id);
+    if (!row) return null;
+    return mapToFull(row);
+  }
+
+  // PAN-ct-bearing row for the PDF renderer scope ONLY. The renderer decrypts PAN
+  // inside its own boundary per Security §PAN handling; no other caller should use
+  // this method.
+  async getRowByIdForRender(id: string): Promise<RentAgreementRow | null> {
+    const row = this.rows.get(id);
+    return row ?? null;
+  }
+
+  private requireRowById(id: string): RentAgreementRow {
+    const row = this.rows.get(id);
+    if (!row) {
+      throw this.makeError("RENT_AGREEMENT_NOT_FOUND", `Agreement ${id} not found`);
+    }
+    return row;
+  }
+
   async back(userId: string, id: string, targetStep: number): Promise<BackResult> {
     const row = this.requireOwnedRow(userId, id);
     if (targetStep >= row.current_step) {

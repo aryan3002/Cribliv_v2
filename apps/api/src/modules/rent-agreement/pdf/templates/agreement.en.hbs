@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    /* ── Base ──────────────────────────────────────────────────── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      font-size: 12pt;
+      line-height: 1.6;
+      color: #1a1a1a;
+      padding: 0;
+    }
+
+    /* ── Watermark ────────────────────────────────────────────── */
+    .watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      z-index: -1;
+      pointer-events: none;
+    }
+    .watermark-text {
+      font-size: 80pt;
+      color: rgba(200, 200, 200, 0.08);
+      font-weight: bold;
+      letter-spacing: 20px;
+      white-space: nowrap;
+    }
+
+    /* ── Cover ────────────────────────────────────────────────── */
+    .cover { text-align: center; margin-bottom: 30px; }
+    .cover h1 {
+      font-size: 22pt;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      border-bottom: 2px solid #333;
+      display: inline-block;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+    .cover .agreement-date {
+      font-size: 14pt;
+      margin-top: 8px;
+    }
+    .cover .parties-summary {
+      margin-top: 16px;
+      font-size: 11pt;
+      color: #444;
+    }
+
+    /* ── Section headings ────────────────────────────────────── */
+    h2 {
+      font-size: 14pt;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+    }
+    h3 {
+      font-size: 12pt;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+    h4 {
+      font-size: 11pt;
+      margin-top: 12px;
+      margin-bottom: 6px;
+    }
+
+    /* ── Clauses ──────────────────────────────────────────────── */
+    .clause {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+    .clause-number {
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    /* ── Tables ───────────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+    }
+    td, th {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      text-align: left;
+      font-size: 11pt;
+    }
+    th { background: #f5f5f5; font-weight: bold; }
+    .label { font-weight: bold; width: 35%; }
+
+    /* ── Signature ────────────────────────────────────────────── */
+    .signatures-section {
+      margin-top: 40px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .signature-block {
+      width: 45%;
+      margin-bottom: 30px;
+    }
+    .signature-image-container {
+      border: 1px dashed #ccc;
+      padding: 8px;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .signature-image { max-width: 200px; max-height: 80px; }
+    .signature-line { margin: 20px 0 6px; }
+    .signature-name { font-weight: bold; margin-top: 4px; }
+    .signature-detail { font-size: 10pt; color: #666; }
+
+    /* ── Witness ──────────────────────────────────────────────── */
+    .witnesses-section { margin-top: 30px; }
+    .witness-block { margin-bottom: 20px; }
+    .witness-table { width: 60%; }
+    .witness-signature-line { margin-top: 10px; }
+
+    /* ── Inventory ────────────────────────────────────────────── */
+    .inventory-table th { background: #e8e8e8; }
+
+    /* ── Footer advisory ─────────────────────────────────────── */
+    .stamp-duty-advisory {
+      margin-top: 30px;
+      padding: 12px;
+      border: 1px solid #999;
+      background: #fafafa;
+      font-size: 10pt;
+    }
+    .legal-disclaimer {
+      margin-top: 20px;
+      font-size: 9pt;
+      color: #888;
+      text-align: center;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+
+    /* ── Page header/footer (Puppeteer header/footer templates) ── */
+    .page-header, .page-footer {
+      font-size: 8pt;
+      color: #999;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+  </style>
+</head>
+<body>
+
+{{> watermark}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     COVER
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>Rent Agreement</h1>
+  <p class="agreement-date">Executed on {{agreement_date_formatted}}</p>
+  <div class="parties-summary">
+    <p><strong>Between:</strong></p>
+    <p>{{owner_full_name}} (hereinafter referred to as the "Landlord")</p>
+    <p><strong>And:</strong></p>
+    <p>{{tenant_full_name}} (hereinafter referred to as the "Tenant")</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     RECITAL
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>Recital</h2>
+<p class="clause">
+  This Rent Agreement is made and executed on <strong>{{agreement_date_formatted}}</strong>
+  at <strong>{{city}}</strong>, <strong>{{state_code}}</strong>,
+  by and between the parties described herein, for the rental of the
+  property situated at <strong>{{property_full_address}}</strong>.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 1 — PARTIES
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>1. Parties</h2>
+
+<h3>Landlord (Owner)</h3>
+<table>
+  <tr><td class="label">Full Name</td><td>{{owner_full_name}}</td></tr>
+  <tr><td class="label">Father's Name</td><td>{{owner_father_name}}</td></tr>
+  <tr><td class="label">Age</td><td>{{owner_age}} years</td></tr>
+  <tr><td class="label">Phone</td><td>{{owner_phone}}</td></tr>
+  {{#if owner_email}}<tr><td class="label">Email</td><td>{{owner_email}}</td></tr>{{/if}}
+  <tr><td class="label">Permanent Address</td><td>{{owner_permanent_address}}</td></tr>
+  {{#if owner_pan_display}}<tr><td class="label">PAN</td><td>{{owner_pan_display}}</td></tr>{{/if}}
+  {{#if owner_aadhaar_last4}}<tr><td class="label">Aadhaar (Last 4)</td><td>{{owner_aadhaar_last4}}</td></tr>{{/if}}
+</table>
+
+<h3>Tenant</h3>
+<table>
+  <tr><td class="label">Full Name</td><td>{{tenant_full_name}}</td></tr>
+  <tr><td class="label">Father's Name</td><td>{{tenant_father_name}}</td></tr>
+  <tr><td class="label">Age</td><td>{{tenant_age}} years</td></tr>
+  <tr><td class="label">Phone</td><td>{{tenant_phone}}</td></tr>
+  {{#if tenant_email}}<tr><td class="label">Email</td><td>{{tenant_email}}</td></tr>{{/if}}
+  <tr><td class="label">Permanent Address</td><td>{{tenant_permanent_address}}</td></tr>
+  {{#if tenant_pan_display}}<tr><td class="label">PAN</td><td>{{tenant_pan_display}}</td></tr>{{/if}}
+  {{#if tenant_aadhaar_last4}}<tr><td class="label">Aadhaar (Last 4)</td><td>{{tenant_aadhaar_last4}}</td></tr>{{/if}}
+  {{#if tenant_company_name}}<tr><td class="label">Company</td><td>{{tenant_company_name}}</td></tr>{{/if}}
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 2 — PROPERTY
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>2. Schedule of Property</h2>
+<table>
+  <tr><td class="label">Full Address</td><td>{{property_full_address}}</td></tr>
+  <tr><td class="label">Type</td><td>{{property_type}}</td></tr>
+  <tr><td class="label">Area</td><td>{{property_area_sqft}} sq. ft.</td></tr>
+  <tr><td class="label">Furnishing</td><td>{{property_furnishing}}</td></tr>
+  <tr><td class="label">Purpose</td><td>{{property_purpose}}</td></tr>
+  {{#if property_parking}}<tr><td class="label">Parking</td><td>{{property_parking}}</td></tr>{{/if}}
+  {{#if property_flat_number}}<tr><td class="label">Flat/Unit No.</td><td>{{property_flat_number}}</td></tr>{{/if}}
+  {{#if property_floor_number}}<tr><td class="label">Floor</td><td>{{property_floor_number}} of {{property_total_floors}}</td></tr>{{/if}}
+  {{#if property_municipal_number}}<tr><td class="label">Municipal No.</td><td>{{property_municipal_number}}</td></tr>{{/if}}
+  {{#if property_survey_number}}<tr><td class="label">Survey No.</td><td>{{property_survey_number}}</td></tr>{{/if}}
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 3 — TERM
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>3. Term of Agreement</h2>
+<p class="clause">
+  This agreement shall commence on <strong>{{commencement_date_formatted}}</strong>
+  for a period of <strong>{{tenure_months}} months</strong>.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 4 — RENT
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>4. Monthly Rent</h2>
+<p class="clause">
+  The Tenant shall pay a monthly rent of <strong>{{rent_formatted}}</strong>
+  ({{rent_in_words}} Rupees Only) to the Landlord, payable on or before the
+  <strong>{{rent_due_day}}{{rent_due_day_suffix}}</strong> day of each calendar month
+  via <strong>{{rent_payment_method}}</strong>.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 5 — SECURITY DEPOSIT
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>5. Security Deposit</h2>
+<p class="clause">
+  The Tenant shall pay a refundable security deposit of <strong>{{deposit_formatted}}</strong>
+  ({{deposit_in_words}} Rupees Only) to the Landlord at the time of execution of this
+  agreement. The deposit shall be refunded within 30 days of vacating the premises,
+  after deducting any outstanding dues or damages, if applicable.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 6 — MAINTENANCE
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>6. Maintenance</h2>
+{{#if maintenance_included}}
+<p class="clause">
+  Maintenance charges are included in the monthly rent.
+</p>
+{{else}}
+<p class="clause">
+  The Tenant shall pay a separate monthly maintenance charge of
+  <strong>{{maintenance_formatted}}</strong> in addition to the rent.
+</p>
+{{/if}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 7 — UTILITIES
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>7. Utilities Allocation</h2>
+<table>
+  <tr><th>Utility</th><th>Borne By</th></tr>
+  <tr><td>Electricity</td><td>{{electricity_allocation}}</td></tr>
+  <tr><td>Water</td><td>{{water_allocation}}</td></tr>
+  <tr><td>Gas</td><td>{{gas_allocation}}</td></tr>
+  <tr><td>Society Charges</td><td>{{society_charges_allocation}}</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 8 — LOCK-IN PERIOD
+     ═══════════════════════════════════════════════════════════════ -->
+{{#if lock_in_months}}
+<h2>8. Lock-in Period</h2>
+<p class="clause">
+  Neither party may terminate this agreement during the initial lock-in period of
+  <strong>{{lock_in_months}} months</strong> from the date of commencement, except
+  in case of breach of any material term.
+</p>
+{{/if}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 9 — NOTICE PERIOD
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>{{#if lock_in_months}}9{{else}}8{{/if}}. Notice Period</h2>
+<p class="clause">
+  Either party wishing to terminate this agreement shall provide
+  <strong>{{notice_period_months}} month(s)</strong> written notice to the other party.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 10 — ANNUAL INCREMENT
+     ═══════════════════════════════════════════════════════════════ -->
+{{#if annual_increment_pct}}
+<h2>{{#if lock_in_months}}10{{else}}9{{/if}}. Annual Rent Increment</h2>
+<p class="clause">
+  The rent shall be subject to an annual increment of <strong>{{annual_increment_pct}}%</strong>
+  upon renewal of this agreement.
+</p>
+{{/if}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE 11 — LATE PAYMENT
+     ═══════════════════════════════════════════════════════════════ -->
+{{#if late_payment_penalty_pct}}
+<h2>Late Payment Penalty</h2>
+<p class="clause">
+  In case of delayed payment of rent beyond the due date, a penalty of
+  <strong>{{late_payment_penalty_pct}}%</strong> per month on the outstanding amount
+  shall be levied.
+</p>
+{{/if}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CLAUSE — RESTRICTIONS
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>Restrictions and Permissions</h2>
+<table>
+  <tr><td class="label">Pets Allowed</td><td>{{#if pets_allowed}}Yes{{else}}No{{/if}}</td></tr>
+  <tr><td class="label">Subletting Allowed</td><td>{{#if subletting_allowed}}Yes{{else}}No{{/if}}</td></tr>
+  <tr><td class="label">Renovation Allowed</td><td>{{#if renovation_allowed}}Yes{{else}}No{{/if}}</td></tr>
+  <tr><td class="label">Commercial Use Allowed</td><td>{{#if commercial_use_allowed}}Yes{{else}}No{{/if}}</td></tr>
+  {{#if max_occupants}}<tr><td class="label">Maximum Occupants</td><td>{{max_occupants}}</td></tr>{{/if}}
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     INVENTORY TABLE (if furnished)
+     ═══════════════════════════════════════════════════════════════ -->
+{{#if has_inventory}}
+<h2>Inventory of Fixtures and Fittings</h2>
+<table class="inventory-table">
+  <tr><th>#</th><th>Item</th><th>Qty</th><th>Condition</th></tr>
+  {{#each inventory_items}}
+  <tr>
+    <td>{{add @index 1}}</td>
+    <td>{{this.item}}</td>
+    <td>{{this.quantity}}</td>
+    <td>{{this.condition}}</td>
+  </tr>
+  {{/each}}
+</table>
+{{/if}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ADDITIONAL TERMS
+     ═══════════════════════════════════════════════════════════════ -->
+{{#if has_additional_terms}}
+<h2>Additional Terms and Conditions</h2>
+<ol>
+  {{#each additional_terms}}
+  <li class="clause">{{this}}</li>
+  {{/each}}
+</ol>
+{{/if}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     JURISDICTION
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>Jurisdiction and Dispute Resolution</h2>
+<p class="clause">
+  Any disputes arising out of this agreement shall be subject to the exclusive
+  jurisdiction of the courts at <strong>{{city}}</strong>, <strong>{{state_code}}</strong>.
+  The parties agree to attempt amicable resolution before resorting to legal proceedings.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SIGNATURES
+     ═══════════════════════════════════════════════════════════════ -->
+<h2>Signatures</h2>
+<p class="clause">
+  IN WITNESS WHEREOF, the parties hereto have set their hands on this
+  <strong>{{agreement_date_formatted}}</strong> at <strong>{{city}}</strong>.
+</p>
+
+<div class="signatures-section">
+  {{> signature-block
+      party_label="Landlord (Owner)"
+      party_name=owner_full_name
+      party_phone=owner_phone
+      signature_data_uri=owner_signature_data_uri
+  }}
+  {{> signature-block
+      party_label="Tenant"
+      party_name=tenant_full_name
+      party_phone=tenant_phone
+      signature_data_uri=tenant_signature_data_uri
+  }}
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     WITNESSES
+     ═══════════════════════════════════════════════════════════════ -->
+{{#if has_witnesses}}
+<h2>Witnesses</h2>
+<div class="witnesses-section">
+  {{#if witness_1}}
+  {{> witness-block witness_number="1" name=witness_1.name father_name=witness_1.father_name address=witness_1.address phone=witness_1.phone}}
+  {{/if}}
+  {{#if witness_2}}
+  {{> witness-block witness_number="2" name=witness_2.name father_name=witness_2.father_name address=witness_2.address phone=witness_2.phone}}
+  {{/if}}
+</div>
+{{/if}}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     STAMP DUTY ADVISORY
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="stamp-duty-advisory">
+  <strong>Stamp Duty Advisory:</strong> The applicable stamp duty for this agreement in
+  <strong>{{state_code}}</strong> is <strong>{{stamp_duty_formatted}}</strong>.
+  {{#if acknowledge_registration_required}}
+  As the tenure exceeds 11 months, this agreement is recommended to be registered
+  under the Registration Act, 1908.
+  {{/if}}
+  Parties are advised to affix appropriate stamp paper and register this document
+  with the local Sub-Registrar's office as per applicable state laws.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LEGAL DISCLAIMER
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="legal-disclaimer">
+  <p>
+    This document has been generated by Cribliv. Cribliv is a technology platform
+    and does not provide legal advice. Parties are advised to consult a qualified
+    legal professional for verification and registration of this agreement.
+  </p>
+</div>
+
+</body>
+</html>
