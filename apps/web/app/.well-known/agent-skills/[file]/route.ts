@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadSkill } from "../../../../lib/agent-skills";
+import { loadSkill, buildSkillsIndex } from "../../../../lib/agent-skills";
 
 /**
  * Serves an individual skill markdown file. Slugs are restricted to
@@ -7,6 +7,11 @@ import { loadSkill } from "../../../../lib/agent-skills";
  */
 export const dynamic = "force-static";
 export const revalidate = 3600;
+
+/** Tell Next.js which [file] params exist so it can pre-render them. */
+export function generateStaticParams() {
+  return buildSkillsIndex().map((s) => ({ file: `${s.name}.md` }));
+}
 
 export function GET(_req: Request, { params }: { params: { file: string } }) {
   const file = params.file;

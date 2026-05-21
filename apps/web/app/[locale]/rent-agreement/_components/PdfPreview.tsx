@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist";
 
-// pdf.js renders in a Web Worker. Load the worker from a CDN to avoid
+// pdf.js renders in a Web Worker. Serve the worker from public/ to avoid
 // Terser build errors ("import.meta cannot be used outside of module code").
-// Pin version to match the installed pdfjs-dist dependency.
-pdfjs.GlobalWorkerOptions.workerSrc =
-  "https://unpkg.com/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
+// A plain string means webpack won't try to bundle/minify the worker file.
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 type RenderStatus = "loading" | "ready" | "error";
 
