@@ -68,8 +68,8 @@ import { OpenApiModule } from "./modules/openapi/openapi.module";
     MapModule,
     LandmarksModule,
     SeoModule,
-    OpenApiModule
-  
+    OpenApiModule,
+
     RentAgreementModule
   ],
   providers: [
