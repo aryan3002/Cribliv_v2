@@ -3,12 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import * as pdfjs from "pdfjs-dist";
 
-// pdf.js renders in a Web Worker. The worker file ships with pdfjs-dist;
-// new URL(..., import.meta.url) lets the Next/Webpack build bundle + serve it.
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+// pdf.js renders in a Web Worker. Load the worker from a CDN to avoid
+// Terser build errors ("import.meta cannot be used outside of module code").
+// Pin version to match the installed pdfjs-dist dependency.
+pdfjs.GlobalWorkerOptions.workerSrc =
+  "https://unpkg.com/pdfjs-dist@5.7.284/build/pdf.worker.min.mjs";
 
 type RenderStatus = "loading" | "ready" | "error";
 
