@@ -1,0 +1,30 @@
+<div class="witness-block">
+  <h4>Witness {{witness_number}}</h4>
+  <table class="witness-table">
+    <tr>
+      <td class="label">Name:</td>
+      <td>{{name}}</td>
+    </tr>
+    {{#if father_name}}
+    <tr>
+      <td class="label">Father's Name:</td>
+      <td>{{father_name}}</td>
+    </tr>
+    {{/if}}
+    {{#if address}}
+    <tr>
+      <td class="label">Address:</td>
+      <td>{{address}}</td>
+    </tr>
+    {{/if}}
+    {{#if phone}}
+    <tr>
+      <td class="label">Phone:</td>
+      <td>{{phone}}</td>
+    </tr>
+    {{/if}}
+  </table>
+  <div class="witness-signature-line">
+    <p>Signature: ___________________________</p>
+  </div>
+</div>
