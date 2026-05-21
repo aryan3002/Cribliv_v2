@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from "@nestjs/common";
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from "@nestjs/common";
 
 // Maps service-layer typed errors to HTTP responses per [[API-Contract]] §B3.
 // Anything without a recognized RENT_AGREEMENT_* code is re-thrown so Nest's
@@ -48,17 +48,30 @@ export class RentAgreementExceptionFilter implements ExceptionFilter {
     // STATE_UNSUPPORTED comes from stamp-duty.service as `RENT_AGREEMENT_STATE_UNSUPPORTED:<CODE>`.
     const baseCode = code.split(":")[0];
     const status = STATUS_BY_CODE[baseCode];
-    if (!status) {
-      throw exception;
-    }
     const res = host.switchToHttp().getResponse();
-    const body: Record<string, unknown> = {
-      ok: false,
-      error: { code: baseCode, message: err.message }
-    };
-    if (err.errors && err.errors.length > 0) {
-      (body.error as Record<string, unknown>).errors = err.errors;
+
+    if (status) {
+      const body: Record<string, unknown> = {
+        ok: false,
+        error: { code: baseCode, message: err.message }
+      };
+      if (err.errors && err.errors.length > 0) {
+        (body.error as Record<string, unknown>).errors = err.errors;
+      }
+      res.status(status).json(body);
+      return;
     }
-    res.status(status).json(body);
+
+    // Not a RENT_AGREEMENT_* error. NEVER re-throw — a re-throw from a
+    // controller-scoped filter escapes Nest and crashes the process. An
+    // HttpException (401 / 403 / throttler / etc.) keeps its own status + body;
+    // anything else is a genuine 500.
+    if (exception instanceof HttpException) {
+      res.status(exception.getStatus()).json(exception.getResponse());
+      return;
+    }
+    res
+      .status(HttpStatus.INTERNAL_SERVER_ERROR)
+      .json({ ok: false, error: { code: "INTERNAL", message: "Internal server error" } });
   }
 }

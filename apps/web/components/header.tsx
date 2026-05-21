@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Search, Heart, Globe, Plus } from "lucide-react";
+import { Search, Heart, Globe, Plus, FileText } from "lucide-react";
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { HeaderMenu } from "./header-menu";
@@ -49,6 +49,13 @@ export function Header({ locale }: { locale: Locale }) {
           >
             <Heart size={15} aria-hidden="true" />
             <span>{t(locale, "navSaved")}</span>
+          </Link>
+          <Link
+            href={`/${locale}/rent-agreement`}
+            className={`nav-tab${isActive(`/${locale}/rent-agreement`) ? " nav-tab--active" : ""}`}
+          >
+            <FileText size={15} aria-hidden="true" />
+            <span>Rent Agreement</span>
           </Link>
         </nav>
 

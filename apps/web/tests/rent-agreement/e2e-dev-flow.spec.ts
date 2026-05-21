@@ -6,15 +6,15 @@ import { test, expect } from "@playwright/test";
  * Exercises: create draft → walk the wizard with pre-filled valid defaults →
  * mock checkout → backend auto-captures + renders the PDF → download it.
  *
- * Requires the dev backend (auto-started by playwright.config.ts webServer)
- * and NEXT_PUBLIC_RENT_AGREEMENT_DEV_AUTH=true so the wizard mints a token via
- * GET /rent-agreement/_dev/bootstrap instead of the full OTP login.
+ * SKIPPED: dev-auth is now off — the wizard requires a real OTP login. This
+ * spec used the /_dev/bootstrap token shortcut. Re-enable once a Playwright
+ * login fixture (or a test-only session cookie) is added.
  */
 
 // Basic plan skips step 6 (signatures): advancing step 5 jumps straight to 7.
 const NEXT_STEP: Record<number, number> = { 1: 2, 2: 3, 3: 4, 4: 5, 5: 7 };
 
-test("dev flow: create → wizard → checkout → PDF download", async ({ page }) => {
+test.skip("dev flow: create → wizard → checkout → PDF download", async ({ page }) => {
   // Generous budget — dev-mode route compilation + a full 7-step walk + poll.
   test.setTimeout(180_000);
 

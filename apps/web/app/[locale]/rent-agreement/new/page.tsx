@@ -1,9 +1,10 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FilePlus } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { PlanPicker } from "../_components/PlanPicker";
 import { useCreateDraft } from "@/lib/rent-agreement/hooks/use-create-draft";
 import { newIdempotencyKey } from "@/lib/rent-agreement/state/idempotency";
@@ -11,15 +12,30 @@ import type { Locale, PlanId } from "@/lib/rent-agreement/api/types";
 
 export default function Page({ params }: { params: { locale: string } }) {
   const router = useRouter();
+  const { status } = useSession();
+  const searchParams = useSearchParams();
+
+  // A plan carried back from the login round-trip pre-selects the picker.
+  const planParam = searchParams.get("plan");
+  const initialPlan: PlanId =
+    planParam === "standard" || planParam === "premium" ? planParam : "basic";
+
   // The draft's content locale defaults to the current UI locale.
   const [pick, setPick] = useState<{ plan: PlanId; locale: Locale }>({
-    plan: "basic",
+    plan: initialPlan,
     locale: params.locale === "hi" ? "hi" : "en"
   });
   const [idemKey] = useState(() => newIdempotencyKey("create-draft"));
   const createDraft = useCreateDraft();
 
   async function submit() {
+    // Creating a draft needs a signed-in user. Send the visitor to login
+    // first, preserving the chosen plan so it survives the round-trip.
+    if (status !== "authenticated") {
+      const back = `/${params.locale}/rent-agreement/new?plan=${pick.plan}`;
+      router.push(`/${params.locale}/auth/login?from=${encodeURIComponent(back)}` as Route);
+      return;
+    }
     const draft = await createDraft.mutateAsync({
       plan_id: pick.plan,
       locale: pick.locale,
@@ -70,7 +86,11 @@ export default function Page({ params }: { params: { locale: string } }) {
       )}
       <button onClick={submit} disabled={createDraft.isPending} className="ra-button">
         <FilePlus size={17} aria-hidden="true" />
-        {createDraft.isPending ? "Creating…" : "Create draft"}
+        {createDraft.isPending
+          ? "Creating…"
+          : status === "authenticated"
+            ? "Create draft"
+            : "Sign in to continue"}
       </button>
     </>
   );

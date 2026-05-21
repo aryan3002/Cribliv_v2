@@ -46,4 +46,9 @@ describe("RentAgreementApi paths", () => {
   it("devBootstrap", () => {
     expect(RentAgreementApi.devBootstrap().path).toBe("/rent-agreement/_dev/bootstrap");
   });
+  it("preview", () => {
+    const r = RentAgreementApi.preview("abc");
+    expect(r.method).toBe("GET");
+    expect(r.path).toBe("/rent-agreement/abc/preview");
+  });
 });

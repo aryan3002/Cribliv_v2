@@ -41,4 +41,27 @@ export class ApiClient {
     }
     return json as ApiResult<T>;
   }
+
+  /**
+   * Fetch a binary response body (e.g. a PDF) as an ArrayBuffer. Same auth
+   * headers as `request`, but never JSON-unwraps the success body. Errors still
+   * arrive as the JSON `RENT_AGREEMENT_*` envelope, so parse + throw RaError.
+   */
+  async requestBytes(req: ApiRequest): Promise<ArrayBuffer> {
+    const token = await this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${this.baseUrl}${req.path}`, {
+      method: req.method,
+      headers,
+      signal: req.signal
+    });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw RaError.fromResponse(res.status, json);
+    }
+    return res.arrayBuffer();
+  }
 }

@@ -51,6 +51,7 @@ export const RentAgreementApi = {
   }),
   status: (id: string): ApiRequest => ({ method: "GET", path: `/rent-agreement/${id}/status` }),
   download: (id: string): ApiRequest => ({ method: "GET", path: `/rent-agreement/${id}/download` }),
+  preview: (id: string): ApiRequest => ({ method: "GET", path: `/rent-agreement/${id}/preview` }),
   eStampIssue: (id: string): ApiRequest => ({
     method: "POST",
     path: `/rent-agreement/${id}/e-stamp/issue`

@@ -13,6 +13,7 @@ import {
   Query,
   Req,
   Res,
+  StreamableFile,
   UseFilters,
   UseGuards
 } from "@nestjs/common";
@@ -30,6 +31,7 @@ import { STAMP_DUTY_SEED } from "./stamp-duty/stamp-duty.repository";
 import { listActivePlans } from "./plans/plans.catalog";
 import { RentAgreementExceptionFilter } from "./rent-agreement.exception-filter";
 import { InMemoryPdfStorage } from "./pdf/in-memory-pdf-storage";
+import { PdfPreviewService } from "./pdf/pdf-preview.service";
 
 // Mirrors the DI token in rent-agreement.module.ts (kept as a string literal to
 // avoid a circular import controller ↔ module).
@@ -84,6 +86,7 @@ export class RentAgreementController {
     @Inject(DownloadsService) private readonly downloads: DownloadsService,
     @Inject(StampDutyService) private readonly stampDuty: StampDutyService,
     @Inject(AppStateService) private readonly appState: AppStateService,
+    @Inject(PdfPreviewService) private readonly preview: PdfPreviewService,
     @Optional()
     @Inject(RENT_AGREEMENT_PDF_STORAGE_TOKEN)
     private readonly pdfStorage?: InMemoryPdfStorage
@@ -344,6 +347,22 @@ export class RentAgreementController {
       sas_url: result.sasUrl,
       expires_at: result.expiresAt.toISOString(),
       remaining: result.remaining
+    });
+  }
+
+  // ─── Secure in-page preview ───────────────────────────────────────────────
+  // Streams the generated PDF for the authenticated owner WITHOUT consuming a
+  // download. Used by the in-app pdf.js viewer. The counted save path stays
+  // GET :id/download. Returns a StreamableFile (not @Res()) so the AuthGuard
+  // 401 and PdfPreviewError → exception-filter mapping both flow normally.
+  @UseGuards(AuthGuard)
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  @Get(":id/preview")
+  async previewPdf(@Req() req: AuthedReq, @Param("id") id: string): Promise<StreamableFile> {
+    const bytes = await this.preview.getPdfBytes(id, req.user.id);
+    return new StreamableFile(bytes, {
+      type: "application/pdf",
+      disposition: 'inline; filename="agreement-preview.pdf"'
     });
   }
 }

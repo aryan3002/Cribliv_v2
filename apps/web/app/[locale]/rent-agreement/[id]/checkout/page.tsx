@@ -7,11 +7,20 @@ import { getApiBaseUrl } from "@/lib/api";
 import { useCheckout } from "@/lib/rent-agreement/hooks/use-checkout";
 import { useDownload } from "@/lib/rent-agreement/hooks/use-download";
 import { useDraft } from "@/lib/rent-agreement/hooks/use-draft";
+import { usePreview } from "@/lib/rent-agreement/hooks/use-preview";
 import { useStatusPoll } from "@/lib/rent-agreement/hooks/use-status-poll";
 import { newIdempotencyKey } from "@/lib/rent-agreement/state/idempotency";
 import { isTerminal, statusLabel } from "@/lib/rent-agreement/state/status-machine";
+import dynamic from "next/dynamic";
 import { StatusBadge } from "../../_components/StatusBadge";
 import { formatRupees, planLabel } from "../../_components/ui-copy";
+
+// pdf.js touches browser-only globals (DOMMatrix) at import time — load the
+// viewer on the client only so it never runs during server rendering.
+const PdfPreview = dynamic(() => import("../../_components/PdfPreview").then((m) => m.PdfPreview), {
+  ssr: false,
+  loading: () => <p className="ra-loading">Loading viewer…</p>
+});
 
 export default function Page({ params }: { params: { locale: string; id: string } }) {
   const [idemKey] = useState(() => newIdempotencyKey("checkout"));
@@ -20,6 +29,14 @@ export default function Page({ params }: { params: { locale: string; id: string 
   const download = useDownload();
   const draft = useDraft(params.id);
   const status = useStatusPoll(params.id, { enabled: polling });
+
+  const s = status.data?.status;
+  const ready = s === "generated" || draft.data?.status === "generated";
+  const preview = usePreview(params.id, ready);
+
+  const downloadCount = draft.data?.download_count ?? 0;
+  const maxDownloads = draft.data?.max_downloads ?? 5;
+  const noDownloadsLeft = downloadCount >= maxDownloads;
 
   async function pay() {
     await checkout.mutateAsync({
@@ -30,19 +47,26 @@ export default function Page({ params }: { params: { locale: string; id: string 
     setPolling(true);
   }
 
-  async function fetchSas() {
+  // The ONLY counted path. Server increments download_count (max 5) on
+  // GET /download; we then save the file via a same-origin blob URL so the
+  // browser downloads it rather than navigating to (and exposing) the URL.
+  async function savePdf() {
     const r = await download.mutateAsync({ agreementId: params.id });
-    // D3: dev sas_url is relative ("/v1/rent-agreement/_dev/pdf-bytes/...").
-    // getApiBaseUrl() already carries the /v1 suffix the relative path repeats,
-    // so strip it before joining.
     const url = r.sas_url.startsWith("http")
       ? r.sas_url
       : `${getApiBaseUrl().replace(/\/v1$/, "")}${r.sas_url}`;
-    window.open(url, "_blank");
+    const resp = await fetch(url);
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = "rent-agreement.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objUrl);
   }
 
-  const s = status.data?.status;
-  const ready = s === "generated";
   const shownStatus = s ?? draft.data?.status;
 
   return (
@@ -68,7 +92,7 @@ export default function Page({ params }: { params: { locale: string; id: string 
         <div>
           <h1 className="ra-page-title">Checkout</h1>
           <p className="ra-page-copy">
-            Complete payment, wait for PDF generation, then open the final agreement.
+            Complete payment, wait for PDF generation, then review and download the agreement.
           </p>
         </div>
         {shownStatus && <StatusBadge status={shownStatus} />}
@@ -78,29 +102,19 @@ export default function Page({ params }: { params: { locale: string; id: string 
         <section className="ra-panel" aria-labelledby="checkout-action-title">
           <div className="ra-panel-header">
             <h2 id="checkout-action-title" className="ra-panel-title">
-              Payment and PDF
+              Payment
             </h2>
           </div>
           <div className="ra-panel-body">
             <div className="ra-form">
-              <button onClick={pay} disabled={checkout.isPending} className="ra-button">
+              <button onClick={pay} disabled={checkout.isPending || ready} className="ra-button">
                 <CreditCard size={17} aria-hidden="true" />
-                {checkout.isPending ? "Submitting…" : "Pay now"}
+                {ready ? "Paid" : checkout.isPending ? "Submitting…" : "Pay now"}
               </button>
-              {polling && (
+              {polling && !ready && (
                 <p className="ra-muted">
                   Status: <b>{s ? statusLabel(s) : "Waiting for payment status…"}</b>
                 </p>
-              )}
-              {ready && (
-                <button
-                  onClick={fetchSas}
-                  disabled={download.isPending}
-                  className="ra-button-secondary"
-                >
-                  <FileDown size={17} aria-hidden="true" />
-                  {download.isPending ? "Fetching…" : "Open PDF"}
-                </button>
               )}
               {s && isTerminal(s) && s !== "generated" && (
                 <p className="ra-error-box" role="alert">
@@ -136,7 +150,7 @@ export default function Page({ params }: { params: { locale: string; id: string 
                 <div className="ra-summary-row">
                   <dt>Downloads</dt>
                   <dd>
-                    {draft.data.download_count}/{draft.data.max_downloads}
+                    {downloadCount}/{maxDownloads}
                   </dd>
                 </div>
               </dl>
@@ -144,6 +158,41 @@ export default function Page({ params }: { params: { locale: string; id: string 
           </div>
         </aside>
       </div>
+
+      {ready && (
+        <section className="ra-panel" aria-labelledby="preview-title" style={{ marginTop: 16 }}>
+          <div className="ra-panel-header">
+            <h2 id="preview-title" className="ra-panel-title">
+              Final agreement
+            </h2>
+            <button
+              onClick={savePdf}
+              disabled={download.isPending || noDownloadsLeft}
+              className="ra-button"
+            >
+              <FileDown size={17} aria-hidden="true" />
+              {download.isPending
+                ? "Preparing…"
+                : noDownloadsLeft
+                  ? "Download limit reached"
+                  : "Download PDF"}
+            </button>
+          </div>
+          <div className="ra-panel-body">
+            <p className="ra-muted">
+              {downloadCount} of {maxDownloads} downloads used · preview is unlimited
+            </p>
+            {download.isError && (
+              <p className="ra-error-box" role="alert">
+                {(download.error as { code?: string }).code ?? "Download failed"}
+              </p>
+            )}
+            {preview.isLoading && <p className="ra-loading">Loading preview…</p>}
+            {preview.isError && <p className="ra-error">Could not load the preview.</p>}
+            {preview.data && <PdfPreview bytes={preview.data} />}
+          </div>
+        </section>
+      )}
     </>
   );
 }

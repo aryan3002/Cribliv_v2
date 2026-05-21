@@ -60,3 +60,44 @@ describe("ApiClient.request", () => {
     );
   });
 });
+
+describe("ApiClient.requestBytes", () => {
+  function mockBytes(status: number, buf: ArrayBuffer): void {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: status >= 200 && status < 300,
+      status,
+      arrayBuffer: async () => buf,
+      json: async () => ({})
+    } as Response);
+  }
+
+  it("returns the response body as an ArrayBuffer on 2xx", async () => {
+    const buf = new TextEncoder().encode("%PDF-1.4").buffer;
+    mockBytes(200, buf);
+    const client = new ApiClient(BASE, async () => "t");
+    const out = await client.requestBytes({ method: "GET", path: "/x/preview" });
+    expect(new Uint8Array(out)).toEqual(new Uint8Array(buf));
+  });
+
+  it("attaches the Authorization header", async () => {
+    mockBytes(200, new ArrayBuffer(0));
+    const client = new ApiClient(BASE, async () => "acc_z");
+    await client.requestBytes({ method: "GET", path: "/x/preview" });
+    const call = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[1].headers.Authorization).toBe("Bearer acc_z");
+  });
+
+  it("throws RaError on a 4xx error envelope", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ ok: false, error: { code: "RENT_AGREEMENT_NOT_FOUND", message: "x" } }),
+      arrayBuffer: async () => new ArrayBuffer(0)
+    } as Response);
+    const client = new ApiClient(BASE, async () => "t");
+    await expect(client.requestBytes({ method: "GET", path: "/x/preview" })).rejects.toMatchObject({
+      code: "RENT_AGREEMENT_NOT_FOUND",
+      httpStatus: 404
+    });
+  });
+});

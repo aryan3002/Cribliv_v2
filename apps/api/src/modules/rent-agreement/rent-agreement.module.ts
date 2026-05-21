@@ -17,10 +17,11 @@ import { DevAutoCapturePipeline } from "./payments/dev-auto-capture-pipeline";
 
 import { PdfJobQueueService } from "./pdf/pdf-job-queue.service";
 import { PdfJobWorker } from "./pdf/pdf-job-worker";
-import { InMemoryPdfRenderer } from "./pdf/in-memory-pdf-renderer";
+import { LazyPuppeteerPdfRenderer } from "./pdf/lazy-puppeteer-renderer";
 import { InMemoryPdfStorage } from "./pdf/in-memory-pdf-storage";
 import type { PdfRendererPort } from "./pdf/pdf-renderer.port";
 import type { PdfStoragePort } from "./pdf/pdf-storage.port";
+import { PdfPreviewService } from "./pdf/pdf-preview.service";
 
 import { DevApiSasIssuer } from "./downloads/dev-api-sas-issuer";
 import {
@@ -96,8 +97,9 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
     PdfJobQueueService,
     {
       provide: RENT_AGREEMENT_PDF_RENDERER,
-      useFactory: (): PdfRendererPort => new InMemoryPdfRenderer()
-      // PROD: swap to new PuppeteerPdfRenderer({browserPool, ...}) — see PRODUCTION-WIRING.md
+      // Real Puppeteer + Handlebars renderer (lazy: Chromium launches on first
+      // render). Produces a genuine PDF so /_dev/pdf-bytes serves a real file.
+      useFactory: (): PdfRendererPort => new LazyPuppeteerPdfRenderer()
     },
     {
       provide: RENT_AGREEMENT_PDF_STORAGE,
@@ -238,6 +240,18 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
           ipSalt: process.env.RENT_AGREEMENT_IP_SALT ?? "phase13-dev-salt"
         }),
       inject: [DraftsService]
+    },
+
+    // ─── PDF preview (in-page viewer — streams bytes, no download counter) ───
+    {
+      provide: PdfPreviewService,
+      useFactory: (drafts: DraftsService, pdfStorage: { get?(p: string): Buffer | undefined }) =>
+        new PdfPreviewService({
+          loadAgreement: makeDraftsAgreementLoader(drafts),
+          loadPdfBytes: (blobPath) =>
+            typeof pdfStorage?.get === "function" ? pdfStorage.get(blobPath) : undefined
+        }),
+      inject: [DraftsService, RENT_AGREEMENT_PDF_STORAGE]
     }
   ],
   exports: [

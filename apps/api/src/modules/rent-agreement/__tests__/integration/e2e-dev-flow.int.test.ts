@@ -3,7 +3,8 @@ import type { INestApplication } from "@nestjs/common";
 import { ValidationPipe } from "@nestjs/common";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
-import { RentAgreementModule } from "../../rent-agreement.module";
+import { RentAgreementModule, RENT_AGREEMENT_PDF_RENDERER } from "../../rent-agreement.module";
+import { InMemoryPdfRenderer } from "../../pdf/in-memory-pdf-renderer";
 import { AuthGuard } from "../../../../common/auth.guard";
 
 // Phase 13 E2E. Drives the full happy path against the dev-wired module:
@@ -28,6 +29,10 @@ describe("Rent agreement E2E dev flow: draft → 7 steps → checkout → genera
           return true;
         }
       })
+      // The dev runtime now renders real PDFs via Puppeteer; an integration
+      // test must not launch Chromium. Pin the fast deterministic stub.
+      .overrideProvider(RENT_AGREEMENT_PDF_RENDERER)
+      .useValue(new InMemoryPdfRenderer())
       .compile();
 
     app = moduleRef.createNestApplication();
