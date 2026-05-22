@@ -5,17 +5,22 @@ import { AdminOpsService } from "./admin-ops.service";
 import { AdminOwnerHealthService } from "./admin-owner-health.service";
 import { AdminRevenueService } from "./admin-revenue.service";
 import { AdminFraudFeedService } from "./admin-fraud-feed.service";
+import { AdminRentAgreementService } from "./admin-rent-agreement.service";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
 
 @Module({
-  imports: [NotificationsModule],
+  // RentAgreementModule is imported for the RENT_AGREEMENT_SAS_ISSUER token
+  // (AdminRentAgreementService issues admin PDF download links).
+  imports: [NotificationsModule, RentAgreementModule],
   controllers: [AdminController],
   providers: [
     AdminAnalyticsService,
     AdminOpsService,
     AdminOwnerHealthService,
     AdminRevenueService,
-    AdminFraudFeedService
+    AdminFraudFeedService,
+    AdminRentAgreementService
   ]
 })
 export class AdminModule {}

@@ -12,7 +12,7 @@
 export interface DevAutoCapturePipelineDeps {
   drafts: { markPaid(agreementId: string): Promise<void> };
   queue: {
-    enqueue(input: { agreementId: string }): { jobId: string; alreadyEnqueued: boolean };
+    enqueue(input: { agreementId: string }): Promise<{ jobId: string; alreadyEnqueued: boolean }>;
   };
   worker: { tick(): Promise<{ processed: 0 | 1; error?: string }> };
   schedule?: (fn: () => Promise<void> | void) => unknown;
@@ -41,7 +41,7 @@ export class DevAutoCapturePipeline {
 
   async trigger(agreementId: string): Promise<void> {
     await this.drafts.markPaid(agreementId);
-    this.queue.enqueue({ agreementId });
+    await this.queue.enqueue({ agreementId });
     this.schedule(async () => {
       try {
         await this.worker.tick();

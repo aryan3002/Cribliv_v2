@@ -51,7 +51,7 @@ describe("CheckoutService.createOrder: happy path", () => {
   it("persists an order findable by provider_order_id with status='pending_payment'", async () => {
     const svc = new CheckoutService(makeDeps());
     await svc.createOrder(validReq);
-    const order = svc.findByProviderOrderId("order_razorpay_1");
+    const order = await svc.findByProviderOrderId("order_razorpay_1");
     expect(order?.status).toBe("pending_payment");
     expect(order?.user_id).toBe(USER_ID);
   });
@@ -216,12 +216,33 @@ describe("CheckoutService.createOrder: validation gates", () => {
   });
 });
 
+describe("CheckoutService.createOrder: dev mock capture", () => {
+  it("settles the order with a mock provider_payment_id when devMockCapture is set", async () => {
+    const svc = new CheckoutService(
+      makeDeps({ devMockCapture: (orderId) => `mock_pay_${orderId}` })
+    );
+    const r = await svc.createOrder(validReq);
+    expect(r.status).toBe("paid");
+    const order = await svc.findByProviderOrderId("order_razorpay_1");
+    expect(order?.status).toBe("paid");
+    expect(order?.provider_payment_id).toBe(`mock_pay_${r.id}`);
+  });
+
+  it("leaves the order pending when devMockCapture is absent (prod behavior)", async () => {
+    const svc = new CheckoutService(makeDeps());
+    const r = await svc.createOrder(validReq);
+    expect(r.status).toBe("pending_payment");
+    const order = await svc.findByProviderOrderId("order_razorpay_1");
+    expect(order?.provider_payment_id).toBeNull();
+  });
+});
+
 describe("CheckoutService.markPaid", () => {
   it("flips status to 'paid' and records providerPaymentId", async () => {
     const svc = new CheckoutService(makeDeps());
     const r = await svc.createOrder(validReq);
-    svc.markPaid(r.id, "pay_xyz");
-    const order = svc.findByProviderOrderId("order_razorpay_1");
+    await svc.markPaid(r.id, "pay_xyz");
+    const order = await svc.findByProviderOrderId("order_razorpay_1");
     expect(order?.status).toBe("paid");
     expect(order?.provider_payment_id).toBe("pay_xyz");
   });
@@ -229,22 +250,22 @@ describe("CheckoutService.markPaid", () => {
   it("second markPaid call is a no-op (idempotent)", async () => {
     const svc = new CheckoutService(makeDeps());
     const r = await svc.createOrder(validReq);
-    svc.markPaid(r.id, "pay_xyz");
-    expect(() => svc.markPaid(r.id, "pay_xyz")).not.toThrow();
+    await svc.markPaid(r.id, "pay_xyz");
+    await expect(svc.markPaid(r.id, "pay_xyz")).resolves.toBeUndefined();
   });
 
-  it("throws ORDER_NOT_FOUND when order id is unknown", () => {
+  it("throws ORDER_NOT_FOUND when order id is unknown", async () => {
     const svc = new CheckoutService(makeDeps());
-    expect(() => svc.markPaid("missing", "pay_x")).toThrow(
-      expect.objectContaining({ code: "RENT_AGREEMENT_CHECKOUT_ORDER_NOT_FOUND" })
-    );
+    await expect(svc.markPaid("missing", "pay_x")).rejects.toMatchObject({
+      code: "RENT_AGREEMENT_CHECKOUT_ORDER_NOT_FOUND"
+    });
   });
 });
 
 describe("CheckoutService.findByProviderOrderId", () => {
-  it("returns null for unknown provider order id", () => {
+  it("returns null for unknown provider order id", async () => {
     const svc = new CheckoutService(makeDeps());
-    expect(svc.findByProviderOrderId("nope")).toBeNull();
+    expect(await svc.findByProviderOrderId("nope")).toBeNull();
   });
 });
 
@@ -273,11 +294,11 @@ describe("CheckoutService.createOrder: paymentProvider integration (Phase 13)", 
 });
 
 describe("CheckoutService.createOrder: drafts state-transition side effect (Phase 13)", () => {
-  it("calls onOrderCreated callback with (draftId, providerOrderId) after persisting the order", async () => {
+  it("calls onOrderCreated callback with (draftId, providerOrderId, orderId) after persisting the order", async () => {
     const onOrderCreated = vi.fn(async () => {});
     const svc = new CheckoutService({ ...makeDeps(), onOrderCreated });
     await svc.createOrder(validReq);
-    expect(onOrderCreated).toHaveBeenCalledWith(DRAFT_ID, "order_razorpay_1");
+    expect(onOrderCreated).toHaveBeenCalledWith(DRAFT_ID, "order_razorpay_1", "uuid-1");
   });
 
   it("does not call onOrderCreated on idempotency-replay", async () => {

@@ -19,7 +19,8 @@ function make(overrides: {
 }) {
   return new PdfPreviewService({
     loadAgreement: async () => ("agreement" in overrides ? overrides.agreement! : GENERATED),
-    loadPdfBytes: () => ("bytes" in overrides ? overrides.bytes : Buffer.from("%PDF-1.4 fake")),
+    loadPdfBytes: async () =>
+      "bytes" in overrides ? overrides.bytes : Buffer.from("%PDF-1.4 fake"),
     clock: overrides.clock
   });
 }

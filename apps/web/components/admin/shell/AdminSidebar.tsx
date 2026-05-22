@@ -6,6 +6,7 @@ import {
   BarChart3,
   ClipboardList,
   Coins,
+  FileText,
   LayoutDashboard,
   LogOut,
   ShieldCheck,
@@ -23,6 +24,7 @@ export type AdminTab =
   | "leads"
   | "users"
   | "revenue"
+  | "rent-agreements"
   | "fraud"
   | "system";
 
@@ -52,6 +54,7 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
   ];
   const understand: NavItem[] = [
     { id: "revenue", label: "Revenue", icon: Coins },
+    { id: "rent-agreements", label: "Rent Agreements", icon: FileText },
     { id: "users", label: "Users", icon: Users }
   ];
   const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];

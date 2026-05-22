@@ -32,10 +32,12 @@ import { listActivePlans } from "./plans/plans.catalog";
 import { RentAgreementExceptionFilter } from "./rent-agreement.exception-filter";
 import { InMemoryPdfStorage } from "./pdf/in-memory-pdf-storage";
 import { PdfPreviewService } from "./pdf/pdf-preview.service";
+import { nullAnalytics, type RentAgreementAnalyticsPort } from "./plans/null-analytics";
 
-// Mirrors the DI token in rent-agreement.module.ts (kept as a string literal to
+// Mirrors the DI tokens in rent-agreement.module.ts (kept as string literals to
 // avoid a circular import controller ↔ module).
 const RENT_AGREEMENT_PDF_STORAGE_TOKEN = "RENT_AGREEMENT_PDF_STORAGE";
+const RENT_AGREEMENT_ANALYTICS_TOKEN = "RENT_AGREEMENT_ANALYTICS";
 
 interface AuthedReq {
   user: { id: string; role: string };
@@ -89,7 +91,10 @@ export class RentAgreementController {
     @Inject(PdfPreviewService) private readonly preview: PdfPreviewService,
     @Optional()
     @Inject(RENT_AGREEMENT_PDF_STORAGE_TOKEN)
-    private readonly pdfStorage?: InMemoryPdfStorage
+    private readonly pdfStorage?: InMemoryPdfStorage,
+    @Optional()
+    @Inject(RENT_AGREEMENT_ANALYTICS_TOKEN)
+    private readonly analytics: RentAgreementAnalyticsPort = nullAnalytics
   ) {}
 
   // ─── Public ────────────────────────────────────────────────────────────
@@ -170,7 +175,9 @@ export class RentAgreementController {
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @Get("my")
   async listMine(@Req() req: AuthedReq) {
-    return ok(await this.drafts.listForUser(req.user.id));
+    const result = await this.drafts.listForUser(req.user.id);
+    void this.analytics.emit("ra.session_started", { user_id: req.user.id }).catch(() => {});
+    return ok(result);
   }
 
   @UseGuards(AuthGuard)
@@ -203,7 +210,30 @@ export class RentAgreementController {
     @Param("step", ParseIntPipe) step: number,
     @Body() body: unknown
   ) {
-    return ok(await this.drafts.advance(req.user.id, id, step, body));
+    try {
+      const result = await this.drafts.advance(req.user.id, id, step, body);
+      void this.analytics
+        .emitStepAudit({ agreementId: id, step, outcome: "advanced", actorUserId: req.user.id })
+        .catch(() => {});
+      return ok(result);
+    } catch (err) {
+      const e = err as { code?: string; errors?: Array<{ code: string }> };
+      if (
+        e.code === "RENT_AGREEMENT_STEP_VALIDATION_FAILED" ||
+        e.code === "RENT_AGREEMENT_CROSS_FIELD_FAILED"
+      ) {
+        void this.analytics
+          .emitStepAudit({
+            agreementId: id,
+            step,
+            outcome: "blocked",
+            actorUserId: req.user.id,
+            errorCodes: e.errors?.map((detail) => detail.code)
+          })
+          .catch(() => {});
+      }
+      throw err;
+    }
   }
 
   @UseGuards(AuthGuard)
@@ -215,7 +245,11 @@ export class RentAgreementController {
     @Param("id") id: string,
     @Param("step", ParseIntPipe) step: number
   ) {
-    return ok(await this.drafts.back(req.user.id, id, step));
+    const result = await this.drafts.back(req.user.id, id, step);
+    void this.analytics
+      .emitStepAudit({ agreementId: id, step, outcome: "reverted", actorUserId: req.user.id })
+      .catch(() => {});
+    return ok(result);
   }
 
   @UseGuards(AuthGuard)
@@ -261,6 +295,13 @@ export class RentAgreementController {
       idempotencyKey: idemKey,
       provider: body.provider
     });
+    void this.analytics
+      .emit("ra.checkout_started", {
+        agreement_id: id,
+        user_id: req.user.id,
+        plan_id: (result.notes as { plan_id?: string } | undefined)?.plan_id
+      })
+      .catch(() => {});
     return ok(result);
   }
 

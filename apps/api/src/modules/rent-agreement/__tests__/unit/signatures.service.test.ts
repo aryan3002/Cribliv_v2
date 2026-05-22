@@ -44,36 +44,36 @@ describe("SignaturesService.save: happy path", () => {
   it("hasSignature() returns true after save", async () => {
     const svc = makeService();
     await svc.save(validSaveInput);
-    expect(svc.hasSignature(AGREEMENT_ID, "owner")).toBe(true);
+    expect(await svc.hasSignature(AGREEMENT_ID, "owner")).toBe(true);
   });
 
   it("hasBothSignatures() is false after only owner saves", async () => {
     const svc = makeService();
     await svc.save(validSaveInput);
-    expect(svc.hasBothSignatures(AGREEMENT_ID)).toBe(false);
+    expect(await svc.hasBothSignatures(AGREEMENT_ID)).toBe(false);
   });
 
   it("hasBothSignatures() is true after both owner + tenant save", async () => {
     const svc = makeService();
     await svc.save(validSaveInput);
     await svc.save({ ...validSaveInput, party: "tenant" });
-    expect(svc.hasBothSignatures(AGREEMENT_ID)).toBe(true);
+    expect(await svc.hasBothSignatures(AGREEMENT_ID)).toBe(true);
   });
 
   it("count() reflects number of saved parties per agreement", async () => {
     const svc = makeService();
-    expect(svc.count(AGREEMENT_ID)).toBe(0);
+    expect(await svc.count(AGREEMENT_ID)).toBe(0);
     await svc.save(validSaveInput);
-    expect(svc.count(AGREEMENT_ID)).toBe(1);
+    expect(await svc.count(AGREEMENT_ID)).toBe(1);
     await svc.save({ ...validSaveInput, party: "tenant" });
-    expect(svc.count(AGREEMENT_ID)).toBe(2);
+    expect(await svc.count(AGREEMENT_ID)).toBe(2);
   });
 
   it("isolates signatures per agreement_id", async () => {
     const svc = makeService();
     await svc.save(validSaveInput);
-    expect(svc.hasSignature("other-agreement", "owner")).toBe(false);
-    expect(svc.count("other-agreement")).toBe(0);
+    expect(await svc.hasSignature("other-agreement", "owner")).toBe(false);
+    expect(await svc.count("other-agreement")).toBe(0);
   });
 });
 
@@ -84,7 +84,7 @@ describe("SignaturesService.save: upsert per (agreement, party)", () => {
     const svc = makeService();
     await svc.save(validSaveInput);
     await svc.save({ ...validSaveInput, method: "upload" });
-    expect(svc.count(AGREEMENT_ID)).toBe(1);
+    expect(await svc.count(AGREEMENT_ID)).toBe(1);
   });
 
   it("second save updates sha256 to the new guard result", async () => {
@@ -184,22 +184,22 @@ describe("SignaturesService.save: guard errors bubble up", () => {
     });
     const svc = makeService({ guard });
     await expect(svc.save(validSaveInput)).rejects.toBeDefined();
-    expect(svc.hasSignature(AGREEMENT_ID, "owner")).toBe(false);
-    expect(svc.count(AGREEMENT_ID)).toBe(0);
+    expect(await svc.hasSignature(AGREEMENT_ID, "owner")).toBe(false);
+    expect(await svc.count(AGREEMENT_ID)).toBe(0);
   });
 });
 
 describe("SignaturesService.listForAgreement (Phase 13: PDF renderer projection)", () => {
-  it("returns empty array when no signatures saved", () => {
+  it("returns empty array when no signatures saved", async () => {
     const svc = makeService();
-    expect(svc.listForAgreement("agr-none")).toEqual([]);
+    expect(await svc.listForAgreement("agr-none")).toEqual([]);
   });
 
   it("returns owner + tenant projections with party, content_type, image_bytes", async () => {
     const svc = makeService();
     await svc.save(validSaveInput);
     await svc.save({ ...validSaveInput, party: "tenant" });
-    const list = svc.listForAgreement(AGREEMENT_ID);
+    const list = await svc.listForAgreement(AGREEMENT_ID);
     expect(list).toHaveLength(2);
     const owner = list.find((s) => s.party === "owner");
     const tenant = list.find((s) => s.party === "tenant");
@@ -211,6 +211,6 @@ describe("SignaturesService.listForAgreement (Phase 13: PDF renderer projection)
   it("scopes by agreement_id (does not leak other agreements' sigs)", async () => {
     const svc = makeService();
     await svc.save(validSaveInput);
-    expect(svc.listForAgreement("other-agreement")).toEqual([]);
+    expect(await svc.listForAgreement("other-agreement")).toEqual([]);
   });
 });

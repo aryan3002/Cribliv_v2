@@ -21,11 +21,13 @@ import {
   type DraftSummary,
   type RentAgreementRow
 } from "./draft-summary.mapper";
+import { DraftsRepository, InMemoryDraftsRepository } from "./drafts.repository";
 import { isValidStep, nextStep, type PlanId } from "./step-registry";
 import { blankRow, writeStep } from "./step-row.mapper";
 
-// Server-enforced state machine for the 7-step wizard. In-memory backend only for Phase 5; DB
-// repository + live-Postgres integration test land in Phase 13/14 (see HANDOFF Open Decision #2).
+// Server-enforced state machine for the 7-step wizard. Storage is delegated to a
+// `DraftsRepository` (in-memory or DB-backed); the service owns validation and the
+// state machine. Mutating methods follow load -> mutate -> repo.save(row).
 
 const VALID_PLANS: ReadonlySet<string> = new Set(["basic", "standard", "premium"]);
 
@@ -74,16 +76,17 @@ interface ServiceDeps {
   clock?: () => Date;
   uuid?: () => string;
   panEncryptor?: (plaintext: string) => Buffer;
+  repository?: DraftsRepository;
 }
 
 export class DraftsService {
-  private readonly rows = new Map<string, RentAgreementRow>();
-  private readonly idemIndex = new Map<string, string>();
+  private readonly repo: DraftsRepository;
   private readonly clock: () => Date;
   private readonly uuid: () => string;
   private readonly encryptPan: (plaintext: string) => Buffer;
 
   constructor(deps: ServiceDeps = {}) {
+    this.repo = deps.repository ?? new InMemoryDraftsRepository();
     this.clock = deps.clock ?? (() => new Date());
     this.uuid = deps.uuid ?? randomUUID;
     this.encryptPan = deps.panEncryptor ?? defaultEncryptPan;
@@ -93,12 +96,9 @@ export class DraftsService {
     if (!VALID_PLANS.has(dto.plan_id)) {
       throw this.makeError("RENT_AGREEMENT_INVALID_PLAN", `Plan ${dto.plan_id} is not valid`);
     }
-    const idemKey = `${userId}|${idempotencyKey}`;
-    const existingId = this.idemIndex.get(idemKey);
-    if (existingId) {
-      const existing = this.rows.get(existingId);
-      if (existing) return mapToFull(existing);
-    }
+    const existing = await this.repo.findByIdempotency(userId, idempotencyKey);
+    if (existing) return mapToFull(existing);
+
     const id = this.uuid();
     const ts = this.clock().toISOString();
     const row = blankRow({
@@ -109,21 +109,22 @@ export class DraftsService {
       idempotencyKey,
       timestamp: ts
     });
-    this.rows.set(id, row);
-    this.idemIndex.set(idemKey, id);
-    return mapToFull(row);
+    await this.repo.insert(row);
+    // insert is idempotent at the storage layer (ON CONFLICT). Re-read so a
+    // concurrent create that won the conflict returns the authoritative row.
+    const stored = await this.repo.findByIdempotency(userId, idempotencyKey);
+    return mapToFull(stored ?? row);
   }
 
   async getOne(userId: string, id: string): Promise<DraftFull | null> {
-    const row = this.rows.get(id);
+    const row = await this.repo.findById(id);
     if (!row || row.user_id !== userId) return null;
     return mapToFull(row);
   }
 
   async listForUser(userId: string): Promise<DraftSummary[]> {
-    return Array.from(this.rows.values())
-      .filter((r) => r.user_id === userId)
-      .map(mapToSummary);
+    const rows = await this.repo.findByUser(userId);
+    return rows.map(mapToSummary);
   }
 
   async patchStep(
@@ -132,7 +133,7 @@ export class DraftsService {
     step: number,
     partial: unknown
   ): Promise<PatchResult> {
-    const row = this.requireOwnedRow(userId, id);
+    const row = await this.requireOwnedRow(userId, id);
     if (step > row.current_step) {
       throw this.makeError(
         "RENT_AGREEMENT_STEP_MISMATCH",
@@ -141,6 +142,7 @@ export class DraftsService {
     }
     writeStep(row, step, partial, this.encryptPan);
     row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
     return { saved: true, current_step: row.current_step };
   }
 
@@ -150,7 +152,7 @@ export class DraftsService {
     step: number,
     payload: unknown
   ): Promise<AdvanceResult> {
-    const row = this.requireOwnedRow(userId, id);
+    const row = await this.requireOwnedRow(userId, id);
     const plan = row.plan_id as PlanId;
     if (!isValidStep(plan, step)) {
       throw this.makeError(
@@ -200,6 +202,7 @@ export class DraftsService {
       row.current_step = next;
     }
     row.updated_at = ts;
+    await this.repo.save(row);
 
     return {
       current_step: row.current_step,
@@ -214,62 +217,80 @@ export class DraftsService {
   // these flow from server-side trusted contexts (webhook signature already verified,
   // worker dispatches its own job, checkout already authenticated the user).
 
+  // `paymentOrderId` is the rent_agreement_payment_orders.id uuid — the column
+  // FK-references that table (migration 0030).
   async markPendingPayment(agreementId: string, paymentOrderId: string): Promise<void> {
-    const row = this.requireRowById(agreementId);
+    const row = await this.requireRowById(agreementId);
     row.status = "pending_payment";
     row.payment_order_id = paymentOrderId;
     row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
   }
 
   async markPaid(agreementId: string): Promise<void> {
-    const row = this.requireRowById(agreementId);
+    const row = await this.requireRowById(agreementId);
     if (row.status === "paid" || row.status === "generating_pdf" || row.status === "generated") {
       return;
     }
     row.status = "paid";
     row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
   }
 
   async markGenerated(
     agreementId: string,
     opts: { blobPath: string; expiresAt: string }
   ): Promise<void> {
-    const row = this.requireRowById(agreementId);
+    const row = await this.requireRowById(agreementId);
     const ts = this.clock().toISOString();
     row.status = "generated";
     row.pdf_blob_path = opts.blobPath;
     row.pdf_generated_at = ts;
     row.expires_at = opts.expiresAt;
     row.updated_at = ts;
+    await this.repo.save(row);
   }
 
   async markEStampIssued(agreementId: string, referenceId: string): Promise<void> {
-    const row = this.requireRowById(agreementId);
+    const row = await this.requireRowById(agreementId);
     row.e_stamp_reference = referenceId;
     row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
   }
 
   async markESignSession(agreementId: string, sessionId: string): Promise<void> {
-    const row = this.requireRowById(agreementId);
+    const row = await this.requireRowById(agreementId);
     row.e_sign_session_id = sessionId;
     row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
   }
 
   async markESignCompleted(agreementId: string): Promise<void> {
-    const row = this.requireRowById(agreementId);
+    const row = await this.requireRowById(agreementId);
     const ts = this.clock().toISOString();
     row.e_sign_completed_at = ts;
     row.updated_at = ts;
+    await this.repo.save(row);
   }
 
   async incrementDownloadCount(agreementId: string): Promise<void> {
-    const row = this.requireRowById(agreementId);
+    const row = await this.requireRowById(agreementId);
     row.download_count = (row.download_count ?? 0) + 1;
     row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
+  }
+
+  // Persists the stamp duty computed by StampDutyService onto the agreement row.
+  // Server-side trusted context — no user_id check (mirrors the mark* mutations).
+  async setStampDuty(agreementId: string, stampDutyPaise: number): Promise<void> {
+    const row = await this.requireRowById(agreementId);
+    row.stamp_duty_paise = stampDutyPaise;
+    row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
   }
 
   async getByIdUnscoped(id: string): Promise<DraftFull | null> {
-    const row = this.rows.get(id);
+    const row = await this.repo.findById(id);
     if (!row) return null;
     return mapToFull(row);
   }
@@ -278,12 +299,11 @@ export class DraftsService {
   // inside its own boundary per Security §PAN handling; no other caller should use
   // this method.
   async getRowByIdForRender(id: string): Promise<RentAgreementRow | null> {
-    const row = this.rows.get(id);
-    return row ?? null;
+    return this.repo.findById(id);
   }
 
-  private requireRowById(id: string): RentAgreementRow {
-    const row = this.rows.get(id);
+  private async requireRowById(id: string): Promise<RentAgreementRow> {
+    const row = await this.repo.findById(id);
     if (!row) {
       throw this.makeError("RENT_AGREEMENT_NOT_FOUND", `Agreement ${id} not found`);
     }
@@ -291,7 +311,7 @@ export class DraftsService {
   }
 
   async back(userId: string, id: string, targetStep: number): Promise<BackResult> {
-    const row = this.requireOwnedRow(userId, id);
+    const row = await this.requireOwnedRow(userId, id);
     if (targetStep >= row.current_step) {
       throw this.makeError(
         "RENT_AGREEMENT_STEP_MISMATCH",
@@ -306,11 +326,12 @@ export class DraftsService {
     }
     row.current_step = targetStep;
     row.updated_at = this.clock().toISOString();
+    await this.repo.save(row);
     return { current_step: row.current_step };
   }
 
-  private requireOwnedRow(userId: string, id: string): RentAgreementRow {
-    const row = this.rows.get(id);
+  private async requireOwnedRow(userId: string, id: string): Promise<RentAgreementRow> {
+    const row = await this.repo.findById(id);
     if (!row || row.user_id !== userId) {
       throw this.makeError("RENT_AGREEMENT_NOT_FOUND", `Draft ${id} not found`);
     }

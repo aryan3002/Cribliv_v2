@@ -59,8 +59,7 @@ async function advanceToStep4WithStampDuty(drafts: DraftsService, userId: string
   });
   await drafts.advance(userId, id, 3, STEP3);
   // simulate stamp duty being computed and persisted
-  const row = await drafts.getRowByIdForRender(id);
-  if (row) row.stamp_duty_paise = 30000;
+  await drafts.setStampDuty(id, 30000);
 }
 
 describe("EStampingService.issue", () => {

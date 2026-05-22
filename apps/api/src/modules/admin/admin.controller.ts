@@ -30,6 +30,13 @@ import {
   type RevenueGroupBy
 } from "./admin-revenue.service";
 import { AdminFraudFeedService } from "./admin-fraud-feed.service";
+import { AdminRentAgreementService } from "./admin-rent-agreement.service";
+
+// Clamp the ?days= query param to a sane window; default 30.
+function parseDays(raw?: string): number {
+  const n = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.min(365, n) : 30;
+}
 
 @Controller("admin")
 @UseGuards(AuthGuard, RolesGuard)
@@ -43,7 +50,9 @@ export class AdminController {
     @Inject(AdminOpsService) private readonly ops: AdminOpsService,
     @Inject(AdminOwnerHealthService) private readonly ownerHealth: AdminOwnerHealthService,
     @Inject(AdminRevenueService) private readonly revenue: AdminRevenueService,
-    @Inject(AdminFraudFeedService) private readonly fraudFeed: AdminFraudFeedService
+    @Inject(AdminFraudFeedService) private readonly fraudFeed: AdminFraudFeedService,
+    @Inject(AdminRentAgreementService)
+    private readonly rentAgreements: AdminRentAgreementService
   ) {}
 
   /* ── Live Operations dashboard ─────────────────────────────────── */
@@ -1102,5 +1111,64 @@ export class AdminController {
       },
       mode: "immediate"
     });
+  }
+
+  /* ── Rent Agreement analytics ──────────────────────────────────── */
+  // Literal paths are declared before the `:id` param route so Nest matches them
+  // first.
+
+  @Get("rent-agreements/summary")
+  async rentAgreementSummary(@Query("days") days?: string) {
+    return ok(await this.rentAgreements.getSummary(parseDays(days)));
+  }
+
+  @Get("rent-agreements/funnel")
+  async rentAgreementFunnel(@Query("days") days?: string) {
+    return ok(await this.rentAgreements.getFunnel(parseDays(days)));
+  }
+
+  @Get("rent-agreements/timeseries")
+  async rentAgreementTimeSeries(@Query("days") days?: string) {
+    return ok(await this.rentAgreements.getTimeSeries(parseDays(days)));
+  }
+
+  @Get("rent-agreements/operational")
+  async rentAgreementOperational() {
+    return ok(await this.rentAgreements.getOperational());
+  }
+
+  @Get("rent-agreements/list")
+  async rentAgreementList(
+    @Query("status") status?: string,
+    @Query("plan_id") planId?: string,
+    @Query("state_code") stateCode?: string,
+    @Query("search") search?: string,
+    @Query("date_from") dateFrom?: string,
+    @Query("date_to") dateTo?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string
+  ) {
+    return ok(
+      await this.rentAgreements.listAgreements({
+        status,
+        plan_id: planId,
+        state_code: stateCode,
+        search,
+        date_from: dateFrom,
+        date_to: dateTo,
+        page: page ? Number.parseInt(page, 10) : undefined,
+        limit: limit ? Number.parseInt(limit, 10) : undefined
+      })
+    );
+  }
+
+  @Get("rent-agreements/:id/download-link")
+  async rentAgreementDownloadLink(@Param("id") id: string) {
+    return ok(await this.rentAgreements.getAgreementDownloadLink(id));
+  }
+
+  @Get("rent-agreements/:id")
+  async rentAgreementDetail(@Param("id") id: string) {
+    return ok(await this.rentAgreements.getAgreementDetail(id));
   }
 }

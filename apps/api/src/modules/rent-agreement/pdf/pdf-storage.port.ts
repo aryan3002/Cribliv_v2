@@ -1,5 +1,5 @@
-// Storage port. Phase 8a uses in-memory stub; Phase 8b/13 lands the real Azure Blob
-// implementation behind this same interface.
+// Storage port for rendered agreement PDFs. Implementations: `InMemoryPdfStorage`
+// (dev / no Azure creds) and `AzurePdfStorage` (Azure Blob).
 
 export interface PdfStorageUploadResult {
   blobPath: string;
@@ -7,4 +7,6 @@ export interface PdfStorageUploadResult {
 
 export interface PdfStoragePort {
   upload(buffer: Buffer, agreementId: string, locale: string): Promise<PdfStorageUploadResult>;
+  /** Read raw PDF bytes for a stored blob path. Returns null if the blob is absent. */
+  download(blobPath: string): Promise<Buffer | null>;
 }

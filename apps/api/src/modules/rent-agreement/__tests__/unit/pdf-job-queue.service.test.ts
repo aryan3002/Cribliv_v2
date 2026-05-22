@@ -28,55 +28,55 @@ function makeQueue(overrides: Partial<ConstructorParameters<typeof PdfJobQueueSe
 /* ─── enqueue ────────────────────────────────────────────────────────── */
 
 describe("PdfJobQueueService.enqueue", () => {
-  it("returns { jobId, alreadyEnqueued:false } for a fresh agreement", () => {
+  it("returns { jobId, alreadyEnqueued:false } for a fresh agreement", async () => {
     const { queue } = makeQueue();
-    const r = queue.enqueue({ agreementId: AGREEMENT_A });
+    const r = await queue.enqueue({ agreementId: AGREEMENT_A });
     expect(r.jobId).toBe("job-1");
     expect(r.alreadyEnqueued).toBe(false);
   });
 
-  it("created job has status='pending', attempts=0, locked_until=null", () => {
+  it("created job has status='pending', attempts=0, locked_until=null", async () => {
     const { queue } = makeQueue();
-    const r = queue.enqueue({ agreementId: AGREEMENT_A });
-    const job = queue.findByAgreementId(AGREEMENT_A).find((j) => j.id === r.jobId);
+    const r = await queue.enqueue({ agreementId: AGREEMENT_A });
+    const job = (await queue.findByAgreementId(AGREEMENT_A)).find((j) => j.id === r.jobId);
     expect(job?.status).toBe("pending");
     expect(job?.attempts).toBe(0);
     expect(job?.locked_until).toBeNull();
   });
 
-  it("returns existing jobId + alreadyEnqueued:true when a pending job already exists", () => {
+  it("returns existing jobId + alreadyEnqueued:true when a pending job already exists", async () => {
     const { queue } = makeQueue();
-    const a = queue.enqueue({ agreementId: AGREEMENT_A });
-    const b = queue.enqueue({ agreementId: AGREEMENT_A });
+    const a = await queue.enqueue({ agreementId: AGREEMENT_A });
+    const b = await queue.enqueue({ agreementId: AGREEMENT_A });
     expect(b.jobId).toBe(a.jobId);
     expect(b.alreadyEnqueued).toBe(true);
   });
 
-  it("returns existing jobId + alreadyEnqueued:true when a processing job exists", () => {
+  it("returns existing jobId + alreadyEnqueued:true when a processing job exists", async () => {
     const { queue } = makeQueue();
-    const a = queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.dequeueNext(); // marks processing
-    const b = queue.enqueue({ agreementId: AGREEMENT_A });
+    const a = await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.dequeueNext(); // marks processing
+    const b = await queue.enqueue({ agreementId: AGREEMENT_A });
     expect(b.jobId).toBe(a.jobId);
     expect(b.alreadyEnqueued).toBe(true);
   });
 
-  it("returns a NEW jobId for the same agreement when previous job is done (regenerate)", () => {
+  it("returns a NEW jobId for the same agreement when previous job is done (regenerate)", async () => {
     const { queue } = makeQueue();
-    const a = queue.enqueue({ agreementId: AGREEMENT_A });
-    const dequeued = queue.dequeueNext();
-    queue.markDone(dequeued!.id);
-    const b = queue.enqueue({ agreementId: AGREEMENT_A });
+    const a = await queue.enqueue({ agreementId: AGREEMENT_A });
+    const dequeued = await queue.dequeueNext();
+    await queue.markDone(dequeued!.id);
+    const b = await queue.enqueue({ agreementId: AGREEMENT_A });
     expect(b.jobId).not.toBe(a.jobId);
     expect(b.alreadyEnqueued).toBe(false);
   });
 
-  it("returns existing jobId when previous job is failed AND attempts < 5", () => {
+  it("returns existing jobId when previous job is failed AND attempts < 5", async () => {
     const { queue } = makeQueue();
-    const a = queue.enqueue({ agreementId: AGREEMENT_A });
-    const dequeued = queue.dequeueNext();
-    queue.markFailed(dequeued!.id, "boom");
-    const b = queue.enqueue({ agreementId: AGREEMENT_A });
+    const a = await queue.enqueue({ agreementId: AGREEMENT_A });
+    const dequeued = await queue.dequeueNext();
+    await queue.markFailed(dequeued!.id, "boom");
+    const b = await queue.enqueue({ agreementId: AGREEMENT_A });
     expect(b.jobId).toBe(a.jobId);
     expect(b.alreadyEnqueued).toBe(true);
   });
@@ -85,61 +85,61 @@ describe("PdfJobQueueService.enqueue", () => {
 /* ─── dequeueNext ────────────────────────────────────────────────────── */
 
 describe("PdfJobQueueService.dequeueNext", () => {
-  it("returns null when queue is empty", () => {
+  it("returns null when queue is empty", async () => {
     const { queue } = makeQueue();
-    expect(queue.dequeueNext()).toBeNull();
+    expect(await queue.dequeueNext()).toBeNull();
   });
 
-  it("returns null when only done jobs exist", () => {
+  it("returns null when only done jobs exist", async () => {
     const { queue } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    const d = queue.dequeueNext();
-    queue.markDone(d!.id);
-    expect(queue.dequeueNext()).toBeNull();
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    const d = await queue.dequeueNext();
+    await queue.markDone(d!.id);
+    expect(await queue.dequeueNext()).toBeNull();
   });
 
-  it("returns null when only processing jobs (locked_until in future) exist", () => {
+  it("returns null when only processing jobs (locked_until in future) exist", async () => {
     const { queue } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.dequeueNext(); // → processing, locked_until = now+2m
-    expect(queue.dequeueNext()).toBeNull();
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.dequeueNext(); // → processing, locked_until = now+2m
+    expect(await queue.dequeueNext()).toBeNull();
   });
 
-  it("picks pending job with earliest created_at when multiple eligible", () => {
+  it("picks pending job with earliest created_at when multiple eligible", async () => {
     const { queue, advanceMs } = makeQueue();
-    const a = queue.enqueue({ agreementId: AGREEMENT_A });
+    const a = await queue.enqueue({ agreementId: AGREEMENT_A });
     advanceMs(1000);
-    queue.enqueue({ agreementId: AGREEMENT_B });
-    const picked = queue.dequeueNext();
+    await queue.enqueue({ agreementId: AGREEMENT_B });
+    const picked = await queue.dequeueNext();
     expect(picked?.id).toBe(a.jobId);
   });
 
-  it("picks failed job whose locked_until < now() and attempts < 5", () => {
+  it("picks failed job whose locked_until < now() and attempts < 5", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    const d = queue.dequeueNext();
-    queue.markFailed(d!.id, "transient"); // attempts=1, locked_until = now+1m
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    const d = await queue.dequeueNext();
+    await queue.markFailed(d!.id, "transient"); // attempts=1, locked_until = now+1m
     advanceMs(70_000); // past 1m lock
-    const picked = queue.dequeueNext();
+    const picked = await queue.dequeueNext();
     expect(picked?.id).toBe(d!.id);
     expect(picked?.attempts).toBe(2);
   });
 
-  it("SKIPS failed job whose attempts >= 5", () => {
+  it("SKIPS failed job whose attempts >= 5", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     for (let i = 0; i < 5; i++) {
-      const d = queue.dequeueNext();
-      queue.markFailed(d!.id, `fail-${i}`);
+      const d = await queue.dequeueNext();
+      await queue.markFailed(d!.id, `fail-${i}`);
       advanceMs(7 * 60 * 60 * 1000); // jump past max backoff
     }
-    expect(queue.dequeueNext()).toBeNull();
+    expect(await queue.dequeueNext()).toBeNull();
   });
 
-  it("dequeue side effects: status='processing', locked_until=now+2m, attempts++, started_at=now", () => {
+  it("dequeue side effects: status='processing', locked_until=now+2m, attempts++, started_at=now", async () => {
     const { queue } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    const picked = queue.dequeueNext();
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    const picked = await queue.dequeueNext();
     expect(picked?.status).toBe("processing");
     expect(picked?.attempts).toBe(1);
     expect(picked?.started_at).toBeInstanceOf(Date);
@@ -147,13 +147,13 @@ describe("PdfJobQueueService.dequeueNext", () => {
     expect(picked?.locked_until?.getTime()).toBe(expectedLockUntil);
   });
 
-  it("two consecutive dequeues return different jobs (mimics SKIP LOCKED)", () => {
+  it("two consecutive dequeues return different jobs (mimics SKIP LOCKED)", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     advanceMs(1000);
-    queue.enqueue({ agreementId: AGREEMENT_B });
-    const first = queue.dequeueNext();
-    const second = queue.dequeueNext();
+    await queue.enqueue({ agreementId: AGREEMENT_B });
+    const first = await queue.dequeueNext();
+    const second = await queue.dequeueNext();
     expect(first?.id).not.toBe(second?.id);
     expect(second).not.toBeNull();
   });
@@ -162,162 +162,162 @@ describe("PdfJobQueueService.dequeueNext", () => {
 /* ─── markDone ───────────────────────────────────────────────────────── */
 
 describe("PdfJobQueueService.markDone", () => {
-  it("flips status='done' + finished_at=now", () => {
+  it("flips status='done' + finished_at=now", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    const d = queue.dequeueNext();
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    const d = await queue.dequeueNext();
     advanceMs(500);
-    queue.markDone(d!.id);
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    await queue.markDone(d!.id);
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("done");
     expect(job.finished_at?.getTime()).toBe(ANCHOR + 500);
   });
 
-  it("second markDone call is idempotent (no throw, no state change)", () => {
+  it("second markDone call is idempotent (no throw, no state change)", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    const d = queue.dequeueNext();
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    const d = await queue.dequeueNext();
     advanceMs(500);
-    queue.markDone(d!.id);
+    await queue.markDone(d!.id);
     advanceMs(500);
-    expect(() => queue.markDone(d!.id)).not.toThrow();
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    await expect(queue.markDone(d!.id)).resolves.toBeUndefined();
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.finished_at?.getTime()).toBe(ANCHOR + 500); // unchanged
   });
 
-  it("throws RENT_AGREEMENT_PDF_JOB_NOT_FOUND for unknown id", () => {
+  it("throws RENT_AGREEMENT_PDF_JOB_NOT_FOUND for unknown id", async () => {
     const { queue } = makeQueue();
-    expect(() => queue.markDone("missing")).toThrow(
-      expect.objectContaining({ code: "RENT_AGREEMENT_PDF_JOB_NOT_FOUND" })
-    );
+    await expect(queue.markDone("missing")).rejects.toMatchObject({
+      code: "RENT_AGREEMENT_PDF_JOB_NOT_FOUND"
+    });
   });
 });
 
 /* ─── markFailed ─────────────────────────────────────────────────────── */
 
 describe("PdfJobQueueService.markFailed", () => {
-  it("sets status='failed', last_error=message", () => {
+  it("sets status='failed', last_error=message", async () => {
     const { queue } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    const d = queue.dequeueNext();
-    queue.markFailed(d!.id, "render timeout");
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    const d = await queue.dequeueNext();
+    await queue.markFailed(d!.id, "render timeout");
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("failed");
     expect(job.last_error).toBe("render timeout");
   });
 
-  it("backoff schedule attempts=1→+1m", () => {
+  it("backoff schedule attempts=1→+1m", async () => {
     const { queue } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    const d = queue.dequeueNext(); // attempts=1
-    queue.markFailed(d!.id, "x");
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    const d = await queue.dequeueNext(); // attempts=1
+    await queue.markFailed(d!.id, "x");
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.locked_until?.getTime()).toBe(ANCHOR + 1 * 60 * 1000);
   });
 
-  it("backoff schedule attempts=2→+5m", () => {
+  it("backoff schedule attempts=2→+5m", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // attempts=1
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // attempts=1
     advanceMs(2 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // attempts=2
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // attempts=2
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.locked_until?.getTime()).toBe(ANCHOR + 2 * 60 * 1000 + 5 * 60 * 1000);
   });
 
-  it("backoff schedule attempts=3→+30m", () => {
+  it("backoff schedule attempts=3→+30m", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 1
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 1
     advanceMs(2 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 2
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 2
     advanceMs(6 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 3
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 3
     const lockedAt = ANCHOR + 2 * 60 * 1000 + 6 * 60 * 1000;
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.locked_until?.getTime()).toBe(lockedAt + 30 * 60 * 1000);
   });
 
-  it("backoff schedule attempts=4→+2h", () => {
+  it("backoff schedule attempts=4→+2h", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 1
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 1
     advanceMs(2 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 2
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 2
     advanceMs(6 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 3
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 3
     advanceMs(31 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 4
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 4
     const lockedAt = ANCHOR + 2 * 60 * 1000 + 6 * 60 * 1000 + 31 * 60 * 1000;
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.locked_until?.getTime()).toBe(lockedAt + 2 * 60 * 60 * 1000);
   });
 
-  it("backoff schedule attempts=5→+6h", () => {
+  it("backoff schedule attempts=5→+6h", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 1
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 1
     advanceMs(2 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 2
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 2
     advanceMs(6 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 3
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 3
     advanceMs(31 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 4
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 4
     advanceMs(125 * 60 * 1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x"); // 5
+    await queue.markFailed((await queue.dequeueNext())!.id, "x"); // 5
     const lockedAt = ANCHOR + 2 * 60 * 1000 + 6 * 60 * 1000 + 31 * 60 * 1000 + 125 * 60 * 1000;
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.locked_until?.getTime()).toBe(lockedAt + 6 * 60 * 60 * 1000);
   });
 
-  it("after 5th failure, status stays 'failed' and worker dequeue skips it", () => {
+  it("after 5th failure, status stays 'failed' and worker dequeue skips it", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     for (let i = 0; i < 5; i++) {
-      queue.markFailed(queue.dequeueNext()!.id, `f${i}`);
+      await queue.markFailed((await queue.dequeueNext())!.id, `f${i}`);
       advanceMs(7 * 60 * 60 * 1000);
     }
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("failed");
     expect(job.attempts).toBe(5);
-    expect(queue.dequeueNext()).toBeNull();
+    expect(await queue.dequeueNext()).toBeNull();
   });
 
-  it("throws RENT_AGREEMENT_PDF_JOB_NOT_FOUND for unknown id", () => {
+  it("throws RENT_AGREEMENT_PDF_JOB_NOT_FOUND for unknown id", async () => {
     const { queue } = makeQueue();
-    expect(() => queue.markFailed("missing", "x")).toThrow(
-      expect.objectContaining({ code: "RENT_AGREEMENT_PDF_JOB_NOT_FOUND" })
-    );
+    await expect(queue.markFailed("missing", "x")).rejects.toMatchObject({
+      code: "RENT_AGREEMENT_PDF_JOB_NOT_FOUND"
+    });
   });
 });
 
 /* ─── findByAgreementId + countByStatus ──────────────────────────────── */
 
 describe("PdfJobQueueService.findByAgreementId", () => {
-  it("returns empty array for unknown agreement", () => {
+  it("returns empty array for unknown agreement", async () => {
     const { queue } = makeQueue();
-    expect(queue.findByAgreementId("nope")).toEqual([]);
+    expect(await queue.findByAgreementId("nope")).toEqual([]);
   });
 
-  it("returns all jobs for an agreement (including regenerate history)", () => {
+  it("returns all jobs for an agreement (including regenerate history)", async () => {
     const { queue } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.markDone(queue.dequeueNext()!.id);
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.markDone(queue.dequeueNext()!.id);
-    expect(queue.findByAgreementId(AGREEMENT_A)).toHaveLength(2);
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.markDone((await queue.dequeueNext())!.id);
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.markDone((await queue.dequeueNext())!.id);
+    expect(await queue.findByAgreementId(AGREEMENT_A)).toHaveLength(2);
   });
 });
 
 describe("PdfJobQueueService.countByStatus", () => {
-  it("returns counts for each enum value", () => {
+  it("returns counts for each enum value", async () => {
     const { queue, advanceMs } = makeQueue();
-    queue.enqueue({ agreementId: AGREEMENT_A });
-    queue.enqueue({ agreementId: AGREEMENT_B });
-    queue.markDone(queue.dequeueNext()!.id);
+    await queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_B });
+    await queue.markDone((await queue.dequeueNext())!.id);
     advanceMs(1000);
-    queue.markFailed(queue.dequeueNext()!.id, "x");
-    const c = queue.countByStatus();
+    await queue.markFailed((await queue.dequeueNext())!.id, "x");
+    const c = await queue.countByStatus();
     expect(c).toEqual({ pending: 0, processing: 0, done: 1, failed: 1 });
   });
 });
@@ -325,10 +325,10 @@ describe("PdfJobQueueService.countByStatus", () => {
 /* ─── Error shape ────────────────────────────────────────────────────── */
 
 describe("PdfQueueError", () => {
-  it("is an Error subclass with name 'PdfQueueError' + string code", () => {
+  it("is an Error subclass with name 'PdfQueueError' + string code", async () => {
     const { queue } = makeQueue();
     try {
-      queue.markDone("missing");
+      await queue.markDone("missing");
     } catch (err) {
       expect(err).toBeInstanceOf(PdfQueueError);
       expect((err as PdfQueueError).name).toBe("PdfQueueError");

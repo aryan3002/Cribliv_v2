@@ -68,7 +68,7 @@ beforeEach(() => {
 describe("PdfJobWorker.tick: happy path", () => {
   it("dequeues, renders, uploads, marks done, invokes onAgreementGenerated, returns { processed: 1 }", async () => {
     const { queue, renderer, storage, onAgreementGenerated, worker } = makeWorld();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     const result = await worker.tick();
     expect(result).toEqual({ processed: 1 });
     expect(renderer.callCount).toBe(1);
@@ -78,7 +78,7 @@ describe("PdfJobWorker.tick: happy path", () => {
 
   it("onAgreementGenerated receives { agreementId, blobPath, locale } with the exact blobPath returned by storage", async () => {
     const { queue, storage, onAgreementGenerated, worker } = makeWorld();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     await worker.tick();
     const expectedPath = `2026/05/${AGREEMENT_A}.pdf`;
     expect(onAgreementGenerated).toHaveBeenCalledWith({
@@ -91,9 +91,9 @@ describe("PdfJobWorker.tick: happy path", () => {
 
   it("after happy tick the job status is 'done'", async () => {
     const { queue, worker } = makeWorld();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     await worker.tick();
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("done");
   });
 });
@@ -118,13 +118,13 @@ describe("PdfJobWorker.tick: renderer failure", () => {
     const { queue, storage, onAgreementGenerated, worker } = makeWorld();
     const renderer = worker as unknown as { renderer: InMemoryPdfRenderer };
     vi.spyOn(renderer.renderer, "render").mockRejectedValueOnce(new Error("render boom"));
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     const r = await worker.tick();
     expect(r.processed).toBe(0);
     expect((r as { error?: string }).error).toContain("render boom");
     expect(storage.uploadCount).toBe(0);
     expect(onAgreementGenerated).not.toHaveBeenCalled();
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("failed");
     expect(job.attempts).toBe(1);
   });
@@ -134,12 +134,12 @@ describe("PdfJobWorker.tick: storage failure (after render succeeds)", () => {
   it("marks job failed, does NOT call callback, returns { processed: 0, error }", async () => {
     const { queue, storage, onAgreementGenerated, worker } = makeWorld();
     vi.spyOn(storage, "upload").mockRejectedValueOnce(new Error("storage boom"));
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     const r = await worker.tick();
     expect(r.processed).toBe(0);
     expect((r as { error?: string }).error).toContain("storage boom");
     expect(onAgreementGenerated).not.toHaveBeenCalled();
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("failed");
   });
 });
@@ -147,12 +147,12 @@ describe("PdfJobWorker.tick: storage failure (after render succeeds)", () => {
 describe("PdfJobWorker.tick: loadAgreementForRender returns null", () => {
   it("marks job failed with agreement_not_found, does NOT call renderer", async () => {
     const { queue, renderer, worker } = makeWorld({ loadAgreement: () => null });
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     const r = await worker.tick();
     expect(r.processed).toBe(0);
     expect((r as { error?: string }).error).toContain("agreement_not_found");
     expect(renderer.callCount).toBe(0);
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("failed");
     expect(job.last_error).toContain("agreement_not_found");
   });
@@ -163,17 +163,17 @@ describe("PdfJobWorker.tick: loadAgreementForRender returns null", () => {
 describe("PdfJobWorker.tick: stuck lock recovery", () => {
   it("a job whose locked_until has passed is picked up on next tick (attempts incremented)", async () => {
     const { queue, advanceMs, worker } = makeWorld();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     // First tick: simulate hang by spying on renderer to throw, then advance clock past lock
     const renderer = (worker as unknown as { renderer: InMemoryPdfRenderer }).renderer;
     vi.spyOn(renderer, "render").mockRejectedValueOnce(new Error("first hang"));
     await worker.tick();
-    let job = queue.findByAgreementId(AGREEMENT_A)[0];
+    let job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.attempts).toBe(1);
     expect(job.status).toBe("failed");
     advanceMs(2 * 60 * 1000); // past 1m backoff
     await worker.tick();
-    job = queue.findByAgreementId(AGREEMENT_A)[0];
+    job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("done");
     expect(job.attempts).toBe(2);
   });
@@ -186,12 +186,12 @@ describe("PdfJobWorker.tick: 5-attempt cap", () => {
     const { queue, advanceMs, worker } = makeWorld();
     const renderer = (worker as unknown as { renderer: InMemoryPdfRenderer }).renderer;
     vi.spyOn(renderer, "render").mockRejectedValue(new Error("always-fails"));
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     for (let i = 0; i < 5; i++) {
       await worker.tick();
       advanceMs(7 * 60 * 60 * 1000); // jump past max backoff
     }
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("failed");
     expect(job.attempts).toBe(5);
     const r = await worker.tick();
@@ -205,9 +205,9 @@ describe("PdfJobWorker.tick: onAgreementGenerated throws", () => {
   it("queue.markDone has already been called and the callback error propagates from tick", async () => {
     const { queue, onAgreementGenerated, worker } = makeWorld();
     onAgreementGenerated.mockRejectedValueOnce(new Error("db down"));
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     await expect(worker.tick()).rejects.toThrow("db down");
-    const job = queue.findByAgreementId(AGREEMENT_A)[0];
+    const job = (await queue.findByAgreementId(AGREEMENT_A))[0];
     expect(job.status).toBe("done");
   });
 });
@@ -217,9 +217,9 @@ describe("PdfJobWorker.tick: onAgreementGenerated throws", () => {
 describe("PdfJobWorker.tick: two enqueues, two ticks", () => {
   it("processes earliest-created first, single-shot per tick", async () => {
     const { queue, advanceMs, worker, onAgreementGenerated } = makeWorld();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     advanceMs(1000);
-    queue.enqueue({ agreementId: AGREEMENT_B });
+    await queue.enqueue({ agreementId: AGREEMENT_B });
     await worker.tick();
     expect(onAgreementGenerated).toHaveBeenNthCalledWith(
       1,
@@ -240,7 +240,7 @@ describe("PdfJobWorker.tick: renderer input wiring", () => {
     const { queue, worker, loadAgreementForRender } = makeWorld();
     const renderer = (worker as unknown as { renderer: InMemoryPdfRenderer }).renderer;
     const spy = vi.spyOn(renderer, "render");
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     await worker.tick();
     expect(loadAgreementForRender).toHaveBeenCalledWith(AGREEMENT_A);
     expect(spy).toHaveBeenCalledWith(
@@ -258,12 +258,12 @@ describe("PdfJobWorker.tick: renderer input wiring", () => {
 describe("PdfJobWorker.tick: regenerate after done", () => {
   it("an agreement with a done job can be re-enqueued and the new job processes independently", async () => {
     const { queue, worker, onAgreementGenerated } = makeWorld();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     await worker.tick();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     await worker.tick();
     expect(onAgreementGenerated).toHaveBeenCalledTimes(2);
-    expect(queue.findByAgreementId(AGREEMENT_A)).toHaveLength(2);
+    expect(await queue.findByAgreementId(AGREEMENT_A)).toHaveLength(2);
   });
 });
 
@@ -272,13 +272,13 @@ describe("PdfJobWorker.tick: regenerate after done", () => {
 describe("PdfJobWorker.tick: single-shot semantics", () => {
   it("tick processes exactly one job even when many are pending", async () => {
     const { queue, advanceMs, worker } = makeWorld();
-    queue.enqueue({ agreementId: AGREEMENT_A });
+    await queue.enqueue({ agreementId: AGREEMENT_A });
     advanceMs(1);
-    queue.enqueue({ agreementId: AGREEMENT_B });
+    await queue.enqueue({ agreementId: AGREEMENT_B });
     advanceMs(1);
-    queue.enqueue({ agreementId: "33333333-3333-3333-3333-333333333333" });
+    await queue.enqueue({ agreementId: "33333333-3333-3333-3333-333333333333" });
     const r = await worker.tick();
     expect(r).toEqual({ processed: 1 });
-    expect(queue.countByStatus().pending).toBe(2);
+    expect((await queue.countByStatus()).pending).toBe(2);
   });
 });

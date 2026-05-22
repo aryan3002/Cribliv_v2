@@ -43,6 +43,25 @@ import { ESignService } from "./e-sign/e-sign.service";
 import { MockESignProvider } from "./e-sign/mock-e-sign.provider";
 import type { ESignProvider } from "./e-sign/e-sign.adapter";
 
+// ─── Phase A: DB persistence wiring ──────────────────────────────────────────
+import { DbDraftsRepository, InMemoryDraftsRepository } from "./drafts/drafts.repository";
+import {
+  DbSignaturesRepository,
+  InMemorySignaturesRepository
+} from "./signatures/signatures.repository";
+import { DbPdfJobRepository, InMemoryPdfJobRepository } from "./pdf/pdf-job.repository";
+import {
+  DbPaymentOrdersRepository,
+  InMemoryPaymentOrdersRepository
+} from "./checkout/payment-orders.repository";
+import { AzurePdfStorage } from "./pdf/azure-pdf-storage";
+import { buildAzureConnectionString, readAzureStorageConfig } from "./pdf/azure-storage-config";
+import { AzureSasIssuer } from "./downloads/azure-sas-issuer";
+import { makeDbDownloadAuditRecorder } from "./downloads/db-download-audit";
+import type { SasIssuerPort } from "./downloads/sas-issuer.port";
+import { RentAgreementDbAnalyticsService } from "./analytics/rent-agreement-db-analytics.service";
+import { nullAnalytics, type RentAgreementAnalyticsPort } from "./plans/null-analytics";
+
 // ─── Phase 13 wiring ─────────────────────────────────────────────────────────
 // Dev mode (default): MockPaymentProvider + DevAutoCapturePipeline + InMemoryPdfRenderer
 //                     + InMemoryPdfStorage + DevApiSasIssuer. Whole flow runs locally.
@@ -57,6 +76,8 @@ export const RENT_AGREEMENT_PDF_RENDERER = "RENT_AGREEMENT_PDF_RENDERER";
 export const RENT_AGREEMENT_PDF_STORAGE = "RENT_AGREEMENT_PDF_STORAGE";
 export const RENT_AGREEMENT_ESTAMP_PROVIDER = "RENT_AGREEMENT_ESTAMP_PROVIDER";
 export const RENT_AGREEMENT_ESIGN_PROVIDER = "RENT_AGREEMENT_ESIGN_PROVIDER";
+export const RENT_AGREEMENT_SAS_ISSUER = "RENT_AGREEMENT_SAS_ISSUER";
+export const RENT_AGREEMENT_ANALYTICS_TOKEN = "RENT_AGREEMENT_ANALYTICS";
 
 function isDevMode(): boolean {
   if (process.env.RENT_AGREEMENT_DEV_AUTOCAPTURE === "true") return true;
@@ -71,8 +92,33 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
   imports: [CoreModule, GuardsModule],
   controllers: [RentAgreementController, EStampingController, ESignController],
   providers: [
-    DraftsService,
-    SignaturesService,
+    // ─── Drafts + signatures (DB-backed when DATABASE_URL is set) ────────────
+    {
+      provide: DraftsService,
+      useFactory: (db: DatabaseService) =>
+        new DraftsService({
+          repository: db.isEnabled() ? new DbDraftsRepository(db) : new InMemoryDraftsRepository()
+        }),
+      inject: [DatabaseService]
+    },
+    {
+      provide: SignaturesService,
+      useFactory: (db: DatabaseService) =>
+        new SignaturesService({
+          repository: db.isEnabled()
+            ? new DbSignaturesRepository(db)
+            : new InMemorySignaturesRepository()
+        }),
+      inject: [DatabaseService]
+    },
+
+    // ─── Analytics (DB event log + step audit; no-op when DB disabled) ──────
+    {
+      provide: RENT_AGREEMENT_ANALYTICS_TOKEN,
+      useFactory: (db: DatabaseService): RentAgreementAnalyticsPort =>
+        db.isEnabled() ? new RentAgreementDbAnalyticsService(db) : nullAnalytics,
+      inject: [DatabaseService]
+    },
 
     // ─── Stamp duty ─────────────────────────────────────────────────────────
     {
@@ -94,7 +140,14 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
     },
 
     // ─── PDF queue + renderer + storage ─────────────────────────────────────
-    PdfJobQueueService,
+    {
+      provide: PdfJobQueueService,
+      useFactory: (db: DatabaseService) =>
+        new PdfJobQueueService({
+          repository: db.isEnabled() ? new DbPdfJobRepository(db) : new InMemoryPdfJobRepository()
+        }),
+      inject: [DatabaseService]
+    },
     {
       provide: RENT_AGREEMENT_PDF_RENDERER,
       // Real Puppeteer + Handlebars renderer (lazy: Chromium launches on first
@@ -102,9 +155,32 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
       useFactory: (): PdfRendererPort => new LazyPuppeteerPdfRenderer()
     },
     {
+      // Azure Blob when storage creds are present in .env; in-memory otherwise.
       provide: RENT_AGREEMENT_PDF_STORAGE,
-      useFactory: (): PdfStoragePort => new InMemoryPdfStorage()
-      // PROD: swap to new AzurePdfStorage(process.env.AZURE_STORAGE_CONNECTION_STRING)
+      useFactory: (): PdfStoragePort => {
+        const azure = readAzureStorageConfig();
+        return azure.present
+          ? new AzurePdfStorage({
+              connectionString: buildAzureConnectionString(azure.accountName, azure.accountKey),
+              containerName: azure.containerName
+            })
+          : new InMemoryPdfStorage();
+      }
+    },
+    {
+      // Azure SAS issuer when storage creds are present; dev API issuer otherwise.
+      // Exported so AdminModule can issue admin PDF download links.
+      provide: RENT_AGREEMENT_SAS_ISSUER,
+      useFactory: (): SasIssuerPort => {
+        const azure = readAzureStorageConfig();
+        return azure.present
+          ? new AzureSasIssuer({
+              accountName: azure.accountName,
+              accountKey: azure.accountKey,
+              containerName: azure.containerName
+            })
+          : new DevApiSasIssuer({ baseUrl: process.env.RENT_AGREEMENT_DEV_BASE_URL ?? "" });
+      }
     },
 
     // ─── PDF worker (single-shot tick — registered in worker.ts for prod) ───
@@ -124,7 +200,7 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
           loadAgreementForRender: async (agreementId) => {
             const row = await drafts.getRowByIdForRender(agreementId);
             if (!row) return null;
-            return { row, signatures: signatures.listForAgreement(agreementId) };
+            return { row, signatures: await signatures.listForAgreement(agreementId) };
           },
           onAgreementGenerated: async ({ agreementId, blobPath }) => {
             const expiresAt = new Date(Date.now() + DOWNLOAD_WINDOW_MS).toISOString();
@@ -155,9 +231,14 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
         drafts: DraftsService,
         signatures: SignaturesService,
         paymentProvider: RentAgreementPaymentProviderPort,
-        autoCapture: DevAutoCapturePipeline
+        autoCapture: DevAutoCapturePipeline,
+        db: DatabaseService,
+        analytics: RentAgreementAnalyticsPort
       ) =>
         new CheckoutService({
+          repository: db.isEnabled()
+            ? new DbPaymentOrdersRepository(db)
+            : new InMemoryPaymentOrdersRepository(),
           draftsService: {
             getOne: async (uid: string, did: string) => {
               const full = await drafts.getOne(uid, did);
@@ -179,8 +260,16 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
           },
           planLookup: getPlanAmountPaise,
           paymentProvider,
-          onOrderCreated: async (draftId, providerOrderId) => {
-            await drafts.markPendingPayment(draftId, providerOrderId);
+          onOrderCreated: async (draftId, providerOrderId, orderId) => {
+            // Link the agreement to its payment order by uuid (FK ->
+            // rent_agreement_payment_orders.id, migration 0030).
+            await drafts.markPendingPayment(draftId, orderId);
+            void analytics
+              .emit("ra.payment_initiated", {
+                agreement_id: draftId,
+                provider_order_id: providerOrderId
+              })
+              .catch(() => {});
             if (isDevMode()) {
               // Fire-and-forget — pipeline awaits markPaid + enqueue, then schedules
               // the worker tick via setImmediate. The HTTP response returns first.
@@ -188,13 +277,19 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
                 // intentional: failures appear in queue.markFailed
               });
             }
-          }
+          },
+          // Dev: settle the persisted order with a mock provider_payment_id so the
+          // rent_agreement_payment_orders row is production-complete. Absent in
+          // prod — the real payment webhook settles the order there.
+          devMockCapture: isDevMode() ? (orderId: string) => `mock_pay_${orderId}` : undefined
         }),
       inject: [
         DraftsService,
         SignaturesService,
         RENT_AGREEMENT_PAYMENT_PROVIDER,
-        DevAutoCapturePipeline
+        DevAutoCapturePipeline,
+        DatabaseService,
+        RENT_AGREEMENT_ANALYTICS_TOKEN
       ]
     },
 
@@ -227,29 +322,26 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
     // ─── Downloads ──────────────────────────────────────────────────────────
     {
       provide: DownloadsService,
-      useFactory: (drafts: DraftsService) =>
+      useFactory: (drafts: DraftsService, sasIssuer: SasIssuerPort, db: DatabaseService) =>
         new DownloadsService({
-          sasIssuer: new DevApiSasIssuer({
-            baseUrl: process.env.RENT_AGREEMENT_DEV_BASE_URL ?? ""
-          }),
-          // PROD: swap to new AzureSasIssuer({connectionString, containerName})
+          sasIssuer,
           loadAgreementForDownload: makeDraftsAgreementLoader(drafts),
           incrementDownloadCount: makeDraftsCounterIncrementer(drafts),
-          recordDownloadAudit: makeNoopAuditRecorder(),
-          // PROD: swap recordDownloadAudit to a DB-backed writer per PRODUCTION-WIRING.md
+          recordDownloadAudit: db.isEnabled()
+            ? makeDbDownloadAuditRecorder(db)
+            : makeNoopAuditRecorder(),
           ipSalt: process.env.RENT_AGREEMENT_IP_SALT ?? "phase13-dev-salt"
         }),
-      inject: [DraftsService]
+      inject: [DraftsService, RENT_AGREEMENT_SAS_ISSUER, DatabaseService]
     },
 
     // ─── PDF preview (in-page viewer — streams bytes, no download counter) ───
     {
       provide: PdfPreviewService,
-      useFactory: (drafts: DraftsService, pdfStorage: { get?(p: string): Buffer | undefined }) =>
+      useFactory: (drafts: DraftsService, pdfStorage: PdfStoragePort) =>
         new PdfPreviewService({
           loadAgreement: makeDraftsAgreementLoader(drafts),
-          loadPdfBytes: (blobPath) =>
-            typeof pdfStorage?.get === "function" ? pdfStorage.get(blobPath) : undefined
+          loadPdfBytes: async (blobPath) => (await pdfStorage.download(blobPath)) ?? undefined
         }),
       inject: [DraftsService, RENT_AGREEMENT_PDF_STORAGE]
     }
@@ -257,7 +349,9 @@ const DOWNLOAD_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
   exports: [
     // Exported so the controller's @Optional() dev-pdf-bytes endpoint can stream
     // bytes from the same singleton storage that the worker uploads to.
-    RENT_AGREEMENT_PDF_STORAGE
+    RENT_AGREEMENT_PDF_STORAGE,
+    // Exported so AdminModule can issue admin PDF download links.
+    RENT_AGREEMENT_SAS_ISSUER
   ]
 })
 export class RentAgreementModule {}

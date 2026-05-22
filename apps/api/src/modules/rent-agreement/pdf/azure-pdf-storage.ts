@@ -40,6 +40,8 @@ export class AzurePdfStorage implements PdfStoragePort {
 
     const blobServiceClient = BlobServiceClient.fromConnectionString(this.connectionString);
     const containerClient = blobServiceClient.getContainerClient(this.containerName);
+    // The container must exist before the first upload — create it on demand.
+    await containerClient.createIfNotExists();
     const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
 
     await blockBlobClient.upload(buffer, buffer.length, {
@@ -50,5 +52,17 @@ export class AzurePdfStorage implements PdfStoragePort {
     });
 
     return { blobPath };
+  }
+
+  async download(blobPath: string): Promise<Buffer | null> {
+    const blobServiceClient = BlobServiceClient.fromConnectionString(this.connectionString);
+    const containerClient = blobServiceClient.getContainerClient(this.containerName);
+    const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
+    try {
+      return await blockBlobClient.downloadToBuffer();
+    } catch (err) {
+      if ((err as { statusCode?: number }).statusCode === 404) return null;
+      throw err;
+    }
   }
 }

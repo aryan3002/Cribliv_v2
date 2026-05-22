@@ -26,14 +26,14 @@ export class PdfPreviewError extends Error {
 interface Deps {
   /** Loads the agreement scoped to the caller — returns null for missing/cross-user. */
   loadAgreement: LoadAgreementForDownload;
-  /** Reads raw PDF bytes for a stored blob path (InMemory in dev). */
-  loadPdfBytes: (blobPath: string) => Buffer | undefined;
+  /** Reads raw PDF bytes for a stored blob path (InMemory or Azure). */
+  loadPdfBytes: (blobPath: string) => Promise<Buffer | undefined>;
   clock?: () => Date;
 }
 
 export class PdfPreviewService {
   private readonly load: LoadAgreementForDownload;
-  private readonly loadBytes: (blobPath: string) => Buffer | undefined;
+  private readonly loadBytes: (blobPath: string) => Promise<Buffer | undefined>;
   private readonly clock: () => Date;
 
   constructor(deps: Deps) {
@@ -71,7 +71,7 @@ export class PdfPreviewService {
       );
     }
 
-    const bytes = this.loadBytes(agreement.pdf_blob_path);
+    const bytes = await this.loadBytes(agreement.pdf_blob_path);
     if (!bytes) {
       throw new PdfPreviewError(
         "RENT_AGREEMENT_PDF_NOT_READY",

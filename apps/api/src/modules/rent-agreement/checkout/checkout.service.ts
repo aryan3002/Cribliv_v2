@@ -1,12 +1,21 @@
 import { randomUUID } from "node:crypto";
 
 import { buildRentAgreementProviderPayload, type ProviderOrderNotes } from "./checkout.mapper";
+import {
+  InMemoryPaymentOrdersRepository,
+  type PaymentOrdersRepository
+} from "./payment-orders.repository";
 import type { RentAgreementPaymentProviderPort } from "../payments/payment-provider.port";
 
-// In-memory backend for Phase 7. Wiring into payments.controller.ts and the live-DB
-// `payment_orders` repository land in Phase 13. The state machine here mirrors the
-// eventual DB schema: status ∈ {'pending_payment','paid'}, idempotent on (user_id,
-// idempotency_key), provider_order_id indexed for webhook lookup.
+// Payment order state machine. Row persistence is delegated to a
+// `PaymentOrdersRepository` (in-memory or DB-backed, table
+// rent_agreement_payment_orders). status ∈ {'pending_payment','paid'}, idempotent
+// on (user_id, idempotency_key), provider_order_id indexed for webhook lookup.
+//
+// The payment provider stays dev-based (MockPaymentProvider). In dev, `devMockCapture`
+// settles the order with a mock provider_payment_id right after creation so the
+// persisted record is complete. In production this dep is absent and the real
+// webhook (handlePaymentCaptured -> markPaid) settles the order instead.
 
 export type Provider = "razorpay" | "upi";
 export type PaymentOrderStatus = "pending_payment" | "paid";
@@ -27,7 +36,7 @@ interface DraftsServicePort {
 }
 
 interface SignaturesServicePort {
-  hasBothSignatures(agreementId: string): boolean;
+  hasBothSignatures(agreementId: string): Promise<boolean>;
 }
 
 export interface PaymentOrderRow {
@@ -67,13 +76,18 @@ interface Deps {
   providerOrderIdGenerator?: () => string;
   uuid?: () => string;
   clock?: () => Date;
-  // Phase 13: real provider call (Razorpay or MockPaymentProvider in dev). When
-  // supplied, overrides providerOrderIdGenerator. The mapper still builds the
-  // amount/notes payload; the provider just mints the upstream order id.
+  repository?: PaymentOrdersRepository;
+  // Real provider call (Razorpay or MockPaymentProvider in dev). When supplied,
+  // overrides providerOrderIdGenerator. The mapper still builds the amount/notes
+  // payload; the provider just mints the upstream order id.
   paymentProvider?: RentAgreementPaymentProviderPort;
-  // Phase 13: after a new order is persisted, flip the draft to pending_payment +
-  // record the provider_order_id on the agreement row. Skipped on idempotency-replay.
-  onOrderCreated?: (draftId: string, providerOrderId: string) => Promise<void>;
+  // After a new order is persisted, flip the draft to pending_payment + link the
+  // payment order (by its uuid id) onto the agreement row. Skipped on
+  // idempotency-replay. `providerOrderId` is passed for analytics only.
+  onOrderCreated?: (draftId: string, providerOrderId: string, orderId: string) => Promise<void>;
+  // Dev-only: settle the freshly-created order with a mock provider_payment_id.
+  // Absent in production — the real payment webhook settles the order there.
+  devMockCapture?: (orderId: string) => string;
 }
 
 export type CheckoutServiceErrorCode =
@@ -90,9 +104,7 @@ export interface CheckoutServiceError extends Error {
 const VALID_PROVIDERS: ReadonlySet<string> = new Set(["razorpay", "upi"]);
 
 export class CheckoutService {
-  private readonly orders = new Map<string, PaymentOrderRow>();
-  private readonly idemIndex = new Map<string, string>();
-  private readonly providerOrderIndex = new Map<string, string>();
+  private readonly repo: PaymentOrdersRepository;
   private readonly draftsService: DraftsServicePort;
   private readonly signaturesService: SignaturesServicePort;
   private readonly planLookup: (planId: string) => { amount_paise: number };
@@ -100,11 +112,13 @@ export class CheckoutService {
   private readonly uuid: () => string;
   private readonly clock: () => Date;
   private readonly onOrderCreated:
-    | ((draftId: string, providerOrderId: string) => Promise<void>)
+    | ((draftId: string, providerOrderId: string, orderId: string) => Promise<void>)
     | null;
   private readonly paymentProvider: RentAgreementPaymentProviderPort | null;
+  private readonly devMockCapture: ((orderId: string) => string) | null;
 
   constructor(deps: Deps) {
+    this.repo = deps.repository ?? new InMemoryPaymentOrdersRepository();
     this.draftsService = deps.draftsService;
     this.signaturesService = deps.signaturesService;
     this.planLookup = deps.planLookup;
@@ -113,6 +127,7 @@ export class CheckoutService {
     this.providerOrderIdGenerator = deps.providerOrderIdGenerator ?? (() => `order_${this.uuid()}`);
     this.onOrderCreated = deps.onOrderCreated ?? null;
     this.paymentProvider = deps.paymentProvider ?? null;
+    this.devMockCapture = deps.devMockCapture ?? null;
   }
 
   async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
@@ -123,12 +138,8 @@ export class CheckoutService {
       );
     }
 
-    const idemKey = `${input.userId}|${input.idempotencyKey}`;
-    const existingId = this.idemIndex.get(idemKey);
-    if (existingId) {
-      const existing = this.orders.get(existingId);
-      if (existing) return this.toResult(existing);
-    }
+    const replay = await this.repo.findByIdempotency(input.userId, input.idempotencyKey);
+    if (replay) return this.toResult(replay);
 
     const draft = await this.draftsService.getOne(input.userId, input.draftId);
     if (!draft) {
@@ -143,7 +154,10 @@ export class CheckoutService {
         `Draft must be at step 7 with status='draft' (got step ${draft.current_step}, status '${draft.status}')`
       );
     }
-    if (draft.plan_id === "premium" && !this.signaturesService.hasBothSignatures(draft.id)) {
+    if (
+      draft.plan_id === "premium" &&
+      !(await this.signaturesService.hasBothSignatures(draft.id))
+    ) {
       throw this.err(
         "RENT_AGREEMENT_CHECKOUT_SIGNATURES_MISSING",
         "Premium plan requires both owner + tenant signatures before checkout"
@@ -189,29 +203,38 @@ export class CheckoutService {
       metadata: payload.notes,
       created_at: this.clock().toISOString()
     };
-    this.orders.set(id, row);
-    this.idemIndex.set(idemKey, id);
-    this.providerOrderIndex.set(providerOrderId, id);
-    if (this.onOrderCreated) {
-      await this.onOrderCreated(input.draftId, providerOrderId);
+    await this.repo.insert(row);
+
+    // insert is idempotent at the storage layer. Re-read so a concurrent create
+    // that won the (user_id, idempotency_key) conflict returns the canonical row.
+    const stored = (await this.repo.findByIdempotency(input.userId, input.idempotencyKey)) ?? row;
+    if (stored.id !== row.id) {
+      // Lost the race — another create already owns this idempotency key.
+      return this.toResult(stored);
     }
-    return this.toResult(row);
+
+    if (this.onOrderCreated) {
+      await this.onOrderCreated(input.draftId, providerOrderId, id);
+    }
+    if (this.devMockCapture) {
+      // Dev: no real provider, so settle the order immediately with a mock id.
+      await this.markPaid(id, this.devMockCapture(id));
+    }
+
+    return this.toResult((await this.repo.findById(id)) ?? row);
   }
 
-  findByProviderOrderId(providerOrderId: string): PaymentOrderRow | null {
-    const id = this.providerOrderIndex.get(providerOrderId);
-    if (!id) return null;
-    return this.orders.get(id) ?? null;
+  async findByProviderOrderId(providerOrderId: string): Promise<PaymentOrderRow | null> {
+    return this.repo.findByProviderOrderId(providerOrderId);
   }
 
-  markPaid(orderId: string, providerPaymentId: string): void {
-    const order = this.orders.get(orderId);
+  async markPaid(orderId: string, providerPaymentId: string): Promise<void> {
+    const order = await this.repo.findById(orderId);
     if (!order) {
       throw this.err("RENT_AGREEMENT_CHECKOUT_ORDER_NOT_FOUND", `Order ${orderId} not found`);
     }
     if (order.status === "paid") return; // idempotent
-    order.status = "paid";
-    order.provider_payment_id = providerPaymentId;
+    await this.repo.markPaid(orderId, providerPaymentId);
   }
 
   private toResult(row: PaymentOrderRow): CreateOrderResult {

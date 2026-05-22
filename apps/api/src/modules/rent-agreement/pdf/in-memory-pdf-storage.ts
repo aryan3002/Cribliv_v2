@@ -31,6 +31,10 @@ export class InMemoryPdfStorage implements PdfStoragePort {
     return { blobPath };
   }
 
+  async download(blobPath: string): Promise<Buffer | null> {
+    return this.blobs.get(blobPath) ?? null;
+  }
+
   get(blobPath: string): Buffer | undefined {
     return this.blobs.get(blobPath);
   }

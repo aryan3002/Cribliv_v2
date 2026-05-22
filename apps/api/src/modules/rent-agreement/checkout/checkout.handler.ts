@@ -23,14 +23,14 @@ export type HandlePaymentCapturedResult =
 export async function handlePaymentCaptured(
   input: HandlePaymentCapturedInput
 ): Promise<HandlePaymentCapturedResult> {
-  const order = input.checkout.findByProviderOrderId(input.providerOrderId);
+  const order = await input.checkout.findByProviderOrderId(input.providerOrderId);
   if (!order) {
     return { processed: false, reason: "order_not_found" };
   }
   if (order.status === "paid") {
     return { processed: false, reason: "already_paid" };
   }
-  input.checkout.markPaid(order.id, input.providerPaymentId);
+  await input.checkout.markPaid(order.id, input.providerPaymentId);
   await input.enqueuePdfJob({ agreementId: order.draft_id, userId: order.user_id });
   return { processed: true };
 }

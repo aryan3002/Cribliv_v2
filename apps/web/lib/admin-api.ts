@@ -1,4 +1,4 @@
-import { fetchApi } from "./api";
+import { fetchApi, buildSearchQuery } from "./api";
 import type { ListingType, VerificationType, VerificationResult } from "@cribliv/shared-types";
 
 export interface AdminListingVm {
@@ -706,4 +706,313 @@ export async function fetchAdminFraudFeed(accessToken: string, limit = 50) {
   return fetchApi<{ items: FraudFeedItem[]; total: number }>(`/admin/fraud/feed?limit=${limit}`, {
     headers: authHeaders(accessToken)
   });
+}
+
+/* ── Rent Agreement Analytics ─────────────────────────────────────────────
+ * View-models for the admin Rent Agreements tab. The API returns snake_case;
+ * these helpers map to camelCase and apply zero/empty defaults so the UI never
+ * has to null-check. The summary/detail/download-link endpoints return null when
+ * the feature flag is off or a record is missing.
+ */
+
+export interface RaSummaryVm {
+  totalSessions: number;
+  draftsStarted: number;
+  draftsCompleted: number;
+  draftsAbandoned: number;
+  conversionRate: number;
+  totalRevenuePaise: number;
+  arpuPaise: number;
+  avgCompletionMs: number | null;
+  byPlan: Array<{ planId: string; count: number; revenuePaise: number }>;
+  byState: Array<{ stateCode: string; count: number }>;
+  byLocale: Array<{ locale: string; count: number }>;
+  byPaymentStatus: Array<{ status: string; count: number }>;
+  eSignCompleted: number;
+  eStampIssued: number;
+}
+
+export interface RaFunnelStepVm {
+  step: number;
+  label: string;
+  agreementsReached: number;
+  advanced: number;
+  blockedEvents: number;
+  revertedEvents: number;
+  dropRate: number;
+  topErrors: Array<{ code: string; count: number }>;
+}
+
+export interface RaTimePointVm {
+  date: string;
+  draftsStarted: number;
+  draftsCompleted: number;
+  revenuePaise: number;
+}
+
+export interface RaOperationalVm {
+  pdfJobs: { pending: number; processing: number; failed: number; done: number };
+  expiringSoon: number;
+  totalDownloads: number;
+  atDownloadLimit: number;
+}
+
+export interface RaListItemVm {
+  id: string;
+  status: string;
+  planId: string;
+  locale: string;
+  currentStep: number;
+  ownerFullName: string | null;
+  ownerPhone: string | null;
+  ownerEmail: string | null;
+  tenantFullName: string | null;
+  tenantPhone: string | null;
+  tenantEmail: string | null;
+  propertyFullAddress: string | null;
+  stateCode: string | null;
+  city: string | null;
+  rentAmountPaise: number | null;
+  stampDutyPaise: number;
+  downloadCount: number;
+  pdfReady: boolean;
+  createdAt: string;
+  updatedAt: string;
+  paymentOrderId: string | null;
+  paymentAmountPaise: number | null;
+  paymentStatus: string | null;
+  paymentProvider: string | null;
+  creatorPhone: string | null;
+  creatorName: string | null;
+}
+
+export interface RaStepAuditVm {
+  step: number;
+  outcome: string;
+  errorCodes: string[];
+  createdAt: string;
+}
+
+export interface RaDetailVm extends RaListItemVm {
+  stepValidatedAt: Record<string, string>;
+  eStampReference: string | null;
+  eSignSessionId: string | null;
+  eSignCompletedAt: string | null;
+  expiresAt: string | null;
+  pdfGeneratedAt: string | null;
+  stepAudit: RaStepAuditVm[];
+}
+
+export interface RaDownloadLinkVm {
+  sasUrl: string;
+  expiresAt: string;
+}
+
+export interface RaListParams {
+  status?: string;
+  planId?: string;
+  stateCode?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}
+
+type RaListItemRaw = Record<string, unknown>;
+
+function num(v: unknown, fallback = 0): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+function mapRaRow(r: RaListItemRaw): RaListItemVm {
+  return {
+    id: String(r.id),
+    status: String(r.status ?? ""),
+    planId: String(r.plan_id ?? ""),
+    locale: String(r.locale ?? ""),
+    currentStep: num(r.current_step),
+    ownerFullName: (r.owner_full_name as string | null) ?? null,
+    ownerPhone: (r.owner_phone as string | null) ?? null,
+    ownerEmail: (r.owner_email as string | null) ?? null,
+    tenantFullName: (r.tenant_full_name as string | null) ?? null,
+    tenantPhone: (r.tenant_phone as string | null) ?? null,
+    tenantEmail: (r.tenant_email as string | null) ?? null,
+    propertyFullAddress: (r.property_full_address as string | null) ?? null,
+    stateCode: (r.state_code as string | null) ?? null,
+    city: (r.city as string | null) ?? null,
+    rentAmountPaise: r.rent_amount_paise == null ? null : num(r.rent_amount_paise),
+    stampDutyPaise: num(r.stamp_duty_paise),
+    downloadCount: num(r.download_count),
+    pdfReady: Boolean(r.pdf_ready),
+    createdAt: String(r.created_at ?? ""),
+    updatedAt: String(r.updated_at ?? ""),
+    paymentOrderId: (r.payment_order_id as string | null) ?? null,
+    paymentAmountPaise: r.payment_amount_paise == null ? null : num(r.payment_amount_paise),
+    paymentStatus: (r.payment_status as string | null) ?? null,
+    paymentProvider: (r.payment_provider as string | null) ?? null,
+    creatorPhone: (r.creator_phone as string | null) ?? null,
+    creatorName: (r.creator_name as string | null) ?? null
+  };
+}
+
+export async function fetchRentAgreementSummary(
+  accessToken: string,
+  days = 30
+): Promise<RaSummaryVm | null> {
+  const raw = await fetchApi<Record<string, unknown> | null>(
+    `/admin/rent-agreements/summary?days=${days}`,
+    { headers: authHeaders(accessToken) }
+  );
+  if (!raw) return null;
+  const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+  return {
+    totalSessions: num(raw.total_sessions),
+    draftsStarted: num(raw.drafts_started),
+    draftsCompleted: num(raw.drafts_completed),
+    draftsAbandoned: num(raw.drafts_abandoned),
+    conversionRate: num(raw.conversion_rate),
+    totalRevenuePaise: num(raw.total_revenue_paise),
+    arpuPaise: num(raw.arpu_paise),
+    avgCompletionMs: typeof raw.avg_completion_ms === "number" ? raw.avg_completion_ms : null,
+    byPlan: arr<{ plan_id: string; count: number; revenue_paise: number }>(raw.by_plan).map(
+      (p) => ({ planId: p.plan_id, count: num(p.count), revenuePaise: num(p.revenue_paise) })
+    ),
+    byState: arr<{ state_code: string; count: number }>(raw.by_state).map((s) => ({
+      stateCode: s.state_code,
+      count: num(s.count)
+    })),
+    byLocale: arr<{ locale: string; count: number }>(raw.by_locale).map((l) => ({
+      locale: l.locale,
+      count: num(l.count)
+    })),
+    byPaymentStatus: arr<{ status: string; count: number }>(raw.by_payment_status).map((s) => ({
+      status: s.status,
+      count: num(s.count)
+    })),
+    eSignCompleted: num(raw.e_sign_completed),
+    eStampIssued: num(raw.e_stamp_issued)
+  };
+}
+
+export async function fetchRentAgreementFunnel(
+  accessToken: string,
+  days = 30
+): Promise<RaFunnelStepVm[]> {
+  const raw = await fetchApi<Array<Record<string, unknown>> | null>(
+    `/admin/rent-agreements/funnel?days=${days}`,
+    { headers: authHeaders(accessToken) }
+  );
+  if (!Array.isArray(raw)) return [];
+  return raw.map((s) => ({
+    step: num(s.step),
+    label: String(s.label ?? ""),
+    agreementsReached: num(s.agreements_reached),
+    advanced: num(s.advanced),
+    blockedEvents: num(s.blocked_events),
+    revertedEvents: num(s.reverted_events),
+    dropRate: num(s.drop_rate),
+    topErrors: Array.isArray(s.top_errors)
+      ? (s.top_errors as Array<{ code: string; count: number }>).map((e) => ({
+          code: e.code,
+          count: num(e.count)
+        }))
+      : []
+  }));
+}
+
+export async function fetchRentAgreementTimeSeries(
+  accessToken: string,
+  days = 30
+): Promise<RaTimePointVm[]> {
+  const raw = await fetchApi<Array<Record<string, unknown>> | null>(
+    `/admin/rent-agreements/timeseries?days=${days}`,
+    { headers: authHeaders(accessToken) }
+  );
+  if (!Array.isArray(raw)) return [];
+  return raw.map((p) => ({
+    date: String(p.date ?? ""),
+    draftsStarted: num(p.drafts_started),
+    draftsCompleted: num(p.drafts_completed),
+    revenuePaise: num(p.revenue_paise)
+  }));
+}
+
+export async function fetchRentAgreementOperational(accessToken: string): Promise<RaOperationalVm> {
+  const raw = await fetchApi<Record<string, unknown> | null>(`/admin/rent-agreements/operational`, {
+    headers: authHeaders(accessToken)
+  });
+  const jobs = (raw?.pdf_jobs as Record<string, unknown> | undefined) ?? {};
+  return {
+    pdfJobs: {
+      pending: num(jobs.pending),
+      processing: num(jobs.processing),
+      failed: num(jobs.failed),
+      done: num(jobs.done)
+    },
+    expiringSoon: num(raw?.expiring_soon),
+    totalDownloads: num(raw?.total_downloads),
+    atDownloadLimit: num(raw?.at_download_limit)
+  };
+}
+
+export async function fetchRentAgreements(
+  accessToken: string,
+  params: RaListParams
+): Promise<{ items: RaListItemVm[]; total: number }> {
+  const query = buildSearchQuery({
+    status: params.status,
+    plan_id: params.planId,
+    state_code: params.stateCode,
+    search: params.search,
+    date_from: params.dateFrom,
+    date_to: params.dateTo,
+    page: params.page,
+    limit: params.limit
+  });
+  const raw = await fetchApi<{ items: RaListItemRaw[]; total: number } | null>(
+    `/admin/rent-agreements/list${query ? `?${query}` : ""}`,
+    { headers: authHeaders(accessToken) }
+  );
+  if (!raw) return { items: [], total: 0 };
+  return { items: (raw.items ?? []).map(mapRaRow), total: num(raw.total) };
+}
+
+export async function fetchRentAgreementDetail(
+  accessToken: string,
+  id: string
+): Promise<RaDetailVm | null> {
+  const raw = await fetchApi<Record<string, unknown> | null>(`/admin/rent-agreements/${id}`, {
+    headers: authHeaders(accessToken)
+  });
+  if (!raw) return null;
+  return {
+    ...mapRaRow(raw),
+    stepValidatedAt: (raw.step_validated_at as Record<string, string>) ?? {},
+    eStampReference: (raw.e_stamp_reference as string | null) ?? null,
+    eSignSessionId: (raw.e_sign_session_id as string | null) ?? null,
+    eSignCompletedAt: (raw.e_sign_completed_at as string | null) ?? null,
+    expiresAt: (raw.expires_at as string | null) ?? null,
+    pdfGeneratedAt: (raw.pdf_generated_at as string | null) ?? null,
+    stepAudit: Array.isArray(raw.step_audit)
+      ? (raw.step_audit as Array<Record<string, unknown>>).map((a) => ({
+          step: num(a.step),
+          outcome: String(a.outcome ?? ""),
+          errorCodes: Array.isArray(a.error_codes) ? (a.error_codes as string[]) : [],
+          createdAt: String(a.created_at ?? "")
+        }))
+      : []
+  };
+}
+
+export async function fetchRentAgreementDownloadLink(
+  accessToken: string,
+  id: string
+): Promise<RaDownloadLinkVm | null> {
+  const raw = await fetchApi<{ sas_url: string; expires_at: string } | null>(
+    `/admin/rent-agreements/${id}/download-link`,
+    { headers: authHeaders(accessToken) }
+  );
+  if (!raw) return null;
+  return { sasUrl: raw.sas_url, expiresAt: raw.expires_at };
 }

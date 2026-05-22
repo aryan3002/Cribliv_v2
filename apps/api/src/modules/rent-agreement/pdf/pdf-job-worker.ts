@@ -55,7 +55,7 @@ export class PdfJobWorker {
   }
 
   async tick(): Promise<TickResult> {
-    const job = this.queue.dequeueNext();
+    const job = await this.queue.dequeueNext();
     if (!job) return { processed: 0 };
 
     let loaded: LoadAgreementResult | null;
@@ -63,11 +63,11 @@ export class PdfJobWorker {
       loaded = await this.loadAgreementForRender(job.agreement_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.queue.markFailed(job.id, `load_agreement_failed: ${message}`);
+      await this.queue.markFailed(job.id, `load_agreement_failed: ${message}`);
       return { processed: 0, error: `load_agreement_failed: ${message}` };
     }
     if (!loaded) {
-      this.queue.markFailed(job.id, "agreement_not_found");
+      await this.queue.markFailed(job.id, "agreement_not_found");
       return { processed: 0, error: "agreement_not_found" };
     }
 
@@ -80,7 +80,7 @@ export class PdfJobWorker {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.queue.markFailed(job.id, `render_failed: ${message}`);
+      await this.queue.markFailed(job.id, `render_failed: ${message}`);
       return { processed: 0, error: `render_failed: ${message}` };
     }
 
@@ -90,11 +90,11 @@ export class PdfJobWorker {
       blobPath = uploaded.blobPath;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.queue.markFailed(job.id, `storage_failed: ${message}`);
+      await this.queue.markFailed(job.id, `storage_failed: ${message}`);
       return { processed: 0, error: `storage_failed: ${message}` };
     }
 
-    this.queue.markDone(job.id);
+    await this.queue.markDone(job.id);
     // Decision A: if this throws, the job is already 'done' in the queue.
     // Phase 13 will move both into a single DB transaction.
     await this.onAgreementGenerated({

@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Mock @azure/storage-blob
 vi.mock("@azure/storage-blob", () => {
   const mockBlockBlobClient = {
-    upload: vi.fn().mockResolvedValue({ _response: { status: 201 } })
+    upload: vi.fn().mockResolvedValue({ _response: { status: 201 } }),
+    downloadToBuffer: vi.fn().mockResolvedValue(Buffer.from("STORED-PDF"))
   };
   const mockContainerClient = {
+    createIfNotExists: vi.fn().mockResolvedValue({}),
     getBlockBlobClient: vi.fn().mockReturnValue(mockBlockBlobClient)
   };
   const mockBlobServiceClient = {
@@ -144,6 +146,7 @@ describe("AzurePdfStorage", () => {
       // Reset and set up a failing mock
       vi.mocked(BlobServiceClient.fromConnectionString).mockReturnValueOnce({
         getContainerClient: vi.fn().mockReturnValue({
+          createIfNotExists: vi.fn().mockResolvedValue({}),
           getBlockBlobClient: vi.fn().mockReturnValue({
             upload: vi.fn().mockRejectedValueOnce(new Error("Azure 500"))
           })
@@ -172,6 +175,45 @@ describe("AzurePdfStorage", () => {
       expect(result).toHaveProperty("blobPath");
       expect(typeof result.blobPath).toBe("string");
       expect(result.blobPath).toMatch(/^\d{4}\/\d{2}\/.+\.pdf$/);
+    });
+  });
+
+  describe("upload creates the container if absent", () => {
+    it("calls containerClient.createIfNotExists before uploading", async () => {
+      const storage = new AzurePdfStorage({
+        connectionString: "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==",
+        containerName: "rent-agreements",
+        clock: () => new Date("2026-01-01T00:00:00Z")
+      });
+      await storage.upload(Buffer.from("data"), "id-create", "en");
+      const { containerClient } = getInnerMocks();
+      expect(containerClient.createIfNotExists).toHaveBeenCalled();
+    });
+  });
+
+  describe("download", () => {
+    it("returns the buffer from downloadToBuffer", async () => {
+      const storage = new AzurePdfStorage({
+        connectionString: "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==",
+        containerName: "rent-agreements"
+      });
+      const bytes = await storage.download("2026/05/agr-1.pdf");
+      expect(bytes?.toString()).toBe("STORED-PDF");
+    });
+
+    it("returns null on a 404 RestError", async () => {
+      vi.mocked(BlobServiceClient.fromConnectionString).mockReturnValueOnce({
+        getContainerClient: vi.fn().mockReturnValue({
+          getBlockBlobClient: vi.fn().mockReturnValue({
+            downloadToBuffer: vi.fn().mockRejectedValueOnce({ statusCode: 404 })
+          })
+        })
+      } as any);
+      const storage = new AzurePdfStorage({
+        connectionString: "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==",
+        containerName: "rent-agreements"
+      });
+      expect(await storage.download("missing.pdf")).toBeNull();
     });
   });
 });

@@ -45,7 +45,7 @@ describe("handlePaymentCaptured: happy path", () => {
       enqueuePdfJob
     });
     expect(result).toEqual({ processed: true });
-    expect(checkout.findByProviderOrderId("order_1")?.status).toBe("paid");
+    expect((await checkout.findByProviderOrderId("order_1"))?.status).toBe("paid");
     expect(enqueuePdfJob).toHaveBeenCalledWith({
       agreementId: "draft-1",
       userId: "user-1"
@@ -62,7 +62,7 @@ describe("handlePaymentCaptured: happy path", () => {
       checkout,
       enqueuePdfJob
     });
-    expect(checkout.findByProviderOrderId("order_1")?.provider_payment_id).toBe("pay_abc");
+    expect((await checkout.findByProviderOrderId("order_1"))?.provider_payment_id).toBe("pay_abc");
   });
 });
 
@@ -124,7 +124,9 @@ describe("handlePaymentCaptured: replay safety", () => {
       enqueuePdfJob
     });
     expect(second).toEqual({ processed: false, reason: "already_paid" });
-    expect(checkout.findByProviderOrderId("order_1")?.provider_payment_id).toBe("pay_first");
+    expect((await checkout.findByProviderOrderId("order_1"))?.provider_payment_id).toBe(
+      "pay_first"
+    );
   });
 });
 
@@ -176,6 +178,6 @@ describe("handlePaymentCaptured: error propagation", () => {
         enqueuePdfJob
       })
     ).rejects.toThrow();
-    expect(checkout.findByProviderOrderId("order_1")?.status).toBe("paid");
+    expect((await checkout.findByProviderOrderId("order_1"))?.status).toBe("paid");
   });
 });
