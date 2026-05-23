@@ -13,6 +13,7 @@ import {
   listOwnerListings,
   makeIdempotencyKey,
   presignListingPhotos,
+  reorderListingPhotos,
   segmentPgPath,
   submitOwnerListing,
   updateOwnerListing
@@ -177,8 +178,34 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         }));
         setListingId(editId);
 
-        if (Array.isArray(found.photos) && found.photos.length > 0) {
-          const existingUploads = found.photos.map((url: string, i: number) => ({
+        // Prefer the structured photoItems shape (id + url + sort_order +
+        // is_cover) — it's what powers the reorder API in edit mode. Fall
+        // back to the legacy `photos: string[]` for old responses, where
+        // reorder will be disabled because we have no photo_id.
+        if (Array.isArray(found.photoItems) && found.photoItems.length > 0) {
+          const existingUploads: UploadFile[] = found.photoItems.map(
+            (
+              item: {
+                id: string;
+                url: string;
+                blob_path?: string;
+                sort_order: number;
+                is_cover: boolean;
+              },
+              i: number
+            ) => ({
+              clientUploadId: `existing-${item.id}`,
+              photoId: item.id,
+              blobPath: item.blob_path,
+              file: new File([], "existing-photo"),
+              status: "complete" as const,
+              progress: 100,
+              previewUrl: item.url
+            })
+          );
+          setUploads(existingUploads);
+        } else if (Array.isArray(found.photos) && found.photos.length > 0) {
+          const existingUploads: UploadFile[] = found.photos.map((url: string, i: number) => ({
             clientUploadId: `existing-${i}`,
             file: new File([], "existing-photo"),
             status: "complete" as const,
@@ -612,16 +639,24 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       setUploads((c) =>
         c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 80 } : i))
       );
-      await completeListingPhotos(
+      const completion = await completeListingPhotos(
         accessToken,
         activeListingId,
         [{ clientUploadId: upload.clientUploadId, blobPath: first.blobPath, isCover, sortOrder }],
         makeIdempotencyKey("photo-complete")
       );
+      const persistedPhotoId = completion.photoIds[0];
       setUploads((c) =>
         c.map((i) =>
           i.clientUploadId === upload.clientUploadId
-            ? { ...i, status: "complete" as const, progress: 100, errorMessage: undefined }
+            ? {
+                ...i,
+                status: "complete" as const,
+                progress: 100,
+                errorMessage: undefined,
+                photoId: persistedPhotoId ?? i.photoId,
+                blobPath: first.blobPath
+              }
             : i
         )
       );
@@ -650,21 +685,79 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       if (!id) return;
       activeListingId = id;
     }
-    const pending = uploads.filter((i) => i.status === "pending");
+    // The user may have reordered the grid before clicking "Upload all", and
+    // there may already be `complete` photos from prior uploads. The cover +
+    // sort order we send to `completePhotos` must reflect the current grid
+    // ordering — index 0 in the full uploads array is the cover, regardless
+    // of which entries are pending vs already-uploaded.
+    const indexed = uploads.map((u, idx) => ({ upload: u, idx }));
+    const pending = indexed.filter(({ upload }) => upload.status === "pending");
     const workerCount = Math.min(MAX_PARALLEL_UPLOADS, pending.length);
     if (workerCount === 0) return;
 
     let cursor = 0;
     const workers = Array.from({ length: workerCount }, async () => {
       while (cursor < pending.length) {
-        const idx = cursor;
+        const slot = cursor;
         cursor += 1;
-        const cur = pending[idx];
-        if (!cur) continue;
-        await uploadFile(cur, activeListingId ?? undefined, idx, idx === 0);
+        const entry = pending[slot];
+        if (!entry) continue;
+        await uploadFile(entry.upload, activeListingId ?? undefined, entry.idx, entry.idx === 0);
       }
     });
     await Promise.all(workers);
+  }
+
+  /**
+   * Reorder handler from PhotoGrid. Strategy:
+   *
+   *   1. Optimistically update local state (this is what the user sees).
+   *   2. If the listing already exists AND every reordered photo has a
+   *      server-side photoId, persist via PATCH .../photos/reorder. On
+   *      failure, revert local state and surface a toast.
+   *   3. If the listing doesn't exist yet, the local order is the source of
+   *      truth — it'll be applied on the eventual `Upload all` via the
+   *      sort_order/is_cover args of completePhotos.
+   *
+   * We guard against partial-persistence by sending the full set every time
+   * (the server validates that the request covers every non-rejected photo
+   * implicitly through the photo_id lookup; if a photo was added in another
+   * tab we'd get an invalid_photo_id error and revert).
+   */
+  async function onPhotosReorder(next: UploadFile[]) {
+    const previous = uploads;
+    setUploads(next);
+
+    if (!listingId || !accessToken) return;
+
+    const persistable = next.filter(
+      (u) => u.status === "complete" && typeof u.photoId === "string"
+    );
+    // Reorder API is only meaningful when there are ≥2 persisted photos —
+    // a single-photo listing has nothing to reorder. When fewer than 2 of
+    // the items are persisted (e.g. user is mid-upload), we skip the API
+    // call; the next completePhotos will write the user-visible order.
+    if (persistable.length < 2) return;
+
+    try {
+      await reorderListingPhotos(
+        accessToken,
+        listingId,
+        persistable.map((upload, idx) => ({
+          photoId: upload.photoId as string,
+          sortOrder: idx,
+          isCover: idx === 0
+        })),
+        makeIdempotencyKey("photo-reorder")
+      );
+    } catch (err) {
+      setUploads(previous);
+      setToast(
+        err instanceof Error
+          ? `Couldn't save new photo order: ${err.message}`
+          : "Couldn't save new photo order. Please try again."
+      );
+    }
   }
 
   function removeUpload(id: string) {
@@ -813,6 +906,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               onFilesSelected={onFilesSelected}
               onUploadAll={uploadAllPending}
               onRemove={removeUpload}
+              onReorder={onPhotosReorder}
             />
           ) : null}
           {step === 5 ? (

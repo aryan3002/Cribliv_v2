@@ -50,6 +50,12 @@ export interface UploadFile {
   progress: number;
   previewUrl: string;
   errorMessage?: string;
+  /** Server-side photo id, present once the upload has been persisted (or
+   *  for photos hydrated from the API in edit mode). Required to call the
+   *  reorder endpoint. */
+  photoId?: string;
+  /** Storage blob path for persisted photos. */
+  blobPath?: string;
 }
 
 export const STEPS = [

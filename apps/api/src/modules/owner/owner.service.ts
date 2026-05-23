@@ -148,13 +148,21 @@ export class OwnerService {
           pg.attached_bathroom,
           COALESCE(
             (
-              SELECT json_agg(lp.blob_path ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC)
+              SELECT json_agg(
+                json_build_object(
+                  'id', lp.id::text,
+                  'blob_path', lp.blob_path,
+                  'sort_order', lp.sort_order,
+                  'is_cover', lp.is_cover
+                )
+                ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC
+              )
               FROM listing_photos lp
               WHERE lp.listing_id = l.id
                 AND lp.moderation_status <> 'rejected'
             ),
             '[]'::json
-          ) AS photos
+          ) AS photo_items
         FROM listings l
         JOIN listing_locations ll ON ll.listing_id = l.id
         JOIN cities c ON c.id = ll.city_id
@@ -172,9 +180,36 @@ export class OwnerService {
       }
 
       const row = result.rows[0];
-      const photoUrls = (row.photos ?? [])
-        .map((path: any) => toBlobUrl(path as string))
-        .filter((url: any): url is string => Boolean(url));
+      const rawPhotoItems: Array<{
+        id: string;
+        blob_path: string;
+        sort_order: number;
+        is_cover: boolean;
+      }> = Array.isArray(row.photo_items) ? row.photo_items : [];
+      const photoItems = rawPhotoItems
+        .map((item) => {
+          const url = toBlobUrl(item.blob_path);
+          if (!url) return null;
+          return {
+            id: item.id,
+            url,
+            blob_path: item.blob_path,
+            sort_order: Number(item.sort_order ?? 0),
+            is_cover: Boolean(item.is_cover)
+          };
+        })
+        .filter(
+          (
+            value
+          ): value is {
+            id: string;
+            url: string;
+            blob_path: string;
+            sort_order: number;
+            is_cover: boolean;
+          } => value !== null
+        );
+      const photoUrls = photoItems.map((item) => item.url);
 
       return {
         id: row.id,
@@ -208,6 +243,7 @@ export class OwnerService {
         curfewTime: row.curfew_time ?? undefined,
         attachedBathroom: row.attached_bathroom ?? undefined,
         photos: photoUrls,
+        photoItems,
         coverImage: photoUrls[0] ?? null
       };
     }
@@ -252,6 +288,7 @@ export class OwnerService {
       curfewTime: meta.pg_fields?.curfew_time,
       attachedBathroom: meta.pg_fields?.attached_bathroom,
       photos: [],
+      photoItems: [],
       coverImage: null
     };
   }
@@ -1065,6 +1102,187 @@ export class OwnerService {
     return {
       photo_ids: files.map(() => randomUUID()),
       accepted_count: files.length
+    };
+  }
+
+  async reorderPhotos(
+    ownerUserId: string,
+    listingId: string,
+    idempotencyKey: string,
+    items: Array<{ photo_id: string; sort_order: number; is_cover?: boolean }>
+  ) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException({
+        code: "validation_error",
+        message: "items is required"
+      });
+    }
+
+    const normalized: Array<{ photoId: string; sortOrder: number; isCover: boolean }> = [];
+    const seenIds = new Set<string>();
+    const seenSortOrders = new Set<number>();
+    let coverCount = 0;
+
+    for (const item of items) {
+      const photoId = String(item.photo_id ?? "").trim();
+      if (!photoId) {
+        throw new BadRequestException({
+          code: "validation_error",
+          message: "photo_id is required for every item"
+        });
+      }
+      if (seenIds.has(photoId)) {
+        throw new BadRequestException({
+          code: "validation_error",
+          message: `Duplicate photo_id: ${photoId}`
+        });
+      }
+      seenIds.add(photoId);
+
+      const rawSortOrder = Number(item.sort_order);
+      if (!Number.isFinite(rawSortOrder)) {
+        throw new BadRequestException({
+          code: "validation_error",
+          message: "sort_order must be a number"
+        });
+      }
+      const sortOrder = Math.max(Math.min(Math.trunc(rawSortOrder), 32767), 0);
+      if (seenSortOrders.has(sortOrder)) {
+        throw new BadRequestException({
+          code: "validation_error",
+          message: `Duplicate sort_order: ${sortOrder}`
+        });
+      }
+      seenSortOrders.add(sortOrder);
+
+      const isCover = Boolean(item.is_cover);
+      if (isCover) coverCount += 1;
+
+      normalized.push({ photoId, sortOrder, isCover });
+    }
+
+    if (coverCount !== 1) {
+      throw new BadRequestException({
+        code: "validation_error",
+        message: "Exactly one photo must be marked as cover"
+      });
+    }
+
+    if (this.database.isEnabled()) {
+      const route = `owner:${listingId}:photos/reorder`;
+      const cached = await this.getIdempotentResponse(ownerUserId, route, idempotencyKey);
+      if (cached) {
+        return cached as {
+          updated_count: number;
+          items: Array<{ id: string; sort_order: number; is_cover: boolean }>;
+        };
+      }
+
+      await this.assertListingOwner(ownerUserId, listingId);
+
+      const client = await this.database.getClient();
+      try {
+        await client.query("BEGIN");
+
+        // Lock the listing's photo rows up-front. SELECT ... FOR UPDATE both
+        // serializes concurrent reorders for this listing and lets us assert
+        // that every photo_id in the request actually belongs to this listing
+        // (and isn't soft-rejected) before mutating anything.
+        const existing = await client.query<{ id: string }>(
+          `
+          SELECT id::text
+          FROM listing_photos
+          WHERE listing_id = $1::uuid
+            AND moderation_status <> 'rejected'
+          FOR UPDATE
+          `,
+          [listingId]
+        );
+
+        const validIds = new Set(existing.rows.map((row) => row.id));
+        for (const { photoId } of normalized) {
+          if (!validIds.has(photoId)) {
+            throw new BadRequestException({
+              code: "invalid_photo_id",
+              message: `Photo ${photoId} does not belong to this listing`
+            });
+          }
+        }
+
+        // Two-phase update: first clear is_cover on everything (avoids any
+        // intermediate "two covers" state if we ever add a partial unique
+        // index), then write the new sort_order / is_cover per row.
+        await client.query(
+          `
+          UPDATE listing_photos
+          SET is_cover = false,
+              updated_at = now()
+          WHERE listing_id = $1::uuid
+            AND is_cover = true
+          `,
+          [listingId]
+        );
+
+        const updated: Array<{ id: string; sort_order: number; is_cover: boolean }> = [];
+        for (const { photoId, sortOrder, isCover } of normalized) {
+          const result = await client.query<{
+            id: string;
+            sort_order: number;
+            is_cover: boolean;
+          }>(
+            `
+            UPDATE listing_photos
+            SET sort_order = $1,
+                is_cover = $2,
+                updated_at = now()
+            WHERE id = $3::uuid
+              AND listing_id = $4::uuid
+            RETURNING id::text, sort_order, is_cover
+            `,
+            [sortOrder, isCover, photoId, listingId]
+          );
+          const row = result.rows[0];
+          if (!row) {
+            throw new BadRequestException({
+              code: "invalid_photo_id",
+              message: `Photo ${photoId} could not be updated`
+            });
+          }
+          updated.push({
+            id: row.id,
+            sort_order: Number(row.sort_order),
+            is_cover: Boolean(row.is_cover)
+          });
+        }
+
+        const response = {
+          updated_count: updated.length,
+          items: updated
+        };
+        await client.query("COMMIT");
+        await this.storeIdempotentResponse(ownerUserId, route, idempotencyKey, response);
+        return response;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    // In-memory fallback: we don't persist photos in AppState, but we still
+    // return a coherent response so the frontend optimistic update stands.
+    const listing = this.appState.listings.get(listingId);
+    if (!listing || listing.ownerUserId !== ownerUserId) {
+      throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+    }
+    return {
+      updated_count: normalized.length,
+      items: normalized.map((entry) => ({
+        id: entry.photoId,
+        sort_order: entry.sortOrder,
+        is_cover: entry.isCover
+      }))
     };
   }
 

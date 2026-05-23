@@ -90,6 +90,18 @@ export class OwnerController {
     return ok(await this.ownerService.completePhotos(req.user.id, listingId, idem, body.files));
   }
 
+  @Patch("listings/:listing_id/photos/reorder")
+  async reorderPhotos(
+    @Req() req: { user: { id: string } },
+    @Param("listing_id") listingId: string,
+    @Body()
+    body: { items: Array<{ photo_id: string; sort_order: number; is_cover?: boolean }> },
+    @Headers("idempotency-key") idempotencyKey?: string
+  ) {
+    const idem = requireIdempotencyKey(idempotencyKey);
+    return ok(await this.ownerService.reorderPhotos(req.user.id, listingId, idem, body.items));
+  }
+
   @Post("listings/:listing_id/submit")
   async submit(
     @Req() req: { user: { id: string } },

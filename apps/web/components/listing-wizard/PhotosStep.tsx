@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
+import { PhotoGrid, type PhotoGridItem } from "./PhotoGrid";
 import type { UploadFile } from "./types";
 
 interface Props {
@@ -9,10 +10,55 @@ interface Props {
   onFilesSelected: (files: FileList | null) => void;
   onUploadAll: () => void;
   onRemove: (clientUploadId: string) => void;
+  /** New order of uploads, after a drag. The first item is the cover. */
+  onReorder: (next: UploadFile[]) => void;
 }
 
-export function PhotosStep({ uploads, saving, onFilesSelected, onUploadAll, onRemove }: Props) {
+export function PhotosStep({
+  uploads,
+  saving,
+  onFilesSelected,
+  onUploadAll,
+  onRemove,
+  onReorder
+}: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Project the wizard's upload state into the PhotoGrid's view model. The
+  // mapping is one-way; PhotoGrid emits a reordered list of PhotoGridItems
+  // and we project that back onto the original UploadFile[] by id.
+  const gridItems = useMemo<PhotoGridItem[]>(
+    () =>
+      uploads.map((upload) => ({
+        id: upload.clientUploadId,
+        previewUrl: upload.previewUrl,
+        caption: upload.file?.name,
+        status: upload.status,
+        progress: upload.progress,
+        errorMessage: upload.errorMessage
+      })),
+    [uploads]
+  );
+
+  const handleReorder = (nextItems: PhotoGridItem[]) => {
+    const byId = new Map(uploads.map((u) => [u.clientUploadId, u]));
+    const reordered: UploadFile[] = [];
+    for (const item of nextItems) {
+      const upload = byId.get(item.id);
+      if (upload) reordered.push(upload);
+    }
+    // Defensive: if some id was lost (shouldn't happen), append anything
+    // missing in original order so we never silently drop a photo.
+    if (reordered.length !== uploads.length) {
+      const present = new Set(reordered.map((u) => u.clientUploadId));
+      for (const upload of uploads) {
+        if (!present.has(upload.clientUploadId)) reordered.push(upload);
+      }
+    }
+    onReorder(reordered);
+  };
+
+  const hasPending = uploads.some((u) => u.status === "pending");
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
@@ -20,7 +66,7 @@ export function PhotosStep({ uploads, saving, onFilesSelected, onUploadAll, onRe
       <h2 className="cz-card__title">Add photos</h2>
       <p className="cz-card__intent">
         Upload high-quality photos of your property. Well-lit photos of living spaces, bedrooms, and
-        kitchen attract more tenants.
+        kitchen attract more tenants. Drag a photo to the first slot to make it the cover.
       </p>
 
       <button
@@ -69,42 +115,14 @@ export function PhotosStep({ uploads, saving, onFilesSelected, onUploadAll, onRe
 
       {uploads.length > 0 ? (
         <>
-          <div className="cz-contact-sheet">
-            {uploads.map((upload) => (
-              <figure key={upload.clientUploadId} className="cz-polaroid">
-                <img src={upload.previewUrl} alt={upload.file.name} className="cz-polaroid__img" />
-                {upload.status === "uploading" ? (
-                  <div className="cz-polaroid__progress">
-                    <span style={{ width: `${upload.progress}%` }} />
-                  </div>
-                ) : null}
-                <figcaption className="cz-polaroid__caption">
-                  {upload.status === "complete"
-                    ? "Uploaded"
-                    : upload.status === "error"
-                      ? upload.errorMessage || "Upload failed"
-                      : upload.status === "uploading"
-                        ? "Uploading…"
-                        : upload.file.name}
-                </figcaption>
-                <button
-                  type="button"
-                  className="cz-polaroid__remove"
-                  aria-label={`Remove ${upload.file.name}`}
-                  onClick={() => onRemove(upload.clientUploadId)}
-                >
-                  ×
-                </button>
-              </figure>
-            ))}
-          </div>
+          <PhotoGrid items={gridItems} onReorder={handleReorder} onRemove={onRemove} />
 
           <div style={{ marginTop: 18 }}>
             <button
               type="button"
               className="cz-btn cz-btn--primary"
               onClick={onUploadAll}
-              disabled={saving || uploads.every((u) => u.status !== "pending")}
+              disabled={saving || !hasPending}
             >
               Upload all
             </button>

@@ -95,6 +95,19 @@ export interface PresignedUpload {
   expiresAt: string;
 }
 
+/**
+ * Persisted listing photo, as returned by GET /owner/listings/:id under the
+ * `photoItems` field. The frontend uses these in edit mode to drive the
+ * drag-to-reorder grid and call the reorder endpoint.
+ */
+export interface ListingPhotoItem {
+  id: string;
+  url: string;
+  blobPath: string;
+  sortOrder: number;
+  isCover: boolean;
+}
+
 export interface VerificationAttemptVm {
   id: string;
   verificationType: "video_liveness" | "electricity_bill_match";
@@ -441,6 +454,43 @@ export async function presignListingPhotos(
   }));
 
   return { uploads: mappedUploads };
+}
+
+/**
+ * Persist a new ordering of an existing listing's photos. The caller MUST
+ * include every photo for the listing in `items` (the server validates that
+ * every photo_id belongs to the listing, and that exactly one item is the
+ * cover). `sortOrder` values must be unique within the request.
+ */
+export async function reorderListingPhotos(
+  accessToken: string,
+  listingId: string,
+  items: Array<{ photoId: string; sortOrder: number; isCover: boolean }>,
+  idempotencyKey: string
+) {
+  const response = await fetchApi<{
+    updated_count: number;
+    items: Array<{ id: string; sort_order: number; is_cover: boolean }>;
+  }>(`/owner/listings/${listingId}/photos/reorder`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken, { "Idempotency-Key": idempotencyKey }),
+    body: JSON.stringify({
+      items: items.map((item) => ({
+        photo_id: item.photoId,
+        sort_order: item.sortOrder,
+        is_cover: item.isCover
+      }))
+    })
+  });
+
+  return {
+    updatedCount: response.updated_count ?? 0,
+    items: (response.items ?? []).map((item) => ({
+      id: item.id,
+      sortOrder: Number(item.sort_order),
+      isCover: Boolean(item.is_cover)
+    }))
+  };
 }
 
 export async function completeListingPhotos(

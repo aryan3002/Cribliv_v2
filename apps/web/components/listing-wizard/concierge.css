@@ -401,30 +401,282 @@
 .cz-dropzone__title { font-family: var(--c-heading); font-weight: 600; font-size: 18px; color: var(--c-text); margin-bottom: 4px; }
 .cz-dropzone__hint { color: var(--c-text-tertiary); font-size: 13px; }
 
-.cz-contact-sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 16px; }
-.cz-polaroid {
-  background: var(--c-surface); border: 1px solid var(--c-border);
-  padding: 6px; border-radius: var(--c-radius-md);
-  box-shadow: var(--c-shadow-sm); position: relative;
-  transition: box-shadow 200ms ease;
+/* ── Drag-to-reorder photo grid ──────────────────────────────────────── */
+.cz-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+  /* Allow vertical page scroll but let dnd-kit own the lift gesture. */
+  touch-action: manipulation;
 }
-.cz-polaroid:hover { box-shadow: var(--c-shadow-md); }
-.cz-polaroid__img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: var(--c-surface-sunken); }
-.cz-polaroid__caption {
-  text-align: center; margin-top: 6px; padding: 0 4px;
-  font-size: 11px; color: var(--c-text-tertiary);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.cz-photo-grid--disabled { opacity: 0.6; pointer-events: none; }
+/* While a drag is in progress, make every grid tile show the grabbing
+   cursor — including the empty slot, since the overlay rides above. */
+.cz-photo-grid--active { cursor: grabbing; }
+.cz-photo-grid--active * { cursor: grabbing !important; }
+
+.cz-photo-tile {
+  position: relative;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  padding: 6px;
+  border-radius: var(--c-radius-md);
+  box-shadow: var(--c-shadow-sm);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* Only color/shadow transitions on the *static* tile. dnd-kit drives the
+     transform transition itself via the inline style it injects, with its
+     own timing curve — overriding here would conflict. */
+  transition:
+    box-shadow 180ms ease,
+    border-color 180ms ease;
 }
-.cz-polaroid__remove {
-  position: absolute; top: -6px; right: -6px;
-  width: 22px; height: 22px; border-radius: 50%; border: 0;
-  background: var(--c-text); color: #fff;
-  font-size: 14px; line-height: 1; cursor: pointer;
-  transition: background 150ms ease;
+.cz-photo-tile:hover { box-shadow: var(--c-shadow-md); }
+.cz-photo-tile:focus-visible {
+  outline: 2px solid var(--c-brand);
+  outline-offset: 2px;
 }
-.cz-polaroid__remove:hover { background: var(--c-danger); }
-.cz-polaroid__progress { position: absolute; left: 6px; right: 6px; bottom: 30px; height: 3px; background: var(--c-border); border-radius: 3px; overflow: hidden; }
-.cz-polaroid__progress span { display: block; height: 100%; background: var(--c-brand); transition: width 200ms ease; }
+.cz-photo-tile:active { cursor: grabbing; }
+
+.cz-photo-tile__img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--c-surface-sunken);
+  pointer-events: none; /* image never blocks drag handle */
+  /* Avoid the native iOS/Android "drag image to desktop" gesture stealing
+     touches from dnd-kit. */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.cz-photo-tile__caption {
+  text-align: center;
+  margin: 6px 4px 0;
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cz-photo-tile__remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--c-text);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;
+  transition: background 150ms ease, transform 150ms ease;
+  /* Tap target slightly larger on touch — extended via padding/transparent
+     hit area on small screens. */
+  touch-action: manipulation;
+}
+.cz-photo-tile__remove:hover { background: var(--c-danger); transform: scale(1.08); }
+.cz-photo-tile__remove:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cz-photo-tile__progress {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 34px;
+  height: 3px;
+  background: var(--c-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.cz-photo-tile__progress span {
+  display: block;
+  height: 100%;
+  background: var(--c-brand);
+  transition: width 200ms ease;
+}
+
+/* Cover badge — persistent on slot 0. */
+.cz-photo-tile__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.4);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* "Drops here = cover" prompt that appears on slot 0 while a non-cover tile
+   is being dragged. */
+.cz-photo-tile__hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+  border-radius: var(--c-radius-md);
+  background: rgba(245, 158, 11, 0.94);
+  color: #fff;
+  font-family: var(--c-heading);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  z-index: 3;
+  pointer-events: none;
+  animation: cz-photo-hint-pulse 1.4s ease-in-out infinite;
+}
+@keyframes cz-photo-hint-pulse {
+  0%, 100% { opacity: 0.96; }
+  50% { opacity: 0.78; }
+}
+
+/* Cover slot persistent styling — a subtle gold rim. */
+.cz-photo-tile--cover {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b, 0 1px 3px rgba(217, 119, 6, 0.18);
+}
+
+/* Cover slot during another tile's drag — louder rim + lift. */
+.cz-photo-tile--cover-target {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.4), 0 6px 18px rgba(217, 119, 6, 0.32);
+}
+
+/* The DragOverlay clone — rendered in a portal at the cursor. This is the
+   sole visible representation of the dragged tile while a drag is in
+   progress (the source tile is hidden via inline opacity:0).
+   Clean lift: scale 1.045 + a soft, layered shadow. No rotation —
+   reference-grade reorder UIs (Airbnb, Notion, Linear) keep the lifted
+   tile perfectly square so the drop target is unambiguous. */
+.cz-photo-tile--overlay {
+  cursor: grabbing;
+  background: var(--c-surface);
+  border: 1px solid var(--c-brand);
+  border-radius: var(--c-radius-md);
+  padding: 6px;
+  box-shadow:
+    0 24px 48px -8px rgba(15, 23, 42, 0.28),
+    0 8px 16px -4px rgba(15, 23, 42, 0.12),
+    0 0 0 1px rgba(6, 102, 255, 0.18);
+  transform: scale(1.045);
+  /* Animate the scale-in when the overlay first appears so the lift feels
+     like a real pick-up rather than a teleport. dnd-kit drives the
+     position transform; this animates entrance scale only. */
+  animation: cz-photo-overlay-lift 160ms cubic-bezier(0.2, 0, 0, 1);
+  z-index: 1000;
+}
+@keyframes cz-photo-overlay-lift {
+  from { transform: scale(1); }
+  to { transform: scale(1.045); }
+}
+
+.cz-photo-tile--error {
+  border-color: var(--c-danger);
+}
+.cz-photo-tile--error .cz-photo-tile__caption {
+  color: var(--c-danger);
+  font-weight: 600;
+}
+
+/* Directional shift indicator — appears on tiles that will slide while a
+   drag is active. Lives above the photo via a colored chevron badge so the
+   intent ("this photo is moving left/right") reads at a glance even when
+   five or six tiles are shifting at once. */
+.cz-photo-tile__shift {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--c-brand);
+  color: #fff;
+  box-shadow:
+    0 4px 14px rgba(6, 102, 255, 0.4),
+    0 0 0 2px rgba(255, 255, 255, 0.95);
+  z-index: 4;
+  pointer-events: none;
+  animation: cz-photo-shift-in 220ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.cz-photo-tile__shift--left {
+  left: 8px;
+  transform: translateY(-50%);
+  animation-name: cz-photo-shift-in-left;
+}
+.cz-photo-tile__shift--right {
+  right: 8px;
+  transform: translateY(-50%);
+  animation-name: cz-photo-shift-in-right;
+}
+@keyframes cz-photo-shift-in-left {
+  from { opacity: 0; transform: translate(8px, -50%) scale(0.7); }
+  to   { opacity: 1; transform: translate(0, -50%) scale(1); }
+}
+@keyframes cz-photo-shift-in-right {
+  from { opacity: 0; transform: translate(-8px, -50%) scale(0.7); }
+  to   { opacity: 1; transform: translate(0, -50%) scale(1); }
+}
+
+/* Gentle continuous nudge so the arrow draws the eye without being
+   distracting — translates ~3px in its direction every 1.1s. */
+.cz-photo-tile__shift--left svg {
+  animation: cz-photo-shift-nudge-left 1100ms ease-in-out infinite;
+}
+.cz-photo-tile__shift--right svg {
+  animation: cz-photo-shift-nudge-right 1100ms ease-in-out infinite;
+}
+@keyframes cz-photo-shift-nudge-left {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-3px); }
+}
+@keyframes cz-photo-shift-nudge-right {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(3px); }
+}
+
+/* Tiles that are about to shift get a softer border so the arrow has visual
+   anchor without competing with the dragged overlay's brand-color rim. */
+.cz-photo-tile--shifting {
+  border-color: rgba(6, 102, 255, 0.35);
+}
+
+/* Honor users who've turned off motion: no scale-in on overlay, no
+   pulsing hint, no tile transitions. dnd-kit's reorder transforms still
+   apply (otherwise the grid would freeze), but they happen instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .cz-photo-tile { transition: none; }
+  .cz-photo-tile__hint { animation: none; }
+  .cz-photo-tile--overlay {
+    transform: none;
+    animation: none;
+  }
+  .cz-photo-tile__shift,
+  .cz-photo-tile__shift svg {
+    animation: none;
+  }
+}
 
 /* ── Review card ────────────────────────────────────────────────────── */
 .cz-review { border: 1px solid var(--c-border); border-radius: var(--c-radius-lg); background: var(--c-surface); overflow: hidden; }

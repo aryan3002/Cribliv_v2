@@ -12,6 +12,7 @@ export { LocationStep } from "./LocationStep";
 export { DetailsStep } from "./DetailsStep";
 export { TitleDescriptionStep } from "./TitleDescriptionStep";
 export { PhotosStep } from "./PhotosStep";
+export { PhotoGrid, type PhotoGridItem, type PhotoGridProps } from "./PhotoGrid";
 export { ReviewStep } from "./ReviewStep";
 
 // Legacy exports — kept so any other route importing them keeps building.
