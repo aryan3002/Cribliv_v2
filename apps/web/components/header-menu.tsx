@@ -10,6 +10,7 @@ import {
   User,
   Heart,
   Search,
+  Map,
   Settings,
   Plus,
   LogOut,
@@ -155,6 +156,11 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
       href: `/${locale}/search`,
       icon: <Search size={16} aria-hidden="true" />,
       label: t(locale, "menuSearchRentals")
+    },
+    {
+      href: `/${locale}/map`,
+      icon: <Map size={16} aria-hidden="true" />,
+      label: t(locale, "menuMap")
     },
     {
       href: `/${locale}/become-owner`,

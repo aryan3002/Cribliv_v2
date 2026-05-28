@@ -47,6 +47,9 @@ export function Footer({ locale }: { locale: Locale }) {
               <Link href={`/${locale}/search`} className="footer__link">
                 Search Rentals
               </Link>
+              <Link href={`/${locale}/map`} className="footer__link">
+                CriblMap
+              </Link>
               <Link href={`/${locale}/how-it-works`} className="footer__link">
                 How It Works
               </Link>
