@@ -1,0 +1,32 @@
+{
+  "city": "lucknow",
+  "lines": [
+    {
+      "line_name": "Red Line",
+      "line_color": "#E11D48",
+      "stations": [
+        { "name": "Munshipulia", "lat": 26.8895, "lng": 80.9876, "seq": 1 },
+        { "name": "Indira Nagar", "lat": 26.8821, "lng": 80.9755, "seq": 2 },
+        { "name": "Bhootnath Market", "lat": 26.8772, "lng": 80.9657, "seq": 3 },
+        { "name": "Lekhraj Market", "lat": 26.8736, "lng": 80.9554, "seq": 4 },
+        { "name": "Mahanagar", "lat": 26.8688, "lng": 80.9489, "seq": 5 },
+        { "name": "Badshah Nagar", "lat": 26.8624, "lng": 80.9436, "seq": 6 },
+        { "name": "Lucknow University", "lat": 26.8597, "lng": 80.9352, "seq": 7 },
+        { "name": "IT College", "lat": 26.8546, "lng": 80.9298, "seq": 8 },
+        { "name": "Hazratganj", "lat": 26.8485, "lng": 80.9447, "seq": 9 },
+        { "name": "Sachivalaya", "lat": 26.8442, "lng": 80.9425, "seq": 10 },
+        { "name": "Hussainganj", "lat": 26.8401, "lng": 80.9346, "seq": 11 },
+        { "name": "Charbagh", "lat": 26.8307, "lng": 80.9237, "seq": 12 },
+        { "name": "Durgapuri", "lat": 26.8246, "lng": 80.9152, "seq": 13 },
+        { "name": "Mawaiya", "lat": 26.8186, "lng": 80.9102, "seq": 14 },
+        { "name": "Alambagh", "lat": 26.8137, "lng": 80.9056, "seq": 15 },
+        { "name": "Alambagh Bus Station", "lat": 26.8064, "lng": 80.9015, "seq": 16 },
+        { "name": "Singar Nagar", "lat": 26.7978, "lng": 80.8941, "seq": 17 },
+        { "name": "Krishna Nagar", "lat": 26.7903, "lng": 80.8884, "seq": 18 },
+        { "name": "Transport Nagar", "lat": 26.7793, "lng": 80.8826, "seq": 19 },
+        { "name": "Amausi", "lat": 26.7686, "lng": 80.8773, "seq": 20 },
+        { "name": "CCS Airport", "lat": 26.7611, "lng": 80.8708, "seq": 21 }
+      ]
+    }
+  ]
+}

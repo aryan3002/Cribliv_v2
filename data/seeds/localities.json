@@ -1,0 +1,47 @@
+[
+  {
+    "city_slug": "noida",
+    "slug": "sector-62",
+    "name_en": "Sector 62",
+    "name_hi": "सेक्टर 62",
+    "pincode": "201309",
+    "lat": 28.6266,
+    "lng": 77.3723
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-phase-2",
+    "name_en": "DLF Phase 2",
+    "name_hi": "डीएलएफ फेज 2",
+    "pincode": "122002",
+    "lat": 28.494,
+    "lng": 77.089
+  },
+  {
+    "city_slug": "delhi",
+    "slug": "dwarka",
+    "name_en": "Dwarka",
+    "name_hi": "द्वारका",
+    "pincode": "110075",
+    "lat": 28.5921,
+    "lng": 77.046
+  },
+  {
+    "city_slug": "jaipur",
+    "slug": "malviya-nagar",
+    "name_en": "Malviya Nagar",
+    "name_hi": "मालवीय नगर",
+    "pincode": "302017",
+    "lat": 26.8467,
+    "lng": 75.8069
+  },
+  {
+    "city_slug": "lucknow",
+    "slug": "gomti-nagar",
+    "name_en": "Gomti Nagar",
+    "name_hi": "गोमती नगर",
+    "pincode": "226010",
+    "lat": 26.8648,
+    "lng": 81.0085
+  }
+]

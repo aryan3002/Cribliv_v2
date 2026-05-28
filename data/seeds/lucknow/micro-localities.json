@@ -1,0 +1,291 @@
+[
+  {
+    "slug": "vibhuti-khand",
+    "name_en": "Vibhuti Khand",
+    "name_hi": "विभूति खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.852,
+    "lng": 81.0023,
+    "seo_aliases": ["vibhutikhand"]
+  },
+  {
+    "slug": "vijay-khand",
+    "name_en": "Vijay Khand",
+    "name_hi": "विजय खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.8478,
+    "lng": 81.0035,
+    "seo_aliases": ["vijaykhand"]
+  },
+  {
+    "slug": "vipul-khand",
+    "name_en": "Vipul Khand",
+    "name_hi": "विपुल खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.8455,
+    "lng": 81.009,
+    "seo_aliases": ["vipulkhand"]
+  },
+  {
+    "slug": "vipin-khand",
+    "name_en": "Vipin Khand",
+    "name_hi": "विपिन खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.8444,
+    "lng": 81.015,
+    "seo_aliases": ["vipinkhand"]
+  },
+  {
+    "slug": "vinay-khand",
+    "name_en": "Vinay Khand",
+    "name_hi": "विनय खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.8425,
+    "lng": 81.0098,
+    "seo_aliases": ["vinaykhand"]
+  },
+  {
+    "slug": "viraj-khand",
+    "name_en": "Viraj Khand",
+    "name_hi": "विराज खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.8492,
+    "lng": 81.0192,
+    "seo_aliases": ["virajkhand"]
+  },
+  {
+    "slug": "vivek-khand",
+    "name_en": "Vivek Khand",
+    "name_hi": "विवेक खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.8505,
+    "lng": 81.0135,
+    "seo_aliases": ["vivekkhand"]
+  },
+  {
+    "slug": "vastu-khand",
+    "name_en": "Vastu Khand",
+    "name_hi": "वास्तु खंड",
+    "parent_slug": "gomti-nagar",
+    "lat": 26.841,
+    "lng": 81.025,
+    "seo_aliases": ["vastukhand"]
+  },
+
+  {
+    "slug": "aliganj-sector-a",
+    "name_en": "Aliganj Sector A",
+    "name_hi": "अलीगंज सेक्टर A",
+    "parent_slug": "aliganj",
+    "lat": 26.8889,
+    "lng": 80.954
+  },
+  {
+    "slug": "aliganj-sector-b",
+    "name_en": "Aliganj Sector B",
+    "name_hi": "अलीगंज सेक्टर B",
+    "parent_slug": "aliganj",
+    "lat": 26.8895,
+    "lng": 80.9585
+  },
+  {
+    "slug": "aliganj-sector-d",
+    "name_en": "Aliganj Sector D",
+    "name_hi": "अलीगंज सेक्टर D",
+    "parent_slug": "aliganj",
+    "lat": 26.8902,
+    "lng": 80.962
+  },
+  {
+    "slug": "aliganj-sector-i",
+    "name_en": "Aliganj Sector I",
+    "name_hi": "अलीगंज सेक्टर I",
+    "parent_slug": "aliganj",
+    "lat": 26.8855,
+    "lng": 80.9665
+  },
+  {
+    "slug": "aliganj-sector-o",
+    "name_en": "Aliganj Sector O",
+    "name_hi": "अलीगंज सेक्टर O",
+    "parent_slug": "aliganj",
+    "lat": 26.892,
+    "lng": 80.971
+  },
+
+  {
+    "slug": "indira-nagar-sector-9",
+    "name_en": "Indira Nagar Sector 9",
+    "name_hi": "इंदिरा नगर सेक्टर 9",
+    "parent_slug": "indira-nagar",
+    "lat": 26.878,
+    "lng": 80.992
+  },
+  {
+    "slug": "indira-nagar-sector-14",
+    "name_en": "Indira Nagar Sector 14",
+    "name_hi": "इंदिरा नगर सेक्टर 14",
+    "parent_slug": "indira-nagar",
+    "lat": 26.874,
+    "lng": 80.998
+  },
+  {
+    "slug": "indira-nagar-sector-18",
+    "name_en": "Indira Nagar Sector 18",
+    "name_hi": "इंदिरा नगर सेक्टर 18",
+    "parent_slug": "indira-nagar",
+    "lat": 26.881,
+    "lng": 81.003
+  },
+  {
+    "slug": "indira-nagar-sector-25",
+    "name_en": "Indira Nagar Sector 25",
+    "name_hi": "इंदिरा नगर सेक्टर 25",
+    "parent_slug": "indira-nagar",
+    "lat": 26.8865,
+    "lng": 81.0085
+  },
+
+  {
+    "slug": "telibagh",
+    "name_en": "Telibagh",
+    "name_hi": "तेलीबाग",
+    "parent_slug": "lucknow-cantt",
+    "lat": 26.799,
+    "lng": 80.9305
+  },
+  {
+    "slug": "krishna-nagar",
+    "name_en": "Krishna Nagar",
+    "name_hi": "कृष्णा नगर",
+    "parent_slug": "lucknow-cantt",
+    "lat": 26.821,
+    "lng": 80.9105
+  },
+  {
+    "slug": "cantt-road",
+    "name_en": "Cantonment Road",
+    "name_hi": "छावनी रोड",
+    "parent_slug": "lucknow-cantt",
+    "lat": 26.8328,
+    "lng": 80.9202
+  },
+
+  {
+    "slug": "ashiyana",
+    "name_en": "Ashiyana Colony",
+    "name_hi": "आशियाना कॉलोनी",
+    "parent_slug": "alambagh",
+    "lat": 26.782,
+    "lng": 80.9015,
+    "seo_aliases": ["aashiyana", "asiana"]
+  },
+  {
+    "slug": "kanpur-road",
+    "name_en": "Kanpur Road",
+    "name_hi": "कानपुर रोड",
+    "parent_slug": "alambagh",
+    "lat": 26.7805,
+    "lng": 80.897
+  },
+  {
+    "slug": "ldai-colony",
+    "name_en": "LDA Colony",
+    "name_hi": "एलडीए कॉलोनी",
+    "parent_slug": "rajajipuram",
+    "lat": 26.8225,
+    "lng": 80.889
+  },
+
+  {
+    "slug": "jankipuram",
+    "name_en": "Jankipuram",
+    "name_hi": "जानकीपुरम",
+    "parent_slug": "aliganj",
+    "lat": 26.9075,
+    "lng": 80.9498,
+    "seo_aliases": ["jankipuram-extension"]
+  },
+  {
+    "slug": "jankipuram-extension",
+    "name_en": "Jankipuram Extension",
+    "name_hi": "जानकीपुरम एक्सटेंशन",
+    "parent_slug": "aliganj",
+    "lat": 26.921,
+    "lng": 80.9405
+  },
+  {
+    "slug": "vikas-nagar-sector-2",
+    "name_en": "Vikas Nagar Sector 2",
+    "name_hi": "विकास नगर सेक्टर 2",
+    "parent_slug": "vikas-nagar",
+    "lat": 26.878,
+    "lng": 81.024
+  },
+  {
+    "slug": "vikas-nagar-sector-8",
+    "name_en": "Vikas Nagar Sector 8",
+    "name_hi": "विकास नगर सेक्टर 8",
+    "parent_slug": "vikas-nagar",
+    "lat": 26.881,
+    "lng": 81.0295
+  },
+
+  {
+    "slug": "ansal-api",
+    "name_en": "Ansal API Township",
+    "name_hi": "अंसल एपीआई टाउनशिप",
+    "parent_slug": "sushant-golf-city",
+    "lat": 26.7905,
+    "lng": 81.021
+  },
+  {
+    "slug": "shaheed-path",
+    "name_en": "Shaheed Path",
+    "name_hi": "शहीद पथ",
+    "parent_slug": "sushant-golf-city",
+    "lat": 26.7825,
+    "lng": 81.005
+  },
+  {
+    "slug": "omaxe-city",
+    "name_en": "Omaxe City",
+    "name_hi": "ओमेक्स सिटी",
+    "parent_slug": "sushant-golf-city",
+    "lat": 26.778,
+    "lng": 81.0125
+  },
+  {
+    "slug": "eldeco-udyan",
+    "name_en": "Eldeco Udyan",
+    "name_hi": "एल्डेको उद्यान",
+    "parent_slug": "sushant-golf-city",
+    "lat": 26.785,
+    "lng": 80.999
+  },
+
+  {
+    "slug": "mahanagar-extension",
+    "name_en": "Mahanagar Extension",
+    "name_hi": "महानगर एक्सटेंशन",
+    "parent_slug": "mahanagar",
+    "lat": 26.8745,
+    "lng": 80.981
+  },
+  {
+    "slug": "rajendra-nagar",
+    "name_en": "Rajendra Nagar",
+    "name_hi": "राजेंद्र नगर",
+    "parent_slug": "mahanagar",
+    "lat": 26.8635,
+    "lng": 80.959
+  },
+  {
+    "slug": "nirala-nagar-block-c",
+    "name_en": "Nirala Nagar Block C",
+    "name_hi": "निराला नगर ब्लॉक C",
+    "parent_slug": "nirala-nagar",
+    "lat": 26.862,
+    "lng": 80.9595
+  }
+]

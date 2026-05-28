@@ -1,0 +1,1174 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards
+} from "@nestjs/common";
+import { AuthGuard } from "../../common/auth.guard";
+import { RolesGuard } from "../../common/roles.guard";
+import { Roles } from "../../common/roles.decorator";
+import { AppStateService } from "../../common/app-state.service";
+import { ok } from "../../common/response";
+import { DatabaseService } from "../../common/database.service";
+import { logTelemetry } from "../../common/telemetry";
+import type { Role } from "../../common/types";
+import { NotificationService } from "../notifications/notification.service";
+import type { NotificationType } from "../notifications/notification.templates";
+import { AdminAnalyticsService } from "./admin-analytics.service";
+import { AdminOpsService } from "./admin-ops.service";
+import { AdminOwnerHealthService } from "./admin-owner-health.service";
+import {
+  AdminRevenueService,
+  type RevenueRange,
+  type RevenueGroupBy
+} from "./admin-revenue.service";
+import { AdminFraudFeedService } from "./admin-fraud-feed.service";
+import { AdminRentAgreementService } from "./admin-rent-agreement.service";
+
+// Clamp the ?days= query param to a sane window; default 30.
+function parseDays(raw?: string): number {
+  const n = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.min(365, n) : 30;
+}
+
+@Controller("admin")
+@UseGuards(AuthGuard, RolesGuard)
+@Roles("admin")
+export class AdminController {
+  constructor(
+    @Inject(AppStateService) private readonly appState: AppStateService,
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(NotificationService) private readonly notifications: NotificationService,
+    @Inject(AdminAnalyticsService) private readonly analytics: AdminAnalyticsService,
+    @Inject(AdminOpsService) private readonly ops: AdminOpsService,
+    @Inject(AdminOwnerHealthService) private readonly ownerHealth: AdminOwnerHealthService,
+    @Inject(AdminRevenueService) private readonly revenue: AdminRevenueService,
+    @Inject(AdminFraudFeedService) private readonly fraudFeed: AdminFraudFeedService,
+    @Inject(AdminRentAgreementService)
+    private readonly rentAgreements: AdminRentAgreementService
+  ) {}
+
+  /* ── Live Operations dashboard ─────────────────────────────────── */
+
+  @Get("ops/live")
+  async opsLive() {
+    return ok(await this.ops.getLiveCounters());
+  }
+
+  @Get("ops/sparklines")
+  async opsSparklines() {
+    return ok(await this.ops.getRecentActivitySparklines());
+  }
+
+  @Get("ops/unlocks-hourly")
+  async opsUnlocksHourly() {
+    return ok({ buckets: await this.ops.getUnlocksHourly() });
+  }
+
+  /* ── Owner Health Score ────────────────────────────────────────── */
+
+  @Get("owners/health")
+  async ownersHealth(
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+    @Query("sort") sort?: string
+  ) {
+    return ok(
+      await this.ownerHealth.listOwners({
+        limit: limit ? Number(limit) : undefined,
+        offset: offset ? Number(offset) : undefined,
+        sort
+      })
+    );
+  }
+
+  /* ── Revenue Attribution ───────────────────────────────────────── */
+
+  @Get("revenue/attribution")
+  async revenueAttribution(@Query("range") range?: string, @Query("group_by") group_by?: string) {
+    return ok(
+      await this.revenue.getAttribution({
+        range: range as RevenueRange | undefined,
+        group_by: group_by as RevenueGroupBy | undefined
+      })
+    );
+  }
+
+  @Get("revenue/cohorts")
+  async revenueCohorts(@Query("months") months?: string) {
+    return ok(await this.revenue.getCohorts(months ? Number(months) : 6));
+  }
+
+  /* ── Fraud Intelligence Feed ───────────────────────────────────── */
+
+  @Get("fraud/feed")
+  async fraudFeedItems(@Query("limit") limit?: string) {
+    return ok(await this.fraudFeed.getFeed(limit ? Number(limit) : 50));
+  }
+
+  @Get("review/listings")
+  async listingQueue(@Query("status") status?: string): Promise<any> {
+    if (this.database.isEnabled()) {
+      const params: unknown[] = [];
+      const statusClause = status ? "WHERE l.status = $1::listing_status" : "";
+      if (status) {
+        params.push(status);
+      }
+
+      const items = await this.database.query<{
+        id: string;
+        status: string;
+        listing_type: string;
+        title: string;
+        owner_user_id: string;
+        city: string | null;
+        monthly_rent: number;
+        verification_status: string;
+        created_at: string;
+      }>(
+        `
+        SELECT
+          l.id::text,
+          l.status::text,
+          l.listing_type::text,
+          COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'Listing') AS title,
+          l.owner_user_id::text,
+          c.slug AS city,
+          l.monthly_rent,
+          l.verification_status::text,
+          l.created_at::text
+        FROM listings l
+        LEFT JOIN listing_locations ll ON ll.listing_id = l.id
+        LEFT JOIN cities c ON c.id = ll.city_id
+        ${statusClause}
+        ORDER BY l.created_at DESC
+        `,
+        params
+      );
+
+      return ok({
+        items: items.rows,
+        total: items.rowCount ?? 0
+      });
+    }
+
+    const items = [...this.appState.listings.values()].filter(
+      (l) => !status || l.status === status
+    );
+    return ok({ items, total: items.length });
+  }
+
+  @Post("review/listings/:listing_id/decision")
+  async listingDecision(
+    @Req() req: { user: { id: string } },
+    @Param("listing_id") listingId: string,
+    @Body() body: { decision: "approve" | "reject" | "pause"; reason?: string }
+  ) {
+    if (this.database.isEnabled()) {
+      if ((body.decision === "reject" || body.decision === "pause") && !body.reason) {
+        throw new BadRequestException({ code: "reason_required", message: "Reason is required" });
+      }
+
+      const newStatus =
+        body.decision === "approve" ? "active" : body.decision === "reject" ? "rejected" : "paused";
+      const updated = await this.database.query<{ id: string; status: string }>(
+        `
+        UPDATE listings
+        SET status = $2::listing_status, updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text, status::text
+        `,
+        [listingId, newStatus]
+      );
+
+      if (!updated.rowCount || !updated.rows[0]) {
+        throw new BadRequestException({ code: "not_found", message: "Listing not found" });
+      }
+
+      await this.database.query(
+        `
+        INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+        VALUES ($1::uuid, 'listing', $2::uuid, $3::admin_action_type, $4, null, $5::jsonb)
+        `,
+        [
+          req.user.id,
+          listingId,
+          body.decision === "approve" ? "approve" : body.decision === "reject" ? "reject" : "pause",
+          body.reason ?? null,
+          JSON.stringify({ status: newStatus })
+        ]
+      );
+
+      logTelemetry("admin.listing_decision", {
+        listing_id: updated.rows[0].id,
+        decision: body.decision,
+        admin_user_id: req.user.id
+      });
+
+      // Fire-and-forget: notify owner of listing decision
+      this.notifyOwnerListingDecision(listingId, body.decision, body.reason).catch((err) => {
+        logTelemetry("notification.error", {
+          type: `owner.listing_${body.decision}`,
+          listing_id: listingId,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
+
+      return ok({ listing_id: updated.rows[0].id, new_status: updated.rows[0].status });
+    }
+
+    const listing = this.appState.listings.get(listingId);
+    if (!listing) {
+      throw new BadRequestException({ code: "not_found", message: "Listing not found" });
+    }
+
+    if ((body.decision === "reject" || body.decision === "pause") && !body.reason) {
+      throw new BadRequestException({ code: "reason_required", message: "Reason is required" });
+    }
+
+    listing.status =
+      body.decision === "approve" ? "active" : body.decision === "reject" ? "rejected" : "paused";
+
+    this.appState.adminActions.push({
+      admin_id: req.user.id,
+      target_type: "listing",
+      target_id: listingId,
+      action: `listing_${body.decision}`,
+      reason: body.reason ?? null,
+      created_at: new Date().toISOString()
+    });
+
+    logTelemetry("admin.listing_decision", {
+      mode: "in_memory",
+      listing_id: listing.id,
+      decision: body.decision,
+      admin_user_id: req.user.id
+    });
+
+    return ok({ listing_id: listing.id, new_status: listing.status });
+  }
+
+  @Get("review/verifications")
+  async verificationQueue(@Query("result") result?: string) {
+    if (this.database.isEnabled()) {
+      const params: unknown[] = [];
+      const filter = result ? "WHERE va.result = $1::verification_result" : "";
+      if (result) {
+        params.push(result);
+      }
+
+      const items = await this.database.query<{
+        id: string;
+        listing_id: string | null;
+        user_id: string;
+        verification_type: string;
+        result: string;
+        address_match_score: number | null;
+        liveness_score: number | null;
+        threshold: number;
+        created_at: string;
+        provider: string | null;
+        provider_reference: string | null;
+        provider_result_code: string | null;
+        review_reason: string | null;
+        retryable: boolean | null;
+        machine_result: string | null;
+      }>(
+        `
+        SELECT
+          va.id::text,
+          va.listing_id::text,
+          va.user_id::text,
+          va.verification_type::text,
+          va.result::text,
+          va.address_match_score,
+          va.liveness_score,
+          va.threshold,
+          va.created_at::text,
+          vpl.provider,
+          vpl.provider_reference,
+          vpl.provider_result_code,
+          vpl.review_reason,
+          vpl.retryable,
+          vpl.result::text AS machine_result
+        FROM verification_attempts va
+        LEFT JOIN LATERAL (
+          SELECT provider, provider_reference, provider_result_code, review_reason, retryable, result
+          FROM verification_provider_logs
+          WHERE attempt_id = va.id
+          ORDER BY created_at DESC
+          LIMIT 1
+        ) vpl ON true
+        ${filter}
+        ORDER BY va.created_at DESC
+        `,
+        params
+      );
+
+      return ok({ items: items.rows, total: items.rowCount ?? 0 });
+    }
+
+    const items = this.appState.verificationAttempts
+      .filter((a) => !result || a.result === result)
+      .map((attempt) => ({
+        ...attempt,
+        machine_result: attempt.machine_result ?? attempt.result
+      }));
+    return ok({ items, total: items.length });
+  }
+
+  @Post("review/verifications/:attempt_id/decision")
+  async verificationDecision(
+    @Req() req: { user: { id: string } },
+    @Param("attempt_id") attemptId: string,
+    @Body() body: { decision: "pass" | "fail" | "manual_review"; reason?: string }
+  ) {
+    if (this.database.isEnabled()) {
+      const client = await this.database.getClient();
+      try {
+        await client.query("BEGIN");
+        const attempt = await client.query<{ listing_id: string | null }>(
+          `
+          UPDATE verification_attempts
+          SET result = $2::verification_result,
+              reviewed_by = $3::uuid,
+              reviewed_at = now(),
+              failure_reason = COALESCE($4, failure_reason),
+              updated_at = now()
+          WHERE id = $1::uuid
+          RETURNING listing_id::text
+          `,
+          [attemptId, body.decision, req.user.id, body.reason ?? null]
+        );
+
+        if (!attempt.rowCount) {
+          throw new BadRequestException({ code: "not_found", message: "Attempt not found" });
+        }
+
+        const listingId = attempt.rows[0].listing_id;
+        if (listingId) {
+          const currentStatus = await client.query<{ verification_status: string }>(
+            `
+            SELECT verification_status::text
+            FROM listings
+            WHERE id = $1::uuid
+            LIMIT 1
+            `,
+            [listingId]
+          );
+          const listingStatus =
+            body.decision === "pass" ? "verified" : body.decision === "fail" ? "failed" : "pending";
+          await client.query(
+            `
+            UPDATE listings
+            SET verification_status = $2::verification_status, updated_at = now()
+            WHERE id = $1::uuid
+            `,
+            [listingId, listingStatus]
+          );
+          logTelemetry("verification.final_status_transition", {
+            listing_id: listingId,
+            previous_status: currentStatus.rows[0]?.verification_status ?? null,
+            new_status: listingStatus,
+            source: "admin_verification_decision",
+            admin_user_id: req.user.id
+          });
+        }
+
+        await client.query(
+          `
+          INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+          VALUES ($1::uuid, 'verification_attempt', $2::uuid, $3::admin_action_type, $4, null, $5::jsonb)
+          `,
+          [
+            req.user.id,
+            attemptId,
+            body.decision === "manual_review"
+              ? "manual_review"
+              : body.decision === "pass"
+                ? "approve"
+                : "reject",
+            body.reason ?? null,
+            JSON.stringify({ result: body.decision })
+          ]
+        );
+
+        await client.query("COMMIT");
+        logTelemetry("admin.verification_decision", {
+          attempt_id: attemptId,
+          decision: body.decision,
+          admin_user_id: req.user.id
+        });
+        return ok({ attempt_id: attemptId, new_result: body.decision });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    const attempt = this.appState.verificationAttempts.find((a) => a.id === attemptId);
+    if (!attempt) {
+      throw new BadRequestException({ code: "not_found", message: "Attempt not found" });
+    }
+
+    attempt.result = body.decision;
+    const listingId =
+      typeof attempt.listing_id === "string"
+        ? attempt.listing_id
+        : (attempt.listing_id as string | undefined);
+    if (listingId) {
+      const listing = this.appState.listings.get(listingId);
+      if (listing) {
+        const previous = listing.verificationStatus;
+        listing.verificationStatus =
+          body.decision === "pass" ? "verified" : body.decision === "fail" ? "failed" : "pending";
+        logTelemetry("verification.final_status_transition", {
+          mode: "in_memory",
+          listing_id: listingId,
+          previous_status: previous,
+          new_status: listing.verificationStatus,
+          source: "admin_verification_decision",
+          admin_user_id: req.user.id
+        });
+      }
+    }
+    this.appState.adminActions.push({
+      admin_id: req.user.id,
+      target_type: "verification_attempt",
+      target_id: attemptId,
+      action: `verification_${body.decision}`,
+      reason: body.reason ?? null,
+      created_at: new Date().toISOString()
+    });
+
+    logTelemetry("admin.verification_decision", {
+      mode: "in_memory",
+      attempt_id: attemptId,
+      decision: body.decision,
+      admin_user_id: req.user.id
+    });
+
+    return ok({ attempt_id: attemptId, new_result: body.decision });
+  }
+
+  @Get("leads")
+  async leads(@Query("status") status?: string) {
+    if (this.database.isEnabled()) {
+      const params: unknown[] = [];
+      const statusClause = status ? "WHERE sl.status = $1::sales_lead_status" : "";
+      if (status) {
+        params.push(status);
+      }
+
+      const result = await this.database.query<{
+        id: string;
+        created_by_user_id: string;
+        listing_id: string | null;
+        source: "pg_sales_assist" | "property_management";
+        status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+        notes: string | null;
+        metadata: Record<string, unknown>;
+        crm_sync_status: string;
+        last_crm_push_at: string | null;
+        created_at: string;
+      }>(
+        `
+        SELECT
+          sl.id::text,
+          sl.created_by_user_id::text,
+          sl.listing_id::text,
+          sl.source::text,
+          sl.status::text,
+          sl.notes,
+          sl.metadata,
+          sl.crm_sync_status,
+          sl.last_crm_push_at::text,
+          sl.created_at::text
+        FROM sales_leads sl
+        ${statusClause}
+        ORDER BY sl.created_at DESC
+        `,
+        params
+      );
+
+      return ok({ items: result.rows, total: result.rowCount ?? 0 });
+    }
+
+    const items = this.appState
+      .listSalesLeads()
+      .filter((lead) => !status || lead.status === status)
+      .map((lead) => ({
+        id: lead.id,
+        created_by_user_id: lead.createdByUserId,
+        listing_id: lead.listingId ?? null,
+        source: lead.source,
+        status: lead.status,
+        notes: lead.notes ?? null,
+        metadata: lead.metadata,
+        crm_sync_status: "pending",
+        last_crm_push_at: null,
+        created_at: new Date(lead.createdAt).toISOString()
+      }));
+
+    return ok({ items, total: items.length });
+  }
+
+  @Post("leads/:lead_id/status")
+  async updateLeadStatus(
+    @Req() req: { user: { id: string } },
+    @Param("lead_id") leadId: string,
+    @Body()
+    body: {
+      status: "new" | "contacted" | "qualified" | "closed_won" | "closed_lost";
+      reason?: string;
+    }
+  ) {
+    if (this.database.isEnabled()) {
+      const updated = await this.database.query<{ id: string; status: string }>(
+        `
+        UPDATE sales_leads
+        SET status = $2::sales_lead_status, updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text, status::text
+        `,
+        [leadId, body.status]
+      );
+
+      if (!updated.rowCount || !updated.rows[0]) {
+        throw new BadRequestException({ code: "not_found", message: "Lead not found" });
+      }
+
+      await this.database.query(
+        `
+        INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+        VALUES ($1::uuid, 'sales_lead', $2::uuid, 'update_lead'::admin_action_type, $3, null, $4::jsonb)
+        `,
+        [req.user.id, leadId, body.reason ?? null, JSON.stringify({ status: body.status })]
+      );
+
+      logTelemetry("admin.lead_status_updated", {
+        lead_id: updated.rows[0].id,
+        status: updated.rows[0].status,
+        admin_user_id: req.user.id
+      });
+
+      return ok({ lead_id: updated.rows[0].id, status: updated.rows[0].status });
+    }
+
+    const updated = this.appState.updateSalesLeadStatus(leadId, body.status);
+    if (!updated) {
+      throw new BadRequestException({ code: "not_found", message: "Lead not found" });
+    }
+
+    this.appState.adminActions.push({
+      admin_id: req.user.id,
+      target_type: "sales_lead",
+      target_id: leadId,
+      action: "lead_status_update",
+      reason: body.reason ?? null,
+      created_at: new Date().toISOString()
+    });
+
+    logTelemetry("admin.lead_status_updated", {
+      mode: "in_memory",
+      lead_id: updated.id,
+      status: updated.status,
+      admin_user_id: req.user.id
+    });
+
+    return ok({ lead_id: updated.id, status: updated.status });
+  }
+
+  @Post("wallet/adjust")
+  async adjustWallet(
+    @Req() req: { user: { id: string } },
+    @Body() body: { user_id: string; credits_delta: number; reason: string }
+  ) {
+    if (this.database.isEnabled()) {
+      if (!body.credits_delta || !body.reason) {
+        throw new BadRequestException({
+          code: "invalid_delta",
+          message: "credits_delta and reason are required"
+        });
+      }
+
+      // Accept phone number (e.g. +919999999902) as well as UUID
+      let resolvedUserId = body.user_id;
+      const looksLikePhone = body.user_id.startsWith("+") || /^\d{7,}$/.test(body.user_id);
+      if (looksLikePhone) {
+        const found = await this.database.query<{ id: string }>(
+          `SELECT id::text FROM users WHERE phone_e164 = $1 LIMIT 1`,
+          [body.user_id]
+        );
+        if (!found.rows[0]) {
+          throw new BadRequestException({
+            code: "user_not_found",
+            message: `No user found with phone number ${body.user_id}`
+          });
+        }
+        resolvedUserId = found.rows[0].id;
+      }
+
+      const client = await this.database.getClient();
+      try {
+        await client.query("BEGIN");
+        await client.query(
+          `
+          INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
+          VALUES ($1::uuid, 0, 0)
+          ON CONFLICT (user_id) DO NOTHING
+          `,
+          [resolvedUserId]
+        );
+
+        const txn = await client.query<{ id: string }>(
+          `
+          INSERT INTO wallet_transactions(
+            wallet_user_id,
+            txn_type,
+            credits_delta,
+            reference_type,
+            reference_id,
+            metadata
+          )
+          VALUES ($1::uuid, 'admin_adjustment', $2, 'admin', $3::uuid, $4::jsonb)
+          RETURNING id::text
+          `,
+          [resolvedUserId, body.credits_delta, req.user.id, JSON.stringify({ reason: body.reason })]
+        );
+
+        const wallet = await client.query<{ balance_credits: number }>(
+          `
+          UPDATE wallets
+          SET balance_credits = balance_credits + $2,
+              updated_at = now()
+          WHERE user_id = $1::uuid
+          RETURNING balance_credits
+          `,
+          [resolvedUserId, body.credits_delta]
+        );
+
+        await client.query(
+          `
+          INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+          VALUES ($1::uuid, 'wallet', $2::uuid, 'adjust_wallet', $3, null, $4::jsonb)
+          `,
+          [
+            req.user.id,
+            resolvedUserId,
+            body.reason,
+            JSON.stringify({ credits_delta: body.credits_delta })
+          ]
+        );
+
+        await client.query("COMMIT");
+        return ok({
+          transaction_id: txn.rows[0].id,
+          balance_credits: Number(wallet.rows[0]?.balance_credits ?? 0)
+        });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    if (!body.credits_delta || !body.reason) {
+      throw new BadRequestException({
+        code: "invalid_delta",
+        message: "credits_delta and reason are required"
+      });
+    }
+
+    const txn = this.appState.addWalletTxn({
+      userId: body.user_id,
+      type: "admin_adjustment",
+      creditsDelta: body.credits_delta,
+      referenceId: req.user.id
+    });
+
+    return ok({
+      transaction_id: txn.id,
+      balance_credits: this.appState.getWalletBalance(body.user_id)
+    });
+  }
+
+  // ── User & Role Management ───────────────────────────────────────────────
+
+  /**
+   * POST /admin/users
+   * Create a new user (or upsert if phone already exists) and assign a role.
+   * Body: { phone_e164: string; role: Role; full_name?: string }
+   */
+  @Post("users")
+  async createUser(
+    @Req() req: { user: { id: string } },
+    @Body() body: { phone_e164: string; role: string; full_name?: string }
+  ) {
+    const VALID_ROLES = ["tenant", "owner", "pg_operator", "admin"];
+    if (!body.phone_e164 || !/^\+91\d{10}$/.test(body.phone_e164)) {
+      throw new BadRequestException({
+        code: "invalid_phone",
+        message: "Phone must be in E.164 format: +91XXXXXXXXXX"
+      });
+    }
+    if (!VALID_ROLES.includes(body.role)) {
+      throw new BadRequestException({ code: "invalid_role", message: "Invalid role" });
+    }
+
+    if (this.database.isEnabled()) {
+      const { randomUUID } = await import("crypto");
+      const client = await this.database.getClient();
+      try {
+        await client.query("BEGIN");
+
+        // Upsert user: create if phone doesn't exist, update role if it does
+        const result = await client.query<{
+          id: string;
+          phone_e164: string;
+          role: string;
+          full_name: string | null;
+          is_new: boolean;
+        }>(
+          `
+          INSERT INTO users(phone_e164, role, preferred_language, full_name)
+          VALUES ($1, $2::user_role, 'en', $3)
+          ON CONFLICT (phone_e164)
+          DO UPDATE SET
+            role = EXCLUDED.role,
+            full_name = COALESCE(EXCLUDED.full_name, users.full_name),
+            updated_at = now()
+          RETURNING id::text, phone_e164, role::text, full_name,
+            (xmax = 0) AS is_new
+          `,
+          [body.phone_e164, body.role, body.full_name ?? null]
+        );
+
+        const user = result.rows[0];
+        if (!user)
+          throw new BadRequestException({ code: "db_error", message: "Failed to create user" });
+
+        // If brand new user, provision wallet with 0 credits
+        if (user.is_new) {
+          await client.query(
+            `INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
+             VALUES ($1::uuid, 0, 0) ON CONFLICT (user_id) DO NOTHING`,
+            [user.id]
+          );
+        }
+
+        await client.query(
+          `INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+           VALUES ($1::uuid, 'user', $2::uuid, 'update_lead'::admin_action_type, null, null, $3::jsonb)`,
+          [req.user.id, user.id, JSON.stringify({ role: body.role, created_by_admin: true })]
+        );
+
+        await client.query("COMMIT");
+
+        logTelemetry("admin.user_created", {
+          user_id: user.id,
+          phone: body.phone_e164,
+          role: body.role,
+          admin_user_id: req.user.id
+        });
+
+        return ok({
+          id: user.id,
+          phone: user.phone_e164,
+          role: user.role,
+          full_name: user.full_name ?? undefined,
+          created_at: new Date().toISOString(),
+          is_new: user.is_new
+        });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    // ── In-memory (dev) path ──────────────────────────────────────────────
+    const { randomUUID } = await import("crypto");
+    let user = this.appState.usersByPhone.get(body.phone_e164);
+    let isNew = false;
+    if (!user) {
+      const userId = randomUUID();
+      user = {
+        id: userId,
+        phone: body.phone_e164,
+        role: body.role as "tenant" | "owner" | "pg_operator" | "admin",
+        preferred_language: "en",
+        full_name: body.full_name
+      };
+      this.appState.users.set(userId, user);
+      this.appState.usersByPhone.set(body.phone_e164, user);
+      this.appState.wallets.set(userId, 0);
+      this.appState.walletTxns.set(userId, []);
+      isNew = true;
+    } else {
+      user.role = body.role as "tenant" | "owner" | "pg_operator" | "admin";
+      if (body.full_name) user.full_name = body.full_name;
+    }
+
+    logTelemetry("admin.user_created", {
+      mode: "in_memory",
+      user_id: user.id,
+      phone: body.phone_e164,
+      role: body.role,
+      admin_user_id: req.user.id
+    });
+
+    return ok({
+      id: user.id,
+      phone: user.phone,
+      role: user.role,
+      full_name: user.full_name ?? undefined,
+      created_at: new Date().toISOString(),
+      is_new: isNew
+    });
+  }
+
+  /**
+   * GET /admin/users
+   * List all users with id, phone, role, preferred_language.
+   * Supports optional ?role= filter.
+   */
+  @Get("users")
+  async listUsers(@Query("role") role?: string) {
+    if (this.database.isEnabled()) {
+      const params: unknown[] = [];
+      const filter = role ? "WHERE u.role = $1::user_role" : "";
+      if (role) params.push(role);
+
+      const result = await this.database.query<{
+        id: string;
+        phone_e164: string;
+        role: string;
+        preferred_language: string;
+        full_name: string | null;
+        created_at: string;
+      }>(
+        `
+        SELECT u.id::text, u.phone_e164, u.role::text, u.preferred_language::text,
+               u.full_name, u.created_at::text
+        FROM users u
+        ${filter}
+        ORDER BY u.created_at DESC
+        `,
+        params
+      );
+
+      return ok({
+        items: result.rows.map((u) => ({ ...u, phone: u.phone_e164 })),
+        total: result.rowCount ?? 0
+      });
+    }
+
+    const all = [...this.appState.users.values()];
+    const filtered = role ? all.filter((u) => u.role === role) : all;
+    return ok({
+      items: filtered.map((u) => ({
+        id: u.id,
+        phone: u.phone,
+        role: u.role,
+        preferred_language: u.preferred_language,
+        full_name: u.full_name ?? null
+      })),
+      total: filtered.length
+    });
+  }
+
+  /**
+   * PATCH /admin/users/:id/role
+   * Directly change a user's role. Admin-only hard override.
+   * Body: { role: "tenant" | "owner" | "pg_operator" | "admin" }
+   */
+  @Patch("users/:user_id/role")
+  async setUserRole(
+    @Req() req: { user: { id: string } },
+    @Param("user_id") userId: string,
+    @Body() body: { role: Role }
+  ) {
+    const VALID_ROLES: Role[] = ["tenant", "owner", "pg_operator", "admin"];
+    if (!VALID_ROLES.includes(body.role)) {
+      throw new BadRequestException({ code: "invalid_role", message: "Invalid role" });
+    }
+
+    if (this.database.isEnabled()) {
+      const result = await this.database.query<{ id: string; role: string }>(
+        `
+        UPDATE users
+        SET role = $2::user_role, updated_at = now()
+        WHERE id = $1::uuid
+        RETURNING id::text, role::text
+        `,
+        [userId, body.role]
+      );
+
+      if (!result.rowCount || !result.rows[0]) {
+        throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+      }
+
+      await this.database
+        .query(
+          `
+        INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+        VALUES ($1::uuid, 'user', $2::uuid, 'update_lead'::admin_action_type, null, null, $3::jsonb)
+        `,
+          [req.user.id, userId, JSON.stringify({ role: body.role })]
+        )
+        .catch(() => undefined); // admin_actions insert is best-effort
+
+      logTelemetry("admin.user_role_changed", {
+        user_id: userId,
+        new_role: body.role,
+        admin_user_id: req.user.id
+      });
+
+      return ok({ user_id: result.rows[0].id, role: result.rows[0].role });
+    }
+
+    const user = this.appState.setUserRole(userId, body.role);
+    if (!user) {
+      throw new BadRequestException({ code: "user_not_found", message: "User not found" });
+    }
+
+    logTelemetry("admin.user_role_changed", {
+      mode: "in_memory",
+      user_id: userId,
+      new_role: body.role,
+      admin_user_id: req.user.id
+    });
+
+    return ok({ user_id: user.id, role: user.role });
+  }
+
+  /**
+   * GET /admin/role-requests
+   * List user role upgrade requests, optionally filtered by ?status=pending|approved|rejected
+   */
+  @Get("role-requests")
+  async listRoleRequests(@Query("status") status?: string) {
+    const validStatuses = ["pending", "approved", "rejected"];
+    const safeStatus =
+      status && validStatuses.includes(status)
+        ? (status as "pending" | "approved" | "rejected")
+        : undefined;
+
+    const requests = this.appState.listRoleRequests(safeStatus);
+
+    // Enrich with phone
+    const enriched = requests.map((r) => {
+      const user = this.appState.users.get(r.userId);
+      return {
+        id: r.id,
+        user_id: r.userId,
+        phone_e164: user?.phone ?? null,
+        requested_role: r.requestedRole,
+        status: r.status,
+        created_at: new Date(r.createdAt).toISOString(),
+        decided_at: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+        decided_by_admin_id: r.decidedByAdminId ?? null
+      };
+    });
+
+    return ok({
+      items: enriched.map((r) => ({ ...r, phone: r.phone_e164 })),
+      total: enriched.length
+    });
+  }
+
+  /**
+   * PATCH /admin/role-requests/:id/decision
+   * Approve or reject a pending role request.
+   * Body: { decision: "approved" | "rejected", reason?: string }
+   */
+  @Patch("role-requests/:request_id/decision")
+  async decideRoleRequest(
+    @Req() req: { user: { id: string } },
+    @Param("request_id") requestId: string,
+    @Body() body: { decision: "approved" | "rejected"; reason?: string }
+  ) {
+    if (!["approved", "rejected"].includes(body.decision)) {
+      throw new BadRequestException({
+        code: "invalid_decision",
+        message: "decision must be 'approved' or 'rejected'"
+      });
+    }
+
+    const result = this.appState.decideRoleRequest(requestId, body.decision, req.user.id);
+    if (!result) {
+      throw new BadRequestException({ code: "not_found", message: "Role request not found" });
+    }
+
+    logTelemetry("admin.role_request_decided", {
+      request_id: requestId,
+      decision: body.decision,
+      user_id: result.userId,
+      new_role: result.requestedRole,
+      admin_user_id: req.user.id
+    });
+
+    return ok({
+      request_id: result.id,
+      user_id: result.userId,
+      requested_role: result.requestedRole,
+      status: result.status,
+      decided_at: result.decidedAt ? new Date(result.decidedAt).toISOString() : null
+    });
+  }
+
+  // ── Analytics ────────────────────────────────────────────────────────────
+
+  @Get("analytics/overview")
+  async analyticsOverview() {
+    return ok(await this.analytics.getOverview());
+  }
+
+  @Get("analytics/listings")
+  async analyticsListings() {
+    return ok(await this.analytics.getListingsByArea());
+  }
+
+  @Get("analytics/leads")
+  async analyticsLeads(@Query("days") days?: string) {
+    return ok(await this.analytics.getDailyLeadCounts(Number(days) || 30));
+  }
+
+  @Get("analytics/response-rates")
+  async analyticsResponseRates() {
+    return ok(await this.analytics.getOwnerResponseRates());
+  }
+
+  @Get("analytics/revenue")
+  async analyticsRevenue(@Query("days") days?: string) {
+    return ok(await this.analytics.getFeaturedRevenue(Number(days) || 30));
+  }
+
+  @Get("analytics/funnel")
+  async analyticsFunnel(@Query("days") days?: string) {
+    return ok(await this.analytics.getConversionFunnel(Number(days) || 30));
+  }
+
+  // ---------------------------------------------------------------------------
+  // WhatsApp notification helpers
+  // ---------------------------------------------------------------------------
+
+  private async notifyOwnerListingDecision(
+    listingId: string,
+    decision: "approve" | "reject" | "pause",
+    reason?: string
+  ) {
+    if (!this.database.isEnabled()) return;
+
+    const ownerInfo = await this.database.query<{
+      owner_user_id: string;
+      title: string;
+      city: string | null;
+    }>(
+      `
+      SELECT
+        l.owner_user_id::text,
+        COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'आपकी प्रॉपर्टी') AS title,
+        c.slug AS city
+      FROM listings l
+      LEFT JOIN listing_locations ll ON ll.listing_id = l.id
+      LEFT JOIN cities c ON c.id = ll.city_id
+      WHERE l.id = $1::uuid
+      LIMIT 1
+      `,
+      [listingId]
+    );
+
+    const owner = ownerInfo.rows[0];
+    if (!owner) return;
+
+    const typeMap: Record<string, NotificationType> = {
+      approve: "owner.listing_approved",
+      reject: "owner.listing_rejected",
+      pause: "owner.listing_paused"
+    };
+
+    await this.notifications.send({
+      type: typeMap[decision],
+      recipientUserId: owner.owner_user_id,
+      payload: {
+        listing_title: owner.title,
+        listing_id: listingId,
+        city: owner.city ?? "",
+        reason: reason ?? ""
+      },
+      mode: "immediate"
+    });
+  }
+
+  /* ── Rent Agreement analytics ──────────────────────────────────── */
+  // Literal paths are declared before the `:id` param route so Nest matches them
+  // first.
+
+  @Get("rent-agreements/summary")
+  async rentAgreementSummary(@Query("days") days?: string) {
+    return ok(await this.rentAgreements.getSummary(parseDays(days)));
+  }
+
+  @Get("rent-agreements/funnel")
+  async rentAgreementFunnel(@Query("days") days?: string) {
+    return ok(await this.rentAgreements.getFunnel(parseDays(days)));
+  }
+
+  @Get("rent-agreements/timeseries")
+  async rentAgreementTimeSeries(@Query("days") days?: string) {
+    return ok(await this.rentAgreements.getTimeSeries(parseDays(days)));
+  }
+
+  @Get("rent-agreements/operational")
+  async rentAgreementOperational() {
+    return ok(await this.rentAgreements.getOperational());
+  }
+
+  @Get("rent-agreements/list")
+  async rentAgreementList(
+    @Query("status") status?: string,
+    @Query("plan_id") planId?: string,
+    @Query("state_code") stateCode?: string,
+    @Query("search") search?: string,
+    @Query("date_from") dateFrom?: string,
+    @Query("date_to") dateTo?: string,
+    @Query("page") page?: string,
+    @Query("limit") limit?: string
+  ) {
+    return ok(
+      await this.rentAgreements.listAgreements({
+        status,
+        plan_id: planId,
+        state_code: stateCode,
+        search,
+        date_from: dateFrom,
+        date_to: dateTo,
+        page: page ? Number.parseInt(page, 10) : undefined,
+        limit: limit ? Number.parseInt(limit, 10) : undefined
+      })
+    );
+  }
+
+  @Get("rent-agreements/:id/download-link")
+  async rentAgreementDownloadLink(@Param("id") id: string) {
+    return ok(await this.rentAgreements.getAgreementDownloadLink(id));
+  }
+
+  @Get("rent-agreements/:id")
+  async rentAgreementDetail(@Param("id") id: string) {
+    return ok(await this.rentAgreements.getAgreementDetail(id));
+  }
+}

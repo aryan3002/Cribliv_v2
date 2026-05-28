@@ -1,0 +1,22 @@
+{
+  "city": "gurugram",
+  "lines": [
+    {
+      "line_name": "Rapid Metro",
+      "line_color": "#EF4444",
+      "stations": [
+        { "name": "Sikanderpur", "lat": 28.4814, "lng": 77.0931, "seq": 1 },
+        { "name": "Phase 2", "lat": 28.492, "lng": 77.093, "seq": 2 },
+        { "name": "Belvedere Towers", "lat": 28.496, "lng": 77.0875, "seq": 3 },
+        { "name": "Cyber City", "lat": 28.4946, "lng": 77.0858, "seq": 4 },
+        { "name": "Moulsari Avenue", "lat": 28.499, "lng": 77.089, "seq": 5 },
+        { "name": "Phase 3", "lat": 28.5022, "lng": 77.0939, "seq": 6 },
+        { "name": "Phase 1", "lat": 28.4781, "lng": 77.0978, "seq": 7 },
+        { "name": "Sector 42-43", "lat": 28.4633, "lng": 77.0986, "seq": 8 },
+        { "name": "Sector 53-54", "lat": 28.4505, "lng": 77.0997, "seq": 9 },
+        { "name": "Sector 54 Chowk", "lat": 28.4391, "lng": 77.1004, "seq": 10 },
+        { "name": "Sector 55-56", "lat": 28.429, "lng": 77.1014, "seq": 11 }
+      ]
+    }
+  ]
+}
