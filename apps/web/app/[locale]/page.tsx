@@ -20,8 +20,7 @@ import {
   Tent,
   Sofa,
   ArrowRight,
-  Sparkles,
-  Mic
+  Sparkles
 } from "lucide-react";
 import { ListingCarousel } from "../../components/listing-carousel";
 import type { ListingCardData } from "../../components/listing-card";
@@ -199,10 +198,10 @@ const TESTIMONIALS = [
 ];
 
 const PLATFORM_STATS = [
-  { value: "₹0", numericValue: 0, prefix: "₹", suffix: "", label: "Brokerage", labelHi: "दलाली" },
-  { value: "100", numericValue: 100, suffix: "%", label: "Owner Verified", labelHi: "सत्यापित मालिक" },
-  { value: "12", numericValue: 12, suffix: "hr", label: "Refund Guarantee", labelHi: "रिफंड गारंटी" },
-  { value: "8", numericValue: 8, suffix: "+", label: "Cities", labelHi: "शहर" }
+  { value: "₹0", numericValue: 0, prefix: "₹", suffix: "", label: "Brokerage" },
+  { value: "100", numericValue: 100, suffix: "%", label: "Owner Verified" },
+  { value: "12", numericValue: 12, suffix: "hr", label: "Refund Guarantee" },
+  { value: "8", numericValue: 8, suffix: "+", label: "Cities" }
 ];
 
 export default async function HomePage({ params }: { params: { locale: Locale } }) {
@@ -605,34 +604,85 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
           }}
         >
           <div className="container">
-            <div className="edi-head">
-              <div>
-                <span className="edi-eyebrow">{isHindi ? "सरल प्रक्रिया" : "How It Works"}</span>
-                <h2 className="edi-title">
-                  {isHindi ? "तीन कदम. कोई दलाल नहीं." : "Three steps. No brokers. No games."}
-                </h2>
-              </div>
-              <p className="edi-lede">
+            <div style={{ textAlign: "center", marginBottom: "var(--space-10)" }}>
+              <p
+                className="overline"
+                style={{ marginBottom: "var(--space-2)", color: "var(--brand)" }}
+              >
+                {isHindi ? "सरल प्रक्रिया" : "Simple Process"}
+              </p>
+              <h2 style={{ fontSize: 28, letterSpacing: "-0.02em" }}>
+                {isHindi ? "यह कैसे काम करता है" : "How It Works"}
+              </h2>
+              <p
+                className="text-secondary"
+                style={{
+                  marginTop: "var(--space-3)",
+                  fontSize: 15,
+                  maxWidth: 480,
+                  marginLeft: "auto",
+                  marginRight: "auto"
+                }}
+              >
                 {isHindi
-                  ? "खोजें, सत्यापित मालिक से जुड़ें, और शिफ्ट करें — बस इतना ही।"
-                  : "Search it, unlock a verified owner, move in. That's the whole thing."}
+                  ? "तीन आसान चरणों में अपना सपनों का घर खोजें"
+                  : "Find your dream home in three simple steps — no brokers, no hassle"}
               </p>
             </div>
-            <div className="hiw">
+            <div className="grid grid-3">
               {HOW_IT_WORKS.map((step, i) => {
                 const Icon = step.icon;
                 return (
-                  <div key={i} className="hiw-step">
-                    <div className="hiw-num" aria-hidden="true">
-                      {String(i + 1).padStart(2, "0")}
+                  <div
+                    key={i}
+                    className="feature-card"
+                    style={{
+                      position: "relative",
+                      padding: "var(--space-8) var(--space-6)",
+                      borderTop: `3px solid var(--${step.color})`
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: -14,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: `var(--${step.color})`,
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        boxShadow: `0 2px 8px color-mix(in srgb, var(--${step.color}) 40%, transparent)`
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <div
+                      className={`icon-circle icon-circle--${step.color}`}
+                      style={{
+                        margin: "var(--space-2) auto var(--space-4)",
+                        width: 56,
+                        height: 56
+                      }}
+                      aria-hidden="true"
+                    >
+                      <Icon size={26} />
                     </div>
-                    <div className="hiw-step__head">
-                      <span className="hiw-icon" aria-hidden="true">
-                        <Icon size={20} />
-                      </span>
-                      <h3>{isHindi ? step.titleHi : step.title}</h3>
-                    </div>
-                    <p>{isHindi ? step.descHi : step.desc}</p>
+                    <h3
+                      className="feature-card__title"
+                      style={{ fontSize: 17, marginBottom: "var(--space-2)" }}
+                    >
+                      {isHindi ? step.titleHi : step.title}
+                    </h3>
+                    <p className="feature-card__desc" style={{ lineHeight: 1.6 }}>
+                      {isHindi ? step.descHi : step.desc}
+                    </p>
                   </div>
                 );
               })}
@@ -641,138 +691,52 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
         </section>
       </AnimateOnScroll>
 
-      {/* ── AI Feature Showcase ── */}
-      <AnimateOnScroll delay={100}>
-        <section className="section--sm">
-          <div className="edi-head">
-            <div>
-              <span className="edi-eyebrow">{isHindi ? "AI से संचालित" : "Powered by AI"}</span>
-              <h2 className="edi-title">
-                {isHindi ? "खोजें, लिस्ट करें, एक्सप्लोर करें — AI के साथ" : "Find, list, and explore — with AI"}
-              </h2>
-            </div>
-            <p className="edi-lede">
-              {isHindi
-                ? "Cribliv के नए AI टूल किराये की खोज को आसान बनाते हैं।"
-                : "The tools that make Cribliv feel less like a listings site and more like an assistant."}
-            </p>
-          </div>
-
-          <div className="ai-showcase">
-            {/* CriblMap — featured */}
-            <Link
-              href={`/${params.locale}/map`}
-              className="ai-feature ai-feature--featured"
-              style={{
-                backgroundImage:
-                  "linear-gradient(180deg, rgba(8,18,38,0.20) 0%, rgba(8,18,38,0.55) 55%, rgba(8,18,38,0.92) 100%), url('/images/india-map-hero.jpg')"
-              }}
-            >
-              <div className="ai-feature__pins" aria-hidden="true">
-                <span className="ai-feature__pin" style={{ top: "28%", left: "32%" }} />
-                <span className="ai-feature__pin ai-feature__pin--2" style={{ top: "44%", left: "58%" }} />
-                <span className="ai-feature__pin ai-feature__pin--3" style={{ top: "62%", left: "40%" }} />
-              </div>
-              <span className="ai-pill">{isHindi ? "नया" : "New"}</span>
-              <h3 className="ai-feature__title">CriblMap</h3>
-              <p className="ai-feature__desc">
-                {isHindi
-                  ? "सत्यापित किराये एक लाइव नक्शे पर देखें — किराये के रुझान, मेट्रो की दूरी और इलाके की जानकारी।"
-                  : "See verified rentals on a live map — rent trends, metro distance, and area insights at a glance."}
-              </p>
-              <span className="ai-feature__cta">
-                {isHindi ? "CriblMap खोलें" : "Open CriblMap"} <ArrowRight size={14} />
-              </span>
-            </Link>
-
-            {/* Maya — voice listing agent */}
-            <Link href={`/${params.locale}/owner/listings/new`} className="ai-feature">
-              <div className="ai-mini-mic" aria-hidden="true">
-                <Mic size={22} />
-              </div>
-              <span className="ai-pill">{isHindi ? "AI वॉइस" : "AI Voice"}</span>
-              <h3 className="ai-feature__title">{isHindi ? "Maya — आपकी वॉइस लिस्टिंग एजेंट" : "Maya, your voice listing agent"}</h3>
-              <p className="ai-feature__desc">
-                {isHindi
-                  ? "बस बोलकर अपनी प्रॉपर्टी लिस्ट करें। Maya आपके बताते ही सारी जानकारी भर देती है।"
-                  : "List your property by just talking. Maya fills in the details as you speak."}
-              </p>
-              <div className="ai-bubble">नमस्ते! Boliye…</div>
-              <span className="ai-feature__cta">
-                {isHindi ? "वॉइस लिस्टिंग आज़माएं" : "Try voice listing"} <ArrowRight size={14} />
-              </span>
-            </Link>
-
-            {/* AI / voice search */}
-            <Link href={`/${params.locale}/search`} className="ai-feature">
-              <span className="ai-pill">{isHindi ? "AI खोज" : "AI Search"}</span>
-              <div className="ai-mini-search">
-                <Search size={14} />
-                {isHindi ? "साइबर सिटी के पास 2BHK, 35k तक" : "2BHK near Cyber City under 35k"}
-              </div>
-              <div className="ai-chips" aria-hidden="true">
-                <span className="ai-chip">2 BHK</span>
-                <span className="ai-chip">{isHindi ? "35k तक" : "Under 35k"}</span>
-                <span className="ai-chip">{isHindi ? "फर्निश्ड" : "Furnished"}</span>
-              </div>
-              <h3 className="ai-feature__title">{isHindi ? "जैसे बोलते हैं वैसे खोजें" : "Search the way you talk"}</h3>
-              <p className="ai-feature__desc">
-                {isHindi
-                  ? "अंग्रेज़ी या हिंदी में लिखें या बोलें — हमारा AI इसे सही फ़िल्टर में बदल देता है।"
-                  : "Type or speak in English or Hindi — our AI turns it into the right filters."}
-              </p>
-              <span className="ai-feature__cta">
-                {isHindi ? "अभी खोजें" : "Start searching"} <ArrowRight size={14} />
-              </span>
-            </Link>
-          </div>
-        </section>
-      </AnimateOnScroll>
-
       {/* ── Browse by Type ── */}
       <AnimateOnScroll delay={100}>
         <section className="section--sm">
-          <div className="edi-head">
+          <div className="section-header">
             <div>
-              <span className="edi-eyebrow">{isHindi ? "संपत्ति प्रकार" : "Browse by Type"}</span>
-              <h2 className="edi-title">
-                {isHindi ? "आप किस तरह रहना चाहते हैं?" : "What kind of place are you after?"}
-              </h2>
+              <p
+                className="overline"
+                style={{ marginBottom: "var(--space-1)", color: "var(--brand)" }}
+              >
+                {isHindi ? "संपत्ति प्रकार" : "Property Types"}
+              </p>
+              <h2>{isHindi ? "किराये के प्रकार" : "Browse by Type"}</h2>
             </div>
-            <Link href={`/${params.locale}/search`} className="edi-head__action">
-              {isHindi ? "सभी देखें" : "Browse all"} <ArrowRight size={14} />
+            <Link href={`/${params.locale}/search`} className="section-header__action">
+              {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
             </Link>
           </div>
-          <div className="browse-bento">
+          <div className="grid grid-3">
             {[
               {
                 href: `/${params.locale}/search?listing_type=flat_house`,
                 icon: Building,
                 color: "brand" as const,
-                featured: true,
                 title: isHindi ? "फ्लैट और मकान" : "Flats & Houses",
                 desc: isHindi
-                  ? "1BHK से 4BHK तक — अपार्टमेंट और स्वतंत्र मकान, सीधे मालिक से।"
-                  : "1BHK to 4BHK apartments and independent houses, straight from verified owners.",
-                bg: "var(--brand-light)"
+                  ? "1BHK से 4BHK तक"
+                  : "1BHK to 4BHK apartments and independent houses",
+                gradient: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)"
               },
               {
                 href: `/${params.locale}/search?listing_type=pg`,
                 icon: Home,
                 color: "accent" as const,
-                featured: false,
                 title: isHindi ? "PG और हॉस्टल" : "PGs & Hostels",
-                desc: isHindi ? "खाने, वाईफाई और साझा सुविधाओं के साथ" : "Meals, WiFi, and shared amenities",
-                bg: "var(--accent-light)"
+                desc: isHindi ? "खाने और वाईफाई के साथ" : "With meals, WiFi, and shared amenities",
+                gradient: "linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)"
               },
               {
                 href: `/${params.locale}/search?listing_type=flat_house&furnished=true`,
                 icon: Sofa,
                 color: "amber" as const,
-                featured: false,
-                title: isHindi ? "फर्निश्ड घर" : "Furnished Homes",
-                desc: isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture",
-                bg: "var(--amber-light)"
+                title: isHindi ? "फर्निश्ड" : "Furnished Homes",
+                desc: isHindi
+                  ? "सब कुछ तैयार, बस आइए"
+                  : "Move-in ready with furniture and appliances",
+                gradient: "linear-gradient(135deg, #fffbeb 0%, #fde68a 100%)"
               }
             ].map((item) => {
               const Icon = item.icon;
@@ -780,21 +744,41 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 <Link
                   key={item.title}
                   href={item.href as `/${string}`}
-                  className={`browse-card${item.featured ? " browse-card--featured" : ""}`}
+                  className="feature-card"
+                  style={{
+                    textDecoration: "none",
+                    background: item.gradient,
+                    border: "none",
+                    padding: "var(--space-8) var(--space-6)",
+                    transition: "transform 0.2s, box-shadow 0.2s"
+                  }}
                 >
-                  <div>
-                    <div
-                      className="browse-card__icon"
-                      style={{ background: item.bg, color: `var(--${item.color})` }}
-                      aria-hidden="true"
-                    >
-                      <Icon size={item.featured ? 26 : 22} />
-                    </div>
-                    <h3 className="browse-card__title">{item.title}</h3>
-                    <p className="browse-card__desc">{item.desc}</p>
+                  <div
+                    className={`icon-circle icon-circle--${item.color}`}
+                    style={{ margin: "0 auto var(--space-4)", width: 56, height: 56 }}
+                    aria-hidden="true"
+                  >
+                    <Icon size={26} />
                   </div>
-                  <span className="browse-card__cta" style={{ color: `var(--${item.color})` }}>
-                    {isHindi ? "खोजें" : "Explore"} <ArrowRight size={14} />
+                  <h3
+                    className="feature-card__title"
+                    style={{ fontSize: 17, color: "var(--text-primary)" }}
+                  >
+                    {item.title}
+                  </h3>
+                  <p className="feature-card__desc">{item.desc}</p>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      marginTop: "var(--space-3)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: `var(--${item.color})`
+                    }}
+                  >
+                    {isHindi ? "खोजें" : "Explore"} <ArrowRight size={13} />
                   </span>
                 </Link>
               );
@@ -806,35 +790,87 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
       {/* ── Social Proof Stats ── */}
       <AnimateOnScroll delay={100}>
         <section className="section--sm">
-          <div className="impact">
-            <div className="impact__intro">
-              <span className="edi-eyebrow edi-eyebrow--light">
-                {isHindi ? "हमारे आंकड़े" : "Our Impact"}
-              </span>
-              <h2 className="edi-title edi-title--light">
-                {isHindi
-                  ? "उत्तर भारत के किरायेदारों का भरोसा"
-                  : "Trusted by renters across North India"}
-              </h2>
+          <div
+            style={{
+              background: "linear-gradient(135deg, #0B1628 0%, #0F2847 40%, #0052CC 100%)",
+              borderRadius: "var(--radius-xl)",
+              padding: "var(--space-12) var(--space-8)",
+              position: "relative",
+              overflow: "hidden"
+            }}
+          >
+            {/* Subtle decorative glow */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: "-40%",
+                right: "-10%",
+                width: 400,
+                height: 400,
+                background: "radial-gradient(circle, rgba(0,102,255,0.2) 0%, transparent 70%)",
+                pointerEvents: "none"
+              }}
+            />
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                bottom: "-30%",
+                left: "-5%",
+                width: 300,
+                height: 300,
+                background: "radial-gradient(circle, rgba(0,102,255,0.15) 0%, transparent 70%)",
+                pointerEvents: "none"
+              }}
+            />
+
+            <div
+              style={{ textAlign: "center", marginBottom: "var(--space-8)", position: "relative" }}
+            >
               <p
+                className="overline"
+                style={{ marginBottom: "var(--space-2)", color: "rgba(255,255,255,0.5)" }}
+              >
+                {isHindi ? "हमारे आंकड़े" : "Our Impact"}
+              </p>
+              <h2
                 style={{
-                  marginTop: "var(--space-4)",
-                  color: "rgba(255,255,255,0.6)",
-                  fontSize: 15,
-                  lineHeight: 1.6,
-                  maxWidth: 360
+                  color: "#fff",
+                  fontSize: 26,
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em"
                 }}
               >
                 {isHindi
-                  ? "हर लिस्टिंग सत्यापित, हर मालिक असली — और कोई दलाली नहीं।"
-                  : "Every listing verified, every owner real — and not a rupee in brokerage."}
-              </p>
+                  ? "उत्तर भारत के किरायेदारों का भरोसा"
+                  : "Trusted by Renters Across North India"}
+              </h2>
             </div>
 
-            <div className="impact-grid">
+            <div className="grid grid-4" style={{ position: "relative" }}>
               {PLATFORM_STATS.map((stat, i) => (
-                <div key={stat.label} className="impact-stat">
-                  <div className="impact-stat__num">
+                <div
+                  key={stat.label}
+                  style={{
+                    textAlign: "center",
+                    padding: "var(--space-6) var(--space-4)",
+                    borderRadius: "var(--radius-lg)",
+                    background: "rgba(255,255,255,0.07)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    transition: "all 0.25s ease"
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: "var(--font-heading)",
+                      fontSize: 38,
+                      fontWeight: 800,
+                      color: "#fff",
+                      lineHeight: 1
+                    }}
+                  >
                     {stat.label === "Brokerage" ? (
                       "₹0"
                     ) : (
@@ -846,8 +882,16 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                       />
                     )}
                   </div>
-                  <div className="impact-stat__label">
-                    {isHindi ? stat.labelHi : stat.label}
+                  <div
+                    style={{
+                      marginTop: "var(--space-2)",
+                      fontSize: 13,
+                      color: "rgba(255,255,255,0.6)",
+                      fontWeight: 500,
+                      letterSpacing: "0.02em"
+                    }}
+                  >
+                    {stat.label}
                   </div>
                 </div>
               ))}
@@ -866,70 +910,142 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
           }}
         >
           <div className="container">
-            <div className="edi-head">
-              <div>
-                <span className="edi-eyebrow">{isHindi ? "किरायेदारों की राय" : "Loved by Tenants"}</span>
-                <h2 className="edi-title">{isHindi ? "वे क्या कहते हैं" : "What renters say"}</h2>
-              </div>
-              <p className="edi-lede">
+            <div style={{ textAlign: "center", marginBottom: "var(--space-10)" }}>
+              <p
+                className="overline"
+                style={{ marginBottom: "var(--space-2)", color: "var(--brand)" }}
+              >
+                {isHindi ? "किरायेदारों की राय" : "Loved by Tenants"}
+              </p>
+              <h2>{isHindi ? "वे क्या कहते हैं" : "What Renters Say"}</h2>
+              <p
+                className="text-secondary"
+                style={{
+                  marginTop: "var(--space-3)",
+                  fontSize: 15,
+                  maxWidth: 440,
+                  marginLeft: "auto",
+                  marginRight: "auto"
+                }}
+              >
                 {isHindi
-                  ? "असली किरायेदार, असली घर — Cribliv के ज़रिए।"
-                  : "Real tenants who found their home through Cribliv."}
+                  ? "हज़ारों किरायेदार Cribliv पर भरोसा करते हैं"
+                  : "Real stories from tenants who found their home through Cribliv"}
               </p>
             </div>
-            <div className="voices-grid">
-              {(() => {
-                const renderStars = (rating: number) => (
-                  <div className="voices-stars" aria-hidden="true">
-                    {Array.from({ length: rating }).map((_, i) => (
-                      <svg key={i} width="15" height="15" viewBox="0 0 24 24" fill="var(--amber)">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                      </svg>
-                    ))}
-                  </div>
-                );
-                const renderAuthor = (testimonial: (typeof TESTIMONIALS)[number], idx: number) => (
-                  <div className="voices-author">
-                    <div className={`testimonial-avatar testimonial-avatar--${(idx % 3) + 1}`}>
-                      {testimonial.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="voices-author__name">{testimonial.name}</div>
-                      <div className="voices-author__city">
-                        <MapPin size={10} />
-                        {testimonial.city}
-                      </div>
-                    </div>
-                  </div>
-                );
-                const featured = TESTIMONIALS[0];
-                const rest = TESTIMONIALS.slice(1);
+            <div className="grid grid-3">
+              {TESTIMONIALS.map((testimonial, idx) => {
+                const accentColors = ["var(--brand)", "var(--accent)", "var(--trust)"];
+                const bgTints = [
+                  "linear-gradient(135deg, rgba(0,102,255,0.03) 0%, transparent 100%)",
+                  "linear-gradient(135deg, rgba(255,90,95,0.03) 0%, transparent 100%)",
+                  "linear-gradient(135deg, rgba(13,159,79,0.03) 0%, transparent 100%)"
+                ];
                 return (
-                  <>
-                    <div className="voices-quote voices-quote--featured">
-                      <div>
-                        <div className="voices-mark" aria-hidden="true">
-                          &ldquo;
-                        </div>
-                        {renderStars(featured.rating)}
-                        <p className="voices-text">{featured.text}</p>
+                  <div
+                    key={testimonial.name}
+                    style={{
+                      background: bgTints[idx % 3],
+                      border: "1px solid var(--border)",
+                      borderLeft: `3px solid ${accentColors[idx % 3]}`,
+                      borderRadius: "var(--radius-lg)",
+                      padding: "var(--space-6)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      transition: "all 0.25s ease",
+                      position: "relative"
+                    }}
+                  >
+                    {/* Decorative quote */}
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: 16,
+                        right: 20,
+                        fontSize: 48,
+                        lineHeight: 1,
+                        fontFamily: "Georgia, serif",
+                        color: accentColors[idx % 3],
+                        opacity: 0.1,
+                        fontWeight: 700
+                      }}
+                    >
+                      &ldquo;
+                    </span>
+
+                    <div>
+                      {/* Stars */}
+                      <div style={{ display: "flex", gap: 3, marginBottom: "var(--space-4)" }}>
+                        {Array.from({ length: testimonial.rating }).map((_, i) => (
+                          <svg
+                            key={i}
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="var(--amber)"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                        ))}
                       </div>
-                      {renderAuthor(featured, 0)}
+
+                      {/* Quote text */}
+                      <p
+                        style={{
+                          lineHeight: 1.7,
+                          marginBottom: "var(--space-5)",
+                          fontSize: 15,
+                          color: "var(--text-secondary)",
+                          fontStyle: "italic"
+                        }}
+                      >
+                        &ldquo;{testimonial.text}&rdquo;
+                      </p>
                     </div>
-                    <div className="voices-col">
-                      {rest.map((testimonial, i) => (
-                        <div key={testimonial.name} className="voices-quote">
-                          <div>
-                            {renderStars(testimonial.rating)}
-                            <p className="voices-text">&ldquo;{testimonial.text}&rdquo;</p>
-                          </div>
-                          {renderAuthor(testimonial, i + 1)}
+
+                    {/* Author */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "var(--space-3)",
+                        paddingTop: "var(--space-4)",
+                        borderTop: "1px solid var(--border)"
+                      }}
+                    >
+                      <div className={`testimonial-avatar testimonial-avatar--${(idx % 3) + 1}`}>
+                        {testimonial.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            fontSize: 14,
+                            color: "var(--text-primary)"
+                          }}
+                        >
+                          {testimonial.name}
                         </div>
-                      ))}
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "var(--text-tertiary)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                        >
+                          <MapPin size={10} />
+                          {testimonial.city}
+                        </div>
+                      </div>
                     </div>
-                  </>
+                  </div>
                 );
-              })()}
+              })}
             </div>
           </div>
         </section>
@@ -950,24 +1066,27 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
               zIndex: 0
             }}
           />
-          <div className="cta-banner__text">
-            <span className="cta-banner__eyebrow">
-              {isHindi ? "मालिकों के लिए" : "For Property Owners"}
-            </span>
-            <h2>{isHindi ? "प्रॉपर्टी है? मुफ़्त में लिस्ट करें" : "Own a property? List it free."}</h2>
-            <p>
-              {isHindi
-                ? "5 मिनट में AI-सत्यापित लिस्टिंग बनाएं और भरोसेमंद किरायेदारों से सीधे जुड़ें।"
-                : "Create an AI-verified listing in under 5 minutes and connect directly with trusted tenants across North India."}
-            </p>
-            <Link href={`/${params.locale}/owner/dashboard`} className="btn btn--lg">
-              {isHindi ? "अभी लिस्ट करें" : "List Your Property"}
-              <ArrowRight size={18} />
-            </Link>
-          </div>
-          <div className="cta-banner__mark" aria-hidden="true">
-            <KeyRound size="0.78em" strokeWidth={1.25} />
-          </div>
+          <p
+            className="overline"
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              marginBottom: "var(--space-3)",
+              position: "relative",
+              zIndex: 1
+            }}
+          >
+            {isHindi ? "मालिकों के लिए" : "For Property Owners"}
+          </p>
+          <h2>{isHindi ? "अपनी प्रॉपर्टी लिस्ट करें" : "Own a property? List it free"}</h2>
+          <p>
+            {isHindi
+              ? "AI-सत्यापित लिस्टिंग बनाएं और भरोसेमंद किरायेदारों से जुड़ें।"
+              : "Create an AI-verified listing in under 5 minutes and connect with trusted tenants across North India."}
+          </p>
+          <Link href={`/${params.locale}/owner/dashboard`} className="btn btn--lg">
+            {isHindi ? "अभी लिस्ट करें" : "List Your Property"}
+            <ArrowRight size={18} />
+          </Link>
         </section>
       </div>
     </>
