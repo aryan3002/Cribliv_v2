@@ -170,11 +170,7 @@ export function SettingsClient({ locale }: { locale: string }) {
 
       <div style={{ marginBottom: "var(--space-8)" }}>
         <Link
-          href={
-            session?.user?.role === "owner" || session?.user?.role === "pg_operator"
-              ? `/${locale}/owner/dashboard`
-              : `/${locale}`
-          }
+          href={session?.user?.role === "owner" ? `/${locale}/owner/dashboard` : `/${locale}`}
           className="body-sm text-secondary"
           style={{
             display: "inline-flex",
@@ -185,9 +181,7 @@ export function SettingsClient({ locale }: { locale: string }) {
           }}
         >
           <ArrowLeft size={14} />{" "}
-          {session?.user?.role === "owner" || session?.user?.role === "pg_operator"
-            ? "Back to Dashboard"
-            : "Back to Home"}
+          {session?.user?.role === "owner" ? "Back to Dashboard" : "Back to Home"}
         </Link>
         <h1 style={{ marginBottom: "var(--space-2)" }}>Account Settings</h1>
         <p className="text-secondary">Manage your personal details and preferences.</p>

@@ -1,26 +1,20 @@
 import { Module } from "@nestjs/common";
 import { OwnerModule } from "../owner/owner.module";
+import { VoiceAgentCoreModule } from "../voice-agent-core";
 import { VoiceAgentGateway } from "./voice-agent.gateway";
 import { VoiceAgentSessionService } from "./voice-agent-session.service";
-import { StreamingSTTService } from "./streaming-stt.service";
-import { StreamingTTSService } from "./streaming-tts.service";
 import { ConversationOrchestratorService } from "./conversation-orchestrator.service";
-import { RealtimeSessionService } from "./realtime-session.service";
 import { VoiceAgentController } from "./voice-agent.controller";
 
 @Module({
-  imports: [OwnerModule],
+  imports: [OwnerModule, VoiceAgentCoreModule],
   controllers: [VoiceAgentController],
   providers: [
-    // Legacy STT+LLM+TTS pipeline (still mounted for fallback)
+    // Maya orchestrator + session — STT/TTS/Realtime now provided by VoiceAgentCoreModule
     VoiceAgentGateway,
     VoiceAgentSessionService,
-    StreamingSTTService,
-    StreamingTTSService,
-    ConversationOrchestratorService,
-    // New Azure OpenAI Realtime (WebRTC) concierge
-    RealtimeSessionService
+    ConversationOrchestratorService
   ],
-  exports: [VoiceAgentSessionService, RealtimeSessionService]
+  exports: [VoiceAgentSessionService, VoiceAgentCoreModule]
 })
 export class VoiceAgentModule {}

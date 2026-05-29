@@ -51,6 +51,25 @@ describe("ApiClient.request", () => {
     });
   });
 
+  it("omits Content-Type on bodyless requests (keeps GET as a CORS simple request)", async () => {
+    // Setting Content-Type on a GET makes it a CORS-preflighted request — the
+    // browser will OPTIONS first, doubling every API round-trip on mobile.
+    // The header is only meaningful when there's a body to label.
+    mockJson(200, { data: {} });
+    const client = new ApiClient(BASE, async () => null);
+    await client.request({ method: "GET", path: "/rent-agreement/plans" });
+    const headers = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].headers;
+    expect(headers["Content-Type"]).toBeUndefined();
+  });
+
+  it("sets Content-Type: application/json when a body is sent", async () => {
+    mockJson(200, { data: {} });
+    const client = new ApiClient(BASE, async () => null);
+    await client.request({ method: "POST", path: "/x", body: { a: 1 } });
+    const headers = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].headers;
+    expect(headers["Content-Type"]).toBe("application/json");
+  });
+
   it("constructs URL as baseUrl + path", async () => {
     mockJson(200, { data: {} });
     const client = new ApiClient(BASE, async () => null);

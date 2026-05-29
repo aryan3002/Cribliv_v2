@@ -14,7 +14,6 @@ import {
   makeIdempotencyKey,
   presignListingPhotos,
   reorderListingPhotos,
-  segmentPgPath,
   submitOwnerListing,
   updateOwnerListing
 } from "../../../../../lib/owner-api";
@@ -78,7 +77,6 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const { data: nextAuthSession } = useSession();
   const accessToken = nextAuthSession?.accessToken ?? null;
   const userId = nextAuthSession?.user?.id ?? null;
-  const userRole = nextAuthSession?.user?.role ?? null;
   const ownerFirstName = nextAuthSession?.user?.name?.split(/\s+/)[0];
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -234,17 +232,12 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       setPgPath(null);
       return;
     }
-    if (!accessToken || userRole !== "pg_operator") {
-      setPgPath(beds <= 29 ? "self_serve" : "sales_assist");
-      return;
-    }
-    void segmentPgPath(accessToken, beds)
-      .then((result) => {
-        setPgPath(result.path);
-        trackEvent("pg_segmentation_triggered", { beds, path: result.path });
-      })
-      .catch(() => setPgPath(beds <= 29 ? "self_serve" : "sales_assist"));
-  }, [form.beds, form.listing_type, accessToken, userRole]);
+    // post-T6/T7 hard split: pg_operator users are redirected by middleware before
+    // reaching this owner-only file. Owners get the local-heuristic segmentation
+    // (29-bed threshold) — the backend segmentPgPath() call was role-gated to
+    // pg_operator and is now unreachable here.
+    setPgPath(beds <= 29 ? "self_serve" : "sales_assist");
+  }, [form.beds, form.listing_type]);
 
   /* ─────────────────────────────────────────────────────────────────
      Field-fill animation hook

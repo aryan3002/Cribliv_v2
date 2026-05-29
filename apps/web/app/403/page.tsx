@@ -5,7 +5,8 @@ import { useSession } from "next-auth/react";
 import type { UserRole } from "../../auth.config";
 
 function roleDashboard(role: UserRole | undefined): string {
-  if (role === "owner" || role === "pg_operator") return "/en/owner/dashboard";
+  if (role === "owner") return "/en/owner/dashboard";
+  if (role === "pg_operator") return "/en/pg-operator/dashboard";
   if (role === "admin") return "/en/admin";
   return "/en/tenant/dashboard";
 }

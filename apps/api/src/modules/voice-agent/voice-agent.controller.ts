@@ -9,7 +9,7 @@ import {
   ForbiddenException
 } from "@nestjs/common";
 import { VoiceAgentSessionService } from "./voice-agent-session.service";
-import { RealtimeSessionService } from "./realtime-session.service";
+import { RealtimeSessionService } from "../voice-agent-core";
 import { readFeatureFlags } from "../../config/feature-flags";
 
 /* ──────────────────────────────────────────────────────────────────────

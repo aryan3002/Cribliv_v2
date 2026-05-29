@@ -103,13 +103,32 @@ export function SessionBanner({ locale }: { locale: Locale }) {
           </>
         )}
 
-        {(role === "owner" || role === "pg_operator") && (
+        {role === "owner" && (
           <>
             <Link href={`/${locale}/owner/dashboard`} className="btn btn--primary btn--sm">
               My dashboard
             </Link>
             <Link href={`/${locale}/owner/listings/new`} className="btn btn--secondary btn--sm">
               + New listing
+            </Link>
+          </>
+        )}
+
+        {role === "pg_operator" && (
+          <>
+            <Link
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              href={`/${locale}/pg-operator/dashboard` as any}
+              className="btn btn--primary btn--sm"
+            >
+              PG dashboard
+            </Link>
+            <Link
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              href={`/${locale}/pg-operator/listings/new` as any}
+              className="btn btn--secondary btn--sm"
+            >
+              + New PG listing
             </Link>
           </>
         )}

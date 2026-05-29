@@ -1,12 +1,14 @@
 "use client";
 import { usePlans } from "@/lib/rent-agreement/hooks/use-plans";
-import type { Locale, PlanId } from "@/lib/rent-agreement/api/types";
+import type { Locale, PlanCatalogEntry, PlanId } from "@/lib/rent-agreement/api/types";
 
 export function PlanPicker(props: {
   value: { plan: PlanId; locale: Locale };
   onChange: (v: { plan: PlanId; locale: Locale }) => void;
+  /** Server-side prefetched catalog. When provided, skips the client fetch + loading flash. */
+  initialPlans?: PlanCatalogEntry[];
 }) {
-  const plans = usePlans();
+  const plans = usePlans(props.initialPlans);
   if (plans.isLoading) return <p className="ra-loading">Loading plans…</p>;
   if (plans.isError) return <p className="ra-error">Failed to load plans.</p>;
   return (

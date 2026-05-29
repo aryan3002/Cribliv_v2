@@ -130,12 +130,26 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
           icon: <Heart size={16} aria-hidden="true" />,
           label: t(locale, "menuMySaved")
         },
-        ...(role === "owner" || role === "pg_operator"
+        ...(role === "owner"
           ? [
               {
                 href: `/${locale}/owner/dashboard`,
                 icon: <Home size={16} aria-hidden="true" />,
                 label: t(locale, "menuMyListings")
+              } as MenuItem
+            ]
+          : []),
+        ...(role === "pg_operator"
+          ? [
+              {
+                href: `/${locale}/pg-operator/dashboard`,
+                icon: <Home size={16} aria-hidden="true" />,
+                label: t(locale, "menuPgDashboard")
+              } as MenuItem,
+              {
+                href: `/${locale}/pg-operator/listings/new`,
+                icon: <Plus size={16} aria-hidden="true" />,
+                label: t(locale, "menuPgNewListing")
               } as MenuItem
             ]
           : []),

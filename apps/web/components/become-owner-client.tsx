@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { Route } from "next";
 import { useSession, signIn } from "next-auth/react";
 import { requestRoleUpgrade } from "../lib/owner-api";
 
@@ -69,7 +70,14 @@ export function BecomeOwnerClient({ locale }: { locale: string }) {
               Your role is active. Manage your listings from the dashboard.
             </p>
           </div>
-          <Link href={`/${locale}/owner/dashboard`} className="btn btn--primary">
+          <Link
+            href={
+              (userRole === "pg_operator"
+                ? `/${locale}/pg-operator/dashboard`
+                : `/${locale}/owner/dashboard`) as Route
+            }
+            className="btn btn--primary"
+          >
             Go to Dashboard
           </Link>
         </div>
@@ -119,6 +127,13 @@ export function BecomeOwnerClient({ locale }: { locale: string }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    // PG tile deep-links to the dedicated PG operator onboarding flow.
+    // Owner tile continues with the inline role-upgrade request.
+    if (selected === "pg_operator") {
+      router.push(`/${locale}/pg-operator/become` as Route);
+      return;
+    }
+
     if (!accessToken) {
       void signIn(undefined, { callbackUrl: `/${locale}/become-owner` });
       return;
@@ -128,7 +143,7 @@ export function BecomeOwnerClient({ locale }: { locale: string }) {
     setError(null);
 
     try {
-      const result = await requestRoleUpgrade(accessToken, selected);
+      const result = await requestRoleUpgrade(accessToken, "owner");
 
       if (result.status === "granted") {
         await updateSession();

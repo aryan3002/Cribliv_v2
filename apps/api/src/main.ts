@@ -58,7 +58,11 @@ async function bootstrap() {
     origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Idempotency-Key", "Idempotency-Key"]
+    allowedHeaders: ["Content-Type", "Authorization", "X-Idempotency-Key", "Idempotency-Key"],
+    // Cache preflight for 24h. Without this the browser re-runs OPTIONS before
+    // every CORS-preflighted call — on mobile (200–300ms RTT) that doubles
+    // every API round-trip. 86400 is the Chromium cap; Firefox cap is 86400 too.
+    maxAge: 86400
   });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

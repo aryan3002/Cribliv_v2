@@ -18,7 +18,8 @@ const API_BASE =
 function rolePath(role: UserRole | undefined, locale = "en"): string {
   // Tenants land on the homepage — their "dashboard" is the search experience
   if (!role || role === "tenant") return `/${locale}`;
-  if (role === "owner" || role === "pg_operator") return `/${locale}/owner/dashboard`;
+  if (role === "owner") return `/${locale}/owner/dashboard`;
+  if (role === "pg_operator") return `/${locale}/pg-operator/dashboard`;
   if (role === "admin") return `/${locale}/admin`;
   return `/${locale}`;
 }
@@ -32,7 +33,10 @@ function canAccessPath(role: UserRole | undefined, path: string): boolean {
     return role === "admin";
   }
   if (path.startsWith("/en/owner") || path.startsWith("/hi/owner")) {
-    return role === "owner" || role === "pg_operator";
+    return role === "owner";
+  }
+  if (path.startsWith("/en/pg-operator") || path.startsWith("/hi/pg-operator")) {
+    return role === "pg_operator";
   }
   if (path.startsWith("/en/tenant") || path.startsWith("/hi/tenant")) {
     return role === "tenant";

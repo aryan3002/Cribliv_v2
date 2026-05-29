@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { Route } from "next";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -10,6 +11,8 @@ import {
   Sparkles
 } from "lucide-react";
 import { BecomeOwnerClient } from "../../../components/become-owner-client";
+import { auth } from "../../../auth";
+import { listAPgHref } from "./listAPgHref";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -71,8 +74,11 @@ const TRUST_POINTS = [
   { text: "Verified badge for trust", textHi: "भरोसे के लिए वेरिफाइड बैज" }
 ];
 
-export default function BecomeOwnerPage({ params }: { params: { locale: string } }) {
+export default async function BecomeOwnerPage({ params }: { params: { locale: string } }) {
   const isHindi = params.locale === "hi";
+  const session = await auth();
+  const role = (session?.user as { role?: string } | undefined)?.role ?? null;
+  const pgHref = listAPgHref(role, params.locale);
 
   return (
     <>
@@ -107,12 +113,27 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
               ? "शून्य कमीशन। सत्यापित किरायेदार। AI-मैच्ड लीड — सब कुछ फ्री।"
               : "Zero commission. Verified tenants. AI-matched leads — all for free. Join hundreds of owners across North India."}
           </p>
-          <Link
-            href={`/${params.locale}/owner/listings/new`}
-            className="btn btn--lg animate-in animate-in-delay-3"
+          <div
+            style={{
+              display: "flex",
+              gap: "var(--space-3)",
+              justifyContent: "center",
+              flexWrap: "wrap"
+            }}
           >
-            {isHindi ? "अभी लिस्ट करें" : "Start Listing Now"} <ArrowRight size={18} />
-          </Link>
+            <Link
+              href={`/${params.locale}/owner/listings/new`}
+              className="btn btn--lg animate-in animate-in-delay-3"
+            >
+              {isHindi ? "अभी लिस्ट करें" : "Start Listing Now"} <ArrowRight size={18} />
+            </Link>
+            <Link
+              href={pgHref as Route}
+              className="btn btn--lg btn--secondary animate-in animate-in-delay-3"
+            >
+              {isHindi ? "PG लिस्ट करें" : "List a PG"} <ArrowRight size={18} />
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -257,9 +278,21 @@ export default function BecomeOwnerPage({ params }: { params: { locale: string }
             ? "5 मिनट में AI-सत्यापित लिस्टिंग बनाएं।"
             : "Create an AI-verified listing in under 5 minutes. No fees, no commission, ever."}
         </p>
-        <Link href={`/${params.locale}/owner/listings/new`} className="btn btn--lg">
-          {isHindi ? "अभी लिस्ट करें" : "Create Listing"} <ArrowRight size={18} />
-        </Link>
+        <div
+          style={{
+            display: "flex",
+            gap: "var(--space-3)",
+            justifyContent: "center",
+            flexWrap: "wrap"
+          }}
+        >
+          <Link href={`/${params.locale}/owner/listings/new`} className="btn btn--lg">
+            {isHindi ? "अभी लिस्ट करें" : "Create Listing"} <ArrowRight size={18} />
+          </Link>
+          <Link href={pgHref as Route} className="btn btn--lg btn--secondary">
+            {isHindi ? "PG लिस्ट करें" : "List a PG"} <ArrowRight size={18} />
+          </Link>
+        </div>
       </section>
     </>
   );

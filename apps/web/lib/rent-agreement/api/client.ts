@@ -22,9 +22,12 @@ export class ApiClient {
 
   async request<T>(req: ApiRequest): Promise<ApiResult<T>> {
     const token = await this.getToken();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json"
-    };
+    const headers: Record<string, string> = {};
+    // Only label the payload when there *is* one. Sending Content-Type on a
+    // bodyless GET/HEAD promotes the request from a CORS "simple" request to a
+    // preflighted one — every call then costs an extra OPTIONS round-trip,
+    // which dominates latency on mobile networks. See main.ts CORS config.
+    if (req.body !== undefined) headers["Content-Type"] = "application/json";
     if (token) headers.Authorization = `Bearer ${token}`;
     if (req.idempotencyKey) headers["Idempotency-Key"] = req.idempotencyKey;
 

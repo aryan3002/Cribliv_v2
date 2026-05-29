@@ -15,8 +15,7 @@ import { randomUUID } from "crypto";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import { readFeatureFlags } from "../../config/feature-flags";
 import { VoiceAgentSessionService, type SessionRow } from "./voice-agent-session.service";
-import { StreamingSTTService } from "./streaming-stt.service";
-import { StreamingTTSService } from "./streaming-tts.service";
+import { StreamingSTTService, StreamingTTSService } from "../voice-agent-core";
 import { ConversationOrchestratorService } from "./conversation-orchestrator.service";
 import type { VoiceAgentPhase, ConversationTurn } from "@cribliv/shared-types";
 

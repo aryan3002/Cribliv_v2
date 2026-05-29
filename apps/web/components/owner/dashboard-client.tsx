@@ -107,11 +107,11 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
   const { data: nextAuthSession } = useSession();
   const accessToken = nextAuthSession?.accessToken ?? null;
   const userName = nextAuthSession?.user?.name ?? "";
-  const userRole = nextAuthSession?.user?.role as "owner" | "pg_operator" | undefined;
-  const isPgOperator = userRole === "pg_operator";
-  const createListingLabel = isPgOperator ? "Add PG" : t(loc, "createListing");
+  const userRole = nextAuthSession?.user?.role as "owner" | undefined;
+  // pg_operator is hard-split via middleware (T6); this file is owner-only.
+  const createListingLabel = t(loc, "createListing");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const newListingHref = `/${locale}/owner/listings/new${isPgOperator ? "?type=pg" : ""}` as any;
+  const newListingHref = `/${locale}/owner/listings/new` as any;
 
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [listings, setListings] = useState<OwnerListingVm[]>([]);
@@ -277,7 +277,7 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
             transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
           >
             <p className="dlx-hero__eyebrow">
-              {isPgOperator ? "PG Operator" : "Owner"} workspace
+              Owner workspace
               {lastUpdated && (
                 <span className="dlx-hero__time">
                   {" · "}
@@ -441,7 +441,6 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
             ) : listings.length === 0 ? (
               <EmptyListings
                 locale={locale}
-                isPgOperator={isPgOperator}
                 statusFilter={statusFilter}
                 createListingLabel={createListingLabel}
                 newListingHref={newListingHref}
@@ -679,13 +678,11 @@ function TabButton({
 
 function EmptyListings({
   locale,
-  isPgOperator,
   statusFilter,
   createListingLabel,
   newListingHref
 }: {
   locale: string;
-  isPgOperator: boolean;
   statusFilter: ListingStatus | "all";
   createListingLabel: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -701,11 +698,9 @@ function EmptyListings({
         {statusFilter === "all" ? "Your portfolio starts here." : "Nothing in this lane yet."}
       </h3>
       <p className="dlx-empty__desc">
-        {isPgOperator
-          ? "Add your first PG to start receiving verified tenant enquiries."
-          : statusFilter === "all"
-            ? t(loc, "noListingsDescription")
-            : "Switch filters or create a new listing to fill this lane."}
+        {statusFilter === "all"
+          ? t(loc, "noListingsDescription")
+          : "Switch filters or create a new listing to fill this lane."}
       </p>
       <Link href={newListingHref} className="dlx-cta dlx-cta--quiet">
         <Plus size={15} /> {createListingLabel}

@@ -1,0 +1,114 @@
+import "reflect-metadata";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { Module } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
+import { INestApplication } from "@nestjs/common";
+import request from "supertest";
+import { PgListingController } from "../src/modules/pg-operator/pg-listing.controller";
+import { PgListingService } from "../src/modules/pg-operator/services/pg-listing.service";
+import { PgPropertiesService } from "../src/modules/pg-operator/services/pg-properties.service";
+import { OwnerService } from "../src/modules/owner/owner.service";
+import { DatabaseService } from "../src/common/database.service";
+import { AppStateService } from "../src/common/app-state.service";
+import { AuthGuard } from "../src/common/auth.guard";
+import { RolesGuard } from "../src/common/roles.guard";
+
+const fakeDb = { isEnabled: () => false, query: async () => ({ rows: [] }) };
+const allowAllGuard = {
+  canActivate: (ctx: any) => {
+    ctx.switchToHttp().getRequest().user = { id: "op-1", role: "pg_operator" };
+    return true;
+  }
+};
+const ownerMock = {
+  createListing: async (_op: string, dto: any) => ({
+    id: "L1",
+    status: "draft",
+    ...dto
+  })
+};
+
+@Module({
+  controllers: [PgListingController],
+  providers: [
+    PgListingService,
+    PgPropertiesService,
+    AppStateService,
+    { provide: OwnerService, useValue: ownerMock },
+    { provide: DatabaseService, useValue: fakeDb }
+  ]
+})
+class TestPgListingModule {}
+
+describe("PgListingController (integration)", () => {
+  let app: INestApplication;
+  let propsService: PgPropertiesService;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [TestPgListingModule] })
+      .overrideGuard(AuthGuard)
+      .useValue(allowAllGuard)
+      .overrideGuard(RolesGuard)
+      .useValue(allowAllGuard)
+      .compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+    propsService = moduleRef.get(PgPropertiesService);
+    await propsService.createProperty("op-1", { display_name: "Hostel A", city_slug: "delhi" });
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const validPayload = {
+    property: { display_name: "Hostel A", city_slug: "delhi" },
+    pg_details: { total_beds: 10 },
+    room_types: [
+      {
+        sharing: "double",
+        ac: true,
+        bathroom_kind: "attached_western",
+        furnishing: "semi_furnished",
+        monthly_rent_paise: 1_200_000,
+        vacancy_count: 4
+      }
+    ]
+  };
+
+  it("400 missing Idempotency-Key", async () => {
+    const r = await request(app.getHttpServer()).post("/pg-operator/listings").send(validPayload);
+    expect(r.status).toBe(400);
+    expect(JSON.stringify(r.body)).toMatch(/idempotency/i);
+  });
+
+  it("400 on invalid payload (missing room_types)", async () => {
+    const r = await request(app.getHttpServer())
+      .post("/pg-operator/listings")
+      .set("Idempotency-Key", "test-bad")
+      .send({ property: { display_name: "A", city_slug: "delhi" }, pg_details: { total_beds: 1 } });
+    expect(r.status).toBe(400);
+  });
+
+  it("creates listing with valid payload + Idempotency-Key", async () => {
+    const r = await request(app.getHttpServer())
+      .post("/pg-operator/listings")
+      .set("Idempotency-Key", "test-good")
+      .send(validPayload);
+    expect(r.status).toBe(201);
+    expect(r.body.data.id).toBe("L1");
+  });
+
+  it("400 on rent below ₹2k (Zod boundary)", async () => {
+    const bad = {
+      ...validPayload,
+      room_types: [{ ...validPayload.room_types[0], monthly_rent_paise: 100_000 }]
+    };
+    const r = await request(app.getHttpServer())
+      .post("/pg-operator/listings")
+      .set("Idempotency-Key", "test-rent-low")
+      .send(bad);
+    expect(r.status).toBe(400);
+    expect(JSON.stringify(r.body)).toMatch(/monthly_rent/);
+  });
+});

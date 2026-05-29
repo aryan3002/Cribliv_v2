@@ -32,6 +32,8 @@ const dictionary: Dictionary = {
   menuHelpFaq: { en: "Help & FAQ", hi: "मदद और FAQ" },
   menuSignOut: { en: "Sign out", hi: "साइन आउट" },
   menuMyListings: { en: "My listings", hi: "मेरी लिस्टिंग" },
+  menuPgDashboard: { en: "PG dashboard", hi: "PG डैशबोर्ड" },
+  menuPgNewListing: { en: "New PG listing", hi: "नई PG लिस्टिंग" },
   menuAdmin: { en: "Admin", hi: "एडमिन" },
   rowPopularHomesLucknow: {
     en: "Popular homes in Lucknow",
@@ -275,7 +277,43 @@ const dictionary: Dictionary = {
   amenityCategoryServices: { en: "Services", hi: "सर्विसेज" },
   amenityCategoryOther: { en: "Other", hi: "अन्य" },
   notIncluded: { en: "Not included", hi: "उपलब्ध नहीं" },
-  exploreOnMap: { en: "Explore on CriblMap", hi: "CriblMap पर देखें" }
+  exploreOnMap: { en: "Explore on CriblMap", hi: "CriblMap पर देखें" },
+  // PG Operator keys (Task 26 — EN canonical, HI stubbed)
+  pgBecomeTitle: { en: "Become a PG operator", hi: "Become a PG operator" },
+  pgBecomeTenantSetup: {
+    en: "Setting up your PG operator account…",
+    hi: "Setting up your PG operator account…"
+  },
+  pgBecomeOwnerBlocked: {
+    en: "You already manage properties as an owner",
+    hi: "You already manage properties as an owner"
+  },
+  pgBecomeOwnerBlockedBody: {
+    en: "Managing both an owner account and a PG operator account in one profile is on the V1.5 roadmap.",
+    hi: "Managing both an owner account and a PG operator account in one profile is on the V1.5 roadmap."
+  },
+  pgOnboardingTitle: { en: "How big is your PG?", hi: "How big is your PG?" },
+  pgWizardStep1: { en: "Property & Identity", hi: "Property & Identity" },
+  pgWizardStep2: { en: "Rooms & Pricing", hi: "Rooms & Pricing" },
+  pgWizardStep3: { en: "Payment", hi: "Payment" },
+  pgWizardStep4: { en: "Rules", hi: "Rules" },
+  pgWizardStep5: { en: "Amenities & Food", hi: "Amenities & Food" },
+  pgWizardStep6: { en: "Photos & Review", hi: "Photos & Review" },
+  pgVoiceOpenCta: {
+    en: "Or speak it — Chaya can fill this in",
+    hi: "Or speak it — Chaya can fill this in"
+  },
+  pgVoiceTapToTalk: { en: "Tap to talk", hi: "Tap to talk" },
+  pgVoiceTimerAria: { en: "Session time remaining", hi: "Session time remaining" },
+  pgVoiceWarnOneMin: {
+    en: "Almost out of time — wrap up your listing",
+    hi: "Almost out of time — wrap up your listing"
+  },
+  pgDashboardTitle: { en: "Your PG dashboard", hi: "Your PG dashboard" },
+  pgDashboardEmpty: {
+    en: "Once your listing is live, performance shows here.",
+    hi: "Once your listing is live, performance shows here."
+  }
 };
 
 export function t(locale: Locale, key: string): string {

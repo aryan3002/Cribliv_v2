@@ -20,6 +20,25 @@ const SAVED_SEARCH_ALERT_MS = 24 * 60 * 60 * 1000; // daily
 const SEEKER_PIN_CLEANUP_MS = 24 * 60 * 60 * 1000; // daily
 const ALERT_ZONE_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const SEO_COPY_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
+const PG_TTL_SWEEP_MS = 24 * 60 * 60 * 1000; // daily — expire pg_voice_agent_sessions + uncommitted pg_listing_drafts
+
+/**
+ * Daily cleanup of expired PG voice agent state.
+ * - pg_voice_agent_sessions past ttl (default 7d) -> hard delete
+ * - pg_listing_drafts past ttl (default 30d) WITH no committed_listing_id -> hard delete
+ *   Committed drafts stay as audit trail.
+ */
+async function runPgTtlSweep(pool: Pool): Promise<{ sessions: number; drafts: number }> {
+  const s = await pool.query(
+    `DELETE FROM pg_voice_agent_sessions WHERE ttl_expires_at < now() RETURNING id`
+  );
+  const d = await pool.query(
+    `DELETE FROM pg_listing_drafts
+      WHERE ttl_expires_at < now() AND committed_listing_id IS NULL
+      RETURNING id`
+  );
+  return { sessions: s.rowCount ?? 0, drafts: d.rowCount ?? 0 };
+}
 
 async function runSeoCopySweep(pool: Pool): Promise<number> {
   // Drop expired/stale AI copy. The on-demand renderer will regenerate it
@@ -1078,6 +1097,34 @@ async function run() {
       }
     };
     setInterval(runSubscriptionRenewal, SUBSCRIPTION_RENEWAL_MS);
+
+    // ── PG TTL sweep (daily) — voice sessions + uncommitted drafts ──
+    const runPgTtl = async () => {
+      try {
+        const counts = await runPgTtlSweep(pool);
+        if (counts.sessions > 0 || counts.drafts > 0) {
+          console.log(
+            JSON.stringify({
+              job: "pg_ttl_sweep",
+              expired_sessions: counts.sessions,
+              expired_drafts: counts.drafts,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            job: "pg_ttl_sweep",
+            error: err instanceof Error ? err.message : String(err),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runPgTtl, PG_TTL_SWEEP_MS);
+    // Run once at boot too:
+    void runPgTtl();
 
     // ── Saved search alert sweep (daily) ──
     const runSavedSearchAlerts = async () => {

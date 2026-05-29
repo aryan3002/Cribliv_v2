@@ -21,6 +21,6 @@ import { AzureBlobPhotoStorageService } from "./azure-blob-photo-storage.service
     ListingContentGeneratorService,
     AzureBlobPhotoStorageService
   ],
-  exports: [AzureSpeechClient]
+  exports: [AzureSpeechClient, OwnerService]
 })
 export class OwnerModule {}

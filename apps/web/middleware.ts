@@ -6,7 +6,8 @@
  *
  * Protected prefixes (require authentication):
  *   /en/tenant/*  → role: tenant
- *   /en/owner/*   → role: owner | pg_operator
+ *   /en/owner/*   → role: owner
+ *   /en/pg-operator/* → role: pg_operator
  *   /en/admin/*   → role: admin
  *
  * Public routes (pass through):
@@ -23,10 +24,12 @@ import type { UserRole } from "./auth.config";
 // ---------------------------------------------------------------------------
 const PROTECTED_PREFIXES: Array<{ prefix: string; roles: UserRole[] }> = [
   { prefix: "/en/tenant", roles: ["tenant"] },
-  { prefix: "/en/owner", roles: ["owner", "pg_operator"] },
+  { prefix: "/en/owner", roles: ["owner"] },
+  { prefix: "/en/pg-operator", roles: ["pg_operator"] },
   { prefix: "/en/admin", roles: ["admin"] },
   { prefix: "/hi/tenant", roles: ["tenant"] },
-  { prefix: "/hi/owner", roles: ["owner", "pg_operator"] },
+  { prefix: "/hi/owner", roles: ["owner"] },
+  { prefix: "/hi/pg-operator", roles: ["pg_operator"] },
   { prefix: "/hi/admin", roles: ["admin"] }
 ];
 
@@ -244,6 +247,7 @@ export const config = {
      *   - "/"                     (root locale redirect)
      *   - "/en/tenant/*"          (tenant dashboard)
      *   - "/en/owner/*"           (owner dashboard)
+     *   - "/en/pg-operator/*"     (pg operator dashboard)
      *   - "/en/admin/*"           (admin dashboard)
      *   - "/hi/tenant/*" etc.     (Hindi locale variants)
      *
@@ -256,9 +260,11 @@ export const config = {
     "/auth/login",
     "/en/tenant/:path*",
     "/en/owner/:path*",
+    "/en/pg-operator/:path*",
     "/en/admin/:path*",
     "/hi/tenant/:path*",
     "/hi/owner/:path*",
+    "/hi/pg-operator/:path*",
     "/hi/admin/:path*",
     // Markdown content negotiation surfaces (middleware checks Accept header
     // and may rewrite to /md/... for agents).

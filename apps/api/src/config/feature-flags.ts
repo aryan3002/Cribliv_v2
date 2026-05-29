@@ -52,6 +52,24 @@ export interface FeatureFlags {
   /** Phase G – Rent Agreement v2 (backend) */
   ff_rent_agreement_enabled: boolean;
   ff_rent_agreement_admin_enabled: boolean;
+  /** Phase H – PG Operator V1 */
+  ff_pg_operator_v1: boolean;
+  ff_pg_listing_wizard_enabled: boolean;
+  ff_pg_voice_agent_enabled: boolean;
+  ff_pg_voice_agent_realtime: boolean;
+  ff_pg_dashboard_enabled: boolean;
+  ff_pg_dashboard_listing_health: boolean;
+  ff_pg_dashboard_leads_inbox: boolean;
+  ff_pg_segmentation_v2: boolean;
+  ff_pg_multi_property_enabled: boolean;
+  /** Phase H+ – PG Operator V2..V8 (declared early for compile-time awareness, all OFF in V1) */
+  ff_pg_bed_mgmt: boolean;
+  ff_pg_tenant_portal: boolean;
+  ff_pg_rent_collection: boolean;
+  ff_pg_food: boolean;
+  ff_pg_ops_full: boolean;
+  ff_pg_agreement: boolean;
+  ff_pg_comms: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -107,7 +125,25 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_alert_zones_enabled: false,
   /** Phase G – Rent Agreement v2 (default OFF; gated until PAN key + IP salt validated at boot) */
   ff_rent_agreement_enabled: false,
-  ff_rent_agreement_admin_enabled: false
+  ff_rent_agreement_admin_enabled: false,
+  /** Phase H – PG Operator V1 (default OFF in prod; staging/dev set via env) */
+  ff_pg_operator_v1: false,
+  ff_pg_listing_wizard_enabled: false,
+  ff_pg_voice_agent_enabled: false,
+  ff_pg_voice_agent_realtime: false,
+  ff_pg_dashboard_enabled: false,
+  ff_pg_dashboard_listing_health: true,
+  ff_pg_dashboard_leads_inbox: true,
+  ff_pg_segmentation_v2: false,
+  ff_pg_multi_property_enabled: false,
+  /** Phase H+ – PG Operator V2..V8 (default OFF; unlocked per future version cycle) */
+  ff_pg_bed_mgmt: false,
+  ff_pg_tenant_portal: false,
+  ff_pg_rent_collection: false,
+  ff_pg_food: false,
+  ff_pg_ops_full: false,
+  ff_pg_agreement: false,
+  ff_pg_comms: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -296,6 +332,52 @@ export function readFeatureFlags(): FeatureFlags {
     ff_rent_agreement_admin_enabled: parseBooleanEnv(
       "FF_RENT_AGREEMENT_ADMIN_ENABLED",
       defaultFeatureFlags.ff_rent_agreement_admin_enabled
-    )
+    ),
+    ff_pg_operator_v1: parseBooleanEnv("FF_PG_OPERATOR_V1", defaultFeatureFlags.ff_pg_operator_v1),
+    ff_pg_listing_wizard_enabled: parseBooleanEnv(
+      "FF_PG_LISTING_WIZARD_ENABLED",
+      defaultFeatureFlags.ff_pg_listing_wizard_enabled
+    ),
+    ff_pg_voice_agent_enabled: parseBooleanEnv(
+      "FF_PG_VOICE_AGENT_ENABLED",
+      defaultFeatureFlags.ff_pg_voice_agent_enabled
+    ),
+    ff_pg_voice_agent_realtime: parseBooleanEnv(
+      "FF_PG_VOICE_AGENT_REALTIME",
+      defaultFeatureFlags.ff_pg_voice_agent_realtime
+    ),
+    ff_pg_dashboard_enabled: parseBooleanEnv(
+      "FF_PG_DASHBOARD_ENABLED",
+      defaultFeatureFlags.ff_pg_dashboard_enabled
+    ),
+    ff_pg_dashboard_listing_health: parseBooleanEnv(
+      "FF_PG_DASHBOARD_LISTING_HEALTH",
+      defaultFeatureFlags.ff_pg_dashboard_listing_health
+    ),
+    ff_pg_dashboard_leads_inbox: parseBooleanEnv(
+      "FF_PG_DASHBOARD_LEADS_INBOX",
+      defaultFeatureFlags.ff_pg_dashboard_leads_inbox
+    ),
+    ff_pg_segmentation_v2: parseBooleanEnv(
+      "FF_PG_SEGMENTATION_V2",
+      defaultFeatureFlags.ff_pg_segmentation_v2
+    ),
+    ff_pg_multi_property_enabled: parseBooleanEnv(
+      "FF_PG_MULTI_PROPERTY_ENABLED",
+      defaultFeatureFlags.ff_pg_multi_property_enabled
+    ),
+    ff_pg_bed_mgmt: parseBooleanEnv("FF_PG_BED_MGMT", defaultFeatureFlags.ff_pg_bed_mgmt),
+    ff_pg_tenant_portal: parseBooleanEnv(
+      "FF_PG_TENANT_PORTAL",
+      defaultFeatureFlags.ff_pg_tenant_portal
+    ),
+    ff_pg_rent_collection: parseBooleanEnv(
+      "FF_PG_RENT_COLLECTION",
+      defaultFeatureFlags.ff_pg_rent_collection
+    ),
+    ff_pg_food: parseBooleanEnv("FF_PG_FOOD", defaultFeatureFlags.ff_pg_food),
+    ff_pg_ops_full: parseBooleanEnv("FF_PG_OPS_FULL", defaultFeatureFlags.ff_pg_ops_full),
+    ff_pg_agreement: parseBooleanEnv("FF_PG_AGREEMENT", defaultFeatureFlags.ff_pg_agreement),
+    ff_pg_comms: parseBooleanEnv("FF_PG_COMMS", defaultFeatureFlags.ff_pg_comms)
   };
 }

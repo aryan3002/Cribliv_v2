@@ -21,7 +21,7 @@ interface OtpVerifyResponse {
 const ROLE_PHONE: Record<Role, string> = {
   tenant: "+919999999902",
   owner: "+919999999901",
-  pg_operator: "+919999999901",
+  pg_operator: "+919999999904",
   admin: "+919999999903"
 };
 

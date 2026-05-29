@@ -20,6 +20,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { AiModule } from "./modules/ai/ai.module";
 import { VoiceModule } from "./modules/voice/voice.module";
+import { VoiceAgentCoreModule } from "./modules/voice-agent-core";
 import { VoiceAgentModule } from "./modules/voice-agent/voice-agent.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { AnalyticsModule } from "./modules/analytics/analytics.module";
@@ -33,6 +34,8 @@ import { LandmarksModule } from "./modules/landmarks/landmarks.module";
 import { SeoModule } from "./modules/seo/seo.module";
 import { RentAgreementModule } from "./modules/rent-agreement/rent-agreement.module";
 import { OpenApiModule } from "./modules/openapi/openapi.module";
+import { PgOperatorModule } from "./modules/pg-operator/pg-operator.module";
+import { VoiceAgentPgModule } from "./modules/voice-agent-pg/voice-agent-pg.module";
 
 @Module({
   imports: [
@@ -57,6 +60,7 @@ import { OpenApiModule } from "./modules/openapi/openapi.module";
     SalesModule,
     AiModule,
     VoiceModule,
+    VoiceAgentCoreModule,
     VoiceAgentModule,
     NotificationsModule,
     AnalyticsModule,
@@ -70,7 +74,9 @@ import { OpenApiModule } from "./modules/openapi/openapi.module";
     SeoModule,
     OpenApiModule,
 
-    RentAgreementModule
+    RentAgreementModule,
+    PgOperatorModule,
+    VoiceAgentPgModule
   ],
   providers: [
     // Apply ThrottlerGuard globally to all routes

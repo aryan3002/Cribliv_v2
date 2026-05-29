@@ -469,4 +469,58 @@ export class AppStateService {
     user.role = role;
     return user;
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // PG Operator V1 — in-memory stores (DB-first when DATABASE_URL set)
+  // ─────────────────────────────────────────────────────────────────────
+
+  /** pg_properties — V1 keeps exactly one per operator (multi-property gated by flag) */
+  pgProperties = new Map<string, Record<string, unknown>>();
+  pgPropertiesByOperator(operatorId: string): Record<string, unknown>[] {
+    return [...this.pgProperties.values()].filter((p) => p.operator_id === operatorId);
+  }
+  insertPgProperty(p: Record<string, unknown>): void {
+    this.pgProperties.set(p.id as string, p);
+  }
+
+  /** pg_listing_drafts — voice-mediated or manual partials before commit to listings */
+  pgListingDrafts = new Map<string, Record<string, unknown>>();
+  insertPgListingDraft(d: Record<string, unknown>): void {
+    this.pgListingDrafts.set(d.id as string, d);
+  }
+  getPgListingDraft(id: string): Record<string, unknown> | null {
+    return this.pgListingDrafts.get(id) ?? null;
+  }
+  updatePgListingDraftCommitted(id: string, listingId: string): void {
+    const d = this.pgListingDrafts.get(id);
+    if (d) {
+      d.committed_listing_id = listingId;
+      d.updated_at = new Date().toISOString();
+      this.pgListingDrafts.set(id, d);
+    }
+  }
+
+  /** Idempotency cache for voice -> listing hydrate */
+  pgVoiceIdempotency = new Map<string, string>(); // key -> listing_id
+  getPgVoiceIdempotent(key: string): string | null {
+    return this.pgVoiceIdempotency.get(key) ?? null;
+  }
+  setPgVoiceIdempotent(key: string, listingId: string): void {
+    this.pgVoiceIdempotency.set(key, listingId);
+  }
+
+  /** pg_voice_agent_sessions — transcript + extraction log */
+  pgVoiceSessions = new Map<string, Record<string, unknown>>();
+  insertPgVoiceSession(s: Record<string, unknown>): void {
+    this.pgVoiceSessions.set(s.id as string, s);
+  }
+  getPgVoiceSession(id: string): Record<string, unknown> | null {
+    return this.pgVoiceSessions.get(id) ?? null;
+  }
+  updatePgVoiceSession(id: string, patch: Record<string, unknown>): void {
+    const s = this.pgVoiceSessions.get(id);
+    if (s) {
+      this.pgVoiceSessions.set(id, { ...s, ...patch, updated_at: new Date().toISOString() });
+    }
+  }
 }
