@@ -511,12 +511,13 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
     if (accessToken) {
       const shouldSave = listingId ? step >= 1 : step >= 3;
       if (shouldSave) {
-        // Fire the draft save but don't block navigation on failure —
-        // the form data is preserved in session storage and the user
-        // can still submit at the end. A soft error banner is shown.
-        void saveDraft().then((id) => {
-          if (id) setListingId(id);
-        });
+        // Block navigation until the draft is persisted server-side. If the
+        // save fails, saveDraft() has already surfaced a blocking error —
+        // stay on this step so the owner can fix it and retry, rather than
+        // silently advancing (and later submitting) with an unsaved draft.
+        const savedId = await saveDraft();
+        if (!savedId) return;
+        setListingId(savedId);
       }
     } else if (step === 0) {
       setAuthHint("You can keep filling the form. Login is needed to save and submit.");

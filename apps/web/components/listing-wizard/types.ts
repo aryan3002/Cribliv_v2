@@ -453,6 +453,10 @@ export function validateStep(step: number, form: WizardForm): StepError[] {
     }
     case 1: {
       if (!form.city.trim()) errors.push({ field: "city", message: "City is required" });
+      // Server requires an exactly-6-digit pincode (LocationDto @Matches(/^\d{6}$/)).
+      // Catch it here so the wizard never sends a payload the API rejects with 400.
+      if (form.pincode.trim() && !/^\d{6}$/.test(form.pincode.trim()))
+        errors.push({ field: "pincode", message: "Pincode must be a 6-digit number" });
       break;
     }
     case 2: {
@@ -461,6 +465,12 @@ export function validateStep(step: number, form: WizardForm): StepError[] {
         const bhk = Number(form.bedrooms);
         if (!Number.isFinite(bhk) || bhk < 1 || bhk > 20)
           errors.push({ field: "bedrooms", message: "Bedrooms must be 1-20" });
+      }
+      // Server constrains bathrooms to 1-10 (PropertyFieldsDto @Min(1) @Max(10)).
+      if (!isPg && form.bathrooms) {
+        const bathrooms = Number(form.bathrooms);
+        if (!Number.isFinite(bathrooms) || bathrooms < 1 || bathrooms > 10)
+          errors.push({ field: "bathrooms", message: "Bathrooms must be 1-10" });
       }
       if (isPg && form.beds) {
         const beds = Number(form.beds);
