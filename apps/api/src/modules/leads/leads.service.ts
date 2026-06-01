@@ -1,4 +1,11 @@
-import { Inject, Injectable, Logger, BadRequestException } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  BadRequestException,
+  HttpException,
+  HttpStatus
+} from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 
@@ -134,6 +141,84 @@ export class LeadsService {
       total: Number(countResult.rows[0]?.total ?? 0),
       page,
       page_size: pageSize
+    };
+  }
+
+  /**
+   * Contact-unlock / interest count per listing for an owner/operator, optionally
+   * windowed. One lead == one tenant who unlocked the listing, so this is the
+   * truthful "contact unlocks" metric for the dashboard card (the card used to
+   * read listing_events('enquiry'), which an unlock never writes → always 0).
+   */
+  async getListingLeadCounts(
+    ownerUserId: string,
+    listingIds: string[],
+    since?: Date
+  ): Promise<Array<{ listing_id: string; count: number }>> {
+    if (!this.database.isEnabled() || !listingIds.length) return [];
+
+    const params: unknown[] = [ownerUserId, listingIds];
+    let sinceClause = "";
+    if (since) {
+      params.push(since.toISOString());
+      sinceClause = ` AND created_at >= $${params.length}`;
+    }
+
+    const result = await this.database.query<{ listing_id: string; count: number }>(
+      `SELECT listing_id::text AS listing_id, count(*)::int AS count
+       FROM leads
+       WHERE owner_user_id = $1::uuid
+         AND listing_id = ANY($2::uuid[])${sinceClause}
+       GROUP BY listing_id`,
+      params
+    );
+    return result.rows;
+  }
+
+  /**
+   * Reveal a lead's real tenant contact to its owner/operator.
+   *
+   * In V1.5 this is gated behind an operator payment (the PG lead-unlock plan).
+   * That flow isn't built yet, so for now reveal is allowed only in NON-production
+   * (or with PG_LEAD_DEV_REVEAL=true). In production without that env it returns
+   * 402 payment_required — the seam where the paid flow will plug in.
+   */
+  async openLeadForOperator(
+    leadId: string,
+    operatorUserId: string
+  ): Promise<{ lead_id: string; phone: string | null; tenant_name: string }> {
+    const revealAllowed =
+      process.env.NODE_ENV !== "production" || process.env.PG_LEAD_DEV_REVEAL === "true";
+    if (!revealAllowed) {
+      throw new HttpException(
+        {
+          code: "payment_required",
+          message: "payment_required: opening a lead's contact requires an active plan"
+        },
+        HttpStatus.PAYMENT_REQUIRED
+      );
+    }
+
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+
+    const row = await this.database.query<{ phone_e164: string | null; tenant_name: string }>(
+      `SELECT u.phone_e164, COALESCE(u.full_name, 'Tenant') AS tenant_name
+         FROM leads ld
+         LEFT JOIN users u ON u.id = ld.tenant_user_id
+        WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
+        LIMIT 1`,
+      [leadId, operatorUserId]
+    );
+    if (!row.rows.length) {
+      throw new BadRequestException({ code: "not_found", message: "Lead not found" });
+    }
+
+    return {
+      lead_id: leadId,
+      phone: row.rows[0].phone_e164 ?? null,
+      tenant_name: row.rows[0].tenant_name
     };
   }
 

@@ -41,10 +41,21 @@ export class AnalyticsService {
   }
 
   async getListingEventCounts(
-    listingId: string
+    listingId: string,
+    since?: Date
   ): Promise<{ views: number; enquiries: number; shortlists: number }> {
     if (!this.database.isEnabled()) {
       return { views: 0, enquiries: 0, shortlists: 0 };
+    }
+
+    // Optional time window. Omitted → lifetime (existing callers unchanged).
+    // Supplied → counts since `since` (uses the listing_events
+    // (listing_id, event_type, created_at) index).
+    const params: unknown[] = [listingId];
+    let sinceClause = "";
+    if (since) {
+      params.push(since.toISOString());
+      sinceClause = ` AND created_at >= $${params.length}`;
     }
 
     const result = await this.database.query<{
@@ -53,9 +64,9 @@ export class AnalyticsService {
     }>(
       `SELECT event_type, count(*)::int AS count
        FROM listing_events
-       WHERE listing_id = $1::uuid AND event_type IN ('view', 'enquiry', 'shortlist')
+       WHERE listing_id = $1::uuid AND event_type IN ('view', 'enquiry', 'shortlist')${sinceClause}
        GROUP BY event_type`,
-      [listingId]
+      params
     );
 
     const counts = { views: 0, enquiries: 0, shortlists: 0 };

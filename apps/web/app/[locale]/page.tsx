@@ -200,8 +200,20 @@ const TESTIMONIALS = [
 
 const PLATFORM_STATS = [
   { value: "₹0", numericValue: 0, prefix: "₹", suffix: "", label: "Brokerage", labelHi: "दलाली" },
-  { value: "100", numericValue: 100, suffix: "%", label: "Owner Verified", labelHi: "सत्यापित मालिक" },
-  { value: "12", numericValue: 12, suffix: "hr", label: "Refund Guarantee", labelHi: "रिफंड गारंटी" },
+  {
+    value: "100",
+    numericValue: 100,
+    suffix: "%",
+    label: "Owner Verified",
+    labelHi: "सत्यापित मालिक"
+  },
+  {
+    value: "12",
+    numericValue: 12,
+    suffix: "hr",
+    label: "Refund Guarantee",
+    labelHi: "रिफंड गारंटी"
+  },
   { value: "8", numericValue: 8, suffix: "+", label: "Cities", labelHi: "शहर" }
 ];
 
@@ -572,7 +584,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   ? "खाने, वाईफाई और साझा सुविधाओं के साथ"
                   : "With meals, WiFi and shared amenities"
               }
-              viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=pg`}
+              viewAllHref={`/${params.locale}/pg/lucknow`}
               items={trendingPgs}
             />
           </div>
@@ -648,7 +660,9 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             <div>
               <span className="edi-eyebrow">{isHindi ? "AI से संचालित" : "Powered by AI"}</span>
               <h2 className="edi-title">
-                {isHindi ? "खोजें, लिस्ट करें, एक्सप्लोर करें — AI के साथ" : "Find, list, and explore — with AI"}
+                {isHindi
+                  ? "खोजें, लिस्ट करें, एक्सप्लोर करें — AI के साथ"
+                  : "Find, list, and explore — with AI"}
               </h2>
             </div>
             <p className="edi-lede">
@@ -670,8 +684,14 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             >
               <div className="ai-feature__pins" aria-hidden="true">
                 <span className="ai-feature__pin" style={{ top: "28%", left: "32%" }} />
-                <span className="ai-feature__pin ai-feature__pin--2" style={{ top: "44%", left: "58%" }} />
-                <span className="ai-feature__pin ai-feature__pin--3" style={{ top: "62%", left: "40%" }} />
+                <span
+                  className="ai-feature__pin ai-feature__pin--2"
+                  style={{ top: "44%", left: "58%" }}
+                />
+                <span
+                  className="ai-feature__pin ai-feature__pin--3"
+                  style={{ top: "62%", left: "40%" }}
+                />
               </div>
               <span className="ai-pill">{isHindi ? "नया" : "New"}</span>
               <h3 className="ai-feature__title">CriblMap</h3>
@@ -691,7 +711,9 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 <Mic size={22} />
               </div>
               <span className="ai-pill">{isHindi ? "AI वॉइस" : "AI Voice"}</span>
-              <h3 className="ai-feature__title">{isHindi ? "Maya — आपकी वॉइस लिस्टिंग एजेंट" : "Maya, your voice listing agent"}</h3>
+              <h3 className="ai-feature__title">
+                {isHindi ? "Maya — आपकी वॉइस लिस्टिंग एजेंट" : "Maya, your voice listing agent"}
+              </h3>
               <p className="ai-feature__desc">
                 {isHindi
                   ? "बस बोलकर अपनी प्रॉपर्टी लिस्ट करें। Maya आपके बताते ही सारी जानकारी भर देती है।"
@@ -715,7 +737,9 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 <span className="ai-chip">{isHindi ? "35k तक" : "Under 35k"}</span>
                 <span className="ai-chip">{isHindi ? "फर्निश्ड" : "Furnished"}</span>
               </div>
-              <h3 className="ai-feature__title">{isHindi ? "जैसे बोलते हैं वैसे खोजें" : "Search the way you talk"}</h3>
+              <h3 className="ai-feature__title">
+                {isHindi ? "जैसे बोलते हैं वैसे खोजें" : "Search the way you talk"}
+              </h3>
               <p className="ai-feature__desc">
                 {isHindi
                   ? "अंग्रेज़ी या हिंदी में लिखें या बोलें — हमारा AI इसे सही फ़िल्टर में बदल देता है।"
@@ -757,12 +781,14 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 bg: "var(--brand-light)"
               },
               {
-                href: `/${params.locale}/search?listing_type=pg`,
+                href: `/${params.locale}/pg`,
                 icon: Home,
                 color: "accent" as const,
                 featured: false,
                 title: isHindi ? "PG और हॉस्टल" : "PGs & Hostels",
-                desc: isHindi ? "खाने, वाईफाई और साझा सुविधाओं के साथ" : "Meals, WiFi, and shared amenities",
+                desc: isHindi
+                  ? "खाने, वाईफाई और साझा सुविधाओं के साथ"
+                  : "Meals, WiFi, and shared amenities",
                 bg: "var(--accent-light)"
               },
               {
@@ -846,9 +872,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                       />
                     )}
                   </div>
-                  <div className="impact-stat__label">
-                    {isHindi ? stat.labelHi : stat.label}
-                  </div>
+                  <div className="impact-stat__label">{isHindi ? stat.labelHi : stat.label}</div>
                 </div>
               ))}
             </div>
@@ -868,7 +892,9 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
           <div className="container">
             <div className="edi-head">
               <div>
-                <span className="edi-eyebrow">{isHindi ? "किरायेदारों की राय" : "Loved by Tenants"}</span>
+                <span className="edi-eyebrow">
+                  {isHindi ? "किरायेदारों की राय" : "Loved by Tenants"}
+                </span>
                 <h2 className="edi-title">{isHindi ? "वे क्या कहते हैं" : "What renters say"}</h2>
               </div>
               <p className="edi-lede">
@@ -954,7 +980,9 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             <span className="cta-banner__eyebrow">
               {isHindi ? "मालिकों के लिए" : "For Property Owners"}
             </span>
-            <h2>{isHindi ? "प्रॉपर्टी है? मुफ़्त में लिस्ट करें" : "Own a property? List it free."}</h2>
+            <h2>
+              {isHindi ? "प्रॉपर्टी है? मुफ़्त में लिस्ट करें" : "Own a property? List it free."}
+            </h2>
             <p>
               {isHindi
                 ? "5 मिनट में AI-सत्यापित लिस्टिंग बनाएं और भरोसेमंद किरायेदारों से सीधे जुड़ें।"

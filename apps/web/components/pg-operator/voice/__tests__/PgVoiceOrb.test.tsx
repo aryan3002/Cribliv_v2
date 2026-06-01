@@ -13,23 +13,47 @@ vi.mock("../PgVoicePanel", () => ({
 }));
 
 import PgVoiceOrb from "../PgVoiceOrb";
+import { initialPgWizardState } from "@/lib/pg-wizard-state";
+
+const baseState = () => initialPgWizardState();
 
 describe("PgVoiceOrb", () => {
   it("renders the FAB with idle state by default", () => {
-    render(<PgVoiceOrb state={{}} dispatch={vi.fn()} locale="en" />);
+    render(
+      <PgVoiceOrb
+        state={baseState()}
+        dispatch={vi.fn()}
+        locale="en"
+        userId="00000000-0000-0000-0000-000000000001"
+      />
+    );
     const btn = screen.getByRole("button", { name: /chaya|voice/i });
     expect(btn).toHaveAttribute("data-state", "idle");
   });
 
   it("opens the panel on click (next/dynamic resolved lazily)", async () => {
-    render(<PgVoiceOrb state={{}} dispatch={vi.fn()} locale="en" />);
+    render(
+      <PgVoiceOrb
+        state={baseState()}
+        dispatch={vi.fn()}
+        locale="en"
+        userId="00000000-0000-0000-0000-000000000001"
+      />
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /chaya|voice/i }));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
   });
 
   it("closes the panel when its onClose is invoked", async () => {
-    render(<PgVoiceOrb state={{}} dispatch={vi.fn()} locale="en" />);
+    render(
+      <PgVoiceOrb
+        state={baseState()}
+        dispatch={vi.fn()}
+        locale="en"
+        userId="00000000-0000-0000-0000-000000000001"
+      />
+    );
     fireEvent.click(screen.getByRole("button", { name: /chaya|voice/i }));
     const closeBtn = await screen.findByRole("button", { name: /close mock/i });
     fireEvent.click(closeBtn);
@@ -37,7 +61,14 @@ describe("PgVoiceOrb", () => {
   });
 
   it("does not render the dialog before the FAB is clicked", () => {
-    render(<PgVoiceOrb state={{}} dispatch={vi.fn()} locale="en" />);
+    render(
+      <PgVoiceOrb
+        state={baseState()}
+        dispatch={vi.fn()}
+        locale="en"
+        userId="00000000-0000-0000-0000-000000000001"
+      />
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

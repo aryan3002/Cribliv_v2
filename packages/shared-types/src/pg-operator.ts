@@ -13,6 +13,9 @@ export interface PgProperty {
   internal_code: string | null;
   city_id: number;
   locality_id: number | null;
+  /** Precise geocode (0032). Null until geocoded → projection uses locality centroid. */
+  lat: number | null;
+  lng: number | null;
   status: PgPropertyStatus;
   is_primary: boolean;
   total_floors: number | null;
@@ -134,11 +137,23 @@ export interface PgSegmentationResult {
   next_step: string;
 }
 
+export interface TrendPoint {
+  day: string; // ISO date (YYYY-MM-DD)
+  appearances: number;
+  clicks: number;
+  views: number;
+  leads: number;
+}
+
 export interface PgDashboardListingHealth {
   listing_id: string;
   status: string;
   views_7d: number;
   contact_unlocks_7d: number;
+  search_appearances_7d: number; // true per-listing impressions
+  ctr_7d: number; // clicks / appearances, 0–1
+  interest_rate_7d: number; // contact_unlocks_7d / views_7d, 0–1
+  trend_7d: TrendPoint[]; // 7 points, oldest→newest
   last_updated: string;
 }
 
@@ -150,7 +165,32 @@ export interface PgDashboardLead {
   contact: { phone_masked: string };
 }
 
+export interface PgPortfolioSummary {
+  appearances: number;
+  clicks: number;
+  views: number;
+  leads: number;
+  ctr: number; // clicks / appearances, 0–1
+  interest_rate: number; // leads / views, 0–1
+  conversion: number; // leads / appearances, 0–1 (full funnel)
+  deltas: {
+    // % change vs the prior 7d; null when the prior period was 0 (no baseline)
+    appearances: number | null;
+    views: number | null;
+    leads: number | null;
+  };
+}
+
+export interface PgSearchInsights {
+  top_queries: Array<{ query: string; count: number }>;
+  top_filters: Array<{ key: string; value: string; count: number }>;
+  zero_result_queries: Array<{ query: string; count: number }>;
+}
+
 export interface PgDashboardData {
   listing_health: PgDashboardListingHealth[];
   leads_inbox: PgDashboardLead[];
+  portfolio: PgPortfolioSummary;
+  trend_30d: TrendPoint[]; // aggregated across listings, 30 points oldest→newest
+  search_insights: PgSearchInsights;
 }

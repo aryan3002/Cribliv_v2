@@ -4,11 +4,13 @@ import { ChangeEvent } from "react";
 export default function RupeeInput({
   valuePaise,
   onChangePaise,
+  label,
   ...rest
-}: { valuePaise: number | null | undefined; onChangePaise: (paise: number | null) => void } & Omit<
-  React.InputHTMLAttributes<HTMLInputElement>,
-  "value" | "onChange"
->) {
+}: {
+  valuePaise: number | null | undefined;
+  onChangePaise: (paise: number | null) => void;
+  label?: string;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   const rupees = valuePaise == null ? "" : String(Math.round(valuePaise / 100));
   const handle = (e: ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value.replace(/[^\d]/g, "");
@@ -16,14 +18,24 @@ export default function RupeeInput({
     onChangePaise(parseInt(v, 10) * 100);
   };
   return (
-    <span
-      className="rupee-input"
-      style={{
-        fontFamily: "var(--font-paper-mono), var(--font-paper-body), ui-monospace, monospace"
-      }}
-    >
-      <span aria-hidden>₹</span>
-      <input inputMode="numeric" {...rest} value={rupees} onChange={handle} />
-    </span>
+    <div className="pgo-field pgo-field--rupee">
+      <input
+        className="pgo-field__input"
+        inputMode="numeric"
+        placeholder=" "
+        {...rest}
+        value={rupees}
+        onChange={handle}
+      />
+      <span className="pgo-field__prefix" aria-hidden>
+        ₹
+      </span>
+      {label && (
+        <label className="pgo-field__label" style={{ left: 36 }}>
+          {label}
+        </label>
+      )}
+      <span className="pgo-field__bar" />
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { trackEvent } from "../lib/analytics";
 import { buildSearchQuery, fetchApi } from "../lib/api";
+import { hrefForSegment, placeSearchParam } from "../lib/search-segment";
 import { VoiceSearchButton } from "./voice-search-button";
 import { useGooglePlaces, type PlacePrediction } from "../lib/google-places";
 import { MapPin, Building2, Home, Mic, Search, Clock, BadgeCheck, X } from "lucide-react";
@@ -52,6 +53,7 @@ type BlendedSuggestion =
 export function SearchHero({ locale }: { locale: Locale }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [segment, setSegment] = useState<"homes" | "pg">("homes");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -132,10 +134,10 @@ export function SearchHero({ locale }: { locale: Locale }) {
           ""
         );
         const base = apiBase.endsWith("/v1") ? apiBase : `${apiBase}/v1`;
-        const res = await fetch(
-          `${base}/listings/search/suggest?q=${encodeURIComponent(q)}&limit=6`,
-          { signal }
-        );
+        // PG mode pulls PG-scoped suggestions (cities with PG inventory + PG
+        // listings); Homes uses the property suggest.
+        const path = segment === "pg" ? "/pg/suggest" : "/listings/search/suggest";
+        const res = await fetch(`${base}${path}?q=${encodeURIComponent(q)}&limit=6`, { signal });
         if (res.ok) {
           const body = await res.json();
           return body.data ?? [];
@@ -145,7 +147,7 @@ export function SearchHero({ locale }: { locale: Locale }) {
       }
       return [];
     },
-    []
+    [segment]
   );
 
   // Blend results when either source updates
@@ -202,6 +204,21 @@ export function SearchHero({ locale }: { locale: Locale }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  function routeToPg(filters: Record<string, string | number | boolean>) {
+    // Resolve the typed place: a known city → `city=` (canonical), a locality or
+    // keyword → `q=` (matched against title/city/locality by the PG backend).
+    const { listing_type: _lt, q: _q, ...rest } = filters;
+    if (query.trim()) {
+      pushRecentSearch(query);
+      setRecent(readRecentSearches());
+    }
+    const place =
+      typeof rest.city === "string" && rest.city ? { city: rest.city } : placeSearchParam(query);
+    const search = buildSearchQuery({ ...rest, ...place });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    router.push(`/${locale}/pg${search ? `?${search}` : ""}` as any);
+  }
+
   function routeToSearch(filters: Record<string, string | number | boolean>) {
     const hasFilters = Object.keys(filters).length > 0 || query.trim().length > 0;
     if (!hasFilters) {
@@ -224,6 +241,14 @@ export function SearchHero({ locale }: { locale: Locale }) {
     router.push(`/${locale}/search${search ? `?${search}` : ""}` as any);
   }
 
+  // Route to the ACTIVE segment's surface (Homes → /search, PG → /pg). Every
+  // navigation path in this bar (submit, suggestion, recent, clarification) must
+  // honor the toggle — not just form submit — or PG searches leak back to Homes.
+  function pushSegment(params: Record<string, string | undefined>) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    router.push(hrefForSegment(locale, segment, params) as any);
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -231,6 +256,15 @@ export function SearchHero({ locale }: { locale: Locale }) {
     setTranscript(null);
     setShowSuggestions(false);
     setLoading(true);
+
+    // PG segment: route straight to the dedicated /pg surface with any parsed
+    // filters. The agentic LLM router targets /search only, so we bypass it here.
+    if (segment === "pg") {
+      routeToPg(chips.length > 0 ? chipsToFilters(chips) : {});
+      setLoading(false);
+      return;
+    }
+
     trackEvent("agentic_query_submitted", { query_text: query, lang_detected: locale });
 
     // Fast path: high-confidence local parse → skip the LLM round-trip entirely.
@@ -294,9 +328,7 @@ export function SearchHero({ locale }: { locale: Locale }) {
     const nextFilters = { ...baseFilters };
     if (clarification.id.includes("city") || clarification.id === "empty_voice_result") {
       setQuery(option);
-      const search = buildSearchQuery({ q: option });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      router.push(`/${locale}/search${search ? `?${search}` : ""}` as any);
+      pushSegment({ q: option });
       return;
     }
     nextFilters.listing_type = option;
@@ -312,9 +344,7 @@ export function SearchHero({ locale }: { locale: Locale }) {
       setQuery(locationName);
       pushRecentSearch(locationName);
       setRecent(readRecentSearches());
-      const search = buildSearchQuery({ q: locationName });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      router.push(`/${locale}/search${search ? `?${search}` : ""}` as any);
+      pushSegment({ q: locationName });
     } else {
       const { data } = s;
       trackEvent("suggest_selected", { type: data.type, value: data.value });
@@ -323,15 +353,24 @@ export function SearchHero({ locale }: { locale: Locale }) {
       setRecent(readRecentSearches());
       if (data.type === "city") {
         setQuery("");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        router.push(`/${locale}/search?${buildSearchQuery({ city: data.value })}` as any);
+        pushSegment({ city: data.value });
       } else if (data.type === "listing") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        router.push(`/${locale}/listing/${data.value}` as any);
+        // A PG-listing suggestion routes to the PG detail; a property listing to /listing.
+        if (segment === "pg" && data.city_slug) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          router.push(`/${locale}/pg/${data.city_slug}/${data.value}` as any);
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          router.push(`/${locale}/listing/${data.value}` as any);
+        }
+      } else if (segment === "pg") {
+        // PG locality → scope by city + locality slug (precise; q would carry the
+        // ", city" label and miss).
+        setQuery("");
+        pushSegment({ city: data.city_slug, locality: data.value });
       } else {
         setQuery(data.label);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        router.push(`/${locale}/search?${buildSearchQuery({ q: data.label })}` as any);
+        pushSegment({ q: data.label });
       }
     }
   }
@@ -339,9 +378,7 @@ export function SearchHero({ locale }: { locale: Locale }) {
   function applyRecent(text: string) {
     setQuery(text);
     setShowSuggestions(false);
-    const search = buildSearchQuery({ q: text });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    router.push(`/${locale}/search${search ? `?${search}` : ""}` as any);
+    pushSegment({ q: text });
   }
 
   function removeRecent(text: string) {
@@ -362,6 +399,24 @@ export function SearchHero({ locale }: { locale: Locale }) {
   return (
     <div className="search-hero-wrapper" ref={wrapperRef}>
       <form className="hero-search" onSubmit={onSubmit}>
+        <div className="hero-segment" role="group" aria-label="Search type">
+          <button
+            type="button"
+            aria-pressed={segment === "homes"}
+            className={`hero-segment__btn${segment === "homes" ? " hero-segment__btn--active" : ""}`}
+            onClick={() => setSegment("homes")}
+          >
+            Homes
+          </button>
+          <button
+            type="button"
+            aria-pressed={segment === "pg"}
+            className={`hero-segment__btn${segment === "pg" ? " hero-segment__btn--active" : ""}`}
+            onClick={() => setSegment("pg")}
+          >
+            PG
+          </button>
+        </div>
         <div className="hero-search__input-row">
           <Search
             size={18}
@@ -377,7 +432,13 @@ export function SearchHero({ locale }: { locale: Locale }) {
                 setShowSuggestions(true);
               }
             }}
-            placeholder={t(locale, "searchPlaceholder")}
+            placeholder={
+              segment === "pg"
+                ? locale === "hi"
+                  ? "शहर, इलाके या नाम से PG खोजें…"
+                  : "Search PGs by city, area or name…"
+                : t(locale, "searchPlaceholder")
+            }
             className="hero-search__input"
             autoComplete="off"
           />
@@ -428,6 +489,7 @@ export function SearchHero({ locale }: { locale: Locale }) {
           suggestions={suggestions}
           recent={recent}
           query={query}
+          segment={segment}
           onPickSuggestion={handleSuggestionClick}
           onPickRecent={applyRecent}
           onRemoveRecent={removeRecent}
@@ -525,6 +587,8 @@ interface PreviewData {
   rent_band: { min: number; max: number } | null;
   verified_pct: number | null;
   avg_bhk: number | null;
+  /** PG preview only: distinct sharing kinds, shown in place of Avg BHK. */
+  sharing?: string[];
   sample_photos: string[];
 }
 
@@ -532,6 +596,8 @@ interface SectionedDropdownProps {
   suggestions: BlendedSuggestion[];
   recent: RecentSearch[];
   query: string;
+  /** Drives which preview endpoint the hover card hits (PG vs property). */
+  segment: "homes" | "pg";
   onPickSuggestion: (s: BlendedSuggestion) => void;
   onPickRecent: (text: string) => void;
   onRemoveRecent: (text: string) => void;
@@ -541,6 +607,7 @@ function SectionedDropdown({
   suggestions,
   recent,
   query,
+  segment,
   onPickSuggestion,
   onPickRecent,
   onRemoveRecent
@@ -590,7 +657,7 @@ function SectionedDropdown({
       setPreview(null);
       return;
     }
-    const key = `${hovered.type}:${hovered.slug}`;
+    const key = `${segment}:${hovered.type}:${hovered.slug}`;
     const cached = previewCacheRef.current.get(key);
     if (cached !== undefined) {
       setPreview(cached);
@@ -606,10 +673,12 @@ function SectionedDropdown({
       ""
     );
     const base = apiBase.endsWith("/v1") ? apiBase : `${apiBase}/v1`;
-    fetch(
-      `${base}/listings/search/preview?type=${hovered.type}&value=${encodeURIComponent(hovered.slug)}`,
-      { signal: controller.signal }
-    )
+    // PG mode reads the PG-scoped preview so the hover card shows PG inventory
+    // (count, rent band, sharing) instead of flat/house data.
+    const previewPath = segment === "pg" ? "/pg/preview" : "/listings/search/preview";
+    fetch(`${base}${previewPath}?type=${hovered.type}&value=${encodeURIComponent(hovered.slug)}`, {
+      signal: controller.signal
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((body) => {
         if (controller.signal.aborted) return;
@@ -623,7 +692,7 @@ function SectionedDropdown({
       .finally(() => {
         if (!controller.signal.aborted) setPreviewLoading(false);
       });
-  }, [hovered]);
+  }, [hovered, segment]);
 
   function scheduleHover(type: "city" | "locality", slug: string) {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -712,12 +781,22 @@ function SectionedDropdown({
         ) : null}
       </div>
 
-      {showPreviewPane ? <PreviewPane preview={preview} loading={previewLoading} /> : null}
+      {showPreviewPane ? (
+        <PreviewPane preview={preview} loading={previewLoading} segment={segment} />
+      ) : null}
     </div>
   );
 }
 
-function PreviewPane({ preview, loading }: { preview: PreviewData | null; loading: boolean }) {
+function PreviewPane({
+  preview,
+  loading,
+  segment
+}: {
+  preview: PreviewData | null;
+  loading: boolean;
+  segment: "homes" | "pg";
+}) {
   if (loading && !preview) {
     return (
       <aside className="search-preview" aria-busy="true">
@@ -735,7 +814,8 @@ function PreviewPane({ preview, loading }: { preview: PreviewData | null; loadin
     );
   }
 
-  const heroPhoto = preview.sample_photos[0];
+  const samplePhotos = preview.sample_photos ?? [];
+  const heroPhoto = samplePhotos[0];
 
   return (
     <aside className="search-preview" aria-live="polite">
@@ -771,17 +851,28 @@ function PreviewPane({ preview, loading }: { preview: PreviewData | null; loadin
             {preview.verified_pct != null ? `${preview.verified_pct}%` : "—"}
           </div>
         </div>
-        <div className="search-preview__stat">
-          <div className="search-preview__stat-label">Avg BHK</div>
-          <div className="search-preview__stat-value">
-            {preview.avg_bhk != null ? preview.avg_bhk : "—"}
+        {segment === "pg" ? (
+          <div className="search-preview__stat">
+            <div className="search-preview__stat-label">Sharing</div>
+            <div className="search-preview__stat-value">
+              {preview.sharing && preview.sharing.length > 0
+                ? preview.sharing.map((s) => prettifySlug(s)).join(", ")
+                : "—"}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="search-preview__stat">
+            <div className="search-preview__stat-label">Avg BHK</div>
+            <div className="search-preview__stat-value">
+              {preview.avg_bhk != null ? preview.avg_bhk : "—"}
+            </div>
+          </div>
+        )}
       </div>
 
-      {preview.sample_photos.length > 1 ? (
+      {samplePhotos.length > 1 ? (
         <div className="search-preview__photos">
-          {preview.sample_photos.slice(1, 4).map((url, i) => (
+          {samplePhotos.slice(1, 4).map((url, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img key={i} src={url} alt="" loading="lazy" />
           ))}

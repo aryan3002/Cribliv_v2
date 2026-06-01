@@ -206,6 +206,27 @@ export class AdminController {
         ]
       );
 
+      // Keep the PG-owned head (pg_listings) in sync with the moderation
+      // decision. No-op for non-PG listings (their id is absent from
+      // pg_listings). PG has no separate fraud/verification flow, so approval
+      // also counts as verification → mark head + projection verified so the
+      // listing shows (and shows as verified) on CribLiv maps + PG search.
+      await this.database.query(
+        `UPDATE pg_listings
+            SET status = $2::listing_status,
+                verification_status = CASE WHEN $2 = 'active'
+                  THEN 'verified'::verification_status ELSE verification_status END
+          WHERE id = $1::uuid`,
+        [listingId, newStatus]
+      );
+      if (newStatus === "active") {
+        await this.database.query(
+          `UPDATE listings SET verification_status = 'verified'
+            WHERE id = $1::uuid AND listing_type = 'pg'`,
+          [listingId]
+        );
+      }
+
       logTelemetry("admin.listing_decision", {
         listing_id: updated.rows[0].id,
         decision: body.decision,

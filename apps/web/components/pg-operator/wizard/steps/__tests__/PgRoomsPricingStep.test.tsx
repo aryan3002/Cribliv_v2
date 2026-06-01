@@ -45,11 +45,15 @@ describe("PgRoomsPricingStep", () => {
     ]);
   });
 
-  it("rejects rent below ₹2,000 with an inline error and does NOT write to state", () => {
+  // Contract change (2026-05-30): intermediate keystrokes no longer get blocked.
+  // Local input value reflects what the user types; the inline rent error appears
+  // on BLUR (so typing "2-0-0-0" → "2000" doesn't flash an error mid-keystroke).
+  // The wizard `room_types` dispatch is still gated by validity.
+  it("rejects rent below ₹2,000 on blur and does NOT write to wizard state", () => {
     render(<Harness />);
-    fireEvent.change(screen.getByLabelText(/rent single-non-ac/i), {
-      target: { value: "1000" } // ₹1,000 = 100000 paise, below 200000 min
-    });
+    const rent = screen.getByLabelText(/rent single-non-ac/i);
+    fireEvent.change(rent, { target: { value: "1000" } });
+    fireEvent.blur(rent);
     fireEvent.change(screen.getByLabelText(/vacancy single-non-ac/i), {
       target: { value: "4" }
     });
@@ -58,14 +62,33 @@ describe("PgRoomsPricingStep", () => {
     expect(s.room_types).toEqual([]);
   });
 
-  it("rejects rent above ₹50,000 with an inline error", () => {
+  it("rejects rent above ₹50,000 on blur", () => {
     render(<Harness />);
-    fireEvent.change(screen.getByLabelText(/rent single-non-ac/i), {
-      target: { value: "60000" } // ₹60,000 = 6,000,000 paise
-    });
+    const rent = screen.getByLabelText(/rent single-non-ac/i);
+    fireEvent.change(rent, { target: { value: "60000" } });
+    fireEvent.blur(rent);
     expect(screen.getAllByRole("alert")[0]).toHaveTextContent(/2,000.*50,000/);
     const s = JSON.parse(screen.getByTestId("state").textContent!);
     expect(s.room_types).toEqual([]);
+  });
+
+  // Regression: typing digit-by-digit must never silently drop the input.
+  // (Bug 4 in the 2026-05-30 session.)
+  it("accepts a 4-digit rent typed one keystroke at a time", () => {
+    render(<Harness />);
+    const rent = screen.getByLabelText(/rent single-non-ac/i);
+    for (const v of ["2", "20", "200", "2000"]) {
+      fireEvent.change(rent, { target: { value: v } });
+    }
+    expect((rent as HTMLInputElement).value).toBe("2000");
+    fireEvent.blur(rent);
+    fireEvent.change(screen.getByLabelText(/vacancy single-non-ac/i), {
+      target: { value: "2" }
+    });
+    const s = JSON.parse(screen.getByTestId("state").textContent!);
+    expect(s.room_types).toEqual([
+      { sharing: "single", ac: false, monthly_rent_paise: 200000, vacancy_count: 2 }
+    ]);
   });
 
   it("accepts rent at the ₹2,000 boundary", () => {

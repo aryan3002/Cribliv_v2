@@ -61,12 +61,12 @@ describe("PgPhotosReviewStep", () => {
     expect((args.payload as any).sharing_options).toBeUndefined();
   });
 
-  it("after publish, navigates to dashboard with createdListingId", async () => {
+  it("after publish, navigates to the listing detail page with ?published=1", async () => {
     mocks.createPgListing.mockResolvedValueOnce({ listing_id: "L-1", status: "draft" });
     render(<Harness initState={makeValidState()} />);
     fireEvent.click(screen.getByRole("button", { name: /publish/i }));
     await waitFor(() =>
-      expect(mocks.push).toHaveBeenCalledWith("/en/pg-operator/dashboard?createdListingId=L-1")
+      expect(mocks.push).toHaveBeenCalledWith("/en/pg-operator/listings/L-1?published=1")
     );
   });
 

@@ -15,12 +15,19 @@ import { logTelemetry } from "../../common/telemetry";
 import { PgVoiceSessionService } from "./services/pg-voice-session.service";
 import { PgExtractionService } from "./services/pg-extraction.service";
 import { PgConversationOrchestrator } from "./services/pg-conversation-orchestrator.service";
+import { PgLlmClient, type LlmMessage } from "./services/pg-llm-client.service";
 import { getToolByName } from "./tools/pg-realtime-tools";
-import { SYSTEM_PROMPT_VERSION } from "./prompts/pg-system-prompt";
+import { SYSTEM_PROMPT_VERSION, buildPgSystemPrompt } from "./prompts/pg-system-prompt";
 
 interface StartSessionPayload {
   locale?: "en" | "hi";
   pg_property_id?: string;
+  /**
+   * Channel the operator picked. `voice` (default) keeps existing realtime
+   * behaviour. `text` enables server-driven LLM responses via Azure OpenAI
+   * chat-completions (`cribliv-chat`) — see PgLlmClient.
+   */
+  mode?: "voice" | "text";
 }
 
 interface ToolCallPayload {
@@ -59,7 +66,16 @@ interface SessionMeta {
   rateWindowStart: number;
   rateCount: number;
   operatorUserId: string;
+  mode: "voice" | "text";
+  locale: "en" | "hi";
+  /** In-memory LLM message history for text mode. Bounded to MAX_LLM_HISTORY entries. */
+  llmHistory: LlmMessage[];
+  /** Reentrancy guard so back-to-back text inputs don't interleave LLM calls. */
+  llmInFlight: boolean;
 }
+
+const MAX_LLM_HISTORY = 32; // user+assistant+tool messages; system held separately
+const MAX_LLM_TOOL_ROUND_TRIPS = 4;
 
 @WebSocketGateway({ namespace: "/voice-agent-pg", cors: true })
 export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -76,7 +92,8 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
     @Inject(PgVoiceSessionService) private readonly sessions: PgVoiceSessionService,
     @Inject(PgExtractionService) private readonly extraction: PgExtractionService,
     @Inject(PgConversationOrchestrator) private readonly orchestrator: PgConversationOrchestrator,
-    @Inject(AppStateService) private readonly state: AppStateService
+    @Inject(AppStateService) private readonly state: AppStateService,
+    @Inject(PgLlmClient) private readonly llm: PgLlmClient
   ) {}
 
   handleConnection(client: Socket): void {
@@ -151,8 +168,34 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
     @ConnectedSocket() client: Socket,
     @MessageBody() body: StartSessionPayload
   ): Promise<void> {
-    const user = (client.handshake.auth as { user?: { id?: string } } | undefined)?.user;
-    const operatorUserId = user?.id ?? "anon-test";
+    // Client (pg-voice-socket.ts) sends auth as `{ userId }` flat. Older
+    // contract was `{ user: { id } }` — accept both so a stale tab doesn't
+    // wedge. We also accept a top-level `user.id` for parity with Maya.
+    const authBag = client.handshake.auth as
+      | { userId?: string; user?: { id?: string } }
+      | undefined;
+    const rawOperatorId = authBag?.userId ?? authBag?.user?.id ?? "";
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(rawOperatorId)) {
+      // Without a real operator UUID the DB insert into
+      // pg_voice_agent_sessions(operator_user_id) blows up with
+      //   "invalid input syntax for type uuid"
+      // — surface that explicitly instead of letting it 500 internally.
+      client.emit("error", {
+        code: "unauth_handshake",
+        message:
+          "Voice/text session requires a signed-in PG operator. Refresh the page and try again."
+      });
+      logTelemetry("pg_voice.session.rejected", {
+        reason: "unauth_handshake",
+        rawOperatorId: rawOperatorId.slice(0, 8) // first 8 chars only, for safety
+      });
+      try {
+        client.disconnect(true);
+      } catch {}
+      return;
+    }
+    const operatorUserId = rawOperatorId;
 
     // Concurrent-session cap per operator
     const liveSet = this.operatorConcurrent.get(operatorUserId) ?? new Set<string>();
@@ -205,6 +248,8 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
     this.operatorConcurrent.set(operatorUserId, liveSet);
 
     // Install hard-duration + idle timers
+    const locale = (body?.locale === "hi" ? "hi" : "en") as "en" | "hi";
+    const mode = (body?.mode === "text" ? "text" : "voice") as "voice" | "text";
     const meta: SessionMeta = {
       durationTimer: setTimeout(
         () => this.terminate(client, session.id, "duration_cap"),
@@ -217,15 +262,27 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
       toolCalls: 0,
       rateWindowStart: Date.now(),
       rateCount: 0,
-      operatorUserId
+      operatorUserId,
+      mode,
+      locale,
+      llmHistory: [],
+      llmInFlight: false
     };
     this.sessionMeta.set(session.id, meta);
 
-    client.emit("session_ready", { session_id: session.id, phase: session.phase });
+    client.emit("session_ready", { session_id: session.id, phase: session.phase, mode });
+
+    // Text mode: kick off a greeting from the model so the user sees something
+    // even before they type. Voice mode keeps existing realtime greeting path.
+    if (mode === "text") {
+      // Fire-and-forget; errors are surfaced via socket emits inside runLlmTurn().
+      void this.runLlmTurn(client, session.id, /* userText */ null);
+    }
     logTelemetry("pg_voice.session.start", {
       sessionId: session.id,
       operatorId: operatorUserId,
       locale: body?.locale,
+      mode,
       prompt_version: SYSTEM_PROMPT_VERSION
     });
   }
@@ -340,12 +397,216 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
     }
     if (!this.rateAllow(sid, client)) return;
     this.resetIdle(client, sid);
+
+    const userText = String(body?.text ?? "").trim();
+    if (!userText) return;
+
     await this.sessions.appendTranscript(sid, {
       role: "user",
-      text: String(body?.text ?? ""),
+      text: userText,
       ts: new Date().toISOString()
     });
     client.emit("text_ack", { received: true });
+
+    const meta = this.sessionMeta.get(sid);
+    if (meta?.mode === "text") {
+      // Drive the LLM. Errors surface as `error` socket events from inside.
+      await this.runLlmTurn(client, sid, userText);
+    }
+  }
+
+  /**
+   * Run one user→LLM round-trip in text mode. Loops while the model proposes
+   * tool calls (bounded by MAX_LLM_TOOL_ROUND_TRIPS) so a single user message
+   * can trigger several internal tool executions before the final text reply.
+   *
+   * `userText === null` means: open the session with a greeting (no user msg).
+   */
+  private async runLlmTurn(client: Socket, sid: string, userText: string | null): Promise<void> {
+    const meta = this.sessionMeta.get(sid);
+    if (!meta) return;
+    if (meta.llmInFlight) {
+      client.emit("error", { code: "llm_busy", message: "Previous reply still streaming" });
+      return;
+    }
+    meta.llmInFlight = true;
+
+    try {
+      const system: LlmMessage = {
+        role: "system",
+        content: buildPgSystemPrompt({ locale: meta.locale })
+      };
+      if (userText) {
+        meta.llmHistory.push({ role: "user", content: userText });
+      } else if (meta.llmHistory.length === 0) {
+        // Seed a synthetic kick so the model produces a greeting question.
+        meta.llmHistory.push({ role: "user", content: "[BEGIN]" });
+      }
+
+      // Trim history to bound prompt growth.
+      if (meta.llmHistory.length > MAX_LLM_HISTORY) {
+        meta.llmHistory.splice(0, meta.llmHistory.length - MAX_LLM_HISTORY);
+      }
+
+      let assistantText = "";
+      for (let round = 0; round < MAX_LLM_TOOL_ROUND_TRIPS; round++) {
+        client.emit("assistant_thinking", { round });
+
+        const turn = await this.llm.requestTurn({
+          messages: [system, ...meta.llmHistory],
+          locale: meta.locale
+        });
+
+        // Record the assistant turn (with tool_calls if any) before executing them.
+        meta.llmHistory.push({
+          role: "assistant",
+          content: turn.finalText || null,
+          tool_calls: turn.toolCalls.length
+            ? turn.toolCalls.map((c) => ({
+                id: c.id,
+                type: "function" as const,
+                function: { name: c.name, arguments: c.rawArgs }
+              }))
+            : undefined
+        });
+
+        if (turn.finalText) {
+          assistantText = turn.finalText;
+        }
+
+        if (turn.toolCalls.length === 0) {
+          break;
+        }
+
+        // Execute each tool through the same path tool_call uses, append the
+        // result, and loop the LLM so it can continue.
+        for (const tc of turn.toolCalls) {
+          meta.toolCalls++;
+          if (meta.toolCalls > TOOL_CALL_CAP) {
+            this.terminate(client, sid, "tool_call_cap");
+            return;
+          }
+          const execResult = await this.executeToolByName(client, sid, tc.name, tc.args);
+          meta.llmHistory.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            name: tc.name,
+            content: JSON.stringify(execResult)
+          });
+        }
+      }
+
+      if (assistantText) {
+        // TranscriptEntry uses "agent" for the assistant role; the LLM message
+        // history above uses "assistant" (OpenAI vocabulary). Different model,
+        // different naming — both legitimate, mapped here.
+        await this.sessions.appendTranscript(sid, {
+          role: "agent",
+          text: assistantText,
+          ts: new Date().toISOString()
+        });
+        client.emit("assistant_text", { text: assistantText });
+      } else {
+        // Loop exhausted without a final text — surface so the UI doesn't hang.
+        client.emit("assistant_text", {
+          text: "(I'm working on this — try giving me one more detail.)"
+        });
+      }
+    } catch (err) {
+      const code =
+        err && typeof err === "object" && "response" in err
+          ? "pg_llm_failed"
+          : ((err as { code?: string })?.code ?? "pg_llm_failed");
+      const message = (err as Error)?.message ?? "LLM error";
+      client.emit("error", { code, message });
+      this.log.error(`runLlmTurn failed for ${sid}: ${String(err)}`);
+    } finally {
+      meta.llmInFlight = false;
+    }
+  }
+
+  /**
+   * Internal tool-runner used by the LLM path. Mirrors the side-effects of the
+   * `tool_call` socket handler (extraction commit, field_extracted emits, phase
+   * advance) so voice and text modes converge on the same downstream state.
+   * Returns a small object the LLM can read back as the tool's "output".
+   */
+  private async executeToolByName(
+    client: Socket,
+    sid: string,
+    name: string,
+    rawArgs: unknown
+  ): Promise<{ ok: boolean; extracted?: number; errors?: string[] }> {
+    const tool = getToolByName(name as PgVoiceToolName);
+    if (!tool) {
+      client.emit("error", { code: "unknown_tool", message: name });
+      return { ok: false, errors: [`unknown tool: ${name}`] };
+    }
+    const session = this.sessions.getSession(sid);
+    const phase: VoiceAgentPgPhase = session?.phase ?? "discovery";
+    const locale = session?.locale ?? "en";
+    const result = tool.handler(rawArgs, { sessionId: sid, phase, locale });
+
+    if (!result.ok) {
+      for (const err of result.errors) {
+        logTelemetry("pg_voice.field.rejected", {
+          sessionId: sid,
+          field: err.field,
+          reason: err.code
+        });
+      }
+      return { ok: false, errors: result.errors.map((e) => e.message) };
+    }
+
+    if (result.extracted.length === 0) {
+      client.emit("tool_signal", { name });
+      return { ok: true, extracted: 0 };
+    }
+
+    const draftId = await this.extraction.commitExtraction({
+      operatorUserId: session?.operator_user_id ?? "anon-test",
+      pgPropertyId: this.sessionDraft.get(sid) ?? "prop-tmp",
+      draftId: this.sessionDraft.get(sid),
+      toolName: name as PgVoiceToolName,
+      extracted: result.extracted
+    });
+    this.sessionDraft.set(sid, draftId);
+
+    for (const e of result.extracted) {
+      client.emit("field_extracted", {
+        field: e.field,
+        value: e.value,
+        confidence: e.confidence,
+        draft_id: draftId
+      });
+      await this.sessions.logExtraction(sid, {
+        field: e.field,
+        value: e.value,
+        confidence: e.confidence,
+        tool: name as PgVoiceToolName,
+        phase,
+        ts: new Date().toISOString()
+      });
+      logTelemetry("pg_voice.field.extracted", {
+        sessionId: sid,
+        field: e.field,
+        confidence: e.confidence,
+        tool: name
+      });
+    }
+
+    const draft = this.state.getPgListingDraft(draftId) as {
+      payload: Record<string, unknown>;
+    } | null;
+    const draftPayload = draft?.payload ?? {};
+    const newPhase = this.orchestrator.computeNextPhase(phase, draftPayload as never);
+    if (newPhase !== phase) {
+      await this.sessions.updatePhase(sid, newPhase);
+      client.emit("phase_changed", { from: phase, to: newPhase });
+      logTelemetry("pg_voice.phase.changed", { sessionId: sid, from: phase, to: newPhase });
+    }
+
+    return { ok: true, extracted: result.extracted.length };
   }
 
   @SubscribeMessage("audio_chunk")

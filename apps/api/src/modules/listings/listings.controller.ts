@@ -1,9 +1,49 @@
-import { Controller, Get, Inject, NotFoundException, Param } from "@nestjs/common";
+import { Controller, Get, Headers, Inject, NotFoundException, Param } from "@nestjs/common";
 import { ok } from "../../common/response";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
+import { AnalyticsService } from "../analytics/analytics.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { toBlobUrl } from "../../common/photo-url";
+
+/**
+ * Optional auth header parser. The listing-detail endpoint is public, but we
+ * still want the owning operator/owner to be able to preview their listing
+ * BEFORE it transitions to `status='active'`. Returns the user id if the
+ * Authorization header matches a live session; otherwise null. Never throws.
+ */
+async function optionalAuthUserId(
+  database: DatabaseService,
+  appState: AppStateService,
+  authHeader: string | undefined
+): Promise<string | null> {
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+  if (!token?.startsWith("acc_")) return null;
+  const sessionId = token.slice(4);
+  if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return null;
+
+  if (database.isEnabled()) {
+    try {
+      const r = await database.query<{ user_id: string }>(
+        `SELECT s.user_id::text
+           FROM sessions s
+          WHERE s.id = $1::uuid
+            AND s.revoked_at IS NULL
+            AND s.expires_at > now()
+          LIMIT 1`,
+        [sessionId]
+      );
+      if (r.rowCount && r.rows[0]) return r.rows[0].user_id;
+    } catch {
+      // fallthrough to in-memory check
+    }
+  }
+  // No in-memory session fallback in this controller (AppStateService doesn't
+  // expose one publicly); the DB lookup above is the only auth path. Returns
+  // null when DB is disabled (test env) — listings.detail then enforces the
+  // public 'active' filter, which is the safe default.
+  return null;
+}
 
 function firstName(fullName: string | null): string | null {
   if (!fullName) return null;
@@ -15,6 +55,7 @@ function firstName(fullName: string | null): string | null {
 
 interface ListingDetailRow {
   id: string;
+  owner_user_id: string;
   title: string;
   description: string | null;
   listing_type: "flat_house" | "pg";
@@ -51,16 +92,25 @@ interface ListingDetailRow {
 export class ListingsController {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
-    @Inject(DatabaseService) private readonly database: DatabaseService
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(AnalyticsService) private readonly analytics: AnalyticsService
   ) {}
 
   @Get("listings/:listing_id")
-  async detail(@Param("listing_id") listingId: string) {
+  async detail(
+    @Param("listing_id") listingId: string,
+    @Headers("authorization") authHeader: string | undefined
+  ) {
     if (this.database.isEnabled() && /^[0-9a-f-]{36}$/i.test(listingId)) {
+      // If the request is from the listing's owner (operator preview), allow
+      // viewing in any status. Otherwise enforce status='active' for public.
+      const viewerId = await optionalAuthUserId(this.database, this.appState, authHeader);
+
       const result = await this.database.query<ListingDetailRow>(
         `
         SELECT
           l.id::text,
+          l.owner_user_id::text AS owner_user_id,
           COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'Listing') AS title,
           COALESCE(NULLIF(l.description_en, ''), NULLIF(l.description_hi, ''), NULL) AS description,
           l.listing_type::text,
@@ -104,14 +154,28 @@ export class ListingsController {
         LEFT JOIN users u ON u.id = l.owner_user_id
         LEFT JOIN pg_details pg ON pg.listing_id = l.id
         WHERE l.id = $1::uuid
-          AND l.status = 'active'
+          AND (l.status = 'active' OR ($2::uuid IS NOT NULL AND l.owner_user_id = $2::uuid))
         LIMIT 1
         `,
-        [listingId]
+        [listingId, viewerId]
       );
 
       if (result.rowCount && result.rows[0]) {
         const listing = result.rows[0];
+
+        // Record a "view" for non-owner viewers. This is the ONLY place a
+        // listing view is persisted (listing_events('view')) — it powers the
+        // operator/owner dashboard "views" metric, uniformly for PG + flat/house.
+        // Owner self-previews don't count. Internally gated by
+        // ff_listing_analytics_enabled. Fire-and-forget; never blocks the response.
+        if (viewerId !== listing.owner_user_id) {
+          void this.analytics.trackEvent({
+            listing_id: listing.id,
+            user_id: viewerId ?? undefined,
+            event_type: "view"
+          });
+        }
+
         const flags = readFeatureFlags();
 
         // Partial phone reveal: mask all but last 4 digits

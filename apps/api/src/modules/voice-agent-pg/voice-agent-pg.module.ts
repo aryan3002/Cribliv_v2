@@ -4,6 +4,7 @@ import { VoiceAgentPgGateway } from "./voice-agent-pg.gateway";
 import { PgVoiceSessionService } from "./services/pg-voice-session.service";
 import { PgExtractionService } from "./services/pg-extraction.service";
 import { PgConversationOrchestrator } from "./services/pg-conversation-orchestrator.service";
+import { PgLlmClient } from "./services/pg-llm-client.service";
 
 @Module({
   imports: [CoreModule],
@@ -11,7 +12,8 @@ import { PgConversationOrchestrator } from "./services/pg-conversation-orchestra
     VoiceAgentPgGateway,
     PgVoiceSessionService,
     PgExtractionService,
-    PgConversationOrchestrator
+    PgConversationOrchestrator,
+    PgLlmClient
   ],
   exports: [PgVoiceSessionService, PgExtractionService, PgConversationOrchestrator]
 })

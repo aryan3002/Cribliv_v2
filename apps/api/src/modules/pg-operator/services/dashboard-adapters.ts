@@ -1,56 +1,87 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { OwnerService } from "../../owner/owner.service";
+import { PgListingService } from "./pg-listing.service";
 import { LeadsService } from "../../leads/leads.service";
 import { AnalyticsService } from "../../analytics/analytics.service";
+import { PgAnalyticsService } from "./pg-analytics.service";
+import type { TrendPoint, PgSearchInsights } from "@cribliv/shared-types";
 
 /**
- * Thin adapters mapping real Cribliv services to the narrow OwnerSlice /
+ * Thin adapters mapping real Cribliv services to the narrow ListingsSlice /
  * AnalyticsSlice / LeadsSlice interfaces PgDashboardService consumes.
  * Keeps the dashboard service decoupled from concrete service signatures.
  */
 @Injectable()
-export class OwnerSliceAdapter {
-  constructor(@Inject(OwnerService) private readonly owner: OwnerService) {}
+export class PgListingsSliceAdapter {
+  constructor(@Inject(PgListingService) private readonly listings: PgListingService) {}
 
+  // Reads the PG-owned head (pg_listings) — no OwnerService dependency.
   async listOperatorListings(
     operatorId: string
   ): Promise<Array<{ id: string; status: string; updated_at: string }>> {
-    const { items } = await this.owner.listOwnerListings(operatorId);
-    return items.map((l) => ({
-      id: String(l.id ?? ""),
-      status: String(l.status ?? ""),
-      updated_at: String(l.updated_at ?? new Date().toISOString())
-    }));
+    return this.listings.listOperatorListings(operatorId);
+  }
+
+  async listOperatorCities(operatorId: string): Promise<string[]> {
+    return this.listings.listOperatorListingCities(operatorId);
   }
 }
 
 @Injectable()
 export class AnalyticsSliceAdapter {
-  constructor(@Inject(AnalyticsService) private readonly analytics: AnalyticsService) {}
+  constructor(
+    @Inject(AnalyticsService) private readonly analytics: AnalyticsService,
+    @Inject(PgAnalyticsService) private readonly pgAnalytics: PgAnalyticsService
+  ) {}
 
-  async listingMetrics7d(
+  // Views per listing over the last 7 days (listing_events). Contact-unlock
+  // counts do NOT come from here — a contact unlock writes to contact_unlocks /
+  // leads, never to listing_events, so unlocks are counted in LeadsSliceAdapter.
+  async listingViews7d(
     listingIds: string[]
-  ): Promise<Array<{ listing_id: string; views_7d: number; contact_unlocks_7d: number }>> {
+  ): Promise<Array<{ listing_id: string; views_7d: number }>> {
     if (!listingIds.length) return [];
-    // Per-listing fetch in parallel. V1: getListingEventCounts returns lifetime;
-    // 7d-window narrowing lands in V2 with a dedicated query.
-    const results = await Promise.all(
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return Promise.all(
       listingIds.map(async (id) => {
-        const counts = await this.analytics.getListingEventCounts(id);
-        return {
-          listing_id: id,
-          views_7d: counts.views,
-          contact_unlocks_7d: counts.enquiries
-        };
+        const counts = await this.analytics.getListingEventCounts(id, since);
+        return { listing_id: id, views_7d: counts.views };
       })
     );
-    return results;
+  }
+
+  async searchAppearances7d(
+    listingIds: string[]
+  ): Promise<Array<{ listing_id: string; appearances: number; clicks: number }>> {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return this.pgAnalytics.getSearchAppearances(listingIds, since);
+  }
+
+  async funnelTimeseries(
+    listingIds: string[],
+    days: number
+  ): Promise<Array<{ listing_id: string; series: TrendPoint[] }>> {
+    return this.pgAnalytics.getFunnelTimeseries(listingIds, days);
+  }
+
+  async searchInsights(cities: string[], since: Date): Promise<PgSearchInsights> {
+    return this.pgAnalytics.getSearchInsights(cities, since);
   }
 }
 
 @Injectable()
 export class LeadsSliceAdapter {
   constructor(@Inject(LeadsService) private readonly leads: LeadsService) {}
+
+  // Contact-unlock / interest count per listing over the last 7d, from the leads
+  // table (one lead per tenant unlock) — the canonical source the inbox shows.
+  async listingLeadCounts7d(
+    operatorId: string,
+    listingIds: string[]
+  ): Promise<Array<{ listing_id: string; count: number }>> {
+    if (!listingIds.length) return [];
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return this.leads.getListingLeadCounts(operatorId, listingIds, since);
+  }
 
   async inboxForOperator(operatorId: string): Promise<
     Array<{

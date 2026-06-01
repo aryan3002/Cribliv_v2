@@ -7,7 +7,6 @@ import request from "supertest";
 import { PgListingController } from "../src/modules/pg-operator/pg-listing.controller";
 import { PgListingService } from "../src/modules/pg-operator/services/pg-listing.service";
 import { PgPropertiesService } from "../src/modules/pg-operator/services/pg-properties.service";
-import { OwnerService } from "../src/modules/owner/owner.service";
 import { DatabaseService } from "../src/common/database.service";
 import { AppStateService } from "../src/common/app-state.service";
 import { AuthGuard } from "../src/common/auth.guard";
@@ -20,21 +19,13 @@ const allowAllGuard = {
     return true;
   }
 };
-const ownerMock = {
-  createListing: async (_op: string, dto: any) => ({
-    id: "L1",
-    status: "draft",
-    ...dto
-  })
-};
-
 @Module({
   controllers: [PgListingController],
   providers: [
     PgListingService,
     PgPropertiesService,
     AppStateService,
-    { provide: OwnerService, useValue: ownerMock },
+    // No OwnerService: PG owns its write end-to-end after the split.
     { provide: DatabaseService, useValue: fakeDb }
   ]
 })
@@ -96,7 +87,12 @@ describe("PgListingController (integration)", () => {
       .set("Idempotency-Key", "test-good")
       .send(validPayload);
     expect(r.status).toBe(201);
-    expect(r.body.data.id).toBe("L1");
+    // Contract the web wizard consumes (pg-operator-api.ts): { listing_id, status }.
+    // The publish redirect reads listing_id — it must never be undefined.
+    expect(typeof r.body.data.listing_id).toBe("string");
+    expect(r.body.data.listing_id.length).toBeGreaterThan(0);
+    // Publish = submit for review → lands in the admin queue (go-live funnel).
+    expect(r.body.data.status).toBe("pending_review");
   });
 
   it("400 on rent below ₹2k (Zod boundary)", async () => {

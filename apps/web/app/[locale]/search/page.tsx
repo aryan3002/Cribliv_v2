@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
+import { PG_CITY_CONTENT } from "../../../lib/pg-city-content";
 import { SearchFilters } from "./search-filters";
+import { SegmentedSearchBar } from "../../../components/search/SegmentedSearchBar";
 import { ListingCardItem } from "../../../components/listing-card";
 import {
   MapPin,
@@ -149,13 +152,33 @@ export default async function SearchResultsPage({
   params: { locale: string };
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  // Retire the old PG param-switch: route PG searches to the dedicated /pg surface.
+  if (searchParams.listing_type === "pg") {
+    const rest: Record<string, string> = {};
+    for (const [k, v] of Object.entries(searchParams)) {
+      if (k === "listing_type") continue;
+      if (typeof v === "string" && v) rest[k] = v;
+    }
+    const city = typeof searchParams.city === "string" ? searchParams.city : "";
+    if (city && PG_CITY_CONTENT[city]) {
+      const { city: _city, ...q } = rest;
+      const qs = buildSearchQuery(q);
+      redirect(`/${params.locale}/pg/${city}${qs ? `?${qs}` : ""}`);
+    }
+    const qs = buildSearchQuery(rest);
+    redirect(`/${params.locale}/pg${qs ? `?${qs}` : ""}`);
+  }
+
   const filters = normalizeSearchParams(searchParams);
   let response: SearchResponse = { items: [], total: 0, page: 1, page_size: 20 };
   let fetchError: string | null = null;
 
   try {
+    // Homes segment hard-excludes PG: /search is flats & houses only. PG lives
+    // at /pg (its own surface + backend filter). This is what keeps the two
+    // segments from bleeding into each other.
     response = await fetchApi<SearchResponse>(
-      `/listings/search?${buildSearchQuery(filters)}`,
+      `/listings/search?${buildSearchQuery({ ...filters, listing_type: "flat_house" })}`,
       undefined,
       { server: true }
     );
@@ -216,6 +239,8 @@ export default async function SearchResultsPage({
     <>
       {/* ── Inline Search + Header ── */}
       <section className="container" style={{ paddingBottom: 0, paddingTop: "var(--space-6)" }}>
+        <SegmentedSearchBar locale={params.locale} segment="homes" params={filters} />
+
         <SearchFilters
           locale={params.locale}
           filters={filters}

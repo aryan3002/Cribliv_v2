@@ -13,6 +13,11 @@ export default async function Page({
   const s = await auth();
   if (s?.user?.role !== "pg_operator") redirect(`/${params.locale}/pg-operator/become`);
   const accessToken = (s as any)?.accessToken ?? null;
+  // Real operator UUID for the voice/text socket handshake. Previously the
+  // socket hardcoded "session-user" → the server rejected it with
+  //   "invalid input syntax for type uuid"
+  // when inserting the row into pg_voice_agent_sessions.operator_user_id (FK to users).
+  const operatorUserId = (s?.user as { id?: string } | undefined)?.id ?? null;
 
   let existingPgPropertyId: string | null = null;
   let existingPropertySeed:
@@ -36,6 +41,7 @@ export default async function Page({
       locale={params.locale}
       draftId={searchParams.draftId}
       accessToken={accessToken}
+      operatorUserId={operatorUserId}
       existingPgPropertyId={existingPgPropertyId}
       existingPropertySeed={existingPropertySeed}
     />

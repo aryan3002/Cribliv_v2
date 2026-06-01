@@ -10608,3 +10608,79 @@ a.feature-card:hover .icon-circle { transform: scale(1.1); }
   .dlx-leads__actions { width: 100%; }
   .dlx-search { flex: 1; min-width: 0; }
 }
+
+/* ── PG card badges (tenant PG surface) ── */
+.pg-card__badges { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.pg-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; line-height: 1.6; }
+.pg-badge--gender { background: #eef2ff; color: #3730a3; }
+.pg-badge--food { background: #ecfdf5; color: #047857; }
+.pg-badge--sharing { background: #f1f5f9; color: #334155; }
+
+/* ── PG filters bar ── */
+.pg-filters { display: flex; flex-direction: column; gap: 10px; }
+.pg-filters__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pg-filters__label { font-size: 12px; font-weight: 700; color: var(--text-secondary); min-width: 56px; }
+.pg-filters__chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.pg-chip { padding: 5px 12px; border-radius: 9999px; border: 1px solid var(--border); background: #fff; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; color: var(--text-primary); }
+.pg-chip--active { background: var(--brand); color: #fff; border-color: var(--brand); }
+.pg-filters__sort { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 13px; }
+
+/* ── PG detail page ── */
+.pg-detail__gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.pg-detail__photo { width: 100%; height: 180px; object-fit: cover; border-radius: 10px; }
+.pg-interest--done { display: inline-flex; align-items: center; gap: 8px; color: #047857; font-weight: 600; }
+
+/* ── Homes | PG search segment toggle ── */
+.hero-segment { display: inline-flex; gap: 4px; padding: 4px; background: #f1f5f9; border-radius: 9999px; margin-bottom: 10px; width: fit-content; }
+.hero-segment__btn { padding: 6px 18px; border: 0; background: transparent; border-radius: 9999px; font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+.hero-segment__btn--active { background: #fff; color: var(--brand); box-shadow: var(--shadow-sm); }
+
+/* ── Shared segmented search bar (Homes | PG) ── */
+.segbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0 16px; }
+.segbar__toggle { display: inline-flex; gap: 4px; padding: 4px; background: #f1f5f9; border-radius: 9999px; }
+.segbar__seg { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border: 0; background: transparent; border-radius: 9999px; font-size: 13px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+.segbar__seg--active { background: #fff; color: var(--brand); box-shadow: var(--shadow-sm); }
+.segbar__form { display: flex; align-items: center; gap: 8px; flex: 1 1 280px; min-width: 240px; padding: 4px 4px 4px 12px; border: 1px solid var(--border); border-radius: 9999px; background: #fff; }
+.segbar__icon { color: #94a3b8; flex-shrink: 0; }
+.segbar__input { flex: 1; border: 0; outline: none; font-size: 14px; background: transparent; }
+.segbar__submit { border-radius: 9999px; white-space: nowrap; }
+
+/* PG detail — photo mosaic */
+.pg-detail__mosaic { display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: repeat(2, 1fr); gap: 8px; height: 320px; border-radius: var(--radius-lg); overflow: hidden; }
+.pg-detail__mosaic-main { grid-row: span 2; position: relative; cursor: pointer; }
+.pg-detail__mosaic-thumb { position: relative; cursor: pointer; overflow: hidden; }
+.pg-detail__mosaic img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--transition-base, .2s ease); }
+.pg-detail__mosaic-thumb:hover img { transform: scale(1.04); }
+@media (max-width: 640px) { .pg-detail__mosaic { grid-template-columns: 1fr; grid-template-rows: 220px; height: auto; } .pg-detail__mosaic-thumb { display: none; } }
+
+/* Facts strip */
+.pg-detail__facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); margin: var(--space-6) 0; }
+.pg-detail__fact { background: var(--surface-sunken, #f6f7f9); border-radius: var(--radius-md); padding: var(--space-4); }
+.pg-detail__fact-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.pg-detail__fact-value { font-family: var(--font-heading, inherit); font-size: 15px; font-weight: 600; color: var(--text-primary); text-transform: capitalize; }
+
+/* Amenities */
+.pg-detail__amenities { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-4) 0; }
+.pg-detail__amenity { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-full, 999px); font-size: 13px; font-weight: 500; background: var(--surface, #fff); text-transform: capitalize; }
+
+/* Vacancy urgency */
+.pg-detail__vacancy { display: inline-block; margin-top: var(--space-3); padding: 4px 12px; border-radius: var(--radius-full, 999px); background: #fff4e5; color: #b35900; font-size: 13px; font-weight: 600; }
+
+/* Similar */
+.pg-detail__similar { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-4); }
+@media (max-width: 640px) { .pg-detail__similar { grid-template-columns: 1fr; } }
+
+/* Sticky mobile CTA */
+.pg-detail__sticky-cta { display: none; }
+@media (max-width: 640px) {
+  .pg-detail__sticky-cta { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 10px 16px; background: var(--surface, #fff); border-top: 1px solid var(--border); box-shadow: 0 -4px 16px rgba(0,0,0,.06); }
+  .pg-detail__sticky-price { font-weight: 700; font-size: 14px; }
+}
+.pg-detail__rules summary { cursor: pointer; font-weight: 600; }
+
+/* PG funnel */
+.pgo-funnel__row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 12px; }
+.pgo-funnel__cell { text-align: center; }
+.pgo-funnel__cell-value { font-weight: 700; font-size: 15px; }
+.pgo-funnel__cell-label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+.pgo-funnel__spark { margin-top: 8px; }

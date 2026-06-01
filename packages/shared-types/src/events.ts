@@ -70,3 +70,25 @@ export const analyticsEvents = [
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];
+
+// PG tenant funnel events (search → detail → interest). Written from web via
+// track() (PostHog) and, for search-scoped ones, POST /pg/analytics/search.
+export const pgEvents = [
+  "pg_search_executed",
+  "pg_card_clicked",
+  "pg_filter_applied",
+  "pg_filter_cleared",
+  "pg_sort_changed",
+  "pg_zero_results",
+  "pg_pagination_used",
+  "pg_detail_viewed",
+  "pg_photo_viewed",
+  "pg_interest_clicked",
+  "pg_interest_submitted",
+  "pg_shared",
+  "pg_similar_clicked",
+  "pg_city_page_viewed",
+  "pg_hub_clicked"
+] as const;
+
+export type PgEventName = (typeof pgEvents)[number];

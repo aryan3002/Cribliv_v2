@@ -1,9 +1,43 @@
 "use client";
 import { Dispatch, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Rocket, Code } from "lucide-react";
 import { PgWizardState, PgWizardAction, buildSubmitPayload } from "@/lib/pg-wizard-state";
 import { createPgListing } from "@/lib/pg-operator-api";
+import { presignListingPhotos, completeListingPhotos } from "@/lib/owner-api";
 import PgPhotoUploader from "../shared/PgPhotoUploader";
+
+function makeIdemKey(prefix: string): string {
+  const r =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+  return `${prefix}-${r}`;
+}
+
+/** PUT a single Blob to an Azure SAS URL, with 3-attempt retry on retriable codes.
+ *  Mirrors `apps/web/app/[locale]/owner/listings/new/page.tsx:608` so behaviour
+ *  stays consistent across owner / pg_operator listing flows. */
+async function putToAzure(uploadUrl: string, file: File): Promise<void> {
+  const contentType = file.type || "image/jpeg";
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": contentType },
+        body: file
+      });
+      if (res.ok) return;
+      const retriable = [408, 429, 500, 502, 503, 504].includes(res.status);
+      if (!retriable || attempt === 3) {
+        throw new Error(`Photo upload failed (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      if (attempt === 3) throw e instanceof Error ? e : new Error("Photo upload failed");
+    }
+  }
+}
 
 interface Props {
   state: PgWizardState;
@@ -42,9 +76,67 @@ export default function PgPhotosReviewStep({ state, dispatch, locale, accessToke
         payload,
         token: accessToken
       });
+
+      // Phase 2: photos. The listing must exist (we need listing_id for SAS scope),
+      // so this runs AFTER createPgListing. Photo upload failures are logged but
+      // don't roll back the listing — the operator can re-upload from the dashboard.
+      const pending = state.pendingPhotos ?? [];
+      if (pending.length > 0) {
+        try {
+          const sorted = pending.slice().sort((a, b) => a.sortOrder - b.sortOrder);
+          const presign = await presignListingPhotos(
+            accessToken,
+            r.listing_id,
+            sorted.map((p) => ({
+              clientUploadId: p.clientUploadId,
+              contentType: p.contentType,
+              sizeBytes: p.sizeBytes
+            })),
+            makeIdemKey("pg-photo-presign")
+          );
+
+          const byId = new Map(presign.uploads.map((u) => [u.clientUploadId, u]));
+          await Promise.all(
+            sorted.map(async (p) => {
+              const u = byId.get(p.clientUploadId);
+              if (!u) throw new Error(`No upload URL for ${p.clientUploadId}`);
+              await putToAzure(u.uploadUrl, p.file);
+            })
+          );
+
+          await completeListingPhotos(
+            accessToken,
+            r.listing_id,
+            sorted.map((p) => {
+              const u = byId.get(p.clientUploadId);
+              return {
+                clientUploadId: p.clientUploadId,
+                blobPath: u?.blobPath ?? "",
+                isCover: p.isCover,
+                sortOrder: p.sortOrder
+              };
+            }),
+            makeIdemKey("pg-photo-complete")
+          );
+
+          dispatch({ type: "CLEAR_PHOTOS" });
+        } catch (photoErr) {
+          // Listing already created — surface but don't fail the whole flow.
+          console.error("[pg-wizard] photo upload failed post-create:", photoErr);
+          dispatch({
+            type: "SUBMIT_FAIL",
+            error: "Listing was created but photo upload failed. Add photos from your dashboard."
+          });
+          router.push(
+            `/${locale}/pg-operator/listings/${r.listing_id}?published=1&photoError=1` as any
+          );
+          return;
+        }
+      }
+
       dispatch({ type: "SUBMIT_OK" });
       sessionStorage.removeItem("pg-wizard-draft-v1");
-      router.push(`/${locale}/pg-operator/dashboard?createdListingId=${r.listing_id}` as any);
+      router.push(`/${locale}/pg-operator/listings/${r.listing_id}?published=1` as any);
     } catch (e) {
       const err = e as Error & { code?: string };
       if (err.code === "no_property") {
@@ -59,20 +151,93 @@ export default function PgPhotosReviewStep({ state, dispatch, locale, accessToke
   };
 
   return (
-    <section className="pg-step pg-step--photos-review">
-      <h2>Photos &amp; Review</h2>
-      <PgPhotoUploader />
-      <details open>
-        <summary>Review (this is what gets submitted)</summary>
-        <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(payload, null, 2)}</pre>
+    <section>
+      <PgPhotoUploader state={state} dispatch={dispatch} />
+
+      {/* Review summary */}
+      <div className="pgo-review-grid">
+        <div className="pgo-review-item">
+          <div className="pgo-review-item__label">Property</div>
+          <div className="pgo-review-item__value">{payload.property.display_name || "—"}</div>
+        </div>
+        <div className="pgo-review-item">
+          <div className="pgo-review-item__label">City</div>
+          <div className="pgo-review-item__value">{payload.property.city_slug || "—"}</div>
+        </div>
+        <div className="pgo-review-item">
+          <div className="pgo-review-item__label">Total Beds</div>
+          <div className="pgo-review-item__value">{payload.pg_details?.total_beds ?? "—"}</div>
+        </div>
+        <div className="pgo-review-item">
+          <div className="pgo-review-item__label">Room Types</div>
+          <div className="pgo-review-item__value">{payload.room_types?.length ?? 0} configured</div>
+        </div>
+        {payload.pg_details?.gender_policy && (
+          <div className="pgo-review-item">
+            <div className="pgo-review-item__label">Gender</div>
+            <div className="pgo-review-item__value" style={{ textTransform: "capitalize" }}>
+              {payload.pg_details.gender_policy}
+            </div>
+          </div>
+        )}
+        {payload.pg_details?.meals?.provided && (
+          <div className="pgo-review-item">
+            <div className="pgo-review-item__label">Meals</div>
+            <div className="pgo-review-item__value">Provided</div>
+          </div>
+        )}
+      </div>
+
+      {/* Debug payload */}
+      <details className="pgo-collapsible" style={{ marginTop: 24 }}>
+        <summary>
+          <Code size={14} />
+          Review payload (debug)
+        </summary>
+        <div className="pgo-collapsible__body">
+          <pre className="pgo-collapsible__code">{JSON.stringify(payload, null, 2)}</pre>
+        </div>
       </details>
-      {state.submitError && <p role="alert">{state.submitError}</p>}
-      <button type="button" onClick={() => dispatch({ type: "GOTO_STEP", step: 5 })}>
-        Back
-      </button>
-      <button type="button" onClick={handlePublish} disabled={state.submitting || !canSubmit}>
-        {state.submitting ? "Publishing…" : "Publish"}
-      </button>
+
+      {state.submitError && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="pgo-error-msg"
+          role="alert"
+        >
+          {state.submitError}
+        </motion.p>
+      )}
+
+      <div className="pgo-step-nav">
+        <button
+          className="pgo-btn pgo-btn--secondary"
+          type="button"
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 5 })}
+        >
+          Back
+        </button>
+        <button
+          className="pgo-btn pgo-btn--primary pgo-btn--lg"
+          type="button"
+          onClick={handlePublish}
+          disabled={state.submitting || !canSubmit}
+        >
+          {state.submitting ? (
+            <>
+              Publishing
+              <span className="pgo-loading-dots">
+                <span />
+                <span />
+                <span />
+              </span>
+            </>
+          ) : (
+            <>Publish Listing</>
+          )}
+        </button>
+      </div>
     </section>
   );
 }

@@ -54,6 +54,8 @@ export class PgPropertiesService {
       internal_code: input.internal_code ?? null,
       city_id: cityId,
       locality_id: localityId,
+      lat: null,
+      lng: null,
       status: "active",
       is_primary: true,
       total_floors: input.total_floors ?? null,

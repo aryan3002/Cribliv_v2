@@ -20,9 +20,16 @@ beforeEach(() => {
 
 describe("PgWizardClient", () => {
   it("renders the step indicator at step 1 by default (Property & Identity)", () => {
-    render(<PgWizardClient locale="en" accessToken="tok" />);
+    render(
+      <PgWizardClient
+        locale="en"
+        accessToken="tok"
+        operatorUserId="00000000-0000-0000-0000-000000000001"
+      />
+    );
+    // 4.6 UI promoted the step title from h2 → h1 (it's the primary page heading).
     expect(
-      screen.getByRole("heading", { name: /property.*identity/i, level: 2 })
+      screen.getByRole("heading", { name: /property.*identity/i, level: 1 })
     ).toBeInTheDocument();
     // step indicator should show step 1 as current
     const items = screen.getAllByRole("listitem");
@@ -37,7 +44,13 @@ describe("PgWizardClient", () => {
         ui: { sharing_options: ["double"] }
       })
     );
-    render(<PgWizardClient locale="en" accessToken="tok" />);
+    render(
+      <PgWizardClient
+        locale="en"
+        accessToken="tok"
+        operatorUserId="00000000-0000-0000-0000-000000000001"
+      />
+    );
     expect(screen.getByLabelText(/property name/i)).toHaveValue("Saved PG");
     expect(screen.getByLabelText(/^city$/i)).toHaveValue("blr");
   });
@@ -47,6 +60,7 @@ describe("PgWizardClient", () => {
       <PgWizardClient
         locale="en"
         accessToken="tok"
+        operatorUserId="00000000-0000-0000-0000-000000000001"
         existingPgPropertyId="prop-1"
         existingPropertySeed={{ display_name: "Existing Acme PG" }}
       />
@@ -57,12 +71,24 @@ describe("PgWizardClient", () => {
   });
 
   it("renders the voice orb (full-pipeline ready)", () => {
-    render(<PgWizardClient locale="en" accessToken="tok" />);
+    render(
+      <PgWizardClient
+        locale="en"
+        accessToken="tok"
+        operatorUserId="00000000-0000-0000-0000-000000000001"
+      />
+    );
     expect(screen.getByTestId("voice-orb-stub")).toBeInTheDocument();
   });
 
   it("persists wizard state into sessionStorage on every change", async () => {
-    render(<PgWizardClient locale="en" accessToken="tok" />);
+    render(
+      <PgWizardClient
+        locale="en"
+        accessToken="tok"
+        operatorUserId="00000000-0000-0000-0000-000000000001"
+      />
+    );
     // After mount, the first effect runs and writes initial state
     await waitFor(() => {
       const saved = sessionStorage.getItem("pg-wizard-draft-v1");

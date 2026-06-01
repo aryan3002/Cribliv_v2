@@ -56,14 +56,19 @@ describe("PgBecomeClient", () => {
     });
     render(<PgBecomeClient locale="en" currentRole="tenant" accessToken="tok" />);
     await waitFor(() =>
-      expect(screen.getByRole("heading", { name: /being reviewed/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole("heading", { name: /under review|being reviewed/i })
+      ).toBeInTheDocument()
     );
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it("owner: shows multi-role-V1.5 message and does NOT call requestRoleUpgrade", async () => {
     render(<PgBecomeClient locale="en" currentRole="owner" accessToken="tok" />);
-    expect(screen.getByText(/multi.*role|already.*owner/i)).toBeInTheDocument();
+    // 4.6 UI split the copy across heading + paragraph; assert on the heading.
+    expect(
+      screen.getByRole("heading", { name: /already manage properties|multi.*role/i })
+    ).toBeInTheDocument();
     expect(mocks.requestRoleUpgrade).not.toHaveBeenCalled();
   });
 

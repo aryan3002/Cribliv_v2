@@ -112,23 +112,21 @@ describe("pg-operator-api (uses canonical fetchApi)", () => {
     expect(f).toHaveBeenCalledWith("/pg-operator/dashboard", expect.anything());
   });
 
-  it("submitSalesAssistLead() POSTs to /pg-operator/sales-assist-lead with body", async () => {
-    f.mockResolvedValueOnce({ ok: true, lead_id: "sl1" });
+  it("submitSalesAssistLead() POSTs to /sales/leads as a pg_sales_assist lead", async () => {
+    f.mockResolvedValueOnce({ id: "sl1", status: "new", source: "pg_sales_assist" });
     const r = await submitSalesAssistLead(
       { total_beds: 80, city: "Bangalore", phone: "+919999999999", notes: "Large operator" },
       "tok"
     );
-    expect(r.ok).toBe(true);
-    expect(r.lead_id).toBe("sl1");
+    expect(r.id).toBe("sl1");
     expect(f).toHaveBeenCalledWith(
-      "/pg-operator/sales-assist-lead",
+      "/sales/leads",
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          total_beds: 80,
-          city: "Bangalore",
-          phone: "+919999999999",
-          notes: "Large operator"
+          source: "pg_sales_assist",
+          notes: "Large operator",
+          metadata: { total_beds: 80, city: "Bangalore", phone: "+919999999999" }
         })
       })
     );

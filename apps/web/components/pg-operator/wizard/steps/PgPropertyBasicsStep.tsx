@@ -1,16 +1,18 @@
 "use client";
 import { Dispatch, useState } from "react";
+import { motion } from "framer-motion";
+import { Building2, MapPin, BedDouble, Users, ChevronRight } from "lucide-react";
 import { PgWizardState, PgWizardAction } from "@/lib/pg-wizard-state";
 import { createPgProperty } from "@/lib/pg-operator-api";
 import EnumChips from "../shared/EnumChips";
 
 const SHARING = [
-  { value: "single", label: "Single" },
-  { value: "double", label: "Double" },
-  { value: "triple", label: "Triple" },
-  { value: "quad", label: "Quad" },
-  { value: "dorm", label: "Dorm" }
-] as const;
+  { value: "single" as const, label: "Single" },
+  { value: "double" as const, label: "Double" },
+  { value: "triple" as const, label: "Triple" },
+  { value: "quad" as const, label: "Quad" },
+  { value: "dorm" as const, label: "Dorm" }
+];
 
 interface Props {
   state: PgWizardState;
@@ -73,7 +75,6 @@ export default function PgPropertyBasicsStep({ state, dispatch, accessToken }: P
       } catch (e) {
         const err = e as Error & { code?: string };
         if (err.code === "multi_property_not_enabled") {
-          // Operator already has a property — fetch it via /me; this is the rare retry path.
           setError("You already have a property registered. Refresh and try again.");
         } else {
           setError(err.message);
@@ -88,99 +89,195 @@ export default function PgPropertyBasicsStep({ state, dispatch, accessToken }: P
   };
 
   return (
-    <section className="pg-step pg-step--basics">
-      <h2>Property &amp; Identity</h2>
-      <label>
-        Property name
-        <input
-          aria-label="property name"
-          value={d.property?.display_name ?? ""}
-          onChange={(e) => setF("property.display_name", e.target.value)}
+    <section className="pgo-stagger">
+      {/* Property details */}
+      <div className="pgo-form-section">
+        <div className="pgo-section-header">
+          <div className="pgo-section-header__icon">
+            <Building2 size={20} />
+          </div>
+          <div className="pgo-section-header__text">
+            <span className="pgo-overline">Property</span>
+            <span className="pgo-heading pgo-heading--xs">Basic details</span>
+          </div>
+        </div>
+
+        <div className="pgo-field">
+          <input
+            className="pgo-field__input"
+            aria-label="property name"
+            value={d.property?.display_name ?? ""}
+            onChange={(e) => setF("property.display_name", e.target.value)}
+            placeholder=" "
+          />
+          <label className="pgo-field__label">Property name</label>
+          <span className="pgo-field__bar" />
+        </div>
+
+        <div className="pgo-form-row">
+          <div className="pgo-field">
+            <input
+              className="pgo-field__input"
+              aria-label="city"
+              value={d.property?.city_slug ?? ""}
+              onChange={(e) => setF("property.city_slug", e.target.value.toLowerCase())}
+              placeholder=" "
+            />
+            <label className="pgo-field__label">City</label>
+            <span className="pgo-field__bar" />
+          </div>
+          <div className="pgo-field">
+            <input
+              className="pgo-field__input"
+              aria-label="locality"
+              value={d.property?.locality_slug ?? ""}
+              onChange={(e) => setF("property.locality_slug", e.target.value.toLowerCase())}
+              placeholder=" "
+            />
+            <label className="pgo-field__label">Locality (optional)</label>
+            <span className="pgo-field__bar" />
+          </div>
+        </div>
+
+        <div className="pgo-form-row">
+          <div className="pgo-field">
+            <input
+              className="pgo-field__input"
+              type="number"
+              aria-label="total floors"
+              value={d.property?.total_floors ?? ""}
+              onChange={(e) => setF("property.total_floors", parseInt(e.target.value, 10) || null)}
+              placeholder=" "
+            />
+            <label className="pgo-field__label">Total floors</label>
+            <span className="pgo-field__bar" />
+          </div>
+          <div className="pgo-field">
+            <input
+              className="pgo-field__input"
+              aria-label="internal code"
+              value={d.property?.internal_code ?? ""}
+              onChange={(e) => setF("property.internal_code", e.target.value)}
+              placeholder=" "
+            />
+            <label className="pgo-field__label">Internal code (optional)</label>
+            <span className="pgo-field__bar" />
+          </div>
+        </div>
+      </div>
+
+      {/* PG Configuration */}
+      <div className="pgo-form-section">
+        <div className="pgo-section-header">
+          <div className="pgo-section-header__icon">
+            <BedDouble size={20} />
+          </div>
+          <div className="pgo-section-header__text">
+            <span className="pgo-overline">Configuration</span>
+            <span className="pgo-heading pgo-heading--xs">Capacity & type</span>
+          </div>
+        </div>
+
+        <div className="pgo-field">
+          <input
+            className="pgo-field__input"
+            type="number"
+            aria-label="total beds"
+            value={d.pg_details?.total_beds ?? ""}
+            onChange={(e) => setF("pg_details.total_beds", parseInt(e.target.value, 10) || 0)}
+            placeholder=" "
+          />
+          <label className="pgo-field__label">Total beds</label>
+          <span className="pgo-field__bar" />
+        </div>
+
+        <EnumChips
+          label="Gender policy"
+          value={d.pg_details?.gender_policy as any}
+          onChange={(v) => setF("pg_details.gender_policy", v)}
+          options={[
+            { value: "boys", label: "Boys" },
+            { value: "girls", label: "Girls" },
+            { value: "coed", label: "Co-ed" }
+          ]}
         />
-      </label>
-      <label>
-        City
-        <input
-          aria-label="city"
-          value={d.property?.city_slug ?? ""}
-          onChange={(e) => setF("property.city_slug", e.target.value.toLowerCase())}
-          placeholder="bangalore"
+
+        <EnumChips
+          label="Tenant type"
+          value={d.pg_details?.tenant_type as any}
+          onChange={(v) => setF("pg_details.tenant_type", v)}
+          options={[
+            { value: "students", label: "Students" },
+            { value: "working", label: "Working Professionals" },
+            { value: "any", label: "Anyone" }
+          ]}
         />
-      </label>
-      <label>
-        Locality
-        <input
-          aria-label="locality"
-          value={d.property?.locality_slug ?? ""}
-          onChange={(e) => setF("property.locality_slug", e.target.value.toLowerCase())}
-        />
-      </label>
-      <label>
-        Total floors
-        <input
-          type="number"
-          aria-label="total floors"
-          value={d.property?.total_floors ?? ""}
-          onChange={(e) => setF("property.total_floors", parseInt(e.target.value, 10) || null)}
-        />
-      </label>
-      <label>
-        Internal code (optional)
-        <input
-          aria-label="internal code"
-          value={d.property?.internal_code ?? ""}
-          onChange={(e) => setF("property.internal_code", e.target.value)}
-        />
-      </label>
-      <label>
-        Total beds
-        <input
-          type="number"
-          aria-label="total beds"
-          value={d.pg_details?.total_beds ?? ""}
-          onChange={(e) => setF("pg_details.total_beds", parseInt(e.target.value, 10) || 0)}
-        />
-      </label>
-      <EnumChips
-        label="Gender policy"
-        value={d.pg_details?.gender_policy as any}
-        onChange={(v) => setF("pg_details.gender_policy", v)}
-        options={[
-          { value: "boys", label: "Boys" },
-          { value: "girls", label: "Girls" },
-          { value: "coed", label: "Co-ed" }
-        ]}
-      />
-      <EnumChips
-        label="Tenant type"
-        value={d.pg_details?.tenant_type as any}
-        onChange={(v) => setF("pg_details.tenant_type", v)}
-        options={[
-          { value: "students", label: "Students" },
-          { value: "working", label: "Working" },
-          { value: "any", label: "Any" }
-        ]}
-      />
-      <fieldset>
-        <legend>Sharing options offered</legend>
-        {SHARING.map((s) => {
-          const active = (ui.sharing_options ?? []).includes(s.value);
-          return (
-            <button
-              key={s.value}
-              type="button"
-              aria-pressed={active}
-              onClick={() => toggleSharing(s.value)}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </fieldset>
-      {error && <p role="alert">{error}</p>}
-      <button type="button" onClick={onNext} disabled={busy}>
-        {busy ? "Creating property…" : "Next"}
-      </button>
+      </div>
+
+      {/* Sharing options */}
+      <div>
+        <div className="pgo-section-header">
+          <div className="pgo-section-header__icon">
+            <Users size={20} />
+          </div>
+          <div className="pgo-section-header__text">
+            <span className="pgo-overline">Room Types</span>
+            <span className="pgo-heading pgo-heading--xs">Sharing options offered</span>
+          </div>
+        </div>
+        <div className="pgo-chips__grid">
+          {SHARING.map((s) => {
+            const active = (ui.sharing_options ?? []).includes(s.value);
+            return (
+              <motion.button
+                key={s.value}
+                type="button"
+                className={`pgo-chip ${active ? "pgo-chip--selected" : ""}`}
+                aria-pressed={active}
+                onClick={() => toggleSharing(s.value)}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                {s.label}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {error && (
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="pgo-error-msg"
+          role="alert"
+        >
+          {error}
+        </motion.p>
+      )}
+
+      <div className="pgo-step-nav">
+        <div />
+        <button
+          className="pgo-btn pgo-btn--primary pgo-btn--lg"
+          type="button"
+          onClick={onNext}
+          disabled={busy}
+        >
+          {busy ? (
+            <>
+              Creating property
+              <span className="pgo-loading-dots">
+                <span />
+                <span />
+                <span />
+              </span>
+            </>
+          ) : (
+            <>Next</>
+          )}
+        </button>
+      </div>
     </section>
   );
 }

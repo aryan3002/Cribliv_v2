@@ -89,6 +89,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     entries.push(...entry(`/rent-in/${city}`, { priority: 0.7, freq: "weekly" }));
   }
 
+  // PG search + city landings
+  entries.push(...entry("/pg", { priority: 0.7, freq: "daily" }));
+  for (const city of CITIES) {
+    entries.push(...entry(`/pg/${city}`, { priority: 0.7, freq: "weekly" }));
+  }
+
   // Marketing pages
   const marketingPages: Array<{
     path: string;

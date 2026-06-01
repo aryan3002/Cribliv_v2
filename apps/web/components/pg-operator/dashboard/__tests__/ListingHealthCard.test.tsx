@@ -11,6 +11,13 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+const BASE_EXTRA = {
+  search_appearances_7d: 0,
+  ctr_7d: 0,
+  interest_rate_7d: 0,
+  trend_7d: [] as any[]
+};
+
 describe("ListingHealthCard", () => {
   it("renders the status badge", () => {
     render(
@@ -20,7 +27,8 @@ describe("ListingHealthCard", () => {
           status: "live",
           views_7d: 120,
           contact_unlocks_7d: 8,
-          last_updated: "2026-05-29T00:00:00Z"
+          last_updated: "2026-05-29T00:00:00Z",
+          ...BASE_EXTRA
         }}
       />
     );
@@ -35,12 +43,13 @@ describe("ListingHealthCard", () => {
           status: "live",
           views_7d: 120,
           contact_unlocks_7d: 8,
-          last_updated: "2026-05-29T00:00:00Z"
+          last_updated: "2026-05-29T00:00:00Z",
+          ...BASE_EXTRA
         }}
       />
     );
-    expect(screen.getByText("120")).toBeInTheDocument();
-    expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getAllByText("120").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("8").length).toBeGreaterThan(0);
   });
 
   it("formats last_updated <24h ago as 'today'", () => {
@@ -51,7 +60,8 @@ describe("ListingHealthCard", () => {
           status: "live",
           views_7d: 0,
           contact_unlocks_7d: 0,
-          last_updated: "2026-05-29T10:00:00Z"
+          last_updated: "2026-05-29T10:00:00Z",
+          ...BASE_EXTRA
         }}
       />
     );
@@ -66,7 +76,8 @@ describe("ListingHealthCard", () => {
           status: "live",
           views_7d: 0,
           contact_unlocks_7d: 0,
-          last_updated: "2026-05-28T11:00:00Z"
+          last_updated: "2026-05-28T11:00:00Z",
+          ...BASE_EXTRA
         }}
       />
     );
@@ -81,7 +92,8 @@ describe("ListingHealthCard", () => {
           status: "live",
           views_7d: 0,
           contact_unlocks_7d: 0,
-          last_updated: "2026-05-22T12:00:00Z"
+          last_updated: "2026-05-22T12:00:00Z",
+          ...BASE_EXTRA
         }}
       />
     );
@@ -96,7 +108,8 @@ describe("ListingHealthCard", () => {
           status: "paused",
           views_7d: 0,
           contact_unlocks_7d: 0,
-          last_updated: "2026-05-29T00:00:00Z"
+          last_updated: "2026-05-29T00:00:00Z",
+          ...BASE_EXTRA
         }}
       />
     );

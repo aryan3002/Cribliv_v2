@@ -25,6 +25,19 @@ function rolePath(role: UserRole | undefined, locale = "en"): string {
 }
 
 /**
+ * Prefix `from=` with the active locale if the link target shipped without one.
+ * Without this, `from=/pg-operator/become` would navigate to a locale-less URL
+ * that the App-Router doesn't serve — yielding a 404 even though auth succeeded.
+ * Defensive: callers SHOULD pass locale-aware `from`, but historically didn't.
+ */
+function normalizeFromPath(path: string | null | undefined, locale: string): string | null {
+  if (!path) return null;
+  if (path === "/" || /^\/(en|hi)(\/|$)/.test(path)) return path; // already locale-aware
+  if (!path.startsWith("/")) return null; // refuse arbitrary off-site redirects
+  return `/${locale}${path}`;
+}
+
+/**
  * Returns true if the given role is allowed to access the destination path.
  * Prevents a tenant from being redirected to /admin (→ 403) after login.
  */
@@ -36,6 +49,10 @@ function canAccessPath(role: UserRole | undefined, path: string): boolean {
     return role === "owner";
   }
   if (path.startsWith("/en/pg-operator") || path.startsWith("/hi/pg-operator")) {
+    // `/pg-operator/become` is the self-service upgrade gate — tenants must reach
+    // it (granting the role flips them to pg_operator). Other PG routes stay
+    // role-gated by middleware.
+    if (path.endsWith("/pg-operator/become")) return true;
     return role === "pg_operator";
   }
   if (path.startsWith("/en/tenant") || path.startsWith("/hi/tenant")) {
@@ -89,7 +106,8 @@ function friendlyError(code: string | null | undefined): string {
 // ---------------------------------------------------------------------------
 function LoginPageInner() {
   const params = useSearchParams();
-  const fromPath = params.get("from");
+  const locale = "en"; // single supported locale today; hi when middleware ramps it
+  const fromPath = normalizeFromPath(params.get("from"), locale);
 
   // UI state
   const [tab, setTab] = useState<"login" | "signup">("login");
@@ -198,7 +216,6 @@ function LoginPageInner() {
         session = await getSession();
       }
       const role = session?.user?.role;
-      const locale = "en";
 
       // Pick destination. If we still don't have a role (cookie still racing
       // or /auth/me sync slow), trust the cookie and navigate to fromPath;

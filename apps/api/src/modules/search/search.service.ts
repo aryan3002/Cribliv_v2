@@ -523,6 +523,31 @@ export class SearchService {
         clauses.push(`pgd.food_included = true`);
       }
 
+      // ── PG segment filters (split: read the projection, filter the PG aggregate) ──
+      // gender_policy / tenant_type live on pg_details (1:1). sharing / ac live on
+      // pg_room_types (1:N) so they filter via EXISTS to avoid row multiplication.
+      if (query.gender_policy) {
+        joinPgDetails = true;
+        params.push(query.gender_policy);
+        clauses.push(`pgd.gender_policy = $${params.length}::pg_gender_policy`);
+      }
+      if (query.tenant_type) {
+        joinPgDetails = true;
+        params.push(query.tenant_type);
+        clauses.push(`pgd.tenant_type = $${params.length}::pg_tenant_type`);
+      }
+      if (query.sharing) {
+        params.push(query.sharing);
+        clauses.push(
+          `EXISTS (SELECT 1 FROM pg_room_types rt WHERE rt.listing_id = l.id AND rt.sharing = $${params.length}::pg_sharing_kind)`
+        );
+      }
+      if (query.ac === "true") {
+        clauses.push(
+          `EXISTS (SELECT 1 FROM pg_room_types rt WHERE rt.listing_id = l.id AND rt.ac = true)`
+        );
+      }
+
       const page = parsePage(query.page);
       const pageSize = Math.min(Math.max(Number(query.page_size) || 20, 1), 60);
       const offset = (page - 1) * pageSize;
@@ -1135,7 +1160,7 @@ export class SearchService {
          FROM listings l
          JOIN listing_locations ll ON ll.listing_id = l.id
          JOIN cities c ON c.id = ll.city_id
-         WHERE c.slug = $1 AND l.status = 'active'`,
+         WHERE c.slug = $1 AND l.status = 'active' AND l.listing_type = 'flat_house'`,
         [slug]
       );
       const row = stats.rows[0] ?? {
@@ -1152,7 +1177,7 @@ export class SearchService {
          JOIN listings l ON l.id = lp.listing_id
          JOIN listing_locations ll ON ll.listing_id = l.id
          JOIN cities c ON c.id = ll.city_id
-         WHERE c.slug = $1 AND l.status = 'active' AND lp.is_cover = true
+         WHERE c.slug = $1 AND l.status = 'active' AND l.listing_type = 'flat_house' AND lp.is_cover = true
          ORDER BY l.created_at DESC
          LIMIT 4`,
         [slug]
@@ -1211,6 +1236,7 @@ export class SearchService {
          JOIN localities loc ON loc.city_id = ll.city_id
          WHERE loc.slug = $1
            AND l.status = 'active'
+           AND l.listing_type = 'flat_house'
            AND (
              ll.locality_id = loc.id
              OR l.title_en ILIKE '%' || loc.name_en || '%'
@@ -1234,6 +1260,7 @@ export class SearchService {
          JOIN localities loc ON loc.city_id = ll.city_id
          WHERE loc.slug = $1
            AND l.status = 'active'
+           AND l.listing_type = 'flat_house'
            AND lp.is_cover = true
            AND (
              ll.locality_id = loc.id
@@ -1337,7 +1364,7 @@ export class SearchService {
                 max(l.monthly_rent) AS max_rent
          FROM listings l
          JOIN listing_locations ll ON ll.listing_id = l.id
-         WHERE ll.city_id = c.id AND l.status = 'active'
+         WHERE ll.city_id = c.id AND l.status = 'active' AND l.listing_type = 'flat_house'
        ) stats ON true
        WHERE c.is_active = true
          AND (similarity(c.name_en, $1) > 0.15 OR c.name_en ILIKE '%' || $1 || '%' OR c.name_hi ILIKE '%' || $1 || '%')
@@ -1386,7 +1413,7 @@ export class SearchService {
                 max(l.monthly_rent) AS max_rent
          FROM listings l
          JOIN listing_locations ll ON ll.listing_id = l.id
-         WHERE l.status = 'active' AND ll.city_id = c.id
+         WHERE l.status = 'active' AND l.listing_type = 'flat_house' AND ll.city_id = c.id
            AND (
              ll.locality_id = loc.id
              OR l.title_en ILIKE '%' || loc.name_en || '%'
@@ -1440,7 +1467,7 @@ export class SearchService {
        JOIN listing_locations ll ON ll.listing_id = l.id
        JOIN cities c ON c.id = ll.city_id
        LEFT JOIN localities loc ON loc.id = ll.locality_id
-       WHERE l.status = 'active'
+       WHERE l.status = 'active' AND l.listing_type = 'flat_house'
          AND (similarity(l.title_en, $1) > 0.15 OR l.title_en ILIKE '%' || $1 || '%' OR l.title_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 4`,

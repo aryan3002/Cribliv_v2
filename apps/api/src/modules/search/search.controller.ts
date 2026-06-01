@@ -56,6 +56,11 @@ export class SearchController {
       /** SEO intent filters (Phase 4 — programmatic landing pages) */
       occupancy_type?: string; // 'male' | 'female' | 'co_living'
       food_included?: string; // 'true' | 'false'
+      /** PG segment filters (split — read over the projection + pg aggregate) */
+      gender_policy?: string; // 'boys' | 'girls' | 'coed'
+      tenant_type?: string; // 'students' | 'working' | 'any'
+      sharing?: string; // 'single' | 'double' | 'triple' | 'quad' | 'dorm'
+      ac?: string; // 'true'
       page_size?: string;
     }
   ) {

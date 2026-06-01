@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState, useTransition, useEffect } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useSession } from "next-auth/react";
 import { buildSearchQuery } from "../../../lib/api";
-import { Search, MapPin, Building2, Home, Building, Bell, BellRing } from "lucide-react";
+import { Bell, BellRing } from "lucide-react";
 
 interface SortOption {
   key: string;
@@ -14,12 +14,6 @@ interface SortOption {
 interface City {
   slug: string;
   label: string;
-}
-
-interface Suggestion {
-  type: "city" | "locality" | "listing";
-  label: string;
-  value: string;
 }
 
 interface SearchFiltersProps {
@@ -37,15 +31,20 @@ const FURNISHING_OPTIONS = [
   { key: "unfurnished", label: "Unfurnished" }
 ];
 
+/**
+ * Advanced (Homes-segment) filters for /search: city, BHK, furnishing, rent,
+ * verified, sort + save-search. The text query and the Homes|PG segment toggle
+ * live in the shared <SegmentedSearchBar>; listing type is owned by the segment
+ * (/search is flats & houses only), so there is no listing-type toggle here.
+ */
 export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFiltersProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const { data: session } = useSession();
   const accessToken = session?.accessToken ?? null;
 
-  // Save search state
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const hasFilters = !!(filters.city || filters.bhk || filters.max_rent || filters.listing_type);
+  const hasFilters = !!(filters.city || filters.bhk || filters.max_rent);
 
   async function handleSaveSearch() {
     if (!accessToken) {
@@ -63,7 +62,6 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
       if (filters.city) body.city_slug = filters.city;
       if (filters.bhk) body.bhk = Number(filters.bhk);
       if (filters.max_rent) body.max_rent = Number(filters.max_rent);
-      if (filters.listing_type) body.listing_type = filters.listing_type;
 
       const res = await fetch(`${base}/tenant/saved-searches`, {
         method: "POST",
@@ -82,17 +80,8 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
     }
   }
 
-  // Text search state
-  const [searchText, setSearchText] = useState(filters.q ?? "");
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-
-  // Navigate with updated filters
   const navigate = useCallback(
     (newFilters: Record<string, string>) => {
-      // Remove page when filters change (reset to page 1)
       const { page: _, ...rest } = newFilters;
       startTransition(() => {
         router.push(`/${locale}/search?${buildSearchQuery(rest)}`);
@@ -113,113 +102,10 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
     [filters, navigate]
   );
 
-  // Fetch typeahead suggestions
-  const fetchSuggestions = useCallback(async (q: string) => {
-    if (q.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    try {
-      const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000").replace(
-        /\/+$/,
-        ""
-      );
-      const base = apiBase.endsWith("/v1") ? apiBase : `${apiBase}/v1`;
-      const res = await fetch(`${base}/listings/search/suggest?q=${encodeURIComponent(q)}&limit=8`);
-      if (res.ok) {
-        const body = await res.json();
-        setSuggestions(body.data ?? []);
-      }
-    } catch {
-      /* silently swallow */
-    }
-  }, []);
-
-  const onSearchInput = (value: string) => {
-    setSearchText(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(value), 250);
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowSuggestions(false);
-    setFilter("q", searchText.trim());
-  };
-
-  const handleSuggestionClick = (s: Suggestion) => {
-    setShowSuggestions(false);
-    if (s.type === "city") {
-      setSearchText("");
-      const { q: _, ...rest } = filters;
-      navigate({ ...rest, city: s.value });
-    } else if (s.type === "locality") {
-      setSearchText(s.label);
-      setFilter("q", s.label);
-    } else {
-      setSearchText(s.label);
-      setFilter("q", s.label);
-    }
-  };
-
-  // Click-outside to close suggestions
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (suggestRef.current && !suggestRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   return (
     <div className="search-filters" data-pending={isPending || undefined}>
-      {/* ── Row 1: Text Search + Sort ── */}
+      {/* ── Row 1: Sort + Save ── */}
       <div className="search-filters__row">
-        <div className="search-filters__search" ref={suggestRef}>
-          <form onSubmit={handleSearchSubmit} className="search-filters__search-form">
-            <input
-              type="search"
-              className="search-filters__input"
-              placeholder="Search by keyword, locality, or title…"
-              value={searchText}
-              onChange={(e) => onSearchInput(e.target.value)}
-              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-              aria-label="Text search"
-              autoComplete="off"
-            />
-            <button type="submit" className="btn btn--primary btn--sm" aria-label="Search">
-              <Search size={16} />
-            </button>
-          </form>
-          {showSuggestions && suggestions.length > 0 && (
-            <ul className="search-filters__suggestions">
-              {suggestions.map((s, i) => (
-                <li key={`${s.type}-${s.value}-${i}`}>
-                  <button
-                    type="button"
-                    className="search-filters__suggestion-item"
-                    onClick={() => handleSuggestionClick(s)}
-                  >
-                    <span className="search-filters__suggestion-type">
-                      {s.type === "city" ? (
-                        <MapPin size={16} />
-                      ) : s.type === "locality" ? (
-                        <Building2 size={16} />
-                      ) : (
-                        <Home size={16} />
-                      )}
-                    </span>
-                    <span>{s.label}</span>
-                    <span className="search-filters__suggestion-badge">{s.type}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
         <select
           className="search-filters__select"
           value={filters.sort ?? "relevance"}
@@ -274,36 +160,6 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
             </option>
           ))}
         </select>
-
-        {/* Listing Type */}
-        <div className="search-filters__toggle" role="group" aria-label="Listing type">
-          <button
-            type="button"
-            className={`search-filters__toggle-btn${!filters.listing_type ? " search-filters__toggle-btn--active" : ""}`}
-            onClick={() => {
-              const { listing_type: _, ...rest } = filters;
-              navigate(rest);
-            }}
-          >
-            All
-          </button>
-          <button
-            type="button"
-            className={`search-filters__toggle-btn${filters.listing_type === "flat_house" ? " search-filters__toggle-btn--active" : ""}`}
-            onClick={() =>
-              setFilter("listing_type", filters.listing_type === "flat_house" ? "" : "flat_house")
-            }
-          >
-            <Home size={14} style={{ marginRight: 4 }} /> Flat
-          </button>
-          <button
-            type="button"
-            className={`search-filters__toggle-btn${filters.listing_type === "pg" ? " search-filters__toggle-btn--active" : ""}`}
-            onClick={() => setFilter("listing_type", filters.listing_type === "pg" ? "" : "pg")}
-          >
-            <Building size={14} style={{ marginRight: 4 }} /> PG
-          </button>
-        </div>
 
         {/* BHK */}
         <div className="search-filters__chips" role="group" aria-label="BHK">

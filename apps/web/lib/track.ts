@@ -2,7 +2,7 @@
 
 import posthog from "posthog-js";
 import { getApiBaseUrl } from "./api";
-import type { ListingEventType } from "@cribliv/shared-types";
+import type { ListingEventType, PgEventName } from "@cribliv/shared-types";
 
 // Events that are dual-written to the existing /analytics/event endpoint so
 // owner analytics + ranking keep their Postgres source of truth.
@@ -22,7 +22,7 @@ type ProductEvent =
   | "contact_unlock_clicked"
   | "kanban_view_toggled";
 
-export type TrackEvent = ListingEventType | ProductEvent | "search_impression";
+export type TrackEvent = ListingEventType | ProductEvent | PgEventName | "search_impression";
 
 interface TrackProps {
   listing_id?: string;
@@ -32,7 +32,7 @@ interface TrackProps {
 }
 
 let cachedSessionId: string | null = null;
-function getSessionId(): string {
+export function getSessionId(): string {
   if (cachedSessionId) return cachedSessionId;
   if (typeof window === "undefined") return "ssr";
   try {

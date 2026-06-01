@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { requestRoleUpgrade } from "@/lib/owner-api";
+import { motion, AnimatePresence } from "framer-motion";
+import { ShieldAlert, Loader2, CheckCircle2, AlertTriangle, LogIn, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 type Role = "tenant" | "owner" | "pg_operator" | "admin";
 type Phase = "working" | "blocked" | "pending" | "error" | "done" | "needs_signin";
@@ -27,11 +30,9 @@ export default function PgBecomeClient({ locale, currentRole, accessToken }: Pro
     setPhase("working");
     setError(null);
     try {
-      // Real signature: requestRoleUpgrade(accessToken, requestedRole)
-      // Returns { status: "granted" | "pending" | "already_granted", role?, requested_role, request_id }
       const r = await requestRoleUpgrade(accessToken, "pg_operator");
       if (r.status === "granted" || r.status === "already_granted") {
-        router.refresh(); // pick up new JWT role in next-auth session
+        router.refresh();
         setPhase("done");
         router.push(`/${locale}/pg-operator/dashboard` as any);
       } else if (r.status === "pending") {
@@ -51,53 +52,144 @@ export default function PgBecomeClient({ locale, currentRole, accessToken }: Pro
     if (currentRole === "pg_operator") router.push(`/${locale}/pg-operator/dashboard` as any);
   }, [currentRole, accessToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (phase === "needs_signin") {
-    return (
-      <main className="pg-become pg-become--needs-signin">
-        <h1>Sign in to continue</h1>
-        <p>You need to be signed in to become a PG operator.</p>
-        <a href={`/${locale}/auth/login?from=/pg-operator/become`}>Sign in</a>
-      </main>
-    );
-  }
-  if (phase === "blocked") {
-    return (
-      <main className="pg-become pg-become--blocked">
-        <h1>You already manage properties as an owner</h1>
-        <p>
-          Managing both an owner account and a PG operator account in one profile is on the V1.5
-          roadmap. Reach out at support@cribliv.com if you need this sooner.
-        </p>
-        <a href={`/${locale}/owner/dashboard`}>Back to your owner dashboard</a>
-      </main>
-    );
-  }
-  if (phase === "pending") {
-    return (
-      <main className="pg-become pg-become--pending">
-        <h1>Your PG operator request is being reviewed</h1>
-        <p>
-          We&apos;ll email you within 1 business day once your account is approved. You&apos;ll then
-          be able to list your PG.
-        </p>
-      </main>
-    );
-  }
-  if (phase === "error") {
-    return (
-      <main className="pg-become pg-become--error">
-        <h1>Couldn&apos;t set you up just yet</h1>
-        <p role="alert">{error ?? "Something went wrong."}</p>
-        <button type="button" onClick={doGrant}>
-          Retry
-        </button>
-      </main>
-    );
-  }
+  const cardVariants = {
+    initial: { opacity: 0, scale: 0.95, y: 20 },
+    animate: { opacity: 1, scale: 1, y: 0 },
+    exit: { opacity: 0, scale: 0.95, y: -20 }
+  };
+
+  const renderContent = () => {
+    switch (phase) {
+      case "needs_signin":
+        return (
+          <motion.div
+            key="needs_signin"
+            className="pgo-splash__card pgo-glass"
+            variants={cardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
+            <div className="pgo-splash__icon-ring pgo-splash__icon-ring--brand">
+              <LogIn size={36} />
+            </div>
+            <h1 className="pgo-splash__title">Sign in to continue</h1>
+            <p className="pgo-splash__desc">You need to be signed in to become a PG operator.</p>
+            <Link
+              href={`/${locale}/auth/login?from=/${locale}/pg-operator/become`}
+              className="pgo-btn pgo-btn--primary pgo-btn--lg"
+            >
+              Sign In Now
+            </Link>
+          </motion.div>
+        );
+      case "blocked":
+        return (
+          <motion.div
+            key="blocked"
+            className="pgo-splash__card pgo-glass"
+            variants={cardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
+            <div className="pgo-splash__icon-ring pgo-splash__icon-ring--danger">
+              <ShieldAlert size={36} />
+            </div>
+            <h1 className="pgo-splash__title">You already manage properties</h1>
+            <p className="pgo-splash__desc">
+              Managing both an owner account and a PG operator account in one profile is on the V1.5
+              roadmap. Reach out at support@cribliv.com if you need this sooner.
+            </p>
+            <Link href={`/${locale}/owner/dashboard`} className="pgo-btn pgo-btn--secondary">
+              Back to your owner dashboard
+            </Link>
+          </motion.div>
+        );
+      case "pending":
+        return (
+          <motion.div
+            key="pending"
+            className="pgo-splash__card pgo-glass"
+            variants={cardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
+            <div className="pgo-splash__icon-ring pgo-splash__icon-ring--warning">
+              <CheckCircle2 size={36} />
+            </div>
+            <h1 className="pgo-splash__title">Request Under Review</h1>
+            <p className="pgo-splash__desc">
+              We&apos;ll email you within 1 business day once your account is approved. You&apos;ll
+              then be able to list your PG.
+            </p>
+            <Link href={`/${locale}` as any} className="pgo-btn pgo-btn--secondary">
+              Return Home
+            </Link>
+          </motion.div>
+        );
+      case "error":
+        return (
+          <motion.div
+            key="error"
+            className="pgo-splash__card pgo-glass pgo-animate-shake"
+            variants={cardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
+            <div className="pgo-splash__icon-ring pgo-splash__icon-ring--danger">
+              <AlertTriangle size={36} />
+            </div>
+            <h1 className="pgo-splash__title">Setup Issue</h1>
+            <p className="pgo-splash__desc" role="alert">
+              {error ?? "Something went wrong."}
+            </p>
+            <button
+              type="button"
+              onClick={doGrant}
+              className="pgo-btn pgo-btn--primary pgo-btn--lg"
+            >
+              Retry Setup
+            </button>
+          </motion.div>
+        );
+      case "working":
+      case "done":
+      default:
+        return (
+          <motion.div
+            key="working"
+            className="pgo-splash__card pgo-glass"
+            variants={cardVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          >
+            <div className="pgo-splash__icon-ring pgo-splash__icon-ring--brand pgo-animate-float">
+              <Sparkles size={36} />
+            </div>
+            <h1 className="pgo-splash__title">Setting up your account</h1>
+            <p className="pgo-splash__desc">Welcome aboard. Taking you to your dashboard…</p>
+            <div className="pgo-loading-dots" style={{ margin: "8px auto 0" }}>
+              <span />
+              <span />
+              <span />
+            </div>
+          </motion.div>
+        );
+    }
+  };
+
   return (
-    <main className="pg-become pg-become--working">
-      <h1>Setting up your PG operator account…</h1>
-      <p>Welcome aboard. Taking you to your dashboard.</p>
+    <main className="pgo-splash">
+      <AnimatePresence mode="wait">{renderContent()}</AnimatePresence>
     </main>
   );
 }

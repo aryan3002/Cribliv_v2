@@ -293,6 +293,10 @@ export class OwnerService {
     };
   }
 
+  /**
+   * Create a (flat/house) listing. Opens and manages its own transaction.
+   * PG-unaware: PG owns its own write path (PgListingService) since the split.
+   */
   async createListing(ownerUserId: string, body: any) {
     if (!body.listing_type || !body.title || !body.rent || !body.location?.city) {
       throw new BadRequestException({
@@ -399,7 +403,11 @@ export class OwnerService {
             body.property_fields?.preferred_tenant ?? null,
             ownerContact.rows[0]?.phone_e164 ?? null,
             ownerContact.rows[0]?.whatsapp_opt_in ?? false,
-            body.amenities ? JSON.stringify(body.amenities) : null
+            // listings.amenities is `jsonb NOT NULL DEFAULT '[]'::jsonb`. Passing
+            // explicit `null` overrode the default and crashed with a NOT NULL
+            // violation whenever the caller omitted amenities. Default to '[]'
+            // so the column always gets a valid jsonb.
+            JSON.stringify(body.amenities ?? [])
           ]
         );
 
@@ -597,7 +605,12 @@ export class OwnerService {
             body.property_fields?.area_sqft ? Number(body.property_fields.area_sqft) : null,
             body.property_fields?.furnishing ?? null,
             body.property_fields?.preferred_tenant ?? null,
-            body.amenities ? JSON.stringify(body.amenities) : null
+            // listings.amenities is `jsonb NOT NULL DEFAULT '[]'::jsonb`. Passing
+            // explicit `null` overrode the default and crashed with a NOT NULL
+            // violation whenever the caller omitted amenities — the standard PG
+            // operator wizard case, since PG amenities live on pg_details, not
+            // listings. Default to '[]' so the column gets a valid jsonb.
+            JSON.stringify(body.amenities ?? [])
           ]
         );
 

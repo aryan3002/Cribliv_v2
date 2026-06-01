@@ -85,13 +85,19 @@ describe("pg-voice-socket", () => {
 
   // ─── Strengthening tests ─────────────────────────────────────────────
 
-  it("disconnectPgVoiceSocket() resets the singleton — next create returns a NEW handle", () => {
+  // Contract change (2026-05-30): the handle persists across
+  // disconnectPgVoiceSocket() — the underlying socket is torn down and re-
+  // built lazily on the next interaction. This avoids the React-18 strict-
+  // mode null-pointer crash where a stale ref-captured handle would try to
+  // use a nulled socket. See pg-voice-socket.ts header comment.
+  it("disconnectPgVoiceSocket() tears down the socket but keeps the handle alive (self-healing)", () => {
     const a = createPgVoiceSocket({ userId: "u1" });
+    a.connect(); // force socket build #1
     disconnectPgVoiceSocket();
     const b = createPgVoiceSocket({ userId: "u1" });
-    expect(b).not.toBe(a);
-    // io() should have been invoked twice — once per fresh singleton
-    expect(mocks.io).toHaveBeenCalledTimes(2);
+    expect(b).toBe(a); // same handle
+    b.connect(); // force socket build #2
+    expect(mocks.io).toHaveBeenCalledTimes(2); // but io() called twice
   });
 
   it("sendAudio() accepts Uint8Array", () => {
@@ -113,10 +119,17 @@ describe("pg-voice-socket", () => {
     expect(() => s.sendAudio(new Uint8Array(PG_AUDIO_CHUNK_MAX + 1).buffer)).toThrow(/32/);
   });
 
-  it("end() emits end_session with no args", () => {
+  it("end() emits end_session with no args (once socket exists)", () => {
     const s = createPgVoiceSocket({ userId: "u1" });
+    s.connect(); // force underlying socket to be built; end() is no-op otherwise
     s.end();
     expect(mocks.emit).toHaveBeenCalledWith("end_session");
+  });
+
+  it("end() is a no-op if no underlying socket has been built yet (no crash)", () => {
+    const s = createPgVoiceSocket({ userId: "u1" });
+    expect(() => s.end()).not.toThrow();
+    expect(mocks.emit).not.toHaveBeenCalledWith("end_session");
   });
 
   it("on() registers handler on underlying socket", () => {
@@ -126,9 +139,12 @@ describe("pg-voice-socket", () => {
     expect(mocks.on).toHaveBeenCalledWith("session_ready", cb);
   });
 
-  it("isConnected() reflects underlying socket state", () => {
+  it("isConnected() reflects underlying socket state (false until socket exists)", () => {
     const s = createPgVoiceSocket({ userId: "u1" });
+    // Before any interaction, no underlying socket exists yet.
     expect(s.isConnected()).toBe(false);
+    s.connect(); // forces ensureSocket()
+    expect(s.isConnected()).toBe(false); // mock stub starts not-connected
     mocks.socketStub.connected = true;
     expect(s.isConnected()).toBe(true);
   });

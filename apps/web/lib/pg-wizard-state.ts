@@ -18,6 +18,22 @@ export interface PgWizardUi {
   sharing_options?: Array<"single" | "double" | "triple" | "quad" | "dorm">;
 }
 
+/**
+ * A photo queued for upload. We collect files BEFORE the listing exists,
+ * upload them via Azure SAS only after the wizard's POST returns a listing_id.
+ * `previewUrl` is an in-memory blob URL; not persisted across reloads (by design —
+ * Files can't survive a refresh, sessionStorage can't either).
+ */
+export interface PendingPhoto {
+  clientUploadId: string;
+  file: File;
+  previewUrl: string;
+  sizeBytes: number;
+  contentType: string;
+  sortOrder: number;
+  isCover: boolean;
+}
+
 export interface PgWizardState {
   draft: DraftPartial;
   ui: PgWizardUi;
@@ -28,6 +44,10 @@ export interface PgWizardState {
   idempotencyKey?: string;
   submitting: boolean;
   submitError?: string;
+  /** Photos queued in step 6; uploaded post-create. Not persisted to sessionStorage. */
+  pendingPhotos: PendingPhoto[];
+  /** Optional assistant-mode toggle (voice ↔ text). Persists across step nav. */
+  assistantMode?: "voice" | "text";
 }
 
 export type PgWizardAction =
@@ -51,7 +71,13 @@ export type PgWizardAction =
   | { type: "SET_PG_PROPERTY_ID"; pgPropertyId: string }
   | { type: "SUBMIT_BEGIN" }
   | { type: "SUBMIT_OK" }
-  | { type: "SUBMIT_FAIL"; error: string };
+  | { type: "SUBMIT_FAIL"; error: string }
+  | { type: "ADD_PHOTOS"; photos: PendingPhoto[] }
+  | { type: "REMOVE_PHOTO"; clientUploadId: string }
+  | { type: "SET_COVER_PHOTO"; clientUploadId: string }
+  | { type: "REORDER_PHOTOS"; orderedIds: string[] }
+  | { type: "CLEAR_PHOTOS" }
+  | { type: "SET_ASSISTANT_MODE"; mode: "voice" | "text" };
 
 export function initialPgWizardState(): PgWizardState {
   return {
@@ -59,7 +85,8 @@ export function initialPgWizardState(): PgWizardState {
     ui: {},
     currentStep: 1,
     undoStack: [],
-    submitting: false
+    submitting: false,
+    pendingPhotos: []
   };
 }
 
@@ -84,7 +111,7 @@ function getByPath(obj: any, path: string): unknown {
   return path.split(".").reduce<any>((acc, k) => (acc ? acc[k] : undefined), obj);
 }
 
-function cellKey(rt: {
+export function cellKey(rt: {
   sharing: string;
   ac: boolean;
   bathroom_kind?: string;
@@ -203,6 +230,64 @@ export function pgWizardReducer(state: PgWizardState, action: PgWizardAction): P
       return { ...state, submitting: false };
     case "SUBMIT_FAIL":
       return { ...state, submitting: false, submitError: action.error };
+    case "ADD_PHOTOS": {
+      const existing = state.pendingPhotos ?? [];
+      // First-uploaded becomes cover by default when no cover exists yet.
+      const hasCover = existing.some((p) => p.isCover);
+      const incoming = action.photos.map((p, i) => ({
+        ...p,
+        sortOrder: existing.length + i,
+        isCover: !hasCover && i === 0 ? true : p.isCover
+      }));
+      return { ...state, pendingPhotos: [...existing, ...incoming] };
+    }
+    case "REMOVE_PHOTO": {
+      const removed = (state.pendingPhotos ?? []).find(
+        (p) => p.clientUploadId === action.clientUploadId
+      );
+      if (removed) {
+        try {
+          URL.revokeObjectURL(removed.previewUrl);
+        } catch {}
+      }
+      let remaining = (state.pendingPhotos ?? []).filter(
+        (p) => p.clientUploadId !== action.clientUploadId
+      );
+      // If we removed the cover, promote the first remaining as cover.
+      if (removed?.isCover && remaining.length > 0 && !remaining.some((p) => p.isCover)) {
+        remaining = remaining.map((p, i) => (i === 0 ? { ...p, isCover: true } : p));
+      }
+      return { ...state, pendingPhotos: remaining };
+    }
+    case "SET_COVER_PHOTO":
+      return {
+        ...state,
+        pendingPhotos: (state.pendingPhotos ?? []).map((p) => ({
+          ...p,
+          isCover: p.clientUploadId === action.clientUploadId
+        }))
+      };
+    case "REORDER_PHOTOS": {
+      const ids = action.orderedIds;
+      const byId = new Map((state.pendingPhotos ?? []).map((p) => [p.clientUploadId, p]));
+      const reordered = ids
+        .map((id, i) => {
+          const p = byId.get(id);
+          return p ? { ...p, sortOrder: i } : null;
+        })
+        .filter((p): p is PendingPhoto => p != null);
+      return { ...state, pendingPhotos: reordered };
+    }
+    case "CLEAR_PHOTOS": {
+      for (const p of state.pendingPhotos ?? []) {
+        try {
+          URL.revokeObjectURL(p.previewUrl);
+        } catch {}
+      }
+      return { ...state, pendingPhotos: [] };
+    }
+    case "SET_ASSISTANT_MODE":
+      return { ...state, assistantMode: action.mode };
     default:
       return state;
   }
@@ -262,6 +347,17 @@ export function buildSubmitPayload(state: PgWizardState): PgListingPayload {
   const pg_details: any = { total_beds: rawPg.total_beds };
   for (const k of Object.keys(rawPg)) {
     if (PG_KEYS.has(k) && rawPg[k] !== undefined) pg_details[k] = rawPg[k];
+  }
+
+  // PgHouseRules requires these 5 booleans — default to false when untouched.
+  if (pg_details.house_rules || rawPg.house_rules) {
+    const hr = { ...(pg_details.house_rules ?? rawPg.house_rules ?? {}) };
+    hr.smoking = hr.smoking ?? false;
+    hr.alcohol = hr.alcohol ?? false;
+    hr.non_veg = hr.non_veg ?? false;
+    hr.pets = hr.pets ?? false;
+    hr.cooking_in_room = hr.cooking_in_room ?? false;
+    pg_details.house_rules = hr;
   }
 
   const room_types = Array.isArray(d.room_types)

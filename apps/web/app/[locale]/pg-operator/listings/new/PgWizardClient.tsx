@@ -1,6 +1,7 @@
 "use client";
 import { useReducer, useEffect } from "react";
 import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "framer-motion";
 import { pgWizardReducer, initialPgWizardState } from "@/lib/pg-wizard-state";
 import PgStepIndicator from "@/components/pg-operator/wizard/PgStepIndicator";
 import PgPropertyBasicsStep from "@/components/pg-operator/wizard/steps/PgPropertyBasicsStep";
@@ -16,10 +17,25 @@ const PgVoiceOrb = dynamic(() => import("@/components/pg-operator/voice/PgVoiceO
 
 const STORAGE_KEY = "pg-wizard-draft-v1";
 
+const STEP_META: Record<number, { title: string; desc: string }> = {
+  1: {
+    title: "Property & Identity",
+    desc: "Tell us about your PG — name, location, and basic setup."
+  },
+  2: { title: "Rooms & Pricing", desc: "Configure room types, monthly rent, and availability." },
+  3: { title: "Payment Terms", desc: "Set deposit, notice period, and accepted payment methods." },
+  4: { title: "House Rules", desc: "Define the rules tenants need to follow." },
+  5: { title: "Amenities & Food", desc: "Select facilities and meal options you offer." },
+  6: { title: "Photos & Review", desc: "Add photos and review everything before publishing." }
+};
+
 interface Props {
   locale: string;
   draftId?: string;
   accessToken: string | null;
+  /** Real UUID of the logged-in operator. Threaded down to PgVoiceOrb → socket
+   *  handshake so the gateway can FK into users(id) when persisting sessions. */
+  operatorUserId: string | null;
   /** From server-side getMe(): set when operator already has a property. */
   existingPgPropertyId?: string | null;
   /** From server-side getMe(): pre-populate property block. */
@@ -30,6 +46,7 @@ export default function PgWizardClient({
   locale,
   draftId,
   accessToken,
+  operatorUserId,
   existingPgPropertyId,
   existingPropertySeed
 }: Props) {
@@ -82,17 +99,52 @@ export default function PgWizardClient({
     } catch {}
   }, [state.draft, state.ui]);
 
+  const meta = STEP_META[state.currentStep];
   const baseProps = { state, dispatch, locale };
+
   return (
-    <main className="pg-wizard">
-      <PgStepIndicator current={state.currentStep} />
-      {state.currentStep === 1 && <PgPropertyBasicsStep {...baseProps} accessToken={accessToken} />}
-      {state.currentStep === 2 && <PgRoomsPricingStep {...baseProps} />}
-      {state.currentStep === 3 && <PgPaymentStep {...baseProps} />}
-      {state.currentStep === 4 && <PgRulesStep {...baseProps} />}
-      {state.currentStep === 5 && <PgAmenitiesFoodStep {...baseProps} />}
-      {state.currentStep === 6 && <PgPhotosReviewStep {...baseProps} accessToken={accessToken} />}
-      <PgVoiceOrb state={state} dispatch={dispatch} locale={locale} />
+    <main className="pgo-page">
+      <div className="pgo-glass pgo-glass--lg" style={{ position: "relative" }}>
+        <PgStepIndicator current={state.currentStep} />
+
+        {/* Step header */}
+        <motion.div
+          key={`header-${state.currentStep}`}
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          style={{ marginBottom: 32 }}
+        >
+          <h1 className="pgo-heading pgo-heading--lg">{meta.title}</h1>
+          <p className="pgo-desc" style={{ marginTop: 4 }}>
+            {meta.desc}
+          </p>
+        </motion.div>
+
+        {/* Steps with cross-fade */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={state.currentStep}
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+          >
+            {state.currentStep === 1 && (
+              <PgPropertyBasicsStep {...baseProps} accessToken={accessToken} />
+            )}
+            {state.currentStep === 2 && <PgRoomsPricingStep {...baseProps} />}
+            {state.currentStep === 3 && <PgPaymentStep {...baseProps} />}
+            {state.currentStep === 4 && <PgRulesStep {...baseProps} />}
+            {state.currentStep === 5 && <PgAmenitiesFoodStep {...baseProps} />}
+            {state.currentStep === 6 && (
+              <PgPhotosReviewStep {...baseProps} accessToken={accessToken} />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <PgVoiceOrb state={state} dispatch={dispatch} locale={locale} userId={operatorUserId} />
     </main>
   );
 }

@@ -10,12 +10,19 @@ import { VoiceAgentPgGateway } from "../src/modules/voice-agent-pg/voice-agent-p
 import { PgVoiceSessionService } from "../src/modules/voice-agent-pg/services/pg-voice-session.service";
 import { PgExtractionService } from "../src/modules/voice-agent-pg/services/pg-extraction.service";
 import { PgConversationOrchestrator } from "../src/modules/voice-agent-pg/services/pg-conversation-orchestrator.service";
+import { PgLlmClient } from "../src/modules/voice-agent-pg/services/pg-llm-client.service";
 import { DatabaseService } from "../src/common/database.service";
 import { AppStateService } from "../src/common/app-state.service";
 
 const fakeDb = {
   isEnabled: () => false,
   query: async () => ({ rows: [] })
+};
+
+// LLM client is only exercised in text mode. Voice-mode integration tests
+// never hit it; stub it out so we don't need Azure OpenAI credentials in CI.
+const fakeLlm = {
+  requestTurn: async () => ({ finalText: "", toolCalls: [], done: true })
 };
 
 @Module({
@@ -25,7 +32,8 @@ const fakeDb = {
     PgExtractionService,
     PgConversationOrchestrator,
     AppStateService,
-    { provide: DatabaseService, useValue: fakeDb }
+    { provide: DatabaseService, useValue: fakeDb },
+    { provide: PgLlmClient, useValue: fakeLlm }
   ]
 })
 class TestPgVoiceModule {}
@@ -50,13 +58,19 @@ describe("VoiceAgentPgGateway (integration)", () => {
   });
 
   let testOperatorCounter = 0;
+  // Gateway now validates operator UUID format and rejects non-UUID handshakes
+  // with `unauth_handshake`. Tests synthesise a deterministic UUID per client.
+  function makeOpUuid(n: number): string {
+    const seq = String(n).padStart(12, "0");
+    return `00000000-0000-0000-0000-${seq}`;
+  }
   async function newClient(): Promise<ClientSocket> {
     testOperatorCounter++;
     const c = ioClient(url, {
       transports: ["websocket", "polling"],
       forceNew: true,
       reconnection: false,
-      auth: { user: { id: `op-test-${testOperatorCounter}` } }
+      auth: { userId: makeOpUuid(testOperatorCounter) }
     });
     await new Promise<void>((resolve, reject) => {
       const tm = setTimeout(() => reject(new Error(`connect timeout url=${url}`)), 4000);
