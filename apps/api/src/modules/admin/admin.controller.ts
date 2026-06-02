@@ -31,6 +31,10 @@ import {
 } from "./admin-revenue.service";
 import { AdminFraudFeedService } from "./admin-fraud-feed.service";
 import { AdminRentAgreementService } from "./admin-rent-agreement.service";
+import { PgScoreService } from "../pg-operator/services/pg-score.service";
+import { PgFunnelService } from "../pg-operator/services/pg-funnel.service";
+import { PgAdminAnalyticsService } from "./pg-admin-analytics.service";
+import { readFeatureFlags } from "../../config/feature-flags";
 
 // Clamp the ?days= query param to a sane window; default 30.
 function parseDays(raw?: string): number {
@@ -52,7 +56,10 @@ export class AdminController {
     @Inject(AdminRevenueService) private readonly revenue: AdminRevenueService,
     @Inject(AdminFraudFeedService) private readonly fraudFeed: AdminFraudFeedService,
     @Inject(AdminRentAgreementService)
-    private readonly rentAgreements: AdminRentAgreementService
+    private readonly rentAgreements: AdminRentAgreementService,
+    @Inject(PgScoreService) private readonly pgScore: PgScoreService,
+    @Inject(PgFunnelService) private readonly pgFunnel: PgFunnelService,
+    @Inject(PgAdminAnalyticsService) private readonly pgAnalytics: PgAdminAnalyticsService
   ) {}
 
   /* ── Live Operations dashboard ─────────────────────────────────── */
@@ -225,6 +232,15 @@ export class AdminController {
             WHERE id = $1::uuid AND listing_type = 'pg'`,
           [listingId]
         );
+        // Immediate re-score on go-live: the listing just became active AND
+        // verified (verification factor 0.2 → 1.0), so its ranking score must
+        // refresh now instead of waiting up to 6h for the worker. Best-effort;
+        // rescoreListing no-ops for non-PG listings (its WHERE filters type).
+        void this.pgScore.rescoreListing(listingId);
+        // Funnel: go-live is the canonical `published` event — closes the
+        // start→publish conversion. Best-effort; no-ops for non-PG listings
+        // (the committed-draft lookup returns no row).
+        void this.pgFunnel.trackPublished(listingId);
       }
 
       logTelemetry("admin.listing_decision", {
@@ -1080,6 +1096,18 @@ export class AdminController {
   @Get("analytics/funnel")
   async analyticsFunnel(@Query("days") days?: string) {
     return ok(await this.analytics.getConversionFunnel(Number(days) || 30));
+  }
+
+  /** PG listing-process analytics: funnel + content quality + voice + score health. */
+  @Get("pg/listing-analytics")
+  async pgListingAnalytics(@Query("days") days?: string) {
+    if (!readFeatureFlags().ff_pg_admin_analytics) {
+      throw new BadRequestException({
+        code: "feature_disabled",
+        message: "ff_pg_admin_analytics is off"
+      });
+    }
+    return ok(await this.pgAnalytics.getListingAnalytics(parseDays(days)));
   }
 
   // ---------------------------------------------------------------------------

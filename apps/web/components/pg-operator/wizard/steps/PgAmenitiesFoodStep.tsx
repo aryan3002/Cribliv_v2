@@ -65,14 +65,14 @@ export default function PgAmenitiesFoodStep({
         <button
           className="pgo-btn pgo-btn--secondary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 4 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 5 })}
         >
           Back
         </button>
         <button
           className="pgo-btn pgo-btn--primary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 6 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 7 })}
         >
           Next <ChevronRight size={16} />
         </button>

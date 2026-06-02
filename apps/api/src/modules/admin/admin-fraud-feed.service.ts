@@ -213,6 +213,14 @@ export class AdminFraudFeedService {
         return "Listing flagged as stale";
       case "broker_detected":
         return "Broker behaviour detected";
+      case "price_anomaly":
+        return `Unusual pricing detected (z-score: ${(details?.z_score as number | undefined)?.toFixed(1) ?? "?"})`;
+      case "contact_reuse":
+        return `Operator has ${(details?.listing_count as number | undefined) ?? "multiple"} active PG listings — possible contact reuse`;
+      case "duplicate_photo":
+        return "Photo appears in another PG listing — possible duplicate";
+      case "suspicious_text":
+        return `Scam text signals detected (score: ${(details?.score as number | undefined)?.toFixed(2) ?? "?"})`;
       default:
         return `Flag: ${type}`;
     }

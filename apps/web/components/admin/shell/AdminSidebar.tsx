@@ -25,6 +25,7 @@ export type AdminTab =
   | "users"
   | "revenue"
   | "rent-agreements"
+  | "pg-listings"
   | "fraud"
   | "system";
 
@@ -55,6 +56,7 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
   const understand: NavItem[] = [
     { id: "revenue", label: "Revenue", icon: Coins },
     { id: "rent-agreements", label: "Rent Agreements", icon: FileText },
+    { id: "pg-listings", label: "PG Listings", icon: BarChart3 },
     { id: "users", label: "Users", icon: Users }
   ];
   const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];

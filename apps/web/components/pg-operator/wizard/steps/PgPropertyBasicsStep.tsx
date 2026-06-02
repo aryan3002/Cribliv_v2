@@ -1,9 +1,8 @@
 "use client";
 import { Dispatch, useState } from "react";
 import { motion } from "framer-motion";
-import { Building2, MapPin, BedDouble, Users, ChevronRight } from "lucide-react";
+import { Building2, BedDouble, Users } from "lucide-react";
 import { PgWizardState, PgWizardAction } from "@/lib/pg-wizard-state";
-import { createPgProperty } from "@/lib/pg-operator-api";
 import EnumChips from "../shared/EnumChips";
 
 const SHARING = [
@@ -18,13 +17,11 @@ interface Props {
   state: PgWizardState;
   dispatch: Dispatch<PgWizardAction>;
   locale: string;
-  /** From RSC session; required to call createPgProperty. */
   accessToken: string | null;
 }
 
-export default function PgPropertyBasicsStep({ state, dispatch, accessToken }: Props) {
+export default function PgPropertyBasicsStep({ state, dispatch }: Props) {
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const d = state.draft;
   const ui = state.ui;
   const setF = (path: string, value: unknown) => dispatch({ type: "SET_FIELD", path, value });
@@ -37,54 +34,19 @@ export default function PgPropertyBasicsStep({ state, dispatch, accessToken }: P
   const validate = (): string | null => {
     if (!d.property?.display_name || d.property.display_name.length < 2)
       return "Property name required (≥2 chars)";
-    if (!d.property?.city_slug) return "City required";
     if (!d.pg_details?.total_beds || d.pg_details.total_beds < 1) return "Total beds required";
     if (!ui.sharing_options || ui.sharing_options.length < 1)
       return "Pick at least one sharing option";
     return null;
   };
 
-  const onNext = async () => {
+  const onNext = () => {
     const v = validate();
     if (v) {
       setError(v);
       return;
     }
     setError(null);
-
-    // If property doesn't exist yet on the server, create it now.
-    if (!state.pgPropertyId) {
-      if (!accessToken) {
-        setError("Sign in required to create your property.");
-        return;
-      }
-      setBusy(true);
-      try {
-        const prop = await createPgProperty({
-          idempotencyKey: crypto.randomUUID(),
-          token: accessToken,
-          input: {
-            display_name: d.property!.display_name!,
-            city_slug: d.property!.city_slug!,
-            ...(d.property!.locality_slug ? { locality_slug: d.property!.locality_slug } : {}),
-            ...(d.property!.internal_code ? { internal_code: d.property!.internal_code } : {}),
-            ...(d.property!.total_floors ? { total_floors: d.property!.total_floors } : {})
-          }
-        });
-        dispatch({ type: "SET_PG_PROPERTY_ID", pgPropertyId: prop.id });
-      } catch (e) {
-        const err = e as Error & { code?: string };
-        if (err.code === "multi_property_not_enabled") {
-          setError("You already have a property registered. Refresh and try again.");
-        } else {
-          setError(err.message);
-        }
-        setBusy(false);
-        return;
-      }
-      setBusy(false);
-    }
-
     dispatch({ type: "GOTO_STEP", step: 2 });
   };
 
@@ -112,31 +74,6 @@ export default function PgPropertyBasicsStep({ state, dispatch, accessToken }: P
           />
           <label className="pgo-field__label">Property name</label>
           <span className="pgo-field__bar" />
-        </div>
-
-        <div className="pgo-form-row">
-          <div className="pgo-field">
-            <input
-              className="pgo-field__input"
-              aria-label="city"
-              value={d.property?.city_slug ?? ""}
-              onChange={(e) => setF("property.city_slug", e.target.value.toLowerCase())}
-              placeholder=" "
-            />
-            <label className="pgo-field__label">City</label>
-            <span className="pgo-field__bar" />
-          </div>
-          <div className="pgo-field">
-            <input
-              className="pgo-field__input"
-              aria-label="locality"
-              value={d.property?.locality_slug ?? ""}
-              onChange={(e) => setF("property.locality_slug", e.target.value.toLowerCase())}
-              placeholder=" "
-            />
-            <label className="pgo-field__label">Locality (optional)</label>
-            <span className="pgo-field__bar" />
-          </div>
         </div>
 
         <div className="pgo-form-row">
@@ -258,24 +195,8 @@ export default function PgPropertyBasicsStep({ state, dispatch, accessToken }: P
 
       <div className="pgo-step-nav">
         <div />
-        <button
-          className="pgo-btn pgo-btn--primary pgo-btn--lg"
-          type="button"
-          onClick={onNext}
-          disabled={busy}
-        >
-          {busy ? (
-            <>
-              Creating property
-              <span className="pgo-loading-dots">
-                <span />
-                <span />
-                <span />
-              </span>
-            </>
-          ) : (
-            <>Next</>
-          )}
+        <button className="pgo-btn pgo-btn--primary pgo-btn--lg" type="button" onClick={onNext}>
+          Next
         </button>
       </div>
     </section>

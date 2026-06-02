@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Workspace packages are resolved from source via tsconfig `paths`
+  // (packages/*/src). Without listing them here, Next neither transpiles their
+  // TS nor watches/invalidates them on change — a stale compiled copy survives
+  // edits and restarts (persisted in .next/cache), surfacing as runtime
+  // "X is not a function" for their value exports. Transpiling them makes Next
+  // own their build + HMR, keeping runtime named exports correct.
+  transpilePackages: ["@cribliv/shared-types", "@cribliv/ui"],
   eslint: {
     // eslint-config-next@16 uses flat config internally, incompatible with ESLint v8 legacy config.
     // Run linting separately via `pnpm lint`.

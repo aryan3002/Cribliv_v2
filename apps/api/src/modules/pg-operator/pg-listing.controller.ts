@@ -2,12 +2,16 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
+  HttpCode,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
+  Put,
   UseGuards
 } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
@@ -19,7 +23,11 @@ import { ok } from "../../common/response";
 import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { PgListingService } from "./services/pg-listing.service";
 import { PgPropertiesService } from "./services/pg-properties.service";
+import { PgDraftService } from "./services/pg-draft.service";
+import { PgAiAssistService } from "./services/pg-ai-assist.service";
 import { PgListingCreateSchema } from "./dto/pg-listing.dto";
+import { PgDraftUpsertSchema } from "./dto/pg-draft.dto";
+import { readFeatureFlags } from "../../config/feature-flags";
 
 @Controller("pg-operator/listings")
 @UseGuards(AuthGuard, RolesGuard)
@@ -27,7 +35,9 @@ import { PgListingCreateSchema } from "./dto/pg-listing.dto";
 export class PgListingController {
   constructor(
     @Inject(PgListingService) private readonly listings: PgListingService,
-    @Inject(PgPropertiesService) private readonly properties: PgPropertiesService
+    @Inject(PgPropertiesService) private readonly properties: PgPropertiesService,
+    @Inject(PgDraftService) private readonly draftService: PgDraftService,
+    @Optional() @Inject(PgAiAssistService) private readonly aiAssist?: PgAiAssistService
   ) {}
 
   @Post()
@@ -71,6 +81,35 @@ export class PgListingController {
     return ok({ listing_id: r.id, status: r.status });
   }
 
+  @Put("draft")
+  async upsertDraft(
+    @AuthUser() user: UserContext,
+    @Headers("idempotency-key") idemKey: string | undefined,
+    @Body() body: unknown
+  ) {
+    requireIdempotencyKey(idemKey);
+    const input = PgDraftUpsertSchema.parse(body);
+    return this.draftService.upsert(user.id, input as any);
+  }
+
+  @Get("drafts")
+  async listDrafts(@AuthUser() user: UserContext) {
+    return { items: await this.draftService.list(user.id) };
+  }
+
+  @Get("draft/:id")
+  async getDraft(@AuthUser() user: UserContext, @Param("id") id: string) {
+    const d = await this.draftService.get(user.id, id);
+    if (!d) throw new NotFoundException("draft_not_found");
+    return d;
+  }
+
+  @Delete("draft/:id")
+  @HttpCode(204)
+  async deleteDraft(@AuthUser() user: UserContext, @Param("id") id: string) {
+    await this.draftService.remove(user.id, id);
+  }
+
   @Get(":id")
   async detail(@AuthUser() user: UserContext, @Param("id") id: string) {
     const detail = await this.listings.getOperatorListingDetail(user.id, id);
@@ -81,5 +120,35 @@ export class PgListingController {
       });
     }
     return ok(detail);
+  }
+
+  @Post("generate-content")
+  async generateContent(@Body() body: { payload: unknown }) {
+    if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
+      throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
+    }
+    return this.aiAssist.generateContent(body.payload as never);
+  }
+
+  @Post("pricing-suggestions")
+  async pricingSuggestions(
+    @Body() body: { city_slug: string; locality_slug?: string; sharings: string[] }
+  ) {
+    if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
+      throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
+    }
+    return this.aiAssist.pricingSuggestions({
+      city_slug: body.city_slug,
+      locality_slug: body.locality_slug,
+      sharings: body.sharings as never
+    });
+  }
+
+  @Post("amenity-suggestions")
+  async amenitySuggestions(@Body() body: { payload: unknown }) {
+    if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
+      throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
+    }
+    return this.aiAssist.amenitySuggestions(body.payload as never);
   }
 }

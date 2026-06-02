@@ -6,6 +6,7 @@ import type { PgWizardAction, PgWizardState, PendingPhoto } from "@/lib/pg-wizar
 const ACCEPTED_MIME = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 const MAX_PHOTOS = 20;
+const MIN_PHOTOS = 4;
 
 function genId(): string {
   try {
@@ -126,6 +127,15 @@ export default function PgPhotoUploader({ state, dispatch }: Props) {
           <Upload size={14} />
           <span className="pgo-caption">JPG, PNG, WebP — max 10 MB each — up to {MAX_PHOTOS}</span>
         </div>
+        <p
+          className="pgo-caption"
+          style={{
+            marginTop: 8,
+            color: photos.length >= MIN_PHOTOS ? "var(--pgo-success, #22c55e)" : undefined
+          }}
+        >
+          {photos.length} of {MIN_PHOTOS} minimum
+        </p>
 
         <input
           ref={inputRef}

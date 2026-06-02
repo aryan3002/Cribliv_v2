@@ -100,6 +100,9 @@ export interface PgListingPayload {
     city_slug: string;
     locality_slug?: string | null;
     total_floors?: number | null;
+    lat?: number | null;
+    lng?: number | null;
+    formatted_address?: string | null;
   };
   pg_details: {
     total_beds: number;
@@ -155,6 +158,7 @@ export interface PgDashboardListingHealth {
   interest_rate_7d: number; // contact_unlocks_7d / views_7d, 0–1
   trend_7d: TrendPoint[]; // 7 points, oldest→newest
   last_updated: string;
+  composite_score?: number; // 0–100 listing quality score from listing_scores
 }
 
 export interface PgDashboardLead {

@@ -126,7 +126,8 @@ describe("PgRoomsPricingStep", () => {
     expect(s.step).toBe(1);
   });
 
-  it("Next advances to step 3 when at least one valid room exists", () => {
+  // Rooms&Pricing is step 3 in the 7-step wizard: Back → 2 (Location), Next → 4 (Payment).
+  it("Next advances to step 4 (Payment) when at least one valid room exists", () => {
     render(<Harness />);
     fireEvent.change(screen.getByLabelText(/rent single-non-ac/i), {
       target: { value: "8500" }
@@ -136,13 +137,13 @@ describe("PgRoomsPricingStep", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
     const s = JSON.parse(screen.getByTestId("state").textContent!);
-    expect(s.step).toBe(3);
+    expect(s.step).toBe(4);
   });
 
-  it("Back returns to step 1", () => {
+  it("Back returns to step 2 (Location)", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: /^back$/i }));
     const s = JSON.parse(screen.getByTestId("state").textContent!);
-    expect(s.step).toBe(1);
+    expect(s.step).toBe(2);
   });
 });

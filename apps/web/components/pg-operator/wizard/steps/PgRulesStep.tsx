@@ -133,14 +133,14 @@ export default function PgRulesStep({
         <button
           className="pgo-btn pgo-btn--secondary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 3 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 4 })}
         >
           Back
         </button>
         <button
           className="pgo-btn pgo-btn--primary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 5 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 6 })}
         >
           Next
         </button>

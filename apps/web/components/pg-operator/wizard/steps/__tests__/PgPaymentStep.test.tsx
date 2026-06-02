@@ -83,11 +83,12 @@ describe("PgPaymentStep", () => {
     expect(s.pg_details.late_fee_policy).toEqual({ note: "₹100/day" });
   });
 
-  it("Back goes to step 2, Next goes to step 4", () => {
+  // Payment is step 4 in the 7-step wizard: Back → 3 (Rooms), Next → 5 (Rules).
+  it("Back goes to step 3, Next goes to step 5", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: /^back$/i }));
-    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(2);
+    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(3);
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
-    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(4);
+    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(5);
   });
 });

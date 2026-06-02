@@ -3,15 +3,16 @@ import { CheckCircle2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 const STEPS = [
-  { num: 1, label: "Property & Identity" },
-  { num: 2, label: "Rooms & Pricing" },
-  { num: 3, label: "Payment" },
-  { num: 4, label: "Rules" },
-  { num: 5, label: "Amenities & Food" },
-  { num: 6, label: "Photos & Review" }
+  { num: 1, label: "Basics" },
+  { num: 2, label: "Location" },
+  { num: 3, label: "Rooms & Pricing" },
+  { num: 4, label: "Payment" },
+  { num: 5, label: "Rules" },
+  { num: 6, label: "Amenities & Food" },
+  { num: 7, label: "Photos & Review" }
 ] as const;
 
-export default function PgStepIndicator({ current }: { current: 1 | 2 | 3 | 4 | 5 | 6 }) {
+export default function PgStepIndicator({ current }: { current: 1 | 2 | 3 | 4 | 5 | 6 | 7 }) {
   const fillPct = Math.round(((current - 1) / STEPS.length) * 100);
 
   return (

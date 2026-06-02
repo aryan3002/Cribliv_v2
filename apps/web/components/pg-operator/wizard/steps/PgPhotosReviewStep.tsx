@@ -1,6 +1,7 @@
 "use client";
-import { Dispatch, useMemo } from "react";
+import { Dispatch, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { trackPgFunnel } from "@/lib/pg-funnel";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Rocket, Code } from "lucide-react";
 import { PgWizardState, PgWizardAction, buildSubmitPayload } from "@/lib/pg-wizard-state";
@@ -46,15 +47,38 @@ interface Props {
   accessToken: string | null;
 }
 
+const MIN_PHOTOS = 4;
+
 export default function PgPhotosReviewStep({ state, dispatch, locale, accessToken }: Props) {
   const router = useRouter();
   const payload = useMemo(() => buildSubmitPayload(state), [state.draft, state.ui]);
+
+  const totalPhotos = state.pendingPhotos?.length ?? 0;
+  const photosOk = totalPhotos >= MIN_PHOTOS;
+  const photosNeeded = Math.max(0, MIN_PHOTOS - totalPhotos);
+
+  // photos_added — fire once the 4-photo minimum is reached, carrying the count
+  // (the admin "avg photos" metric reads metadata.photo_count).
+  const photosAddedRef = useRef(false);
+  useEffect(() => {
+    if (totalPhotos >= MIN_PHOTOS && !photosAddedRef.current) {
+      photosAddedRef.current = true;
+      void trackPgFunnel({
+        event_type: "photos_added",
+        source: "manual",
+        step_no: 7,
+        draft_id: state.draftId,
+        metadata: { photo_count: totalPhotos }
+      });
+    }
+  }, [totalPhotos, state.draftId]);
 
   const canSubmit =
     payload.property.display_name.length >= 2 &&
     payload.property.city_slug.length > 0 &&
     payload.pg_details?.total_beds != null &&
-    (payload.room_types?.length ?? 0) >= 1;
+    (payload.room_types?.length ?? 0) >= 1 &&
+    photosOk;
 
   const handlePublish = async () => {
     if (!accessToken) {
@@ -136,6 +160,13 @@ export default function PgPhotosReviewStep({ state, dispatch, locale, accessToke
 
       dispatch({ type: "SUBMIT_OK" });
       sessionStorage.removeItem("pg-wizard-draft-v1");
+      void trackPgFunnel({
+        event_type: "submitted",
+        source: "manual",
+        listing_id: r.listing_id,
+        draft_id: state.draftId,
+        metadata: { photo_count: state.pendingPhotos?.length ?? 0 }
+      });
       router.push(`/${locale}/pg-operator/listings/${r.listing_id}?published=1` as any);
     } catch (e) {
       const err = e as Error & { code?: string };
@@ -210,11 +241,20 @@ export default function PgPhotosReviewStep({ state, dispatch, locale, accessToke
         </motion.p>
       )}
 
+      {!photosOk && (
+        <p
+          className="pgo-caption"
+          style={{ color: "var(--pgo-warning, #f59e0b)", marginBottom: 8 }}
+        >
+          Add {photosNeeded} more photo{photosNeeded === 1 ? "" : "s"} — 4 required
+        </p>
+      )}
+
       <div className="pgo-step-nav">
         <button
           className="pgo-btn pgo-btn--secondary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 5 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 6 })}
         >
           Back
         </button>

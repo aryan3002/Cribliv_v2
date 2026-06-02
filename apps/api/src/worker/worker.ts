@@ -3,6 +3,8 @@ import { Pool } from "pg";
 import { AppStateService } from "../common/app-state.service";
 import { WhatsAppClient } from "../modules/notifications/whatsapp.client";
 import { NotificationService } from "../modules/notifications/notification.service";
+import { PgScoreService } from "../modules/pg-operator/services/pg-score.service";
+import type { DatabaseService } from "../common/database.service";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const REFUND_BATCH_SIZE = 100;
@@ -11,6 +13,7 @@ const OUTBOUND_BATCH_SIZE = 50;
 const OUTBOUND_MAX_ATTEMPTS = 6;
 const OUTBOUND_TIMEOUT_MS = 5_000;
 const STALE_SWEEP_MS = 24 * 60 * 60 * 1000; // daily
+const PG_FRAUD_SWEEP_MS = 24 * 60 * 60 * 1000; // daily
 const BROKER_SWEEP_MS = 7 * 24 * 60 * 60 * 1000; // weekly
 const BOOST_EXPIRY_MS = 5 * 60 * 1000; // every 5 minutes
 const RANKING_RECOMPUTE_MS = 6 * 60 * 60 * 1000; // every 6 hours
@@ -21,6 +24,135 @@ const SEEKER_PIN_CLEANUP_MS = 24 * 60 * 60 * 1000; // daily
 const ALERT_ZONE_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const SEO_COPY_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const PG_TTL_SWEEP_MS = 24 * 60 * 60 * 1000; // daily — expire pg_voice_agent_sessions + uncommitted pg_listing_drafts
+
+// ── PG fraud sweep ──────────────────────────────────────────────────────────
+// Runs priceAnomaly + contactReuse + scamText signals over PG listings
+// active in the last 24h. Behind ff_pg_fraud_ai (env var).
+async function runPgFraudSweep(pool: Pool): Promise<number> {
+  const flagEnabled = ["1", "true", "yes"].includes(
+    (process.env.FF_PG_FRAUD_AI ?? "").toLowerCase()
+  );
+  if (!flagEnabled) return 0;
+
+  const SCAM_MARKERS = [
+    "pay now",
+    "advance required",
+    "no visit",
+    "no viewing",
+    "100% guaranteed",
+    "urgent deal",
+    "limited time",
+    "free gift",
+    "pay via upi",
+    "send money"
+  ];
+
+  const listings = await pool.query<{
+    id: string;
+    owner_user_id: string;
+    description: string | null;
+    city_slug: string;
+  }>(
+    `SELECT l.id::text, l.owner_user_id::text,
+            COALESCE(l.description_en, '') AS description,
+            c.slug AS city_slug
+     FROM listings l
+     JOIN listing_locations ll ON ll.listing_id = l.id
+     JOIN cities c ON c.id = ll.city_id
+     WHERE l.status = 'active' AND l.listing_type = 'pg'
+       AND l.updated_at > now() - interval '24 hours'
+     LIMIT 500`
+  );
+
+  let flagged = 0;
+  for (const row of listings.rows) {
+    // contactReuse: operator with 3+ active PG listings
+    const countResult = await pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count FROM listings
+       WHERE owner_user_id = $1::uuid AND status = 'active' AND listing_type = 'pg'`,
+      [row.owner_user_id]
+    );
+    if ((countResult.rows[0]?.count ?? 0) >= 3) {
+      await pool
+        .query(
+          `INSERT INTO fraud_flags (listing_id, flag_type, severity, details)
+         VALUES ($1::uuid, 'contact_reuse', 'medium', $2::jsonb)
+         ON CONFLICT DO NOTHING`,
+          [
+            row.id,
+            JSON.stringify({
+              listing_count: countResult.rows[0]?.count,
+              operator_user_id: row.owner_user_id
+            })
+          ]
+        )
+        .catch(() => {});
+      flagged++;
+    }
+
+    // scamText: keyword heuristic
+    if (row.description) {
+      const text = row.description.toLowerCase();
+      const hits = SCAM_MARKERS.filter((m) => text.includes(m));
+      const score = hits.length / SCAM_MARKERS.length;
+      if (score >= 0.25) {
+        await pool
+          .query(
+            `INSERT INTO fraud_flags (listing_id, flag_type, severity, details)
+           VALUES ($1::uuid, 'suspicious_text', $2, $3::jsonb)
+           ON CONFLICT DO NOTHING`,
+            [row.id, score > 0.5 ? "high" : "medium", JSON.stringify({ score, hits })]
+          )
+          .catch(() => {});
+        flagged++;
+      }
+    }
+
+    // priceAnomaly: z-score per sharing
+    const priceRows = await pool.query<{
+      sharing: string;
+      avg: number;
+      stddev: number;
+      rent: number;
+    }>(
+      `SELECT rt.sharing,
+              avg(rt2.monthly_rent_paise)::float AS avg,
+              stddev_pop(rt2.monthly_rent_paise)::float AS stddev,
+              rt.monthly_rent_paise AS rent
+       FROM pg_room_types rt
+       JOIN pg_room_types rt2 ON rt2.sharing = rt.sharing
+       JOIN listings l2 ON l2.id = rt2.listing_id
+       JOIN listing_locations ll2 ON ll2.listing_id = l2.id
+       JOIN cities c2 ON c2.id = ll2.city_id
+       WHERE rt.listing_id = $1::uuid
+         AND l2.status = 'active'
+         AND c2.slug = $2
+       GROUP BY rt.sharing, rt.monthly_rent_paise`,
+      [row.id, row.city_slug]
+    );
+    for (const pr of priceRows.rows) {
+      if (pr.stddev && pr.stddev > 0) {
+        const z = Math.abs((pr.rent - pr.avg) / pr.stddev);
+        if (z > 3) {
+          await pool
+            .query(
+              `INSERT INTO fraud_flags (listing_id, flag_type, severity, details)
+             VALUES ($1::uuid, 'price_anomaly', $2, $3::jsonb)
+             ON CONFLICT DO NOTHING`,
+              [
+                row.id,
+                z > 5 ? "high" : "medium",
+                JSON.stringify({ z_score: z, sharing: pr.sharing, rent_paise: pr.rent })
+              ]
+            )
+            .catch(() => {});
+          flagged++;
+        }
+      }
+    }
+  }
+  return flagged;
+}
 
 /**
  * Daily cleanup of expired PG voice agent state.
@@ -547,7 +679,10 @@ async function runRankingRecompute(pool: Pool): Promise<number> {
       GROUP BY listing_id
     ) fb ON fb.listing_id = l.id
 
-    WHERE l.status = 'active'
+    -- PG listings are scored by the PG-specific formula (see runPgScoreRecompute);
+    -- the generic flat/house formula here keys completeness on bhk/area_sqft
+    -- (NULL for PG) and would clobber the PG score. Exclude them.
+    WHERE l.status = 'active' AND l.listing_type <> 'pg'
 
     ON CONFLICT (listing_id) DO UPDATE SET
       verification_score   = EXCLUDED.verification_score,
@@ -566,6 +701,30 @@ async function runRankingRecompute(pool: Pool): Promise<number> {
   );
 
   return result.rowCount ?? 0;
+}
+
+// ── PG ranking recompute (every 6h) ──────────────────────────────────────────
+// PG listings are EXCLUDED from runRankingRecompute (generic flat/house formula
+// keyed on bhk/area_sqft). Here we re-score every active PG with the SHARED PG
+// formula via PgScoreService.rescoreListing → computePgListingScore, reading
+// real photo/verification/geo from the DB. Same code path as create/submit, so
+// no formula duplication / drift. Also backfills PGs that have no score row yet.
+async function runPgScoreRecompute(pool: Pool): Promise<number> {
+  const adapter = {
+    isEnabled: () => true,
+    query: (text: string, params?: unknown[]) => pool.query(text, params)
+  } as unknown as DatabaseService;
+  const scorer = new PgScoreService(adapter);
+
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id::text AS id FROM listings WHERE status = 'active' AND listing_type = 'pg'`
+  );
+  let n = 0;
+  for (const { id } of rows) {
+    const r = await scorer.rescoreListing(id);
+    if (r) n += 1;
+  }
+  return n;
 }
 
 // ── Lead 4-hour follow-up nudge (every 15 min) ───────────────────────────────
@@ -1049,6 +1208,30 @@ async function run() {
     runRanking(); // run once on startup to warm up scores
     setInterval(runRanking, RANKING_RECOMPUTE_MS);
 
+    // ── PG ranking recompute (every 6h) — PG-specific formula, also backfills ──
+    const runPgScore = async () => {
+      try {
+        const count = await runPgScoreRecompute(pool);
+        console.log(
+          JSON.stringify({
+            job: "pg_score_recompute",
+            updated_count: count,
+            timestamp: new Date().toISOString()
+          })
+        );
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "pg_score_recompute",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    runPgScore(); // warm up + backfill PG scores on startup
+    setInterval(runPgScore, RANKING_RECOMPUTE_MS);
+
     // ── Lead 4-hour follow-up nudge (every 15 min) ──
     setInterval(async () => {
       try {
@@ -1292,6 +1475,31 @@ async function run() {
       }
     };
     setInterval(runSeo, SEO_COPY_SWEEP_MS);
+
+    // ── PG fraud sweep (daily, gated by FF_PG_FRAUD_AI) ──
+    const runPgFraud = async () => {
+      try {
+        const count = await runPgFraudSweep(pool);
+        if (count > 0) {
+          console.log(
+            JSON.stringify({
+              job: "pg_fraud_sweep",
+              flagged: count,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            job: "pg_fraud_sweep",
+            error: err instanceof Error ? err.message : String(err),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runPgFraud, PG_FRAUD_SWEEP_MS);
   }
 
   console.log(
@@ -1309,7 +1517,8 @@ async function run() {
         "saved_search_alert_sweep",
         "seeker_pin_cleanup",
         "alert_zone_sweep",
-        "seo_copy_sweep"
+        "seo_copy_sweep",
+        "pg_fraud_sweep"
       ],
       mode: pool ? "db" : "in_memory",
       whatsapp_enabled: whatsAppEnabled,

@@ -68,6 +68,56 @@ export default function ListingHealthCard({ data }: { data: PgDashboardListingHe
 
         <ListingFunnel data={data} />
 
+        {/* Quality score */}
+        {data.composite_score != null && (
+          <div style={{ marginTop: 12 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 4
+              }}
+            >
+              <span className="pgo-caption" style={{ fontSize: 12 }}>
+                Listing Quality
+              </span>
+              <span className="pgo-caption" style={{ fontWeight: 600, fontSize: 12 }}>
+                {data.composite_score}/100
+              </span>
+            </div>
+            <div
+              role="progressbar"
+              aria-valuenow={data.composite_score}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Listing quality score"
+              style={{
+                height: 6,
+                borderRadius: 3,
+                background: "var(--pgo-border, rgba(255,255,255,0.12))",
+                overflow: "hidden"
+              }}
+            >
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${data.composite_score}%` }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                style={{
+                  height: "100%",
+                  borderRadius: 3,
+                  background:
+                    data.composite_score >= 70
+                      ? "var(--pgo-success, #22c55e)"
+                      : data.composite_score >= 40
+                        ? "var(--pgo-warning, #f59e0b)"
+                        : "var(--pgo-danger, #ef4444)"
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="pgo-metric__footer">
           <Clock size={12} />

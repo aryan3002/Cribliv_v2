@@ -14,6 +14,7 @@ import { CrmTab } from "../tabs/CrmTab";
 import { UsersTab } from "../tabs/UsersTab";
 import { RevenueTab } from "../tabs/RevenueTab";
 import { RentAgreementsTab } from "../tabs/RentAgreementsTab";
+import { PgListingsTab } from "../tabs/PgListingsTab";
 import { FraudTab } from "../tabs/FraudTab";
 import { SystemTab } from "../tabs/SystemTab";
 
@@ -30,6 +31,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   users: "Users",
   revenue: "Revenue",
   "rent-agreements": "Rent Agreements",
+  "pg-listings": "PG Listings",
   fraud: "Fraud Intelligence",
   system: "System Tools"
 };
@@ -108,6 +110,8 @@ export function AdminShell({ accessToken }: Props) {
         return <RevenueTab key={`rv-${k}`} accessToken={accessToken} />;
       case "rent-agreements":
         return <RentAgreementsTab key={`ra-${k}`} accessToken={accessToken} />;
+      case "pg-listings":
+        return <PgListingsTab key={`pg-${k}`} accessToken={accessToken} />;
       case "fraud":
         return <FraudTab key={`fr-${k}`} accessToken={accessToken} onToast={push} />;
       case "system":

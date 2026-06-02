@@ -19,7 +19,10 @@ export const PgListingCreateSchema = z
   .object({
     property: PropertyBasicsSchema.extend({
       city_slug: z.string().min(1),
-      locality_slug: z.string().optional()
+      locality_slug: z.string().optional(),
+      lat: z.number().min(-90).max(90).optional().nullable(),
+      lng: z.number().min(-180).max(180).optional().nullable(),
+      formatted_address: z.string().max(300).optional().nullable()
     }),
     pg_details: z
       .object({

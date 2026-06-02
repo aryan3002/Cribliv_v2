@@ -21,6 +21,14 @@ function stripObject<T extends Record<string, unknown>>(obj: T): T | undefined {
   return Object.keys(out).length ? (out as T) : undefined;
 }
 
+/**
+ * Casts a DraftPartial to PgListingPayload for score computation.
+ * computePgListingScore is defensive about missing/null fields, so the cast is safe.
+ */
+export function draftToPayload(d: DraftPartial): PgListingPayload {
+  return d as unknown as PgListingPayload;
+}
+
 export function sanitizePartialDraft(d: DraftPartial): DraftPartial {
   const out: DraftPartial = {};
   if (d.property) {

@@ -16,6 +16,15 @@ function authHeaders(token?: string): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function genIdempotencyKey(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {}
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
 export function getMe(token?: string) {
   return fetchApi<{ operator: { id: string; role: string }; properties: PgProperty[] }>(
     "/pg-operator/me",
@@ -145,6 +154,131 @@ export function createPgProperty(args: {
     body: JSON.stringify(args.input)
   });
 }
+
+// ─── Canonical localities (shared with SEO + CriblMaps) ───────────────────────
+// The wizard MUST pick locality from this canonical set so listings are findable
+// by locality search, SEO landing pages, and the map — never free Places text.
+export interface PgCityLocality {
+  slug: string;
+  name_en: string;
+  lat: number | null;
+  lng: number | null;
+}
+
+export function listCityLocalities(citySlug: string) {
+  return fetchApi<{ items: PgCityLocality[] }>(`/seo/localities/${encodeURIComponent(citySlug)}`);
+}
+
+// ─── Draft persistence (§6.2) ─────────────────────────────────────────────────
+
+export interface PgDraftSummary {
+  draft_id: string;
+  display_name: string;
+  updated_at: string;
+  committed_listing_id: string | null;
+}
+
+export function putPgDraft(
+  token: string,
+  input: {
+    draft_id?: string;
+    payload: PgListingPayload;
+    field_confidence?: Record<string, number>;
+    source: "manual" | "voice";
+    pg_property_id?: string | null;
+  }
+) {
+  return fetchApi<{ draft_id: string; updated_at: string }>("/pg-operator/listings/draft", {
+    method: "PUT",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json",
+      "Idempotency-Key": genIdempotencyKey()
+    },
+    body: JSON.stringify(input)
+  });
+}
+
+export function listPgDrafts(token?: string) {
+  return fetchApi<{ items: PgDraftSummary[] }>("/pg-operator/listings/drafts", {
+    headers: authHeaders(token)
+  });
+}
+
+export function getPgDraft(token: string, draftId: string) {
+  return fetchApi<{
+    draft_id: string;
+    payload: PgListingPayload;
+    field_confidence: Record<string, number>;
+    updated_at: string;
+  }>(`/pg-operator/listings/draft/${draftId}`, { headers: authHeaders(token) });
+}
+
+export function deletePgDraft(token: string, draftId: string) {
+  return fetchApi<void>(`/pg-operator/listings/draft/${draftId}`, {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+}
+
+// ─── AI assist stubs (§6.4) — endpoints ship in Plan 2; wizard shows soft toast until then ──
+
+export class AiAssistUnavailable extends Error {
+  constructor() {
+    super("AI assist coming soon");
+    this.name = "AiAssistUnavailable";
+  }
+}
+
+function handleAiUnavailable(err: unknown): never {
+  if ((err as any)?.status === 404 || (err as any)?.message?.includes("404")) {
+    throw new AiAssistUnavailable();
+  }
+  throw err;
+}
+
+export function generatePgContent(token: string, payload: PgListingPayload) {
+  return fetchApi<{ title: string; description: string }>(
+    "/pg-operator/listings/generate-content",
+    {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ payload })
+    }
+  ).catch(handleAiUnavailable);
+}
+
+export function getPgPricingSuggestions(
+  token: string,
+  input: { city_slug: string; locality_slug?: string; sharings: string[] }
+) {
+  return fetchApi<{
+    suggestions: Array<{
+      sharing: string;
+      p25_paise: number;
+      p50_paise: number;
+      p75_paise: number;
+      sample: number;
+    }>;
+  }>("/pg-operator/listings/pricing-suggestions", {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  }).catch(handleAiUnavailable);
+}
+
+export function getPgAmenitySuggestions(token: string, payload: PgListingPayload) {
+  return fetchApi<{ amenities: string[]; house_rules: string[] }>(
+    "/pg-operator/listings/amenity-suggestions",
+    {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ payload })
+    }
+  ).catch(handleAiUnavailable);
+}
+
+// ─── Sales-assist lead ──────────────────────────────────────────────────────────────────────
 
 // Sales-assist lead for large PGs routed off the self-serve wizard. Posts to the
 // canonical sales endpoint (POST /sales/leads, source=pg_sales_assist); the

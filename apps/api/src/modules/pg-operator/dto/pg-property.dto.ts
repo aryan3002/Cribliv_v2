@@ -16,7 +16,10 @@ export const PgPropertyCreateSchema = z
       .optional(),
     internal_code: z.string().max(40).optional(),
     total_floors: z.number().int().min(1).max(50).optional(),
-    metadata: z.record(z.string(), z.unknown()).optional()
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
+    formatted_address: z.string().max(300).optional()
   })
   .strict();
 

@@ -108,7 +108,7 @@ export default function PgRoomsPricingStep({
       return;
     }
     setError(null);
-    dispatch({ type: "GOTO_STEP", step: 3 });
+    dispatch({ type: "GOTO_STEP", step: 4 });
   };
 
   const rows: Cell[] = sharingOpts.flatMap((s) => [
@@ -245,7 +245,7 @@ export default function PgRoomsPricingStep({
         <button
           className="pgo-btn pgo-btn--secondary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 1 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 2 })}
         >
           Back
         </button>

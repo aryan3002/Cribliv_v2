@@ -2,7 +2,7 @@
 import type { PgListingPayload } from "@cribliv/shared-types";
 import type { DraftPartial } from "./pg-wizard-sanitizer";
 
-export type PgWizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+export type PgWizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface PgWizardUndoEntry {
   field: string;
@@ -77,7 +77,13 @@ export type PgWizardAction =
   | { type: "SET_COVER_PHOTO"; clientUploadId: string }
   | { type: "REORDER_PHOTOS"; orderedIds: string[] }
   | { type: "CLEAR_PHOTOS" }
-  | { type: "SET_ASSISTANT_MODE"; mode: "voice" | "text" };
+  | { type: "SET_ASSISTANT_MODE"; mode: "voice" | "text" }
+  | {
+      type: "HYDRATE_DRAFT";
+      draftId: string;
+      payload: DraftPartial;
+      field_confidence?: Record<string, number>;
+    };
 
 export function initialPgWizardState(): PgWizardState {
   return {
@@ -187,7 +193,13 @@ export function pgWizardReducer(state: PgWizardState, action: PgWizardAction): P
     case "GOTO_STEP":
       return {
         ...state,
-        currentStep: Math.min(6, Math.max(1, action.step)) as PgWizardStep
+        currentStep: Math.min(7, Math.max(1, action.step)) as PgWizardStep
+      };
+    case "HYDRATE_DRAFT":
+      return {
+        ...state,
+        draftId: action.draftId,
+        draft: deepMerge(state.draft as any, action.payload as any)
       };
     case "VOICE_EXTRACTED": {
       const prev = getByPath(state.draft, action.field);

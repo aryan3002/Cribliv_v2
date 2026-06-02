@@ -78,11 +78,12 @@ describe("PgAmenitiesFoodStep", () => {
     expect(s.pg_details.meals.meal_charges_paise).toBe(250000);
   });
 
-  it("Back goes to step 4, Next goes to step 6", () => {
+  // Amenities&Food is step 6 in the 7-step wizard: Back → 5 (Rules), Next → 7 (Photos).
+  it("Back goes to step 5, Next goes to step 7", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: /^back$/i }));
-    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(4);
+    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(5);
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
-    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(6);
+    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(7);
   });
 });

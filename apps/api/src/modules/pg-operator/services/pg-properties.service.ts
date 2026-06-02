@@ -13,6 +13,9 @@ export interface CreatePropertyInput {
   internal_code?: string;
   total_floors?: number;
   metadata?: Record<string, unknown>;
+  lat?: number | null;
+  lng?: number | null;
+  formatted_address?: string | null;
 }
 
 /**
@@ -54,8 +57,8 @@ export class PgPropertiesService {
       internal_code: input.internal_code ?? null,
       city_id: cityId,
       locality_id: localityId,
-      lat: null,
-      lng: null,
+      lat: input.lat ?? null,
+      lng: input.lng ?? null,
       status: "active",
       is_primary: true,
       total_floors: input.total_floors ?? null,
@@ -68,8 +71,8 @@ export class PgPropertiesService {
       await this.db.query(
         `INSERT INTO pg_properties
            (id, operator_id, display_name, internal_code, city_id, locality_id,
-            status, is_primary, total_floors, metadata, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+            status, is_primary, total_floors, metadata, created_at, updated_at, lat, lng)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           prop.id,
           prop.operator_id,
@@ -82,7 +85,9 @@ export class PgPropertiesService {
           prop.total_floors,
           JSON.stringify(prop.metadata),
           prop.created_at,
-          prop.updated_at
+          prop.updated_at,
+          prop.lat,
+          prop.lng
         ]
       );
     } else {

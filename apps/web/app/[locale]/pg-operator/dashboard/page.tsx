@@ -1,8 +1,9 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { getDashboard } from "@/lib/pg-operator-api";
+import { getDashboard, listPgDrafts } from "@/lib/pg-operator-api";
 import type { PgDashboardData } from "@cribliv/shared-types";
 import ListingHealthCard from "@/components/pg-operator/dashboard/ListingHealthCard";
+import ContinueDraftSection from "@/components/pg-operator/dashboard/ContinueDraftSection";
 import LeadsInbox from "@/components/pg-operator/dashboard/LeadsInbox";
 import { PortfolioSummary } from "@/components/pg-operator/dashboard/PortfolioSummary";
 import { PortfolioTrendChart } from "@/components/pg-operator/dashboard/PortfolioTrendChart";
@@ -40,6 +41,10 @@ export default async function Page({ params }: { params: { locale: string } }) {
     data = EMPTY_DASHBOARD;
   }
 
+  const drafts = await listPgDrafts((s as any)?.accessToken ?? undefined)
+    .then((r) => r.items)
+    .catch(() => [] as any[]);
+
   const hasListings = data.listing_health.length > 0;
 
   return (
@@ -61,6 +66,9 @@ export default async function Page({ params }: { params: { locale: string } }) {
           <SearchInsights insights={data.search_insights} />
         </section>
       )}
+
+      {/* Continue draft */}
+      <ContinueDraftSection drafts={drafts} locale={params.locale} />
 
       {/* Bento grid */}
       <div className="pgo-bento">

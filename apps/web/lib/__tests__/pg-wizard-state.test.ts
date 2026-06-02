@@ -130,10 +130,10 @@ describe("pgWizardReducer", () => {
     expect(s.draft).toEqual(init.draft);
   });
 
-  it("GOTO_STEP clamps to [1,6]", () => {
+  it("GOTO_STEP clamps to [1,7]", () => {
     expect(
       pgWizardReducer(initialPgWizardState(), { type: "GOTO_STEP", step: 9 }).currentStep
-    ).toBe(6);
+    ).toBe(7);
     expect(
       pgWizardReducer(initialPgWizardState(), { type: "GOTO_STEP", step: 0 }).currentStep
     ).toBe(1);
@@ -325,5 +325,26 @@ describe("buildSubmitPayload", () => {
     const out = buildSubmitPayload(s as any);
     expect((out.pg_details as any).house_rules?.smoking).toBe(true);
     expect((out.pg_details as any).house_rules?.alcohol).toBe(false);
+  });
+});
+
+describe("pgWizardReducer — geo + HYDRATE_DRAFT", () => {
+  it("SET_FIELD property.lat sets lat in draft", () => {
+    const s = pgWizardReducer(initialPgWizardState(), {
+      type: "SET_FIELD",
+      path: "property.lat",
+      value: 26.84
+    });
+    expect((s.draft.property as any)?.lat).toBe(26.84);
+  });
+
+  it("HYDRATE_DRAFT sets draftId and merges draft payload", () => {
+    const s = pgWizardReducer(initialPgWizardState(), {
+      type: "HYDRATE_DRAFT",
+      draftId: "d-abc",
+      payload: { property: { display_name: "Sunrise PG", city_slug: "lko" } } as any
+    });
+    expect(s.draftId).toBe("d-abc");
+    expect(s.draft.property?.display_name).toBe("Sunrise PG");
   });
 });

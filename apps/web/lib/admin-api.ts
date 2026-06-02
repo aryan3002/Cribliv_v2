@@ -1016,3 +1016,42 @@ export async function fetchRentAgreementDownloadLink(
   if (!raw) return null;
   return { sasUrl: raw.sas_url, expiresAt: raw.expires_at };
 }
+
+// ── PG listing-process analytics (admin) ─────────────────────────────────────
+// Mirrors the backend PgFunnelAnalytics shape (apps/api .../pg-funnel.service.ts).
+export interface PgListingAnalytics {
+  range_days: number;
+  funnel: {
+    wizard_started: number;
+    step_completed_by_step: Record<string, number>;
+    submitted: number;
+    published: number;
+    abandoned: number;
+  };
+  conversion: number;
+  publish_conversion: number;
+  median_time_to_publish_sec: number | null;
+  by_source: { manual: number; voice: number };
+  quality: {
+    geocode_rate: number;
+    avg_photos: number;
+    missing_field_heatmap: Array<{ field: string; count: number }>;
+  };
+  voice: { sessions: number; completion_rate: number; fallback_rate: number };
+  score_health: {
+    active_pg: number;
+    with_score: number;
+    without_score: number;
+    avg_composite: number | null;
+    distribution: Array<{ bucket: string; count: number }>;
+  };
+}
+
+export async function getAdminPgAnalytics(
+  accessToken: string,
+  days = 30
+): Promise<PgListingAnalytics> {
+  return fetchApi<PgListingAnalytics>(`/admin/pg/listing-analytics?days=${days}`, {
+    headers: authHeaders(accessToken)
+  });
+}

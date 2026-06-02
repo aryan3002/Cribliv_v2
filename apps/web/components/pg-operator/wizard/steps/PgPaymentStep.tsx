@@ -185,14 +185,14 @@ export default function PgPaymentStep({
         <button
           className="pgo-btn pgo-btn--secondary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 2 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 3 })}
         >
           Back
         </button>
         <button
           className="pgo-btn pgo-btn--primary"
           type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 4 })}
+          onClick={() => dispatch({ type: "GOTO_STEP", step: 5 })}
         >
           Next
         </button>

@@ -2,10 +2,10 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PgStepIndicator from "../PgStepIndicator";
 
-describe("PgStepIndicator (6-step)", () => {
-  it("renders 6 step items", () => {
+describe("PgStepIndicator (7-step)", () => {
+  it("renders 7 step items", () => {
     render(<PgStepIndicator current={1} />);
-    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    expect(screen.getAllByRole("listitem")).toHaveLength(7);
   });
 
   it("marks the current step with aria-current='step'", () => {
@@ -13,7 +13,7 @@ describe("PgStepIndicator (6-step)", () => {
     const items = screen.getAllByRole("listitem");
     expect(items[2]).toHaveAttribute("aria-current", "step");
     expect(items[0]).not.toHaveAttribute("aria-current");
-    expect(items[5]).not.toHaveAttribute("aria-current");
+    expect(items[6]).not.toHaveAttribute("aria-current");
   });
 
   it("progress at step 1 is 0%", () => {
@@ -21,21 +21,22 @@ describe("PgStepIndicator (6-step)", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
   });
 
-  it("progress at step 2 = round((2-1)/6*100) = 17", () => {
+  it("progress at step 2 = round((2-1)/7*100) = 14", () => {
     render(<PgStepIndicator current={2} />);
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "17");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "14");
   });
 
-  it("progress at step 6 = round((6-1)/6*100) = 83", () => {
-    render(<PgStepIndicator current={6} />);
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "83");
+  it("progress at step 7 = round((7-1)/7*100) = 86", () => {
+    render(<PgStepIndicator current={7} />);
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "86");
   });
 
-  it("step titles match the planned 6-step grouping", () => {
+  it("step titles match the 7-step grouping", () => {
     render(<PgStepIndicator current={1} />);
     const items = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toEqual([
-      "Property & Identity",
+      "Basics",
+      "Location",
       "Rooms & Pricing",
       "Payment",
       "Rules",

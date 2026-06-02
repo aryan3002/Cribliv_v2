@@ -13,7 +13,7 @@ import type {
 export interface ListingsSlice {
   listOperatorListings(
     operatorId: string
-  ): Promise<Array<{ id: string; status: string; updated_at: string }>>;
+  ): Promise<Array<{ id: string; status: string; updated_at: string; composite_score?: number }>>;
   // Distinct city slugs the operator lists in — scopes demand insights.
   listOperatorCities(operatorId: string): Promise<string[]>;
 }
@@ -129,7 +129,8 @@ export class PgDashboardService {
           ctr_7d: ratio(clicks_7d, appearances_7d),
           interest_rate_7d: ratio(contact_unlocks_7d, views_7d),
           trend_7d: series.slice(-7),
-          last_updated: l.updated_at
+          last_updated: l.updated_at,
+          composite_score: l.composite_score
         };
       }),
       leads_inbox: leads,

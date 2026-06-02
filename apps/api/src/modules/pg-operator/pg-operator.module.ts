@@ -9,9 +9,16 @@ import { PgDashboardController } from "./pg-dashboard.controller";
 import { PgPublicController } from "./pg-public.controller";
 import { PgInterestController } from "./pg-interest.controller";
 import { PgLeadsController } from "./pg-leads.controller";
+import { PgFunnelController } from "./pg-funnel.controller";
+import { PgFunnelService } from "./services/pg-funnel.service";
 import { PgSegmentationService } from "./services/pg-segmentation.service";
 import { PgPropertiesService } from "./services/pg-properties.service";
 import { PgListingService } from "./services/pg-listing.service";
+import { PgScoreService } from "./services/pg-score.service";
+import { PgAiAssistService } from "./services/pg-ai-assist.service";
+import { PgFraudSignalsService } from "./services/pg-fraud-signals.service";
+import { PgDraftService } from "./services/pg-draft.service";
+import { ListingContentGeneratorService } from "../owner/listing-content-generator.service";
 import { PgSearchService } from "./services/pg-search.service";
 import { PgDashboardService } from "./services/pg-dashboard.service";
 import { PgAnalyticsService } from "./services/pg-analytics.service";
@@ -31,14 +38,21 @@ import {
     PgDashboardController,
     PgPublicController,
     PgInterestController,
-    PgLeadsController
+    PgLeadsController,
+    PgFunnelController
   ],
   providers: [
     PgSegmentationService,
     PgPropertiesService,
+    PgScoreService,
+    ListingContentGeneratorService,
+    PgAiAssistService,
+    PgFraudSignalsService,
     PgListingService,
+    PgDraftService,
     PgSearchService,
     PgAnalyticsService,
+    PgFunnelService,
     PgListingsSliceAdapter,
     AnalyticsSliceAdapter,
     LeadsSliceAdapter,
@@ -49,6 +63,13 @@ import {
       inject: [PgListingsSliceAdapter, AnalyticsSliceAdapter, LeadsSliceAdapter]
     }
   ],
-  exports: [PgSegmentationService, PgPropertiesService, PgListingService, PgDashboardService]
+  exports: [
+    PgSegmentationService,
+    PgPropertiesService,
+    PgListingService,
+    PgDashboardService,
+    PgFraudSignalsService,
+    PgFunnelService
+  ]
 })
 export class PgOperatorModule {}

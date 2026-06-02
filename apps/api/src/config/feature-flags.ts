@@ -70,6 +70,13 @@ export interface FeatureFlags {
   ff_pg_ops_full: boolean;
   ff_pg_agreement: boolean;
   ff_pg_comms: boolean;
+  /** Phase H – PG Listing Finalization (Plan 2) */
+  ff_pg_listing_score: boolean;
+  ff_pg_ai_assist: boolean;
+  ff_pg_fraud_ai: boolean;
+  /** Phase J/K – PG Voice listing + admin analytics (Plan 3) */
+  ff_pg_voice_listing: boolean;
+  ff_pg_admin_analytics: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -143,7 +150,12 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_pg_food: false,
   ff_pg_ops_full: false,
   ff_pg_agreement: false,
-  ff_pg_comms: false
+  ff_pg_comms: false,
+  ff_pg_listing_score: false,
+  ff_pg_ai_assist: false,
+  ff_pg_fraud_ai: false,
+  ff_pg_voice_listing: false,
+  ff_pg_admin_analytics: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -378,6 +390,20 @@ export function readFeatureFlags(): FeatureFlags {
     ff_pg_food: parseBooleanEnv("FF_PG_FOOD", defaultFeatureFlags.ff_pg_food),
     ff_pg_ops_full: parseBooleanEnv("FF_PG_OPS_FULL", defaultFeatureFlags.ff_pg_ops_full),
     ff_pg_agreement: parseBooleanEnv("FF_PG_AGREEMENT", defaultFeatureFlags.ff_pg_agreement),
-    ff_pg_comms: parseBooleanEnv("FF_PG_COMMS", defaultFeatureFlags.ff_pg_comms)
+    ff_pg_comms: parseBooleanEnv("FF_PG_COMMS", defaultFeatureFlags.ff_pg_comms),
+    ff_pg_listing_score: parseBooleanEnv(
+      "FF_PG_LISTING_SCORE",
+      defaultFeatureFlags.ff_pg_listing_score
+    ),
+    ff_pg_ai_assist: parseBooleanEnv("FF_PG_AI_ASSIST", defaultFeatureFlags.ff_pg_ai_assist),
+    ff_pg_fraud_ai: parseBooleanEnv("FF_PG_FRAUD_AI", defaultFeatureFlags.ff_pg_fraud_ai),
+    ff_pg_voice_listing: parseBooleanEnv(
+      "FF_PG_VOICE_LISTING",
+      defaultFeatureFlags.ff_pg_voice_listing
+    ),
+    ff_pg_admin_analytics: parseBooleanEnv(
+      "FF_PG_ADMIN_ANALYTICS",
+      defaultFeatureFlags.ff_pg_admin_analytics
+    )
   };
 }

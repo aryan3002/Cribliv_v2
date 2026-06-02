@@ -12,6 +12,17 @@ import { handleSessionEnded } from "./handlers/handleSessionEnded";
 import { handleFieldExtracted } from "./handlers/handleFieldExtracted";
 import { handlePhaseChanged } from "./handlers/handlePhaseChanged";
 import { terminationCopy } from "@/lib/pg-termination-copy";
+import { PgPhaseRail } from "./PgPhaseRail";
+import { PgFieldConfirmCard } from "./PgFieldConfirmCard";
+import { usePgFieldHighlight } from "./PgFieldHighlightContext";
+import type { VoiceAgentPgPhase } from "@cribliv/shared-types";
+
+interface CoPilotCard {
+  key: string;
+  field: string;
+  value: unknown;
+  confidence: number;
+}
 
 /**
  * Assistant panel. One brain (voice-agent-pg gateway), two mouths.
@@ -48,7 +59,22 @@ export default function PgVoicePanel({
 }) {
   const [startedAt] = useState(Date.now());
   const [phase, setPhase] = useState<string>("greeting");
+  // Low-confidence extractions surface as confirm cards (with undo) so the
+  // operator can correct the co-pilot inline.
+  const [coPilotCards, setCoPilotCards] = useState<CoPilotCard[]>([]);
   const [voiceTranscript, setVoiceTranscript] = useState<string[]>([]);
+
+  // Shared highlight channel → wizard highlights the just-filled field + offers
+  // a jump to its step. Ref so the mount-only lifecycle effect never goes stale.
+  const highlight = usePgFieldHighlight();
+  const highlightRef = useRef(highlight);
+  highlightRef.current = highlight;
+
+  const onUndoCard = (field: string) => {
+    dispatch({ type: "UNDO_LAST" });
+    setCoPilotCards((c) => c.filter((x) => x.field !== field));
+    highlightRef.current.setField(null);
+  };
   const [chatMessages, setChatMessages] = useState<PgChatMessage[]>([]);
   const [thinking, setThinking] = useState(false);
   // Visible reason shown when a session ends for a non-user reason (idle / duration /
@@ -99,7 +125,7 @@ export default function PgVoicePanel({
     };
     const onReady = () => setOrb(modeRef.current === "voice" ? "listening" : "idle");
     const onPhase = (ev: any) => handlePhaseChanged(ev, { setPhase });
-    const onField = (ev: any) =>
+    const onField = (ev: any) => {
       handleFieldExtracted(ev, {
         dispatch,
         onTranscriptLine: (l: string) => {
@@ -107,6 +133,24 @@ export default function PgVoicePanel({
           // In text mode the assistant's own text already narrates these.
         }
       });
+      // Highlight the just-filled field in the wizard (shared context).
+      if (ev?.field) highlightRef.current.setField(ev.field);
+      // Surface low-confidence extractions as confirm cards (most recent first,
+      // de-duped per field, capped).
+      if (ev?.field && typeof ev.confidence === "number" && ev.confidence < 0.6) {
+        setCoPilotCards((c) =>
+          [
+            {
+              key: `${ev.field}-${Date.now()}`,
+              field: ev.field,
+              value: ev.value,
+              confidence: ev.confidence
+            },
+            ...c.filter((x) => x.field !== ev.field)
+          ].slice(0, 4)
+        );
+      }
+    };
     const onAssistantThinking = () => setThinking(true);
     const onAssistantText = (ev: { text?: string }) => {
       setThinking(false);
@@ -241,7 +285,6 @@ export default function PgVoicePanel({
               <div
                 className={`pgo-voice-sheet__dot ${isLive ? "pgo-voice-sheet__dot--live" : ""}`}
               />
-              <span className="pgo-voice-sheet__phase">{phase}</span>
               <span className="pgo-voice-sheet__timer">
                 <PgVoiceTimer startedAt={startedAt} />
               </span>
@@ -273,6 +316,29 @@ export default function PgVoicePanel({
               <X size={18} />
             </button>
           </div>
+
+          {/* Phase progress rail */}
+          <div style={{ padding: "0 16px 8px" }}>
+            <PgPhaseRail phase={phase as VoiceAgentPgPhase} />
+          </div>
+
+          {/* Low-confidence confirm cards (inline co-pilot corrections) */}
+          {coPilotCards.length > 0 && (
+            <div
+              className="pgo-voice-sheet__cards"
+              style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 16px 8px" }}
+            >
+              {coPilotCards.map((c) => (
+                <PgFieldConfirmCard
+                  key={c.key}
+                  field={c.field}
+                  value={c.value}
+                  confidence={c.confidence}
+                  onUndo={onUndoCard}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Body */}
           <div className="pgo-voice-sheet__body" ref={bodyRef}>

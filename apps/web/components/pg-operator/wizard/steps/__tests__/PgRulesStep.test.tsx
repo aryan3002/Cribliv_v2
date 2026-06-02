@@ -55,12 +55,13 @@ describe("PgRulesStep", () => {
     expect(s.house_rules.quiet_hours).toEqual({ from: "23:00", to: "07:00" });
   });
 
-  it("Back goes to step 3, Next goes to step 5", () => {
+  // Rules is step 5 in the 7-step wizard: Back → 4 (Payment), Next → 6 (Amenities).
+  it("Back goes to step 4, Next goes to step 6", () => {
     render(<Harness />);
     fireEvent.click(screen.getByRole("button", { name: /^back$/i }));
-    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(3);
+    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(4);
     fireEvent.click(screen.getByRole("button", { name: /^next$/i }));
-    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(5);
+    expect(JSON.parse(screen.getByTestId("state").textContent!).step).toBe(6);
   });
 
   it("enforces maxLength=400 on guests_policy textarea", () => {

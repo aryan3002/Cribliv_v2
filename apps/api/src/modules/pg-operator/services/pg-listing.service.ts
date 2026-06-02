@@ -1,8 +1,16 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional
+} from "@nestjs/common";
 import { DatabaseService } from "../../../common/database.service";
 import { AppStateService } from "../../../common/app-state.service";
 import { randomUUID } from "node:crypto";
 import { PgPropertiesService } from "./pg-properties.service";
+import { PgScoreService } from "./pg-score.service";
 import type { PgListingPayload, PgProperty } from "@cribliv/shared-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -89,7 +97,8 @@ export class PgListingService {
   constructor(
     @Inject(DatabaseService) private readonly db: DatabaseService,
     @Inject(AppStateService) private readonly state: AppStateService,
-    @Inject(PgPropertiesService) private readonly properties: PgPropertiesService
+    @Inject(PgPropertiesService) private readonly properties: PgPropertiesService,
+    @Optional() private readonly scoreService?: PgScoreService
   ) {}
 
   async createDraft(
@@ -98,7 +107,7 @@ export class PgListingService {
     payload: PgListingPayload,
     initialStatus: "draft" | "pending_review" = "draft"
   ): Promise<ListingResult> {
-    const prop = await this.properties.getActiveProperty(operatorId);
+    let prop = await this.properties.getActiveProperty(operatorId);
     if (!prop || prop.id !== pgPropertyId) {
       throw new NotFoundException({
         code: "property_not_found",
@@ -122,11 +131,42 @@ export class PgListingService {
       const client = await this.db.getClient();
       try {
         await client.query("BEGIN");
+        // Propagate geocoords from the payload to pg_properties so projectGeo
+        // uses the precise pin set in the location step (property was created
+        // before geocoding in the wizard flow).
+        if (payload.property.lat != null && payload.property.lng != null) {
+          await client.query(`UPDATE pg_properties SET lat = $2, lng = $3 WHERE id = $1::uuid`, [
+            prop.id,
+            payload.property.lat,
+            payload.property.lng
+          ]);
+          prop = { ...prop, lat: payload.property.lat, lng: payload.property.lng };
+        }
+        // Sync the canonical locality from the payload. The public projection
+        // reads prop.locality_id, so refresh it here too — otherwise a property
+        // created before the locality step keeps NULL locality and the listing
+        // can't be found by locality / SEO / CriblMaps. Slug is resolved against
+        // the SAME canonical `localities` set used by search + SEO.
+        if (payload.property.locality_slug) {
+          const locRes = (await client.query(
+            `SELECT id FROM localities WHERE city_id = $1 AND slug = $2 LIMIT 1`,
+            [prop.city_id, String(payload.property.locality_slug).toLowerCase()]
+          )) as { rows: Array<{ id: number }> };
+          const localityId = locRes.rows[0]?.id ?? null;
+          if (localityId != null) {
+            await client.query(`UPDATE pg_properties SET locality_id = $2 WHERE id = $1::uuid`, [
+              prop.id,
+              localityId
+            ]);
+            prop = { ...prop, locality_id: localityId };
+          }
+        }
         await this.writePgListingHead(client, id, operatorId, pgPropertyId, payload, initialStatus);
         await this.writePgDetails(client, id, payload);
         await this.writeRoomTypes(client, id, payload);
         await this.projectToListings(client, id, operatorId, prop, payload, initialStatus);
         await client.query("COMMIT");
+        void this.recordScoreAsync(id);
         return { id, status: initialStatus };
       } catch (e) {
         await client.query("ROLLBACK");
@@ -157,7 +197,16 @@ export class PgListingService {
     });
     await this.writePgDetails(this.db, id, payload);
     await this.writeRoomTypes(this.db, id, payload);
+    void this.recordScoreAsync(id);
     return { id, status: initialStatus };
+  }
+
+  // Re-score from DB truth (real photo count, verification, geo) — never from a
+  // create-time snapshot. Idempotent + best-effort; failures must not break the
+  // write path. Called after create, submit, and go-live.
+  private async recordScoreAsync(listingId: string): Promise<void> {
+    if (!this.scoreService) return;
+    await this.scoreService.rescoreListing(listingId);
   }
 
   /** PG-owned listing head — the source of truth (pg_listings). */
@@ -288,16 +337,27 @@ export class PgListingService {
    */
   async listOperatorListings(
     operatorId: string
-  ): Promise<Array<{ id: string; status: string; updated_at: string }>> {
+  ): Promise<Array<{ id: string; status: string; updated_at: string; composite_score?: number }>> {
     if (this.db.isEnabled()) {
-      const r = await this.db.query<{ id: string; status: string; updated_at: string }>(
-        `SELECT id::text, status::text, updated_at::text
-         FROM pg_listings
-         WHERE operator_user_id = $1::uuid
-         ORDER BY created_at DESC`,
+      const r = await this.db.query<{
+        id: string;
+        status: string;
+        updated_at: string;
+        composite_score: number | null;
+      }>(
+        `SELECT pl.id::text, pl.status::text, pl.updated_at::text,
+                COALESCE(ls.composite_score, 0)::float AS composite_score
+         FROM pg_listings pl
+         LEFT JOIN listing_scores ls ON ls.listing_id = pl.id
+         WHERE pl.operator_user_id = $1::uuid
+         ORDER BY pl.created_at DESC`,
         [operatorId]
       );
-      return r.rows;
+      return r.rows.map((row) => ({
+        ...row,
+        composite_score:
+          row.composite_score != null ? Math.round(row.composite_score * 100) : undefined
+      }));
     }
     return [...this.state.listings.values()]
       .filter((l) => l.ownerUserId === operatorId && l.listingType === "pg")
@@ -526,6 +586,9 @@ export class PgListingService {
           [listingId]
         );
         await client.query("COMMIT");
+        // Re-score now that photos are attached (uploaded after create, before
+        // submit) — the create-time score had photo_count = 0.
+        void this.recordScoreAsync(listingId);
         return { id: listingId, status: "pending_review" };
       } catch (e) {
         await client.query("ROLLBACK");

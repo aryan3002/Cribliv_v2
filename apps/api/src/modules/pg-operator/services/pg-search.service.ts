@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DatabaseService } from "../../../common/database.service";
+import { readFeatureFlags } from "../../../config/feature-flags";
 
 export interface PgCard {
   id: string;
@@ -141,12 +142,16 @@ export class PgSearchService {
     }
 
     const where = clauses.join(" AND ");
+    const flags = readFeatureFlags();
+    const relevance = flags.ff_pg_listing_score
+      ? "COALESCE(ls.composite_score, 0) DESC, CASE WHEN l.verification_status = 'verified' THEN 0 ELSE 1 END ASC, l.created_at DESC"
+      : "CASE WHEN l.verification_status = 'verified' THEN 0 ELSE 1 END ASC, l.created_at DESC";
     const orderBy =
       query.sort === "newest"
         ? "l.created_at DESC"
         : query.sort === "rent"
           ? "l.monthly_rent ASC NULLS LAST, l.created_at DESC"
-          : "CASE WHEN l.verification_status = 'verified' THEN 0 ELSE 1 END ASC, l.created_at DESC";
+          : relevance;
 
     const countResult = await this.db.query<{ total: number }>(
       `SELECT count(*)::int AS total
@@ -179,6 +184,7 @@ export class PgSearchService {
        JOIN cities c ON c.id = ll.city_id
        LEFT JOIN localities loc ON loc.id = ll.locality_id
        JOIN pg_details pgd ON pgd.listing_id = l.id
+       LEFT JOIN listing_scores ls ON ls.listing_id = l.id
        WHERE ${where}
        ORDER BY ${orderBy}
        LIMIT $${rowParams.length - 1} OFFSET $${rowParams.length}`,
