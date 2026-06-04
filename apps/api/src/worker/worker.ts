@@ -24,6 +24,8 @@ const SEEKER_PIN_CLEANUP_MS = 24 * 60 * 60 * 1000; // daily
 const ALERT_ZONE_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const SEO_COPY_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const PG_TTL_SWEEP_MS = 24 * 60 * 60 * 1000; // daily — expire pg_voice_agent_sessions + uncommitted pg_listing_drafts
+const PG_LEAD_AUTO_LOST_MS = 24 * 60 * 60 * 1000; // daily — auto-close unattended PG leads
+const PG_LEAD_AUTO_LOST_DAYS = 30; // PG lead untouched this long → moved to 'lost'
 
 // ── PG fraud sweep ──────────────────────────────────────────────────────────
 // Runs priceAnomaly + contactReuse + scamText signals over PG listings
@@ -170,6 +172,41 @@ async function runPgTtlSweep(pool: Pool): Promise<{ sessions: number; drafts: nu
       RETURNING id`
   );
   return { sessions: s.rowCount ?? 0, drafts: d.rowCount ?? 0 };
+}
+
+/**
+ * Auto-close unattended PG leads. Any PG lead (lead on a listing_type='pg'
+ * listing) sitting in an open status (new / contacted / visit_scheduled) with no
+ * activity for PG_LEAD_AUTO_LOST_DAYS is moved to 'lost', with a system
+ * lead_events row (actor_user_id NULL, notes 'auto_lost_unattended'). Pure status
+ * transition — PG contact is free for tenants, so there is no refund side effect.
+ * Single CTE so the UPDATE + event insert see one snapshot.
+ */
+async function runPgLeadAutoLostSweep(pool: Pool): Promise<number> {
+  const res = await pool.query(
+    `
+    WITH cand AS (
+      SELECT ld.id, ld.status AS from_status
+      FROM leads ld
+      JOIN listings l ON l.id = ld.listing_id
+      WHERE l.listing_type = 'pg'
+        AND ld.status IN ('new', 'contacted', 'visit_scheduled')
+        AND COALESCE(ld.status_changed_at, ld.created_at) < now() - ($1 || ' days')::interval
+      LIMIT 1000
+    ),
+    upd AS (
+      UPDATE leads
+         SET status = 'lost', status_changed_at = now(), updated_at = now()
+       WHERE id IN (SELECT id FROM cand)
+      RETURNING id
+    )
+    INSERT INTO lead_events (lead_id, from_status, to_status, actor_user_id, notes)
+    SELECT id, from_status, 'lost'::lead_status, NULL, 'auto_lost_unattended'
+    FROM cand
+    `,
+    [PG_LEAD_AUTO_LOST_DAYS]
+  );
+  return res.rowCount ?? 0;
 }
 
 async function runSeoCopySweep(pool: Pool): Promise<number> {
@@ -1500,6 +1537,34 @@ async function run() {
       }
     };
     setInterval(runPgFraud, PG_FRAUD_SWEEP_MS);
+
+    // ── PG lead auto-lost sweep (daily) — close leads unattended for 30 days ──
+    const runPgLeadAutoLost = async () => {
+      try {
+        const count = await runPgLeadAutoLostSweep(pool);
+        if (count > 0) {
+          console.log(
+            JSON.stringify({
+              job: "pg_lead_auto_lost_sweep",
+              closed_count: count,
+              unattended_days: PG_LEAD_AUTO_LOST_DAYS,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            job: "pg_lead_auto_lost_sweep",
+            error: err instanceof Error ? err.message : String(err),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runPgLeadAutoLost, PG_LEAD_AUTO_LOST_MS);
+    // Run once at boot too:
+    void runPgLeadAutoLost();
   }
 
   console.log(
@@ -1518,7 +1583,8 @@ async function run() {
         "seeker_pin_cleanup",
         "alert_zone_sweep",
         "seo_copy_sweep",
-        "pg_fraud_sweep"
+        "pg_fraud_sweep",
+        "pg_lead_auto_lost_sweep"
       ],
       mode: pool ? "db" : "in_memory",
       whatsapp_enabled: whatsAppEnabled,

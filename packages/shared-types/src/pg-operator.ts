@@ -159,6 +159,15 @@ export interface PgDashboardListingHealth {
   trend_7d: TrendPoint[]; // 7 points, oldest→newest
   last_updated: string;
   composite_score?: number; // 0–100 listing quality score from listing_scores
+  // Identity + headline data for the dashboard card (optional — older payloads omit).
+  title?: string | null;
+  cover_photo?: string | null; // absolute URL
+  city_slug?: string | null;
+  locality_slug?: string | null;
+  gender_policy?: string | null;
+  total_beds?: number | null;
+  starting_rent_paise?: number | null;
+  total_vacancy?: number;
 }
 
 export interface PgDashboardLead {

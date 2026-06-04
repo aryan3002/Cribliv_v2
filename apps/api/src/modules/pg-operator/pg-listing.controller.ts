@@ -10,6 +10,7 @@ import {
   NotFoundException,
   Optional,
   Param,
+  Patch,
   Post,
   Put,
   UseGuards
@@ -27,6 +28,7 @@ import { PgDraftService } from "./services/pg-draft.service";
 import { PgAiAssistService } from "./services/pg-ai-assist.service";
 import { PgListingCreateSchema } from "./dto/pg-listing.dto";
 import { PgDraftUpsertSchema } from "./dto/pg-draft.dto";
+import { UpdatePgListingStatusSchema } from "./dto/pg-listing-status.dto";
 import { readFeatureFlags } from "../../config/feature-flags";
 
 @Controller("pg-operator/listings")
@@ -120,6 +122,18 @@ export class PgListingController {
       });
     }
     return ok(detail);
+  }
+
+  @Patch(":id/status")
+  async setStatus(@AuthUser() user: UserContext, @Param("id") id: string, @Body() body: unknown) {
+    const parsed = UpdatePgListingStatusSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: "invalid_listing_status",
+        message: parsed.error.message
+      });
+    }
+    return ok(await this.listings.setListingStatus(id, user.id, parsed.data.status));
   }
 
   @Post("generate-content")

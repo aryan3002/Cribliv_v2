@@ -1,6 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ChevronRight, MapPin, Building, Search } from "lucide-react";
 import { PG_CITY_CONTENT } from "../../../../lib/pg-city-content";
 import { searchPgListings, type PgSearchResponse } from "../../../../lib/pg-public-api";
 import { PgListingCard } from "../../../../components/pg/PgListingCard";
@@ -97,82 +98,70 @@ export default async function PgCityPage({ params }: { params: { locale: string;
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
       />
 
+      {/* Hero Banner Section */}
+      <section
+        style={{
+          background: "linear-gradient(to right bottom, var(--surface-2), #ffffff)",
+          padding: "var(--space-8) 0 var(--space-10) 0",
+          borderBottom: "1px solid var(--border)"
+        }}
+      >
+        <div className="container">
+          <nav
+            className="ld-crumb"
+            aria-label="Breadcrumb"
+            style={{ marginBottom: "var(--space-6)" }}
+          >
+            <Link href={`/${params.locale}` as Route}>Home</Link>
+            <ChevronRight size={14} className="ld-crumb__sep" aria-hidden="true" />
+            <Link href={`/${params.locale}/pg` as Route}>PG</Link>
+            <ChevronRight size={14} className="ld-crumb__sep" aria-hidden="true" />
+            <span className="ld-crumb__current">PG in {c.name}</span>
+          </nav>
+
+          <div style={{ maxWidth: 800 }}>
+            <h1 style={{ fontSize: "2.5rem", lineHeight: 1.2, marginBottom: "var(--space-4)" }}>
+              {c.heroLine}
+            </h1>
+            <p
+              className="text-secondary"
+              style={{ fontSize: "1.125rem", lineHeight: 1.6, marginBottom: "var(--space-6)" }}
+            >
+              {c.intro}
+            </p>
+            <Link
+              href={`/${params.locale}/pg?city=${c.slug}` as Route}
+              className="btn btn--primary btn--lg"
+              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              <Search size={18} />
+              Browse all {c.name} PGs
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <div
         className="container"
-        style={{ paddingTop: "var(--space-6)", paddingBottom: "var(--space-16)" }}
+        style={{ paddingTop: "var(--space-10)", paddingBottom: "var(--space-16)" }}
       >
-        <nav
-          style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}
-        >
-          <Link href={`/${params.locale}` as Route} style={{ color: "inherit" }}>
-            Home
-          </Link>{" "}
-          ›{" "}
-          <Link href={`/${params.locale}/pg` as Route} style={{ color: "inherit" }}>
-            PG
-          </Link>{" "}
-          › <span>PG in {c.name}</span>
-        </nav>
-
-        <h1 style={{ marginBottom: "var(--space-2)" }}>{c.heroLine}</h1>
-        <p className="text-secondary" style={{ maxWidth: 720, marginBottom: "var(--space-5)" }}>
-          {c.intro}
-        </p>
-        <Link href={`/${params.locale}/pg?city=${c.slug}` as Route} className="btn btn--primary">
-          Browse all PGs in {c.name}
-        </Link>
-
-        <h2 style={{ margin: "var(--space-8) 0 var(--space-3)" }}>
-          PG rent in {c.name} (per month)
-        </h2>
-        <div className="grid grid-3" style={{ gap: "var(--space-4)" }}>
-          {[
-            { label: "Single sharing", range: c.rentSingle },
-            { label: "Double sharing", range: c.rentDouble },
-            { label: "Triple sharing", range: c.rentTriple }
-          ].map((r) => (
-            <div
-              key={r.label}
-              style={{
-                background: "#fff",
-                border: "1px solid var(--border)",
-                borderRadius: 12,
-                padding: "var(--space-5)",
-                textAlign: "center"
-              }}
-            >
-              <div style={{ fontWeight: 700 }}>{r.label}</div>
-              <div className="text-secondary">{r.range}</div>
-            </div>
-          ))}
-        </div>
-
-        <h2 style={{ margin: "var(--space-8) 0 var(--space-3)" }}>Popular PG areas in {c.name}</h2>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {c.hubs.map((h) => (
-            <Link
-              key={h}
-              href={`/${params.locale}/pg?city=${c.slug}&q=${encodeURIComponent(h)}` as Route}
-              className="pg-chip"
-            >
-              📍 {h}
-            </Link>
-          ))}
-        </div>
-
+        {/* Available PGs (Moved up for better UX) */}
         {listings.items.length > 0 && (
-          <>
+          <section className="ld-section" style={{ borderTop: 0, paddingTop: 0 }}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "baseline",
-                margin: "var(--space-8) 0 var(--space-3)"
+                marginBottom: "var(--space-6)"
               }}
             >
-              <h2 style={{ margin: 0 }}>Available PGs in {c.name}</h2>
-              <Link href={`/${params.locale}/pg?city=${c.slug}` as Route} className="body-sm">
-                View all →
+              <h2 style={{ margin: 0 }}>Verified PGs in {c.name}</h2>
+              <Link
+                href={`/${params.locale}/pg?city=${c.slug}` as Route}
+                className="btn btn--secondary btn--sm"
+              >
+                View all PGs
               </Link>
             </div>
             <div className="listing-grid">
@@ -187,43 +176,130 @@ export default async function PgCityPage({ params }: { params: { locale: string;
                 />
               ))}
             </div>
-          </>
+          </section>
         )}
 
-        <h2 style={{ margin: "var(--space-10) 0 var(--space-3)" }}>FAQ — PGs in {c.name}</h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 720 }}>
-          {c.faqs.map((f) => (
-            <details
-              key={f.q}
-              style={{
-                background: "#fff",
-                border: "1px solid var(--border)",
-                borderRadius: 10,
-                padding: "12px 16px"
-              }}
-            >
-              <summary style={{ fontWeight: 600, cursor: "pointer" }}>{f.q}</summary>
-              <p className="text-secondary" style={{ marginTop: 8 }}>
-                {f.a}
-              </p>
-            </details>
-          ))}
-        </div>
+        {/* Pricing Cards */}
+        <section className="ld-section">
+          <div className="ld-section__head">
+            <h2>Average PG Rent in {c.name}</h2>
+          </div>
+          <div className="grid grid-3" style={{ gap: "var(--space-5)" }}>
+            {[
+              { label: "Single Sharing", range: c.rentSingle, icon: Building },
+              { label: "Double Sharing", range: c.rentDouble, icon: Building },
+              { label: "Triple Sharing", range: c.rentTriple, icon: Building }
+            ].map((r, i) => {
+              const Icon = r.icon;
+              return (
+                <div key={r.label} className="pg-rent-card">
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      marginBottom: "var(--space-3)",
+                      color: "var(--accent)"
+                    }}
+                  >
+                    <Icon size={28} strokeWidth={1.5} />
+                  </div>
+                  <div
+                    style={{ fontWeight: 600, fontSize: "1.1rem", marginBottom: "var(--space-2)" }}
+                  >
+                    {r.label}
+                  </div>
+                  <div className="text-secondary" style={{ fontSize: "0.95rem" }}>
+                    {r.range}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
-        <h2 style={{ margin: "var(--space-10) 0 var(--space-3)" }}>PGs in other cities</h2>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {Object.values(PG_CITY_CONTENT)
-            .filter((o) => o.slug !== c.slug)
-            .map((o) => (
+        {/* Popular Areas */}
+        <section className="ld-section">
+          <div className="ld-section__head">
+            <h2>Top PG Localities in {c.name}</h2>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {c.hubs.map((h) => (
               <Link
-                key={o.slug}
-                href={`/${params.locale}/pg/${o.slug}` as Route}
-                className="pg-chip"
+                key={h}
+                href={`/${params.locale}/pg?city=${c.slug}&q=${encodeURIComponent(h)}` as Route}
+                className="pg-hub-pill"
               >
-                PG in {o.name}
+                <MapPin size={16} color="var(--text-secondary)" /> {h}
               </Link>
             ))}
-        </div>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="ld-section">
+          <div className="ld-section__head">
+            <h2>Frequently Asked Questions</h2>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 800 }}>
+            {c.faqs.map((f) => (
+              <details
+                key={f.q}
+                style={{
+                  background: "#fff",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  overflow: "hidden"
+                }}
+              >
+                <summary
+                  style={{
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: "16px 20px",
+                    listStyle: "none",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: "1.05rem"
+                  }}
+                >
+                  {f.q}
+                  <ChevronRight size={18} color="var(--text-tertiary)" className="faq-icon" />
+                </summary>
+                <div
+                  style={{
+                    padding: "0 20px 20px 20px",
+                    color: "var(--text-secondary)",
+                    lineHeight: 1.6
+                  }}
+                >
+                  {f.a}
+                </div>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        {/* Other Cities */}
+        <section className="ld-section">
+          <div className="ld-section__head">
+            <h2>Explore PGs in other cities</h2>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {Object.values(PG_CITY_CONTENT)
+              .filter((o) => o.slug !== c.slug)
+              .map((o) => (
+                <Link
+                  key={o.slug}
+                  href={`/${params.locale}/pg/${o.slug}` as Route}
+                  className="btn btn--secondary"
+                  style={{ borderRadius: "var(--radius-full)" }}
+                >
+                  PG in {o.name}
+                </Link>
+              ))}
+          </div>
+        </section>
       </div>
     </>
   );

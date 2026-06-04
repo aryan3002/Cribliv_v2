@@ -11,9 +11,22 @@ import type {
  * Adapters in pg-operator.module.ts wire the real services to this shape.
  */
 export interface ListingsSlice {
-  listOperatorListings(
-    operatorId: string
-  ): Promise<Array<{ id: string; status: string; updated_at: string; composite_score?: number }>>;
+  listOperatorListings(operatorId: string): Promise<
+    Array<{
+      id: string;
+      status: string;
+      updated_at: string;
+      composite_score?: number;
+      title?: string | null;
+      cover_photo?: string | null;
+      city_slug?: string | null;
+      locality_slug?: string | null;
+      gender_policy?: string | null;
+      total_beds?: number | null;
+      starting_rent_paise?: number | null;
+      total_vacancy?: number;
+    }>
+  >;
   // Distinct city slugs the operator lists in — scopes demand insights.
   listOperatorCities(operatorId: string): Promise<string[]>;
 }
@@ -130,7 +143,15 @@ export class PgDashboardService {
           interest_rate_7d: ratio(contact_unlocks_7d, views_7d),
           trend_7d: series.slice(-7),
           last_updated: l.updated_at,
-          composite_score: l.composite_score
+          composite_score: l.composite_score,
+          title: l.title ?? null,
+          cover_photo: l.cover_photo ?? null,
+          city_slug: l.city_slug ?? null,
+          locality_slug: l.locality_slug ?? null,
+          gender_policy: l.gender_policy ?? null,
+          total_beds: l.total_beds ?? null,
+          starting_rent_paise: l.starting_rent_paise ?? null,
+          total_vacancy: l.total_vacancy ?? 0
         };
       }),
       leads_inbox: leads,

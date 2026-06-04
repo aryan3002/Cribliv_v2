@@ -8,9 +8,10 @@ interface ListingGalleryProps {
   photos: string[];
   title: string;
   locale: Locale;
+  onPhotoClick?: (index: number) => void;
 }
 
-export function ListingGallery({ photos, title, locale }: ListingGalleryProps) {
+export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingGalleryProps) {
   const [open, setOpen] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -76,12 +77,17 @@ export function ListingGallery({ photos, title, locale }: ListingGalleryProps) {
           <div
             key={url}
             className="gallery__thumb"
-            onClick={openLightbox}
+            data-testid={`pg-thumb-${i + 1}`}
+            onClick={() => {
+              onPhotoClick?.(i + 1);
+              openLightbox();
+            }}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
+                onPhotoClick?.(i + 1);
                 openLightbox();
               }
             }}

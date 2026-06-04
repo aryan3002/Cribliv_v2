@@ -1,13 +1,15 @@
 "use client";
-import { Dispatch, useEffect, useRef, useState } from "react";
-import { MapPin } from "lucide-react";
+import { Dispatch, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { MapPin, Navigation, X } from "lucide-react";
 import { PgWizardState, PgWizardAction } from "@/lib/pg-wizard-state";
 import { useGooglePlaces } from "@/lib/google-places";
 import { ensureMapsLoaded } from "@/lib/google-maps";
 import { CRIBLMAP_DARK_STYLE } from "@/lib/map-styles";
 import { trackPgFunnel } from "@/lib/pg-funnel";
-import { createPgProperty, listCityLocalities, type PgCityLocality } from "@/lib/pg-operator-api";
+import { listCityLocalities, type PgCityLocality } from "@/lib/pg-operator-api";
 import { CITIES } from "@/components/listing-wizard/types";
+import SectionCard from "../shared/SectionCard";
+import styles from "../shared/pg-wizard.module.css";
 
 // Slug-ify a city display name (e.g. "New Delhi" → "new-delhi")
 function toSlug(city: string) {
@@ -31,6 +33,72 @@ interface Props {
   dispatch: Dispatch<PgWizardAction>;
   locale: string;
   accessToken: string | null;
+}
+
+function NearbyTags({
+  label,
+  fieldKey,
+  items,
+  dispatch
+}: {
+  label: string;
+  fieldKey: "metro" | "college" | "office";
+  items: string[];
+  dispatch: Dispatch<PgWizardAction>;
+}) {
+  const [draft, setDraft] = useState("");
+  const commit = () => {
+    const t = draft.trim();
+    if (!t) return;
+    dispatch({ type: "SET_FIELD", path: `pg_details.nearby.${fieldKey}`, value: [...items, t] });
+    setDraft("");
+  };
+  const remove = (it: string) =>
+    dispatch({
+      type: "SET_FIELD",
+      path: `pg_details.nearby.${fieldKey}`,
+      value: items.filter((x) => x !== it)
+    });
+
+  return (
+    <div>
+      <span className={styles.fieldLabel} style={{ textTransform: "capitalize" }}>
+        Nearby {label}
+      </span>
+      <div className={styles.tagInputWrap}>
+        <input
+          className={styles.tagInput}
+          aria-label={`add ${label}`}
+          value={draft}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => setDraft(e.target.value)}
+          onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            }
+          }}
+          placeholder={`Type a ${label} and press Enter`}
+        />
+      </div>
+      {items.length > 0 && (
+        <div className={styles.tagList}>
+          {items.map((it) => (
+            <span key={it} className={styles.tag}>
+              {it}
+              <button
+                type="button"
+                className={styles.tagRemove}
+                aria-label={`remove ${it}`}
+                onClick={() => remove(it)}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function PgLocationStep({ state, dispatch, accessToken }: Props) {
@@ -218,72 +286,60 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
   }, [lat, lng]);
 
   return (
-    <section className="pgo-stagger">
-      <div className="pgo-form-section">
-        <div className="pgo-section-header">
-          <div className="pgo-section-header__icon">
-            <MapPin size={20} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <SectionCard
+        title="Where is your PG?"
+        subtitle="Pick the city and locality, then drop a precise pin."
+        icon={<MapPin size={20} />}
+      >
+        <div className={styles.row2}>
+          <div>
+            <span className={styles.fieldLabel}>City</span>
+            <select
+              className={styles.select}
+              aria-label="city"
+              value={citySlug}
+              onChange={onCityChange}
+            >
+              <option value="">Select city</option>
+              {CITIES.map((city) => (
+                <option key={city} value={toSlug(city)}>
+                  {city}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="pgo-section-header__text">
-            <span className="pgo-overline">Location</span>
-            <span className="pgo-heading pgo-heading--xs">Where is your PG?</span>
+          <div>
+            <span className={styles.fieldLabel}>Locality</span>
+            <select
+              className={styles.select}
+              aria-label="locality"
+              value={localitySlug}
+              disabled={!citySlug || localities.length === 0}
+              onChange={(e) => setF("property.locality_slug", e.target.value)}
+            >
+              <option value="">{citySlug ? "Select locality" : "Select a city first"}</option>
+              {localities.map((loc) => (
+                <option key={loc.slug} value={loc.slug}>
+                  {loc.name_en}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* City select */}
-        <div className="pgo-field">
-          <select
-            className="pgo-field__input"
-            aria-label="city"
-            value={citySlug}
-            onChange={onCityChange}
-          >
-            <option value="">Select city</option>
-            {CITIES.map((city) => (
-              <option key={city} value={toSlug(city)}>
-                {city}
-              </option>
-            ))}
-          </select>
-          <label className="pgo-field__label">City</label>
-          <span className="pgo-field__bar" />
-        </div>
-
-        {/* Canonical locality select — drives locality search, SEO & CriblMaps.
-            Auto-filled from the geocoded pin; operator can confirm/override. */}
-        <div className="pgo-field">
-          <select
-            className="pgo-field__input"
-            aria-label="locality"
-            value={localitySlug}
-            disabled={!citySlug || localities.length === 0}
-            onChange={(e) => setF("property.locality_slug", e.target.value)}
-          >
-            <option value="">{citySlug ? "Select locality" : "Select a city first"}</option>
-            {localities.map((loc) => (
-              <option key={loc.slug} value={loc.slug}>
-                {loc.name_en}
-              </option>
-            ))}
-          </select>
-          <label className="pgo-field__label">Locality</label>
-          <span className="pgo-field__bar" />
-        </div>
-
-        {/* Address autocomplete */}
-        <div className="pgo-field" style={{ position: "relative" }}>
+        <div style={{ position: "relative" }}>
+          <span className={styles.fieldLabel}>Address / area</span>
           <input
-            className="pgo-field__input"
+            className={styles.textInput}
             aria-label="address search"
             value={addressInput}
             onChange={onAddressInput}
             onFocus={() => predictions.length > 0 && setShowDropdown(true)}
             onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-            placeholder=" "
+            placeholder="Search a street, building or area"
             autoComplete="off"
           />
-          <label className="pgo-field__label">Address / area</label>
-          <span className="pgo-field__bar" />
           {showDropdown && predictions.length > 0 && (
             <ul className="pgo-autocomplete-dropdown" role="listbox">
               {predictions.map((p) => (
@@ -306,102 +362,47 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
           )}
         </div>
 
-        {/* Geocoded address display */}
-        {(d.property as any)?.formatted_address && (
-          <p className="pgo-caption" style={{ marginTop: 4 }}>
-            <MapPin size={12} style={{ display: "inline", marginRight: 4 }} />
-            {(d.property as any).formatted_address}
+        <div ref={mapRef} className={styles.map} aria-label="property location map" />
+        {(d.property as any)?.formatted_address ? (
+          <p className={styles.mapHint}>
+            <MapPin size={13} /> {(d.property as any).formatted_address}
+          </p>
+        ) : (
+          <p className={styles.mapHint}>
+            <Navigation size={13} /> Tap the map or search above to drop your pin.
           </p>
         )}
-      </div>
+        {error && (
+          <p role="alert" style={{ color: "var(--pw-danger)", fontSize: 13, fontWeight: 600 }}>
+            {error}
+          </p>
+        )}
+      </SectionCard>
 
-      {/* Map */}
-      <div
-        ref={mapRef}
-        style={{ width: "100%", height: 260, borderRadius: 12, marginTop: 16 }}
-        aria-label="property location map"
-      />
-
-      {error && (
-        <p role="alert" className="pgo-error-msg" style={{ marginTop: 8 }}>
-          {error}
-        </p>
-      )}
-
-      <div className="pgo-step-nav">
-        <button
-          className="pgo-btn pgo-btn--secondary"
-          type="button"
-          onClick={() => dispatch({ type: "GOTO_STEP", step: 1 })}
-        >
-          Back
-        </button>
-        <button
-          className="pgo-btn pgo-btn--primary pgo-btn--lg"
-          type="button"
-          disabled={busy || !citySlug || !localitySlug}
-          onClick={async () => {
-            if (!citySlug) {
-              setError("Select a city first.");
-              return;
-            }
-            if (!localitySlug) {
-              setError("Select a locality so tenants can find your PG.");
-              return;
-            }
-            setError(null);
-            // Create property on the server the first time (if not yet created)
-            if (!state.pgPropertyId) {
-              if (!accessToken) {
-                setError("Sign in required.");
-                return;
-              }
-              setBusy(true);
-              try {
-                const prop = await createPgProperty({
-                  idempotencyKey: crypto.randomUUID(),
-                  token: accessToken,
-                  input: {
-                    display_name: d.property?.display_name ?? "My PG",
-                    city_slug: citySlug,
-                    ...(d.property?.locality_slug
-                      ? { locality_slug: d.property.locality_slug }
-                      : {}),
-                    ...(d.property?.total_floors ? { total_floors: d.property.total_floors } : {}),
-                    ...((d.property as any)?.lat != null ? { lat: (d.property as any).lat } : {}),
-                    ...((d.property as any)?.lng != null ? { lng: (d.property as any).lng } : {})
-                  }
-                });
-                dispatch({ type: "SET_PG_PROPERTY_ID", pgPropertyId: prop.id });
-              } catch (e) {
-                const err = e as Error & { code?: string };
-                setError(
-                  err.code === "multi_property_not_enabled"
-                    ? "You already have a property registered. Refresh and try again."
-                    : err.message
-                );
-                setBusy(false);
-                return;
-              }
-              setBusy(false);
-            }
-            dispatch({ type: "GOTO_STEP", step: 3 });
-          }}
-        >
-          {busy ? (
-            <>
-              Saving
-              <span className="pgo-loading-dots">
-                <span />
-                <span />
-                <span />
-              </span>
-            </>
-          ) : (
-            "Next"
-          )}
-        </button>
-      </div>
-    </section>
+      <SectionCard
+        title="What's nearby?"
+        subtitle="Landmarks help tenants find you — optional but recommended."
+        icon={<Navigation size={20} />}
+      >
+        <NearbyTags
+          label="metro"
+          fieldKey="metro"
+          items={state.draft.pg_details?.nearby?.metro ?? []}
+          dispatch={dispatch}
+        />
+        <NearbyTags
+          label="college"
+          fieldKey="college"
+          items={state.draft.pg_details?.nearby?.college ?? []}
+          dispatch={dispatch}
+        />
+        <NearbyTags
+          label="office"
+          fieldKey="office"
+          items={state.draft.pg_details?.nearby?.office ?? []}
+          dispatch={dispatch}
+        />
+      </SectionCard>
+    </div>
   );
 }

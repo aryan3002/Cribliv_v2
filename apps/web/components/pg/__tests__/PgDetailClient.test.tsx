@@ -87,9 +87,10 @@ describe("PgDetailClient", () => {
     expect(photoViewed).toHaveBeenCalledWith("L1", 1);
   });
 
-  it("shows 'Only N beds left' when total vacancy <= 3", () => {
+  it("does not show vacancy count to tenants", () => {
     render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
-    expect(screen.getByText(/only 1 bed/i)).toBeTruthy();
+    expect(screen.queryByText(/only 1 bed/i)).toBeNull();
+    expect(screen.queryByText(/beds left/i)).toBeNull();
   });
 
   it("hides vacancy urgency when plenty available", () => {

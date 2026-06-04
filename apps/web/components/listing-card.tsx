@@ -1,8 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import type { ReactNode } from "react";
-import { ShieldCheck, Heart, Building, MapPin } from "lucide-react";
+import {
+  ShieldCheck,
+  Heart,
+  Building,
+  MapPin,
+  BedDouble,
+  Maximize2,
+  Sofa,
+  UtensilsCrossed
+} from "lucide-react";
+import styles from "./listing-card.module.css";
 
 export interface ListingCardData {
   id: string;
@@ -53,89 +64,98 @@ export function ListingCardItem({
   compact = false
 }: ListingCardItemProps) {
   const cityDisplay = listing.city_name ?? toDisplayCity(listing.city);
-  const typeLabel = listing.listing_type === "pg" ? "PG" : "Flat / House";
+  const isPg = listing.listing_type === "pg";
+  const typeLabel = isPg ? "PG" : "Flat / House";
+  // PG listings use the split route /[locale]/pg/[city]/[id]; flats keep /[locale]/listing/[id].
+  const href = (
+    isPg && listing.city
+      ? `/${locale}/pg/${listing.city}/${listing.id}`
+      : `/${locale}/listing/${listing.id}`
+  ) as Route;
   const rentDisplay = formatRent(listing.monthly_rent);
+  const hasRent = !!listing.monthly_rent && listing.monthly_rent > 0;
   const isVerified = listing.verification_status === "verified";
-
-  const metaParts: string[] = [];
-  if (listing.bhk) metaParts.push(`${listing.bhk} BHK`);
-  if (listing.area_sqft) metaParts.push(`${listing.area_sqft} sqft`);
   const fLabel = furnishLabel(listing.furnishing);
-  if (fLabel) metaParts.push(fLabel);
-  if (listing.listing_type === "pg") metaParts.push("PG");
+
+  const chips: { icon: ReactNode; label: string }[] = [];
+  if (listing.bhk) chips.push({ icon: <BedDouble size={12} />, label: `${listing.bhk} BHK` });
+  if (listing.area_sqft)
+    chips.push({ icon: <Maximize2 size={12} />, label: `${listing.area_sqft} sqft` });
+  if (fLabel) chips.push({ icon: <Sofa size={12} />, label: fLabel });
+  if (isPg) chips.push({ icon: <UtensilsCrossed size={12} />, label: "Shared living" });
 
   return (
-    <article className={`listing-card${compact ? " listing-card--compact" : ""}`}>
-      <Link
-        href={`/${locale}/listing/${listing.id}`}
-        className="listing-card__media"
-        aria-label={listing.title}
-      >
+    <article className={`${styles.card}${compact ? ` ${styles.compact}` : ""}`}>
+      <Link href={href} className={styles.media} aria-label={listing.title}>
         {listing.cover_photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={listing.cover_photo}
             alt={listing.title}
             loading="lazy"
-            className="listing-card__img"
+            className={styles.img}
           />
         ) : (
-          <div className="listing-card__placeholder" aria-hidden="true">
-            <Building size={32} />
+          <div className={styles.placeholder} aria-hidden="true">
+            <Building size={34} strokeWidth={1.5} />
+          </div>
+        )}
+        <span className={styles.scrim} aria-hidden="true" />
+
+        <div className={styles.badgeRow}>
+          {isVerified ? (
+            <span className={styles.verified} aria-label="Verified owner">
+              <ShieldCheck size={12} aria-hidden="true" /> Verified
+            </span>
+          ) : (
+            <span />
+          )}
+          {heartSlot ?? (
+            <button
+              type="button"
+              className={styles.heart}
+              aria-label="Save"
+              onClick={(e) => e.preventDefault()}
+            >
+              <Heart size={15} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+
+        <span className={`${styles.typePill}${isPg ? ` ${styles.typePillPg}` : ""}`}>
+          {typeLabel}
+        </span>
+      </Link>
+
+      <Link href={href} className={styles.body}>
+        <h3 className={styles.title}>{listing.title}</h3>
+
+        <div className={styles.loc}>
+          <MapPin size={13} aria-hidden="true" />
+          <span className={styles.locText}>
+            {[listing.locality, cityDisplay].filter(Boolean).join(", ") || "Location"}
+          </span>
+        </div>
+
+        {chips.length > 0 && (
+          <div className={styles.metaRow}>
+            {chips.map((c) => (
+              <span key={c.label} className={styles.metaChip}>
+                {c.icon}
+                {c.label}
+              </span>
+            ))}
           </div>
         )}
 
-        {isVerified && (
-          <span className="listing-card__verified" aria-label="Verified owner">
-            <ShieldCheck size={12} aria-hidden="true" />
-            Verified
+        <div className={styles.priceRow}>
+          <span className={styles.priceWrap}>
+            <span className={styles.price}>{rentDisplay}</span>
+            {hasRent && <span className={styles.period}>{isPg ? "/mo onwards" : "/month"}</span>}
           </span>
-        )}
-      </Link>
-
-      <div className="listing-card__heart-slot">
-        {heartSlot ?? (
-          <button
-            type="button"
-            className="listing-card__heart"
-            aria-label="Save"
-            onClick={(e) => {
-              // Static fallback — the search-results page wires up real shortlist action via heartSlot.
-              e.preventDefault();
-            }}
-          >
-            <Heart size={16} aria-hidden="true" />
-          </button>
-        )}
-      </div>
-
-      <Link href={`/${locale}/listing/${listing.id}`} className="listing-card__body">
-        <div className="listing-card__row1">
-          <h3 className="listing-card__title">{listing.title}</h3>
-          {isVerified && (
-            <span className="listing-card__rating" aria-hidden="true">
-              <ShieldCheck size={12} />
-              <span>Verified</span>
-            </span>
-          )}
-        </div>
-
-        <div className="listing-card__loc">
-          <MapPin size={12} aria-hidden="true" />
-          <span>
-            {[listing.locality, cityDisplay].filter(Boolean).join(", ") || "Location"}
-            {" · "}
-            {typeLabel}
+          <span className={styles.trust}>
+            <ShieldCheck size={12} aria-hidden="true" /> Zero brokerage
           </span>
-        </div>
-
-        {metaParts.length > 0 && <div className="listing-card__meta">{metaParts.join(" · ")}</div>}
-
-        <div className="listing-card__price-row">
-          <span className="listing-card__price">{rentDisplay}</span>
-          {listing.monthly_rent && listing.monthly_rent > 0 && (
-            <span className="listing-card__period">/month</span>
-          )}
         </div>
       </Link>
     </article>

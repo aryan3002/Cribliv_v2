@@ -335,28 +335,78 @@ export class PgListingService {
    * Operator's listing heads for the dashboard — read off pg_listings (the PG
    * source of truth; no OwnerService). In-memory mode reads the dev listings map.
    */
-  async listOperatorListings(
-    operatorId: string
-  ): Promise<Array<{ id: string; status: string; updated_at: string; composite_score?: number }>> {
+  async listOperatorListings(operatorId: string): Promise<
+    Array<{
+      id: string;
+      status: string;
+      updated_at: string;
+      composite_score?: number;
+      title?: string | null;
+      cover_photo?: string | null;
+      city_slug?: string | null;
+      locality_slug?: string | null;
+      gender_policy?: string | null;
+      total_beds?: number | null;
+      starting_rent_paise?: number | null;
+      total_vacancy?: number;
+    }>
+  > {
     if (this.db.isEnabled()) {
       const r = await this.db.query<{
         id: string;
         status: string;
         updated_at: string;
         composite_score: number | null;
+        title: string | null;
+        cover_blob: string | null;
+        city_slug: string | null;
+        locality_slug: string | null;
+        gender_policy: string | null;
+        total_beds: number | null;
+        starting_rent_paise: number | null;
+        total_vacancy: number | null;
       }>(
         `SELECT pl.id::text, pl.status::text, pl.updated_at::text,
-                COALESCE(ls.composite_score, 0)::float AS composite_score
+                COALESCE(ls.composite_score, 0)::float AS composite_score,
+                pl.title, pl.starting_rent_paise,
+                c.slug AS city_slug, loc.slug AS locality_slug,
+                d.gender_policy::text AS gender_policy, d.total_beds,
+                cover.blob_path AS cover_blob,
+                COALESCE(vac.total_vacancy, 0)::int AS total_vacancy
          FROM pg_listings pl
          LEFT JOIN listing_scores ls ON ls.listing_id = pl.id
+         LEFT JOIN pg_properties pp ON pp.id = pl.pg_property_id
+         LEFT JOIN cities c ON c.id = pp.city_id
+         LEFT JOIN localities loc ON loc.id = pp.locality_id
+         LEFT JOIN pg_details d ON d.listing_id = pl.id
+         LEFT JOIN LATERAL (
+           SELECT blob_path FROM listing_photos
+           WHERE listing_id = pl.id AND moderation_status != 'rejected'
+           ORDER BY is_cover DESC, sort_order ASC, created_at ASC
+           LIMIT 1
+         ) cover ON true
+         LEFT JOIN LATERAL (
+           SELECT SUM(vacancy_count)::int AS total_vacancy
+           FROM pg_room_types WHERE listing_id = pl.id
+         ) vac ON true
          WHERE pl.operator_user_id = $1::uuid
          ORDER BY pl.created_at DESC`,
         [operatorId]
       );
       return r.rows.map((row) => ({
-        ...row,
+        id: row.id,
+        status: row.status,
+        updated_at: row.updated_at,
         composite_score:
-          row.composite_score != null ? Math.round(row.composite_score * 100) : undefined
+          row.composite_score != null ? Math.round(row.composite_score * 100) : undefined,
+        title: row.title,
+        cover_photo: row.cover_blob ? this.toPhotoUrl(row.cover_blob) : null,
+        city_slug: row.city_slug,
+        locality_slug: row.locality_slug,
+        gender_policy: row.gender_policy,
+        total_beds: row.total_beds,
+        starting_rent_paise: row.starting_rent_paise,
+        total_vacancy: row.total_vacancy ?? 0
       }));
     }
     return [...this.state.listings.values()]
@@ -366,6 +416,60 @@ export class PgListingService {
         status: l.status,
         updated_at: new Date(l.createdAt).toISOString()
       }));
+  }
+
+  /**
+   * Operator-controlled listing visibility. Toggles a live listing between
+   * `active` (shown on homepage/search) and `paused` (hidden), or `archived`
+   * (permanently removed from public surfaces). Updates BOTH the pg_listings row
+   * and the projected public `listings` row (same id) in one transaction, scoped
+   * to the operator. Draft / pending_review listings can't be toggled here —
+   * they go live through the submit → admin-approval path.
+   */
+  async setListingStatus(
+    listingId: string,
+    operatorId: string,
+    status: "active" | "paused" | "archived"
+  ): Promise<{ id: string; status: string }> {
+    if (!this.db.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+    const existing = await this.db.query<{ status: string }>(
+      `SELECT status::text FROM pg_listings WHERE id = $1::uuid AND operator_user_id = $2::uuid LIMIT 1`,
+      [listingId, operatorId]
+    );
+    if (!existing.rows.length) {
+      throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+    }
+    const current = existing.rows[0].status;
+    if (current === "draft" || current === "pending_review") {
+      throw new BadRequestException({
+        code: "not_approved",
+        message: "Submit the listing for review before changing its visibility."
+      });
+    }
+
+    const client = await this.db.getClient();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `UPDATE pg_listings SET status = $2::listing_status, updated_at = now()
+         WHERE id = $1::uuid AND operator_user_id = $3::uuid`,
+        [listingId, status, operatorId]
+      );
+      await client.query(
+        `UPDATE listings SET status = $2::listing_status, updated_at = now()
+         WHERE id = $1::uuid AND owner_user_id = $3::uuid`,
+        [listingId, status, operatorId]
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+    return { id: listingId, status };
   }
 
   /**
@@ -382,11 +486,17 @@ export class PgListingService {
     if (!isUuid(listingId)) return null;
     if (!this.db.isEnabled()) return null;
 
-    return this.loadListingDetail(
+    const detail = await this.loadListingDetail(
       listingId,
       `pl.id = $1::uuid AND pl.operator_user_id = $2::uuid`,
       [listingId, operatorId]
     );
+    if (!detail) return null;
+    // Operator manage page renders <img> directly — hand it absolute URLs too.
+    return {
+      ...detail,
+      photos: detail.photos.map((p) => ({ ...p, blob_path: this.toPhotoUrl(p.blob_path) }))
+    };
   }
 
   /**

@@ -1,29 +1,42 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  Building2,
+  BedDouble,
+  MapPin,
+  Sparkles,
+  ScrollText,
+  Wallet,
+  Settings2,
+  UtensilsCrossed
+} from "lucide-react";
 import { getPgListingDetail, type PgListingDetail } from "@/lib/pg-operator-api";
-import { ArrowLeft, Plus } from "lucide-react";
+import { computePgListingScore } from "@cribliv/shared-types";
 import PgPublishedBanner from "./PgPublishedBanner";
 import PgSubmitForReview from "./PgSubmitForReview";
+import PgListingControls from "./PgListingControls";
+import styles from "./pg-listing-manage.module.css";
 
 export const dynamic = "force-dynamic";
+
+const PHOTO_BASE = (process.env.NEXT_PUBLIC_PHOTO_BASE_URL || "").replace(/\/+$/, "");
+const photoUrl = (b: string) =>
+  /^https?:\/\//i.test(b) ? b : PHOTO_BASE ? `${PHOTO_BASE}/${b.replace(/^\/+/, "")}` : b;
 
 function rupees(paise: number | null | undefined): string {
   if (paise == null) return "—";
   return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 }
-
 function titleCase(s: string | null | undefined): string {
   if (!s) return "—";
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
-
 function flattenAmenities(a: Record<string, unknown> | undefined): string[] {
   if (!a) return [];
   const out: string[] = [];
-  for (const v of Object.values(a)) {
-    if (Array.isArray(v)) out.push(...(v as string[]));
-  }
+  for (const v of Object.values(a)) if (Array.isArray(v)) out.push(...(v as string[]));
   return out;
 }
 
@@ -48,22 +61,21 @@ export default async function Page({
 
   if (!detail) {
     return (
-      <main className="pgo-dashboard">
-        <div
-          className="pgo-glass"
-          style={{ padding: 32, textAlign: "center", maxWidth: 520, margin: "48px auto" }}
-        >
-          <h1 className="pgo-heading pgo-heading--md">Listing not found</h1>
-          <p className="pgo-desc" style={{ marginTop: 8 }}>
-            {error ?? "We couldn't find this listing on your account."}
-          </p>
-          <Link
-            href={`/${params.locale}/pg-operator/dashboard`}
-            className="pgo-btn pgo-btn--secondary"
-            style={{ marginTop: 16 }}
-          >
-            <ArrowLeft size={16} /> Back to dashboard
-          </Link>
+      <main className={styles.page}>
+        <div className={styles.inner}>
+          <div className={styles.card} style={{ textAlign: "center", padding: 36 }}>
+            <h1 className={styles.heroTitle}>Listing not found</h1>
+            <p className={styles.controlNote} style={{ marginTop: 8 }}>
+              {error ?? "We couldn't find this listing on your account."}
+            </p>
+            <Link
+              href={`/${params.locale}/pg-operator/dashboard`}
+              className={`${styles.btn}`}
+              style={{ marginTop: 16 }}
+            >
+              <ArrowLeft size={16} /> Back to dashboard
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -72,127 +84,201 @@ export default async function Page({
   const d = detail.pg_details;
   const amenities = flattenAmenities(d.amenities);
   const justPublished = searchParams.published === "1";
+  const photos = (detail.photos ?? [])
+    .slice()
+    .sort((a, b) => Number(b.is_cover) - Number(a.is_cover));
+  const startingRent = detail.room_types.length
+    ? Math.min(...detail.room_types.map((r) => r.monthly_rent_paise))
+    : null;
+  const totalVacancy = detail.room_types.reduce((n, r) => n + (r.vacancy_count ?? 0), 0);
+
+  // Listing quality (same formula as wizard/dashboard).
+  const { composite, recommendations } = computePgListingScore(
+    {
+      property: {
+        display_name: detail.title ?? "",
+        city_slug: detail.city_slug ?? "",
+        locality_slug: detail.locality_slug ?? undefined
+      },
+      pg_details: { ...d, total_beds: d.total_beds ?? 0 } as any,
+      room_types: detail.room_types as any
+    } as any,
+    {
+      verification_status: "unverified",
+      has_exact_geo: false,
+      photo_count: photos.length
+    }
+  );
+  const scoreColor = composite >= 70 ? "#10b981" : composite >= 40 ? "#f59e0b" : "#ef4444";
+  const tier = composite >= 70 ? "Excellent" : composite >= 40 ? "Good" : "Basic";
+
+  const statusCls =
+    detail.status === "active"
+      ? styles.stActive
+      : detail.status === "paused"
+        ? styles.stPaused
+        : styles.stOther;
 
   return (
-    <main className="pgo-dashboard">
-      {justPublished && <PgPublishedBanner title={detail.title ?? "Your PG"} />}
+    <main className={styles.page}>
+      <div className={styles.inner}>
+        {justPublished && <PgPublishedBanner title={detail.title ?? "Your PG"} />}
 
-      <div
-        className="pgo-dashboard__hero"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 12
-        }}
-      >
-        <div>
-          <Link
-            href={`/${params.locale}/pg-operator/dashboard`}
-            className="pgo-link"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 13,
-              marginBottom: 8
-            }}
-          >
-            <ArrowLeft size={14} /> Dashboard
-          </Link>
-          <h1 className="pgo-dashboard__title">{detail.title ?? "Untitled PG"}</h1>
-          <p className="pgo-desc" style={{ marginTop: 4 }}>
-            {titleCase(detail.locality_slug)}
-            {detail.locality_slug ? ", " : ""}
-            {titleCase(detail.city_slug)}
-            {"  ·  "}
-            <span
-              className={`pgo-stat-card__badge-dot pgo-stat-card__badge-dot--${detail.status === "active" ? "active" : "pending"}`}
-              style={{ display: "inline-block", marginRight: 4 }}
-            />
-            {titleCase(detail.status)}
-          </p>
-        </div>
-        <Link
-          href={`/${params.locale}/pg-operator/listings/new`}
-          className="pgo-btn pgo-btn--secondary"
-        >
-          <Plus size={16} /> New listing
+        <Link href={`/${params.locale}/pg-operator/dashboard`} className={styles.back}>
+          <ArrowLeft size={14} /> Dashboard
         </Link>
-      </div>
 
-      {detail.status === "draft" && (
-        <PgSubmitForReview
-          listingId={detail.id}
-          token={accessToken ?? undefined}
-          title={detail.title ?? "Your PG"}
-        />
-      )}
+        {/* Hero */}
+        <header className={styles.hero}>
+          <div>
+            <span className={`${styles.statusBadge} ${statusCls}`}>
+              <span className={styles.statusDot} /> {titleCase(detail.status)}
+            </span>
+            <h1 className={styles.heroTitle}>{detail.title ?? "Untitled PG"}</h1>
+            <span className={styles.heroLoc}>
+              <MapPin size={14} />
+              {[titleCase(detail.locality_slug), titleCase(detail.city_slug)]
+                .filter((x) => x !== "—")
+                .join(", ") || "Location not set"}
+            </span>
+          </div>
+        </header>
 
-      {detail.status === "pending_review" && (
-        <div
-          className="pgo-glass"
-          style={{ padding: 16, marginBottom: 20, borderLeft: "3px solid var(--pgo-brand)" }}
-        >
-          <strong>Pending admin approval.</strong>{" "}
-          <span className="pgo-desc">
+        {detail.status === "draft" && (
+          <PgSubmitForReview
+            listingId={detail.id}
+            token={accessToken ?? undefined}
+            title={detail.title ?? "Your PG"}
+          />
+        )}
+        {detail.status === "pending_review" && (
+          <div className={`${styles.banner} ${styles.bannerInfo}`}>
             Submitted for review — it goes live once our team approves it.
-          </span>
-        </div>
-      )}
-
-      {/* Overview */}
-      <section className="pgo-review-grid">
-        <div className="pgo-review-item">
-          <div className="pgo-review-item__label">Total beds</div>
-          <div className="pgo-review-item__value">{d.total_beds ?? "—"}</div>
-        </div>
-        <div className="pgo-review-item">
-          <div className="pgo-review-item__label">Gender</div>
-          <div className="pgo-review-item__value">{titleCase(d.gender_policy)}</div>
-        </div>
-        <div className="pgo-review-item">
-          <div className="pgo-review-item__label">Tenant type</div>
-          <div className="pgo-review-item__value">{titleCase(d.tenant_type)}</div>
-        </div>
-        <div className="pgo-review-item">
-          <div className="pgo-review-item__label">Starting rent</div>
-          <div className="pgo-review-item__value">
-            {detail.room_types.length
-              ? rupees(Math.min(...detail.room_types.map((r) => r.monthly_rent_paise)))
-              : "—"}
-            /mo
           </div>
-        </div>
-        <div className="pgo-review-item">
-          <div className="pgo-review-item__label">Security deposit</div>
-          <div className="pgo-review-item__value">{rupees(d.security_deposit_paise)}</div>
-        </div>
-        <div className="pgo-review-item">
-          <div className="pgo-review-item__label">Notice / Lock-in</div>
-          <div className="pgo-review-item__value">
-            {d.notice_period_days ?? "—"}d / {d.lock_in_months ?? "—"}mo
-          </div>
-        </div>
-      </section>
+        )}
 
-      {/* Rooms */}
-      <section style={{ marginTop: 28 }}>
-        <h2 className="pgo-heading pgo-heading--sm" style={{ marginBottom: 12 }}>
-          Rooms & pricing
-        </h2>
-        {detail.room_types.length === 0 ? (
-          <p className="pgo-desc">No room types configured.</p>
+        {/* Gallery */}
+        {photos.length > 0 ? (
+          <div className={styles.gallery}>
+            {photos.slice(0, 5).map((p, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={photoUrl(p.blob_path)}
+                alt=""
+                className={`${styles.gimg} ${i === 0 ? styles.galleryMain : ""}`}
+              />
+            ))}
+          </div>
         ) : (
-          <div
-            style={{
-              borderRadius: "var(--pgo-radius-lg)",
-              overflow: "hidden",
-              border: "1px solid var(--pgo-border)"
-            }}
-          >
-            <table className="pgo-matrix">
+          <div className={styles.galleryEmpty}>
+            <Building2 size={30} strokeWidth={1.5} />
+          </div>
+        )}
+
+        {/* Controls + score */}
+        <div className={styles.grid2}>
+          {(detail.status === "active" ||
+            detail.status === "paused" ||
+            detail.status === "archived") && (
+            <div className={styles.card}>
+              <div className={styles.cardHead}>
+                <h2 className={styles.cardTitle}>
+                  <Settings2 size={18} className={styles.cardIcon} /> Visibility & controls
+                </h2>
+              </div>
+              <PgListingControls
+                listingId={detail.id}
+                status={detail.status}
+                locale={params.locale}
+                token={accessToken ?? undefined}
+              />
+            </div>
+          )}
+
+          <div className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>
+                <Sparkles size={18} className={styles.cardIcon} /> Listing quality
+              </h2>
+            </div>
+            <div className={styles.scoreTop}>
+              <span style={{ color: "var(--m-text-soft)", fontWeight: 600, fontSize: 13 }}>
+                {tier}
+              </span>
+              <span className={styles.scoreNum} style={{ color: scoreColor }}>
+                {composite}
+                <span style={{ fontSize: 12, color: "var(--m-text-soft)", fontWeight: 600 }}>
+                  /100
+                </span>
+              </span>
+            </div>
+            <div className={styles.barTrack}>
+              <div
+                className={styles.barFill}
+                style={{ width: `${composite}%`, background: scoreColor }}
+              />
+            </div>
+            <div className={styles.tiers}>
+              <span>Basic</span>
+              <span>Good</span>
+              <span>Excellent</span>
+            </div>
+            {recommendations.length > 0 && (
+              <div className={styles.recs}>
+                {recommendations.slice(0, 4).map((rec) => (
+                  <div key={rec.id} className={styles.rec}>
+                    <Sparkles size={12} style={{ color: scoreColor }} />
+                    {rec.label}
+                    <span className={styles.recPts}>+{rec.points}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Overview stats */}
+        <div className={styles.stats}>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Starting rent</div>
+            <div className={styles.statVal}>
+              {startingRent != null ? `${rupees(startingRent)}/mo` : "—"}
+            </div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Total beds</div>
+            <div className={styles.statVal}>{d.total_beds ?? "—"}</div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Vacancies</div>
+            <div className={styles.statVal}>{totalVacancy}</div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Gender</div>
+            <div className={styles.statVal}>{titleCase(d.gender_policy)}</div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Tenant</div>
+            <div className={styles.statVal}>{titleCase(d.tenant_type)}</div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Deposit</div>
+            <div className={styles.statVal}>{rupees(d.security_deposit_paise)}</div>
+          </div>
+        </div>
+
+        {/* Rooms */}
+        <div className={styles.card}>
+          <div className={styles.cardHead}>
+            <h2 className={styles.cardTitle}>
+              <BedDouble size={18} className={styles.cardIcon} /> Rooms & pricing
+            </h2>
+          </div>
+          {detail.room_types.length === 0 ? (
+            <p className={styles.controlNote}>No room types configured.</p>
+          ) : (
+            <table className={styles.table}>
               <thead>
                 <tr>
                   <th>Sharing</th>
@@ -209,54 +295,76 @@ export default async function Page({
                     <td>{r.ac ? "AC" : "Non-AC"}</td>
                     <td>{rupees(r.monthly_rent_paise)}</td>
                     <td>{r.vacancy_count}</td>
-                    <td>{r.available_from ?? "—"}</td>
+                    <td>{r.available_from ?? "Now"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </section>
-
-      {/* Amenities + payment */}
-      <section
-        style={{
-          marginTop: 28,
-          display: "grid",
-          gap: 20,
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))"
-        }}
-      >
-        <div className="pgo-glass" style={{ padding: 20 }}>
-          <h3 className="pgo-heading pgo-heading--xs" style={{ marginBottom: 10 }}>
-            Amenities
-          </h3>
-          {amenities.length === 0 ? (
-            <p className="pgo-desc">None listed.</p>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {amenities.map((a) => (
-                <span key={a} className="pgo-chip pgo-chip--static">
-                  {titleCase(a)}
-                </span>
-              ))}
-            </div>
           )}
         </div>
-        <div className="pgo-glass" style={{ padding: 20 }}>
-          <h3 className="pgo-heading pgo-heading--xs" style={{ marginBottom: 10 }}>
-            Payment & food
-          </h3>
-          <p className="pgo-desc">
-            Modes: {d.payment_modes.length ? d.payment_modes.map(titleCase).join(", ") : "—"}
-          </p>
-          <p className="pgo-desc">Electricity: {titleCase(d.electricity_mode)}</p>
-          <p className="pgo-desc">
-            Meals: {d.meals && (d.meals as any).provided ? "Provided" : "Not provided"}
-          </p>
-          <p className="pgo-desc">Negotiable: {d.price_negotiable ? "Yes" : "No"}</p>
+
+        {/* Amenities + agreement */}
+        <div className={styles.grid2}>
+          <div className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>
+                <UtensilsCrossed size={18} className={styles.cardIcon} /> Food & amenities
+              </h2>
+            </div>
+            <div className={styles.kv}>
+              <span className={styles.kvLabel}>Meals</span>
+              <span className={styles.kvVal}>
+                {d.meals && (d.meals as any).provided
+                  ? (d.meals as any).veg_only
+                    ? "Veg only"
+                    : "Provided"
+                  : "Not provided"}
+              </span>
+            </div>
+            {amenities.length > 0 ? (
+              <div className={styles.chips} style={{ marginTop: 12 }}>
+                {amenities.map((a) => (
+                  <span key={a} className={styles.chip}>
+                    {titleCase(a)}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className={styles.controlNote} style={{ marginTop: 8 }}>
+                No amenities listed.
+              </p>
+            )}
+          </div>
+
+          <div className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>
+                <Wallet size={18} className={styles.cardIcon} /> Agreement & payment
+              </h2>
+            </div>
+            <div className={styles.kv}>
+              <span className={styles.kvLabel}>Notice / Lock-in</span>
+              <span className={styles.kvVal}>
+                {d.notice_period_days ?? "—"}d / {d.lock_in_months ?? "—"}mo
+              </span>
+            </div>
+            <div className={styles.kv}>
+              <span className={styles.kvLabel}>Electricity</span>
+              <span className={styles.kvVal}>{titleCase(d.electricity_mode)}</span>
+            </div>
+            <div className={styles.kv}>
+              <span className={styles.kvLabel}>Payment modes</span>
+              <span className={styles.kvVal}>
+                {d.payment_modes.length ? d.payment_modes.map(titleCase).join(", ") : "—"}
+              </span>
+            </div>
+            <div className={styles.kv}>
+              <span className={styles.kvLabel}>Price negotiable</span>
+              <span className={styles.kvVal}>{d.price_negotiable ? "Yes" : "No"}</span>
+            </div>
+          </div>
         </div>
-      </section>
+      </div>
     </main>
   );
 }

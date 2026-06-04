@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { getPgPublicListing } from "../../lib/pg-public-api";
 
 /**
  * Registers Cribliv's in-page tool surface with the WebMCP API
@@ -140,7 +141,20 @@ export function WebMcpProvider() {
           required: ["id"]
         },
         execute: async ({ id }) => {
-          const url = buildUrl(`/${locale}/pg/${encodeURIComponent(String(id))}`);
+          // PG detail lives at /[locale]/pg/[city]/[id]; resolve the city slug from the id.
+          const pgId = String(id);
+          let citySlug: string | null = null;
+          try {
+            citySlug = (await getPgPublicListing(pgId)).city_slug;
+          } catch {
+            /* fall through to error below */
+          }
+          if (!citySlug) {
+            return { ok: false, error: `Could not resolve city for PG ${pgId}` };
+          }
+          const url = buildUrl(
+            `/${locale}/pg/${encodeURIComponent(citySlug)}/${encodeURIComponent(pgId)}`
+          );
           window.location.assign(url);
           return { ok: true, url };
         }

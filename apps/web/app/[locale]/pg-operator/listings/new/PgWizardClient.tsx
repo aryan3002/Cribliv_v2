@@ -7,13 +7,22 @@ import PgStepIndicator from "@/components/pg-operator/wizard/PgStepIndicator";
 import PgPropertyBasicsStep from "@/components/pg-operator/wizard/steps/PgPropertyBasicsStep";
 import PgLocationStep from "@/components/pg-operator/wizard/steps/PgLocationStep";
 import PgRoomsPricingStep from "@/components/pg-operator/wizard/steps/PgRoomsPricingStep";
-import PgPaymentStep from "@/components/pg-operator/wizard/steps/PgPaymentStep";
-import PgRulesStep from "@/components/pg-operator/wizard/steps/PgRulesStep";
 import PgAmenitiesFoodStep from "@/components/pg-operator/wizard/steps/PgAmenitiesFoodStep";
-import PgPhotosReviewStep from "@/components/pg-operator/wizard/steps/PgPhotosReviewStep";
+import PgRulesAgreementStep from "@/components/pg-operator/wizard/steps/PgRulesAgreementStep";
+import PgPhotosStep from "@/components/pg-operator/wizard/steps/PgPhotosStep";
+import PgReviewStep from "@/components/pg-operator/wizard/steps/PgReviewStep";
+import PgWizardShell from "@/components/pg-operator/wizard/PgWizardShell";
 import PgCaptureEntry from "./PgCaptureEntry";
 import { sanitizePartialDraft, draftToPayload } from "@/lib/pg-wizard-sanitizer";
 import PgScoreMeter from "@/components/pg-operator/wizard/shared/PgScoreMeter";
+import {
+  STEP_META as PG_STEP_META,
+  nextStep,
+  prevStep,
+  validatePgStep,
+  type PgStep
+} from "@/lib/pg-wizard-steps";
+import wiz from "@/components/pg-operator/wizard/shared/pg-wizard.module.css";
 import { putPgDraft, getPgDraft } from "@/lib/pg-operator-api";
 import { trackPgFunnel, setPgFunnelToken } from "@/lib/pg-funnel";
 import {
@@ -30,16 +39,6 @@ const PgVoiceOrb = dynamic(() => import("@/components/pg-operator/voice/PgVoiceO
 const PgVoiceListingFlow = dynamic(() => import("./PgVoiceListingFlow"), { ssr: false });
 
 const STORAGE_KEY = "pg-wizard-draft-v1";
-
-const STEP_META: Record<number, { title: string; desc: string }> = {
-  1: { title: "Property & Identity", desc: "Tell us about your PG — name, capacity, and type." },
-  2: { title: "Location", desc: "Set the exact address for your PG on the map." },
-  3: { title: "Rooms & Pricing", desc: "Configure room types, monthly rent, and availability." },
-  4: { title: "Payment Terms", desc: "Set deposit, notice period, and accepted payment methods." },
-  5: { title: "House Rules", desc: "Define the rules tenants need to follow." },
-  6: { title: "Amenities & Food", desc: "Select facilities and meal options you offer." },
-  7: { title: "Photos & Review", desc: "Add photos and review everything before publishing." }
-};
 
 // Required fields the operator still needs to fill — powers the admin
 // missing-field heatmap (emitted as metadata.missing on step_completed).
@@ -315,90 +314,110 @@ export default function PgWizardClient({
     );
   }
 
-  const meta = STEP_META[state.currentStep] ?? STEP_META[1];
+  const step = state.currentStep as PgStep;
+  const meta = PG_STEP_META[step] ?? PG_STEP_META[1];
   const baseProps = { state, dispatch, locale };
+  const check = validatePgStep(step, state.draft, state.pendingPhotos?.length ?? 0);
 
   return (
     <PgFieldHighlightProvider value={{ field: highlightedField, setField: setHighlightedField }}>
-      <main className="pgo-page">
-        {highlightedField && (
-          <button
-            type="button"
-            className="pgo-glass pgo-field-jump"
-            onClick={() => {
-              dispatch({ type: "GOTO_STEP", step: pgFieldToStep(highlightedField) });
-              setHighlightedField(null);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "8px 14px",
-              marginBottom: 12,
-              border: "none",
-              cursor: "pointer"
-            }}
-          >
-            <span aria-hidden="true">✓</span>
-            <span style={{ fontSize: 13 }}>
-              Voice filled <strong>{pgFieldLabel(highlightedField)}</strong> — jump to step{" "}
-              {pgFieldToStep(highlightedField)}
-            </span>
-          </button>
-        )}
-        <div className="pgo-glass pgo-glass--lg" style={{ position: "relative" }}>
-          <PgStepIndicator current={state.currentStep} />
-
-          <motion.div
-            key={`header-${state.currentStep}`}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            style={{ marginBottom: 32 }}
-          >
-            <h1 className="pgo-heading pgo-heading--lg">{meta.title}</h1>
-            <p className="pgo-desc" style={{ marginTop: 4 }}>
-              {meta.desc}
+      <div className={wiz.wizardPage}>
+        <PgWizardShell
+          step={step}
+          footerPrimary={step === 7 ? "none" : "next"}
+          saving={!!state.submitting}
+          nextDisabled={!check.ok}
+          hint={check.hint}
+          onNext={() => dispatch({ type: "GOTO_STEP", step: nextStep(step) })}
+          onBack={() => dispatch({ type: "GOTO_STEP", step: prevStep(step) })}
+          onSubmit={() => {}}
+          indicator={
+            <PgStepIndicator
+              current={step}
+              onJump={(s) => dispatch({ type: "GOTO_STEP", step: s })}
+            />
+          }
+          rail={
+            <>
+              <div className={wiz.voiceCard}>
+                <div className={wiz.voiceCardHead}>
+                  <div>
+                    <div className={wiz.voiceCardName}>Maya</div>
+                    <div className={wiz.voiceCardRole}>your listing concierge</div>
+                  </div>
+                  <span className={wiz.voiceCardStatus}>ready</span>
+                </div>
+                <PgVoiceOrb
+                  state={state}
+                  dispatch={dispatch}
+                  locale={locale}
+                  userId={operatorUserId}
+                />
+              </div>
+              <PgScoreMeter
+                payload={draftToPayload(state.draft)}
+                signals={{
+                  verification_status: "unverified",
+                  has_exact_geo: state.draft.property?.lat != null,
+                  photo_count: state.pendingPhotos.length
+                }}
+                onGoToStep={(s) => dispatch({ type: "GOTO_STEP", step: s })}
+              />
+            </>
+          }
+        >
+          <header className={wiz.hero}>
+            <span className={wiz.heroEyebrow}>Cribliv · New listing</span>
+            <h1 className={wiz.heroTitle}>Create your PG listing</h1>
+            <p className={wiz.heroSub}>
+              Fill the essentials below, or tap the orb to talk it through — most operators finish
+              in under 5 minutes.
             </p>
-          </motion.div>
+          </header>
+
+          {highlightedField && (
+            <button
+              type="button"
+              className={wiz.jumpChip}
+              onClick={() => {
+                dispatch({ type: "GOTO_STEP", step: pgFieldToStep(highlightedField) });
+                setHighlightedField(null);
+              }}
+            >
+              <span aria-hidden="true">✓</span>
+              <span>
+                Voice filled <strong>{pgFieldLabel(highlightedField)}</strong> — jump to step{" "}
+                {pgFieldToStep(highlightedField)}
+              </span>
+            </button>
+          )}
+
+          <header className={wiz.stepHeader}>
+            <h1 className={wiz.stepHeaderTitle}>{meta.title}</h1>
+            <p className={wiz.stepHeaderDesc}>
+              {meta.desc} <span className={wiz.stepHeaderMeta}>· ~{meta.minutes} min</span>
+            </p>
+          </header>
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={state.currentStep}
+              key={step}
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             >
-              {state.currentStep === 1 && (
-                <PgPropertyBasicsStep {...baseProps} accessToken={accessToken} />
-              )}
-              {state.currentStep === 2 && (
-                <PgLocationStep {...baseProps} accessToken={accessToken} />
-              )}
-              {state.currentStep === 3 && <PgRoomsPricingStep {...baseProps} />}
-              {state.currentStep === 4 && <PgPaymentStep {...baseProps} />}
-              {state.currentStep === 5 && <PgRulesStep {...baseProps} />}
-              {state.currentStep === 6 && <PgAmenitiesFoodStep {...baseProps} />}
-              {state.currentStep === 7 && (
-                <PgPhotosReviewStep {...baseProps} accessToken={accessToken} />
-              )}
+              {step === 1 && <PgPropertyBasicsStep {...baseProps} accessToken={accessToken} />}
+              {step === 2 && <PgLocationStep {...baseProps} accessToken={accessToken} />}
+              {step === 3 && <PgRoomsPricingStep {...baseProps} />}
+              {step === 4 && <PgAmenitiesFoodStep {...baseProps} />}
+              {step === 5 && <PgRulesAgreementStep {...baseProps} />}
+              {step === 6 && <PgPhotosStep {...baseProps} accessToken={accessToken} />}
+              {step === 7 && <PgReviewStep {...baseProps} accessToken={accessToken} />}
             </motion.div>
           </AnimatePresence>
-        </div>
-
-        <PgScoreMeter
-          payload={draftToPayload(state.draft)}
-          signals={{
-            verification_status: "unverified",
-            has_exact_geo: state.draft.property?.lat != null,
-            photo_count: state.pendingPhotos.length
-          }}
-          onGoToStep={(s) => dispatch({ type: "GOTO_STEP", step: s })}
-        />
-
-        <PgVoiceOrb state={state} dispatch={dispatch} locale={locale} userId={operatorUserId} />
-      </main>
+        </PgWizardShell>
+      </div>
     </PgFieldHighlightProvider>
   );
 }

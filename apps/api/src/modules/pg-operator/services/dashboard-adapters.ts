@@ -17,7 +17,7 @@ export class PgListingsSliceAdapter {
   // Reads the PG-owned head (pg_listings) — no OwnerService dependency.
   async listOperatorListings(
     operatorId: string
-  ): Promise<Array<{ id: string; status: string; updated_at: string; composite_score?: number }>> {
+  ): ReturnType<PgListingService["listOperatorListings"]> {
     return this.listings.listOperatorListings(operatorId);
   }
 

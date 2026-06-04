@@ -1,5 +1,6 @@
 "use client";
 import { ChangeEvent } from "react";
+import styles from "./pg-wizard.module.css";
 
 export default function RupeeInput({
   valuePaise,
@@ -18,24 +19,22 @@ export default function RupeeInput({
     onChangePaise(parseInt(v, 10) * 100);
   };
   return (
-    <div className="pgo-field pgo-field--rupee">
-      <input
-        className="pgo-field__input"
-        inputMode="numeric"
-        placeholder=" "
-        {...rest}
-        value={rupees}
-        onChange={handle}
-      />
-      <span className="pgo-field__prefix" aria-hidden>
-        ₹
-      </span>
-      {label && (
-        <label className="pgo-field__label" style={{ left: 36 }}>
-          {label}
-        </label>
-      )}
-      <span className="pgo-field__bar" />
+    <div>
+      {label && <span className={styles.fieldLabel}>{label}</span>}
+      <div className={styles.rupee}>
+        <span className={styles.rupeePrefix} aria-hidden>
+          ₹
+        </span>
+        <input
+          className={styles.rupeeInput}
+          inputMode="numeric"
+          placeholder="0"
+          aria-label={label}
+          {...rest}
+          value={rupees}
+          onChange={handle}
+        />
+      </div>
     </div>
   );
 }

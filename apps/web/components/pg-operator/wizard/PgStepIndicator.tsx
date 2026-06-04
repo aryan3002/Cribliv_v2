@@ -1,71 +1,39 @@
 "use client";
-import { CheckCircle2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { Check } from "lucide-react";
+import { PG_STEP_ORDER, STEP_META, type PgStep } from "@/lib/pg-wizard-steps";
+import styles from "./shared/pg-wizard.module.css";
 
-const STEPS = [
-  { num: 1, label: "Basics" },
-  { num: 2, label: "Location" },
-  { num: 3, label: "Rooms & Pricing" },
-  { num: 4, label: "Payment" },
-  { num: 5, label: "Rules" },
-  { num: 6, label: "Amenities & Food" },
-  { num: 7, label: "Photos & Review" }
-] as const;
-
-export default function PgStepIndicator({ current }: { current: 1 | 2 | 3 | 4 | 5 | 6 | 7 }) {
-  const fillPct = Math.round(((current - 1) / STEPS.length) * 100);
-
+export default function PgStepIndicator({
+  current,
+  onJump
+}: {
+  current: PgStep;
+  onJump?: (step: PgStep) => void;
+}) {
   return (
-    <nav className="pgo-stepper" aria-label="Wizard progress">
-      {/* Track */}
-      <div className="pgo-stepper__track">
-        <motion.div
-          className="pgo-stepper__fill"
-          initial={{ width: 0 }}
-          animate={{ width: `${fillPct}%` }}
-          transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-          role="progressbar"
-          aria-valuenow={fillPct}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        />
-      </div>
-
-      {/* Steps */}
-      <ol className="pgo-stepper__list">
-        {STEPS.map(({ num, label }) => {
-          const isActive = current === num;
-          const isDone = current > num;
-
-          return (
-            <li
-              key={num}
-              className={`pgo-stepper__step ${isDone ? "pgo-stepper__step--done" : isActive ? "pgo-stepper__step--active" : ""}`}
-              aria-current={isActive ? "step" : undefined}
-            >
-              <motion.div
-                className={`pgo-stepper__dot ${
-                  isDone
-                    ? "pgo-stepper__dot--done"
-                    : isActive
-                      ? "pgo-stepper__dot--active"
-                      : "pgo-stepper__dot--pending"
-                }`}
-                data-step={num}
-                initial={false}
-                animate={{
-                  scale: isActive ? 1.1 : 1
-                }}
-                transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                aria-hidden="true"
-              >
-                {isDone && <CheckCircle2 size={16} />}
-              </motion.div>
-              <span className="pgo-stepper__label">{label}</span>
-            </li>
-          );
-        })}
-      </ol>
+    <nav className={styles.steps} aria-label="Wizard progress">
+      {PG_STEP_ORDER.map((num) => {
+        const isActive = current === num;
+        const isDone = current > num;
+        const cls = `${styles.stepPill} ${
+          isActive ? styles.stepPillActive : isDone ? styles.stepPillDone : ""
+        }`;
+        return (
+          <button
+            key={num}
+            type="button"
+            className={cls}
+            aria-current={isActive ? "step" : undefined}
+            disabled={!isDone && !isActive}
+            onClick={() => onJump?.(num)}
+          >
+            <span className={styles.stepDot}>
+              {isDone ? <Check size={12} strokeWidth={3} /> : num}
+            </span>
+            {STEP_META[num].label}
+          </button>
+        );
+      })}
     </nav>
   );
 }

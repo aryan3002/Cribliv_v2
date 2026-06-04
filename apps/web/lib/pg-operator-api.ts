@@ -65,6 +65,21 @@ export function openPgLead(leadId: string, token?: string) {
   );
 }
 
+export type PgLeadStatus = "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost";
+
+/**
+ * Move a lead through the pipeline. Backed by the shared LeadsService transition
+ * graph (same as owner). NOTE: the PATCH /pg-operator/leads/:id/status route must
+ * exist on the API for this to persist across reloads.
+ */
+export function updatePgLeadStatus(leadId: string, status: PgLeadStatus, token?: string) {
+  return fetchApi<{ lead_id: string; status: string }>(`/pg-operator/leads/${leadId}/status`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify({ status })
+  });
+}
+
 export function createPgListing(args: {
   idempotencyKey: string;
   payload: PgListingPayload;
@@ -119,6 +134,17 @@ export interface PgListingDetail {
 export function getPgListingDetail(id: string, token?: string) {
   return fetchApi<PgListingDetail>(`/pg-operator/listings/${id}`, {
     headers: authHeaders(token)
+  });
+}
+
+export type PgListingVisibility = "active" | "paused" | "archived";
+
+/** Toggle a live listing's public visibility (active ↔ paused, or archived). */
+export function setPgListingStatus(id: string, status: PgListingVisibility, token?: string) {
+  return fetchApi<{ id: string; status: string }>(`/pg-operator/listings/${id}/status`, {
+    method: "PATCH",
+    headers: authHeaders(token),
+    body: JSON.stringify({ status })
   });
 }
 
