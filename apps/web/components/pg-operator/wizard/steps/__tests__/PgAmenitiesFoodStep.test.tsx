@@ -4,27 +4,35 @@ import { useReducer } from "react";
 import { pgWizardReducer, initialPgWizardState } from "@/lib/pg-wizard-state";
 import PgAmenitiesFoodStep from "../PgAmenitiesFoodStep";
 
+// The food UI moved into <MealsToggle> (a role="switch" Toggle) and amenities
+// render as <ChipMultiSelect> buttons with humanized labels + aria-pressed.
 function Harness() {
   const [state, dispatch] = useReducer(pgWizardReducer, initialPgWizardState());
   return <PgAmenitiesFoodStep state={state} dispatch={dispatch} locale="en" />;
 }
 
 describe("PgAmenitiesFoodStep", () => {
-  it("renders amenity groups and the meals toggle, no internal nav", () => {
+  it("renders the meals toggle and amenity groups, no internal nav", () => {
     render(<Harness />);
-    expect(screen.getByText(/Food provided\?/i)).toBeInTheDocument();
+    expect(screen.getByText(/Food provided/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Next$/ })).toBeNull();
   });
-  it("toggles a core amenity (wifi)", () => {
+
+  it("toggles a core amenity (WiFi)", () => {
     render(<Harness />);
-    fireEvent.click(screen.getByLabelText(/^wifi$/i));
-    // Re-read state via another render; just check no crash and the label is in doc
-    expect(screen.getByLabelText(/^wifi$/i)).toHaveAttribute("aria-checked", "true");
+    const wifi = screen.getByRole("button", { name: /High-Speed WiFi/i });
+    expect(wifi).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(wifi);
+    expect(screen.getByRole("button", { name: /High-Speed WiFi/i })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
   });
+
   it("reveals per-meal chips when food is enabled", () => {
     render(<Harness />);
-    expect(screen.queryByRole("button", { name: /^breakfast$/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /^yes$/i }));
-    expect(screen.getByRole("button", { name: /^breakfast$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Breakfast$/i })).toBeNull();
+    fireEvent.click(screen.getByRole("switch", { name: /food provided/i }));
+    expect(screen.getByRole("button", { name: /^Breakfast$/i })).toBeInTheDocument();
   });
 });

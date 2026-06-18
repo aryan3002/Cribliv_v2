@@ -85,7 +85,14 @@ export class PgDraftService {
     if (!this.db.isEnabled()) return [];
     const r = await this.db.query<DraftSummary>(
       `SELECT id::text AS draft_id,
-              COALESCE(payload->'property'->>'display_name','Untitled PG') AS display_name,
+              -- Name the draft by its per-listing title; fall back to the building
+              -- name (older drafts) then a placeholder. Avoids every draft showing
+              -- the shared, seeded property name.
+              COALESCE(
+                NULLIF(payload->>'title',''),
+                NULLIF(payload->'property'->>'display_name',''),
+                'Untitled PG'
+              ) AS display_name,
               updated_at::text AS updated_at,
               committed_listing_id::text AS committed_listing_id
          FROM pg_listing_drafts

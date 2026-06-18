@@ -1,24 +1,13 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Get,
-  Headers,
-  Inject,
-  Post,
-  UseGuards
-} from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
 import { RolesGuard } from "../../common/roles.guard";
 import { Roles } from "../../common/roles.decorator";
 import { AuthUser } from "../../common/auth-user.decorator";
 import type { UserContext } from "../../common/types";
 import { ok } from "../../common/response";
-import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { PgSegmentationService } from "./services/pg-segmentation.service";
 import { PgPropertiesService } from "./services/pg-properties.service";
 import { PgSegmentRequestDto } from "./dto/pg-segment.dto";
-import { PgPropertyCreateSchema } from "./dto/pg-property.dto";
 
 @Controller("pg-operator")
 @UseGuards(AuthGuard, RolesGuard)
@@ -52,21 +41,9 @@ export class PgOperatorController {
     return ok({ state, property_count: properties.length });
   }
 
-  @Post("properties")
-  async createProperty(
-    @AuthUser() user: UserContext,
-    @Headers("idempotency-key") idemKey: string | undefined,
-    @Body() body: unknown
-  ) {
-    requireIdempotencyKey(idemKey);
-    const parsed = PgPropertyCreateSchema.safeParse(body);
-    if (!parsed.success) {
-      throw new BadRequestException({
-        code: "invalid_payload",
-        message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
-      });
-    }
-    const prop = await this.properties.createProperty(user.id, parsed.data);
-    return ok(prop);
-  }
+  // NOTE: there is intentionally no standalone "create property" route. Under the
+  // 1 listing : 1 property model a pg_property is only ever born attached to a
+  // listing via publish (POST /pg-operator/listings) — a standalone route would
+  // mint orphan properties (a property with no listing), which is not a valid
+  // state. Property lifecycle lives entirely in the listing create/update path.
 }

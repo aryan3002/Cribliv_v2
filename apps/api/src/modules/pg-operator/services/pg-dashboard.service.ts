@@ -3,8 +3,11 @@ import type {
   PgDashboardData,
   TrendPoint,
   PgPortfolioSummary,
-  PgSearchInsights
+  PgSearchInsights,
+  PgActiveOverrides
 } from "@cribliv/shared-types";
+import { applyMasking } from "./pg-dashboard.masking";
+import { BoundedTtlCache } from "./bounded-ttl-cache";
 
 /**
  * Narrow slices over PgListingService / AnalyticsService / LeadsService.
@@ -14,6 +17,7 @@ export interface ListingsSlice {
   listOperatorListings(operatorId: string): Promise<
     Array<{
       id: string;
+      pg_property_id?: string | null;
       status: string;
       updated_at: string;
       composite_score?: number;
@@ -29,6 +33,9 @@ export interface ListingsSlice {
   >;
   // Distinct city slugs the operator lists in — scopes demand insights.
   listOperatorCities(operatorId: string): Promise<string[]>;
+}
+export interface OverridesSlice {
+  getActiveForOperator(operatorId: string): Promise<PgActiveOverrides>;
 }
 export interface AnalyticsSlice {
   listingViews7d(listingIds: string[]): Promise<Array<{ listing_id: string; views_7d: number }>>;
@@ -60,6 +67,9 @@ export interface LeadsSlice {
 }
 
 const TTL_MS = 60_000;
+// Cap cached operators per process so memory is bounded regardless of how many
+// distinct operators load the dashboard (PERF-H4). Override via env if needed.
+const MAX_CACHE_ENTRIES = Number(process.env.PG_DASHBOARD_CACHE_MAX) || 1000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const ratio = (num: number, den: number) => (den > 0 ? round2(num / den) : 0);
 // % change vs prior period; null when there's no baseline to compare against.
@@ -87,19 +97,30 @@ const ZERO_PORTFOLIO: PgPortfolioSummary = {
  */
 @Injectable()
 export class PgDashboardService {
-  private cache = new Map<string, { at: number; data: PgDashboardData }>();
+  // Bounded + TTL'd so it can't leak (PERF-H4). Same 60s freshness as before.
+  private cache = new BoundedTtlCache<PgDashboardData>(MAX_CACHE_ENTRIES, TTL_MS);
 
   constructor(
     private readonly listings: ListingsSlice,
     private readonly analytics: AnalyticsSlice,
-    private readonly leads: LeadsSlice
+    private readonly leads: LeadsSlice,
+    private readonly overrides: OverridesSlice
   ) {}
 
   async getDashboard(operatorId: string): Promise<PgDashboardData> {
+    // Bug-3 fix: masking is applied FRESH on every call — the override state is a
+    // cheap indexed read and is NEVER cached. Only the heavy, override-agnostic
+    // base payload is cached, so a cut/restore reflects immediately instead of
+    // lingering until the cache TTL expires. applyMasking never mutates `base`.
+    const ov = await this.overrides.getActiveForOperator(operatorId);
+    const base = await this.getBaseDashboard(operatorId);
+    return applyMasking(base, ov);
+  }
+
+  /** Heavy, override-agnostic dashboard assembly. Cached per operator for TTL_MS. */
+  private async getBaseDashboard(operatorId: string): Promise<PgDashboardData> {
     const hit = this.cache.get(operatorId);
-    if (hit && Date.now() - hit.at < TTL_MS) {
-      return hit.data;
-    }
+    if (hit) return hit;
 
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const listings = await this.listings.listOperatorListings(operatorId);
@@ -126,6 +147,7 @@ export class PgDashboardService {
     const portfolio = this.computePortfolio(trend30);
 
     const data: PgDashboardData = {
+      analytics_status: "live",
       listing_health: listings.map((l) => {
         const views_7d = viewsById.get(l.id) ?? 0;
         const appr = apprById.get(l.id);
@@ -135,6 +157,7 @@ export class PgDashboardService {
         const series = trendById.get(l.id) ?? [];
         return {
           listing_id: l.id,
+          pg_property_id: l.pg_property_id ?? null,
           status: l.status,
           views_7d,
           contact_unlocks_7d,
@@ -160,7 +183,7 @@ export class PgDashboardService {
       search_insights: insights
     };
 
-    this.cache.set(operatorId, { at: Date.now(), data });
+    this.cache.set(operatorId, data);
     return data;
   }
 

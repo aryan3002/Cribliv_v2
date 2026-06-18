@@ -194,6 +194,25 @@ describe("buildSubmitPayload", () => {
     expect(out.property.display_name).toBe("Acme");
   });
 
+  it("carries a per-listing title distinct from the building/property name", () => {
+    const s = {
+      ...initialPgWizardState(),
+      draft: {
+        title: "Sunrise — Boys Block A",
+        property: { display_name: "Sunrise Residency", city_slug: "blr" } as any,
+        pg_details: { total_beds: 10 } as any,
+        room_types: [
+          { sharing: "double", ac: true, monthly_rent_paise: 800000, vacancy_count: 4 }
+        ] as any
+      }
+    };
+    const out = buildSubmitPayload(s as any);
+    // Listing title is its OWN field, not derived from the shared property name.
+    expect(out.title).toBe("Sunrise — Boys Block A");
+    expect(out.property.display_name).toBe("Sunrise Residency");
+    expect(out.title).not.toBe(out.property.display_name);
+  });
+
   it("hoists meal_charges_paise from meals to pg_details level", () => {
     const s = {
       ...initialPgWizardState(),
@@ -346,5 +365,33 @@ describe("pgWizardReducer — geo + HYDRATE_DRAFT", () => {
     });
     expect(s.draftId).toBe("d-abc");
     expect(s.draft.property?.display_name).toBe("Sunrise PG");
+  });
+});
+
+describe("pgWizardReducer — HYDRATE_PHOTOS (edit mode: seed existing photos)", () => {
+  it("replaces pendingPhotos with existing photos as complete (carrying photoId/blobPath/order)", () => {
+    const s = pgWizardReducer(initialPgWizardState(), {
+      type: "HYDRATE_PHOTOS",
+      photos: [
+        {
+          clientUploadId: "existing-ph-1",
+          file: new File([], "existing"),
+          previewUrl: "https://cdn/x/cover.jpg",
+          sizeBytes: 0,
+          contentType: "image/jpeg",
+          sortOrder: 0,
+          isCover: true,
+          status: "complete",
+          photoId: "ph-1",
+          blobPath: "pg/L1/cover.jpg"
+        }
+      ]
+    });
+    expect(s.pendingPhotos).toHaveLength(1);
+    expect(s.pendingPhotos[0].photoId).toBe("ph-1");
+    expect(s.pendingPhotos[0].status).toBe("complete");
+    expect(s.pendingPhotos[0].isCover).toBe(true);
+    // order + cover preserved exactly (NOT recomputed like ADD_PHOTOS)
+    expect(s.pendingPhotos[0].sortOrder).toBe(0);
   });
 });

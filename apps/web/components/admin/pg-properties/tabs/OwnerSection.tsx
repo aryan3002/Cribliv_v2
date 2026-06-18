@@ -1,0 +1,49 @@
+"use client";
+
+import type { PgAdminListingDetail } from "@cribliv/shared-types";
+import { SectionCard } from "../../primitives/SectionCard";
+import { formatDate } from "../../../../lib/admin/format";
+
+export function OwnerSection({ detail }: { detail: PgAdminListingDetail }) {
+  const o = detail.owner;
+  const rows: Array<{ label: string; value: string | null }> = [
+    { label: "Name", value: o.name },
+    { label: "Phone", value: o.phone },
+    { label: "Email", value: o.email },
+    { label: "Total properties", value: String(o.property_count) },
+    { label: "Verification", value: o.verification_status },
+    { label: "Member since", value: formatDate(o.created_at) }
+  ];
+  return (
+    <SectionCard
+      title="Owner"
+      subtitle="The operator who owns this listing and its shared property."
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 460 }}>
+        {rows.map(({ label, value }) => (
+          <div
+            key={label}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "baseline"
+            }}
+          >
+            <span style={{ fontSize: 12, color: "var(--ad-text-3)" }}>{label}</span>
+            <span
+              style={{
+                fontSize: 13,
+                color: value ? "var(--ad-text)" : "var(--ad-text-3)",
+                textAlign: "right",
+                fontVariantNumeric: "tabular-nums"
+              }}
+            >
+              {value ?? "—"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}

@@ -11,6 +11,8 @@ import {
 import type { Server, Socket } from "socket.io";
 import type { PgVoiceToolName, VoiceAgentPgPhase } from "@cribliv/shared-types";
 import { AppStateService } from "../../common/app-state.service";
+import { DatabaseService } from "../../common/database.service";
+import { resolveSessionUser } from "../../common/session-auth";
 import { logTelemetry } from "../../common/telemetry";
 import { PgVoiceSessionService } from "./services/pg-voice-session.service";
 import { PgExtractionService } from "./services/pg-extraction.service";
@@ -93,6 +95,7 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
     @Inject(PgExtractionService) private readonly extraction: PgExtractionService,
     @Inject(PgConversationOrchestrator) private readonly orchestrator: PgConversationOrchestrator,
     @Inject(AppStateService) private readonly state: AppStateService,
+    @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(PgLlmClient) private readonly llm: PgLlmClient
   ) {}
 
@@ -168,34 +171,37 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
     @ConnectedSocket() client: Socket,
     @MessageBody() body: StartSessionPayload
   ): Promise<void> {
-    // Client (pg-voice-socket.ts) sends auth as `{ userId }` flat. Older
-    // contract was `{ user: { id } }` — accept both so a stale tab doesn't
-    // wedge. We also accept a top-level `user.id` for parity with Maya.
-    const authBag = client.handshake.auth as
-      | { userId?: string; user?: { id?: string } }
-      | undefined;
-    const rawOperatorId = authBag?.userId ?? authBag?.user?.id ?? "";
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_RE.test(rawOperatorId)) {
-      // Without a real operator UUID the DB insert into
-      // pg_voice_agent_sessions(operator_user_id) blows up with
-      //   "invalid input syntax for type uuid"
-      // — surface that explicitly instead of letting it 500 internally.
+    // SEC-C2: derive the operator identity from a VERIFIED session token in the
+    // handshake (`auth.token` = `acc_<sessionId>`), never from a client-supplied
+    // userId. The old contract trusted `auth.userId`, letting anyone open a
+    // session as any operator and write drafts/sessions/analytics on their behalf.
+    const authBag = client.handshake.auth as { token?: string } | undefined;
+    const authed = await resolveSessionUser(authBag?.token, this.database, this.state);
+    if (!authed) {
       client.emit("error", {
         code: "unauth_handshake",
         message:
           "Voice/text session requires a signed-in PG operator. Refresh the page and try again."
       });
-      logTelemetry("pg_voice.session.rejected", {
-        reason: "unauth_handshake",
-        rawOperatorId: rawOperatorId.slice(0, 8) // first 8 chars only, for safety
-      });
+      logTelemetry("pg_voice.session.rejected", { reason: "unauth_handshake" });
       try {
         client.disconnect(true);
       } catch {}
       return;
     }
-    const operatorUserId = rawOperatorId;
+    if (authed.role !== "pg_operator") {
+      // Parity with the HTTP /pg-operator/* controllers — only operators list PGs.
+      client.emit("error", {
+        code: "forbidden_role",
+        message: "Only PG operators can start a listing session."
+      });
+      logTelemetry("pg_voice.session.rejected", { reason: "forbidden_role", role: authed.role });
+      try {
+        client.disconnect(true);
+      } catch {}
+      return;
+    }
+    const operatorUserId = authed.id;
 
     // Concurrent-session cap per operator
     const liveSet = this.operatorConcurrent.get(operatorUserId) ?? new Set<string>();

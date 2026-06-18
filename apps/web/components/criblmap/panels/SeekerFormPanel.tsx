@@ -16,6 +16,7 @@ import { useMapState, useMapDispatch } from "../hooks/useMapState";
 import { fetchApi, buildSearchQuery, ApiError } from "../../../lib/api";
 import { readAuthSession } from "../../../lib/client-auth";
 import { haversineKm } from "../../../lib/geo";
+import { listingHref } from "../../../lib/listing-href";
 
 interface SeekerFormPanelProps {
   locale: string;
@@ -65,6 +66,7 @@ interface MatchPin {
   cover_photo: string | null;
   lat: number;
   lng: number;
+  city: string;
 }
 function radiusToBboxDelta(lat: number, radiusM: number): { dLat: number; dLng: number } {
   const dLat = radiusM / 111_000; // 1° lat ≈ 111 km everywhere
@@ -273,7 +275,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
               {matches.slice(0, 4).map((m) => (
                 <Link
                   key={m.id}
-                  href={`/${locale}/listing/${m.id}`}
+                  href={listingHref(locale, m)}
                   className="cmap-seeker-form__match-card"
                 >
                   {m.cover_photo ? (

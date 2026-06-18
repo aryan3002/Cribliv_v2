@@ -9,6 +9,10 @@ import { AdminRentAgreementService } from "./admin-rent-agreement.service";
 import { PgScoreService } from "../pg-operator/services/pg-score.service";
 import { PgFunnelService } from "../pg-operator/services/pg-funnel.service";
 import { PgAdminAnalyticsService } from "./pg-admin-analytics.service";
+import { PgAnalyticsOverrideService } from "./pg-analytics-override.service";
+import { PgAdminPropertiesService } from "./pg-admin-properties.service";
+import { PgAdminListingEditService } from "./pg-admin-listing-edit.service";
+import { AzureBlobPhotoStorageService } from "../owner/azure-blob-photo-storage.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
 
@@ -30,7 +34,15 @@ import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
     // PG funnel: published-event emission on go-live + admin analytics aggregate.
     // Both depend only on DatabaseService — local providers, same rationale.
     PgFunnelService,
-    PgAdminAnalyticsService
+    PgAdminAnalyticsService,
+    PgAnalyticsOverrideService,
+    PgAdminPropertiesService,
+    // Admin PG listing review & edit (full read model + content/photo mutations).
+    // DatabaseService-only — same local-provider rationale as above.
+    PgAdminListingEditService,
+    // Azure SAS provider for admin photo uploads. No-arg constructor (reads env),
+    // so a local provider avoids importing OwnerModule.
+    AzureBlobPhotoStorageService
   ]
 })
 export class AdminModule {}

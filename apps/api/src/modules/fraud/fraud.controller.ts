@@ -15,10 +15,10 @@ export class FraudController {
   @UseGuards(AuthGuard)
   async reportListing(
     @Param("id") listingId: string,
-    @AuthUser() user: { sub: string },
+    @AuthUser() user: { id: string },
     @Body() body: { reason: string }
   ) {
-    return ok(await this.fraudService.reportListing(listingId, user.sub, body.reason));
+    return ok(await this.fraudService.reportListing(listingId, user.id, body.reason));
   }
 
   /** Admin: view unresolved fraud flags */
@@ -34,7 +34,7 @@ export class FraudController {
   @Post("admin/fraud/flags/:id/resolve")
   @UseGuards(AuthGuard, RolesGuard)
   @Roles("admin")
-  async resolveFlag(@Param("id") flagId: string, @AuthUser() user: { sub: string }) {
-    return ok(await this.fraudService.resolveFlag(flagId, user.sub));
+  async resolveFlag(@Param("id") flagId: string, @AuthUser() user: { id: string }) {
+    return ok(await this.fraudService.resolveFlag(flagId, user.id));
   }
 }

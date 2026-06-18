@@ -753,15 +753,9 @@ async function runPgScoreRecompute(pool: Pool): Promise<number> {
   } as unknown as DatabaseService;
   const scorer = new PgScoreService(adapter);
 
-  const { rows } = await pool.query<{ id: string }>(
-    `SELECT id::text AS id FROM listings WHERE status = 'active' AND listing_type = 'pg'`
-  );
-  let n = 0;
-  for (const { id } of rows) {
-    const r = await scorer.rescoreListing(id);
-    if (r) n += 1;
-  }
-  return n;
+  // PERF-H5: keyset-paged set read + set UPSERT inside the service, instead of
+  // a per-listing (1 SELECT + 1 UPSERT) loop with no LIMIT.
+  return scorer.recomputeActiveScores();
 }
 
 // ── Lead 4-hour follow-up nudge (every 15 min) ───────────────────────────────

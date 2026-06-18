@@ -14,7 +14,7 @@ export class AlertsController {
 
   @Post("saved-searches")
   async create(
-    @AuthUser() user: { sub: string },
+    @AuthUser() user: { id: string },
     @Body()
     body: {
       city_slug: string;
@@ -26,7 +26,7 @@ export class AlertsController {
   ) {
     return ok(
       await this.alertsService.saveSavedSearch({
-        userId: user.sub,
+        userId: user.id,
         citySlug: body.city_slug,
         localityId: body.locality_id,
         bhk: body.bhk,
@@ -37,13 +37,13 @@ export class AlertsController {
   }
 
   @Get("saved-searches")
-  async list(@AuthUser() user: { sub: string }) {
-    return ok(await this.alertsService.getSavedSearches(user.sub));
+  async list(@AuthUser() user: { id: string }) {
+    return ok(await this.alertsService.getSavedSearches(user.id));
   }
 
   @Delete("saved-searches/:id")
-  async remove(@AuthUser() user: { sub: string }, @Param("id") searchId: string) {
-    await this.alertsService.deleteSavedSearch(user.sub, searchId);
+  async remove(@AuthUser() user: { id: string }, @Param("id") searchId: string) {
+    await this.alertsService.deleteSavedSearch(user.id, searchId);
     return ok({ deleted: true });
   }
 }

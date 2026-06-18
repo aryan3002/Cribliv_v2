@@ -5,8 +5,7 @@ import { useReducer } from "react";
 const mocks = vi.hoisted(() => ({
   useGooglePlaces: vi.fn(),
   trackPgFunnel: vi.fn(),
-  listCityLocalities: vi.fn(),
-  createPgProperty: vi.fn()
+  listCityLocalities: vi.fn()
 }));
 
 vi.mock("@/lib/google-places", () => ({
@@ -18,8 +17,7 @@ vi.mock("@/lib/pg-funnel", () => ({
 }));
 
 vi.mock("@/lib/pg-operator-api", () => ({
-  listCityLocalities: mocks.listCityLocalities,
-  createPgProperty: mocks.createPgProperty
+  listCityLocalities: mocks.listCityLocalities
 }));
 
 // Maps init is client-only — mock ensureMapsLoaded so it never runs in tests
@@ -77,7 +75,6 @@ beforeEach(() => {
   mocks.trackPgFunnel.mockReset();
   mocks.listCityLocalities.mockReset();
   mocks.listCityLocalities.mockResolvedValue({ items: [] });
-  mocks.createPgProperty.mockReset();
 });
 
 describe("PgLocationStep", () => {

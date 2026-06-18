@@ -51,7 +51,12 @@ export function getOnboardingState(token?: string) {
 }
 
 export function getDashboard(token?: string) {
-  return fetchApi<PgDashboardData>("/pg-operator/dashboard", { headers: authHeaders(token) });
+  // no-store: per-operator authed data + admin analytics overrides must reflect
+  // immediately (a cut/restore can't linger behind a static cache).
+  return fetchApi<PgDashboardData>("/pg-operator/dashboard", {
+    headers: authHeaders(token),
+    cache: "no-store"
+  });
 }
 
 /**
@@ -96,6 +101,38 @@ export function createPgListing(args: {
   });
 }
 
+/**
+ * BUG-M1 — load a committed listing back into the wizard. Returns the EXACT
+ * PgListingPayload (inverse of the write path); ownership-scoped server-side.
+ */
+export function getPgListingEditPayload(id: string, token?: string) {
+  return fetchApi<PgListingPayload>(`/pg-operator/listings/${id}/edit`, {
+    headers: authHeaders(token)
+  });
+}
+
+/**
+ * BUG-M1 — save an edited listing back to the SAME id (re-enters pending_review
+ * per the MATERIAL-EDIT rule). Idempotency-keyed like create; the wizard sends a
+ * fresh key per save.
+ */
+export function updatePgListing(args: {
+  id: string;
+  idempotencyKey: string;
+  payload: PgListingPayload;
+  token?: string;
+}) {
+  return fetchApi<{ listing_id: string; status: string }>(`/pg-operator/listings/${args.id}`, {
+    method: "PUT",
+    headers: {
+      ...authHeaders(args.token),
+      "Content-Type": "application/json",
+      "Idempotency-Key": args.idempotencyKey
+    },
+    body: JSON.stringify(args.payload)
+  });
+}
+
 export interface PgListingDetail {
   id: string;
   status: string;
@@ -104,6 +141,10 @@ export interface PgListingDetail {
   created_at: string | null;
   city_slug: string | null;
   locality_slug: string | null;
+  verification_status: string | null;
+  has_exact_geo: boolean;
+  /** Persisted quality score 0-100, matches the dashboard exactly. 0 for unscored listings. */
+  composite_score: number;
   pg_details: {
     total_beds: number | null;
     gender_policy: string | null;
@@ -129,6 +170,15 @@ export interface PgListingDetail {
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;
+  // Owner-style edit hydration: structured photos with id + order (drives the
+  // wizard's existing-photo grid + reorder on save).
+  photoItems: Array<{
+    id: string;
+    url: string;
+    blob_path: string;
+    sort_order: number;
+    is_cover: boolean;
+  }>;
 }
 
 export function getPgListingDetail(id: string, token?: string) {
@@ -156,30 +206,9 @@ export function submitPgListing(id: string, token?: string) {
   });
 }
 
-export interface PgPropertyCreateInput {
-  display_name: string;
-  city_slug: string;
-  locality_slug?: string;
-  internal_code?: string;
-  total_floors?: number;
-  metadata?: Record<string, unknown>;
-}
-
-export function createPgProperty(args: {
-  idempotencyKey: string;
-  input: PgPropertyCreateInput;
-  token?: string;
-}) {
-  return fetchApi<PgProperty>("/pg-operator/properties", {
-    method: "POST",
-    headers: {
-      ...authHeaders(args.token),
-      "Content-Type": "application/json",
-      "Idempotency-Key": args.idempotencyKey
-    },
-    body: JSON.stringify(args.input)
-  });
-}
+// NOTE: no createPgProperty helper. Under 1 listing : 1 property, properties are
+// only created via listing publish (createPgListing) — there is no standalone
+// create-property endpoint, so a property is never born without a listing.
 
 // ─── Canonical localities (shared with SEO + CriblMaps) ───────────────────────
 // The wizard MUST pick locality from this canonical set so listings are findable

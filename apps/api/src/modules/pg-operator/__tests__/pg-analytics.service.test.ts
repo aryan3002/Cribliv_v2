@@ -99,11 +99,18 @@ describe("PgAnalyticsService.getFunnelTimeseries", () => {
   });
 
   it("zero-fills the full day grid and merges grouped rows", async () => {
+    // Dates must fall inside the service's rolling `days`-day window, which is
+    // anchored to Date.now() (zeroFill builds now-6 … now). Derive them from now
+    // with the SAME UTC-date logic the service uses so this test never rots.
+    const dayKey = (offset: number) =>
+      new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10);
+    const today = dayKey(0);
+    const yesterday = dayKey(1);
     // Two raw rows for L1 on two days; service must emit exactly `days` points.
     const db = makeDb({
       rows: [
-        { listing_id: "L1", day: "2026-05-30", appearances: 10, clicks: 2, views: 4, leads: 1 },
-        { listing_id: "L1", day: "2026-05-31", appearances: 5, clicks: 1, views: 2, leads: 0 }
+        { listing_id: "L1", day: today, appearances: 10, clicks: 2, views: 4, leads: 1 },
+        { listing_id: "L1", day: yesterday, appearances: 5, clicks: 1, views: 2, leads: 0 }
       ]
     });
     const svc = new PgAnalyticsService(db);
@@ -112,7 +119,7 @@ describe("PgAnalyticsService.getFunnelTimeseries", () => {
     expect(r[0].listing_id).toBe("L1");
     expect(r[0].series).toHaveLength(7); // exactly `days`
     expect(r[0].series.every((p) => p.day && typeof p.appearances === "number")).toBe(true);
-    const filled = r[0].series.find((p) => p.day === "2026-05-30");
+    const filled = r[0].series.find((p) => p.day === today);
     expect(filled).toMatchObject({ appearances: 10, clicks: 2, views: 4, leads: 1 });
     const empty = r[0].series.filter((p) => p.appearances === 0);
     expect(empty.length).toBeGreaterThan(0); // gaps zero-filled

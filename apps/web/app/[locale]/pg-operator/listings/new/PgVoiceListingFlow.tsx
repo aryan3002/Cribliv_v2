@@ -8,7 +8,7 @@ import { pgWizardReducer, initialPgWizardState } from "@/lib/pg-wizard-state";
 import { sanitizePartialDraft, draftToPayload } from "@/lib/pg-wizard-sanitizer";
 import { putPgDraft } from "@/lib/pg-operator-api";
 import { trackPgFunnel, setPgFunnelToken } from "@/lib/pg-funnel";
-import { createPgVoiceSocket } from "@/lib/pg-voice-socket";
+import { createPgVoiceSocket, setPgVoiceToken } from "@/lib/pg-voice-socket";
 import {
   handleFieldExtracted,
   type FieldExtractedEvent
@@ -61,9 +61,11 @@ export default function PgVoiceListingFlow({ userId, accessToken, locale }: Prop
     setMessages((m) => [...m, { id: `m-${msgSeq++}`, role, text, ts: Date.now() }]);
   }, []);
 
-  // Register the access token so voice funnel events authenticate.
+  // Register the access token so voice funnel events authenticate, and so the
+  // voice socket handshake is verified server-side (SEC-C2).
   useEffect(() => {
     setPgFunnelToken(accessToken);
+    setPgVoiceToken(accessToken);
   }, [accessToken]);
 
   // Socket lifecycle. Singleton handle (per PgVoicePanel convention) — we detach

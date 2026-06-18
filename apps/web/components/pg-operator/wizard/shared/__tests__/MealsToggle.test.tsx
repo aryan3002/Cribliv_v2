@@ -9,7 +9,8 @@ describe("MealsToggle", () => {
     expect(screen.queryByRole("button", { name: /breakfast/i })).toBeNull();
     rerender(<MealsToggle value={{ provided: true }} onChange={onChange} />);
     expect(screen.getByRole("button", { name: /breakfast/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /veg only/i })).toBeInTheDocument();
+    // Veg-only is a Toggle (role="switch"), not a button.
+    expect(screen.getByRole("switch", { name: /veg only/i })).toBeInTheDocument();
   });
   it("toggles a meal flag", () => {
     const onChange = vi.fn();

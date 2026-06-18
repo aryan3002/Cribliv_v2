@@ -2,11 +2,14 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Headers,
   Inject,
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   UseGuards
@@ -34,6 +37,12 @@ import { AdminRentAgreementService } from "./admin-rent-agreement.service";
 import { PgScoreService } from "../pg-operator/services/pg-score.service";
 import { PgFunnelService } from "../pg-operator/services/pg-funnel.service";
 import { PgAdminAnalyticsService } from "./pg-admin-analytics.service";
+import { PgAdminPropertiesService } from "./pg-admin-properties.service";
+import { PgAdminListingEditService } from "./pg-admin-listing-edit.service";
+import { PgAdminDetailsPatchSchema, PgAdminRoomsPutSchema } from "./dto/pg-admin-edit.dto";
+import { requireIdempotencyKey } from "../../common/idempotency.util";
+import { PgAnalyticsOverrideService } from "./pg-analytics-override.service";
+import type { PgAdminPropertyPatch } from "@cribliv/shared-types";
 import { readFeatureFlags } from "../../config/feature-flags";
 
 // Clamp the ?days= query param to a sane window; default 30.
@@ -59,7 +68,10 @@ export class AdminController {
     private readonly rentAgreements: AdminRentAgreementService,
     @Inject(PgScoreService) private readonly pgScore: PgScoreService,
     @Inject(PgFunnelService) private readonly pgFunnel: PgFunnelService,
-    @Inject(PgAdminAnalyticsService) private readonly pgAnalytics: PgAdminAnalyticsService
+    @Inject(PgAdminAnalyticsService) private readonly pgAnalytics: PgAdminAnalyticsService,
+    @Inject(PgAdminPropertiesService) private readonly pgProps: PgAdminPropertiesService,
+    @Inject(PgAnalyticsOverrideService) private readonly pgOverrides: PgAnalyticsOverrideService,
+    @Inject(PgAdminListingEditService) private readonly pgEdit: PgAdminListingEditService
   ) {}
 
   /* ── Live Operations dashboard ─────────────────────────────────── */
@@ -181,6 +193,31 @@ export class AdminController {
     if (this.database.isEnabled()) {
       if ((body.decision === "reject" || body.decision === "pause") && !body.reason) {
         throw new BadRequestException({ code: "reason_required", message: "Reason is required" });
+      }
+
+      // BUG-H2: never let a PG listing go live with too few photos. If the
+      // post-publish photo upload failed, the listing sits in pending_review with
+      // 0 photos; block approval→active until it meets the same minimum the wizard
+      // enforces (mirrors web PG_MIN_PHOTOS). Non-PG listings are unaffected.
+      if (body.decision === "approve") {
+        const PG_MIN_PHOTOS_FOR_GOLIVE = 4;
+        const pre = await this.database.query<{ listing_type: string; photo_count: number }>(
+          `
+          SELECT l.listing_type::text AS listing_type,
+                 (SELECT count(*)::int FROM listing_photos p WHERE p.listing_id = l.id) AS photo_count
+          FROM listings l
+          WHERE l.id = $1::uuid
+          LIMIT 1
+          `,
+          [listingId]
+        );
+        const row = pre.rows[0];
+        if (row && row.listing_type === "pg" && row.photo_count < PG_MIN_PHOTOS_FOR_GOLIVE) {
+          throw new BadRequestException({
+            code: "insufficient_photos",
+            message: `PG listing needs at least ${PG_MIN_PHOTOS_FOR_GOLIVE} photos before going live (has ${row.photo_count}).`
+          });
+        }
       }
 
       const newStatus =
@@ -1108,6 +1145,169 @@ export class AdminController {
       });
     }
     return ok(await this.pgAnalytics.getListingAnalytics(parseDays(days)));
+  }
+
+  @Get("pg/overview")
+  async pgOverview(@Query("days") days?: string) {
+    if (!readFeatureFlags().ff_pg_admin_analytics) {
+      throw new BadRequestException({
+        code: "feature_disabled",
+        message: "ff_pg_admin_analytics is off"
+      });
+    }
+    return ok(await this.pgAnalytics.getOverview(parseDays(days)));
+  }
+
+  @Get("pg/listings")
+  async pgListings(
+    @Query("q") q?: string,
+    @Query("status") status?: string,
+    @Query("city") city?: string,
+    @Query("page") page?: string,
+    @Query("pageSize") pageSize?: string
+  ) {
+    const r = await this.pgProps.listListings({
+      q: q || undefined,
+      status: status || undefined,
+      city: city || undefined,
+      page: Number(page) || 1,
+      pageSize: Number(pageSize) || 50
+    });
+    return ok(r.items, { total: r.total });
+  }
+
+  @Get("pg/listings/:id/analytics")
+  async pgListingAnalyticsDetail(@Param("id") id: string, @Query("days") days?: string) {
+    return ok(await this.pgProps.getListingAnalytics(id, parseDays(days)));
+  }
+
+  @Get("pg/listings/:id")
+  async pgListing(@Param("id") id: string) {
+    return ok(await this.pgProps.getListing(id));
+  }
+
+  // Full content read model (pg_details + room_types + photos + property) for
+  // the admin review & edit tabs. One fetch, shared across tabs.
+  @Get("pg/listings/:id/full")
+  async pgListingFull(@Param("id") id: string) {
+    return ok(await this.pgEdit.getFullListing(id));
+  }
+
+  // Edit the listing's pg_details (Details tab).
+  @Patch("pg/listings/:id/details")
+  async pgListingDetailsUpdate(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    const parsed = PgAdminDetailsPatchSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: "invalid_payload",
+        message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      });
+    }
+    await this.pgEdit.updateDetails(req.user.id, id, parsed.data);
+    return ok({ id });
+  }
+
+  // Replace the listing's room-type set (Rooms tab). Reprojects starting rent.
+  @Put("pg/listings/:id/rooms")
+  async pgListingRoomsUpdate(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: unknown
+  ) {
+    const parsed = PgAdminRoomsPutSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: "invalid_payload",
+        message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      });
+    }
+    return ok(await this.pgEdit.updateRooms(req.user.id, id, parsed.data.rooms));
+  }
+
+  // ── Photos (admin manage) ──────────────────────────────────────────────
+  @Post("pg/listings/:id/photos/presign")
+  async pgPhotosPresign(
+    @Param("id") id: string,
+    @Headers("idempotency-key") idem: string | undefined,
+    @Body()
+    body: { files: Array<{ clientUploadId: string; contentType: string; sizeBytes: number }> }
+  ) {
+    requireIdempotencyKey(idem);
+    return ok(await this.pgEdit.presignPhotos(id, body.files ?? []));
+  }
+
+  @Post("pg/listings/:id/photos/commit")
+  async pgPhotosCommit(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Headers("idempotency-key") idem: string | undefined,
+    @Body()
+    body: {
+      photos: Array<{
+        clientUploadId: string;
+        blobPath: string;
+        isCover: boolean;
+        sortOrder: number;
+      }>;
+    }
+  ) {
+    requireIdempotencyKey(idem);
+    return ok(await this.pgEdit.commitPhotos(req.user.id, id, body.photos ?? []));
+  }
+
+  @Patch("pg/listings/:id/photos")
+  async pgPhotosReorder(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: { items: Array<{ id: string; sort_order: number; is_cover: boolean }> }
+  ) {
+    return ok(await this.pgEdit.reorderPhotos(req.user.id, id, body.items ?? []));
+  }
+
+  @Delete("pg/listings/:id/photos/:photoId")
+  async pgPhotoDelete(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Param("photoId") photoId: string
+  ) {
+    return ok(await this.pgEdit.deletePhoto(req.user.id, id, photoId));
+  }
+
+  // Locality/geocoding/name/status edits target the shared pg_property.
+  @Patch("pg/properties/:id")
+  async pgPropertyUpdate(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: PgAdminPropertyPatch
+  ) {
+    await this.pgProps.updateProperty(req.user.id, id, body);
+    return ok({ id });
+  }
+
+  @Post("pg/listings/:id/override")
+  async pgListingOverrideSet(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: { scope: "global" | "listing"; operator_id: string; reason?: string }
+  ) {
+    const target = { listingId: body.scope === "global" ? null : id };
+    await this.pgOverrides.set(req.user.id, body.operator_id, target, body.reason ?? null);
+    return ok(await this.pgProps.getListing(id));
+  }
+
+  @Delete("pg/listings/:id/override")
+  async pgListingOverrideClear(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: { scope: "global" | "listing"; operator_id: string; reason?: string }
+  ) {
+    const target = { listingId: body.scope === "global" ? null : id };
+    await this.pgOverrides.clear(req.user.id, body.operator_id, target, body.reason ?? null);
+    return ok(await this.pgProps.getListing(id));
   }
 
   // ---------------------------------------------------------------------------

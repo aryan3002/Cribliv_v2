@@ -23,16 +23,16 @@ export class SubscriptionController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles("owner", "pg_operator")
   async createSubscriptionOrder(
-    @AuthUser() user: { sub: string },
+    @AuthUser() user: { id: string },
     @Body() body: { plan_id: string }
   ) {
-    return ok(await this.subscriptionService.createSubscriptionOrder(user.sub, body.plan_id));
+    return ok(await this.subscriptionService.createSubscriptionOrder(user.id, body.plan_id));
   }
 
   @Get("owner/subscription")
   @UseGuards(AuthGuard, RolesGuard)
   @Roles("owner", "pg_operator")
-  async getActiveSubscription(@AuthUser() user: { sub: string }) {
-    return ok(await this.subscriptionService.getActiveSubscription(user.sub));
+  async getActiveSubscription(@AuthUser() user: { id: string }) {
+    return ok(await this.subscriptionService.getActiveSubscription(user.id));
   }
 }

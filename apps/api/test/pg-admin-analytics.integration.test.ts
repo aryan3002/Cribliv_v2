@@ -16,6 +16,7 @@ import { AuthGuard } from "../src/common/auth.guard";
 import { RolesGuard } from "../src/common/roles.guard";
 import { PgAdminAnalyticsService } from "../src/modules/admin/pg-admin-analytics.service";
 import { PgFunnelService } from "../src/modules/pg-operator/services/pg-funnel.service";
+import { DatabaseService } from "../src/common/database.service";
 import * as flags from "../src/config/feature-flags";
 
 // Minimal controller mirroring the real admin route + guard composition, so the
@@ -61,7 +62,11 @@ function buildApp(opts: { admin: boolean }) {
   const funnel = { getAnalytics: vi.fn(async () => SHAPE) };
   @Module({
     controllers: [TestAdminController],
-    providers: [PgAdminAnalyticsService, { provide: PgFunnelService, useValue: funnel }]
+    providers: [
+      PgAdminAnalyticsService,
+      { provide: PgFunnelService, useValue: funnel },
+      { provide: DatabaseService, useValue: { isEnabled: () => false } }
+    ]
   })
   class TestModule {}
 

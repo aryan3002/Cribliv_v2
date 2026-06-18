@@ -92,8 +92,17 @@ export default async function Page({
     : null;
   const totalVacancy = detail.room_types.reduce((n, r) => n + (r.vacancy_count ?? 0), 0);
 
-  // Listing quality (same formula as wizard/dashboard).
-  const { composite, recommendations } = computePgListingScore(
+  // Display the persisted quality score (same column as dashboard — always in sync).
+  // Recommendations are computed live with real signals so they show actionable
+  // guidance without false "verify/pin" prompts on an already-verified listing.
+  const composite = detail.composite_score ?? 0;
+  const verif: "unverified" | "pending" | "verified" =
+    detail.verification_status === "verified"
+      ? "verified"
+      : detail.verification_status === "pending"
+        ? "pending"
+        : "unverified";
+  const { recommendations } = computePgListingScore(
     {
       property: {
         display_name: detail.title ?? "",
@@ -104,8 +113,8 @@ export default async function Page({
       room_types: detail.room_types as any
     } as any,
     {
-      verification_status: "unverified",
-      has_exact_geo: false,
+      verification_status: verif,
+      has_exact_geo: detail.has_exact_geo,
       photo_count: photos.length
     }
   );

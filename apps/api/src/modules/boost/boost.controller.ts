@@ -21,11 +21,11 @@ export class BoostController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles("owner", "pg_operator")
   async createBoostOrder(
-    @AuthUser() user: { sub: string },
+    @AuthUser() user: { id: string },
     @Param("id") listingId: string,
     @Body() body: { plan_id: string }
   ) {
-    return ok(await this.boostService.createBoostOrder(user.sub, listingId, body.plan_id));
+    return ok(await this.boostService.createBoostOrder(user.id, listingId, body.plan_id));
   }
 
   @Get("owner/listings/:id/boost")

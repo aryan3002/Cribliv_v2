@@ -4,6 +4,7 @@ import { useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useMapState, type MapPin } from "./hooks/useMapState";
 import { haversineKm } from "../../lib/geo";
+import { listingHref } from "../../lib/listing-href";
 
 interface ListingPinLayerProps {
   map: google.maps.Map | null;
@@ -219,7 +220,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
         `;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          router.push(`/${locale}/listing/${item.id}`);
+          router.push(listingHref(locale, item));
         });
       }
 

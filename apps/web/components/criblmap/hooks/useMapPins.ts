@@ -15,6 +15,7 @@ interface MapPinResponse {
   verification_status: string;
   furnishing: string | null;
   cover_photo: string | null;
+  city: string;
 }
 
 export function useMapPins() {

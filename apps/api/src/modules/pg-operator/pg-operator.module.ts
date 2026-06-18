@@ -25,8 +25,10 @@ import { PgAnalyticsService } from "./services/pg-analytics.service";
 import {
   PgListingsSliceAdapter,
   AnalyticsSliceAdapter,
-  LeadsSliceAdapter
+  LeadsSliceAdapter,
+  OverridesSliceAdapter
 } from "./services/dashboard-adapters";
+import { PgAnalyticsOverrideService } from "../admin/pg-analytics-override.service";
 
 // No OwnerModule: PG is a self-contained bounded context after the split — it
 // owns its listing write (PgListingService) and its dashboard read (pg_listings).
@@ -56,11 +58,22 @@ import {
     PgListingsSliceAdapter,
     AnalyticsSliceAdapter,
     LeadsSliceAdapter,
+    PgAnalyticsOverrideService,
+    OverridesSliceAdapter,
     {
       provide: PgDashboardService,
-      useFactory: (o: PgListingsSliceAdapter, a: AnalyticsSliceAdapter, l: LeadsSliceAdapter) =>
-        new PgDashboardService(o, a, l),
-      inject: [PgListingsSliceAdapter, AnalyticsSliceAdapter, LeadsSliceAdapter]
+      useFactory: (
+        o: PgListingsSliceAdapter,
+        a: AnalyticsSliceAdapter,
+        l: LeadsSliceAdapter,
+        ov: OverridesSliceAdapter
+      ) => new PgDashboardService(o, a, l, ov),
+      inject: [
+        PgListingsSliceAdapter,
+        AnalyticsSliceAdapter,
+        LeadsSliceAdapter,
+        OverridesSliceAdapter
+      ]
     }
   ],
   exports: [

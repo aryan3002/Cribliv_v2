@@ -33,6 +33,20 @@ export default function PgPropertyBasicsStep({ state, dispatch }: Props) {
         icon={<Building2 size={20} />}
       >
         <div>
+          <span className={styles.fieldLabel}>Listing title</span>
+          <input
+            className={styles.textInput}
+            aria-label="listing title"
+            value={d.title ?? ""}
+            onChange={(e) => setF("title", e.target.value)}
+            placeholder="e.g. Sunrise Residency — Boys PG near XYZ College"
+          />
+          <span className={styles.fieldHint}>
+            Shown on cards and search. Make it specific — each listing gets its own title.
+          </span>
+        </div>
+
+        <div>
           <span className={styles.fieldLabel}>Property name</span>
           <input
             className={styles.textInput}
@@ -41,6 +55,9 @@ export default function PgPropertyBasicsStep({ state, dispatch }: Props) {
             onChange={(e) => setF("property.display_name", e.target.value)}
             placeholder="e.g. Sunrise Residency"
           />
+          <span className={styles.fieldHint}>
+            The building name, shared across all your listings.
+          </span>
         </div>
 
         <SegmentedControl

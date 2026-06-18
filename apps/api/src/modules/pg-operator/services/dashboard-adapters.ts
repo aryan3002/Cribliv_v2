@@ -3,6 +3,7 @@ import { PgListingService } from "./pg-listing.service";
 import { LeadsService } from "../../leads/leads.service";
 import { AnalyticsService } from "../../analytics/analytics.service";
 import { PgAnalyticsService } from "./pg-analytics.service";
+import { PgAnalyticsOverrideService } from "../../admin/pg-analytics-override.service";
 import type { TrendPoint, PgSearchInsights } from "@cribliv/shared-types";
 
 /**
@@ -41,12 +42,9 @@ export class AnalyticsSliceAdapter {
   ): Promise<Array<{ listing_id: string; views_7d: number }>> {
     if (!listingIds.length) return [];
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return Promise.all(
-      listingIds.map(async (id) => {
-        const counts = await this.analytics.getListingEventCounts(id, since);
-        return { listing_id: id, views_7d: counts.views };
-      })
-    );
+    // One set-based query instead of N per-listing queries (PERF-H3).
+    const counts = await this.analytics.getListingEventCountsBatch(listingIds, since);
+    return listingIds.map((id) => ({ listing_id: id, views_7d: counts.get(id)?.views ?? 0 }));
   }
 
   async searchAppearances7d(
@@ -102,5 +100,15 @@ export class LeadsSliceAdapter {
         phone_masked: String((r.contact as { phone_masked?: string })?.phone_masked ?? "***")
       }
     }));
+  }
+}
+
+@Injectable()
+export class OverridesSliceAdapter {
+  constructor(
+    @Inject(PgAnalyticsOverrideService) private readonly overrides: PgAnalyticsOverrideService
+  ) {}
+  getActiveForOperator(operatorId: string) {
+    return this.overrides.getActiveForOperator(operatorId);
   }
 }

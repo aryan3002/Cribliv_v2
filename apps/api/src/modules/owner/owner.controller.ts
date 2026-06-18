@@ -26,7 +26,7 @@ import {
 
 @Controller("owner")
 @UseGuards(AuthGuard, RolesGuard)
-@Roles("owner", "pg_operator")
+@Roles("owner")
 export class OwnerController {
   constructor(
     @Inject(OwnerService) private readonly ownerService: OwnerService,
@@ -59,6 +59,10 @@ export class OwnerController {
     return ok(await this.ownerService.updateListing(req.user.id, listingId, body));
   }
 
+  // PG wizard uploads photos through these owner routes (listing is owner-scoped
+  // by owner_user_id, so an operator can only touch their own PG listing). The
+  // rest of the owner controller is owner-only — see class @Roles. (SEC-H1)
+  @Roles("owner", "pg_operator")
   @Post("listings/:listing_id/photos/presign")
   async presign(
     @Req() req: { user: { id: string } },
@@ -71,6 +75,7 @@ export class OwnerController {
     return ok(await this.ownerService.presignPhotos(req.user.id, listingId, idem, body.files));
   }
 
+  @Roles("owner", "pg_operator")
   @Post("listings/:listing_id/photos/complete")
   async complete(
     @Req() req: { user: { id: string } },
@@ -90,6 +95,7 @@ export class OwnerController {
     return ok(await this.ownerService.completePhotos(req.user.id, listingId, idem, body.files));
   }
 
+  @Roles("owner", "pg_operator")
   @Patch("listings/:listing_id/photos/reorder")
   async reorderPhotos(
     @Req() req: { user: { id: string } },

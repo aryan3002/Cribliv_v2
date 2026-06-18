@@ -14,7 +14,9 @@ describe("RoomTypeCard", () => {
     const onChange = vi.fn();
     render(<RoomTypeCard room={room} onChange={onChange} onRemove={() => {}} />);
     expect(screen.getByText(/8,000/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /ac/i }));
+    // AC is a segmented control: options "Non-AC" / "AC". Match the AC option
+    // exactly so /ac/i doesn't also grab "Non-AC".
+    fireEvent.click(screen.getByRole("button", { name: /^AC$/ }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ ac: true }));
   });
   it("fires onRemove", () => {

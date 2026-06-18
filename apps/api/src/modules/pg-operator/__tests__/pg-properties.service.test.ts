@@ -27,13 +27,13 @@ describe("PgPropertiesService", () => {
       expect(p.display_name).toBe("Hostel A");
     });
 
-    it("V1: rejects creating a second property for the same operator", async () => {
+    it("1:1: allows creating multiple properties for the same operator (distinct ids)", async () => {
       const { db, appState } = makeDeps();
       const svc = new PgPropertiesService(db, appState);
-      await svc.createProperty("op-1", { display_name: "A", city_slug: "delhi" });
-      await expect(
-        svc.createProperty("op-1", { display_name: "B", city_slug: "delhi" })
-      ).rejects.toThrow(/multi_property_not_enabled|single.?property|already/i);
+      const a = await svc.createProperty("op-1", { display_name: "A", city_slug: "delhi" });
+      const b = await svc.createProperty("op-1", { display_name: "B", city_slug: "delhi" });
+      expect(a.id).not.toBe(b.id);
+      expect((await svc.listProperties("op-1")).length).toBe(2);
     });
 
     it("rejects empty display_name", async () => {
@@ -74,6 +74,29 @@ describe("PgPropertiesService", () => {
       const { db, appState } = makeDeps();
       const svc = new PgPropertiesService(db, appState);
       expect(await svc.getActiveProperty("op-none")).toBeNull();
+    });
+  });
+
+  describe("getOwnedProperty()", () => {
+    it("returns a property owned by the operator (in-memory path)", async () => {
+      const { db, appState } = makeDeps();
+      const svc = new PgPropertiesService(db, appState);
+      const created = await svc.createProperty("op-1", { display_name: "A", city_slug: "delhi" });
+      const got = await svc.getOwnedProperty("op-1", created.id);
+      expect(got?.id).toBe(created.id);
+    });
+
+    it("returns null when the property belongs to a different operator (IDOR guard)", async () => {
+      const { db, appState } = makeDeps();
+      const svc = new PgPropertiesService(db, appState);
+      const created = await svc.createProperty("op-1", { display_name: "A", city_slug: "delhi" });
+      expect(await svc.getOwnedProperty("op-2", created.id)).toBeNull();
+    });
+
+    it("returns null for an unknown property id", async () => {
+      const { db, appState } = makeDeps();
+      const svc = new PgPropertiesService(db, appState);
+      expect(await svc.getOwnedProperty("op-1", "does-not-exist")).toBeNull();
     });
   });
 });

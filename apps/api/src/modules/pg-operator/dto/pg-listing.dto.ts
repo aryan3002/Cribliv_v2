@@ -17,6 +17,9 @@ const PG_TENANT_TYPE = ["students", "working", "any"] as const;
  */
 export const PgListingCreateSchema = z
   .object({
+    // Per-listing public title. Optional for back-compat (voice/older clients);
+    // the service falls back to property.display_name when absent.
+    title: z.string().trim().min(2).max(120).optional(),
     property: PropertyBasicsSchema.extend({
       city_slug: z.string().min(1),
       locality_slug: z.string().optional(),
@@ -43,8 +46,8 @@ export const PgListingCreateSchema = z
         // Payment terms inlined
         notice_period_days: z.number().int().min(0).max(180).nullable().optional(),
         lock_in_months: z.number().int().min(0).max(24).nullable().optional(),
-        security_deposit_paise: z.number().int().nonnegative().optional(),
-        deposit_refundable_pct: z.number().int().min(0).max(100).optional(),
+        security_deposit_paise: z.number().int().nonnegative().nullable().optional(),
+        deposit_refundable_pct: z.number().int().min(0).max(100).nullable().optional(),
         electricity_mode: z.enum(["flat", "submetered", "split_equally"]).nullable().optional(),
         maintenance_paise: z.number().int().nonnegative().nullable().optional(),
         rent_due_day: z.number().int().min(1).max(28).nullable().optional(),

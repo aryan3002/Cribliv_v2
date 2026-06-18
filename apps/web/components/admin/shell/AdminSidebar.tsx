@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  Building2,
   ClipboardList,
   Coins,
   FileText,
@@ -26,6 +27,7 @@ export type AdminTab =
   | "revenue"
   | "rent-agreements"
   | "pg-listings"
+  | "pg-properties"
   | "fraud"
   | "system";
 
@@ -56,7 +58,8 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
   const understand: NavItem[] = [
     { id: "revenue", label: "Revenue", icon: Coins },
     { id: "rent-agreements", label: "Rent Agreements", icon: FileText },
-    { id: "pg-listings", label: "PG Listings", icon: BarChart3 },
+    { id: "pg-listings", label: "PG Overview", icon: BarChart3 },
+    { id: "pg-properties", label: "PG Listings", icon: Building2 },
     { id: "users", label: "Users", icon: Users }
   ];
   const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];

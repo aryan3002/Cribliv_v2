@@ -4,7 +4,7 @@ import { PgDashboardService } from "../services/pg-dashboard.service";
 function makeDeps() {
   const listings = {
     listOperatorListings: vi.fn(async () => [
-      { id: "L1", status: "active", updated_at: "2026-01-01T00:00:00Z" }
+      { id: "L1", pg_property_id: "P1", status: "active", updated_at: "2026-01-01T00:00:00Z" }
     ]),
     listOperatorCities: vi.fn(async () => ["pune"])
   };
@@ -43,7 +43,10 @@ function makeDeps() {
       }
     ])
   };
-  return { listings, analytics, leads };
+  const overrides = {
+    getActiveForOperator: vi.fn(async () => ({ global: false, listing_ids: [] as string[] }))
+  };
+  return { listings, analytics, leads, overrides };
 }
 
 describe("PgDashboardService", () => {
@@ -56,7 +59,13 @@ describe("PgDashboardService", () => {
 
   it("aggregates listing health: views from analytics, unlocks from leads", async () => {
     const d = makeDeps();
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     expect(r.listing_health[0].listing_id).toBe("L1");
     expect(r.listing_health[0].views_7d).toBe(42);
@@ -69,7 +78,13 @@ describe("PgDashboardService", () => {
 
   it("returns cached payload within 60s for the same operator", async () => {
     const d = makeDeps();
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     await svc.getDashboard("op-1");
     await svc.getDashboard("op-1");
     expect(d.listings.listOperatorListings).toHaveBeenCalledOnce();
@@ -80,7 +95,13 @@ describe("PgDashboardService", () => {
 
   it("invalidates cache after 60s and refetches", async () => {
     const d = makeDeps();
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     await svc.getDashboard("op-1");
     vi.advanceTimersByTime(61_000);
     await svc.getDashboard("op-1");
@@ -89,7 +110,13 @@ describe("PgDashboardService", () => {
 
   it("treats different operators as separate cache keys", async () => {
     const d = makeDeps();
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     await svc.getDashboard("op-1");
     await svc.getDashboard("op-2");
     expect(d.listings.listOperatorListings).toHaveBeenCalledTimes(2);
@@ -98,7 +125,13 @@ describe("PgDashboardService", () => {
   it("skips analytics + lead-count calls when operator has zero listings", async () => {
     const d = makeDeps();
     d.listings.listOperatorListings.mockResolvedValueOnce([]);
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-empty");
     expect(r.listing_health).toEqual([]);
     expect(d.analytics.listingViews7d).not.toHaveBeenCalled();
@@ -107,7 +140,13 @@ describe("PgDashboardService", () => {
 
   it("computes ctr_7d = clicks/appearances (2dp) and passes appearances + trend", async () => {
     const d = makeDeps();
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     const h = r.listing_health[0];
     expect(h.search_appearances_7d).toBe(100);
@@ -117,7 +156,13 @@ describe("PgDashboardService", () => {
 
   it("computes interest_rate_7d = contact_unlocks_7d/views_7d (2dp)", async () => {
     const d = makeDeps(); // leads=3, views=42
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     expect(r.listing_health[0].interest_rate_7d).toBe(0.07); // 3/42 = 0.0714 → 0.07
   });
@@ -128,7 +173,13 @@ describe("PgDashboardService", () => {
       { listing_id: "L1", appearances: 0, clicks: 0 }
     ]);
     d.analytics.listingViews7d = vi.fn(async () => [{ listing_id: "L1", views_7d: 0 }]);
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     expect(r.listing_health[0].ctr_7d).toBe(0);
     expect(r.listing_health[0].interest_rate_7d).toBe(0);
@@ -139,13 +190,35 @@ describe("PgDashboardService", () => {
     d.analytics.searchAppearances7d = vi.fn(async () => []);
     d.analytics.funnelTimeseries = vi.fn(async () => []);
     d.analytics.listingViews7d = vi.fn(async () => []);
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     const h = r.listing_health[0];
     expect(h.search_appearances_7d).toBe(0);
     expect(h.ctr_7d).toBe(0);
     expect(h.interest_rate_7d).toBe(0);
     expect(h.trend_7d).toEqual([]);
+  });
+
+  it("masks analytics when a global override is active", async () => {
+    const d = makeDeps();
+    d.overrides.getActiveForOperator = vi.fn(async () => ({ global: true, listing_ids: [] }));
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
+    const r = await svc.getDashboard("op-1");
+    expect(r.analytics_status).toBe("restricted");
+    expect(r.listing_health[0].views_7d).toBe(0);
+    expect(r.portfolio.views).toBe(0);
   });
 });
 
@@ -199,7 +272,13 @@ describe("PgDashboardService portfolio + trends", () => {
     const d = portfolioDeps([{ id: "L1" }], {
       L1: series({ a: 0, c: 0, v: 0, l: 0 }, { a: 0, c: 0, v: 0, l: 0 })
     });
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     await svc.getDashboard("op-1");
     expect(d.analytics.funnelTimeseries).toHaveBeenCalledWith(["L1"], 30);
   });
@@ -208,7 +287,13 @@ describe("PgDashboardService portfolio + trends", () => {
     const d = portfolioDeps([{ id: "L1" }], {
       L1: series({ a: 10, c: 0, v: 5, l: 1 }, { a: 20, c: 4, v: 10, l: 2 })
     });
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     const p = r.portfolio;
     expect(p.appearances).toBe(140); // 20×7
@@ -224,7 +309,13 @@ describe("PgDashboardService portfolio + trends", () => {
     const d = portfolioDeps([{ id: "L1" }], {
       L1: series({ a: 10, c: 0, v: 5, l: 1 }, { a: 20, c: 4, v: 10, l: 2 })
     });
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     expect(r.portfolio.deltas.appearances).toBe(1); // (140-70)/70
     expect(r.portfolio.deltas.views).toBe(1); // (70-35)/35
@@ -235,7 +326,13 @@ describe("PgDashboardService portfolio + trends", () => {
     const d = portfolioDeps([{ id: "L1" }], {
       L1: series({ a: 0, c: 0, v: 0, l: 0 }, { a: 20, c: 4, v: 10, l: 2 })
     });
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     expect(r.portfolio.deltas.appearances).toBeNull();
     expect(r.portfolio.deltas.views).toBeNull();
@@ -247,7 +344,13 @@ describe("PgDashboardService portfolio + trends", () => {
       L1: series({ a: 1, c: 0, v: 0, l: 0 }, { a: 2, c: 0, v: 0, l: 0 }),
       L2: series({ a: 3, c: 0, v: 0, l: 0 }, { a: 4, c: 0, v: 0, l: 0 })
     });
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     expect(r.trend_30d).toHaveLength(30);
     expect(r.trend_30d[29]).toMatchObject({ day: "d29", appearances: 6 }); // 2 + 4
@@ -258,7 +361,13 @@ describe("PgDashboardService portfolio + trends", () => {
     const d = portfolioDeps([{ id: "L1" }], {
       L1: series({ a: 0, c: 0, v: 0, l: 0 }, { a: 0, c: 0, v: 0, l: 0 })
     });
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-1");
     expect(d.analytics.searchInsights).toHaveBeenCalledWith(["pune"], expect.any(Date));
     expect(r.search_insights.top_queries[0]).toEqual({ query: "ac pg", count: 3 });
@@ -267,7 +376,13 @@ describe("PgDashboardService portfolio + trends", () => {
   it("no listings → zeroed portfolio, empty trend, empty insights", async () => {
     const d = portfolioDeps([], {});
     d.listings.listOperatorCities = vi.fn(async () => []); // no markets when no listings
-    const svc = new PgDashboardService(d.listings as any, d.analytics as any, d.leads as any);
+    const svc = new PgDashboardService(
+      d.listings as any,
+      d.analytics as any,
+      d.leads as any,
+      (d as any).overrides ??
+        ({ getActiveForOperator: async () => ({ global: false, listing_ids: [] }) } as any)
+    );
     const r = await svc.getDashboard("op-empty");
     expect(r.portfolio.appearances).toBe(0);
     expect(r.portfolio.ctr).toBe(0);

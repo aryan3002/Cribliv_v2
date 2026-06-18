@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 import { trackPgFunnel } from "@/lib/pg-funnel";
 import { PgWizardState, PgWizardAction, buildSubmitPayload } from "@/lib/pg-wizard-state";
-import { createPgListing } from "@/lib/pg-operator-api";
-import { presignListingPhotos, completeListingPhotos } from "@/lib/owner-api";
+import { createPgListing, updatePgListing } from "@/lib/pg-operator-api";
+import { presignListingPhotos, completeListingPhotos, reorderListingPhotos } from "@/lib/owner-api";
 import PgScoreMeter from "../shared/PgScoreMeter";
 import SectionCard from "../shared/SectionCard";
 import { draftToPayload } from "@/lib/pg-wizard-sanitizer";
@@ -52,6 +52,13 @@ interface Props {
   dispatch: Dispatch<PgWizardAction>;
   locale: string;
   accessToken: string | null;
+  /** BUG-M1: when set, submit edits this committed listing (PUT) instead of creating. */
+  editListingId?: string;
+  /** Edit mode: committed verification + geo so the score meter matches the dashboard. */
+  editMeta?: {
+    verification_status: "unverified" | "pending" | "verified";
+    has_exact_geo: boolean;
+  } | null;
 }
 
 const MIN_PHOTOS = 4;
@@ -83,7 +90,14 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-export default function PgReviewStep({ state, dispatch, locale, accessToken }: Props) {
+export default function PgReviewStep({
+  state,
+  dispatch,
+  locale,
+  accessToken,
+  editListingId,
+  editMeta
+}: Props) {
   const router = useRouter();
   const payload = useMemo(() => buildSubmitPayload(state), [state.draft, state.ui]);
   const d = (state.draft.pg_details ?? {}) as any;
@@ -124,6 +138,7 @@ export default function PgReviewStep({ state, dispatch, locale, accessToken }: P
   }, [totalPhotos, state.draftId]);
 
   const canSubmit =
+    (payload.title?.trim().length ?? 0) >= 2 &&
     payload.property.display_name.length >= 2 &&
     payload.property.city_slug.length > 0 &&
     payload.pg_details?.total_beds != null &&
@@ -144,6 +159,88 @@ export default function PgReviewStep({ state, dispatch, locale, accessToken }: P
     }
     dispatch({ type: "SUBMIT_BEGIN" });
     const key = state.idempotencyKey ?? crypto.randomUUID();
+
+    // BUG-M1 edit branch: save back to the SAME listing (PUT). Mirrors the owner
+    // photo flow — upload ONLY new photos, then reorder the full set to honor the
+    // grid order + cover; existing photos are reused, never re-uploaded.
+    if (editListingId) {
+      try {
+        await updatePgListing({
+          id: editListingId,
+          idempotencyKey: key,
+          payload,
+          token: accessToken
+        });
+        const ordered = (state.pendingPhotos ?? [])
+          .slice()
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const fresh = ordered.filter((p) => !p.photoId);
+        const photoIdByClient = new Map<string, string>();
+        ordered.forEach((p) => {
+          if (p.photoId) photoIdByClient.set(p.clientUploadId, p.photoId);
+        });
+        if (fresh.length > 0) {
+          const presign = await presignListingPhotos(
+            accessToken,
+            editListingId,
+            fresh.map((p) => ({
+              clientUploadId: p.clientUploadId,
+              contentType: p.contentType,
+              sizeBytes: p.sizeBytes
+            })),
+            makeIdemKey("pg-photo-presign")
+          );
+          const byId = new Map(presign.uploads.map((u) => [u.clientUploadId, u]));
+          await Promise.all(
+            fresh.map(async (p) => {
+              const u = byId.get(p.clientUploadId);
+              if (!u) throw new Error(`No upload URL for ${p.clientUploadId}`);
+              await putToAzure(u.uploadUrl, p.file);
+            })
+          );
+          const completion = await completeListingPhotos(
+            accessToken,
+            editListingId,
+            fresh.map((p) => ({
+              clientUploadId: p.clientUploadId,
+              blobPath: byId.get(p.clientUploadId)?.blobPath ?? "",
+              isCover: p.isCover,
+              sortOrder: ordered.indexOf(p)
+            })),
+            makeIdemKey("pg-photo-complete")
+          );
+          fresh.forEach((p, i) => {
+            const id = completion.photoIds[i];
+            if (id) photoIdByClient.set(p.clientUploadId, id);
+          });
+        }
+        const persisted = ordered
+          .map((p) => photoIdByClient.get(p.clientUploadId))
+          .filter((id): id is string => !!id);
+        if (persisted.length >= 2) {
+          await reorderListingPhotos(
+            accessToken,
+            editListingId,
+            persisted.map((photoId, idx) => ({ photoId, sortOrder: idx, isCover: idx === 0 })),
+            makeIdemKey("pg-photo-reorder")
+          );
+        }
+        dispatch({ type: "SUBMIT_OK" });
+        void trackPgFunnel({
+          event_type: "submitted",
+          source: "manual",
+          listing_id: editListingId,
+          draft_id: state.draftId,
+          metadata: { photo_count: ordered.length }
+        });
+        router.push(`/${locale}/pg-operator/listings/${editListingId}?updated=1` as any);
+      } catch (e) {
+        const err = e as Error & { code?: string };
+        dispatch({ type: "SUBMIT_FAIL", error: err.message });
+      }
+      return;
+    }
+
     try {
       const res = await createPgListing({ idempotencyKey: key, payload, token: accessToken });
       const pending = state.pendingPhotos ?? [];
@@ -189,6 +286,9 @@ export default function PgReviewStep({ state, dispatch, locale, accessToken }: P
             type: "SUBMIT_FAIL",
             error: "Listing was created but photo upload failed. Add photos from your dashboard."
           });
+          // The listing WAS created — clear the autosaved draft so the next "new
+          // listing" starts blank (else it restores this listing's data: BUG-3).
+          sessionStorage.removeItem("pg-wizard-draft-v1");
           router.push(
             `/${locale}/pg-operator/listings/${res.listing_id}?published=1&photoError=1` as any
           );
@@ -221,6 +321,7 @@ export default function PgReviewStep({ state, dispatch, locale, accessToken }: P
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <SectionCard title="Basics" icon={<Building2 size={20} />} action={<Edit step={1} />}>
         <div className={styles.reviewRows}>
+          <Row label="Listing title">{payload.title || "—"}</Row>
           <Row label="Property name">{p.display_name || "—"}</Row>
           <Row label="For">{GENDER[d.gender_policy] ?? "—"}</Row>
           <Row label="Tenant type">{TENANT[d.tenant_type] ?? "—"}</Row>
@@ -314,8 +415,10 @@ export default function PgReviewStep({ state, dispatch, locale, accessToken }: P
       <PgScoreMeter
         payload={draftToPayload(state.draft)}
         signals={{
-          verification_status: "unverified",
-          has_exact_geo: state.draft.property?.lat != null,
+          // Edit mode: use the listing's committed verification + geo so the meter
+          // matches the dashboard score (no false "verify"/"pin" prompts).
+          verification_status: editMeta?.verification_status ?? "unverified",
+          has_exact_geo: editMeta?.has_exact_geo || state.draft.property?.lat != null,
           photo_count: totalPhotos
         }}
         onGoToStep={(s) => goto(s)}

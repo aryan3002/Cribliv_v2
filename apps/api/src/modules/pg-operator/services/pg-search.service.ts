@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DatabaseService } from "../../../common/database.service";
 import { readFeatureFlags } from "../../../config/feature-flags";
+import { BoundedTtlCache } from "./bounded-ttl-cache";
 
 export interface PgCard {
   id: string;
@@ -78,15 +79,54 @@ interface PgSearchRow {
 export class PgSearchService {
   private readonly photoBase = (process.env.PHOTO_PUBLIC_BASE_URL ?? "").trim().replace(/\/+$/, "");
 
+  // PERF-H6: short-TTL, bounded cache for the public read surface (typeahead/
+  // search/preview run on every keystroke/page-load — the highest-QPS path).
+  // Accepts ≤10s staleness on counts/results; TTL self-invalidates. Bounded so
+  // it can't leak like the old dashboard Map (see PERF-H4).
+  private readonly cache = new BoundedTtlCache<unknown>(
+    Number(process.env.PG_SEARCH_CACHE_MAX) || 2000,
+    Number(process.env.PG_SEARCH_CACHE_TTL_MS) || 10_000
+  );
+
   constructor(@Inject(DatabaseService) private readonly db: DatabaseService) {}
+
+  /** Memoize a read behind the short-TTL cache; misses compute then store. */
+  private async cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
+    const hit = this.cache.get(key) as T | undefined;
+    if (hit !== undefined) return hit;
+    const value = await compute();
+    this.cache.set(key, value);
+    return value;
+  }
 
   async search(query: Record<string, string | undefined>): Promise<PgSearchResult> {
     const page = Math.max(1, Number(query.page) || 1);
     const pageSize = Math.min(Math.max(Number(query.page_size) || 20, 1), 60);
-
     if (!this.db.isEnabled()) {
       return { items: [], total: 0, page, page_size: pageSize };
     }
+    // Stable key over the filters that affect results (fixed field order).
+    const key = `search:${JSON.stringify({
+      city: query.city ?? "",
+      locality: query.locality ?? "",
+      q: (query.q ?? "").trim(),
+      min_rent: query.min_rent ?? "",
+      max_rent: query.max_rent ?? "",
+      gender_policy: query.gender_policy ?? "",
+      tenant_type: query.tenant_type ?? "",
+      food_included: query.food_included ?? "",
+      sharing: query.sharing ?? "",
+      ac: query.ac ?? "",
+      sort: query.sort ?? "",
+      page,
+      pageSize
+    })}`;
+    return this.cached(key, () => this.runSearch(query));
+  }
+
+  private async runSearch(query: Record<string, string | undefined>): Promise<PgSearchResult> {
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(Math.max(Number(query.page_size) || 20, 1), 60);
 
     const clauses: string[] = ["l.listing_type = 'pg'", "l.status = 'active'"];
     const params: unknown[] = [];
@@ -221,18 +261,24 @@ export class PgSearchService {
   async suggest(q: string, limit = 8): Promise<PgSuggestRow[]> {
     const term = (q ?? "").trim().toLowerCase();
     if (term.length < 2 || !this.db.isEnabled()) return [];
+    return this.cached(`suggest:${term}:${limit}`, () => this.runSuggest(term, limit));
+  }
 
+  private async runSuggest(term: string, limit: number): Promise<PgSuggestRow[]> {
     const out: PgSuggestRow[] = [];
 
-    // Cities with active PG inventory.
-    const cityRows = await this.db.query<{
-      slug: string;
-      name_en: string;
-      listing_count: number;
-      min_rent: number | null;
-      max_rent: number | null;
-    }>(
-      `SELECT c.slug, c.name_en,
+    // PERF-M1: the three lookups are independent (each only needs `term`), so
+    // fire them concurrently instead of three sequential awaits.
+    const [cityRows, locRows, listingRows] = await Promise.all([
+      // Cities with active PG inventory.
+      this.db.query<{
+        slug: string;
+        name_en: string;
+        listing_count: number;
+        min_rent: number | null;
+        max_rent: number | null;
+      }>(
+        `SELECT c.slug, c.name_en,
               stats.listing_count::int AS listing_count,
               stats.min_rent::int AS min_rent,
               stats.max_rent::int AS max_rent,
@@ -248,31 +294,18 @@ export class PgSearchService {
          AND (similarity(c.name_en, $1) > 0.15 OR c.name_en ILIKE '%' || $1 || '%' OR c.name_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
-      [term]
-    );
-    for (const r of cityRows.rows) {
-      const row: PgSuggestRow = {
-        type: "city",
-        label: r.name_en,
-        value: r.slug,
-        listing_count: Number(r.listing_count)
-      };
-      if (r.min_rent != null && r.max_rent != null) {
-        row.rent_band = { min: Number(r.min_rent), max: Number(r.max_rent) };
-      }
-      out.push(row);
-    }
-
-    // Localities with active PG inventory.
-    const locRows = await this.db.query<{
-      slug: string;
-      name_en: string;
-      city_slug: string;
-      listing_count: number;
-      min_rent: number | null;
-      max_rent: number | null;
-    }>(
-      `SELECT loc.slug, loc.name_en, c.slug AS city_slug,
+        [term]
+      ),
+      // Localities with active PG inventory.
+      this.db.query<{
+        slug: string;
+        name_en: string;
+        city_slug: string;
+        listing_count: number;
+        min_rent: number | null;
+        max_rent: number | null;
+      }>(
+        `SELECT loc.slug, loc.name_en, c.slug AS city_slug,
               stats.listing_count::int AS listing_count,
               stats.min_rent::int AS min_rent,
               stats.max_rent::int AS max_rent,
@@ -289,35 +322,21 @@ export class PgSearchService {
          AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%' OR loc.name_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
-      [term]
-    );
-    for (const r of locRows.rows) {
-      const row: PgSuggestRow = {
-        type: "locality",
-        label: `${r.name_en}, ${r.city_slug}`,
-        value: r.slug,
-        city_slug: r.city_slug,
-        listing_count: Number(r.listing_count)
-      };
-      if (r.min_rent != null && r.max_rent != null) {
-        row.rent_band = { min: Number(r.min_rent), max: Number(r.max_rent) };
-      }
-      out.push(row);
-    }
-
-    // PG listings — matched by title OR city OR locality so typing a place
-    // surfaces the actual PGs there. Carries city_slug for /pg/[city]/[id].
-    const listingRows = await this.db.query<{
-      id: string;
-      title: string;
-      city: string;
-      locality: string | null;
-      monthly_rent: number;
-      verification_status: string;
-      cover_path: string | null;
-      created_at: string;
-    }>(
-      `SELECT l.id::text,
+        [term]
+      ),
+      // PG listings — matched by title OR city OR locality so typing a place
+      // surfaces the actual PGs there. Carries city_slug for /pg/[city]/[id].
+      this.db.query<{
+        id: string;
+        title: string;
+        city: string;
+        locality: string | null;
+        monthly_rent: number;
+        verification_status: string;
+        cover_path: string | null;
+        created_at: string;
+      }>(
+        `SELECT l.id::text,
               COALESCE(NULLIF(l.title_en,''), 'PG') AS title,
               c.slug AS city,
               loc.name_en AS locality,
@@ -338,8 +357,35 @@ export class PgSearchService {
          )
        ORDER BY sim DESC, l.created_at DESC
        LIMIT 5`,
-      [term]
-    );
+        [term]
+      )
+    ]);
+
+    for (const r of cityRows.rows) {
+      const row: PgSuggestRow = {
+        type: "city",
+        label: r.name_en,
+        value: r.slug,
+        listing_count: Number(r.listing_count)
+      };
+      if (r.min_rent != null && r.max_rent != null) {
+        row.rent_band = { min: Number(r.min_rent), max: Number(r.max_rent) };
+      }
+      out.push(row);
+    }
+    for (const r of locRows.rows) {
+      const row: PgSuggestRow = {
+        type: "locality",
+        label: `${r.name_en}, ${r.city_slug}`,
+        value: r.slug,
+        city_slug: r.city_slug,
+        listing_count: Number(r.listing_count)
+      };
+      if (r.min_rent != null && r.max_rent != null) {
+        row.rent_band = { min: Number(r.min_rent), max: Number(r.max_rent) };
+      }
+      out.push(row);
+    }
     for (const r of listingRows.rows) {
       out.push({
         type: "listing",
@@ -366,7 +412,10 @@ export class PgSearchService {
   async preview(type: string, value: string): Promise<PgPreview | null> {
     const slug = (value ?? "").trim().toLowerCase();
     if (!slug || !this.db.isEnabled()) return null;
+    return this.cached(`preview:${type}:${slug}`, () => this.runPreview(type, slug));
+  }
 
+  private async runPreview(type: string, slug: string): Promise<PgPreview | null> {
     const buildBand = (min: number | null, max: number | null) =>
       min != null && max != null ? { min: Number(min), max: Number(max) } : null;
 

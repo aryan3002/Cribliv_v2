@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { Module } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
@@ -97,6 +97,15 @@ describe("PgListingController (integration)", () => {
     expect(r.body.data.status).toBe("pending_review");
   });
 
+  it("accepts an explicit per-listing title distinct from the property name", async () => {
+    const r = await request(app.getHttpServer())
+      .post("/pg-operator/listings")
+      .set("Idempotency-Key", "test-title")
+      .send({ ...validPayload, title: "Hostel A — Boys Block near Metro" });
+    expect(r.status).toBe(201);
+    expect(typeof r.body.data.listing_id).toBe("string");
+  });
+
   it("400 on rent below ₹2k (Zod boundary)", async () => {
     const bad = {
       ...validPayload,
@@ -108,5 +117,111 @@ describe("PgListingController (integration)", () => {
       .send(bad);
     expect(r.status).toBe(400);
     expect(JSON.stringify(r.body)).toMatch(/monthly_rent/);
+  });
+});
+
+// The wizard redesign centralized navigation and dropped the per-step
+// createPgProperty call, so a first-time operator reaches Review with NO
+// pg_property and publish 404'd with code "no_property". The controller now
+// creates the operator's single V1 property lazily on first publish, using the
+// property basics + location already carried in the publish payload.
+describe("PgListingController — lazy property creation on first publish", () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [TestPgListingModule] })
+      .overrideGuard(AuthGuard)
+      .useValue(allowAllGuard)
+      .overrideGuard(RolesGuard)
+      .useValue(allowAllGuard)
+      .compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+    // NOTE: no property pre-created — this is a brand-new operator.
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it("publishes (201) by auto-creating the property when the operator has none", async () => {
+    const r = await request(app.getHttpServer())
+      .post("/pg-operator/listings")
+      .set("Idempotency-Key", "test-no-property")
+      .send({
+        property: { display_name: "Fresh PG", city_slug: "delhi", locality_slug: "saket" },
+        pg_details: { total_beds: 8 },
+        room_types: [
+          {
+            sharing: "double",
+            ac: true,
+            bathroom_kind: "attached_western",
+            furnishing: "semi_furnished",
+            monthly_rent_paise: 1_000_000,
+            vacancy_count: 3
+          }
+        ]
+      });
+    expect(r.status).toBe(201);
+    expect(typeof r.body.data.listing_id).toBe("string");
+    expect(r.body.data.status).toBe("pending_review");
+  });
+});
+
+// 1 listing : 1 property — each publish mints its OWN fresh pg_property; the old
+// single-property reuse (getActiveProperty) is gone. Two publishes by the same
+// operator must produce two distinct pg_property ids passed into createDraft.
+describe("PgListingController — one fresh property per listing (1:1)", () => {
+  let app: INestApplication;
+  let listingService: PgListingService;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [TestPgListingModule] })
+      .overrideGuard(AuthGuard)
+      .useValue(allowAllGuard)
+      .overrideGuard(RolesGuard)
+      .useValue(allowAllGuard)
+      .compile();
+    app = moduleRef.createNestApplication();
+    await app.init();
+    listingService = moduleRef.get(PgListingService);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const payload = {
+    property: { display_name: "Twin PG", city_slug: "delhi" },
+    pg_details: { total_beds: 6 },
+    room_types: [
+      {
+        sharing: "double",
+        ac: true,
+        bathroom_kind: "attached_western",
+        furnishing: "semi_furnished",
+        monthly_rent_paise: 1_000_000,
+        vacancy_count: 2
+      }
+    ]
+  };
+
+  it("mints a distinct pg_property per new listing", async () => {
+    const spy = vi.spyOn(listingService, "createDraft");
+    await request(app.getHttpServer())
+      .post("/pg-operator/listings")
+      .set("Idempotency-Key", "one-to-one-a")
+      .send(payload)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post("/pg-operator/listings")
+      .set("Idempotency-Key", "one-to-one-b")
+      .send(payload)
+      .expect(201);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    const propId1 = spy.mock.calls[0][1];
+    const propId2 = spy.mock.calls[1][1];
+    expect(propId1).not.toBe(propId2);
   });
 });

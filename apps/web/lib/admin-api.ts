@@ -1055,3 +1055,208 @@ export async function getAdminPgAnalytics(
     headers: authHeaders(accessToken)
   });
 }
+
+// ── PG property admin (Tasks 9–13) ────────────────────────────────────────────
+
+import type {
+  PgAdminOverview,
+  PgAdminListingListItem,
+  PgAdminListingDetail,
+  PgAdminListingAnalytics,
+  PgAdminPropertyPatch,
+  PgAdminListingFull,
+  PgAdminDetailsPatch,
+  PgAdminRoomInput
+} from "@cribliv/shared-types";
+
+export async function fetchAdminPgOverview(
+  accessToken: string,
+  days = 30
+): Promise<PgAdminOverview> {
+  return fetchApi<PgAdminOverview>(`/admin/pg/overview?days=${days}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminPgListings(
+  accessToken: string,
+  params: { q?: string; status?: string; city?: string; page?: number; pageSize?: number } = {}
+): Promise<PgAdminListingListItem[]> {
+  const qs = buildSearchQuery(params);
+  return fetchApi<PgAdminListingListItem[]>(`/admin/pg/listings${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminPgListing(
+  accessToken: string,
+  listingId: string
+): Promise<PgAdminListingDetail> {
+  return fetchApi<PgAdminListingDetail>(`/admin/pg/listings/${listingId}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+// Full content read model (pg_details + room_types + photos + property) backing
+// the Details/Rooms/Photos/Location tabs. One fetch, shared across tabs.
+export async function fetchAdminPgListingFull(
+  accessToken: string,
+  listingId: string
+): Promise<PgAdminListingFull> {
+  return fetchApi<PgAdminListingFull>(`/admin/pg/listings/${listingId}/full`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+// Edit the listing's pg_details (Details tab). Partial — only provided keys change.
+export async function updateAdminPgDetails(
+  accessToken: string,
+  listingId: string,
+  patch: PgAdminDetailsPatch
+): Promise<{ id: string }> {
+  return fetchApi<{ id: string }>(`/admin/pg/listings/${listingId}/details`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(patch)
+  });
+}
+
+// ── Admin photo management (Photos tab) ───────────────────────────────────────
+function adminIdemKey(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+      return crypto.randomUUID();
+  } catch {}
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+export async function presignAdminPgPhotos(
+  accessToken: string,
+  listingId: string,
+  files: Array<{ clientUploadId: string; contentType: string; sizeBytes: number }>
+): Promise<{ uploads: Array<{ clientUploadId: string; uploadUrl: string; blobPath: string }> }> {
+  return fetchApi(`/admin/pg/listings/${listingId}/photos/presign`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Idempotency-Key": adminIdemKey() },
+    body: JSON.stringify({ files })
+  });
+}
+
+export async function commitAdminPgPhotos(
+  accessToken: string,
+  listingId: string,
+  photos: Array<{ clientUploadId: string; blobPath: string; isCover: boolean; sortOrder: number }>
+): Promise<{ committed: number }> {
+  return fetchApi(`/admin/pg/listings/${listingId}/photos/commit`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Idempotency-Key": adminIdemKey() },
+    body: JSON.stringify({ photos })
+  });
+}
+
+export async function reorderAdminPgPhotos(
+  accessToken: string,
+  listingId: string,
+  items: Array<{ id: string; sort_order: number; is_cover: boolean }>
+): Promise<{ items: Array<{ id: string; sort_order: number; is_cover: boolean }> }> {
+  return fetchApi(`/admin/pg/listings/${listingId}/photos`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ items })
+  });
+}
+
+export async function deleteAdminPgPhoto(
+  accessToken: string,
+  listingId: string,
+  photoId: string
+): Promise<{ deleted: boolean }> {
+  return fetchApi(`/admin/pg/listings/${listingId}/photos/${photoId}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
+  });
+}
+
+// Direct-to-Azure upload (PUT to the SAS URL) with small retry, mirroring the
+// operator wizard's putToAzure.
+export async function putToAzureBlob(uploadUrl: string, file: File): Promise<void> {
+  const contentType = file.type || "image/jpeg";
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": contentType },
+        body: file
+      });
+      if (res.ok) return;
+      const retriable = [408, 429, 500, 502, 503, 504].includes(res.status);
+      if (!retriable || attempt === 3) throw new Error(`Photo upload failed (HTTP ${res.status})`);
+    } catch (e) {
+      if (attempt === 3) throw e instanceof Error ? e : new Error("Photo upload failed");
+    }
+  }
+}
+
+// Replace the listing's room-type set (Rooms tab). Reprojects starting rent.
+export async function replaceAdminPgRooms(
+  accessToken: string,
+  listingId: string,
+  rooms: PgAdminRoomInput[]
+): Promise<{ id: string; starting_rent_paise: number }> {
+  return fetchApi<{ id: string; starting_rent_paise: number }>(
+    `/admin/pg/listings/${listingId}/rooms`,
+    {
+      method: "PUT",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ rooms })
+    }
+  );
+}
+
+export async function fetchAdminPgListingAnalytics(
+  accessToken: string,
+  listingId: string,
+  days = 30
+): Promise<PgAdminListingAnalytics> {
+  return fetchApi<PgAdminListingAnalytics>(
+    `/admin/pg/listings/${listingId}/analytics?days=${days}`,
+    { headers: authHeaders(accessToken) }
+  );
+}
+
+// Locality/geocoding/name/status edits target the shared pg_property.
+export async function updateAdminPgProperty(
+  accessToken: string,
+  propertyId: string,
+  patch: PgAdminPropertyPatch
+): Promise<{ id: string }> {
+  return fetchApi<{ id: string }>(`/admin/pg/properties/${propertyId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(patch)
+  });
+}
+
+export async function setAdminPgOverride(
+  accessToken: string,
+  listingId: string,
+  body: { scope: "global" | "listing"; operator_id: string; reason?: string }
+): Promise<PgAdminListingDetail> {
+  return fetchApi<PgAdminListingDetail>(`/admin/pg/listings/${listingId}/override`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(body)
+  });
+}
+
+export async function clearAdminPgOverride(
+  accessToken: string,
+  listingId: string,
+  body: { scope: "global" | "listing"; operator_id: string; reason?: string }
+): Promise<PgAdminListingDetail> {
+  return fetchApi<PgAdminListingDetail>(`/admin/pg/listings/${listingId}/override`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(body)
+  });
+}

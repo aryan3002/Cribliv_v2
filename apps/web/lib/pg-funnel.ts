@@ -42,7 +42,10 @@ export async function trackPgFunnel(event: PgFunnelEvent): Promise<void> {
       body: JSON.stringify(event),
       keepalive: true
     });
-  } catch {
-    // Fire-and-forget — offline / 404 / 401 tolerated
+  } catch (e) {
+    // BUG-M6: fire-and-forget — offline / 404 / 401 tolerated, but no longer a
+    // fully silent drop; surface it so lost funnel telemetry is at least visible.
+    if (typeof console !== "undefined")
+      console.warn(`[pg-funnel] ${event.event_type} event dropped:`, e);
   }
 }

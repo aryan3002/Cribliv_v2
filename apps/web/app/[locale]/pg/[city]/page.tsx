@@ -5,6 +5,7 @@ import { ChevronRight, MapPin, Building, Search } from "lucide-react";
 import { PG_CITY_CONTENT } from "../../../../lib/pg-city-content";
 import { searchPgListings, type PgSearchResponse } from "../../../../lib/pg-public-api";
 import { PgListingCard } from "../../../../components/pg/PgListingCard";
+import { jsonLdSafe } from "../../../../lib/jsonld";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -87,15 +88,15 @@ export default async function PgCityPage({ params }: { params: { locale: string;
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdSafe(faqJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdSafe(breadcrumbJsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdSafe(itemListJsonLd) }}
       />
 
       {/* Hero Banner Section */}

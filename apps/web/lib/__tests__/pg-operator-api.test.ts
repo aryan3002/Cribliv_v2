@@ -8,7 +8,6 @@ import {
   getOnboardingState,
   getDashboard,
   createPgListing,
-  createPgProperty,
   submitSalesAssistLead
 } from "../pg-operator-api";
 
@@ -54,22 +53,6 @@ describe("pg-operator-api (uses canonical fetchApi)", () => {
     });
     const init = (f.mock.calls[0] as any)[1];
     expect(new Headers(init.headers).get("Idempotency-Key")).toBe("abc-123");
-  });
-
-  it("createPgProperty() targets /pg-operator/properties with Idempotency-Key", async () => {
-    f.mockResolvedValueOnce({ id: "p1", display_name: "Acme" });
-    const r = await createPgProperty({
-      idempotencyKey: "ik-1",
-      token: "tok",
-      input: { display_name: "Acme PG", city_slug: "bangalore" }
-    });
-    expect(r.id).toBe("p1");
-    expect(f).toHaveBeenCalledWith(
-      "/pg-operator/properties",
-      expect.objectContaining({ method: "POST" })
-    );
-    const init = (f.mock.calls[0] as any)[1];
-    expect(new Headers(init.headers).get("Idempotency-Key")).toBe("ik-1");
   });
 
   // --- strengthening tests ---

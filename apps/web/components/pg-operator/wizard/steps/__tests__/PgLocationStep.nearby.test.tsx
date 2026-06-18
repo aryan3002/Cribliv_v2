@@ -14,8 +14,7 @@ vi.mock("@/lib/google-places", () => ({
 }));
 vi.mock("@/lib/pg-funnel", () => ({ trackPgFunnel: vi.fn() }));
 vi.mock("@/lib/pg-operator-api", () => ({
-  listCityLocalities: vi.fn(() => Promise.resolve({ items: [] })),
-  createPgProperty: vi.fn()
+  listCityLocalities: vi.fn(() => Promise.resolve({ items: [] }))
 }));
 vi.mock("@/lib/google-maps", () => ({ ensureMapsLoaded: vi.fn(() => Promise.resolve()) }));
 

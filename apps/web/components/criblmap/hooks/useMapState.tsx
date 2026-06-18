@@ -15,6 +15,8 @@ export interface MapPin {
   verification_status: string;
   furnishing: string | null;
   cover_photo: string | null;
+  /** City slug — drives the PG split route /[locale]/pg/[city]/[id] on click. */
+  city: string;
   belowMarket?: boolean;
 }
 

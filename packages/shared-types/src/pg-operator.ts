@@ -93,6 +93,13 @@ export interface PgPaymentTerms {
 }
 
 export interface PgListingPayload {
+  /**
+   * Per-listing public title (what tenants see). Distinct from the shared
+   * building/property name (`property.display_name`): one operator's property
+   * can carry several listings, each with its own title. Optional for back-compat
+   * (voice drafts / older clients) — backend falls back to property.display_name.
+   */
+  title?: string | null;
   property: {
     display_name: string;
     internal_code?: string | null;
@@ -201,9 +208,210 @@ export interface PgSearchInsights {
 }
 
 export interface PgDashboardData {
+  /** 'restricted' when an admin override is masking this operator's analytics. */
+  analytics_status: PgAnalyticsStatus;
   listing_health: PgDashboardListingHealth[];
   leads_inbox: PgDashboardLead[];
   portfolio: PgPortfolioSummary;
   trend_30d: TrendPoint[]; // aggregated across listings, 30 points oldest→newest
   search_insights: PgSearchInsights;
+}
+
+// ── Admin analytics masking (non-destructive, operator-facing only) ──────────
+// Granularity (V1): per-LISTING or operator-GLOBAL. An operator owns one
+// pg_property containing many pg_listings, so masking targets individual
+// listings; a global cut hides every listing for the operator.
+export type PgAnalyticsStatus = "live" | "restricted";
+
+export type PgOverrideScope = "global" | "listing";
+
+export interface PgAnalyticsOverride {
+  id: string;
+  operator_id: string;
+  listing_id: string | null; // null = operator-global kill
+  active: boolean;
+  reason: string | null;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Resolved override state used by the operator dashboard read-path.
+export interface PgActiveOverrides {
+  global: boolean;
+  listing_ids: string[]; // active per-listing cuts
+}
+
+// ── Admin PG listing management view models ──────────────────────────────────
+export interface PgAdminListingListItem {
+  listing_id: string;
+  title: string | null;
+  status: string; // pg_listing status: active | paused | draft | pending_review | ...
+  pg_property_id: string | null;
+  property_name: string | null;
+  city_slug: string | null;
+  locality_slug: string | null;
+  owner_id: string;
+  owner_name: string | null;
+  owner_phone_masked: string | null;
+  leads_7d: number;
+  analytics_cut: boolean; // global OR this-listing override active
+}
+
+export interface PgAdminPropertyOwner {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  created_at: string;
+  property_count: number;
+  verification_status: string | null;
+}
+
+export interface PgAdminListingDetail {
+  listing: { id: string; title: string | null; status: string };
+  property: PgProperty | null; // container; geo/locality edits target this
+  city_slug: string | null;
+  locality_slug: string | null;
+  owner: PgAdminPropertyOwner;
+  overrides: { global: boolean; listing: boolean };
+}
+
+export interface PgAdminListingAnalytics {
+  listing_id: string;
+  range_days: number;
+  appearances: number;
+  clicks: number;
+  views: number;
+  leads: number;
+  ctr: number;
+  interest_rate: number;
+  conversion: number;
+  composite_score: number | null;
+  trend: TrendPoint[];
+}
+
+export interface PgAdminPropertyPatch {
+  display_name?: string;
+  status?: PgPropertyStatus;
+  internal_code?: string | null;
+  city_slug?: string;
+  locality_slug?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  total_floors?: number | null;
+}
+
+// ── Admin full listing detail (review & edit console) ────────────────────────
+// Rich read model backing the Details/Rooms/Photos/Location tabs. One fetch,
+// shared across tabs. Source: pg_listings + pg_properties + pg_details +
+// pg_room_types + listing_photos.
+export interface PgAdminListingPgDetails {
+  total_beds: number | null;
+  gender_policy: "boys" | "girls" | "coed" | null;
+  tenant_type: "students" | "working" | "any" | null;
+  security_deposit_paise: number | null;
+  deposit_refundable_pct: number | null;
+  notice_period_days: number | null;
+  lock_in_months: number | null;
+  electricity_mode: "flat" | "submetered" | "split_equally" | null;
+  maintenance_paise: number | null;
+  rent_due_day: number | null;
+  price_negotiable: boolean;
+  payment_modes: Array<"upi" | "bank_transfer" | "cash">;
+  meals: Record<string, unknown> | null;
+  meal_charges_paise: number | null;
+  amenities: Record<string, unknown>;
+  house_rules: Record<string, unknown>;
+  nearby: Record<string, unknown> | null;
+}
+
+export interface PgAdminListingRoom {
+  sharing: string;
+  ac: boolean;
+  bathroom_kind: string | null;
+  furnishing: string | null;
+  monthly_rent_paise: number;
+  vacancy_count: number;
+  available_from: string | null;
+}
+
+export interface PgAdminListingPhoto {
+  id: string;
+  blob_path: string;
+  is_cover: boolean;
+  sort_order: number;
+  moderation_status: string;
+}
+
+export interface PgAdminListingFull {
+  listing: { id: string; title: string | null; status: string; created_at: string | null };
+  property: {
+    id: string;
+    display_name: string | null;
+    status: string;
+    city_slug: string | null;
+    locality_slug: string | null;
+    lat: number | null;
+    lng: number | null;
+    total_floors: number | null;
+    internal_code: string | null;
+  } | null;
+  pg_details: PgAdminListingPgDetails;
+  room_types: PgAdminListingRoom[];
+  photos: PgAdminListingPhoto[];
+}
+
+// Partial patch for the Details tab — only provided keys change.
+export interface PgAdminDetailsPatch {
+  /** Per-listing public title (distinct from the building/property name). */
+  title?: string;
+  total_beds?: number;
+  gender_policy?: "boys" | "girls" | "coed" | null;
+  tenant_type?: "students" | "working" | "any" | null;
+  security_deposit_paise?: number;
+  deposit_refundable_pct?: number;
+  notice_period_days?: number | null;
+  lock_in_months?: number | null;
+  electricity_mode?: "flat" | "submetered" | "split_equally" | null;
+  maintenance_paise?: number | null;
+  rent_due_day?: number | null;
+  price_negotiable?: boolean;
+  payment_modes?: Array<"upi" | "bank_transfer" | "cash">;
+  meals?: Record<string, unknown> | null;
+  meal_charges_paise?: number | null;
+  amenities?: Record<string, unknown>;
+  house_rules?: Record<string, unknown>;
+  nearby?: Record<string, unknown> | null;
+}
+
+// Full room-set replacement for the Rooms tab.
+export interface PgAdminRoomInput {
+  sharing: string;
+  ac: boolean;
+  bathroom_kind?: string;
+  furnishing?: string;
+  monthly_rent_paise: number;
+  vacancy_count: number;
+  available_from?: string | null;
+}
+
+// ── Expanded admin PG overview ───────────────────────────────────────────────
+export interface PgAdminOverview {
+  range_days: number;
+  supply: {
+    properties_by_status: { active: number; paused: number; archived: number };
+    total_beds: number;
+    vacant_beds: number;
+    vacancy_rate: number;
+    avg_starting_rent_paise: number | null;
+    gender_mix: { boys: number; girls: number; coed: number };
+  };
+  distribution: Array<{ city: string; locality: string | null; count: number }>;
+  operators: { total: number; without_live_listing: number };
+  demand: {
+    top_queries: Array<{ query: string; count: number }>;
+    zero_result_queries: Array<{ query: string; count: number }>;
+  };
 }

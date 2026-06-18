@@ -70,9 +70,8 @@ export class PgAnalyticsService {
     try {
       const r = await this.db.query<SearchAppearanceRow>(
         `SELECT ids.id AS listing_id,
-                (SELECT count(*)::int FROM pg_search_events e,
-                        jsonb_array_elements_text(e.shown_listing_ids) AS x(v)
-                  WHERE x.v = ids.id AND e.created_at >= $2) AS appearances,
+                (SELECT count(*)::int FROM pg_search_events e
+                  WHERE e.shown_listing_ids @> to_jsonb(ids.id) AND e.created_at >= $2) AS appearances,
                 (SELECT count(*)::int FROM pg_search_events e
                   WHERE e.clicked_listing_id::text = ids.id AND e.created_at >= $2) AS clicks
          FROM unnest($1::text[]) AS ids(id)`,
@@ -102,9 +101,11 @@ export class PgAnalyticsService {
         leads: number;
       }>(
         `WITH appr AS (
-            SELECT x.v AS listing_id, date_trunc('day', e.created_at)::date::text AS day, count(*)::int AS n
-            FROM pg_search_events e, jsonb_array_elements_text(e.shown_listing_ids) AS x(v)
-            WHERE x.v = ANY($1::text[]) AND e.created_at >= $2 GROUP BY 1, 2),
+            SELECT ids.id AS listing_id, date_trunc('day', e.created_at)::date::text AS day, count(*)::int AS n
+            FROM unnest($1::text[]) AS ids(id)
+            JOIN pg_search_events e
+              ON e.shown_listing_ids @> to_jsonb(ids.id) AND e.created_at >= $2
+            GROUP BY 1, 2),
           clk AS (
             SELECT e.clicked_listing_id::text AS listing_id, date_trunc('day', e.created_at)::date::text AS day, count(*)::int AS n
             FROM pg_search_events e

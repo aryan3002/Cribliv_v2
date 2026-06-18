@@ -32,6 +32,12 @@ export interface PendingPhoto {
   contentType: string;
   sortOrder: number;
   isCover: boolean;
+  // Edit mode (owner-style): existing server photos are seeded as `complete`
+  // with their persisted ids so they render, count toward the minimum, and are
+  // reordered (not re-uploaded). New photos stay `pending`/undefined.
+  status?: "pending" | "complete";
+  photoId?: string;
+  blobPath?: string;
 }
 
 export interface PgWizardState {
@@ -73,6 +79,7 @@ export type PgWizardAction =
   | { type: "SUBMIT_OK" }
   | { type: "SUBMIT_FAIL"; error: string }
   | { type: "ADD_PHOTOS"; photos: PendingPhoto[] }
+  | { type: "HYDRATE_PHOTOS"; photos: PendingPhoto[] }
   | { type: "REMOVE_PHOTO"; clientUploadId: string }
   | { type: "SET_COVER_PHOTO"; clientUploadId: string }
   | { type: "REORDER_PHOTOS"; orderedIds: string[] }
@@ -242,6 +249,10 @@ export function pgWizardReducer(state: PgWizardState, action: PgWizardAction): P
       return { ...state, submitting: false };
     case "SUBMIT_FAIL":
       return { ...state, submitting: false, submitError: action.error };
+    case "HYDRATE_PHOTOS":
+      // Seed existing server photos verbatim (preserve their order + cover);
+      // unlike ADD_PHOTOS this does NOT recompute sortOrder/isCover.
+      return { ...state, pendingPhotos: action.photos };
     case "ADD_PHOTOS": {
       const existing = state.pendingPhotos ?? [];
       // First-uploaded becomes cover by default when no cover exists yet.
@@ -384,5 +395,8 @@ export function buildSubmitPayload(state: PgWizardState): PgListingPayload {
       )
     : [];
 
-  return { property, pg_details, room_types } as PgListingPayload;
+  // Per-listing title (its own field) — kept distinct from the building name.
+  const title = typeof d.title === "string" && d.title.trim() ? d.title.trim() : undefined;
+
+  return { ...(title ? { title } : {}), property, pg_details, room_types } as PgListingPayload;
 }

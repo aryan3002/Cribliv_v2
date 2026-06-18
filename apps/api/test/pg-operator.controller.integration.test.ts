@@ -97,4 +97,18 @@ describe("PgOperatorController (integration)", () => {
       expect(r.body.data.property_count).toBe(0);
     });
   });
+
+  // 1 listing : 1 property — a pg_property is ONLY born attached to a listing via
+  // publish (POST /pg-operator/listings). The old standalone create-property route
+  // could mint orphan properties (none today, but it was the alternate birth path),
+  // so it is removed. Guard against anyone re-adding an orphan-creating endpoint.
+  describe("POST /pg-operator/properties (removed — publish is the only birth path)", () => {
+    it("404: standalone property creation is no longer a route", async () => {
+      const r = await request(app.getHttpServer())
+        .post("/pg-operator/properties")
+        .set("Idempotency-Key", "orphan-attempt")
+        .send({ display_name: "Orphan PG", city_slug: "delhi" });
+      expect(r.status).toBe(404);
+    });
+  });
 });

@@ -121,6 +121,7 @@
 
 /* ── Field label + text input ───────────────────────────────────────────── */
 .fieldLabel { display: block; font-size: 12px; font-weight: 600; color: var(--pw-text); margin-bottom: 6px; }
+.fieldHint { display: block; font-size: 11px; color: var(--pw-text-soft); margin-top: 5px; line-height: 1.4; }
 .textInput {
   width: 100%; padding: 10px 12px; font-size: 14px; color: var(--pw-text-strong);
   background: var(--pw-surface-2); border: 1px solid transparent; border-radius: var(--pw-radius-md);

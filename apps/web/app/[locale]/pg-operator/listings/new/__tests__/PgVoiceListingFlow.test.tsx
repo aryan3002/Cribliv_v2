@@ -25,6 +25,7 @@ const h = vi.hoisted(() => {
 
 vi.mock("@/lib/pg-voice-socket", () => ({
   createPgVoiceSocket: () => h.socket,
+  setPgVoiceToken: vi.fn(),
   PG_AUDIO_CHUNK_MAX: 32768
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: h.push }) }));

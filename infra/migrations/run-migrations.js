@@ -30,7 +30,12 @@ async function run() {
   const migrationsDir = __dirname;
   const files = fs
     .readdirSync(migrationsDir)
-    .filter((file) => /^\d+_.*\.sql$/.test(file))
+    // Forward migrations only. Rollback files (`*.rollback.sql` and the legacy
+    // `*_rollback.sql`) are NOT migrations — running them would undo their
+    // forward file. They are applied manually when a rollback is actually
+    // intended. (Historically these were picked up here and silently dropped
+    // tables/columns; see 0039.)
+    .filter((file) => /^\d+_.*\.sql$/.test(file) && !/rollback/i.test(file))
     .sort();
 
   const client = new Client({ connectionString: resolvedDatabaseUrl });

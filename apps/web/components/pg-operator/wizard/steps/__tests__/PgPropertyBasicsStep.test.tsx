@@ -2,10 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useReducer } from "react";
 
-vi.mock("@/lib/pg-operator-api", () => ({
-  createPgProperty: vi.fn()
-}));
-
 import { pgWizardReducer, initialPgWizardState } from "@/lib/pg-wizard-state";
 import PgPropertyBasicsStep from "../PgPropertyBasicsStep";
 

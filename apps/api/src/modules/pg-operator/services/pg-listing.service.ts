@@ -11,7 +11,21 @@ import { AppStateService } from "../../../common/app-state.service";
 import { randomUUID } from "node:crypto";
 import { PgPropertiesService } from "./pg-properties.service";
 import { PgScoreService } from "./pg-score.service";
-import type { PgListingPayload, PgProperty } from "@cribliv/shared-types";
+import { isMaterialChange } from "./pg-listing-material";
+import type {
+  PgAmenities,
+  PgElectricityMode,
+  PgFurnishing,
+  PgGenderPolicy,
+  PgHouseRules,
+  PgListingPayload,
+  PgMeals,
+  PgNearby,
+  PgProperty,
+  PgSharingKind,
+  PgBathroomKind,
+  PgTenantType
+} from "@cribliv/shared-types";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isUuid(v: string): boolean {
@@ -39,6 +53,12 @@ export interface PgListingDetail {
   created_at: string | null;
   city_slug: string | null;
   locality_slug: string | null;
+  /** Committed admin-verification state — for the edit-wizard score meter. */
+  verification_status: string | null;
+  /** True when the listing has a real pin in listing_locations (score signal). */
+  has_exact_geo: boolean;
+  /** Persisted composite quality score 0-100 (matches dashboard). 0 for listings not yet scored. */
+  composite_score: number;
   pg_details: {
     total_beds: number | null;
     gender_policy: string | null;
@@ -64,6 +84,16 @@ export interface PgListingDetail {
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;
+  // Owner-style edit hydration: structured photos with id + order so the wizard
+  // can re-render existing photos and call the reorder endpoint. Mirrors the
+  // owner getOwnerListing `photoItems` shape.
+  photoItems: Array<{
+    id: string;
+    url: string;
+    blob_path: string;
+    sort_order: number;
+    is_cover: boolean;
+  }>;
 }
 
 export interface ListingResult {
@@ -107,8 +137,11 @@ export class PgListingService {
     payload: PgListingPayload,
     initialStatus: "draft" | "pending_review" = "draft"
   ): Promise<ListingResult> {
-    let prop = await this.properties.getActiveProperty(operatorId);
-    if (!prop || prop.id !== pgPropertyId) {
+    // 1 listing : 1 property — accept any property the operator owns (the fresh
+    // one the controller just minted), not only the single "active" one. Still
+    // ownership-scoped, so a foreign/unknown property id is rejected (IDOR).
+    let prop = await this.properties.getOwnedProperty(operatorId, pgPropertyId);
+    if (!prop) {
       throw new NotFoundException({
         code: "property_not_found",
         message: "property_not_found: pg_property not found for operator"
@@ -206,7 +239,16 @@ export class PgListingService {
   // write path. Called after create, submit, and go-live.
   private async recordScoreAsync(listingId: string): Promise<void> {
     if (!this.scoreService) return;
-    await this.scoreService.rescoreListing(listingId);
+    // BUG-M6: fire-and-forget, but a failure must surface (log) rather than vanish
+    // — and this guard guarantees the `void` callsites never become an unhandled
+    // rejection even if rescoreListing throws before its own internal catch.
+    try {
+      await this.scoreService.rescoreListing(listingId);
+    } catch (e) {
+      this.log.warn(
+        `[pg-listings] recordScoreAsync failed listingId=${listingId}: ${(e as Error).message}`
+      );
+    }
   }
 
   /** PG-owned listing head — the source of truth (pg_listings). */
@@ -227,7 +269,7 @@ export class PgListingService {
         id,
         operatorId,
         pgPropertyId,
-        payload.property.display_name,
+        this.listingTitle(payload),
         this.cheapestRentPaise(payload),
         status
       ]
@@ -246,7 +288,9 @@ export class PgListingService {
     operatorId: string,
     prop: PgProperty,
     payload: PgListingPayload,
-    status: "draft" | "pending_review"
+    // create passes draft/pending_review; updateListing may PRESERVE active/paused
+    // on a non-material edit (cast ::listing_status in SQL accepts any enum value).
+    status: string
   ): Promise<void> {
     const contact = (await this.db.query(
       `SELECT phone_e164, whatsapp_opt_in FROM users WHERE id = $1::uuid LIMIT 1`,
@@ -259,16 +303,19 @@ export class PgListingService {
          monthly_rent, amenities, pg_property_id, contact_phone_encrypted, whatsapp_available
        )
        VALUES ($1::uuid, $2::uuid, 'pg', $3, $8::listing_status, 'unverified', $4, '[]'::jsonb, $5::uuid, $6, $7)
+       -- NOTE: verification_status is set on INSERT ('unverified') but deliberately
+       -- NOT in the conflict clause. Verification is owned solely by the admin flow;
+       -- an operator edit (the only path that hits this conflict) must never re-stamp
+       -- it — a non-material edit on a verified+active listing has to stay verified.
        ON CONFLICT (id) DO UPDATE SET
          title_en = EXCLUDED.title_en,
          monthly_rent = EXCLUDED.monthly_rent,
          status = EXCLUDED.status,
-         verification_status = EXCLUDED.verification_status,
          updated_at = now()`,
       [
         id,
         operatorId,
-        payload.property.display_name,
+        this.listingTitle(payload),
         this.cheapestRentRupees(payload),
         prop.id,
         contact.rows[0]?.phone_e164 ?? null,
@@ -287,7 +334,10 @@ export class PgListingService {
         id,
         prop.city_id,
         prop.locality_id,
-        payload.property.display_name,
+        // BUG-M2: the public projection must NOT carry the precise building name.
+        // Keep address_line1 coarse (locality/city); the real display_name lives
+        // privately in pg_properties and is only revealed after a lead unlock.
+        payload.property.locality_slug ?? payload.property.city_slug,
         payload.property.locality_slug ?? payload.property.city_slug
       ]
     );
@@ -302,18 +352,32 @@ export class PgListingService {
    * gracefully (same pattern owner listings use).
    */
   private async projectGeo(exec: SqlExec, id: string, prop: PgProperty): Promise<void> {
-    if (prop.lat != null && prop.lng != null) {
+    // Resolve the effective coordinate: the operator's pin if set, else the locality
+    // centroid. Write it to BOTH the projection (listing_locations — read by the map +
+    // server score) AND the head (pg_properties), so the two never diverge. Previously
+    // the centroid fallback updated only listing_locations, leaving pg_properties.lat
+    // NULL → the edit wizard (which reads the head) saw "no geo" and a re-save could
+    // clobber the projection's pin back to a stale value.
+    let lat: number | null = prop.lat ?? null;
+    let lng: number | null = prop.lng ?? null;
+    if ((lat == null || lng == null) && prop.locality_id != null) {
+      const c = (await exec.query(
+        `SELECT lat, lng FROM localities WHERE id = $1 AND lat IS NOT NULL LIMIT 1`,
+        [prop.locality_id]
+      )) as { rows: Array<{ lat: number | null; lng: number | null }> };
+      if (c.rows[0]?.lat != null && c.rows[0]?.lng != null) {
+        lat = Number(c.rows[0].lat);
+        lng = Number(c.rows[0].lng);
+      }
+    }
+    if (lat != null && lng != null) {
       await exec.query(
         `UPDATE listing_locations SET lat = $2, lng = $3 WHERE listing_id = $1::uuid`,
-        [id, prop.lat, prop.lng]
+        [id, lat, lng]
       );
-    } else if (prop.locality_id != null) {
       await exec.query(
-        `UPDATE listing_locations ll
-            SET lat = loc.lat, lng = loc.lng
-            FROM localities loc
-           WHERE ll.listing_id = $1::uuid AND loc.id = $2 AND loc.lat IS NOT NULL`,
-        [id, prop.locality_id]
+        `UPDATE pg_properties SET lat = $2, lng = $3, updated_at = now() WHERE id = $1::uuid`,
+        [prop.id, lat, lng]
       );
     }
 
@@ -338,6 +402,7 @@ export class PgListingService {
   async listOperatorListings(operatorId: string): Promise<
     Array<{
       id: string;
+      pg_property_id?: string | null;
       status: string;
       updated_at: string;
       composite_score?: number;
@@ -354,6 +419,7 @@ export class PgListingService {
     if (this.db.isEnabled()) {
       const r = await this.db.query<{
         id: string;
+        pg_property_id: string | null;
         status: string;
         updated_at: string;
         composite_score: number | null;
@@ -366,7 +432,8 @@ export class PgListingService {
         starting_rent_paise: number | null;
         total_vacancy: number | null;
       }>(
-        `SELECT pl.id::text, pl.status::text, pl.updated_at::text,
+        `SELECT pl.id::text, pl.pg_property_id::text AS pg_property_id,
+                pl.status::text, pl.updated_at::text,
                 COALESCE(ls.composite_score, 0)::float AS composite_score,
                 pl.title, pl.starting_rent_paise,
                 c.slug AS city_slug, loc.slug AS locality_slug,
@@ -395,6 +462,7 @@ export class PgListingService {
       );
       return r.rows.map((row) => ({
         id: row.id,
+        pg_property_id: row.pg_property_id,
         status: row.status,
         updated_at: row.updated_at,
         composite_score:
@@ -413,6 +481,7 @@ export class PgListingService {
       .filter((l) => l.ownerUserId === operatorId && l.listingType === "pg")
       .map((l) => ({
         id: l.id,
+        pg_property_id: null,
         status: l.status,
         updated_at: new Date(l.createdAt).toISOString()
       }));
@@ -500,6 +569,126 @@ export class PgListingService {
   }
 
   /**
+   * Reconstruct the EXACT wizard payload (PgListingPayload) for a committed
+   * listing so "Edit listing" can rehydrate the wizard. This is the inverse of
+   * the write path (writePgDetails / writeRoomTypes / writePgListingHead +
+   * property creation): every column maps back 1:1, city_id/locality_id are
+   * resolved to slugs, and *_paise bigints are cast string→number (money rule).
+   *
+   * NOT getOperatorListingDetail — that's a lossy display DTO (drops payment
+   * terms, meal_charges, maintenance, late_fee_policy, nearby, deposit pct).
+   * Ownership-scoped (operator_user_id) → returns null for a non-owner / bad id.
+   */
+  async getEditPayload(operatorId: string, listingId: string): Promise<PgListingPayload | null> {
+    if (!isUuid(listingId) || !this.db.isEnabled()) return null;
+
+    // Head + own property, slugs resolved, ownership-scoped.
+    const head = await this.db.query<{
+      title: string | null;
+      display_name: string;
+      internal_code: string | null;
+      city_slug: string;
+      locality_slug: string | null;
+      total_floors: number | null;
+      lat: number | null;
+      lng: number | null;
+    }>(
+      // Geo comes from the PROJECTION (listing_locations) — that's the pin the map
+      // + server score read and the operator actually dropped; pg_properties.lat can
+      // lag it. Reading the projection makes the wizard show the real pin and stops a
+      // re-save from clobbering it back to a stale/centroid value (pin data-loss).
+      `SELECT pl.title,
+              p.display_name, p.internal_code,
+              c.slug AS city_slug, loc.slug AS locality_slug,
+              p.total_floors,
+              COALESCE(ll.lat, p.lat) AS lat,
+              COALESCE(ll.lng, p.lng) AS lng
+         FROM pg_listings pl
+         JOIN pg_properties p ON p.id = pl.pg_property_id
+         JOIN cities c        ON c.id = p.city_id
+         LEFT JOIN localities loc ON loc.id = p.locality_id
+         LEFT JOIN listing_locations ll ON ll.listing_id = pl.id
+        WHERE pl.id = $1::uuid AND pl.operator_user_id = $2::uuid
+        LIMIT 1`,
+      [listingId, operatorId]
+    );
+    const h = head.rows[0];
+    if (!h) return null;
+
+    const details = await this.db.query<Record<string, unknown>>(
+      `SELECT total_beds, gender_policy::text AS gender_policy, tenant_type::text AS tenant_type,
+              notice_period_days, lock_in_months, security_deposit_paise, deposit_refundable_pct,
+              electricity_mode::text AS electricity_mode, maintenance_paise, rent_due_day,
+              payment_modes, late_fee_policy, price_negotiable, meals, meal_charges_paise,
+              amenities, house_rules, nearby
+         FROM pg_details WHERE listing_id = $1::uuid LIMIT 1`,
+      [listingId]
+    );
+    const rooms = await this.db.query<Record<string, unknown>>(
+      `SELECT sharing::text AS sharing, ac, bathroom_kind::text AS bathroom_kind,
+              furnishing::text AS furnishing, monthly_rent_paise, vacancy_count,
+              available_from::text AS available_from
+         FROM pg_room_types WHERE listing_id = $1::uuid
+        ORDER BY monthly_rent_paise ASC`,
+      [listingId]
+    );
+
+    return {
+      title: h.title ?? null,
+      property: {
+        display_name: h.display_name,
+        internal_code: h.internal_code ?? null,
+        city_slug: h.city_slug,
+        locality_slug: h.locality_slug ?? null,
+        total_floors: h.total_floors == null ? null : Number(h.total_floors),
+        lat: h.lat == null ? null : Number(h.lat),
+        lng: h.lng == null ? null : Number(h.lng)
+      },
+      pg_details: this.detailsRowToPayload(details.rows[0] ?? {}),
+      room_types: rooms.rows.map((r) => this.roomRowToPayload(r))
+    };
+  }
+
+  /** Inverse of writePgDetails — maps a pg_details row back to the payload. */
+  private detailsRowToPayload(d: Record<string, unknown>): PgListingPayload["pg_details"] {
+    const num = (v: unknown): number | null => (v == null ? null : Number(v));
+    return {
+      total_beds: d.total_beds == null ? 0 : Number(d.total_beds),
+      gender_policy: (d.gender_policy as PgGenderPolicy) ?? null,
+      tenant_type: (d.tenant_type as PgTenantType) ?? null,
+      security_deposit_paise: num(d.security_deposit_paise),
+      deposit_refundable_pct: num(d.deposit_refundable_pct),
+      price_negotiable: Boolean(d.price_negotiable),
+      meals: (d.meals as PgMeals | null) ?? undefined,
+      meal_charges_paise: num(d.meal_charges_paise),
+      amenities: (d.amenities as PgAmenities | null) ?? undefined,
+      house_rules: (d.house_rules as PgHouseRules | null) ?? undefined,
+      nearby: (d.nearby as PgNearby | null) ?? undefined,
+      late_fee_policy: (d.late_fee_policy as Record<string, unknown> | null) ?? null,
+      // PgPaymentTerms (mixed into pg_details)
+      notice_period_days: num(d.notice_period_days),
+      lock_in_months: num(d.lock_in_months),
+      electricity_mode: (d.electricity_mode as PgElectricityMode) ?? null,
+      maintenance_paise: num(d.maintenance_paise),
+      rent_due_day: num(d.rent_due_day),
+      payment_modes: (d.payment_modes as Array<"upi" | "bank_transfer" | "cash">) ?? []
+    };
+  }
+
+  /** Inverse of writeRoomTypes — maps a pg_room_types row back to the payload. */
+  private roomRowToPayload(r: Record<string, unknown>): PgListingPayload["room_types"][number] {
+    return {
+      sharing: r.sharing as PgSharingKind,
+      ac: Boolean(r.ac),
+      bathroom_kind: (r.bathroom_kind as PgBathroomKind) ?? undefined,
+      furnishing: (r.furnishing as PgFurnishing) ?? undefined,
+      monthly_rent_paise: Number(r.monthly_rent_paise),
+      vacancy_count: Number(r.vacancy_count),
+      available_from: (r.available_from as string) ?? null
+    };
+  }
+
+  /**
    * Public detail — tenant-facing PG listing page. ACTIVE listings only
    * (draft / pending_review / paused never leak). No operator scope. Returns
    * null for a non-uuid id or a non-active listing (→ controller 404s).
@@ -579,12 +768,24 @@ export class PgListingService {
         d.payment_modes           AS payment_modes,
         d.meals                   AS meals,
         d.amenities               AS amenities,
-        d.house_rules             AS house_rules
+        d.house_rules             AS house_rules,
+        -- Committed signals the edit-wizard score meter needs (else it fabricates
+        -- "unverified" + no-geo and shows a score that mismatches the dashboard).
+        -- verification lives on the public projection (what the server score reads);
+        -- has_exact_geo from listing_locations (the authoritative pin).
+        lst.verification_status::text AS verification_status,
+        (ll.lat IS NOT NULL)          AS has_exact_geo,
+        -- Persisted quality score — same column the dashboard reads (listing_scores)
+        -- so detail page and dashboard always show the identical number.
+        COALESCE(ls.composite_score, 0)::float AS composite_score
       FROM pg_listings pl
       LEFT JOIN pg_properties pp ON pp.id = pl.pg_property_id
       LEFT JOIN cities c ON c.id = pp.city_id
       LEFT JOIN localities loc ON loc.id = pp.locality_id
       LEFT JOIN pg_details d ON d.listing_id = pl.id
+      LEFT JOIN listings lst ON lst.id = pl.id
+      LEFT JOIN listing_locations ll ON ll.listing_id = pl.id
+      LEFT JOIN listing_scores ls ON ls.listing_id = pl.id
       WHERE ${headWhere}
       LIMIT 1
       `,
@@ -604,9 +805,14 @@ export class PgListingService {
       [listingId]
     );
 
-    const photos = await this.db.query<{ blob_path: string; is_cover: boolean }>(
+    const photos = await this.db.query<{
+      id: string;
+      blob_path: string;
+      is_cover: boolean;
+      sort_order: number;
+    }>(
       `
-      SELECT blob_path, is_cover
+      SELECT id::text AS id, blob_path, is_cover, sort_order
       FROM listing_photos
       WHERE listing_id = $1::uuid
         AND moderation_status != 'rejected'
@@ -625,6 +831,9 @@ export class PgListingService {
       created_at: (h.created_at as string) ?? null,
       city_slug: (h.city_slug as string) ?? null,
       locality_slug: (h.locality_slug as string) ?? null,
+      verification_status: (h.verification_status as string) ?? null,
+      has_exact_geo: Boolean(h.has_exact_geo),
+      composite_score: Math.round(Number(h.composite_score ?? 0) * 100),
       pg_details: {
         total_beds: h.total_beds == null ? null : Number(h.total_beds),
         gender_policy: (h.gender_policy as string) ?? null,
@@ -650,7 +859,14 @@ export class PgListingService {
         vacancy_count: Number(r.vacancy_count),
         available_from: (r.available_from as string) ?? null
       })),
-      photos: photos.rows.map((p) => ({ blob_path: p.blob_path, is_cover: Boolean(p.is_cover) }))
+      photos: photos.rows.map((p) => ({ blob_path: p.blob_path, is_cover: Boolean(p.is_cover) })),
+      photoItems: photos.rows.map((p) => ({
+        id: String(p.id),
+        url: this.toPhotoUrl(p.blob_path),
+        blob_path: p.blob_path,
+        sort_order: Number(p.sort_order),
+        is_cover: Boolean(p.is_cover)
+      }))
     };
   }
 
@@ -720,6 +936,171 @@ export class PgListingService {
     return { id: listingId, status: "pending_review" };
   }
 
+  /**
+   * BUG-M1 — edit a COMMITTED listing in place. Re-runs the write tx against the
+   * SAME listing id and its OWN property (no new listing, no new property, no
+   * draft). Status follows the MATERIAL-EDIT rule (spec §2): material change →
+   * pending_review; a non-material edit on a live (active/paused) listing stays
+   * live; rejected/archived/pending_review always re-review. Ownership-scoped
+   * (operator_user_id) → no self-go-live, no IDOR. Idempotency is the caller's.
+   */
+  async updateListing(
+    operatorId: string,
+    listingId: string,
+    payload: PgListingPayload
+  ): Promise<ListingResult> {
+    if (!isUuid(listingId) || !this.db.isEnabled()) {
+      throw new NotFoundException({
+        code: "listing_not_found",
+        message: "listing_not_found: no PG listing with that id for this operator"
+      });
+    }
+    if (!payload.room_types?.length) {
+      throw new BadRequestException({
+        code: "no_room_types",
+        message: "no_room_types: at least one room type is required"
+      });
+    }
+
+    // Resolve the listing's OWN property + current status, ownership-scoped.
+    const own = await this.db.query<{ pg_property_id: string; status: string }>(
+      `SELECT pg_property_id::text AS pg_property_id, status::text AS status
+         FROM pg_listings WHERE id = $1::uuid AND operator_user_id = $2::uuid LIMIT 1`,
+      [listingId, operatorId]
+    );
+    const propertyId = own.rows[0]?.pg_property_id;
+    const curStatus = own.rows[0]?.status;
+    if (!propertyId || !curStatus) {
+      throw new NotFoundException({
+        code: "listing_not_found",
+        message: "listing_not_found: no PG listing with that id for this operator"
+      });
+    }
+
+    // MATERIAL-EDIT rule: diff incoming vs the committed "before". 'active' is
+    // only ever PRESERVED on a non-material edit — never newly granted here.
+    const before = await this.getEditPayload(operatorId, listingId);
+    const material = !before || isMaterialChange(before, payload);
+    const nextStatus =
+      curStatus === "active" || curStatus === "paused"
+        ? material
+          ? "pending_review"
+          : curStatus
+        : "pending_review";
+
+    // Resolve slugs → ids for the property update (reuse the canonical resolver;
+    // throws unknown_city on a bad slug, same as create).
+    const { cityId, localityId } = await this.properties.resolveLocation(
+      payload.property.city_slug,
+      payload.property.locality_slug ?? undefined
+    );
+    // The refreshed property the projection/geo step must use — built in-memory
+    // (a pool re-read wouldn't see the uncommitted UPDATE inside this tx).
+    const updatedProp = {
+      id: propertyId,
+      city_id: cityId,
+      locality_id: localityId,
+      lat: payload.property.lat ?? null,
+      lng: payload.property.lng ?? null
+    } as PgProperty;
+
+    const client = await this.db.getClient();
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `UPDATE pg_properties
+            SET display_name = $2, internal_code = $3, city_id = $4, locality_id = $5,
+                total_floors = $6, lat = $7, lng = $8, updated_at = now()
+          WHERE id = $1::uuid AND operator_id = $9::uuid`,
+        [
+          propertyId,
+          payload.property.display_name,
+          payload.property.internal_code ?? null,
+          cityId,
+          localityId,
+          payload.property.total_floors ?? null,
+          payload.property.lat ?? null,
+          payload.property.lng ?? null,
+          operatorId
+        ]
+      );
+
+      // The head writer is INSERT-only, so update the head columns directly
+      // (title/rent/status). verification_status is left untouched here.
+      await client.query(
+        `UPDATE pg_listings
+            SET title = $3, starting_rent_paise = $4, status = $5::listing_status, updated_at = now()
+          WHERE id = $1::uuid AND operator_user_id = $2::uuid`,
+        [
+          listingId,
+          operatorId,
+          this.listingTitle(payload),
+          this.cheapestRentPaise(payload),
+          nextStatus
+        ]
+      );
+
+      await this.writePgDetails(client, listingId, payload);
+      await this.writeRoomTypes(client, listingId, payload);
+      // REPLACE semantics: writeRoomTypes upserts but never deletes — drop the
+      // room types the operator removed so they don't linger.
+      await this.deleteOrphanRoomTypes(client, listingId, payload);
+      await this.projectToListings(client, listingId, operatorId, updatedProp, payload, nextStatus);
+
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      this.log.error(
+        `[pg-listings] updateListing tx FAILED operatorId=${operatorId} listingId=${listingId}: ${
+          (e as Error).message
+        }`
+      );
+      throw e;
+    } finally {
+      client.release();
+    }
+    void this.recordScoreAsync(listingId);
+    return { id: listingId, status: nextStatus };
+  }
+
+  /**
+   * Delete room types the operator removed in this edit (writeRoomTypes upserts
+   * but never deletes). Identity = the upsert conflict key
+   * (sharing, ac, bathroom_kind, furnishing) using the same write-side defaults.
+   */
+  private async deleteOrphanRoomTypes(
+    client: SqlExec,
+    listingId: string,
+    payload: PgListingPayload
+  ): Promise<void> {
+    const key = (sharing: unknown, ac: unknown, bathroom: unknown, furnishing: unknown): string =>
+      `${String(sharing)}|${String(ac)}|${bathroom ?? "attached_western"}|${furnishing ?? "semi_furnished"}`;
+    const keep = new Set(
+      payload.room_types.map((r) => key(r.sharing, r.ac, r.bathroom_kind, r.furnishing))
+    );
+    const existing = (await client.query(
+      `SELECT id::text AS id, sharing::text AS sharing, ac,
+              bathroom_kind::text AS bathroom_kind, furnishing::text AS furnishing
+         FROM pg_room_types WHERE listing_id = $1::uuid`,
+      [listingId]
+    )) as {
+      rows: Array<{
+        id: string;
+        sharing: string;
+        ac: boolean;
+        bathroom_kind: string | null;
+        furnishing: string | null;
+      }>;
+    };
+    const orphanIds = existing.rows
+      .filter((r) => !keep.has(key(r.sharing, r.ac, r.bathroom_kind, r.furnishing)))
+      .map((r) => r.id);
+    if (orphanIds.length) {
+      await client.query(`DELETE FROM pg_room_types WHERE id = ANY($1::uuid[])`, [orphanIds]);
+    }
+  }
+
   async hydrateFromVoiceDraft(draftId: string, opts: HydrateOptions): Promise<ListingResult> {
     const cached = this.state.getPgVoiceIdempotent(opts.idempotencyKey);
     if (cached) {
@@ -740,6 +1121,16 @@ export class PgListingService {
     this.state.updatePgListingDraftCommitted(draftId, listing.id);
     this.state.setPgVoiceIdempotent(opts.idempotencyKey, listing.id);
     return listing;
+  }
+
+  /**
+   * The listing's public title. Distinct from the shared building/property name:
+   * each listing carries its own title, falling back to the building name only
+   * when the payload omits one (voice drafts / older clients).
+   */
+  private listingTitle(p: PgListingPayload): string {
+    const t = typeof p.title === "string" ? p.title.trim() : "";
+    return t.length > 0 ? t : p.property.display_name;
   }
 
   /** Cheapest room-type rent, in paise (pg_listings.starting_rent_paise — money rule). */

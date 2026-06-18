@@ -26,10 +26,20 @@ const lowSignals: PgScoreSignals = {
   photo_count: 0
 };
 
+// The score moved from an SVG ring (role="img" "Score: N out of 100") to a
+// number + bar inside a role="complementary" "Listing quality score" region.
+function readScore(): number {
+  const region = screen.getByRole("complementary", { name: /listing quality/i });
+  const m = region.textContent?.match(/(\d+)\s*\/\s*100/);
+  return parseInt(m![1], 10);
+}
+
 describe("PgScoreMeter", () => {
-  it("renders SVG ring with score label", () => {
+  it("renders the quality region with a /100 score", () => {
     render(<PgScoreMeter payload={base} signals={lowSignals} onGoToStep={() => {}} />);
-    expect(screen.getByRole("img", { name: /score: \d+ out of 100/i })).toBeInTheDocument();
+    const region = screen.getByRole("complementary", { name: /listing quality/i });
+    expect(region).toBeInTheDocument();
+    expect(region.textContent).toMatch(/\d+\s*\/\s*100/);
   });
 
   it("shows recommendations for an incomplete listing", () => {
@@ -94,10 +104,7 @@ describe("PgScoreMeter", () => {
         onGoToStep={() => {}}
       />
     );
-    const lowLabel = screen
-      .getByRole("img", { name: /score: (\d+) out of 100/i })
-      .getAttribute("aria-label")!;
-    const lowScore = parseInt(lowLabel.match(/score: (\d+)/i)![1], 10);
+    const lowScore = readScore();
 
     rerender(
       <PgScoreMeter
@@ -106,10 +113,7 @@ describe("PgScoreMeter", () => {
         onGoToStep={() => {}}
       />
     );
-    const highLabel = screen
-      .getByRole("img", { name: /score: (\d+) out of 100/i })
-      .getAttribute("aria-label")!;
-    const highScore = parseInt(highLabel.match(/score: (\d+)/i)![1], 10);
+    const highScore = readScore();
 
     expect(highScore).toBeGreaterThan(lowScore);
   });

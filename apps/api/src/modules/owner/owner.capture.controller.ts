@@ -21,7 +21,7 @@ import { ListingType, SupportedCaptureLocale } from "./owner.capture.types";
 
 @Controller("owner/listings/capture")
 @UseGuards(AuthGuard, RolesGuard)
-@Roles("owner", "pg_operator")
+@Roles("owner")
 export class OwnerCaptureController {
   constructor(
     @Inject(OwnerCaptureService) private readonly ownerCaptureService: OwnerCaptureService

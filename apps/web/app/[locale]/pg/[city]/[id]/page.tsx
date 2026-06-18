@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPgPublicListing } from "../../../../../lib/pg-public-api";
 import { PgDetailClient } from "../../../../../components/pg/PgDetailClient";
+import { jsonLdSafe } from "../../../../../lib/jsonld";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -68,7 +69,7 @@ export default async function PgDetailPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdSafe(breadcrumb) }}
       />
       <PgDetailClient detail={detail} city={params.city} locale={params.locale} />
     </>

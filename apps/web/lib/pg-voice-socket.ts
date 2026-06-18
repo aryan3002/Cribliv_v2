@@ -57,6 +57,7 @@ export interface PgVoiceSocketHandle {
 let socket: Socket | null = null;
 let handle: PgVoiceSocketHandle | null = null;
 let lastUserId = "anonymous";
+let lastToken: string | null = null;
 let lastBaseUrl: string | undefined;
 // Registered listeners — we re-attach them whenever the socket is rebuilt
 // so consumers don't lose subscriptions across a disconnect/reconnect cycle.
@@ -73,7 +74,9 @@ function buildSocket(): Socket {
 
   const s = io(`${baseUrl}/voice-agent-pg`, {
     transports: ["websocket", "polling"],
-    auth: { userId: lastUserId },
+    // SEC-C2: the gateway VERIFIES `token` (a signed-in session) and ignores any
+    // client-supplied userId. userId is kept only as a harmless legacy hint.
+    auth: { token: lastToken ?? undefined, userId: lastUserId },
     withCredentials: true,
     reconnection: true,
     reconnectionAttempts: 5,
@@ -132,7 +135,11 @@ export function createPgVoiceSocket(args: {
       socket?.off(e, cb);
     },
     connect: () => {
-      ensureSocket().connect();
+      const s = ensureSocket();
+      // Refresh auth with the latest token in case it was set (via setPgVoiceToken)
+      // after the socket was built — so the gateway verifies a current session.
+      s.auth = { token: lastToken ?? undefined, userId: lastUserId };
+      s.connect();
     },
     disconnect: () => {
       socket?.disconnect();
@@ -141,6 +148,16 @@ export function createPgVoiceSocket(args: {
   };
 
   return handle;
+}
+
+/**
+ * Register the signed-in operator's access token so the gateway can VERIFY the
+ * handshake (audit SEC-C2) instead of trusting a client-supplied id. Call this
+ * before `connect()`; safe to call repeatedly (updates a live socket's auth too).
+ */
+export function setPgVoiceToken(token: string | null): void {
+  lastToken = token;
+  if (socket) socket.auth = { token: token ?? undefined, userId: lastUserId };
 }
 
 export function disconnectPgVoiceSocket(): void {

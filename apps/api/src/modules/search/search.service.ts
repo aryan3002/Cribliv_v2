@@ -814,6 +814,7 @@ export class SearchService {
       verification_status: string;
       furnishing: string | null;
       cover_photo: string | null;
+      city: string;
     }>
   > {
     if (!this.database.isEnabled()) return [];
@@ -841,6 +842,7 @@ export class SearchService {
       verification_status: string;
       furnishing: string | null;
       cover_photo: string | null;
+      city: string;
     }>(
       `SELECT
          l.id::text,
@@ -852,6 +854,7 @@ export class SearchService {
          l.bhk,
          l.verification_status::text,
          l.furnishing::text,
+         c.slug AS city,
          (
            SELECT lp.blob_path
            FROM listing_photos lp
@@ -862,6 +865,7 @@ export class SearchService {
          ) AS cover_photo
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
+       JOIN cities c ON c.id = ll.city_id
        WHERE l.status = 'active'
          AND ll.lat IS NOT NULL
          AND ll.lat::float8 BETWEEN $2 AND $4

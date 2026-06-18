@@ -23,8 +23,14 @@ import {
   type PgStep
 } from "@/lib/pg-wizard-steps";
 import wiz from "@/components/pg-operator/wizard/shared/pg-wizard.module.css";
-import { putPgDraft, getPgDraft } from "@/lib/pg-operator-api";
+import {
+  putPgDraft,
+  getPgDraft,
+  getPgListingEditPayload,
+  getPgListingDetail
+} from "@/lib/pg-operator-api";
 import { trackPgFunnel, setPgFunnelToken } from "@/lib/pg-funnel";
+import { setPgVoiceToken } from "@/lib/pg-voice-socket";
 import {
   PgFieldHighlightProvider,
   pgFieldToStep
@@ -64,6 +70,8 @@ function missingRequiredFields(draft: any): string[] {
 interface Props {
   locale: string;
   draftId?: string;
+  /** BUG-M1: when set, the wizard hydrates this committed listing and saves via PUT. */
+  editListingId?: string;
   accessToken: string | null;
   operatorUserId: string | null;
   existingPgPropertyId?: string | null;
@@ -73,14 +81,25 @@ interface Props {
 export default function PgWizardClient({
   locale,
   draftId: draftIdProp,
+  editListingId,
   accessToken,
   operatorUserId,
   existingPgPropertyId,
   existingPropertySeed
 }: Props) {
   const [state, dispatch] = useReducer(pgWizardReducer, initialPgWizardState());
-  const [showWizard, setShowWizard] = useState<boolean>(!!(draftIdProp || existingPgPropertyId));
+  const [showWizard, setShowWizard] = useState<boolean>(
+    !!(draftIdProp || existingPgPropertyId || editListingId)
+  );
   const [voiceMode, setVoiceMode] = useState(false);
+  // True while the edit-mode API calls are in flight — prevents blank-field flash.
+  const [editHydrating, setEditHydrating] = useState<boolean>(!!editListingId);
+  // In edit mode, the committed admin-verification + real geo state — so the score
+  // meter matches the dashboard instead of fabricating "unverified" + no-geo.
+  const [editMeta, setEditMeta] = useState<{
+    verification_status: "unverified" | "pending" | "verified";
+    has_exact_geo: boolean;
+  } | null>(null);
   // Field the inline voice co-pilot just filled — surfaced as a transient
   // "jump to step" chip so the operator sees what changed.
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
@@ -103,6 +122,9 @@ export default function PgWizardClient({
 
   // Hydrate sessionStorage + draft id + existing property
   useEffect(() => {
+    // Edit mode hydrates from the committed listing (separate effect below); never
+    // merge a leftover new-listing draft from sessionStorage into an edit.
+    if (editListingId) return;
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -151,6 +173,67 @@ export default function PgWizardClient({
     } catch {}
   }, [draftIdProp, existingPgPropertyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // BUG-M1: edit mode — hydrate the committed listing (fields + existing photos)
+  // and save via PUT. No pg_listing_drafts row is touched (autosave is guarded off
+  // below). Photos mirror the owner edit flow: existing photos are seeded as
+  // `complete` so they render, count toward the minimum, and are reordered (not
+  // re-uploaded) on save.
+  useEffect(() => {
+    if (!editListingId || !accessToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [payload, detail] = await Promise.all([
+          getPgListingEditPayload(editListingId, accessToken),
+          getPgListingDetail(editListingId, accessToken)
+        ]);
+        if (cancelled) return;
+        dispatch({ type: "MERGE_DRAFT", partial: payload as any });
+        if (!cancelled && detail) {
+          // 'failed' verification must not score as verified → treat as unverified.
+          const v =
+            detail.verification_status === "verified"
+              ? "verified"
+              : detail.verification_status === "pending"
+                ? "pending"
+                : "unverified";
+          setEditMeta({ verification_status: v, has_exact_geo: detail.has_exact_geo });
+        }
+        const items = detail?.photoItems ?? [];
+        if (!cancelled && items.length > 0) {
+          dispatch({
+            type: "HYDRATE_PHOTOS",
+            photos: items
+              .slice()
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map((it) => ({
+                clientUploadId: `existing-${it.id}`,
+                file: new File([], "existing-photo"),
+                previewUrl: it.url,
+                sizeBytes: 0,
+                contentType: "image/jpeg",
+                sortOrder: it.sort_order,
+                isCover: it.is_cover,
+                status: "complete" as const,
+                photoId: it.id,
+                blobPath: it.blob_path
+              }))
+          });
+        }
+      } catch {
+        /* keep wizard usable even if the edit read fails */
+      } finally {
+        if (!cancelled) {
+          setEditHydrating(false);
+          setShowWizard(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [editListingId, accessToken]);
+
   // Resume from server draft if draftId prop provided
   useEffect(() => {
     if (!draftIdProp || !accessToken) return;
@@ -186,6 +269,7 @@ export default function PgWizardClient({
 
   // SessionStorage autosave
   useEffect(() => {
+    if (editListingId) return; // editing a committed listing — don't persist a draft
     try {
       sessionStorage.setItem(
         STORAGE_KEY,
@@ -203,6 +287,8 @@ export default function PgWizardClient({
   // unload-time abandon) authenticate against the Bearer-guarded ingest endpoint.
   useEffect(() => {
     setPgFunnelToken(accessToken);
+    // Also authenticate the voice co-pilot socket handshake (SEC-C2).
+    setPgVoiceToken(accessToken);
   }, [accessToken]);
 
   // Live mirror of draftId for callbacks that fire between renders (autosave
@@ -219,11 +305,15 @@ export default function PgWizardClient({
   const savingRef = useRef(false);
   useEffect(() => {
     if (!accessToken) return;
+    if (editListingId) return; // BUG-M1: edit mode never writes pg_listing_drafts
     clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(async () => {
       if (savingRef.current) return; // a save is already in flight
       const payload = sanitizePartialDraft(state.draft) as any;
-      if (!payload.property?.display_name) return; // skip empty drafts
+      // Only persist a draft once the operator has named the listing. Gating on
+      // the per-listing title (not the pre-seeded building name) stops a blank,
+      // building-named draft from being created the moment the wizard opens.
+      if (!payload.title) return;
       savingRef.current = true;
       try {
         const res = await putPgDraft(accessToken, {
@@ -300,6 +390,18 @@ export default function PgWizardClient({
     );
   }
 
+  // Loading skeleton while edit-mode API calls are in flight.
+  if (editHydrating) {
+    return (
+      <div
+        data-testid="edit-loading-skeleton"
+        style={{ padding: "2rem", opacity: 0.5, textAlign: "center" }}
+      >
+        Loading listing…
+      </div>
+    );
+  }
+
   // Show entry chooser first (for new listings without a draft)
   if (!showWizard) {
     return (
@@ -357,8 +459,10 @@ export default function PgWizardClient({
               <PgScoreMeter
                 payload={draftToPayload(state.draft)}
                 signals={{
-                  verification_status: "unverified",
-                  has_exact_geo: state.draft.property?.lat != null,
+                  // In edit mode, use the listing's committed verification + geo so the
+                  // meter matches the dashboard (no false "verify"/"pin" prompts).
+                  verification_status: editMeta?.verification_status ?? "unverified",
+                  has_exact_geo: editMeta?.has_exact_geo || state.draft.property?.lat != null,
                   photo_count: state.pendingPhotos.length
                 }}
                 onGoToStep={(s) => dispatch({ type: "GOTO_STEP", step: s })}
@@ -413,7 +517,14 @@ export default function PgWizardClient({
               {step === 4 && <PgAmenitiesFoodStep {...baseProps} />}
               {step === 5 && <PgRulesAgreementStep {...baseProps} />}
               {step === 6 && <PgPhotosStep {...baseProps} accessToken={accessToken} />}
-              {step === 7 && <PgReviewStep {...baseProps} accessToken={accessToken} />}
+              {step === 7 && (
+                <PgReviewStep
+                  {...baseProps}
+                  accessToken={accessToken}
+                  editListingId={editListingId}
+                  editMeta={editMeta}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </PgWizardShell>

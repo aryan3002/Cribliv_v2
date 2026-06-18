@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { DatabaseService } from "../../../common/database.service";
 import { AppStateService } from "../../../common/app-state.service";
@@ -19,9 +19,9 @@ export interface CreatePropertyInput {
 }
 
 /**
- * CRUD for pg_properties. V1 invariant: at most ONE property per operator
- * (multi-property is V2, gated by ff_pg_multi_property_enabled).
- * Schema already supports many — UI/service guards keep V1 single.
+ * CRUD for pg_properties. Model: 1 listing : 1 property — every published
+ * listing mints its own pg_property (no shared reuse). The old single-property
+ * cap and its one-primary EXCLUDE constraint were removed in migration 0041.
  */
 @Injectable()
 export class PgPropertiesService {
@@ -38,15 +38,9 @@ export class PgPropertiesService {
       });
     }
 
-    const existing = await this.listProperties(operatorId);
-    if (existing.length >= 1) {
-      throw new ConflictException({
-        code: "multi_property_not_enabled",
-        message:
-          "multi_property_not_enabled: V1 supports a single property per operator. Contact support to add more."
-      });
-    }
-
+    // 1 listing : 1 property — each publish mints its OWN fresh property, so there
+    // is no single-property-per-operator cap anymore. (The one-primary EXCLUDE
+    // constraint that backed that invariant was dropped in migration 0041.)
     const now = new Date().toISOString();
     const { cityId, localityId } = await this.resolveLocation(input.city_slug, input.locality_slug);
 
@@ -113,13 +107,30 @@ export class PgPropertiesService {
   }
 
   /**
+   * Property by id, scoped to its operator (ownership/IDOR guard). Used by the
+   * create + edit flows that no longer assume a single primary property — they
+   * resolve a specific property id rather than "the" active one.
+   */
+  async getOwnedProperty(operatorId: string, propertyId: string): Promise<PgProperty | null> {
+    if (this.db.isEnabled()) {
+      const r = await this.db.query<PgProperty>(
+        `SELECT * FROM pg_properties WHERE id = $1::uuid AND operator_id = $2::uuid LIMIT 1`,
+        [propertyId, operatorId]
+      );
+      return r.rows[0] ?? null;
+    }
+    const all = this.state.pgPropertiesByOperator(operatorId) as unknown as PgProperty[];
+    return all.find((p) => p.id === propertyId) ?? null;
+  }
+
+  /**
    * Resolve city/locality slugs to integer FKs.
    * - DB path: queries cities + localities (scoped by city).
    * - In-memory path: maps known slugs to deterministic small ints for testing.
    *   ("delhi" -> 1, others -> 1; locality_slug -> 1). Sufficient for unit tests
    *   where no real city table exists.
    */
-  private async resolveLocation(
+  async resolveLocation(
     citySlug: string,
     localitySlug?: string
   ): Promise<{ cityId: number; localityId: number | null }> {

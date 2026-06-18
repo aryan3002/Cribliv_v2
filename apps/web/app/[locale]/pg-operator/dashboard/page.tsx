@@ -14,9 +14,12 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import styles from "./pg-dashboard.module.css";
 
-export const revalidate = 60;
+// Authed, per-operator dashboard. Must be dynamic so admin analytics
+// cuts/restores reflect on the operator's next load (no static caching).
+export const dynamic = "force-dynamic";
 
 const EMPTY_DASHBOARD: PgDashboardData = {
+  analytics_status: "live",
   listing_health: [],
   leads_inbox: [],
   portfolio: {
@@ -83,6 +86,27 @@ export default async function Page({ params }: { params: { locale: string } }) {
         {/* Portfolio analytics — only meaningful once the operator has listings */}
         {hasListings && (
           <section className={styles.analytics}>
+            {data.analytics_status === "restricted" && (
+              <div
+                role="status"
+                style={{
+                  padding: "10px 16px",
+                  background: "#FEF3C7",
+                  color: "#92400E",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 16,
+                  border: "1px solid #FDE68A"
+                }}
+              >
+                <span style={{ fontSize: 16 }}>⚠️</span>
+                Analytics are temporarily under review.
+              </div>
+            )}
             <PortfolioSummary portfolio={data.portfolio} />
             <div className="pgo-analytics__grid">
               <PortfolioTrendChart trend={data.trend_30d} />

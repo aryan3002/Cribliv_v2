@@ -84,8 +84,10 @@ export function validatePgStep(step: PgStep, draft: any, photoCount = 0): PgStep
   const rooms = draft?.room_types ?? [];
   switch (step) {
     case 1:
+      if (!draft?.title || String(draft.title).trim().length < 2)
+        return { ok: false, hint: "Add a listing title to continue." };
       if (!p.display_name || String(p.display_name).trim().length < 2)
-        return { ok: false, hint: "Add a property name to continue." };
+        return { ok: false, hint: "Add a property (building) name to continue." };
       if (!d.gender_policy) return { ok: false, hint: "Pick who the PG is for." };
       if (!d.tenant_type) return { ok: false, hint: "Choose a tenant type." };
       if (!((d.total_beds ?? 0) > 0)) return { ok: false, hint: "Set the total number of beds." };
