@@ -6,6 +6,7 @@ dist
 coverage
 .env
 .env.local
+*.env.bak
 .DS_Store
 *.log
 *.tsbuildinfo

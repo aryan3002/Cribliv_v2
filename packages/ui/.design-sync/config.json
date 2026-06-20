@@ -1,0 +1,15 @@
+{
+  "pkg": "@cribliv/ui",
+  "globalName": "CriblivUI",
+  "projectId": "9a68eef3-620f-443f-9d0e-aa98c9d5ac3b",
+  "shape": "package",
+  "buildCmd": "pnpm --filter @cribliv/ui build",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": "src/tokens.css",
+  "extraFonts": ".design-sync/fonts/cribliv-fonts.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Button": { "cardMode": "column" },
+    "Badge": { "cardMode": "column" }
+  }
+}
