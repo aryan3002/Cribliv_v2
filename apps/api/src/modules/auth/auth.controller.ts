@@ -25,8 +25,8 @@ export class AuthController {
     @Body() body: { phone_e164: string; purpose: string },
     @Req() req: { ip?: string; headers?: Record<string, string | string[] | undefined> }
   ) {
-    const clientIp =
-      (req.headers?.["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+    // req.ip is proxy-aware when Express trust proxy is configured in main.ts.
+    const clientIp = req.ip || "unknown";
     return ok(await this.authService.sendOtp(body.phone_e164, body.purpose, clientIp));
   }
 

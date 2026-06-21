@@ -150,11 +150,13 @@ export class PgFunnelService {
                     ORDER BY EXTRACT(EPOCH FROM (pub.t - start.t))
                   ) AS median
              FROM (SELECT draft_id, min(created_at) AS t FROM pg_listing_funnel_events
-                    WHERE event_type = 'wizard_started' AND draft_id IS NOT NULL GROUP BY draft_id) start
+                    WHERE event_type = 'wizard_started' AND draft_id IS NOT NULL
+                      AND created_at >= now() - $1::interval GROUP BY draft_id) start
              JOIN (SELECT draft_id, min(created_at) AS t FROM pg_listing_funnel_events
-                    WHERE event_type = 'published' AND draft_id IS NOT NULL GROUP BY draft_id) pub
+                    WHERE event_type = 'published' AND draft_id IS NOT NULL
+                      AND created_at >= now() - $1::interval GROUP BY draft_id) pub
                USING (draft_id)`,
-          []
+          [since]
         )
         .then((r) => r.rows)
         .catch(() => []),

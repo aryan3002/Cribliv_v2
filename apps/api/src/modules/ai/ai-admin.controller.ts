@@ -1,15 +1,18 @@
 import { Controller, Inject, Post, UseGuards } from "@nestjs/common";
 import { ok } from "../../common/response";
 import { AuthGuard } from "../../common/auth.guard";
+import { RolesGuard } from "../../common/roles.guard";
+import { Roles } from "../../common/roles.decorator";
 import { EmbeddingService } from "./embedding.service";
 import { RankingService } from "./ranking.service";
 
 /**
  * Admin-only endpoints for triggering AI background jobs.
- * Protected by AuthGuard (admin role).
+ * Protected by AuthGuard + RolesGuard (admin role only).
  */
 @Controller("admin/ai")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles("admin")
 export class AiAdminController {
   constructor(
     @Inject(EmbeddingService) private readonly embedding: EmbeddingService,

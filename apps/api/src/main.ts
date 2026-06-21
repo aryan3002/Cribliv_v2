@@ -21,6 +21,7 @@ import { IoAdapter } from "@nestjs/platform-socket.io";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { assertVerificationProviderConfig } from "./modules/verification/providers/provider.config";
+import { readCorsAllowedOrigins, readTrustProxySetting } from "./common/http-config.util";
 
 async function bootstrap() {
   assertVerificationProviderConfig();
@@ -28,6 +29,12 @@ async function bootstrap() {
 
   // ── Socket.IO WebSocket adapter (required for voice-agent gateway) ──
   app.useWebSocketAdapter(new IoAdapter(app));
+
+  // Parse `X-Forwarded-For` only when explicit trusted proxy config is provided.
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .set("trust proxy", readTrustProxySetting(process.env.TRUST_PROXY));
 
   app.setGlobalPrefix("v1");
 
@@ -51,9 +58,7 @@ async function bootstrap() {
   );
 
   // CORS: restrict to known origins (env-configurable)
-  const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3000")
-    .split(",")
-    .map((o) => o.trim());
+  const allowedOrigins = readCorsAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
