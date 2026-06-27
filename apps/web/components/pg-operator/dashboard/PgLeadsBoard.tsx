@@ -20,7 +20,8 @@ import {
   Clock,
   Eye,
   Loader2,
-  GripVertical
+  GripVertical,
+  MessageSquare
 } from "lucide-react";
 import type { PgDashboardLead } from "@cribliv/shared-types";
 import { openPgLead, updatePgLeadStatus, type PgLeadStatus } from "@/lib/pg-operator-api";
@@ -35,11 +36,11 @@ const VALID: Record<PgLeadStatus, PgLeadStatus[]> = {
 };
 
 const COLUMNS: { status: PgLeadStatus; label: string; rail: string; Icon: typeof Inbox }[] = [
-  { status: "new", label: "New", rail: "#3b82f6", Icon: Inbox },
-  { status: "contacted", label: "Contacted", rail: "#f59e0b", Icon: Phone },
-  { status: "visit_scheduled", label: "Visit scheduled", rail: "#6366f1", Icon: CalendarCheck },
-  { status: "deal_done", label: "Deal done", rail: "#10b981", Icon: CheckCircle2 },
-  { status: "lost", label: "Lost", rail: "#94a3b8", Icon: XCircle }
+  { status: "new", label: "New", rail: "#3a8bff", Icon: Inbox },
+  { status: "contacted", label: "Contacted", rail: "#ffb24d", Icon: Phone },
+  { status: "visit_scheduled", label: "Visit scheduled", rail: "#a78bff", Icon: CalendarCheck },
+  { status: "deal_done", label: "Deal done", rail: "#3ddc8b", Icon: CheckCircle2 },
+  { status: "lost", label: "Lost", rail: "rgba(255,255,255,.4)", Icon: XCircle }
 ];
 const LABEL: Record<PgLeadStatus, string> = COLUMNS.reduce(
   (a, c) => ({ ...a, [c.status]: c.label }),
@@ -187,7 +188,12 @@ export default function PgLeadsBoard({
                         <span className={styles.kbCount}>{list.length}</span>
                       </header>
                       <div className={styles.kbList}>
-                        {list.length === 0 && <div className={styles.kbEmpty}>Drop leads here</div>}
+                        {list.length === 0 && (
+                          <div className={styles.kbEmpty}>
+                            <MessageSquare size={18} style={{ color: "rgba(255,255,255,.2)" }} />
+                            Drop leads here
+                          </div>
+                        )}
                         {list.map((lead, i) => {
                           const open = revealed[lead.lead_id];
                           const err = errors[lead.lead_id];
@@ -203,7 +209,7 @@ export default function PgLeadsBoard({
                                   ref={prov.innerRef}
                                   {...prov.draggableProps}
                                   {...prov.dragHandleProps}
-                                  className={`${styles.kbCard} ${ds.isDragging ? styles.kbCardDragging : ""}`}
+                                  className={`${styles.kbCard} ${ds.isDragging ? styles.kbCardDragging : ""} ${lead._status === "deal_done" ? styles.kbCardDeal : ""}`}
                                   style={{
                                     ...prov.draggableProps.style,
                                     opacity: updating === lead.lead_id ? 0.6 : 1

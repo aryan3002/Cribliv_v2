@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { FileEdit } from "lucide-react";
+import { FileEdit, ArrowRight } from "lucide-react";
 import type { PgDraftSummary } from "@/lib/pg-operator-api";
+import styles from "@/app/[locale]/pg-operator/dashboard/pg-dashboard.module.css";
 
 interface Props {
   drafts: PgDraftSummary[];
@@ -26,28 +27,25 @@ export default function ContinueDraftSection({ drafts, locale }: Props) {
   if (!drafts.length) return null;
 
   return (
-    <section style={{ marginBottom: 24 }}>
-      <h2 className="pgo-heading pgo-heading--sm" style={{ marginBottom: 12 }}>
-        Continue your draft
-      </h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <section>
+      <p className={styles.sectionTitle}>Continue your draft</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {drafts.map((d) => (
           <Link
             key={d.draft_id}
             href={`/${locale}/pg-operator/listings/new?draft=${d.draft_id}` as any}
-            className="pgo-glass pgo-glass--sm"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "12px 16px",
-              textDecoration: "none",
-              color: "inherit"
-            }}
+            className={styles.draftCard}
           >
-            <FileEdit size={16} style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1, fontWeight: 500 }}>{d.display_name || "Untitled PG"}</span>
-            <span className="pgo-caption">edited {relativeTime(d.updated_at)}</span>
+            <span className={styles.draftIcon}>
+              <FileEdit size={18} />
+            </span>
+            <div className={styles.draftBody}>
+              <div className={styles.draftTitle}>{d.display_name || "Untitled PG"}</div>
+              <div className={styles.draftSub}>Draft · edited {relativeTime(d.updated_at)}</div>
+            </div>
+            <button type="button" className={styles.draftResume} tabIndex={-1} aria-hidden>
+              Resume <ArrowRight size={14} />
+            </button>
           </Link>
         ))}
       </div>
