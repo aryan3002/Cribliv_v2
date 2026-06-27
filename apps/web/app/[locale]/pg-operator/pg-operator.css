@@ -77,6 +77,7 @@
   --pgo-font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
   color-scheme: dark;
+  --d-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ── Keyframe Animations ────────────────────────────────────────────────── */
@@ -2245,3 +2246,22 @@
 .pgo-insights__count { font-weight: 700; color: var(--text-secondary, #6b7280); }
 .pgo-insights__count--warn { color: #b45309; }
 .pgo-insights__empty { font-size: 12px; color: var(--text-secondary, #9ca3af); margin: 0; }
+
+/* ── Dashboard dark redesign additions ─────────────────────────────────── */
+.pgo-dark .pgo-dark-card {
+  background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 16px;
+}
+.pgo-dark .pgo-dark-card--hover { transition: transform .25s var(--pgo-spring), border-color .25s; }
+.pgo-dark .pgo-dark-card--hover:hover { transform: translateY(-4px); border-color: rgba(0,102,255,.45); }
+.pgo-dark .pgo-dark-kpi { background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; padding: 14px 16px; }
+.pgo-dark .pgo-dark-chip-blue { color: #cfe0ff; background: rgba(0,102,255,.14); border: 1px solid rgba(0,102,255,.28); border-radius: 9999px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+.pgo-dark .pgo-dark-chip-red { color: #ffb9bb; background: rgba(255,90,95,.12); border: 1px solid rgba(255,90,95,.3); border-radius: 9999px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+.pgo-dark .pgo-operator-badge { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #8fb6ff; background: rgba(0,102,255,.14); border: 1px solid rgba(0,102,255,.34); padding: 3px 9px; border-radius: 9999px; }
+
+@keyframes pgofadeup { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes pgopulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
+@keyframes pgoglow { 0% { box-shadow: 0 0 0 0 rgba(0,102,255,.4); } 70% { box-shadow: 0 0 0 18px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+.pgo-dark .pgo-animate-fade-up { animation: pgofadeup 0.45s var(--d-spring) both; }

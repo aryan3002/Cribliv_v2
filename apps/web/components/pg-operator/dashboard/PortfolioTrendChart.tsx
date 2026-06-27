@@ -10,6 +10,7 @@ import {
   Tooltip,
   CartesianGrid
 } from "recharts";
+import styles from "@/app/[locale]/pg-operator/dashboard/pg-dashboard.module.css";
 
 type Range = 7 | 30;
 
@@ -18,17 +19,29 @@ export function PortfolioTrendChart({ trend }: { trend: TrendPoint[] }) {
   const visible = trend.slice(-range);
 
   return (
-    <div className="pgo-trend">
-      <div className="pgo-trend__head">
-        <h3 className="pgo-trend__title">Funnel trend</h3>
-        <div className="pgo-trend__toggle" role="group" aria-label="Trend range">
-          {[7, 30].map((r) => (
+    <div className={styles.trendPanel}>
+      <div className={styles.trendHead}>
+        <div>
+          <h3 className={styles.trendTitle}>Funnel trend</h3>
+          <div className={styles.trendLegend}>
+            <span className={styles.legendPill}>
+              <span className={styles.legendDot} style={{ background: "#3a8bff" }} />
+              Views
+            </span>
+            <span className={styles.legendPill}>
+              <span className={styles.legendDot} style={{ background: "#ff8e92" }} />
+              Leads
+            </span>
+          </div>
+        </div>
+        <div className={styles.rangeToggle} role="group" aria-label="Trend range">
+          {([7, 30] as Range[]).map((r) => (
             <button
               key={r}
               type="button"
-              className={`pgo-trend__range${range === r ? " pgo-trend__range--active" : ""}`}
+              className={`${styles.rangeBtn} ${range === r ? styles.rangeBtnActive : ""}`}
               aria-pressed={range === r}
-              onClick={() => setRange(r as Range)}
+              onClick={() => setRange(r)}
             >
               {r}d
             </button>
@@ -38,46 +51,49 @@ export function PortfolioTrendChart({ trend }: { trend: TrendPoint[] }) {
       <span data-testid="trend-point-count" style={{ display: "none" }}>
         {visible.length}
       </span>
-      <div className="pgo-trend__chart" style={{ height: 220 }}>
+      <div style={{ height: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={visible} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
             <defs>
-              <linearGradient id="pgoAppr" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--brand, #0066FF)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--brand, #0066FF)" stopOpacity={0} />
+              <linearGradient id="pgoViews" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3a8bff" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#3a8bff" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,.06)" />
+            <CartesianGrid vertical={false} stroke="rgba(255,255,255,.06)" />
             <XAxis
               dataKey="day"
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "rgba(255,255,255,.35)" }}
+              axisLine={false}
+              tickLine={false}
               tickFormatter={(d: string) => d.slice(5)}
               minTickGap={24}
             />
-            <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={32} />
-            <Tooltip />
-            <Area
-              type="monotone"
-              dataKey="appearances"
-              stroke="var(--brand, #0066FF)"
-              fill="url(#pgoAppr)"
-              strokeWidth={2}
-              isAnimationActive={false}
+            <YAxis hide />
+            <Tooltip
+              contentStyle={{
+                background: "#0a1020",
+                border: "1px solid rgba(255,255,255,.1)",
+                borderRadius: 10,
+                color: "#fff"
+              }}
+              labelStyle={{ color: "rgba(255,255,255,.6)" }}
+              cursor={{ stroke: "rgba(255,255,255,.15)" }}
             />
             <Area
               type="monotone"
               dataKey="views"
-              stroke="#14b8a6"
-              fill="transparent"
-              strokeWidth={1.5}
+              stroke="#3a8bff"
+              strokeWidth={2.5}
+              fill="url(#pgoViews)"
               isAnimationActive={false}
             />
             <Area
               type="monotone"
               dataKey="leads"
-              stroke="#22c55e"
+              stroke="#ff8e92"
+              strokeWidth={2}
               fill="transparent"
-              strokeWidth={1.5}
               isAnimationActive={false}
             />
           </AreaChart>
