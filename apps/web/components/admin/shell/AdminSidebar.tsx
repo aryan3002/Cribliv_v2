@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Coins,
   FileText,
+  Globe,
   LayoutDashboard,
   LogOut,
   ShieldCheck,
@@ -29,6 +30,7 @@ export type AdminTab =
   | "pg-listings"
   | "pg-properties"
   | "fraud"
+  | "seo"
   | "system";
 
 interface NavItem {
@@ -60,7 +62,8 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "rent-agreements", label: "Rent Agreements", icon: FileText },
     { id: "pg-listings", label: "PG Overview", icon: BarChart3 },
     { id: "pg-properties", label: "PG Listings", icon: Building2 },
-    { id: "users", label: "Users", icon: Users }
+    { id: "users", label: "Users", icon: Users },
+    { id: "seo", label: "Programmatic SEO", icon: Globe }
   ];
   const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];
 

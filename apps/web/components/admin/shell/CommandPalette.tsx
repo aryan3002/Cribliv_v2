@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ClipboardList,
   Coins,
+  Globe,
   LayoutDashboard,
   RefreshCw,
   ShieldCheck,
@@ -31,6 +32,7 @@ const TAB_ITEMS: Array<{ id: AdminTab; label: string; icon: typeof Activity; gro
   { id: "users", label: "Users", icon: Users, group: "Navigate" },
   { id: "revenue", label: "Revenue", icon: Coins, group: "Navigate" },
   { id: "fraud", label: "Fraud Feed", icon: AlertTriangle, group: "Navigate" },
+  { id: "seo", label: "Programmatic SEO", icon: Globe, group: "Navigate" },
   { id: "system", label: "System", icon: Wrench, group: "Navigate" }
 ];
 
