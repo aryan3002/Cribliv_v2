@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { SeoAggregatesService } from "./seo-aggregates.service";
+import { SeoCityConfigService } from "./seo-city-config.service";
 import { SeoCopyService } from "./seo-copy.service";
 import { ok } from "../../common/response";
 import { AuthGuard } from "../../common/auth.guard";
@@ -8,8 +9,9 @@ import { CopyInputsDto } from "./dto/copy-inputs.dto";
 @Controller("seo")
 export class SeoController {
   constructor(
-    private readonly aggregates: SeoAggregatesService,
-    private readonly copy: SeoCopyService
+    @Inject(SeoAggregatesService) private readonly aggregates: SeoAggregatesService,
+    @Inject(SeoCityConfigService) private readonly cityConfig: SeoCityConfigService,
+    @Inject(SeoCopyService) private readonly copy: SeoCopyService
   ) {}
 
   @Get("localities/:citySlug")
@@ -42,6 +44,11 @@ export class SeoController {
       radiusKm ? Math.min(Number(radiusKm) || 1.5, 3) : 1.5
     );
     return ok({ station, aggregates });
+  }
+
+  @Get("cities")
+  async listCities() {
+    return ok({ items: await this.cityConfig.listEnabled() });
   }
 
   @UseGuards(AuthGuard)
