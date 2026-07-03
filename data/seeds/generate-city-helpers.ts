@@ -253,3 +253,58 @@ export function toLandmarkOut(
 
   return result;
 }
+
+// ─── GOOGLE GEOCODE VERIFY ─────────────────────────────────────────────
+
+export type GeocodeFetch = typeof fetch;
+
+/** Thrown on REQUEST_DENIED / OVER_QUERY_LIMIT so the whole run aborts instead
+ * of silently emitting empty files (a denied key must NOT look like "no place"). */
+export class GeocodeAbortError extends Error {
+  constructor(public readonly status: string) {
+    super(`Google Geocoding aborted: ${status}`);
+    this.name = "GeocodeAbortError";
+  }
+}
+
+interface GeocodeResult { formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } }; }
+interface GeocodeBody { status?: string; results?: GeocodeResult[]; error_message?: string; }
+
+export function buildGeocodeUrl(query: string, apiKey: string): string {
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.searchParams.set("address", query);
+  url.searchParams.set("key", apiKey);
+  return url.toString();
+}
+
+/** OK -> VerifiedPlace; ZERO_RESULTS/malformed -> null; denied/throttled -> "abort". */
+export function parseGeocodeResponse(body: unknown): VerifiedPlace | "abort" | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as GeocodeBody;
+  if (b.status === "REQUEST_DENIED" || b.status === "OVER_QUERY_LIMIT") return "abort";
+  if (b.status !== "OK") return null;
+  const top = b.results?.[0];
+  const loc = top?.geometry?.location;
+  if (!top || typeof top.formatted_address !== "string" || !loc ||
+      typeof loc.lat !== "number" || typeof loc.lng !== "number") return null;
+  return { canonical_name: top.formatted_address, lat: loc.lat, lng: loc.lng };
+}
+
+export async function verifyPlace(
+  query: string, apiKey: string, fetchImpl: GeocodeFetch = fetch
+): Promise<VerifiedPlace | null> {
+  let res: Response;
+  try {
+    res = await fetchImpl(buildGeocodeUrl(query, apiKey));
+  } catch { return null; }
+  if (!res.ok) return null;
+  const body = (await res.json().catch(() => null)) as unknown;
+  const parsed = parseGeocodeResponse(body);
+  if (parsed === "abort") {
+    const status = (body as GeocodeBody)?.status ?? "unknown";
+    // mirrors metro-walk.service.ts logging of status + error_message
+    console.error(`Geocode ${status} for "${query}": ${(body as GeocodeBody)?.error_message ?? ""}`);
+    throw new GeocodeAbortError(status);
+  }
+  return parsed;
+}
