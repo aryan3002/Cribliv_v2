@@ -77,6 +77,7 @@ export interface FeatureFlags {
   /** Phase J/K – PG Voice listing + admin analytics (Plan 3) */
   ff_pg_voice_listing: boolean;
   ff_pg_admin_analytics: boolean;
+  ff_programmatic_seo_cities_enabled: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -155,7 +156,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_pg_ai_assist: false,
   ff_pg_fraud_ai: false,
   ff_pg_voice_listing: false,
-  ff_pg_admin_analytics: false
+  ff_pg_admin_analytics: false,
+  ff_programmatic_seo_cities_enabled: true
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -404,6 +406,10 @@ export function readFeatureFlags(): FeatureFlags {
     ff_pg_admin_analytics: parseBooleanEnv(
       "FF_PG_ADMIN_ANALYTICS",
       defaultFeatureFlags.ff_pg_admin_analytics
+    ),
+    ff_programmatic_seo_cities_enabled: parseBooleanEnv(
+      "FF_PROGRAMMATIC_SEO_CITIES_ENABLED",
+      defaultFeatureFlags.ff_programmatic_seo_cities_enabled
     )
   };
 }
