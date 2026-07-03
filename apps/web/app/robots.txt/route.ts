@@ -36,7 +36,7 @@ export function GET() {
     "# search=yes ai-train=no ai-input=yes",
     "Content-Signal: search=yes, ai-train=no, ai-input=yes",
     "",
-    `Sitemap: ${BASE_URL}/sitemap.xml`,
+    `Sitemap: ${BASE_URL}/sitemap_index.xml`,
     ""
   ];
 
