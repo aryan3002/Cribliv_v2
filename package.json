@@ -13,7 +13,8 @@
     "typecheck": "turbo run typecheck",
     "db:migrate": "pnpm --filter @cribliv/api db:migrate",
     "db:seed": "pnpm --filter @cribliv/api db:seed",
-    "worker": "pnpm --filter @cribliv/api worker"
+    "worker": "pnpm --filter @cribliv/api worker",
+    "generate:city": "pnpm --filter @cribliv/api generate:city --"
   },
   "devDependencies": {
     "husky": "^9.1.6",

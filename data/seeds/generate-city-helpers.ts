@@ -146,6 +146,11 @@ export interface MicroLocalityCandidate {
   slug: string;
   name_en: string;
   name_hi: string;
+  /** Slug of the parent locality this micro-locality belongs to. Required by
+   * the AI-draft pipeline (parseDraftResponse/buildCityFiles) so orphaned
+   * micro-localities can be validated and dropped; optional here so Task 3's
+   * existing direct-construction call sites remain valid. */
+  parent_slug?: string;
   seo_aliases?: string[];
 }
 
@@ -153,6 +158,11 @@ export interface LandmarkCandidate {
   slug: string;
   name_en: string;
   name_hi: string;
+  /** Raw landmark type string from the AI draft, resolved via
+   * mapLandmarkType() during buildCityFiles(). Optional so Task 3's existing
+   * direct-construction call sites (which pass type separately to
+   * toLandmarkOut) remain valid. */
+  type?: string;
   primary_locality_slug?: string;
   aka?: string[];
 }
@@ -182,6 +192,10 @@ export interface MicroLocalityOut {
   lat: number;
   lng: number;
   seo_aliases: string[];
+  /** Present when the candidate carried a parent_slug (AI-draft pipeline).
+   * Omitted for Task 3's original direct-construction call sites so the
+   * existing toEqual() test (no parent_slug field) is unaffected. */
+  parent_slug?: string;
 }
 
 export interface LandmarkOut {
@@ -222,7 +236,7 @@ export function toMicroLocalityOut(
   cand: MicroLocalityCandidate,
   v: VerifiedPlace
 ): MicroLocalityOut {
-  return {
+  const result: MicroLocalityOut = {
     slug: cand.slug,
     name_en: cand.name_en,
     name_hi: cand.name_hi,
@@ -230,6 +244,12 @@ export function toMicroLocalityOut(
     lng: v.lng,
     seo_aliases: cand.seo_aliases ?? [],
   };
+
+  if (cand.parent_slug) {
+    result.parent_slug = cand.parent_slug;
+  }
+
+  return result;
 }
 
 export function toLandmarkOut(
@@ -307,4 +327,285 @@ export async function verifyPlace(
     throw new GeocodeAbortError(status);
   }
   return parsed;
+}
+
+// ─── AI DRAFT (Azure OpenAI) ────────────────────────────────────────────
+
+export interface DraftResult {
+  localities: LocalityCandidate[];
+  micro_localities: MicroLocalityCandidate[];
+  landmarks: LandmarkCandidate[];
+}
+
+export interface AiConfig {
+  endpoint: string;
+  apiKey: string;
+  deployment: string;
+  timeoutMs: number;
+}
+
+/** Same env convention as seo-copy.service.ts's readAiConfig(). */
+export function readAiConfig(): AiConfig {
+  return {
+    endpoint: (process.env.AZURE_OPENAI_ENDPOINT?.trim() ?? "").replace(/\/+$/, ""),
+    apiKey: process.env.AZURE_OPENAI_API_KEY?.trim() ?? "",
+    deployment:
+      process.env.AZURE_OPENAI_CHAT_DEPLOYMENT?.trim() ||
+      process.env.AZURE_OPENAI_EXTRACT_DEPLOYMENT?.trim() ||
+      "",
+    timeoutMs: Math.max(Number(process.env.SEO_GENERATE_TIMEOUT_MS) || 30000, 10000),
+  };
+}
+
+/**
+ * Builds the Azure OpenAI prompt requesting three candidate arrays for a
+ * city: localities, micro_localities, landmarks. Every entry is later
+ * verified against Google Geocoding, so the prompt explicitly tells the
+ * model that hallucinated entries will be discarded (encourages recall over
+ * over-caution without risking bad data reaching the site).
+ */
+export function buildDraftPrompt(cityName: string, stateName: string): string {
+  const typesList = LANDMARK_TYPES.join(", ");
+  return `You are helping seed a rental real-estate platform's local-search data for an Indian city.
+
+City: ${cityName}
+State: ${stateName}, India
+
+Generate JSON with exactly this shape:
+{
+  "localities": [
+    { "name_en": "string", "name_hi": "string (Devanagari script)", "pincode": "string, optional 6-digit PIN" }
+  ],
+  "micro_localities": [
+    {
+      "name_en": "string",
+      "name_hi": "string (Devanagari script)",
+      "parent_slug": "string, the slug (lowercase-hyphenated) of the parent locality from the localities array above",
+      "seo_aliases": ["string, ...common alternative spellings/abbreviations locals search for, e.g. 'sec18' for 'Sector 18'"]
+    }
+  ],
+  "landmarks": [
+    {
+      "name_en": "string",
+      "name_hi": "string (Devanagari script)",
+      "type": "one of: ${typesList}",
+      "primary_locality_slug": "string, optional slug of the nearest locality",
+      "aka": ["string, ...common alternative spellings/abbreviations locals search for, e.g. 'LU' for 'University of Lucknow'"]
+    }
+  ]
+}
+
+Rules:
+- List well-known localities (neighborhoods/sectors/colonies), smaller micro-localities within them, and notable landmarks (colleges, hospitals, malls, markets, stations, airports, IT parks, offices, religious sites, parks, stadiums, monuments).
+- "name_hi" MUST be written in Devanagari script (नागरी लिपि), not transliterated Latin.
+- Every entry you return will be independently verified against Google Maps/Geocoding before being published — entries that cannot be verified are silently discarded. This means you should be generous and list everything you know is real, because hallucinated or made-up entries are automatically filtered out and cost nothing; the risk is only in omitting real places.
+- "aka"/"seo_aliases" should capture common alternative spellings, abbreviations, or informal names that locals actually search for (e.g. metro-station short names, common misspellings, English/Hindi transliteration variants).
+- Reply with valid JSON only — no markdown, no surrounding prose.`;
+}
+
+export type DraftFetch = typeof fetch;
+
+interface RawLocalityCandidate {
+  name_en?: unknown;
+  name_hi?: unknown;
+  pincode?: unknown;
+}
+
+interface RawMicroLocalityCandidate {
+  name_en?: unknown;
+  name_hi?: unknown;
+  parent_slug?: unknown;
+  seo_aliases?: unknown;
+}
+
+interface RawLandmarkCandidate {
+  name_en?: unknown;
+  name_hi?: unknown;
+  type?: unknown;
+  primary_locality_slug?: unknown;
+  aka?: unknown;
+}
+
+interface RawDraftBody {
+  localities?: unknown;
+  micro_localities?: unknown;
+  landmarks?: unknown;
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const strs = value.filter((v): v is string => typeof v === "string");
+  return strs.length > 0 ? strs : undefined;
+}
+
+/**
+ * Parses (and validates) the raw AI JSON response into a DraftResult.
+ * Slugifies every candidate, drops entries that are malformed/unmappable/
+ * empty-slug, and dedupes by slug within each array. Never throws — bad or
+ * non-JSON content simply yields empty arrays.
+ */
+export function parseDraftResponse(content: string): DraftResult {
+  let body: RawDraftBody;
+  try {
+    body = JSON.parse(content) as RawDraftBody;
+  } catch {
+    return { localities: [], micro_localities: [], landmarks: [] };
+  }
+  if (!body || typeof body !== "object") {
+    return { localities: [], micro_localities: [], landmarks: [] };
+  }
+
+  const rawLocalities = Array.isArray(body.localities) ? (body.localities as RawLocalityCandidate[]) : [];
+  const localities: LocalityCandidate[] = [];
+  for (const c of rawLocalities) {
+    if (typeof c?.name_en !== "string" || typeof c?.name_hi !== "string") continue;
+    const slug = slugify(c.name_en);
+    if (!slug) continue;
+    const cand: LocalityCandidate = { slug, name_en: c.name_en, name_hi: c.name_hi };
+    if (typeof c.pincode === "string" && c.pincode) cand.pincode = c.pincode;
+    localities.push(cand);
+  }
+
+  const rawMicros = Array.isArray(body.micro_localities)
+    ? (body.micro_localities as RawMicroLocalityCandidate[])
+    : [];
+  const micro_localities: MicroLocalityCandidate[] = [];
+  for (const c of rawMicros) {
+    if (typeof c?.name_en !== "string" || typeof c?.name_hi !== "string") continue;
+    if (typeof c.parent_slug !== "string" || !c.parent_slug) continue;
+    const slug = slugify(c.name_en);
+    if (!slug) continue;
+    const cand: MicroLocalityCandidate = {
+      slug,
+      name_en: c.name_en,
+      name_hi: c.name_hi,
+      parent_slug: c.parent_slug,
+    };
+    const aliases = asStringArray(c.seo_aliases);
+    if (aliases) cand.seo_aliases = aliases;
+    micro_localities.push(cand);
+  }
+
+  const rawLandmarks = Array.isArray(body.landmarks) ? (body.landmarks as RawLandmarkCandidate[]) : [];
+  const landmarks: LandmarkCandidate[] = [];
+  for (const c of rawLandmarks) {
+    if (typeof c?.name_en !== "string" || typeof c?.name_hi !== "string") continue;
+    const mappedType = typeof c.type === "string" ? mapLandmarkType(c.type) : null;
+    if (!mappedType) continue;
+    const slug = slugify(c.name_en);
+    if (!slug) continue;
+    const cand: LandmarkCandidate = { slug, name_en: c.name_en, name_hi: c.name_hi, type: mappedType };
+    if (typeof c.primary_locality_slug === "string" && c.primary_locality_slug) {
+      cand.primary_locality_slug = c.primary_locality_slug;
+    }
+    const aka = asStringArray(c.aka);
+    if (aka) cand.aka = aka;
+    landmarks.push(cand);
+  }
+
+  return {
+    localities: dedupeBySlug(localities),
+    micro_localities: dedupeBySlug(micro_localities),
+    landmarks: dedupeBySlug(landmarks),
+  };
+}
+
+/**
+ * Calls Azure OpenAI chat completions to draft candidate localities/
+ * micro-localities/landmarks for a city. Never throws — any HTTP failure,
+ * network error, timeout, or malformed response yields empty arrays so the
+ * CLI can decide how to handle a failed draft (it will see 0 candidates and
+ * the drop-ratio guard / empty output makes that obvious).
+ */
+export async function draftCity(
+  cityName: string,
+  stateName: string,
+  config: AiConfig,
+  fetchImpl: DraftFetch = fetch
+): Promise<DraftResult> {
+  const empty: DraftResult = { localities: [], micro_localities: [], landmarks: [] };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const url = `${config.endpoint}/openai/deployments/${encodeURIComponent(config.deployment)}/chat/completions?api-version=2024-10-21`;
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "api-key": config.apiKey },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "system",
+            content:
+              "You produce structured local-search seed data for an Indian rental platform. Reply with valid JSON only.",
+          },
+          { role: "user", content: buildDraftPrompt(cityName, stateName) },
+        ],
+        temperature: 0.4,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return empty;
+    const payload = (await response.json().catch(() => ({}))) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) return empty;
+    return parseDraftResponse(content);
+  } catch {
+    return empty;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ─── ORCHESTRATOR ────────────────────────────────────────────────────────
+
+export interface CityFiles {
+  localities: LocalityOut[];
+  micro_localities: MicroLocalityOut[];
+  landmarks: LandmarkOut[];
+  dropped: string[];
+}
+
+export async function buildCityFiles(
+  cityName: string,
+  stateName: string,
+  citySlug: string,
+  draft: DraftResult,
+  verify: (query: string) => Promise<VerifiedPlace | null>
+): Promise<CityFiles> {
+  const q = (name: string) => `${name}, ${stateName}, India`; // strong disambiguation (Review 4 MAJOR 3)
+  const dropped: string[] = [];
+  const localities: LocalityOut[] = [];
+  const micro_localities: MicroLocalityOut[] = [];
+  const landmarks: LandmarkOut[] = [];
+
+  for (const cand of dedupeBySlug(draft.localities)) {
+    const v = await verify(q(cand.name_en));
+    if (!v) { dropped.push(`locality:${cand.slug}`); continue; }
+    localities.push(toLocalityOut(citySlug, cand, v));
+  }
+  const keptLocalitySlugs = new Set(localities.map((l) => l.slug));
+
+  for (const cand of dedupeBySlug(draft.micro_localities)) {
+    if (!cand.parent_slug || !keptLocalitySlugs.has(cand.parent_slug)) { dropped.push(`micro:${cand.slug}`); continue; } // Review 4 MAJOR 5
+    const v = await verify(q(cand.name_en));
+    if (!v) { dropped.push(`micro:${cand.slug}`); continue; }
+    micro_localities.push(toMicroLocalityOut(cand, v));
+  }
+
+  for (const cand of dedupeBySlug(draft.landmarks)) {
+    const v = await verify(q(cand.name_en));
+    if (!v) { dropped.push(`landmark:${cand.slug}`); continue; }
+    landmarks.push(toLandmarkOut(cand, v, mapLandmarkType(cand.type ?? "") ?? "monument"));
+  }
+
+  return {
+    localities: dedupeBySlug(localities),
+    micro_localities: dedupeBySlug(micro_localities),
+    landmarks: dedupeBySlug(landmarks),
+    dropped,
+  };
 }
