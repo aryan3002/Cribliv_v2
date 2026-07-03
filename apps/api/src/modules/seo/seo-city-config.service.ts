@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { SeoAggregatesService } from "./seo-aggregates.service";
 
@@ -104,7 +104,8 @@ export class SeoCityConfigService {
       locality_count: localities.length,
       landmark_count: landmarkCount,
       metro_count: metros.length,
-      indexable_count: localities.filter((locality) => locality.listing_count >= INDEXABLE_MIN).length
+      indexable_count: localities.filter((locality) => locality.listing_count >= INDEXABLE_MIN)
+        .length
     };
   }
 
@@ -116,8 +117,11 @@ export class SeoCityConfigService {
     if (!this.database.isEnabled()) return null;
 
     const counts = await this.computeCounts(citySlug);
-    const { rows } = await this.database.query<SeoCityConfigRow>(
-      `INSERT INTO seo_city_config (
+
+    let rows: SeoCityConfigRow[];
+    try {
+      ({ rows } = await this.database.query<SeoCityConfigRow>(
+        `INSERT INTO seo_city_config (
          city_slug,
          programmatic_enabled,
          notes,
@@ -148,16 +152,26 @@ export class SeoCityConfigService {
                  notes,
                  created_at::text AS created_at,
                  updated_at::text AS updated_at`,
-      [
-        citySlug,
-        enabled,
-        notes ?? null,
-        counts.locality_count,
-        counts.landmark_count,
-        counts.metro_count,
-        counts.indexable_count
-      ]
-    );
+        [
+          citySlug,
+          enabled,
+          notes ?? null,
+          counts.locality_count,
+          counts.landmark_count,
+          counts.metro_count,
+          counts.indexable_count
+        ]
+      ));
+    } catch (err) {
+      // city_slug references cities(slug); an unknown slug is a 404, not a raw 500.
+      if (err && typeof err === "object" && (err as { code?: string }).code === "23503") {
+        throw new NotFoundException({
+          code: "city_not_found",
+          message: `Unknown city: ${citySlug}`
+        });
+      }
+      throw err;
+    }
 
     return rows[0] ?? null;
   }

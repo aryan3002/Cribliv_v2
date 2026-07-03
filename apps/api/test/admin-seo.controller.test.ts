@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import type { INestApplication } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -154,6 +155,19 @@ describe("AdminSeoController", () => {
       .expect(400);
 
     expect(cityConfig.setEnabled).not.toHaveBeenCalled();
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the city does not exist", async () => {
+    cityConfig.setEnabled = vi.fn(async () => {
+      throw new NotFoundException({ code: "city_not_found", message: "Unknown city: nope" });
+    });
+
+    await request(app.getHttpServer())
+      .patch("/admin/seo/cities/nope")
+      .send({ programmatic_enabled: true })
+      .expect(404);
+
     expect(database.query).not.toHaveBeenCalled();
   });
 });

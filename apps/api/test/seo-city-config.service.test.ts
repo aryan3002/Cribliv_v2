@@ -1,8 +1,6 @@
+import { NotFoundException } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  INDEXABLE_MIN,
-  SeoCityConfigService
-} from "../src/modules/seo/seo-city-config.service";
+import { INDEXABLE_MIN, SeoCityConfigService } from "../src/modules/seo/seo-city-config.service";
 
 const ENABLED_ROW = {
   city_slug: "lucknow",
@@ -121,5 +119,15 @@ describe("SeoCityConfigService", () => {
     expect(sql).toContain("enabled_at = CASE WHEN $2 THEN now() ELSE NULL END");
     expect(sql).toContain("ON CONFLICT (city_slug) DO UPDATE");
     expect(params).toEqual(["noida", true, "reviewed", 2, 4, 2, 1]);
+  });
+
+  it("maps an unknown city (FK violation) to NotFoundException, not a raw 500", async () => {
+    const fkError = Object.assign(new Error("violates foreign key constraint"), { code: "23503" });
+    query.mockResolvedValueOnce({ rows: [{ count: 0 }] }).mockRejectedValueOnce(fkError);
+    const service = new SeoCityConfigService(database as never, aggregates as never);
+
+    await expect(service.setEnabled("does-not-exist", true, "x")).rejects.toBeInstanceOf(
+      NotFoundException
+    );
   });
 });
