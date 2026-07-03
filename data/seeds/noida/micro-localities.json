@@ -1,0 +1,110 @@
+[
+  {
+    "slug": "atta-market",
+    "name_en": "Atta Market",
+    "name_hi": "अट्टा मार्केट",
+    "lat": 28.5721607,
+    "lng": 77.3258053,
+    "seo_aliases": ["atta", "atta noida", "sector 18 market"],
+    "parent_slug": "sector-18"
+  },
+  {
+    "slug": "brahmaputra-market",
+    "name_en": "Brahmaputra Market",
+    "name_hi": "ब्रह्मपुत्र मार्केट",
+    "lat": 28.5698989,
+    "lng": 77.3327254,
+    "seo_aliases": ["bp market", "brahmaputra complex"],
+    "parent_slug": "sector-29"
+  },
+  {
+    "slug": "film-city",
+    "name_en": "Film City Noida",
+    "name_hi": "फिल्म सिटी नोएडा",
+    "lat": 28.5738812,
+    "lng": 77.3140723,
+    "seo_aliases": ["noida film city", "sector 16a film city"],
+    "parent_slug": "sector-16a"
+  },
+  {
+    "slug": "jaypee-wish-town",
+    "name_en": "Jaypee Wish Town",
+    "name_hi": "जेपी विश टाउन",
+    "lat": 28.5084767,
+    "lng": 77.3668022,
+    "seo_aliases": ["wish town", "jaypee greens wish town"],
+    "parent_slug": "sector-128"
+  },
+  {
+    "slug": "ats-one-hamlet",
+    "name_en": "ATS One Hamlet",
+    "name_hi": "एटीएस वन हैमलेट",
+    "lat": 28.5357781,
+    "lng": 77.3735004,
+    "seo_aliases": ["ats hamlet", "one hamlet"],
+    "parent_slug": "sector-104"
+  },
+  {
+    "slug": "lotus-boulevard",
+    "name_en": "3C Lotus Boulevard",
+    "name_hi": "3सी लोटस बुलेवार्ड",
+    "lat": 28.5431655,
+    "lng": 77.3670433,
+    "seo_aliases": ["lotus boulevard"],
+    "parent_slug": "sector-100"
+  },
+  {
+    "slug": "supertech-capetown",
+    "name_en": "Supertech Capetown",
+    "name_hi": "सुपरटेक केपटाउन",
+    "lat": 28.5793679,
+    "lng": 77.3922672,
+    "seo_aliases": ["capetown noida"],
+    "parent_slug": "sector-74"
+  },
+  {
+    "slug": "gardenia-gateway",
+    "name_en": "Gardenia Gateway",
+    "name_hi": "गार्डेनिया गेटवे",
+    "lat": 28.5718906,
+    "lng": 77.3852344,
+    "seo_aliases": ["gardenia sector 75"],
+    "parent_slug": "sector-75"
+  },
+  {
+    "slug": "antriksh-golf-view",
+    "name_en": "Antriksh Golf View",
+    "name_hi": "अंतरिक्ष गोल्फ व्यू",
+    "lat": 28.5591472,
+    "lng": 77.386461,
+    "seo_aliases": ["golf view noida"],
+    "parent_slug": "sector-78"
+  },
+  {
+    "slug": "logix-blossom-county",
+    "name_en": "Logix Blossom County",
+    "name_hi": "लॉजिक्स ब्लॉसम काउंटी",
+    "lat": 28.5101961,
+    "lng": 77.4151913,
+    "seo_aliases": ["blossom county"],
+    "parent_slug": "sector-137"
+  },
+  {
+    "slug": "paras-tierea",
+    "name_en": "Paras Tierea",
+    "name_hi": "पारस टिएरिया",
+    "lat": 28.5074927,
+    "lng": 77.4132241,
+    "seo_aliases": ["paras tierea noida"],
+    "parent_slug": "sector-137"
+  },
+  {
+    "slug": "advant-navis-business-park",
+    "name_en": "Advant Navis Business Park",
+    "name_hi": "एडवांट नेविस बिजनेस पार्क",
+    "lat": 28.5010783,
+    "lng": 77.4100306,
+    "seo_aliases": ["advant noida", "navis business park"],
+    "parent_slug": "sector-142"
+  }
+]
