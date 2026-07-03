@@ -14,6 +14,18 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import styles from "./pg-dashboard.module.css";
 
+const HERO_GRADIENTS = [
+  "linear-gradient(135deg,#16335f,#0b1f3d)",
+  "linear-gradient(135deg,#1a2a5e,#0e1a3a)",
+  "linear-gradient(135deg,#0f3460,#16213e)",
+  "linear-gradient(135deg,#1b3a6b,#0d2137)",
+  "linear-gradient(135deg,#243b6e,#0f2241)"
+];
+function gradientFor(listingId: string): string {
+  const n = listingId.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  return HERO_GRADIENTS[n % HERO_GRADIENTS.length];
+}
+
 // Authed, per-operator dashboard. Must be dynamic so admin analytics
 // cuts/restores reflect on the operator's next load (no static caching).
 export const dynamic = "force-dynamic";
@@ -51,6 +63,7 @@ export default async function Page({ params }: { params: { locale: string } }) {
     .catch(() => [] as any[]);
 
   const hasListings = data.listing_health.length > 0;
+  const deals = data.leads_inbox.filter((l) => l.status === "deal_done").length;
 
   const operatorName = s?.user?.name?.split(/\s+/)[0];
 
@@ -77,7 +90,7 @@ export default async function Page({ params }: { params: { locale: string } }) {
 
         {/* Derived insights — portfolio health at a glance */}
         {hasListings && (
-          <section>
+          <section id="insights-section" className="pgo-animate-fade-up">
             <h2 className={styles.sectionTitle}>Insights</h2>
             <PgInsights data={data} />
           </section>
@@ -85,24 +98,9 @@ export default async function Page({ params }: { params: { locale: string } }) {
 
         {/* Portfolio analytics — only meaningful once the operator has listings */}
         {hasListings && (
-          <section className={styles.analytics}>
+          <section className={`${styles.analytics} pgo-animate-fade-up`} id="analytics-section">
             {data.analytics_status === "restricted" && (
-              <div
-                role="status"
-                style={{
-                  padding: "10px 16px",
-                  background: "#FEF3C7",
-                  color: "#92400E",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 16,
-                  border: "1px solid #FDE68A"
-                }}
-              >
+              <div role="status" className={styles.restricted}>
                 <span style={{ fontSize: 16 }}>⚠️</span>
                 Analytics are temporarily under review.
               </div>
@@ -110,7 +108,7 @@ export default async function Page({ params }: { params: { locale: string } }) {
             <PortfolioSummary portfolio={data.portfolio} />
             <div className="pgo-analytics__grid">
               <PortfolioTrendChart trend={data.trend_30d} />
-              <FunnelConversion portfolio={data.portfolio} />
+              <FunnelConversion portfolio={data.portfolio} deals={deals} />
             </div>
             <SearchInsights insights={data.search_insights} />
           </section>
@@ -120,16 +118,17 @@ export default async function Page({ params }: { params: { locale: string } }) {
         <ContinueDraftSection drafts={drafts} locale={params.locale} />
 
         {/* Listings */}
-        <section>
+        <section className="pgo-animate-fade-up">
           <h2 className={styles.sectionTitle}>{hasListings ? "Your listings" : "Get started"}</h2>
           <div className="pgo-bento">
             {data.listing_health.map((lh) => (
               <Link
                 key={lh.listing_id}
                 href={`/${params.locale}/pg-operator/listings/${lh.listing_id}` as any}
+                className={styles.cardLink}
                 style={{ textDecoration: "none", color: "inherit" }}
               >
-                <ListingHealthCard data={lh} />
+                <ListingHealthCard data={lh} heroGradient={gradientFor(lh.listing_id)} />
               </Link>
             ))}
 
@@ -159,7 +158,7 @@ export default async function Page({ params }: { params: { locale: string } }) {
         </section>
 
         {/* Leads pipeline */}
-        <section>
+        <section id="leads-section" className="pgo-animate-fade-up">
           <h2 className={styles.sectionTitle}>Leads pipeline</h2>
           <PgLeadsBoard leads={data.leads_inbox} token={(s as any)?.accessToken ?? undefined} />
         </section>

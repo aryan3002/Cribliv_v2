@@ -1,16 +1,20 @@
 import {
   Body,
   Controller,
+  Inject,
   Get,
   Param,
   Post,
   Req,
   NotFoundException,
-  ForbiddenException
+  UseGuards
 } from "@nestjs/common";
 import { VoiceAgentSessionService } from "./voice-agent-session.service";
 import { RealtimeSessionService } from "../voice-agent-core";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { AuthGuard } from "../../common/auth.guard";
+import { RolesGuard } from "../../common/roles.guard";
+import { Roles } from "../../common/roles.decorator";
 
 /* ──────────────────────────────────────────────────────────────────────
  * VoiceAgentController
@@ -32,33 +36,29 @@ interface RealtimeConnectBody {
 }
 
 @Controller("owner/listings/voice-agent")
+@UseGuards(AuthGuard, RolesGuard)
+@Roles("owner", "pg_operator")
 export class VoiceAgentController {
   constructor(
-    private readonly sessionSvc: VoiceAgentSessionService,
-    private readonly realtimeSvc: RealtimeSessionService
+    @Inject(VoiceAgentSessionService) private readonly sessionSvc: VoiceAgentSessionService,
+    @Inject(RealtimeSessionService) private readonly realtimeSvc: RealtimeSessionService
   ) {}
 
   /** GET /v1/owner/listings/voice-agent/session/:id/status */
   @Get("session/:id/status")
-  async getSessionStatus(@Param("id") sessionId: string, @Req() req: { user?: { id?: string } }) {
+  async getSessionStatus(@Param("id") sessionId: string, @Req() req: { user: { id: string } }) {
     this.ensureLegacyEnabled();
-    const session = await this.sessionSvc.findById(sessionId);
+    const session = await this.sessionSvc.findByIdForUser(sessionId, req.user.id);
     if (!session) throw new NotFoundException("Session not found");
-    if (req.user?.id && session.user_id !== req.user.id) {
-      throw new ForbiddenException("Not your session");
-    }
     return { data: this.sessionSvc.toResponse(session) };
   }
 
   /** GET /v1/owner/listings/voice-agent/session/:id/draft */
   @Get("session/:id/draft")
-  async getSessionDraft(@Param("id") sessionId: string, @Req() req: { user?: { id?: string } }) {
+  async getSessionDraft(@Param("id") sessionId: string, @Req() req: { user: { id: string } }) {
     this.ensureLegacyEnabled();
-    const session = await this.sessionSvc.findById(sessionId);
+    const session = await this.sessionSvc.findByIdForUser(sessionId, req.user.id);
     if (!session) throw new NotFoundException("Session not found");
-    if (req.user?.id && session.user_id !== req.user.id) {
-      throw new ForbiddenException("Not your session");
-    }
     return {
       data: {
         session_id: session.id,
@@ -102,12 +102,12 @@ export class VoiceAgentController {
   @Post("realtime/connect")
   async connectRealtime(
     @Body() body: RealtimeConnectBody,
-    @Req() req: { user?: { id?: string; name?: string } }
+    @Req() req: { user: { id: string; name?: string } }
   ) {
     this.ensureRealtimeEnabled();
 
-    const userId = req.user?.id ?? "anonymous";
-    const ownerFirstName = body.owner_first_name ?? req.user?.name?.split(/\s+/)[0];
+    const userId = req.user.id;
+    const ownerFirstName = body.owner_first_name ?? req.user.name?.split(/\s+/)[0];
 
     const data = await this.realtimeSvc.connect({
       userId,

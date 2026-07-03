@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { SeoAggregatesService } from "./seo-aggregates.service";
-import { SeoCopyService, type CopyInputs } from "./seo-copy.service";
+import { SeoCopyService } from "./seo-copy.service";
 import { ok } from "../../common/response";
+import { AuthGuard } from "../../common/auth.guard";
+import { CopyInputsDto } from "./dto/copy-inputs.dto";
 
 @Controller("seo")
 export class SeoController {
@@ -42,11 +44,13 @@ export class SeoController {
     return ok({ station, aggregates });
   }
 
+  @UseGuards(AuthGuard)
   @Post("copy")
-  async generateCopy(@Body() body: CopyInputs) {
+  async generateCopy(@Body() body: CopyInputsDto) {
     return ok(await this.copy.getOrGenerate(body));
   }
 
+  @UseGuards(AuthGuard)
   @Post("copy/regenerate-expired")
   async regenerate() {
     return ok({ cleared: await this.copy.regenerateExpired(50) });

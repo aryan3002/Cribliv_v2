@@ -1,0 +1,24 @@
+.strip {
+  position: sticky; top: 0; z-index: 30;
+  display: flex; align-items: center; gap: 16px;
+  height: 48px; padding: 0 24px;
+  background: rgba(8,12,22,.85);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+}
+.strip::-webkit-scrollbar { display: none; }
+.brand { font-family: var(--pgo-font-heading); font-weight: 800; font-size: 16px; color: #fff; }
+.badge {
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: #8fb6ff; background: rgba(0,102,255,.14); border: 1px solid rgba(0,102,255,.34);
+  padding: 3px 9px; border-radius: 9999px;
+}
+.links { display: flex; align-items: center; gap: 20px; }
+.link {
+  font-size: 13.5px; font-weight: 600; color: rgba(255,255,255,.55);
+  text-decoration: none; transition: color .15s;
+}
+.link:hover { color: rgba(255,255,255,.8); }
+.linkActive { color: #fff; }
+@media (max-width: 768px) { .strip { padding: 0 16px; gap: 12px; } .links { gap: 14px; } }

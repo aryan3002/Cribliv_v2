@@ -46,6 +46,26 @@ export interface GeneratedCopy {
   faq_items: Array<{ q: string; a: string }>;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function sanitizeGeneratedCopy(copy: GeneratedCopy): GeneratedCopy {
+  return {
+    h1: escapeHtml(copy.h1),
+    meta_title: escapeHtml(copy.meta_title),
+    meta_description: escapeHtml(copy.meta_description),
+    intro_paragraph: escapeHtml(copy.intro_paragraph),
+    nearby_blurb: copy.nearby_blurb ? escapeHtml(copy.nearby_blurb) : null,
+    faq_items: copy.faq_items.map((item) => ({ q: escapeHtml(item.q), a: escapeHtml(item.a) }))
+  };
+}
+
 function readAiConfig() {
   return {
     endpoint: (process.env.AZURE_OPENAI_ENDPOINT?.trim() ?? "").replace(/\/+$/, ""),
@@ -285,7 +305,7 @@ Reply with valid JSON only — no markdown, no surrounding prose.`;
       ) {
         return null;
       }
-      return {
+      return sanitizeGeneratedCopy({
         h1: parsed.h1.slice(0, 100),
         meta_title: parsed.meta_title.slice(0, 70),
         meta_description: parsed.meta_description.slice(0, 160),
@@ -297,7 +317,7 @@ Reply with valid JSON only — no markdown, no surrounding prose.`;
               !!f && typeof f.q === "string" && typeof f.a === "string"
           )
           .slice(0, MAX_FAQ_ITEMS)
-      };
+      });
     } catch (err) {
       this.logger.debug(
         `SEO copy generation failed: ${err instanceof Error ? err.message : String(err)}`
@@ -340,12 +360,12 @@ function cachedToCopy(row: {
   nearby_blurb: string | null;
   faq_items: Array<{ q: string; a: string }>;
 }): GeneratedCopy {
-  return {
+  return sanitizeGeneratedCopy({
     h1: row.h1,
     meta_title: row.meta_title,
     meta_description: row.meta_description,
     intro_paragraph: row.intro_paragraph,
     nearby_blurb: row.nearby_blurb,
     faq_items: row.faq_items
-  };
+  });
 }

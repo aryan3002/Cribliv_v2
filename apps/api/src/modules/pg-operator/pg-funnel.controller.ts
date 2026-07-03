@@ -9,6 +9,8 @@ import {
 } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
 import { AuthUser } from "../../common/auth-user.decorator";
+import { RolesGuard } from "../../common/roles.guard";
+import { Roles } from "../../common/roles.decorator";
 import type { UserContext } from "../../common/types";
 import { PgFunnelService } from "./services/pg-funnel.service";
 import { PgFunnelEventSchema } from "./dto/pg-funnel.dto";
@@ -19,7 +21,8 @@ import { PgFunnelEventSchema } from "./dto/pg-funnel.dto";
  * authenticated operator and persist. Returns 202 (accepted, fire-and-forget).
  */
 @Controller("pg-operator")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@Roles("pg_operator")
 export class PgFunnelController {
   constructor(@Inject(PgFunnelService) private readonly funnel: PgFunnelService) {}
 

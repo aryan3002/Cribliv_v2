@@ -42,4 +42,35 @@ describe("PgDraftService", () => {
     const r = await svc.list("op-1");
     expect(r).toHaveLength(1);
   });
+
+  it("forbids cross-operator draft overwrite attempts", async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (/INSERT INTO pg_listing_drafts/i.test(sql)) {
+        const hasOwnershipPredicate =
+          /WHERE pg_listing_drafts\.operator_user_id = EXCLUDED\.operator_user_id/i.test(sql);
+        if (!hasOwnershipPredicate) {
+          // Vulnerable path: attacker upsert can clobber another operator's draft id.
+          return {
+            rowCount: 1,
+            rows: [{ id: "victim-draft", updated_at: "2026-06-01T00:00:00Z" }]
+          };
+        }
+        // Hardened path: UPDATE conflict guard rejects overwrite (0 rows affected).
+        return { rowCount: 0, rows: [] };
+      }
+      return { rowCount: 0, rows: [] };
+    });
+
+    const svc = new PgDraftService({ isEnabled: () => true, query } as any);
+
+    await expect(
+      svc.upsert("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", {
+        draft_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        payload: PAYLOAD,
+        source: "manual"
+      })
+    ).rejects.toMatchObject({
+      response: { code: "forbidden" }
+    });
+  });
 });

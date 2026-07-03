@@ -1135,7 +1135,8 @@ export class PgListingService {
 
   /** Cheapest room-type rent, in paise (pg_listings.starting_rent_paise — money rule). */
   private cheapestRentPaise(p: PgListingPayload): number {
-    return Math.min(...p.room_types.map((rt) => rt.monthly_rent_paise));
+    const rents = p.room_types.map((rt) => rt.monthly_rent_paise);
+    return rents.length ? Math.min(...rents) : 0;
   }
 
   /** Cheapest room-type rent, in rupees (listings.monthly_rent projection is rupees). */

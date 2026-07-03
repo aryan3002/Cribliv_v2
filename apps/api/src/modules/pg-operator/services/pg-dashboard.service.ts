@@ -123,8 +123,10 @@ export class PgDashboardService {
     if (hit) return hit;
 
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const listings = await this.listings.listOperatorListings(operatorId);
-    const cities = await this.listings.listOperatorCities(operatorId);
+    const [listings, cities] = await Promise.all([
+      this.listings.listOperatorListings(operatorId),
+      this.listings.listOperatorCities(operatorId)
+    ]);
     const ids = listings.map((l) => l.id);
 
     const [views, appearances, trends, unlockCounts, leads, insights] = await Promise.all([

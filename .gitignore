@@ -10,3 +10,13 @@ coverage
 .DS_Store
 *.log
 *.tsbuildinfo
+
+# Agent/tooling state and scratch artifacts (not project code)
+.superpowers/
+skills/
+security-audit/
+temp_diff.patch
+
+# Brainstorm artifacts (regenerable, not source)
+docs/cribliv-v2-product-brainstorm.pdf
+docs/gen_brainstorm_pdf.py

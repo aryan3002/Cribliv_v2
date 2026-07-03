@@ -127,6 +127,20 @@ export class VoiceAgentSessionService {
     return res.rows[0] ?? null;
   }
 
+  async findByIdForUser(sessionId: string, userId: string): Promise<SessionRow | null> {
+    if (!this.db.isEnabled()) {
+      const session = this.memSessions.get(sessionId);
+      if (!session || session.user_id !== userId) return null;
+      return session;
+    }
+
+    const res = await this.db.query<SessionRow>(
+      `SELECT * FROM voice_agent_sessions WHERE id = $1 AND user_id = $2`,
+      [sessionId, userId]
+    );
+    return res.rows[0] ?? null;
+  }
+
   /* ────── Find active session for user ───────────────────────────── */
   async findActiveForUser(userId: string): Promise<SessionRow | null> {
     if (!this.db.isEnabled()) {

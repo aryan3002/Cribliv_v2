@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
-import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { ConditionalThrottlerGuard } from "./common/conditional-throttler.guard";
 import { CoreModule } from "./common/core.module";
 import { GuardsModule } from "./common/guards.module";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -79,8 +80,10 @@ import { VoiceAgentPgModule } from "./modules/voice-agent-pg/voice-agent-pg.modu
     VoiceAgentPgModule
   ],
   providers: [
-    // Apply ThrottlerGuard globally to all routes
-    { provide: APP_GUARD, useClass: ThrottlerGuard }
+    // Apply ThrottlerGuard globally to all routes. ConditionalThrottlerGuard is
+    // a drop-in that honours DISABLE_RATE_LIMIT=true (non-production only) so the
+    // k6 load suite can mint its OTP token pools without tripping the 10/60s limit.
+    { provide: APP_GUARD, useClass: ConditionalThrottlerGuard }
   ]
 })
 export class AppModule {}

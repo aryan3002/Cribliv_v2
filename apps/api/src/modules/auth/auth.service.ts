@@ -7,13 +7,20 @@ import {
   Logger,
   UnauthorizedException
 } from "@nestjs/common";
-import { randomInt, randomUUID } from "crypto";
+import { createHash, randomInt, randomUUID, timingSafeEqual } from "crypto";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
+import { isRateLimitingDisabled } from "../../common/rate-limit.util";
 import { D7OtpClient, D7OtpVerifyError } from "./d7-otp.client";
 import { readOtpProviderConfig } from "./otp-provider.config";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
+
+export function timingSafeOtpEqual(expected: string, provided: string): boolean {
+  const expectedDigest = createHash("sha256").update(expected, "utf8").digest();
+  const providedDigest = createHash("sha256").update(provided, "utf8").digest();
+  return expected.length === provided.length && timingSafeEqual(expectedDigest, providedDigest);
+}
 
 @Injectable()
 export class AuthService {
@@ -35,29 +42,37 @@ export class AuthService {
     }
 
     if (this.database.isEnabled()) {
-      // Per-phone rate limit: max 6 OTP sends per 10 minutes
-      const recent = await this.database.query<{ count: number }>(
-        `
-        SELECT count(*)::int AS count
-        FROM otp_challenges
-        WHERE phone_e164 = $1
-          AND created_at > now() - interval '10 minutes'
-        `,
-        [phone_e164]
-      );
+      // Load-test bypass: when DISABLE_RATE_LIMIT=true (non-production only),
+      // skip the per-phone and per-IP OTP limits so a k6 run can mint its whole
+      // token pool from one IP. Mirrors ConditionalThrottlerGuard; never active
+      // in production. See common/rate-limit.util.ts.
+      const rateLimitDisabled = isRateLimitingDisabled();
 
-      if ((recent.rows[0]?.count ?? 0) >= 6) {
-        throw new HttpException(
-          {
-            code: "otp_rate_limited",
-            message: "Too many OTP requests"
-          },
-          HttpStatus.TOO_MANY_REQUESTS
+      // Per-phone rate limit: max 6 OTP sends per 10 minutes
+      if (!rateLimitDisabled) {
+        const recent = await this.database.query<{ count: number }>(
+          `
+          SELECT count(*)::int AS count
+          FROM otp_challenges
+          WHERE phone_e164 = $1
+            AND created_at > now() - interval '10 minutes'
+          `,
+          [phone_e164]
         );
+
+        if ((recent.rows[0]?.count ?? 0) >= 6) {
+          throw new HttpException(
+            {
+              code: "otp_rate_limited",
+              message: "Too many OTP requests"
+            },
+            HttpStatus.TOO_MANY_REQUESTS
+          );
+        }
       }
 
       // Per-IP rate limit: max 20 OTP sends per hour per IP
-      if (clientIp && clientIp !== "unknown") {
+      if (!rateLimitDisabled && clientIp && clientIp !== "unknown") {
         const ipRecent = await this.database.query<{ count: number }>(
           `
           SELECT count(*)::int AS count
@@ -176,7 +191,7 @@ export class AuthService {
           }
           throw error;
         }
-      } else if (challenge.otp_hash !== otp_code) {
+      } else if (!timingSafeOtpEqual(challenge.otp_hash, otp_code)) {
         await this.handleInvalidDbOtp(challenge.id, challenge.attempt_count);
       }
 
@@ -479,11 +494,12 @@ export class AuthService {
           [token]
         );
         const newToken = randomUUID();
+        const sessionDuration = result.rows[0].role === "admin" ? "4 hours" : "30 days";
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO sessions(user_id, refresh_token_hash, expires_at)
-           VALUES ($1::uuid, $2, now() + interval '30 days')
+           VALUES ($1::uuid, $2, now() + $3::interval)
            RETURNING id::text`,
-          [result.rows[0].user_id, newToken]
+          [result.rows[0].user_id, newToken, sessionDuration]
         );
         await client.query("COMMIT");
         return {
@@ -638,7 +654,7 @@ export class AuthService {
       throw new UnauthorizedException({ code: "otp_expired", message: "OTP expired" });
     }
 
-    if (challenge.otp !== otp_code) {
+    if (!timingSafeOtpEqual(challenge.otp, otp_code)) {
       challenge.attempts += 1;
       if (challenge.attempts >= 5) {
         challenge.blockedUntil = Date.now() + 30 * 60_000;

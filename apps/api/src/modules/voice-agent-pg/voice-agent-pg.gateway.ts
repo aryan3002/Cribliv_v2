@@ -79,7 +79,15 @@ interface SessionMeta {
 const MAX_LLM_HISTORY = 32; // user+assistant+tool messages; system held separately
 const MAX_LLM_TOOL_ROUND_TRIPS = 4;
 
-@WebSocketGateway({ namespace: "/voice-agent-pg", cors: true })
+@WebSocketGateway({
+  namespace: "/voice-agent-pg",
+  cors: {
+    origin: (process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:3001")
+      .split(",")
+      .map((o) => o.trim()),
+    credentials: true
+  }
+})
 export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server!: Server;
   private readonly log = new Logger(VoiceAgentPgGateway.name);
@@ -255,7 +263,7 @@ export class VoiceAgentPgGateway implements OnGatewayConnection, OnGatewayDiscon
 
     // Install hard-duration + idle timers
     const locale = (body?.locale === "hi" ? "hi" : "en") as "en" | "hi";
-    const mode = (body?.mode === "text" ? "text" : "voice") as "voice" | "text";
+    const mode = (body?.mode === "voice" ? "voice" : "text") as "voice" | "text";
     const meta: SessionMeta = {
       durationTimer: setTimeout(
         () => this.terminate(client, session.id, "duration_cap"),

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { ForbiddenException, Injectable, Logger } from "@nestjs/common";
 import { DatabaseService } from "../../../common/database.service";
 import type { PgListingPayload } from "@cribliv/shared-types";
 
@@ -38,6 +38,7 @@ export class PgDraftService {
              field_confidence = EXCLUDED.field_confidence,
              pg_property_id = COALESCE(EXCLUDED.pg_property_id, pg_listing_drafts.pg_property_id),
              updated_at = now()
+         WHERE pg_listing_drafts.operator_user_id = EXCLUDED.operator_user_id
        RETURNING id::text, updated_at::text`,
       [
         input.draft_id ?? null,
@@ -48,6 +49,10 @@ export class PgDraftService {
         JSON.stringify(input.field_confidence ?? {})
       ]
     );
+    const affected = row.rowCount ?? row.rows.length;
+    if (affected === 0 || !row.rows[0]) {
+      throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+    }
     return { draft_id: row.rows[0].id, updated_at: row.rows[0].updated_at };
   }
 

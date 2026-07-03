@@ -412,21 +412,33 @@ export class SearchService {
         params.push(q);
         ftsParamIdx = params.length;
         hasFts = true;
+        // Index-backed full-text search (migration 0042). The english/simple
+        // tsvector predicates match idx_listings_fts_en / idx_listings_fts_hi, so
+        // this is a fast GIN lookup instead of the previous per-row to_tsvector().
+        //
+        // The old `OR similarity(title, q) > 0.15` fuzzy branch was removed: its
+        // GIN trigram index returns thousands of lossy candidates that must be
+        // re-checked (a 277ms–2.3s cliff on no-match queries) and at 0.15 it was
+        // low-precision (matched ~2.5k rows for a 3-word query). If typo-tolerance
+        // is needed it should be a BOUNDED fallback that only runs when this FTS
+        // returns too few rows — not an always-on predicate. See routeQuery/suggest.
         clauses.push(
           `(
             to_tsvector('english', COALESCE(l.title_en,'') || ' ' || COALESCE(l.description_en,''))
             @@ websearch_to_tsquery('english', $${params.length})
             OR to_tsvector('simple', COALESCE(l.title_hi,'') || ' ' || COALESCE(l.description_hi,''))
             @@ websearch_to_tsquery('simple', $${params.length})
-            OR similarity(l.title_en, $${params.length}) > 0.15
-            OR similarity(l.title_hi, $${params.length}) > 0.15
           )`
         );
       }
 
       if (query.city) {
+        // Filter on the denormalized listings.city_slug (migration 0042) instead
+        // of cities.slug so the city predicate is pushed down onto listings and
+        // can use idx_listings_active_cityslug_rent_created. The cities join below
+        // is kept only for output columns (c.slug, c.name_en).
         params.push(query.city.toLowerCase());
-        clauses.push(`c.slug = $${params.length}`);
+        clauses.push(`l.city_slug = $${params.length}`);
       }
 
       if (query.listing_type) {
@@ -573,14 +585,24 @@ export class SearchService {
 
       const pgJoinSql = joinPgDetails ? "JOIN pg_details pgd ON pgd.listing_id = l.id" : "";
 
+      // F8: trim the pagination count to the joins that actually affect the total.
+      //  - listing_locations (INNER) is KEPT: it matches the result query's INNER
+      //    join, so the total equals the number of returnable rows (a listing with
+      //    no location is excluded from both). It also carries the geo predicate.
+      //  - cities is DROPPED: INNER but ll.city_id is FK-guaranteed, so it never
+      //    removed a row; count(*) selects no columns, so c.* is unused here.
+      //  - localities is DROPPED unless a locality filter is active: it was a LEFT
+      //    join, so it never changed the count; only needed for `loc.slug`.
+      // Measured at 100k: city+rent 46ms->26ms, city+FTS 103ms->32ms, totals identical.
+      const countFromSql = `FROM listings l
+        JOIN listing_locations ll ON ll.listing_id = l.id
+        ${query.locality ? "LEFT JOIN localities loc ON loc.id = ll.locality_id" : ""}
+        ${pgJoinSql}`;
+
       const countResult = await this.database.query<{ total: number }>(
         `
         SELECT count(*)::int AS total
-        FROM listings l
-        JOIN listing_locations ll ON ll.listing_id = l.id
-        JOIN cities c ON c.id = ll.city_id
-        LEFT JOIN localities loc ON loc.id = ll.locality_id
-        ${pgJoinSql}
+        ${countFromSql}
         WHERE ${where}
         `,
         params
