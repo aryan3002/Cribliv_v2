@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProgrammaticPage, coalesceCopy } from "../../../../../../components/seo/programmatic-page";
 import {
+  fetchEnabledCities,
   fetchListings,
   fetchMetroStation,
   fetchMetroStationsForCity
@@ -9,7 +10,6 @@ import {
 import { buildBreadcrumb, buildPlace } from "../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../lib/seo";
 
-const SUPPORTED_CITIES = new Set(["lucknow"]);
 export const revalidate = 86400;
 
 export async function generateMetadata({
@@ -40,7 +40,8 @@ export async function generateMetadata({
     title,
     description: desc,
     pathname: `/city/${params.citySlug}/metro/${params.station}`,
-    locale
+    locale,
+    noindex: data.aggregates.listing_count < 3
   });
 }
 
@@ -49,7 +50,8 @@ export default async function MetroHubPage({
 }: {
   params: { locale: string; citySlug: string; station: string };
 }) {
-  if (!SUPPORTED_CITIES.has(params.citySlug)) notFound();
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug)) notFound();
   if (!isValidSlug(params.station)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 

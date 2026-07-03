@@ -4,7 +4,7 @@ import {
   ProgrammaticPage,
   coalesceCopy
 } from "../../../../../../../components/seo/programmatic-page";
-import { fetchLandmark, fetchListings } from "../../../../../../../lib/seo-api";
+import { fetchEnabledCities, fetchLandmark, fetchListings } from "../../../../../../../lib/seo-api";
 import {
   buildAggregateOffer,
   buildBreadcrumb,
@@ -17,7 +17,6 @@ import {
   renderIntentH1
 } from "../../../../../../../lib/intent-filters";
 
-const SUPPORTED_CITIES = new Set(["lucknow"]);
 export const revalidate = 86400;
 
 export async function generateMetadata({
@@ -37,6 +36,13 @@ export async function generateMetadata({
       noindex: true
     });
   }
+  const parentCount = await fetchListings({
+    city: params.citySlug,
+    lat: landmark.lat,
+    lng: landmark.lng,
+    radius_km: 2,
+    page_size: 1
+  });
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
   const h1 = renderIntentH1(intent, name, locale);
   return buildPageMetadata({
@@ -46,7 +52,8 @@ export async function generateMetadata({
         ? `${name} के पास ${intent.label_hi} — Cribliv पर सत्यापित लिस्टिंग।`
         : `${intent.label_en} near ${name}. Verified Cribliv listings, no broker fees.`,
     pathname: `/city/${params.citySlug}/near/${params.landmark}/${params.intent}`,
-    locale
+    locale,
+    noindex: parentCount.total < 3
   });
 }
 
@@ -55,7 +62,8 @@ export default async function LandmarkIntentPage({
 }: {
   params: { locale: string; citySlug: string; landmark: string; intent: string };
 }) {
-  if (!SUPPORTED_CITIES.has(params.citySlug)) notFound();
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug)) notFound();
   if (!isValidSlug(params.landmark) || !isValidSlug(params.intent)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 

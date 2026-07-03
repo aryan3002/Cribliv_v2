@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProgrammaticPage, coalesceCopy } from "../../../../../components/seo/programmatic-page";
 import {
+  fetchEnabledCities,
   fetchLandmarks,
   fetchListings,
   fetchLocalities,
@@ -11,9 +12,6 @@ import {
 } from "../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../lib/seo";
-
-// Lucknow-only routing — other cities don't have the seed depth yet.
-const SUPPORTED_CITIES = new Set(["lucknow"]);
 
 // ISR: revalidate every 24h. On-demand revalidation triggered when listings change.
 export const revalidate = 86400;
@@ -48,7 +46,8 @@ export async function generateMetadata({
     title,
     description: desc,
     pathname: `/city/${params.citySlug}/${params.locality}`,
-    locale
+    locale,
+    noindex: data.aggregates.listing_count < 3
   });
 }
 
@@ -57,7 +56,8 @@ export default async function LocalityHubPage({
 }: {
   params: { locale: string; citySlug: string; locality: string };
 }) {
-  if (!SUPPORTED_CITIES.has(params.citySlug)) notFound();
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug)) notFound();
   if (!isValidSlug(params.locality)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 

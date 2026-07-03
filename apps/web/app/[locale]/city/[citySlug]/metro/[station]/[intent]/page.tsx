@@ -4,7 +4,11 @@ import {
   ProgrammaticPage,
   coalesceCopy
 } from "../../../../../../../components/seo/programmatic-page";
-import { fetchListings, fetchMetroStation } from "../../../../../../../lib/seo-api";
+import {
+  fetchEnabledCities,
+  fetchListings,
+  fetchMetroStation
+} from "../../../../../../../lib/seo-api";
 import {
   buildAggregateOffer,
   buildBreadcrumb,
@@ -17,7 +21,6 @@ import {
   renderIntentH1
 } from "../../../../../../../lib/intent-filters";
 
-const SUPPORTED_CITIES = new Set(["lucknow"]);
 export const revalidate = 86400;
 
 export async function generateMetadata({
@@ -45,7 +48,8 @@ export async function generateMetadata({
         ? `${data.station.station_name} मेट्रो के पास ${intent.label_hi} — Cribliv पर सत्यापित लिस्टिंग।`
         : `Verified ${intent.label_en.toLowerCase()} near ${data.station.station_name} Metro. Zero brokerage.`,
     pathname: `/city/${params.citySlug}/metro/${params.station}/${params.intent}`,
-    locale
+    locale,
+    noindex: data.aggregates.listing_count < 3
   });
 }
 
@@ -54,7 +58,8 @@ export default async function MetroIntentPage({
 }: {
   params: { locale: string; citySlug: string; station: string; intent: string };
 }) {
-  if (!SUPPORTED_CITIES.has(params.citySlug)) notFound();
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug)) notFound();
   if (!isValidSlug(params.station) || !isValidSlug(params.intent)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 
