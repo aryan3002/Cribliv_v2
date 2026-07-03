@@ -32,12 +32,19 @@ export function useGoogleMap(
     zoom?: number;
     styles?: google.maps.MapTypeStyle[];
     mapId?: string;
+    colorScheme?: "DARK" | "LIGHT";
   } = {}
 ) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const [ready, setReady] = useState(false);
 
-  const { center = { lat: 28.6139, lng: 77.209 }, zoom = 11, styles, mapId = MAP_ID } = options;
+  const {
+    center = { lat: 28.6139, lng: 77.209 },
+    zoom = 11,
+    styles,
+    mapId = MAP_ID,
+    colorScheme = "DARK"
+  } = options;
 
   useEffect(() => {
     if (!API_KEY || !containerRef.current) return;
@@ -47,11 +54,9 @@ export function useGoogleMap(
       if (cancelled || !containerRef.current) return;
       if (typeof google === "undefined") return;
 
-      // The mapId-bound Cloud style and our inline CRIBLMAP_DARK_STYLE are both
-      // dark; when a mapId is present the SDK ignores `styles` (and warns), but
-      // we keep the inline value as a fallback for any path that doesn't honour
-      // the Cloud config. `colorScheme: DARK` forces the SDK to pick the dark
-      // variant of the Cloud Map ID instead of defaulting to LIGHT.
+      const googleColorScheme = (google.maps as unknown as {
+        ColorScheme?: { DARK: string; LIGHT: string };
+      }).ColorScheme;
       const mapOptions: google.maps.MapOptions & { colorScheme?: string } = {
         center,
         zoom,
@@ -65,7 +70,9 @@ export function useGoogleMap(
         styles: styles ?? CRIBLMAP_DARK_STYLE,
         mapId: mapId,
         colorScheme:
-          (google.maps as unknown as { ColorScheme?: { DARK: string } }).ColorScheme?.DARK ?? "DARK"
+          colorScheme === "LIGHT"
+            ? (googleColorScheme?.LIGHT ?? "LIGHT")
+            : (googleColorScheme?.DARK ?? "DARK")
       };
 
       const map = new google.maps.Map(containerRef.current, mapOptions);

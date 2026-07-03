@@ -17,6 +17,8 @@ export interface MapPin {
   cover_photo: string | null;
   /** City slug — drives the PG split route /[locale]/pg/[city]/[id] on click. */
   city: string;
+  locality: string | null;
+  locality_slug: string | null;
   belowMarket?: boolean;
 }
 
@@ -81,6 +83,7 @@ export interface SeekerPin {
    *  `seeker-tags.service.ts` ALLOWED_TAGS). Empty if no note / AI off. */
   tags: string[];
   created_at: string;
+  source?: "seeker" | "estimated";
 }
 
 /* ── Phase 5: Alert Zones ────────────────────────────────────────── */
@@ -136,6 +139,8 @@ export interface MapState {
   // Phase 3
   seekerPins: SeekerPin[];
   demandViewActive: boolean;
+  demandLoading: boolean;
+  demandError: string | null;
   // Phase 5
   alertZones: AlertZone[];
   commuteOrigin: { lat: number; lng: number; address: string } | null;
@@ -185,6 +190,8 @@ export type MapAction =
   | { type: "TOGGLE_METRO" }
   // Phase 3: Seekers
   | { type: "SET_SEEKER_PINS"; pins: SeekerPin[] }
+  | { type: "SET_DEMAND_LOADING"; isLoading: boolean }
+  | { type: "SET_DEMAND_ERROR"; error: string | null }
   | { type: "TOGGLE_DEMAND_VIEW" }
   // Phase 5: Alerts & Commute
   | { type: "SET_ALERT_ZONES"; zones: AlertZone[] }
@@ -196,7 +203,7 @@ export type MapAction =
 
 /* ── Reducer ──────────────────────────────────────────────────────── */
 
-const initialState: MapState = {
+export const initialMapState: MapState = {
   viewport: null,
   zoom: 11,
   center: { lat: 28.6139, lng: 77.209 },
@@ -211,6 +218,8 @@ const initialState: MapState = {
   metroVisible: false,
   seekerPins: [],
   demandViewActive: false,
+  demandLoading: false,
+  demandError: null,
   alertZones: [],
   commuteOrigin: null,
   city: "delhi",
@@ -220,13 +229,26 @@ const initialState: MapState = {
   commuteReachabilityError: null
 };
 
-function mapReducer(state: MapState, action: MapAction): MapState {
+export function mapReducer(state: MapState, action: MapAction): MapState {
   switch (action.type) {
     case "SET_VIEWPORT":
       return { ...state, viewport: action.viewport, zoom: action.zoom, center: action.center };
 
-    case "SET_PINS":
-      return { ...state, pins: action.pins, isLoading: false };
+    case "SET_PINS": {
+      const selectedPinStillVisible = state.selectedPinId
+        ? action.pins.some((pin) => pin.id === state.selectedPinId)
+        : true;
+      return {
+        ...state,
+        pins: action.pins,
+        selectedPinId: selectedPinStillVisible ? state.selectedPinId : null,
+        panelContent:
+          selectedPinStillVisible || state.panelContent.type !== "listing"
+            ? state.panelContent
+            : { type: "none" },
+        isLoading: false
+      };
+    }
 
     case "SELECT_PIN":
       return {
@@ -295,10 +317,29 @@ function mapReducer(state: MapState, action: MapAction): MapState {
 
     // Phase 3
     case "SET_SEEKER_PINS":
-      return { ...state, seekerPins: action.pins };
+      return { ...state, seekerPins: action.pins, demandLoading: false, demandError: null };
+
+    case "SET_DEMAND_LOADING":
+      return { ...state, demandLoading: action.isLoading };
+
+    case "SET_DEMAND_ERROR":
+      return {
+        ...state,
+        seekerPins: [],
+        demandLoading: false,
+        demandError: action.error
+      };
 
     case "TOGGLE_DEMAND_VIEW":
-      return { ...state, demandViewActive: !state.demandViewActive };
+      return state.demandViewActive
+        ? {
+            ...state,
+            demandViewActive: false,
+            seekerPins: [],
+            demandLoading: false,
+            demandError: null
+          }
+        : { ...state, demandViewActive: true, demandError: null };
 
     // Phase 5
     case "SET_ALERT_ZONES":
@@ -345,7 +386,7 @@ function mapReducer(state: MapState, action: MapAction): MapState {
 
 /* ── Context ──────────────────────────────────────────────────────── */
 
-const MapStateContext = createContext<MapState>(initialState);
+const MapStateContext = createContext<MapState>(initialMapState);
 const MapDispatchContext = createContext<Dispatch<MapAction>>(() => {});
 
 export function MapStateProvider({
@@ -360,9 +401,9 @@ export function MapStateProvider({
   initialOriginatingListingId?: string | null;
 }) {
   const [state, dispatch] = useReducer(mapReducer, {
-    ...initialState,
+    ...initialMapState,
     filters: initialFilters ?? {},
-    city: initialCity ?? initialState.city,
+    city: initialCity ?? initialMapState.city,
     originatingListingId: initialOriginatingListingId ?? null
   });
 

@@ -14,8 +14,11 @@ export function AreaSelectOverlay({ map }: AreaSelectOverlayProps) {
   const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const firstCornerRef = useRef<{ lat: number; lng: number } | null>(null);
   const listenerRef = useRef<google.maps.MapsEventListener | null>(null);
+  const rectListenerRef = useRef<google.maps.MapsEventListener | null>(null);
 
   const clearOverlay = useCallback(() => {
+    rectListenerRef.current?.remove();
+    rectListenerRef.current = null;
     if (rectRef.current) {
       rectRef.current.setMap(null);
       rectRef.current = null;
@@ -30,6 +33,8 @@ export function AreaSelectOverlay({ map }: AreaSelectOverlayProps) {
   const drawRect = useCallback(
     (bounds: MapViewport) => {
       if (!map) return;
+      rectListenerRef.current?.remove();
+      rectListenerRef.current = null;
       if (rectRef.current) rectRef.current.setMap(null);
 
       rectRef.current = new google.maps.Rectangle({
@@ -50,7 +55,7 @@ export function AreaSelectOverlay({ map }: AreaSelectOverlayProps) {
         zIndex: 100
       });
 
-      rectRef.current.addListener("bounds_changed", () => {
+      rectListenerRef.current = rectRef.current.addListener("bounds_changed", () => {
         const b = rectRef.current?.getBounds();
         if (!b) return;
         const sw = b.getSouthWest();

@@ -27,33 +27,38 @@ export function DemandHeatmapLayer({ map }: DemandHeatmapLayerProps) {
       !demandViewActive ||
       seekerPins.length === 0 ||
       typeof google === "undefined" ||
-      !google.maps.visualization
+      !google.maps.visualization?.HeatmapLayer
     ) {
       return;
     }
 
-    const points = seekerPins.map((pin) => ({
-      location: new google.maps.LatLng(pin.lat, pin.lng),
-      // Weight by budget — higher budget = hotter area
-      weight: Math.max(1, pin.budget_max / 10000)
-    }));
+    try {
+      const points = seekerPins.map((pin) => ({
+        location: new google.maps.LatLng(pin.lat, pin.lng),
+        // Weight by budget — higher budget = hotter area. Estimated demand is
+        // intentionally lighter so real seeker pins remain the stronger signal.
+        weight: Math.max(1, pin.budget_max / 10000) * (pin.source === "estimated" ? 0.55 : 1)
+      }));
 
-    heatmapRef.current = new google.maps.visualization.HeatmapLayer({
-      data: points,
-      map,
-      radius: 40,
-      opacity: 0.6,
-      gradient: [
-        "rgba(0, 0, 0, 0)",
-        "rgba(8, 145, 178, 0.2)", // teal (seeker brand color)
-        "rgba(8, 145, 178, 0.4)",
-        "rgba(6, 182, 212, 0.6)",
-        "rgba(34, 197, 94, 0.7)", // green transition
-        "rgba(250, 204, 21, 0.8)", // yellow
-        "rgba(249, 115, 22, 0.9)", // orange
-        "rgba(239, 68, 68, 1)" // red = hottest demand
-      ]
-    });
+      heatmapRef.current = new google.maps.visualization.HeatmapLayer({
+        data: points,
+        map,
+        radius: 40,
+        opacity: 0.6,
+        gradient: [
+          "rgba(0, 0, 0, 0)",
+          "rgba(8, 145, 178, 0.2)", // teal (seeker brand color)
+          "rgba(8, 145, 178, 0.4)",
+          "rgba(6, 182, 212, 0.6)",
+          "rgba(34, 197, 94, 0.7)", // green transition
+          "rgba(250, 204, 21, 0.8)", // yellow
+          "rgba(249, 115, 22, 0.9)", // orange
+          "rgba(239, 68, 68, 1)" // red = hottest demand
+        ]
+      });
+    } catch {
+      heatmapRef.current = null;
+    }
 
     return () => {
       if (heatmapRef.current) {

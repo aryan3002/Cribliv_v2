@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import lucknowLandmarks from "../../../data/seeds/lucknow/landmarks.json";
 import lucknowMicroLocalities from "../../../data/seeds/lucknow/micro-localities.json";
 import lucknowMetro from "../../../data/seeds/metro-stations-lucknow.json";
+import { buildSearchQuery, getApiBaseUrl } from "../lib/api";
 import { ALL_INTENTS } from "../lib/intent-filters";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
@@ -72,7 +73,52 @@ function entry(
   }));
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
+type SitemapListing = {
+  id: string;
+  city?: string | null;
+  listing_type?: "flat_house" | "pg" | string | null;
+};
+
+async function fetchListingEntries(): Promise<MetadataRoute.Sitemap> {
+  const entries: MetadataRoute.Sitemap = [];
+  const seen = new Set<string>();
+
+  try {
+    for (let page = 1; page <= 5; page++) {
+      const query = buildSearchQuery({ page, page_size: 60, sort: "newest" });
+      const response = await fetch(`${getApiBaseUrl()}/listings/search?${query}`, {
+        next: { revalidate: 60 * 60 }
+      });
+      if (!response.ok) break;
+
+      const payload = (await response.json().catch(() => null)) as {
+        data?: { items?: SitemapListing[]; total?: number; page_size?: number };
+      } | null;
+      const items = payload?.data?.items ?? [];
+      if (items.length === 0) break;
+
+      for (const item of items) {
+        if (!item.id || seen.has(item.id)) continue;
+        seen.add(item.id);
+        const path =
+          item.listing_type === "pg" && item.city
+            ? `/pg/${item.city}/${item.id}`
+            : `/listing/${item.id}`;
+        entries.push(...entry(path, { priority: 0.72, freq: "daily" }));
+      }
+
+      const total = payload?.data?.total ?? 0;
+      const pageSize = payload?.data?.page_size ?? 60;
+      if (page * pageSize >= total) break;
+    }
+  } catch {
+    return entries;
+  }
+
+  return entries;
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [];
 
   // Home & top-level
@@ -85,6 +131,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   // Search + rent-in guides
   entries.push(...entry("/search", { priority: 0.7, freq: "daily" }));
+  entries.push(...entry("/map", { priority: 0.75, freq: "daily" }));
   for (const city of CITIES) {
     entries.push(...entry(`/rent-in/${city}`, { priority: 0.7, freq: "weekly" }));
   }
@@ -157,6 +204,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
       );
     }
   }
+
+  entries.push(...(await fetchListingEntries()));
 
   return entries;
 }

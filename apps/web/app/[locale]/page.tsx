@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import dynamic from "next/dynamic";
 import { t, type Locale } from "../../lib/i18n";
 import { fetchApi } from "../../lib/api";
@@ -21,10 +21,11 @@ import {
   Sofa,
   ArrowRight,
   Sparkles,
-  Mic
+  Mic,
+  TrendingUp
 } from "lucide-react";
 import { ListingCarousel } from "../../components/listing-carousel";
-import type { ListingCardData } from "../../components/listing-card";
+import { ListingCardItem, type ListingCardData } from "../../components/listing-card";
 
 /* City photos: Unsplash free license — unsplash.com/license */
 
@@ -58,11 +59,6 @@ const CountUp = dynamic(
   { ssr: false }
 );
 
-const ScrollDownIndicator = dynamic(
-  () => import("../../components/scroll-animations").then((mod) => mod.ScrollDownIndicator),
-  { ssr: false }
-);
-
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
 export async function generateMetadata({
@@ -73,8 +69,8 @@ export async function generateMetadata({
   const isHindi = params.locale === "hi";
   const title = isHindi ? "तेज, भरोसेमंद घर खोज" : "Fast, Trustworthy Home Search in North India";
   const description = isHindi
-    ? "AI-संचालित सत्यापित किराये की खोज। दिल्ली, गुरुग्राम, नोएडा और अन्य शहरों में।"
-    : "AI-powered verified rental search. Find flats, PGs, and houses in Delhi, Gurugram, Noida, and more.";
+    ? "AI-संचालित किराये की खोज, लाइव लिस्टिंग, फोटो, किराया, लोकेलिटी और वेरिफिकेशन संकेतों के साथ।"
+    : "AI-powered rental search with live listings, photos, rent, locality, and verification signals across North India.";
 
   return {
     title,
@@ -163,59 +159,31 @@ const HOW_IT_WORKS = [
     icon: CheckCircle2,
     title: "Verified Listings",
     titleHi: "सत्यापित लिस्टिंग",
-    desc: "Every owner is verified. No fake listings, no brokers, no hidden charges.",
-    descHi: "हर मालिक सत्यापित है। कोई फर्जी लिस्टिंग नहीं, कोई दलाल नहीं।",
+    desc: "See live verification status, photos, rent, locality, and owner-first listing details before you open a contact.",
+    descHi:
+      "संपर्क खोलने से पहले लाइव वेरिफिकेशन स्टेटस, फोटो, किराया, लोकेलिटी और मालिक की जानकारी देखें।",
     color: "brand" as const
   },
   {
     icon: KeyRound,
     title: "Connect & Move",
     titleHi: "जुड़ें और शिफ्ट करें",
-    desc: "Unlock owner contacts instantly. 12-hour refund if no response.",
-    descHi: "मालिक के संपर्क तुरंत अनलॉक करें। 12 घंटे में रिफंड।",
+    desc: "Open the listing, review the available owner/contact flow, and continue only when the details work for you.",
+    descHi: "लिस्टिंग खोलें, उपलब्ध मालिक/कॉन्टैक्ट फ्लो देखें, और विवरण सही लगने पर ही आगे बढ़ें।",
     color: "brand" as const
   }
 ];
 
-const TESTIMONIALS = [
-  {
-    name: "Priya S.",
-    city: "Noida",
-    text: "Found a verified 2BHK in Sector 62 within a day. The owner responded in 2 hours. No broker, no hassle — exactly what Cribliv promises.",
-    rating: 5
-  },
-  {
-    name: "Rahul K.",
-    city: "Gurugram",
-    text: "I was skeptical about paying to unlock contacts, but the 12-hour refund guarantee made me try. Owner was genuine. Saved ₹40k in brokerage.",
-    rating: 5
-  },
-  {
-    name: "Sneha M.",
-    city: "Delhi",
-    text: "The voice search in Hindi is amazing. My parents could search for PGs on their own. Finally, a rental platform that works for everyone.",
-    rating: 5
+function formatCompactCount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 100000) {
+    return `${(value / 100000).toFixed(value % 100000 === 0 ? 0 : 1)}L`;
   }
-];
-
-const PLATFORM_STATS = [
-  { value: "₹0", numericValue: 0, prefix: "₹", suffix: "", label: "Brokerage", labelHi: "दलाली" },
-  {
-    value: "100",
-    numericValue: 100,
-    suffix: "%",
-    label: "Owner Verified",
-    labelHi: "सत्यापित मालिक"
-  },
-  {
-    value: "12",
-    numericValue: 12,
-    suffix: "hr",
-    label: "Refund Guarantee",
-    labelHi: "रिफंड गारंटी"
-  },
-  { value: "8", numericValue: 8, suffix: "+", label: "Cities", labelHi: "शहर" }
-];
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k`;
+  }
+  return String(value);
+}
 
 export default async function HomePage({ params }: { params: { locale: Locale } }) {
   const isHindi = params.locale === "hi";
@@ -246,22 +214,109 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
     page_size: number;
   };
 
-  async function safeFetchListings(qs: string): Promise<ListingCardData[]> {
+  type ListingBucket = {
+    items: ListingCardData[];
+    total: number;
+  };
+
+  async function safeFetchListingBucket(qs: string): Promise<ListingBucket> {
     try {
       const res = await fetchApi<ListingsSearchResponse>(`/listings/search?${qs}`, undefined, {
         server: true
       });
-      return res.items ?? [];
+      return {
+        items: res.items ?? [],
+        total: Number.isFinite(res.total) ? res.total : (res.items?.length ?? 0)
+      };
     } catch {
-      return [];
+      return { items: [], total: 0 };
     }
   }
 
-  const [popularHomes, trendingPgs, furnishedHomes] = await Promise.all([
-    safeFetchListings("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
-    safeFetchListings("city=lucknow&listing_type=pg&sort=newest&page=1"),
-    safeFetchListings("city=lucknow&listing_type=flat_house&furnishing=fully_furnished&page=1")
+  const [popularHomesBucket, trendingPgsBucket, furnishedHomesBucket] = await Promise.all([
+    safeFetchListingBucket("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
+    safeFetchListingBucket("city=lucknow&listing_type=pg&sort=newest&page=1"),
+    safeFetchListingBucket("city=lucknow&listing_type=flat_house&furnishing=fully_furnished&page=1")
   ]);
+  const [allLucknowBucket, verifiedLucknowBucket, cityBuckets] = await Promise.all([
+    safeFetchListingBucket("city=lucknow&page_size=1&page=1"),
+    safeFetchListingBucket("city=lucknow&verified_only=true&page_size=1&page=1"),
+    Promise.all(
+      CITIES.map(async (city) => {
+        const slug = city.name.toLowerCase();
+        const bucket = await safeFetchListingBucket(`city=${slug}&page_size=1&page=1`);
+        return { slug, total: bucket.total };
+      })
+    )
+  ]);
+  const popularHomes = popularHomesBucket.items;
+  const trendingPgs = trendingPgsBucket.items;
+  const furnishedHomes = furnishedHomesBucket.items;
+  const visibleLocalities = popularLocalities.filter((loc) => loc.city_slug && loc.locality_name);
+  const localitiesForDisplay = visibleLocalities;
+  const cityTotals = new Map(cityBuckets.map((city) => [city.slug, city.total]));
+  const activeCityCount = cityBuckets.filter((city) => city.total > 0).length;
+  const liveProofListings = Array.from(
+    new Map(
+      [...popularHomes, ...trendingPgs, ...furnishedHomes]
+        .filter((listing) => listing.id)
+        .map((listing) => [listing.id, listing])
+    ).values()
+  ).slice(0, 3);
+  const liveRents = liveProofListings
+    .map((listing) => listing.monthly_rent ?? 0)
+    .filter((rent) => rent > 0)
+    .sort((a, b) => a - b);
+  const heroLowRent = liveRents[0] ? formatCompactCount(liveRents[0]) : null;
+  const heroHighRent = liveRents.at(-1) ? formatCompactCount(liveRents.at(-1) ?? 0) : null;
+  const liveMarketStats = [
+    {
+      icon: ShieldCheck,
+      value: formatCompactCount(allLucknowBucket.total),
+      label: isHindi ? "लखनऊ लिस्टिंग" : "Live Lucknow listings",
+      note: isHindi ? "बैकएंड से लाइव" : "Pulled from the search API"
+    },
+    {
+      icon: Home,
+      value: formatCompactCount(verifiedLucknowBucket.total),
+      label: isHindi ? "वेरिफाइड मैच" : "Verified matches",
+      note: isHindi ? "लाइव वेरिफिकेशन स्टेटस" : "Using live verification status"
+    },
+    {
+      icon: Sofa,
+      value: formatCompactCount(visibleLocalities.length),
+      label: isHindi ? "लोकैलिटी" : "Active localities",
+      note: isHindi ? "लोकैलिटी API से" : "From locality demand data"
+    },
+    {
+      icon: TrendingUp,
+      value: formatCompactCount(activeCityCount),
+      label: isHindi ? "लाइव शहर" : "Cities with inventory",
+      note: isHindi ? "शहरों के लाइव परिणाम" : "No hardcoded city counts"
+    }
+  ];
+  const impactStats = [
+    {
+      value: allLucknowBucket.total,
+      suffix: "",
+      label: isHindi ? "लखनऊ लिस्टिंग" : "Lucknow listings"
+    },
+    {
+      value: verifiedLucknowBucket.total,
+      suffix: "",
+      label: isHindi ? "वेरिफाइड लिस्टिंग" : "Verified listings"
+    },
+    {
+      value: visibleLocalities.length,
+      suffix: "",
+      label: isHindi ? "लाइव लोकैलिटी" : "Live localities"
+    },
+    {
+      value: activeCityCount,
+      suffix: "",
+      label: isHindi ? "इन्वेंट्री वाले शहर" : "Cities with inventory"
+    }
+  ];
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -270,7 +325,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
     url: BASE_URL,
     logo: `${BASE_URL}/cribliv.png`,
     description:
-      "AI-powered verified rental search platform for North India. Find flats, PGs, and houses with owner verification and 12-hour refund guarantee.",
+      "AI-powered rental search platform for North India with live listings, photos, rent, locality, and verification signals.",
     foundingDate: "2025",
     areaServed: { "@type": "Country", name: "India" },
     contactPoint: {
@@ -307,327 +362,281 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
       />
 
-      {/* ── Full-bleed Map Hero ── */}
-      <section
-        className="hero--landing hero--map"
-        style={{
-          backgroundImage: `linear-gradient(to bottom,
-            rgba(4,12,28,0.25) 0%,
-            rgba(4,12,28,0.18) 20%,
-            rgba(4,12,28,0.40) 50%,
-            rgba(4,12,28,0.78) 72%,
-            rgba(4,12,28,0.95) 88%,
-            rgba(4,12,28,1.00) 100%
-          ), url('/images/india-map-hero.jpg')`,
-          backgroundSize: "cover",
-          backgroundPosition: "center 30%"
-        }}
-      >
-        {/* Animated city pins overlaid on the map */}
-        <div className="map-pins-layer" aria-hidden="true">
-          <span className="map-pin" style={{ top: "24%", left: "38%" }} title="Delhi" />
-          <span
-            className="map-pin map-pin--sm"
-            style={{ top: "29%", left: "37.5%" }}
-            title="Gurugram"
-          />
-          <span className="map-pin map-pin--sm" style={{ top: "27%", left: "40%" }} title="Noida" />
-          <span
-            className="map-pin map-pin--sm"
-            style={{ top: "25%", left: "41%" }}
-            title="Ghaziabad"
-          />
-          <span
-            className="map-pin map-pin--sm"
-            style={{ top: "31%", left: "38.5%" }}
-            title="Faridabad"
-          />
-          <span className="map-pin" style={{ top: "18%", left: "33%" }} title="Chandigarh" />
-          <span className="map-pin" style={{ top: "36%", left: "31%" }} title="Jaipur" />
-          <span className="map-pin" style={{ top: "32%", left: "48%" }} title="Lucknow" />
-        </div>
-
-        <div className="container" style={{ position: "relative", zIndex: 1 }}>
-          <p
-            className="overline animate-in"
-            style={{
-              marginBottom: "var(--space-4)",
-              color: "rgba(255,255,255,0.5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6
-            }}
-          >
-            <Sparkles size={14} style={{ color: "rgba(0,180,255,0.7)" }} />
-            {isHindi ? "AI-संचालित किराया खोज" : "AI-Powered Rental Search"}
-          </p>
-          <h1
-            className="display animate-in animate-in-delay-1"
-            style={{ maxWidth: 720, margin: "0 auto var(--space-5)" }}
-          >
-            {isHindi ? (
-              "तेज, भरोसेमंद घर खोज"
-            ) : (
-              <>
-                Find your perfect home,{" "}
-                <span style={{ color: "#4dabff", textDecoration: "none" }}>verified</span> &amp;
-                hassle-free
-              </>
-            )}
-          </h1>
-          <p
-            className="hero-subtitle animate-in animate-in-delay-2"
-            style={{ margin: "0 auto var(--space-10)", maxWidth: 560 }}
-          >
-            {isHindi
-              ? "AI पीछे काम करता है, अनुभव सरल रहता है। दिल्ली NCR और उत्तर भारत में।"
-              : "AI matches you with verified rentals across Delhi NCR and North India. No brokers, no fake listings, no hidden charges."}
-          </p>
-
-          {/* Search */}
-          <div className="hero-search-wrap hero-search-glow-wrap animate-in animate-in-delay-3">
-            <SearchHero locale={params.locale} />
+      {/* ── Claude design-system homepage hero ── */}
+      <section className="hero--landing hero--home-prototype">
+        <div className="home-hero__street" aria-hidden="true" />
+        <div className="home-hero__road" aria-hidden="true" />
+        <div className="home-hero__wash" aria-hidden="true" />
+        <div className="home-hero__land home-hero__land--brand" aria-hidden="true" />
+        <div className="home-hero__land home-hero__land--trust" aria-hidden="true" />
+        {heroLowRent && (
+          <div className="home-hero__pin home-hero__pin--primary" aria-hidden="true">
+            <span />₹{heroLowRent}
           </div>
-
-          {/* Trust Strip — glassmorphism */}
-          <div
-            className="trust-strip animate-in animate-in-delay-4"
-            style={{
-              maxWidth: 640,
-              margin: "var(--space-10) auto 0",
-              background: "rgba(255,255,255,0.06)",
-              backdropFilter: "blur(16px)",
-              WebkitBackdropFilter: "blur(16px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.85)",
-              borderRadius: "var(--radius-full)"
-            }}
-          >
-            <span className="trust-strip__item">
-              <ShieldCheck size={16} style={{ color: "#4dabff" }} aria-hidden="true" />
-              {isHindi ? "सत्यापित मकान मालिक" : "Verified Owners"}
-            </span>
-            <span className="trust-strip__item">
-              <Clock size={16} style={{ color: "#4dabff" }} aria-hidden="true" />
-              {isHindi ? "12 घंटे की रिफंड गारंटी" : "12-Hour Refund"}
-            </span>
-            <span className="trust-strip__item">
-              <BadgeIndianRupee size={16} style={{ color: "#4dabff" }} aria-hidden="true" />
-              {isHindi ? "कोई ब्रोकर नहीं" : "Zero Brokerage"}
-            </span>
+        )}
+        {heroHighRent && heroHighRent !== heroLowRent && (
+          <div className="home-hero__pin home-hero__pin--accent" aria-hidden="true">
+            <span />₹{heroHighRent}
           </div>
+        )}
 
-          {/* Scroll Down Indicator */}
-          <ScrollDownIndicator />
+        <div className="container home-hero__inner">
+          <div className="home-hero__copy">
+            <p className="home-hero__eyebrow animate-in">
+              <Sparkles size={16} aria-hidden="true" />
+              {isHindi ? "AI-संचालित किराया खोज" : "AI-Powered Rental Search"}
+            </p>
+            <h1 className="home-hero__title animate-in animate-in-delay-1">
+              {isHindi ? (
+                <>
+                  अपना सही घर खोजें, <span>सत्यापित</span> और आसान
+                </>
+              ) : (
+                <>
+                  Find your perfect home, <span>verified</span> &amp; hassle-free
+                </>
+              )}
+            </h1>
+            <p className="home-hero__subtitle animate-in animate-in-delay-2">
+              {isHindi
+                ? "AI आपको दिल्ली NCR और उत्तर भारत की लाइव किराये की लिस्टिंग से मिलाता है — फोटो, किराया, लोकेलिटी और वेरिफिकेशन स्टेटस के साथ।"
+                : "AI matches you with live rental listings across Delhi NCR and North India, with photos, rent, locality, and verification status up front."}
+            </p>
+
+            <div
+              className="home-hero__intelligence animate-in animate-in-delay-3"
+              aria-hidden="true"
+            >
+              <span>
+                <Sparkles size={13} />
+                Natural language
+              </span>
+              <span>Live locality preview</span>
+              <span>Voice in Hindi + English</span>
+            </div>
+
+            <div className="home-hero__search-shell animate-in animate-in-delay-3">
+              <div
+                className="home-hero__search-glow home-hero__search-glow--warm"
+                aria-hidden="true"
+              />
+              <div
+                className="home-hero__search-glow home-hero__search-glow--cool"
+                aria-hidden="true"
+              />
+              <SearchHero locale={params.locale} />
+            </div>
+
+            <div className="trust-strip home-hero__trust animate-in animate-in-delay-4">
+              <span className="trust-strip__item">
+                <ShieldCheck size={16} aria-hidden="true" />
+                {isHindi ? "वेरिफिकेशन स्टेटस" : "Verification Status"}
+              </span>
+              <span className="home-hero__trust-dot" aria-hidden="true" />
+              <span className="trust-strip__item">
+                <Clock size={16} aria-hidden="true" />
+                {isHindi ? "लाइव लिस्टिंग" : "Live Listings"}
+              </span>
+              <span className="home-hero__trust-dot" aria-hidden="true" />
+              <span className="trust-strip__item">
+                <BadgeIndianRupee size={16} aria-hidden="true" />
+                {isHindi ? "स्पष्ट किराया" : "Clear Rent"}
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Fade from hero into content */}
-      <div
-        aria-hidden="true"
-        style={{
-          height: 80,
-          marginTop: -80,
-          background: "linear-gradient(to bottom, transparent, var(--surface-page, #f8fafc))",
-          position: "relative",
-          zIndex: 1,
-          pointerEvents: "none"
-        }}
-      />
-
-      {/* ── Top Cities — Blueprint Map Cards ── */}
-      <AnimateOnScroll>
-        <section className="section--sm">
-          <div className="section-header">
-            <div>
-              <p
-                className="overline"
-                style={{ marginBottom: "var(--space-1)", color: "var(--brand)" }}
-              >
-                {isHindi ? "शहर खोजें" : "Top Locations"}
-              </p>
-              <h2>{isHindi ? "लोकप्रिय शहर" : "Explore Top Cities"}</h2>
-            </div>
-            <Link href={`/${params.locale}/search`} className="section-header__action">
-              {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
-            </Link>
-          </div>
-          <div className="grid grid-4 cities-grid">
-            {CITIES.map((city) => {
+      <section className="home-market-band" aria-label={isHindi ? "लाइव मार्केट" : "Live market"}>
+        <div className="container">
+          <div className="home-market-grid">
+            {liveMarketStats.map((stat, index) => {
+              const Icon = stat.icon;
               return (
-                <Link
-                  key={city.name}
-                  href={`/${params.locale}/city/${city.name.toLowerCase()}`}
-                  className="city-card city-card--map"
-                  style={{ textDecoration: "none" }}
-                >
-                  <div
-                    className="city-card__map-bg"
-                    style={{
-                      backgroundImage: `linear-gradient(
-                        rgba(4,12,28,0.52) 0%,
-                        rgba(4,12,28,0.44) 100%
-                      ), url('/images/cities/${city.name.toLowerCase()}-map.jpg')`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center"
-                    }}
-                  >
-                    <div className="city-card__map-center">
-                      <span className="city-card__map-title">{city.name.toUpperCase()}</span>
-                      <span className="city-card__map-rule" aria-hidden="true" />
-                      <span className="city-card__map-brand">CRIBLIV</span>
-                    </div>
-                  </div>
-                </Link>
+                <div key={stat.label} className="home-market-card">
+                  <span className={`home-market-card__icon home-market-card__icon--${index + 1}`}>
+                    <Icon size={16} aria-hidden="true" />
+                  </span>
+                  <span className="home-market-card__value">{stat.value}</span>
+                  <span className="home-market-card__label">{stat.label}</span>
+                  <span className="home-market-card__note">{stat.note}</span>
+                </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Top Cities ── */}
+      <AnimateOnScroll>
+        <section className="home-section home-section--cities">
+          <div className="container">
+            <div className="home-section__head">
+              <div>
+                <span className="home-section__eyebrow">
+                  {isHindi ? "शहर खोजें" : "Top Locations"}
+                </span>
+                <h2 className="home-section__title">
+                  {isHindi ? "लोकप्रिय शहर" : "Explore Top Cities"}
+                </h2>
+                <p className="home-section__lede">
+                  {isHindi
+                    ? "उत्तर भारत के प्रमुख शहरों में लाइव किराये के परिणाम।"
+                    : "Live rental results across North India, organized by where people search."}
+                </p>
+              </div>
+              <Link href={`/${params.locale}/search` as Route} className="home-section__action">
+                {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
+              </Link>
+            </div>
+
+            <div className="home-city-grid">
+              {CITIES.map((city) => {
+                const Icon = city.icon;
+                return (
+                  <Link
+                    key={city.name}
+                    href={`/${params.locale}/city/${city.name.toLowerCase()}` as Route}
+                    className="home-city-card"
+                  >
+                    <div
+                      className="home-city-card__art"
+                      style={{
+                        backgroundImage: `linear-gradient(180deg, rgba(7,16,34,0.1) 0%, rgba(7,16,34,0.58) 100%), url('/images/cities/${city.photo}-map.jpg'), ${city.gradient}`
+                      }}
+                    >
+                      <div className="home-city-card__grid" aria-hidden="true" />
+                      <span className="home-city-card__shape" aria-hidden="true" />
+                      <span className="home-city-card__pin" aria-hidden="true">
+                        <Icon size={13} />
+                      </span>
+                      <span className="home-city-card__map-label">Cribliv</span>
+                    </div>
+                    <div className="home-city-card__body">
+                      <span className="home-city-card__name">{city.name}</span>
+                      <span className="home-city-card__count">
+                        {(cityTotals.get(city.name.toLowerCase()) ?? 0) > 0
+                          ? `${formatCompactCount(cityTotals.get(city.name.toLowerCase()) ?? 0)} live rentals`
+                          : "Browse city"}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </section>
       </AnimateOnScroll>
 
       {/* ── Popular Localities ── */}
-      {popularLocalities.filter((loc) => loc.city_slug && loc.locality_name).length > 0 && (
-        <AnimateOnScroll>
-          <section
-            className="section--sm"
-            style={{ paddingTop: "var(--space-4)", paddingBottom: "var(--space-4)" }}
-          >
-            <div className="section-header">
+      <AnimateOnScroll>
+        <section className="home-section home-section--localities">
+          <div className="container">
+            <div className="home-section__head home-section__head--compact">
               <div>
-                <p
-                  className="overline"
-                  style={{ marginBottom: "var(--space-1)", color: "var(--brand)" }}
-                >
-                  {isHindi ? "अभी उपलब्ध" : "Featured Listings"}
-                </p>
-                <h2>{isHindi ? "लखनऊ में लोकप्रिय" : "Popular in Lucknow"}</h2>
+                <span className="home-section__eyebrow">
+                  {isHindi ? "लाइव मांग" : "Popular in Lucknow"}
+                </span>
+                <h2 className="home-section__title">
+                  {isHindi ? "लोग अभी यहां खोज रहे हैं" : "Where people are searching now"}
+                </h2>
               </div>
               <Link
-                href={`/${params.locale}/search?city=lucknow`}
-                className="section-header__action"
+                href={`/${params.locale}/search?city=lucknow` as Route}
+                className="home-section__action"
               >
                 {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
               </Link>
             </div>
-            <div
-              style={{
-                display: "flex",
-                gap: "var(--space-2)",
-                overflowX: "auto",
-                paddingBottom: "var(--space-2)",
-                scrollbarWidth: "none",
-                WebkitOverflowScrolling: "touch"
-              }}
-            >
-              {popularLocalities
-                .filter((loc) => loc.city_slug && loc.locality_name)
-                .map((loc) => (
+            <div className="home-locality-strip">
+              {localitiesForDisplay.length > 0 ? (
+                localitiesForDisplay.map((loc) => (
                   <Link
                     key={loc.locality_id}
-                    href={`/${params.locale}/search?city=${loc.city_slug ?? "lucknow"}&q=${encodeURIComponent(loc.locality_name ?? "")}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "6px 14px",
-                      borderRadius: "var(--radius-full)",
-                      background: "var(--surface-2, #f3f4f6)",
-                      border: "1px solid var(--border)",
-                      fontSize: 14,
-                      fontWeight: 500,
-                      color: "var(--text-primary)",
-                      whiteSpace: "nowrap",
-                      textDecoration: "none",
-                      transition: "background 0.15s"
-                    }}
+                    href={
+                      `/${params.locale}/search?city=${loc.city_slug ?? "lucknow"}&q=${encodeURIComponent(loc.locality_name ?? "")}` as Route
+                    }
+                    className="home-locality-pill"
                   >
-                    <MapPin size={13} style={{ color: "var(--brand)" }} />
+                    <MapPin size={13} />
                     {loc.locality_name}
-                    <span style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 400 }}>
-                      {loc.listing_count}
-                    </span>
+                    <span>{loc.listing_count}</span>
                   </Link>
-                ))}
+                ))
+              ) : (
+                <div className="home-locality-empty">
+                  {isHindi
+                    ? "लाइव लोकेलिटी डेटा अभी उपलब्ध नहीं है।"
+                    : "Live locality data is unavailable right now."}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </AnimateOnScroll>
+
+      {/* ── Lucknow listing carousels (Airbnb-style rows) ── */}
+      {popularHomes.length > 0 || trendingPgs.length > 0 || furnishedHomes.length > 0 ? (
+        <AnimateOnScroll delay={100}>
+          <section className="home-section home-section--listings">
+            <div className="container home-carousel-stack">
+              {popularHomes.length > 0 && (
+                <ListingCarousel
+                  locale={params.locale}
+                  title={isHindi ? "लखनऊ में लाइव घर" : "Live homes in Lucknow"}
+                  subtitle={
+                    isHindi
+                      ? "सर्च API से आ रहे फ्लैट और मकान"
+                      : "Flats and houses coming from the search API"
+                  }
+                  viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house`}
+                  items={popularHomes}
+                />
+              )}
+
+              {trendingPgs.length > 0 && (
+                <ListingCarousel
+                  locale={params.locale}
+                  title={isHindi ? "लखनऊ में नए PG" : "Latest PGs in Lucknow"}
+                  subtitle={
+                    isHindi ? "बैकएंड से नए PG परिणाम" : "Fresh PG results from the backend"
+                  }
+                  viewAllHref={`/${params.locale}/pg/lucknow`}
+                  items={trendingPgs}
+                />
+              )}
+
+              {furnishedHomes.length > 0 && (
+                <ListingCarousel
+                  locale={params.locale}
+                  title={isHindi ? "फर्निश्ड घर — लखनऊ" : "Furnished homes in Lucknow"}
+                  subtitle={
+                    isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture and appliances"
+                  }
+                  viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house&furnishing=fully_furnished`}
+                  items={furnishedHomes}
+                />
+              )}
             </div>
           </section>
         </AnimateOnScroll>
-      )}
-
-      {/* ── Lucknow listing carousels (Airbnb-style rows) ── */}
-      {popularHomes.length > 0 && (
-        <AnimateOnScroll delay={100}>
-          <div className="container">
-            <ListingCarousel
-              locale={params.locale}
-              title={isHindi ? "लखनऊ में लोकप्रिय घर" : "Popular homes in Lucknow"}
-              subtitle={
-                isHindi
-                  ? "सत्यापित मालिकों से, बिना दलाली"
-                  : "Hand-picked verified flats and houses"
-              }
-              viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house`}
-              items={popularHomes}
-            />
-          </div>
-        </AnimateOnScroll>
-      )}
-
-      {trendingPgs.length > 0 && (
-        <AnimateOnScroll delay={100}>
-          <div className="container">
-            <ListingCarousel
-              locale={params.locale}
-              title={isHindi ? "लखनऊ में ट्रेंडिंग PG" : "Trending PGs in Lucknow"}
-              subtitle={
-                isHindi
-                  ? "खाने, वाईफाई और साझा सुविधाओं के साथ"
-                  : "With meals, WiFi and shared amenities"
-              }
-              viewAllHref={`/${params.locale}/pg/lucknow`}
-              items={trendingPgs}
-            />
-          </div>
-        </AnimateOnScroll>
-      )}
-
-      {furnishedHomes.length > 0 && (
-        <AnimateOnScroll delay={100}>
-          <div className="container">
-            <ListingCarousel
-              locale={params.locale}
-              title={isHindi ? "फर्निश्ड घर — लखनऊ" : "Furnished homes in Lucknow"}
-              subtitle={
-                isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture and appliances"
-              }
-              viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house&furnishing=fully_furnished`}
-              items={furnishedHomes}
-            />
-          </div>
-        </AnimateOnScroll>
-      )}
+      ) : null}
 
       {/* ── How It Works ── */}
       <AnimateOnScroll delay={100}>
-        <section
-          style={{
-            background: "var(--surface)",
-            padding: "var(--space-16) 0",
-            width: "100%"
-          }}
-        >
+        <section className="home-section home-section--surface">
           <div className="container">
             <div className="edi-head">
               <div>
                 <span className="edi-eyebrow">{isHindi ? "सरल प्रक्रिया" : "How It Works"}</span>
                 <h2 className="edi-title">
-                  {isHindi ? "तीन कदम. कोई दलाल नहीं." : "Three steps. No brokers. No games."}
+                  {isHindi ? "तीन कदम. स्पष्ट जानकारी." : "Three steps. Clear details."}
                 </h2>
               </div>
               <p className="edi-lede">
                 {isHindi
-                  ? "खोजें, सत्यापित मालिक से जुड़ें, और शिफ्ट करें — बस इतना ही।"
-                  : "Search it, unlock a verified owner, move in. That's the whole thing."}
+                  ? "खोजें, लाइव विवरण देखें, और सही लगे तो आगे बढ़ें।"
+                  : "Search, review live details, and continue when the listing fits."}
               </p>
             </div>
             <div className="hiw">
@@ -655,314 +664,262 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
 
       {/* ── AI Feature Showcase ── */}
       <AnimateOnScroll delay={100}>
-        <section className="section--sm">
-          <div className="edi-head">
-            <div>
-              <span className="edi-eyebrow">{isHindi ? "AI से संचालित" : "Powered by AI"}</span>
-              <h2 className="edi-title">
+        <section className="home-section home-section--ai">
+          <div className="container">
+            <div className="edi-head">
+              <div>
+                <span className="edi-eyebrow">{isHindi ? "AI से संचालित" : "Powered by AI"}</span>
+                <h2 className="edi-title">
+                  {isHindi
+                    ? "खोजें, लिस्ट करें, एक्सप्लोर करें — AI के साथ"
+                    : "Find, list, and explore — with AI"}
+                </h2>
+              </div>
+              <p className="edi-lede">
                 {isHindi
-                  ? "खोजें, लिस्ट करें, एक्सप्लोर करें — AI के साथ"
-                  : "Find, list, and explore — with AI"}
-              </h2>
+                  ? "Cribliv के नए AI टूल किराये की खोज को आसान बनाते हैं।"
+                  : "The tools that make Cribliv feel less like a listings site and more like an assistant."}
+              </p>
             </div>
-            <p className="edi-lede">
-              {isHindi
-                ? "Cribliv के नए AI टूल किराये की खोज को आसान बनाते हैं।"
-                : "The tools that make Cribliv feel less like a listings site and more like an assistant."}
-            </p>
-          </div>
 
-          <div className="ai-showcase">
-            {/* CriblMap — featured */}
-            <Link
-              href={`/${params.locale}/map`}
-              className="ai-feature ai-feature--featured"
-              style={{
-                backgroundImage:
-                  "linear-gradient(180deg, rgba(8,18,38,0.20) 0%, rgba(8,18,38,0.55) 55%, rgba(8,18,38,0.92) 100%), url('/images/india-map-hero.jpg')"
-              }}
-            >
-              <div className="ai-feature__pins" aria-hidden="true">
-                <span className="ai-feature__pin" style={{ top: "28%", left: "32%" }} />
-                <span
-                  className="ai-feature__pin ai-feature__pin--2"
-                  style={{ top: "44%", left: "58%" }}
-                />
-                <span
-                  className="ai-feature__pin ai-feature__pin--3"
-                  style={{ top: "62%", left: "40%" }}
-                />
-              </div>
-              <span className="ai-pill">{isHindi ? "नया" : "New"}</span>
-              <h3 className="ai-feature__title">CriblMap</h3>
-              <p className="ai-feature__desc">
-                {isHindi
-                  ? "सत्यापित किराये एक लाइव नक्शे पर देखें — किराये के रुझान, मेट्रो की दूरी और इलाके की जानकारी।"
-                  : "See verified rentals on a live map — rent trends, metro distance, and area insights at a glance."}
-              </p>
-              <span className="ai-feature__cta">
-                {isHindi ? "CriblMap खोलें" : "Open CriblMap"} <ArrowRight size={14} />
-              </span>
-            </Link>
+            <div className="ai-showcase">
+              {/* CriblMap — featured */}
+              <Link
+                href={`/${params.locale}/map` as Route}
+                className="ai-feature ai-feature--featured"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(180deg, rgba(8,18,38,0.20) 0%, rgba(8,18,38,0.55) 55%, rgba(8,18,38,0.92) 100%), url('/images/india-map-hero.jpg')"
+                }}
+              >
+                <div className="ai-feature__pins" aria-hidden="true">
+                  <span className="ai-feature__pin" style={{ top: "28%", left: "32%" }} />
+                  <span
+                    className="ai-feature__pin ai-feature__pin--2"
+                    style={{ top: "44%", left: "58%" }}
+                  />
+                  <span
+                    className="ai-feature__pin ai-feature__pin--3"
+                    style={{ top: "62%", left: "40%" }}
+                  />
+                </div>
+                <span className="ai-pill">{isHindi ? "नया" : "New"}</span>
+                <h3 className="ai-feature__title">CriblMap</h3>
+                <p className="ai-feature__desc">
+                  {isHindi
+                    ? "लाइव मैप पर किराये के परिणाम देखें — किराये के रुझान, मेट्रो की दूरी और इलाके की जानकारी।"
+                    : "See rental results on a live map — rent trends, metro distance, and area insights at a glance."}
+                </p>
+                <span className="ai-feature__cta">
+                  {isHindi ? "CriblMap खोलें" : "Open CriblMap"} <ArrowRight size={14} />
+                </span>
+              </Link>
 
-            {/* Maya — voice listing agent */}
-            <Link href={`/${params.locale}/owner/listings/new`} className="ai-feature">
-              <div className="ai-mini-mic" aria-hidden="true">
-                <Mic size={22} />
-              </div>
-              <span className="ai-pill">{isHindi ? "AI वॉइस" : "AI Voice"}</span>
-              <h3 className="ai-feature__title">
-                {isHindi ? "Maya — आपकी वॉइस लिस्टिंग एजेंट" : "Maya, your voice listing agent"}
-              </h3>
-              <p className="ai-feature__desc">
-                {isHindi
-                  ? "बस बोलकर अपनी प्रॉपर्टी लिस्ट करें। Maya आपके बताते ही सारी जानकारी भर देती है।"
-                  : "List your property by just talking. Maya fills in the details as you speak."}
-              </p>
-              <div className="ai-bubble">नमस्ते! Boliye…</div>
-              <span className="ai-feature__cta">
-                {isHindi ? "वॉइस लिस्टिंग आज़माएं" : "Try voice listing"} <ArrowRight size={14} />
-              </span>
-            </Link>
+              {/* Maya — voice listing agent */}
+              <Link href={`/${params.locale}/owner/listings/new` as Route} className="ai-feature">
+                <div className="ai-mini-mic" aria-hidden="true">
+                  <Mic size={22} />
+                </div>
+                <span className="ai-pill">{isHindi ? "AI वॉइस" : "AI Voice"}</span>
+                <h3 className="ai-feature__title">
+                  {isHindi ? "Maya — आपकी वॉइस लिस्टिंग एजेंट" : "Maya, your voice listing agent"}
+                </h3>
+                <p className="ai-feature__desc">
+                  {isHindi
+                    ? "बस बोलकर अपनी प्रॉपर्टी लिस्ट करें। Maya आपके बताते ही सारी जानकारी भर देती है।"
+                    : "List your property by just talking. Maya fills in the details as you speak."}
+                </p>
+                <div className="ai-bubble">नमस्ते! Boliye…</div>
+                <span className="ai-feature__cta">
+                  {isHindi ? "वॉइस लिस्टिंग आज़माएं" : "Try voice listing"} <ArrowRight size={14} />
+                </span>
+              </Link>
 
-            {/* AI / voice search */}
-            <Link href={`/${params.locale}/search`} className="ai-feature">
-              <span className="ai-pill">{isHindi ? "AI खोज" : "AI Search"}</span>
-              <div className="ai-mini-search">
-                <Search size={14} />
-                {isHindi ? "साइबर सिटी के पास 2BHK, 35k तक" : "2BHK near Cyber City under 35k"}
-              </div>
-              <div className="ai-chips" aria-hidden="true">
-                <span className="ai-chip">2 BHK</span>
-                <span className="ai-chip">{isHindi ? "35k तक" : "Under 35k"}</span>
-                <span className="ai-chip">{isHindi ? "फर्निश्ड" : "Furnished"}</span>
-              </div>
-              <h3 className="ai-feature__title">
-                {isHindi ? "जैसे बोलते हैं वैसे खोजें" : "Search the way you talk"}
-              </h3>
-              <p className="ai-feature__desc">
-                {isHindi
-                  ? "अंग्रेज़ी या हिंदी में लिखें या बोलें — हमारा AI इसे सही फ़िल्टर में बदल देता है।"
-                  : "Type or speak in English or Hindi — our AI turns it into the right filters."}
-              </p>
-              <span className="ai-feature__cta">
-                {isHindi ? "अभी खोजें" : "Start searching"} <ArrowRight size={14} />
-              </span>
-            </Link>
+              {/* AI / voice search */}
+              <Link href={`/${params.locale}/search` as Route} className="ai-feature">
+                <span className="ai-pill">{isHindi ? "AI खोज" : "AI Search"}</span>
+                <div className="ai-mini-search">
+                  <Search size={14} />
+                  {isHindi ? "साइबर सिटी के पास 2BHK, 35k तक" : "2BHK near Cyber City under 35k"}
+                </div>
+                <div className="ai-chips" aria-hidden="true">
+                  <span className="ai-chip">2 BHK</span>
+                  <span className="ai-chip">{isHindi ? "35k तक" : "Under 35k"}</span>
+                  <span className="ai-chip">{isHindi ? "फर्निश्ड" : "Furnished"}</span>
+                </div>
+                <h3 className="ai-feature__title">
+                  {isHindi ? "जैसे बोलते हैं वैसे खोजें" : "Search the way you talk"}
+                </h3>
+                <p className="ai-feature__desc">
+                  {isHindi
+                    ? "अंग्रेज़ी या हिंदी में लिखें या बोलें — हमारा AI इसे सही फ़िल्टर में बदल देता है।"
+                    : "Type or speak in English or Hindi — our AI turns it into the right filters."}
+                </p>
+                <span className="ai-feature__cta">
+                  {isHindi ? "अभी खोजें" : "Start searching"} <ArrowRight size={14} />
+                </span>
+              </Link>
+            </div>
           </div>
         </section>
       </AnimateOnScroll>
 
       {/* ── Browse by Type ── */}
       <AnimateOnScroll delay={100}>
-        <section className="section--sm">
-          <div className="edi-head">
-            <div>
-              <span className="edi-eyebrow">{isHindi ? "संपत्ति प्रकार" : "Browse by Type"}</span>
-              <h2 className="edi-title">
-                {isHindi ? "आप किस तरह रहना चाहते हैं?" : "What kind of place are you after?"}
-              </h2>
-            </div>
-            <Link href={`/${params.locale}/search`} className="edi-head__action">
-              {isHindi ? "सभी देखें" : "Browse all"} <ArrowRight size={14} />
-            </Link>
-          </div>
-          <div className="browse-bento">
-            {[
-              {
-                href: `/${params.locale}/search?listing_type=flat_house`,
-                icon: Building,
-                color: "brand" as const,
-                featured: true,
-                title: isHindi ? "फ्लैट और मकान" : "Flats & Houses",
-                desc: isHindi
-                  ? "1BHK से 4BHK तक — अपार्टमेंट और स्वतंत्र मकान, सीधे मालिक से।"
-                  : "1BHK to 4BHK apartments and independent houses, straight from verified owners.",
-                bg: "var(--brand-light)"
-              },
-              {
-                href: `/${params.locale}/pg`,
-                icon: Home,
-                color: "accent" as const,
-                featured: false,
-                title: isHindi ? "PG और हॉस्टल" : "PGs & Hostels",
-                desc: isHindi
-                  ? "खाने, वाईफाई और साझा सुविधाओं के साथ"
-                  : "Meals, WiFi, and shared amenities",
-                bg: "var(--accent-light)"
-              },
-              {
-                href: `/${params.locale}/search?listing_type=flat_house&furnished=true`,
-                icon: Sofa,
-                color: "amber" as const,
-                featured: false,
-                title: isHindi ? "फर्निश्ड घर" : "Furnished Homes",
-                desc: isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture",
-                bg: "var(--amber-light)"
-              }
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.title}
-                  href={item.href as `/${string}`}
-                  className={`browse-card${item.featured ? " browse-card--featured" : ""}`}
-                >
-                  <div>
-                    <div
-                      className="browse-card__icon"
-                      style={{ background: item.bg, color: `var(--${item.color})` }}
-                      aria-hidden="true"
-                    >
-                      <Icon size={item.featured ? 26 : 22} />
-                    </div>
-                    <h3 className="browse-card__title">{item.title}</h3>
-                    <p className="browse-card__desc">{item.desc}</p>
-                  </div>
-                  <span className="browse-card__cta" style={{ color: `var(--${item.color})` }}>
-                    {isHindi ? "खोजें" : "Explore"} <ArrowRight size={14} />
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      </AnimateOnScroll>
-
-      {/* ── Social Proof Stats ── */}
-      <AnimateOnScroll delay={100}>
-        <section className="section--sm">
-          <div className="impact">
-            <div className="impact__intro">
-              <span className="edi-eyebrow edi-eyebrow--light">
-                {isHindi ? "हमारे आंकड़े" : "Our Impact"}
-              </span>
-              <h2 className="edi-title edi-title--light">
-                {isHindi
-                  ? "उत्तर भारत के किरायेदारों का भरोसा"
-                  : "Trusted by renters across North India"}
-              </h2>
-              <p
-                style={{
-                  marginTop: "var(--space-4)",
-                  color: "rgba(255,255,255,0.6)",
-                  fontSize: 15,
-                  lineHeight: 1.6,
-                  maxWidth: 360
-                }}
-              >
-                {isHindi
-                  ? "हर लिस्टिंग सत्यापित, हर मालिक असली — और कोई दलाली नहीं।"
-                  : "Every listing verified, every owner real — and not a rupee in brokerage."}
-              </p>
-            </div>
-
-            <div className="impact-grid">
-              {PLATFORM_STATS.map((stat, i) => (
-                <div key={stat.label} className="impact-stat">
-                  <div className="impact-stat__num">
-                    {stat.label === "Brokerage" ? (
-                      "₹0"
-                    ) : (
-                      <CountUp
-                        value={stat.numericValue}
-                        prefix={stat.prefix || ""}
-                        suffix={stat.suffix || ""}
-                        duration={1400 + i * 200}
-                      />
-                    )}
-                  </div>
-                  <div className="impact-stat__label">{isHindi ? stat.labelHi : stat.label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      </AnimateOnScroll>
-
-      {/* ── Testimonials ── */}
-      <AnimateOnScroll delay={100}>
-        <section
-          style={{
-            background: "var(--surface)",
-            padding: "var(--space-16) 0",
-            width: "100%"
-          }}
-        >
+        <section className="home-section home-section--surface">
           <div className="container">
             <div className="edi-head">
               <div>
-                <span className="edi-eyebrow">
-                  {isHindi ? "किरायेदारों की राय" : "Loved by Tenants"}
-                </span>
-                <h2 className="edi-title">{isHindi ? "वे क्या कहते हैं" : "What renters say"}</h2>
+                <span className="edi-eyebrow">{isHindi ? "संपत्ति प्रकार" : "Browse by Type"}</span>
+                <h2 className="edi-title">
+                  {isHindi ? "आप किस तरह रहना चाहते हैं?" : "What kind of place are you after?"}
+                </h2>
               </div>
-              <p className="edi-lede">
-                {isHindi
-                  ? "असली किरायेदार, असली घर — Cribliv के ज़रिए।"
-                  : "Real tenants who found their home through Cribliv."}
-              </p>
+              <Link href={`/${params.locale}/search` as Route} className="edi-head__action">
+                {isHindi ? "सभी देखें" : "Browse all"} <ArrowRight size={14} />
+              </Link>
             </div>
-            <div className="voices-grid">
-              {(() => {
-                const renderStars = (rating: number) => (
-                  <div className="voices-stars" aria-hidden="true">
-                    {Array.from({ length: rating }).map((_, i) => (
-                      <svg key={i} width="15" height="15" viewBox="0 0 24 24" fill="var(--amber)">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                      </svg>
-                    ))}
-                  </div>
-                );
-                const renderAuthor = (testimonial: (typeof TESTIMONIALS)[number], idx: number) => (
-                  <div className="voices-author">
-                    <div className={`testimonial-avatar testimonial-avatar--${(idx % 3) + 1}`}>
-                      {testimonial.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="voices-author__name">{testimonial.name}</div>
-                      <div className="voices-author__city">
-                        <MapPin size={10} />
-                        {testimonial.city}
-                      </div>
-                    </div>
-                  </div>
-                );
-                const featured = TESTIMONIALS[0];
-                const rest = TESTIMONIALS.slice(1);
+            <div className="browse-bento">
+              {[
+                {
+                  href: `/${params.locale}/search?listing_type=flat_house`,
+                  icon: Building,
+                  color: "brand" as const,
+                  featured: true,
+                  title: isHindi ? "फ्लैट और मकान" : "Flats & Houses",
+                  desc: isHindi
+                    ? "1BHK से 4BHK तक — फोटो, किराया और वेरिफिकेशन स्टेटस के साथ।"
+                    : "1BHK to 4BHK apartments and independent houses with photos, rent, and verification status.",
+                  bg: "var(--brand-light)"
+                },
+                {
+                  href: `/${params.locale}/pg`,
+                  icon: Home,
+                  color: "accent" as const,
+                  featured: false,
+                  title: isHindi ? "PG और हॉस्टल" : "PGs & Hostels",
+                  desc: isHindi
+                    ? "खाने, वाईफाई और साझा सुविधाओं के साथ"
+                    : "Meals, WiFi, and shared amenities",
+                  bg: "var(--accent-light)"
+                },
+                {
+                  href: `/${params.locale}/search?listing_type=flat_house&furnished=true`,
+                  icon: Sofa,
+                  color: "amber" as const,
+                  featured: false,
+                  title: isHindi ? "फर्निश्ड घर" : "Furnished Homes",
+                  desc: isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture",
+                  bg: "var(--amber-light)"
+                }
+              ].map((item) => {
+                const Icon = item.icon;
                 return (
-                  <>
-                    <div className="voices-quote voices-quote--featured">
-                      <div>
-                        <div className="voices-mark" aria-hidden="true">
-                          &ldquo;
-                        </div>
-                        {renderStars(featured.rating)}
-                        <p className="voices-text">{featured.text}</p>
+                  <Link
+                    key={item.title}
+                    href={item.href as Route}
+                    className={`browse-card${item.featured ? " browse-card--featured" : ""}`}
+                  >
+                    <div>
+                      <div
+                        className="browse-card__icon"
+                        style={{ background: item.bg, color: `var(--${item.color})` }}
+                        aria-hidden="true"
+                      >
+                        <Icon size={item.featured ? 26 : 22} />
                       </div>
-                      {renderAuthor(featured, 0)}
+                      <h3 className="browse-card__title">{item.title}</h3>
+                      <p className="browse-card__desc">{item.desc}</p>
                     </div>
-                    <div className="voices-col">
-                      {rest.map((testimonial, i) => (
-                        <div key={testimonial.name} className="voices-quote">
-                          <div>
-                            {renderStars(testimonial.rating)}
-                            <p className="voices-text">&ldquo;{testimonial.text}&rdquo;</p>
-                          </div>
-                          {renderAuthor(testimonial, i + 1)}
-                        </div>
-                      ))}
-                    </div>
-                  </>
+                    <span className="browse-card__cta" style={{ color: `var(--${item.color})` }}>
+                      {isHindi ? "खोजें" : "Explore"} <ArrowRight size={14} />
+                    </span>
+                  </Link>
                 );
-              })()}
+              })}
             </div>
           </div>
         </section>
       </AnimateOnScroll>
 
+      {/* ── Backend Proof Stats ── */}
+      <AnimateOnScroll delay={100}>
+        <section className="home-section home-section--impact">
+          <div className="container">
+            <div className="impact">
+              <div className="impact__intro">
+                <span className="edi-eyebrow edi-eyebrow--light">
+                  {isHindi ? "लाइव डेटा" : "Live backend proof"}
+                </span>
+                <h2 className="edi-title edi-title--light">
+                  {isHindi
+                    ? "जो दिख रहा है वह API से आ रहा है"
+                    : "What you see here comes from the API"}
+                </h2>
+                <p
+                  style={{
+                    marginTop: "var(--space-4)",
+                    color: "rgba(255,255,255,0.6)",
+                    fontSize: 15,
+                    lineHeight: 1.6,
+                    maxWidth: 360
+                  }}
+                >
+                  {isHindi
+                    ? "ये नंबर लाइव सर्च, वेरिफिकेशन और लोकेलिटी रिस्पॉन्स से बने हैं।"
+                    : "These numbers are built from live search, verification, and locality responses."}
+                </p>
+              </div>
+
+              <div className="impact-grid">
+                {impactStats.map((stat, i) => (
+                  <div key={stat.label} className="impact-stat">
+                    <div className="impact-stat__num">
+                      <CountUp value={stat.value} suffix={stat.suffix} duration={1400 + i * 200} />
+                    </div>
+                    <div className="impact-stat__label">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      </AnimateOnScroll>
+
+      {/* ── Live Backend Examples ── */}
+      {liveProofListings.length > 0 && (
+        <AnimateOnScroll delay={100}>
+          <section className="home-section home-section--surface">
+            <div className="container">
+              <div className="edi-head">
+                <div>
+                  <span className="edi-eyebrow">
+                    {isHindi ? "लाइव उदाहरण" : "Live backend examples"}
+                  </span>
+                  <h2 className="edi-title">
+                    {isHindi
+                      ? "अभी API से आ रही लिस्टिंग"
+                      : "Listings currently coming from the API"}
+                  </h2>
+                </div>
+                <p className="edi-lede">
+                  {isHindi
+                    ? "यह सेक्शन टेस्टिमोनियल नहीं है — ये वास्तविक लिस्टिंग डेटा है।"
+                    : "This is not a testimonial section. These are real listings from the backend response."}
+                </p>
+              </div>
+              <div className="home-proof-grid">
+                {liveProofListings.map((listing) => (
+                  <ListingCardItem key={listing.id} locale={params.locale} listing={listing} />
+                ))}
+              </div>
+            </div>
+          </section>
+        </AnimateOnScroll>
+      )}
+
       {/* ── CTA Banner ── */}
-      <div className="container" style={{ paddingBottom: "var(--space-4)" }}>
+      <div className="container home-cta-wrap">
         <section className="cta-banner" style={{ margin: 0 }}>
           {/* Decorative dot grid */}
           <div
@@ -985,10 +942,10 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             </h2>
             <p>
               {isHindi
-                ? "5 मिनट में AI-सत्यापित लिस्टिंग बनाएं और भरोसेमंद किरायेदारों से सीधे जुड़ें।"
-                : "Create an AI-verified listing in under 5 minutes and connect directly with trusted tenants across North India."}
+                ? "लिस्टिंग ड्राफ्ट बनाएं, विवरण जोड़ें, और किरायेदारों से जुड़ने के लिए अपना मालिक डैशबोर्ड इस्तेमाल करें।"
+                : "Create a listing draft, add property details, and use the owner dashboard to connect with tenants."}
             </p>
-            <Link href={`/${params.locale}/owner/dashboard`} className="btn btn--lg">
+            <Link href={`/${params.locale}/owner/dashboard` as Route} className="btn btn--lg">
               {isHindi ? "अभी लिस्ट करें" : "List Your Property"}
               <ArrowRight size={18} />
             </Link>

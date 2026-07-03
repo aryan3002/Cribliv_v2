@@ -36,18 +36,51 @@ export class MapController {
       sw_lng: string;
       ne_lat: string;
       ne_lng: string;
+      bhk?: string;
+      max_rent?: string;
       listing_type?: string;
+      verified_only?: string;
       near_metro?: string;
     }
   ) {
+    const bounds = {
+      sw_lat: Number(query.sw_lat),
+      sw_lng: Number(query.sw_lng),
+      ne_lat: Number(query.ne_lat),
+      ne_lng: Number(query.ne_lng)
+    };
+    if (!Object.values(bounds).every(Number.isFinite)) {
+      throw new BadRequestException("sw_lat, sw_lng, ne_lat, and ne_lng must be valid numbers");
+    }
+    const bhk = query.bhk ? Number(query.bhk) : undefined;
+    const maxRent = query.max_rent ? Number(query.max_rent) : undefined;
+    if (bhk !== undefined && !Number.isFinite(bhk)) {
+      throw new BadRequestException("bhk must be a valid number");
+    }
+    if (maxRent !== undefined && !Number.isFinite(maxRent)) {
+      throw new BadRequestException("max_rent must be a valid number");
+    }
+    if (
+      query.listing_type !== undefined &&
+      query.listing_type !== "flat_house" &&
+      query.listing_type !== "pg"
+    ) {
+      throw new BadRequestException("listing_type must be flat_house or pg");
+    }
+
     return ok(
       await this.mapService.getAreaStats(
-        Number(query.sw_lng),
-        Number(query.sw_lat),
-        Number(query.ne_lng),
-        Number(query.ne_lat),
-        query.listing_type,
-        query.near_metro === "true"
+        bounds.sw_lng,
+        bounds.sw_lat,
+        bounds.ne_lng,
+        bounds.ne_lat,
+        {
+          bhk,
+          max_rent: maxRent,
+          listing_type: query.listing_type,
+          verified_only: query.verified_only === "true",
+          near_metro: query.near_metro === "true"
+        }
       )
     );
   }
@@ -119,13 +152,16 @@ export class MapController {
       ne_lng: string;
     }
   ) {
+    const swLat = Number(query.sw_lat);
+    const swLng = Number(query.sw_lng);
+    const neLat = Number(query.ne_lat);
+    const neLng = Number(query.ne_lng);
+    if (![swLat, swLng, neLat, neLng].every(Number.isFinite)) {
+      throw new BadRequestException("sw_lat, sw_lng, ne_lat, and ne_lng must be valid numbers");
+    }
+
     return ok(
-      await this.mapService.getSeekerPins(
-        Number(query.sw_lat),
-        Number(query.sw_lng),
-        Number(query.ne_lat),
-        Number(query.ne_lng)
-      )
+      await this.mapService.getSeekerPins(swLat, swLng, neLat, neLng)
     );
   }
 

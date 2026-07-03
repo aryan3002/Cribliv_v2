@@ -67,6 +67,8 @@ interface MatchPin {
   lat: number;
   lng: number;
   city: string;
+  locality: string | null;
+  locality_slug: string | null;
 }
 function radiusToBboxDelta(lat: number, radiusM: number): { dLat: number; dLng: number } {
   const dLat = radiusM / 111_000; // 1° lat ≈ 111 km everywhere
@@ -335,8 +337,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
           <span>You need an account to drop a pin — keeps the demand signal honest.</span>
         </div>
         <Link
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          href={`/${locale}/login?next=${encodeURIComponent("/" + locale + "/map")}` as any}
+          href={`/auth/login?from=${encodeURIComponent("/" + locale + "/map")}`}
           className="cmap-listing__cta cmap-listing__cta--primary"
         >
           <LogIn size={14} /> Sign in to continue

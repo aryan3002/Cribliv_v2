@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { X, Bell, Loader2, MessageSquare, Mail } from "lucide-react";
+import Link from "next/link";
+import { X, Bell, Loader2, MessageSquare, Mail, LogIn } from "lucide-react";
 import { useMapState, useMapDispatch } from "../hooks/useMapState";
 import { fetchApi } from "../../../lib/api";
 
 interface AlertZoneModalProps {
+  accessToken: string | null;
+  locale: string;
   onClose: () => void;
 }
 
 const BHK_OPTIONS = [1, 2, 3, 4];
 
-export function AlertZoneModal({ onClose }: AlertZoneModalProps) {
+export function AlertZoneModal({ accessToken, locale, onClose }: AlertZoneModalProps) {
   const { drawnBounds } = useMapState();
   const dispatch = useMapDispatch();
 
@@ -24,18 +27,21 @@ export function AlertZoneModal({ onClose }: AlertZoneModalProps) {
   const [notifyEmail, setNotifyEmail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleBhk = useCallback((bhk: number) => {
     setBhkFilter((prev) => (prev.includes(bhk) ? prev.filter((b) => b !== bhk) : [...prev, bhk]));
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!drawnBounds || submitting) return;
+    if (!drawnBounds || submitting || !accessToken) return;
     setSubmitting(true);
+    setError(null);
 
     try {
       await fetchApi("/map/alert-zones", {
         method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({
           sw_lat: drawnBounds.sw_lat,
           sw_lng: drawnBounds.sw_lng,
@@ -59,7 +65,7 @@ export function AlertZoneModal({ onClose }: AlertZoneModalProps) {
         dispatch({ type: "CLEAR_DRAW" });
       }, 2000);
     } catch {
-      /* handle silently */
+      setError("Couldn't save this alert zone. Please sign in again and retry.");
     } finally {
       setSubmitting(false);
     }
@@ -73,6 +79,7 @@ export function AlertZoneModal({ onClose }: AlertZoneModalProps) {
     notifyWhatsapp,
     notifyEmail,
     submitting,
+    accessToken,
     onClose,
     dispatch
   ]);
@@ -106,6 +113,34 @@ export function AlertZoneModal({ onClose }: AlertZoneModalProps) {
             <p style={{ color: "var(--cmap-text-secondary)", fontSize: 13 }}>
               You&apos;ll be notified when new listings match your criteria in this area.
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!accessToken) {
+    return (
+      <div className="cmap-modal-backdrop" onClick={onClose}>
+        <div className="cmap-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="cmap-modal__header">
+            <Bell size={20} />
+            <h2>Save Alert Zone</h2>
+            <button className="cmap-panel__close" onClick={onClose} aria-label="Close">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="cmap-modal__body">
+            <div className="cmap-seeker-form__auth-required">
+              <LogIn size={16} />
+              <span>Sign in to save alert zones and get notified when matching homes appear.</span>
+            </div>
+            <Link
+              href={`/auth/login?from=${encodeURIComponent("/" + locale + "/map")}`}
+              className="cmap-listing__cta cmap-listing__cta--primary"
+            >
+              <LogIn size={14} /> Sign in to continue
+            </Link>
           </div>
         </div>
       </div>
@@ -237,6 +272,7 @@ export function AlertZoneModal({ onClose }: AlertZoneModalProps) {
             {submitting ? <Loader2 size={14} className="cmap-spin" /> : <Bell size={14} />}
             {submitting ? "Saving..." : "Save Alert Zone"}
           </button>
+          {error && <p className="cmap-seeker-form__error">{error}</p>}
         </div>
       </div>
     </div>

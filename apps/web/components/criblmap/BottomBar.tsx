@@ -14,12 +14,15 @@ function formatBudget(rent: number): string {
 }
 
 export function BottomBar({ onBenchmarkClick }: BottomBarProps) {
-  const { pins, seekerPins, isLoading, demandViewActive } = useMapState();
+  const { pins, seekerPins, isLoading, demandViewActive, demandLoading, demandError } =
+    useMapState();
 
   const totalCount = pins.length;
   const verifiedCount = pins.filter((p) => p.verification_status === "verified").length;
   const belowMarketCount = pins.filter((p) => p.belowMarket).length;
-  const seekerCount = seekerPins.length;
+  const realSeekerCount = seekerPins.filter((p) => p.source !== "estimated").length;
+  const estimatedCount = seekerPins.filter((p) => p.source === "estimated").length;
+  const hasEstimatedDemand = estimatedCount > 0 && realSeekerCount === 0;
   const avgSeekerBudget =
     seekerPins.length > 0
       ? Math.round(seekerPins.reduce((s, p) => s + p.budget_max, 0) / seekerPins.length)
@@ -36,11 +39,7 @@ export function BottomBar({ onBenchmarkClick }: BottomBarProps) {
   }
 
   if (totalCount === 0 && !demandViewActive) {
-    return (
-      <div className="cmap-bottombar">
-        <span className="cmap-bottombar__stat">No listings in this area. Try zooming out.</span>
-      </div>
-    );
+    return null;
   }
 
   if (demandViewActive) {
@@ -48,13 +47,28 @@ export function BottomBar({ onBenchmarkClick }: BottomBarProps) {
       <div className="cmap-bottombar">
         <span className="cmap-bottombar__stat">
           <span className="cmap-bottombar__dot cmap-bottombar__dot--seeker" />
-          <strong>{seekerCount}</strong> active seeker{seekerCount !== 1 ? "s" : ""} in view
+          {demandError ? (
+            <span>{demandError}</span>
+          ) : demandLoading && seekerPins.length === 0 ? (
+            <span>Loading demand...</span>
+          ) : hasEstimatedDemand ? (
+            <>
+              <strong>{estimatedCount}</strong> estimated demand area
+              {estimatedCount !== 1 ? "s" : ""} in view
+            </>
+          ) : (
+            <>
+              <strong>{realSeekerCount}</strong> active seeker
+              {realSeekerCount !== 1 ? "s" : ""} in view
+            </>
+          )}
         </span>
-        {avgSeekerBudget > 0 && (
+        {!demandError && avgSeekerBudget > 0 && (
           <>
             <span className="cmap-bottombar__separator" />
             <span className="cmap-bottombar__stat">
-              Avg budget <strong>₹{formatBudget(avgSeekerBudget)}</strong>
+              {hasEstimatedDemand ? "Est. budget" : "Avg budget"}{" "}
+              <strong>₹{formatBudget(avgSeekerBudget)}</strong>
             </span>
           </>
         )}

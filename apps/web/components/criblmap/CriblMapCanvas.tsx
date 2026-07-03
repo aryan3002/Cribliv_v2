@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { useGoogleMap } from "../../lib/google-maps";
+import { CRIBLMAP_LIGHT_STYLE } from "../../lib/map-styles";
 import { detectCityFromCoord } from "../../lib/city-bboxes";
 import { useMapDispatch, useMapState } from "./hooks/useMapState";
 
@@ -21,7 +22,9 @@ export function CriblMapCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const { map, ready } = useGoogleMap(containerRef, {
     center: initialCenter ?? { lat: 28.6139, lng: 77.209 },
-    zoom: initialZoom ?? 11
+    zoom: initialZoom ?? 11,
+    styles: CRIBLMAP_LIGHT_STYLE,
+    colorScheme: "LIGHT"
   });
   const dispatch = useMapDispatch();
   const { city: currentCity } = useMapState();

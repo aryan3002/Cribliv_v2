@@ -36,18 +36,21 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
   const [fetching, setFetching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const autocompleteListenerRef = useRef<google.maps.MapsEventListener | null>(null);
   const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* Places autocomplete on the office input. */
   useEffect(() => {
     if (!showInput || !inputRef.current || typeof google === "undefined") return;
 
+    autocompleteListenerRef.current?.remove();
+    autocompleteListenerRef.current = null;
     autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
       types: ["establishment", "geocode"],
       componentRestrictions: { country: "in" }
     });
 
-    autocompleteRef.current.addListener("place_changed", () => {
+    autocompleteListenerRef.current = autocompleteRef.current.addListener("place_changed", () => {
       const place = autocompleteRef.current?.getPlace();
       if (place?.geometry?.location) {
         const addr = place.formatted_address ?? place.name ?? "";
@@ -63,6 +66,12 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
         onCloseInput();
       }
     });
+
+    return () => {
+      autocompleteListenerRef.current?.remove();
+      autocompleteListenerRef.current = null;
+      autocompleteRef.current = null;
+    };
   }, [showInput, dispatch, onCloseInput]);
 
   /* Render the office pin marker. */

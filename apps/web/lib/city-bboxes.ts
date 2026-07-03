@@ -50,6 +50,15 @@ export const CITY_BBOXES: Record<string, CityBBox> = {
   }
 };
 
+export function cityCentroid(slug: string): { lat: number; lng: number } | null {
+  const bbox = CITY_BBOXES[slug.toLowerCase()];
+  if (!bbox) return null;
+  return {
+    lat: (bbox.sw.lat + bbox.ne.lat) / 2,
+    lng: (bbox.sw.lng + bbox.ne.lng) / 2
+  };
+}
+
 function inBBox(lat: number, lng: number, bbox: CityBBox): boolean {
   return lat >= bbox.sw.lat && lat <= bbox.ne.lat && lng >= bbox.sw.lng && lng <= bbox.ne.lng;
 }

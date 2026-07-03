@@ -17,7 +17,8 @@ function getSeekerLabel(pin: SeekerPin): string {
   const bhk =
     pin.bhk_preference?.length > 0 ? pin.bhk_preference.map((b) => `${b}BHK`).join("/") : "Any";
   const timing = pin.move_in === "immediate" ? "ASAP" : pin.move_in === "within_month" ? "1mo" : "";
-  return `Looking · ₹${formatBudget(pin.budget_max)} · ${bhk}${timing ? ` · ${timing}` : ""}`;
+  const prefix = pin.source === "estimated" ? "Demand" : "Looking";
+  return `${prefix} · ₹${formatBudget(pin.budget_max)} · ${bhk}${timing ? ` · ${timing}` : ""}`;
 }
 
 /* Urgency drives the circle/label tint so an owner scanning the map can
@@ -59,13 +60,13 @@ function escapeHtml(s: string): string {
 
 export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
   const { seekerPins, demandViewActive } = useMapState();
-  const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const markerCleanupRef = useRef<Array<() => void>>([]);
   const circlesRef = useRef<google.maps.Circle[]>([]);
 
   useEffect(() => {
-    for (const m of markersRef.current) m.map = null;
+    for (const cleanup of markerCleanupRef.current) cleanup();
     for (const c of circlesRef.current) c.setMap(null);
-    markersRef.current = [];
+    markerCleanupRef.current = [];
     circlesRef.current = [];
 
     if (!map || !demandViewActive || seekerPins.length === 0) return;
@@ -82,9 +83,9 @@ export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
         radius: radiusM,
         strokeColor: color,
         strokeWeight: 1.5,
-        strokeOpacity: 0.55 * opacity,
+        strokeOpacity: (pin.source === "estimated" ? 0.28 : 0.55) * opacity,
         fillColor: color,
-        fillOpacity: 0.1 * opacity,
+        fillOpacity: (pin.source === "estimated" ? 0.06 : 0.1) * opacity,
         clickable: false,
         zIndex: 4
       });
@@ -115,22 +116,42 @@ export function SeekerPinLayer({ map }: SeekerPinLayerProps) {
 
       if (pin.note) {
         el.title = pin.note;
+      } else if (pin.source === "estimated") {
+        el.title = "Estimated from nearby active listings until real seeker pins exist.";
       }
 
-      const marker = new google.maps.marker.AdvancedMarkerElement({
-        map,
-        position: { lat: pin.lat, lng: pin.lng },
-        content: el,
-        zIndex: 8
-      });
-
-      markersRef.current.push(marker);
+      const advancedMarkerCtor = google.maps.marker?.AdvancedMarkerElement;
+      try {
+        if (!advancedMarkerCtor) throw new Error("Advanced markers unavailable");
+        const marker = new advancedMarkerCtor({
+          map,
+          position: { lat: pin.lat, lng: pin.lng },
+          content: el,
+          zIndex: 8
+        });
+        markerCleanupRef.current.push(() => {
+          marker.map = null;
+        });
+      } catch {
+        const marker = new google.maps.Marker({
+          map,
+          position: { lat: pin.lat, lng: pin.lng },
+          label: {
+            text: pin.source === "estimated" ? "D" : "S",
+            color: "#ffffff",
+            fontSize: "11px",
+            fontWeight: "700"
+          },
+          title: el.textContent ?? undefined
+        });
+        markerCleanupRef.current.push(() => marker.setMap(null));
+      }
     }
 
     return () => {
-      for (const m of markersRef.current) m.map = null;
+      for (const cleanup of markerCleanupRef.current) cleanup();
       for (const c of circlesRef.current) c.setMap(null);
-      markersRef.current = [];
+      markerCleanupRef.current = [];
       circlesRef.current = [];
     };
   }, [map, seekerPins, demandViewActive]);

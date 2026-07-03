@@ -1,6 +1,14 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { Search as SearchIcon, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Search as SearchIcon,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Building,
+  ShieldCheck,
+  SlidersHorizontal
+} from "lucide-react";
 import { searchPgListings, type PgSearchResponse } from "../../../lib/pg-public-api";
 import { buildSearchQuery } from "../../../lib/api";
 import { SegmentedSearchBar } from "../../../components/search/SegmentedSearchBar";
@@ -52,36 +60,48 @@ export default async function PgSearchPage({
   const currentPage = response.page;
 
   return (
-    <section
-      className="container"
-      style={{ paddingTop: "var(--space-6)", paddingBottom: "var(--space-16)" }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "var(--space-2)",
-          marginBottom: "var(--space-4)"
-        }}
-      >
-        <h1 style={{ fontSize: "1.25rem", margin: 0 }}>
-          {filters.city
-            ? `PGs in ${filters.city.charAt(0).toUpperCase()}${filters.city.slice(1)}`
-            : "Find Verified PGs"}
-        </h1>
-        <p className="text-secondary body-sm" style={{ margin: 0 }}>
-          {response.total} result{response.total === 1 ? "" : "s"}
-        </p>
-      </div>
-
-      <SegmentedSearchBar locale={params.locale} segment="pg" params={filters} />
-
-      <PgFilters locale={params.locale} filters={filters} />
+    <div className="tenant-results-page tenant-results-page--pg">
+      <section className="tenant-results-hero tenant-results-hero--pg">
+        <div className="container">
+          <div className="tenant-results-hero__shell">
+            <div className="tenant-results-hero__copy">
+              <span className="tenant-results-hero__eyebrow">
+                <Building size={14} aria-hidden="true" />
+                Verified PG search
+              </span>
+              <h1>
+                {filters.city
+                  ? `PGs in ${filters.city.charAt(0).toUpperCase()}${filters.city.slice(1)}`
+                  : "Find Verified PGs"}
+              </h1>
+              <p>
+                {response.total} PG option{response.total === 1 ? "" : "s"} with sharing, meals,
+                gender policy, and verified operator signals.
+              </p>
+            </div>
+            <div className="tenant-results-hero__actions tenant-results-hero__actions--badges">
+              <span className="tenant-proof-pill">
+                <ShieldCheck size={14} aria-hidden="true" />
+                Food + sharing filters
+              </span>
+            </div>
+            <div className="tenant-results-toolbar">
+              <SegmentedSearchBar locale={params.locale} segment="pg" params={filters} />
+              <div className="tenant-results-filter-card">
+                <span className="tenant-results-filter-card__label">
+                  <SlidersHorizontal size={14} aria-hidden="true" />
+                  PG filters
+                </span>
+                <PgFilters locale={params.locale} filters={filters} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {error && (
-        <div className="error-state" style={{ marginTop: "var(--space-6)" }}>
+        <div className="container">
+          <div className="error-state" style={{ marginTop: "var(--space-6)" }}>
           <div className="error-state__icon">
             <AlertTriangle size={36} />
           </div>
@@ -89,11 +109,14 @@ export default async function PgSearchPage({
           <Link href={`/${params.locale}/pg` as Route} className="btn btn--secondary">
             Clear filters
           </Link>
+          </div>
         </div>
       )}
 
-      {!error && response.items.length === 0 ? (
-        <div className="empty-state" style={{ marginTop: "var(--space-8)" }}>
+      <section className="container tenant-results-content tenant-results-map-shell">
+        <div className="tenant-results-list-panel">
+        {!error && response.items.length === 0 ? (
+          <div className="empty-state" style={{ marginTop: "var(--space-8)" }}>
           <span className="empty-state__icon" aria-hidden="true">
             <SearchIcon size={48} style={{ margin: "0 auto", color: "var(--text-tertiary)" }} />
           </span>
@@ -104,7 +127,7 @@ export default async function PgSearchPage({
           </Link>
         </div>
       ) : (
-        <div className="listing-grid" style={{ marginTop: "var(--space-6)" }}>
+        <div className="listing-grid">
           <PgSearchTracker
             city={filters.city}
             query={filters.q}
@@ -153,6 +176,31 @@ export default async function PgSearchPage({
           )}
         </nav>
       )}
-    </section>
+        </div>
+        <aside className="tenant-results-map-panel" aria-label="PG map preview">
+          <div className="tenant-map-card tenant-map-card--results">
+            <div className="tenant-map-card__street" aria-hidden="true" />
+            <div className="tenant-map-card__road" aria-hidden="true" />
+            <div className="tenant-map-card__wash" aria-hidden="true" />
+            <div className="tenant-map-card__river" aria-hidden="true" />
+            <div className="tenant-map-card__park tenant-map-card__park--top" aria-hidden="true" />
+            <span className="tenant-map-card__label tenant-map-card__label--top">
+              {filters.city ? filters.city.charAt(0).toUpperCase() + filters.city.slice(1) : "PG clusters"}
+            </span>
+            <span className="tenant-price-pin tenant-price-pin--brand tenant-map-card__pin tenant-map-card__pin--one">
+              <span /> PG · ₹9.5k
+            </span>
+            <span className="tenant-price-pin tenant-price-pin--brand tenant-map-card__pin tenant-map-card__pin--two">
+              <span /> Food
+            </span>
+            <div className="tenant-map-card__selected">
+              <span className="tenant-price-pin tenant-price-pin--accent">
+                <span /> Verified PG
+              </span>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </div>
   );
 }

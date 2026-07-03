@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
 import { PG_CITY_CONTENT } from "../../../lib/pg-city-content";
 import { SearchFilters } from "./search-filters";
+import { SearchResultsMap } from "./SearchResultsMap";
 import { SegmentedSearchBar } from "../../../components/search/SegmentedSearchBar";
 import { ListingCardItem } from "../../../components/listing-card";
 import {
@@ -14,7 +15,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  AlertTriangle
+  AlertTriangle,
+  ShieldCheck,
+  SlidersHorizontal
 } from "lucide-react";
 
 const QUERY_NORMALIZE_MAP: Record<string, string> = {
@@ -62,6 +65,8 @@ interface ListingCard {
   city: string;
   city_name?: string;
   locality?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   listing_type: "flat_house" | "pg";
   monthly_rent: number;
   bhk?: number | null;
@@ -103,11 +108,11 @@ export async function generateMetadata({
         )
     : isHindi
       ? "किराये पर मकान खोजें"
-      : "Search Verified Rentals";
+      : "Search Rentals";
 
   const description = isHindi
-    ? "AI-संचालित सत्यापित किराये की खोज। फ्लैट, PG और मकान खोजें।"
-    : "AI-powered verified rental search. Find flats, PGs, and houses across North India.";
+    ? "AI-संचालित किराये की खोज। फ्लैट, PG और मकान लाइव विवरणों के साथ खोजें।"
+    : "AI-powered rental search with live listing details for flats, PGs, and houses across North India.";
 
   return {
     title,
@@ -135,6 +140,18 @@ function normalizeSearchParams(searchParams: Record<string, string | string[] | 
 
 function cityLabel(slug: string): string {
   return CITIES.find((c) => c.slug === slug)?.label ?? slug.charAt(0).toUpperCase() + slug.slice(1);
+}
+
+function citySlugFromQuery(query: string): string | null {
+  const normalized = query
+    .trim()
+    .toLowerCase()
+    .replace(/^["']|["']$/g, "");
+  if (!normalized) return null;
+  return (
+    CITIES.find((city) => city.slug === normalized || city.label.toLowerCase() === normalized)
+      ?.slug ?? null
+  );
 }
 
 function furnishLabel(f: string): string {
@@ -188,6 +205,10 @@ export default async function SearchResultsPage({
 
   const queryStr = String(searchParams.q ?? "");
   const cityStr = typeof searchParams.city === "string" ? searchParams.city : "";
+  const queryCity = cityStr ? null : citySlugFromQuery(queryStr);
+  const itemCities = [...new Set(response.items.map((item) => item.city).filter(Boolean))];
+  const mapCity = cityStr || queryCity || (itemCities.length === 1 ? itemCities[0] : "");
+  const mapFilters = mapCity && !filters.city ? { ...filters, city: mapCity } : filters;
   const totalPages = Math.max(1, Math.ceil(response.total / response.page_size));
   const currentPage = response.page;
 
@@ -236,88 +257,75 @@ export default async function SearchResultsPage({
   }
 
   return (
-    <>
+    <div className="tenant-results-page">
       {/* ── Inline Search + Header ── */}
-      <section className="container" style={{ paddingBottom: 0, paddingTop: "var(--space-6)" }}>
-        <SegmentedSearchBar locale={params.locale} segment="homes" params={filters} />
+      <section className="tenant-results-hero">
+        <div className="container">
+          <div className="tenant-results-hero__shell">
+            <div className="tenant-results-hero__copy">
+              <span className="tenant-results-hero__eyebrow">
+                <ShieldCheck size={14} aria-hidden="true" />
+                Live homes search
+              </span>
+              <h1>
+                {queryStr || cityStr
+                  ? `Rentals ${cityStr ? `in ${toDisplayCity(cityStr)}` : ""}${queryStr ? ` — "${normalizeQuery(queryStr)}"` : ""}`
+                  : "Search Verified Rentals"}
+              </h1>
+              <p>
+                {response.total} live match{response.total === 1 ? "" : "es"} with photos, rent,
+                locality, verification status, and live filters.
+              </p>
+            </div>
 
-        <SearchFilters
-          locale={params.locale}
-          filters={filters}
-          cities={CITIES}
-          sortOptions={SORT_OPTIONS}
-        />
+            <div className="tenant-results-hero__actions">
+              <Link
+                href={
+                  `/${params.locale}/map${Object.keys(mapFilters).length ? `?${buildSearchQuery(mapFilters)}` : ""}` as Route
+                }
+                className="tenant-results-map-btn"
+              >
+                <MapIcon size={15} /> View on Map
+              </Link>
+            </div>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "var(--space-2)",
-            marginTop: "var(--space-6)",
-            paddingBottom: "var(--space-4)",
-            borderBottom: "1px solid var(--border)"
-          }}
-        >
-          <div>
-            <h1 style={{ fontSize: "1.25rem", margin: 0, letterSpacing: "-0.01em" }}>
-              {queryStr || cityStr
-                ? `Rentals ${cityStr ? `in ${toDisplayCity(cityStr)}` : ""}${queryStr ? ` — "${normalizeQuery(queryStr)}"` : ""}`
-                : "Search Verified Rentals"}
-            </h1>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-            <p className="text-secondary body-sm" style={{ margin: 0 }}>
-              {response.total} result{response.total === 1 ? "" : "s"}
-            </p>
-            <Link
-              href={
-                `/${params.locale}/map${Object.keys(filters).length ? `?${buildSearchQuery(filters)}` : ""}` as Route
-              }
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "6px 14px",
-                borderRadius: "9999px",
-                border: "1px solid var(--border)",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "var(--text-secondary)",
-                transition: "all 150ms ease",
-                textDecoration: "none",
-                whiteSpace: "nowrap"
-              }}
-            >
-              <MapIcon size={14} /> View on Map
-            </Link>
+            <div className="tenant-results-toolbar">
+              <SegmentedSearchBar locale={params.locale} segment="homes" params={filters} />
+              <div className="tenant-results-filter-card">
+                <span className="tenant-results-filter-card__label">
+                  <SlidersHorizontal size={14} aria-hidden="true" />
+                  Filters
+                </span>
+                <SearchFilters
+                  locale={params.locale}
+                  filters={filters}
+                  cities={CITIES}
+                  sortOptions={SORT_OPTIONS}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ── Active Filter Chips ── */}
       {activeChips.length > 0 && (
-        <div className="container" style={{ paddingTop: "var(--space-3)", paddingBottom: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "var(--space-2)",
-              alignItems: "center"
-            }}
-          >
+        <div className="container tenant-active-chips">
+          <div className="tenant-active-chips__row">
             {activeChips.map((chip) => (
               <Link
                 key={chip.label}
-                href={`/${params.locale}/search?${buildSearchQuery(chip.removeParams)}`}
+                href={`/${params.locale}/search?${buildSearchQuery(chip.removeParams)}` as Route}
                 className="filter-chip"
               >
                 {chip.label} <X size={12} aria-label="remove" />
               </Link>
             ))}
             {activeChips.length > 1 && (
-              <Link href={`/${params.locale}/search`} className="filter-chip filter-chip--clear">
+              <Link
+                href={`/${params.locale}/search` as Route}
+                className="filter-chip filter-chip--clear"
+              >
                 Clear all
               </Link>
             )}
@@ -338,12 +346,12 @@ export default async function SearchResultsPage({
             </p>
             <div className="error-state__actions">
               <Link
-                href={`/${params.locale}/search?${buildSearchQuery(filters)}`}
+                href={`/${params.locale}/search?${buildSearchQuery(filters)}` as Route}
                 className="btn btn--primary"
               >
                 Retry Search
               </Link>
-              <Link href={`/${params.locale}/search`} className="btn btn--secondary">
+              <Link href={`/${params.locale}/search` as Route} className="btn btn--secondary">
                 Clear Filters
               </Link>
             </div>
@@ -354,7 +362,7 @@ export default async function SearchResultsPage({
               {CITIES.slice(0, 4).map((city) => (
                 <Link
                   key={city.slug}
-                  href={`/${params.locale}/search?city=${city.slug}`}
+                  href={`/${params.locale}/search?city=${city.slug}` as Route}
                   className="error-state__city-link"
                 >
                   <MapPin size={16} />
@@ -368,89 +376,108 @@ export default async function SearchResultsPage({
 
       {/* ── Results Grid ── */}
       <div
-        className="container"
+        className="container tenant-results-map-shell"
         style={{ paddingTop: "var(--space-4)", paddingBottom: "var(--space-16)" }}
       >
-        {response.items.length === 0 && !fetchError ? (
-          <div className="empty-state">
-            <span className="empty-state__icon" aria-hidden="true">
-              <SearchIcon size={48} style={{ margin: "0 auto", color: "var(--text-tertiary)" }} />
-            </span>
-            <h3>No listings match your search</h3>
-            <p>Try adjusting your filters or searching in a different city.</p>
-            <Link href={`/${params.locale}/search`} className="btn btn--primary">
-              Clear Filters
-            </Link>
-          </div>
-        ) : (
-          <div className="listing-grid">
-            {response.items.map((item) => (
-              <ListingCardItem
-                key={item.id}
-                locale={params.locale}
-                listing={{
-                  id: item.id,
-                  title: item.title,
-                  city: item.city,
-                  city_name: item.city_name ?? cityLabel(item.city),
-                  locality: item.locality,
-                  listing_type: item.listing_type,
-                  monthly_rent: item.monthly_rent,
-                  bhk: item.bhk ?? null,
-                  furnishing: item.furnishing ?? null,
-                  area_sqft: item.area_sqft ?? null,
-                  verification_status: item.verification_status,
-                  cover_photo: item.cover_photo ?? null
-                }}
-              />
-            ))}
-          </div>
-        )}
+        <div className="tenant-results-list-panel">
+          {response.items.length === 0 && !fetchError ? (
+            <div className="empty-state">
+              <span className="empty-state__icon" aria-hidden="true">
+                <SearchIcon size={48} style={{ margin: "0 auto", color: "var(--text-tertiary)" }} />
+              </span>
+              <h3>No listings match your search</h3>
+              <p>Try adjusting your filters or searching in a different city.</p>
+              <Link href={`/${params.locale}/search` as Route} className="btn btn--primary">
+                Clear Filters
+              </Link>
+            </div>
+          ) : (
+            <div className="listing-grid">
+              {response.items.map((item) => (
+                <ListingCardItem
+                  key={item.id}
+                  locale={params.locale}
+                  listing={{
+                    id: item.id,
+                    title: item.title,
+                    city: item.city,
+                    city_name: item.city_name ?? cityLabel(item.city),
+                    locality: item.locality,
+                    listing_type: item.listing_type,
+                    monthly_rent: item.monthly_rent,
+                    bhk: item.bhk ?? null,
+                    furnishing: item.furnishing ?? null,
+                    area_sqft: item.area_sqft ?? null,
+                    verification_status: item.verification_status,
+                    cover_photo: item.cover_photo ?? null
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
-        {/* ── Pagination ── */}
-        {totalPages > 1 && (
-          <nav className="pagination" aria-label="Search results pages">
-            {currentPage > 1 && (
-              <Link
-                className="pagination__btn"
-                href={`/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(currentPage - 1) })}`}
-              >
-                <ChevronLeft size={16} /> Prev
-              </Link>
-            )}
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
-              .reduce<(number | "...")[]>((acc, p, idx, arr) => {
-                if (idx > 0 && p - (arr[idx - 1] ?? 0) > 1) acc.push("...");
-                acc.push(p);
-                return acc;
-              }, [])
-              .map((item, idx) =>
-                item === "..." ? (
-                  <span key={`ellipsis-${idx}`} className="pagination__ellipsis">
-                    …
-                  </span>
-                ) : (
-                  <Link
-                    key={item}
-                    className={`pagination__btn${item === currentPage ? " pagination__btn--active" : ""}`}
-                    href={`/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(item) })}`}
-                  >
-                    {item}
-                  </Link>
-                )
+          {/* ── Pagination ── */}
+          {totalPages > 1 && (
+            <nav className="pagination" aria-label="Search results pages">
+              {currentPage > 1 && (
+                <Link
+                  className="pagination__btn"
+                  href={
+                    `/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(currentPage - 1) })}` as Route
+                  }
+                >
+                  <ChevronLeft size={16} /> Prev
+                </Link>
               )}
-            {currentPage < totalPages && (
-              <Link
-                className="pagination__btn"
-                href={`/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(currentPage + 1) })}`}
-              >
-                Next <ChevronRight size={16} />
-              </Link>
-            )}
-          </nav>
-        )}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] ?? 0) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  item === "..." ? (
+                    <span key={`ellipsis-${idx}`} className="pagination__ellipsis">
+                      …
+                    </span>
+                  ) : (
+                    <Link
+                      key={item}
+                      className={`pagination__btn${item === currentPage ? " pagination__btn--active" : ""}`}
+                      href={
+                        `/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(item) })}` as Route
+                      }
+                    >
+                      {item}
+                    </Link>
+                  )
+                )}
+              {currentPage < totalPages && (
+                <Link
+                  className="pagination__btn"
+                  href={
+                    `/${params.locale}/search?${buildSearchQuery({ ...filters, page: String(currentPage + 1) })}` as Route
+                  }
+                >
+                  Next <ChevronRight size={16} />
+                </Link>
+              )}
+            </nav>
+          )}
+        </div>
+
+        <aside className="tenant-results-map-panel" aria-label="Map preview">
+          <SearchResultsMap
+            locale={params.locale}
+            city={mapCity || response.items[0]?.city || "lucknow"}
+            listings={response.items}
+            mapHref={
+              `/${params.locale}/map${Object.keys(mapFilters).length ? `?${buildSearchQuery(mapFilters)}` : ""}` as Route
+            }
+          />
+        </aside>
       </div>
-    </>
+    </div>
   );
 }

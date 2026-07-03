@@ -16,6 +16,8 @@ interface MapPinResponse {
   furnishing: string | null;
   cover_photo: string | null;
   city: string;
+  locality: string | null;
+  locality_slug: string | null;
 }
 
 export function useMapPins() {

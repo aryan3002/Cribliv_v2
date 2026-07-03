@@ -16,6 +16,7 @@ export function useSeekerPins() {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    dispatch({ type: "SET_DEMAND_LOADING", isLoading: true });
 
     try {
       const params = buildSearchQuery({
@@ -30,15 +31,26 @@ export function useSeekerPins() {
       });
 
       if (!controller.signal.aborted) {
-        dispatch({ type: "SET_SEEKER_PINS", pins: data });
+        dispatch({
+          type: "SET_SEEKER_PINS",
+          pins: data.map((pin) => ({
+            ...pin,
+            source: pin.source === "estimated" ? "estimated" : "seeker"
+          }))
+        });
       }
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") return;
+      dispatch({
+        type: "SET_DEMAND_ERROR",
+        error: "Demand data is unavailable. Try again in a moment."
+      });
     }
   }, [viewport, demandViewActive, dispatch]);
 
   useEffect(() => {
     if (!demandViewActive) {
+      abortRef.current?.abort();
       dispatch({ type: "SET_SEEKER_PINS", pins: [] });
       return;
     }

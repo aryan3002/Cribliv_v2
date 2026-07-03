@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import { fetchApi } from "../../../../lib/api";
 import { toTitleCase } from "../../../../lib/utils";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
@@ -12,7 +12,16 @@ import { ListingDemandBadge } from "../../../../components/listing/listing-deman
 import { SimilarListings } from "../../../../components/listing/similar-listings";
 import { ListingToolbarActions } from "../../../../components/listing/listing-toolbar-actions";
 import Link from "next/link";
-import { MapPin, Camera, ShieldCheck, Clock, HomeIcon, ChevronRight, Shield } from "lucide-react";
+import {
+  MapPin,
+  Camera,
+  ShieldCheck,
+  Clock,
+  HomeIcon,
+  ChevronRight,
+  Shield,
+  BadgeIndianRupee
+} from "lucide-react";
 import { isValidLocale, type Locale, t } from "../../../../lib/i18n";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
@@ -146,7 +155,7 @@ export default async function ListingDetailPage({
         </span>
         <h3>Listing Unavailable</h3>
         <p>This listing may have been removed or is temporarily unavailable.</p>
-        <Link href={`/${locale}/search`} className="btn btn--primary">
+        <Link href={`/${locale}/search` as Route} className="btn btn--primary">
           Browse Listings
         </Link>
       </div>
@@ -220,6 +229,9 @@ export default async function ListingDetailPage({
   if (listing.area_sqft) summaryParts.push(`${listing.area_sqft.toLocaleString("en-IN")} sqft`);
   const summaryLine = summaryParts.join(" · ");
   const availableShort = formatAvailableFromShort(listing.available_from, locale);
+  const totalMoveIn = listing.monthly_rent + (listing.security_deposit ?? 0);
+  const monthlyAllIn =
+    listing.monthly_rent + Math.round((listing.security_deposit ?? 0) / 11);
 
   return (
     <>
@@ -232,12 +244,12 @@ export default async function ListingDetailPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
-      <div className="container ld-page">
+      <div className="container ld-page tenant-detail-page">
         {/* Breadcrumb */}
         <nav className="ld-crumb" aria-label="Breadcrumb">
-          <Link href={`/${locale}`}>Home</Link>
+          <Link href={`/${locale}` as Route}>Home</Link>
           <ChevronRight size={14} className="ld-crumb__sep" aria-hidden="true" />
-          <Link href={`/${locale}/search?city=${listing.city.toLowerCase()}`}>
+          <Link href={`/${locale}/search?city=${listing.city.toLowerCase()}` as Route}>
             {toTitleCase(listing.city)}
           </Link>
           <ChevronRight size={14} className="ld-crumb__sep" aria-hidden="true" />
@@ -312,6 +324,43 @@ export default async function ListingDetailPage({
           listing_type={listing.listing_type}
           pgTotalBeds={listing.pg_details?.total_beds ?? null}
         />
+
+        <section className="tenant-cost-strip" aria-label="Pricing and trust summary">
+          <div className="tenant-cost-card tenant-cost-card--price">
+            <span className="tenant-cost-card__icon" aria-hidden="true">
+              <BadgeIndianRupee size={18} />
+            </span>
+            <span className="tenant-cost-card__label">Total monthly cost</span>
+            <strong>₹{monthlyAllIn.toLocaleString("en-IN")}</strong>
+            <span className="tenant-cost-card__note">
+              Rent plus deposit spread across 11 months
+            </span>
+          </div>
+          <div className="tenant-cost-card">
+            <span className="tenant-cost-card__icon tenant-cost-card__icon--amber" aria-hidden="true">
+              <Shield size={18} />
+            </span>
+            <span className="tenant-cost-card__label">Move-in estimate</span>
+            <strong>₹{totalMoveIn.toLocaleString("en-IN")}</strong>
+            <span className="tenant-cost-card__note">
+              {listing.security_deposit
+                ? `Includes ₹${listing.security_deposit.toLocaleString("en-IN")} deposit`
+                : "Deposit not listed yet"}
+            </span>
+          </div>
+          <div className="tenant-cost-card">
+            <span className="tenant-cost-card__icon tenant-cost-card__icon--trust" aria-hidden="true">
+              <ShieldCheck size={18} />
+            </span>
+            <span className="tenant-cost-card__label">Owner trust</span>
+            <strong>{isVerified ? "Verified" : isPending ? "In review" : "Listed"}</strong>
+            <span className="tenant-cost-card__note">
+              {payload.owner_trust.no_response_refund
+                ? "12-hour no-response refund"
+                : "Direct owner connection"}
+            </span>
+          </div>
+        </section>
 
         {/* Detail layout */}
         <div className="detail-layout">
@@ -515,13 +564,15 @@ export default async function ListingDetailPage({
           {/* Sticky right rail */}
           <aside className="detail-layout__sidebar">
             <div className="detail-rail">
-              <div>
-                <div className="detail-rail__price">
-                  <strong>₹{listing.monthly_rent.toLocaleString("en-IN")}</strong>
-                  <span>{t(locale, "perMonth")}</span>
-                </div>
-                {(listing.security_deposit || availableShort) && (
-                  <div className="detail-rail__secondary">
+            <div>
+              <div className="detail-rail__price">
+                  <strong>₹{monthlyAllIn.toLocaleString("en-IN")}</strong>
+                  <span>/mo all-in</span>
+              </div>
+              {(listing.security_deposit || availableShort) && (
+                <div className="detail-rail__secondary">
+                    <span>₹{listing.monthly_rent.toLocaleString("en-IN")} rent</span>
+                    {(listing.security_deposit || availableShort) && <span aria-hidden="true">·</span>}
                     {listing.security_deposit && (
                       <span>
                         ₹{listing.security_deposit.toLocaleString("en-IN")}{" "}
