@@ -100,13 +100,8 @@ export default async function PgCityPage({ params }: { params: { locale: string;
       />
 
       {/* Hero Banner Section */}
-      <section
-        style={{
-          background: "linear-gradient(to right bottom, var(--surface-2), #ffffff)",
-          padding: "var(--space-8) 0 var(--space-10) 0",
-          borderBottom: "1px solid var(--border)"
-        }}
-      >
+      <section className="pg-city-hero">
+        <div className="pg-city-hero__map" aria-hidden="true" />
         <div className="container">
           <nav
             className="ld-crumb"
@@ -120,16 +115,13 @@ export default async function PgCityPage({ params }: { params: { locale: string;
             <span className="ld-crumb__current">PG in {c.name}</span>
           </nav>
 
-          <div style={{ maxWidth: 800 }}>
-            <h1 style={{ fontSize: "2.5rem", lineHeight: 1.2, marginBottom: "var(--space-4)" }}>
-              {c.heroLine}
-            </h1>
-            <p
-              className="text-secondary"
-              style={{ fontSize: "1.125rem", lineHeight: 1.6, marginBottom: "var(--space-6)" }}
-            >
-              {c.intro}
-            </p>
+          <div className="pg-city-hero__content">
+            <span className="tenant-results-hero__eyebrow">
+              <Building size={14} aria-hidden="true" />
+              Verified PG city guide
+            </span>
+            <h1>{c.heroLine}</h1>
+            <p>{c.intro}</p>
             <Link
               href={`/${params.locale}/pg?city=${c.slug}` as Route}
               className="btn btn--primary btn--lg"

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useMapState, type MapPin } from "./hooks/useMapState";
+import { useMapDispatch, useMapState, type MapPin } from "./hooks/useMapState";
 import { haversineKm } from "../../lib/geo";
 import { listingHref } from "../../lib/listing-href";
 
@@ -101,6 +101,7 @@ function isCluster(item: MapPin | ClusterGroup): item is ClusterGroup {
 export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
   const { pins, selectedPinId, zoom, demandViewActive, commuteReachability, commuteMaxMinutes } =
     useMapState();
+  const dispatch = useMapDispatch();
   const router = useRouter();
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
 
@@ -174,12 +175,12 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
 
         // Trust glyph: real Cribliv brand mark for verified, dot for unverified
         const trustGlyph = verified
-          ? `<span class="criblmap-pin__brand"><img src="/cribliv.png" alt="" width="12" height="12" /></span>`
+          ? `<span class="criblmap-pin__brand"><img src="/cribliv-logo-new.svg" alt="" width="12" height="12" /></span>`
           : `<span class="criblmap-pin__dot" aria-hidden="true"></span>`;
 
         // Hover preview popover (suppressed on touch via CSS @media (hover: none))
         const previewBadge = verified
-          ? `<span class="criblmap-pin__preview-badge criblmap-pin__preview-badge--verified"><img src="/cribliv.png" alt="" width="12" height="12" /> Cribliv Verified</span>`
+          ? `<span class="criblmap-pin__preview-badge criblmap-pin__preview-badge--verified"><img src="/cribliv-logo-new.svg" alt="" width="12" height="12" /> Cribliv Verified</span>`
           : `<span class="criblmap-pin__preview-badge criblmap-pin__preview-badge--unverified">Unverified</span>`;
         const meta = [
           item.bhk ? `${item.bhk} BHK` : null,
@@ -220,7 +221,12 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
         `;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          router.push(listingHref(locale, item));
+          if (item.id === selectedPinId) {
+            router.push(listingHref(locale, item));
+            return;
+          }
+          dispatch({ type: "SELECT_PIN", pinId: item.id });
+          map.panTo({ lat: item.lat, lng: item.lng });
         });
       }
 
@@ -250,7 +256,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
       }
       markersRef.current = [];
     };
-  }, [map, clustered, selectedPinId, router, locale, demandViewActive, reachabilityZones]);
+  }, [map, clustered, selectedPinId, dispatch, router, locale, demandViewActive, reachabilityZones]);
 
   return null;
 }

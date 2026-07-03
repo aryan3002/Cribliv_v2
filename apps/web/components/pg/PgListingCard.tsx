@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { ShieldCheck, MapPin, Building, UtensilsCrossed } from "lucide-react";
+import { Badge } from "@cribliv/ui";
 import type { PgCard } from "../../lib/pg-public-api";
 import { trackPgCardClick } from "../../lib/pg-track";
 
@@ -70,10 +71,22 @@ export function PgListingCard({
           </div>
         )}
         {listing.verified && (
-          <span className="listing-card__verified" aria-label="Verified">
+          <Badge
+            tone="verified"
+            style={{
+              position: "absolute",
+              left: 10,
+              top: 10,
+              zIndex: 2,
+              background: "rgba(255,255,255,0.94)",
+              boxShadow: "var(--shadow-sm)",
+              backdropFilter: "blur(6px)"
+            }}
+          >
             <ShieldCheck size={12} aria-hidden="true" /> Verified
-          </span>
+          </Badge>
         )}
+        <span className="listing-card__type-pill">PG / Hostel</span>
       </Link>
 
       <Link href={href} className="listing-card__body" onClick={onCardClick}>
@@ -101,10 +114,15 @@ export function PgListingCard({
         </div>
 
         <div className="listing-card__price-row">
-          <span className="listing-card__price">{rentFrom}</span>
-          {listing.starting_rent && listing.starting_rent > 0 && (
-            <span className="listing-card__period">/month</span>
-          )}
+          <span>
+            <span className="listing-card__price">{rentFrom}</span>
+            {listing.starting_rent && listing.starting_rent > 0 && (
+              <span className="listing-card__period">/month</span>
+            )}
+          </span>
+          <Badge tone="neutral" style={{ fontSize: 11, padding: "4px 8px" }}>
+            <ShieldCheck size={12} aria-hidden="true" /> Live details
+          </Badge>
         </div>
       </Link>
     </article>

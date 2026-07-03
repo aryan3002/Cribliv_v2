@@ -2,6 +2,9 @@ import Image from "next/image";
 
 type Size = "sm" | "md" | "lg";
 
+const BRAND_MARK_SRC = "/cribliv-logo-new.svg";
+const BRAND_WORDMARK_SRC = "/criblivFont.png";
+
 interface Props {
   size?: Size;
   glow?: boolean;
@@ -10,7 +13,7 @@ interface Props {
 }
 
 /**
- * Cribliv brand lockup: house-shape icon + "CribLiv" wordmark.
+ * Cribliv brand lockup: brand mark + "CribLiv" wordmark.
  * Sizing is controlled entirely by CSS (height-based, width auto) so the source
  * PNGs render at their natural aspect ratio — exactly like the legacy header markup.
  *
@@ -29,15 +32,15 @@ export function BrandLockup({ size = "md", glow = false, priority = false, class
           We pass the natural aspect (28×25 for the icon, 72×24 for the wordmark)
           so the layout reservation is correct before CSS applies. */}
       <Image
-        src="/cribliv.png"
+        src={BRAND_MARK_SRC}
         alt=""
         width={28}
-        height={25}
+        height={28}
         priority={priority}
         className="logo-img"
       />
       <Image
-        src="/criblivFont.png"
+        src={BRAND_WORDMARK_SRC}
         alt="Cribliv"
         width={72}
         height={24}

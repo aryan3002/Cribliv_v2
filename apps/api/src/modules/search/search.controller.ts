@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Inject, Param, Post, Query } from "@nestjs/common";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Query
+} from "@nestjs/common";
 import { SearchService } from "./search.service";
 import { ok } from "../../common/response";
 
@@ -103,6 +112,7 @@ export class SearchController {
       max_rent?: string;
       listing_type?: string;
       verified_only?: string;
+      near_metro?: string;
     }
   ) {
     const bounds = {
@@ -111,12 +121,28 @@ export class SearchController {
       ne_lat: Number(query.ne_lat),
       ne_lng: Number(query.ne_lng)
     };
+    if (!Object.values(bounds).every(Number.isFinite)) {
+      throw new BadRequestException("sw_lat, sw_lng, ne_lat, and ne_lng must be valid numbers");
+    }
+    const bhk = query.bhk ? Number(query.bhk) : undefined;
+    const maxRent = query.max_rent ? Number(query.max_rent) : undefined;
+    const listingType = query.listing_type as "flat_house" | "pg" | undefined;
+    if (bhk !== undefined && !Number.isFinite(bhk)) {
+      throw new BadRequestException("bhk must be a valid number");
+    }
+    if (maxRent !== undefined && !Number.isFinite(maxRent)) {
+      throw new BadRequestException("max_rent must be a valid number");
+    }
+    if (listingType !== undefined && listingType !== "flat_house" && listingType !== "pg") {
+      throw new BadRequestException("listing_type must be flat_house or pg");
+    }
     const limit = Math.min(Math.max(Number(query.limit) || 200, 1), 500);
     const filters = {
-      bhk: query.bhk ? Number(query.bhk) : undefined,
-      max_rent: query.max_rent ? Number(query.max_rent) : undefined,
-      listing_type: query.listing_type as "flat_house" | "pg" | undefined,
-      verified_only: query.verified_only === "true"
+      bhk,
+      max_rent: maxRent,
+      listing_type: listingType,
+      verified_only: query.verified_only === "true",
+      near_metro: query.near_metro === "true"
     };
     return ok(await this.searchService.searchListingsForMap(bounds, limit, filters));
   }

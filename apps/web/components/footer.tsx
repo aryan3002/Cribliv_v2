@@ -16,12 +16,18 @@ export function Footer({ locale }: { locale: Locale }) {
               className="footer__brand"
               style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}
             >
-              <Image src="/cribliv.png" alt="" width={32} height={30} style={{ opacity: 0.9 }} />
+              <Image
+                src="/cribliv-logo-new.svg"
+                alt=""
+                width={30}
+                height={30}
+                style={{ opacity: 0.95 }}
+              />
               Cribliv
             </div>
             <p className="footer__description">
-              AI-powered verified rental search for North India. Find flats, PGs, and houses with
-              owner verification and a 12-hour refund guarantee.
+              AI-powered rental search for North India with live listings, photos, rent, locality,
+              and verification signals.
             </p>
             <div
               style={{
@@ -33,7 +39,7 @@ export function Footer({ locale }: { locale: Locale }) {
             >
               <ShieldCheck size={16} style={{ color: "var(--trust)" }} />
               <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>
-                Verified owners only
+                Live listing details
               </span>
             </div>
           </div>

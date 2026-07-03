@@ -28,7 +28,7 @@ export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
   const { panelContent, drawMode, metroVisible, demandViewActive, commuteOrigin, center } =
     useMapState();
   const dispatch = useMapDispatch();
-  const panelOpen = panelContent.type !== "none";
+  const panelOpen = panelContent.type !== "none" && panelContent.type !== "listing";
 
   // City-aware metro data — drives "Metro lines coming soon for {city}" feedback
   // when the toggle would otherwise no-op silently in cities with no seeded data.

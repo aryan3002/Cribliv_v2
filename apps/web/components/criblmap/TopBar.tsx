@@ -1,13 +1,24 @@
 "use client";
 
 import type { Route } from "next";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Map, List, ChevronDown } from "lucide-react";
+import {
+  Search,
+  Map,
+  List,
+  ChevronDown,
+  Building2,
+  Home,
+  ShieldCheck,
+  TrainFront,
+  SlidersHorizontal
+} from "lucide-react";
 import { useGooglePlaces, type PlacePrediction } from "../../lib/google-places";
 import { useMapState, useMapDispatch, type MapFilters } from "./hooks/useMapState";
 import { buildSearchQuery } from "../../lib/api";
+import { searchMapIndex, type MapSearchHit } from "../../lib/map-search-index";
 
 interface TopBarProps {
   locale: string;
@@ -45,6 +56,7 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
   const [isMac, setIsMac] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const localSuggestions = useMemo(() => searchMapIndex(query), [query]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -82,14 +94,27 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
   const handleSearchInput = useCallback(
     (value: string) => {
       setQuery(value);
-      if (enabled && value.length >= 2) {
-        fetchPredictions(value);
+      if (value.trim().length >= 2) {
+        if (enabled) {
+          fetchPredictions(value);
+        }
         setShowPredictions(true);
       } else {
         setShowPredictions(false);
       }
     },
     [enabled, fetchPredictions]
+  );
+
+  const handleLocalSelect = useCallback(
+    (hit: MapSearchHit) => {
+      setQuery(hit.label);
+      setShowPredictions(false);
+      clearPredictions();
+      dispatch({ type: "SET_CITY", city: hit.city });
+      onPlaceSelect?.(hit.lat, hit.lng);
+    },
+    [clearPredictions, dispatch, onPlaceSelect]
   );
 
   const handlePredictionSelect = useCallback(
@@ -105,6 +130,31 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
     [getPlaceDetails, clearPredictions, onPlaceSelect]
   );
 
+  const handleSubmit = useCallback(() => {
+    const firstLocal = localSuggestions[0];
+    if (firstLocal) {
+      handleLocalSelect(firstLocal);
+      return;
+    }
+    const firstPrediction = predictions[0];
+    if (firstPrediction) {
+      void handlePredictionSelect(firstPrediction);
+      return;
+    }
+    if (enabled && query.trim().length >= 2) {
+      fetchPredictions(query);
+      setShowPredictions(true);
+    }
+  }, [
+    enabled,
+    fetchPredictions,
+    handleLocalSelect,
+    handlePredictionSelect,
+    localSuggestions,
+    predictions,
+    query
+  ]);
+
   const updateFilter = useCallback(
     (update: Partial<MapFilters>) => {
       dispatch({
@@ -116,78 +166,163 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
     [dispatch, filters]
   );
 
+  const resetFilters = useCallback(() => {
+    dispatch({ type: "SET_FILTERS", filters: {} });
+    setActiveDropdown(null);
+  }, [dispatch]);
+
   const bhkLabel = filters.bhk ? `${filters.bhk} BHK` : "BHK";
   const rentLabel = filters.max_rent ? `Under ₹${(filters.max_rent / 1000).toFixed(0)}K` : "Rent";
+  const activeFilterCount = [
+    filters.bhk,
+    filters.max_rent,
+    filters.listing_type,
+    filters.verified_only,
+    filters.near_metro
+  ].filter(Boolean).length;
 
   const filterParams = buildSearchQuery({
     ...(filters.bhk && { bhk: filters.bhk }),
     ...(filters.max_rent && { max_rent: filters.max_rent }),
     ...(filters.listing_type && { listing_type: filters.listing_type }),
-    ...(filters.verified_only && { verified_only: "true" })
+    ...(filters.verified_only && { verified_only: "true" }),
+    ...(filters.near_metro && { near_metro: "true" })
   });
 
   return (
     <div className="cmap-topbar">
-      {/* Brand lockup: real Cribliv mark + wordmark, with a cobalt "Map"
-          suffix and a dot separator so the product reads as "Cribliv · Map". */}
-      <Link href={`/${locale}`} className="cmap-brand" aria-label="Cribliv Map — back to home">
-        <Image
-          src="/cribliv.png"
-          alt=""
-          width={28}
-          height={25}
-          priority
-          className="cmap-brand__icon"
-        />
-        <Image
-          src="/criblivFont.png"
-          alt="Cribliv"
-          width={72}
-          height={24}
-          priority
-          className="cmap-brand__wordmark"
-        />
-        <span className="cmap-brand__sep" aria-hidden="true" />
-        <span className="cmap-brand__suffix">Map</span>
-      </Link>
+      <div className="cmap-topbar__main">
+        <Link
+          href={`/${locale}` as Route}
+          className="cmap-brand"
+          aria-label="Cribliv Map — back to home"
+        >
+          <Image
+            src="/cribliv-logo-new.svg"
+            alt=""
+            width={28}
+            height={28}
+            priority
+            className="cmap-brand__icon"
+          />
+          <Image
+            src="/criblivFont.png"
+            alt="Cribliv"
+            width={72}
+            height={24}
+            priority
+            className="cmap-brand__wordmark"
+          />
+          <span className="cmap-brand__sep" aria-hidden="true" />
+          <span className="cmap-brand__suffix">Map</span>
+        </Link>
 
-      <div className="cmap-topbar__search" ref={searchRef}>
-        <Search size={16} className="cmap-topbar__search-icon" />
-        <input
-          ref={inputRef}
-          type="text"
-          className="cmap-topbar__input"
-          placeholder="Search locality or area…"
-          value={query}
-          onChange={(e) => handleSearchInput(e.target.value)}
-          onFocus={() => predictions.length > 0 && setShowPredictions(true)}
-        />
-        {!query && (
-          <kbd className="cmap-topbar__kbd" aria-label="Press Command K to focus search">
-            <span className="cmap-topbar__kbd-key">{isMac ? "⌘" : "Ctrl"}</span>
-            <span className="cmap-topbar__kbd-key">K</span>
-          </kbd>
-        )}
-        {showPredictions && predictions.length > 0 && (
-          <div className="cmap-topbar__predictions">
-            {predictions.map((p) => (
-              <button
-                key={p.place_id}
-                className="cmap-topbar__prediction-item"
-                onClick={() => handlePredictionSelect(p)}
-              >
-                <Map size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
-                <span>{p.description}</span>
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="cmap-segmented" aria-label="Listing type">
+          <button
+            type="button"
+            className={`cmap-segmented__btn${!filters.listing_type ? " cmap-segmented__btn--active" : ""}`}
+            onClick={() => updateFilter({ listing_type: undefined })}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={`cmap-segmented__btn${filters.listing_type === "flat_house" ? " cmap-segmented__btn--active" : ""}`}
+            onClick={() => updateFilter({ listing_type: "flat_house" })}
+          >
+            <Home size={13} /> Flat
+          </button>
+          <button
+            type="button"
+            className={`cmap-segmented__btn${filters.listing_type === "pg" ? " cmap-segmented__btn--active" : ""}`}
+            onClick={() => updateFilter({ listing_type: "pg" })}
+          >
+            <Building2 size={13} /> PG
+          </button>
+        </div>
+
+        <div className="cmap-topbar__search" ref={searchRef}>
+          <Search size={16} className="cmap-topbar__search-icon" />
+          <input
+            ref={inputRef}
+            type="text"
+            className="cmap-topbar__input"
+            placeholder="Search locality, metro, or area"
+            value={query}
+            onChange={(e) => handleSearchInput(e.target.value)}
+            onFocus={() =>
+              (localSuggestions.length > 0 || predictions.length > 0) && setShowPredictions(true)
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSubmit();
+              }
+            }}
+          />
+          {!query && (
+            <kbd className="cmap-topbar__kbd" aria-label="Press Command K to focus search">
+              <span className="cmap-topbar__kbd-key">{isMac ? "⌘" : "Ctrl"}</span>
+              <span className="cmap-topbar__kbd-key">K</span>
+            </kbd>
+          )}
+          {showPredictions && (localSuggestions.length > 0 || predictions.length > 0) && (
+            <div className="cmap-topbar__predictions">
+              {localSuggestions.map((hit) => (
+                <button
+                  key={hit.id}
+                  type="button"
+                  className="cmap-topbar__prediction-item"
+                  onClick={() => handleLocalSelect(hit)}
+                >
+                  <Map size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
+                  <span>
+                    {hit.label}
+                    <small>{hit.detail}</small>
+                  </span>
+                </button>
+              ))}
+              {predictions.map((p) => (
+                <button
+                  key={p.place_id}
+                  type="button"
+                  className="cmap-topbar__prediction-item"
+                  onClick={() => handlePredictionSelect(p)}
+                >
+                  <Map size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
+                  <span>{p.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <Link href={`/${locale}/become-owner` as Route} className="cmap-topbar__owner-link">
+          List your property
+        </Link>
+
+        <div className="cmap-view-toggle">
+          <span className="cmap-view-toggle__btn cmap-view-toggle__btn--active">
+            <Map size={14} /> Map
+          </span>
+          <Link
+            href={`/${locale}/search${filterParams ? `?${filterParams}` : ""}` as Route}
+            className="cmap-view-toggle__btn"
+          >
+            <List size={14} /> List
+          </Link>
+        </div>
       </div>
 
       <div className="cmap-topbar__filters">
-        {/* BHK Filter */}
+        <span className="cmap-topbar__filter-label">
+          <SlidersHorizontal size={13} /> Filters
+          {activeFilterCount > 0 && <strong>{activeFilterCount}</strong>}
+        </span>
+
         <div className="cmap-filter-dropdown">
           <button
+            type="button"
             className={`cmap-filter-chip${filters.bhk ? " cmap-filter-chip--active" : ""}`}
             onClick={() => setActiveDropdown(activeDropdown === "bhk" ? null : "bhk")}
           >
@@ -198,6 +333,7 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
               {BHK_OPTIONS.map((opt) => (
                 <button
                   key={opt.label}
+                  type="button"
                   className={`cmap-filter-dropdown__item${filters.bhk === opt.value ? " cmap-filter-dropdown__item--active" : ""}`}
                   onClick={() => updateFilter({ bhk: opt.value })}
                 >
@@ -208,9 +344,9 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
           )}
         </div>
 
-        {/* Rent Filter */}
         <div className="cmap-filter-dropdown">
           <button
+            type="button"
             className={`cmap-filter-chip${filters.max_rent ? " cmap-filter-chip--active" : ""}`}
             onClick={() => setActiveDropdown(activeDropdown === "rent" ? null : "rent")}
           >
@@ -221,6 +357,7 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
               {RENT_OPTIONS.map((opt) => (
                 <button
                   key={opt.label}
+                  type="button"
                   className={`cmap-filter-dropdown__item${filters.max_rent === opt.value ? " cmap-filter-dropdown__item--active" : ""}`}
                   onClick={() => updateFilter({ max_rent: opt.value })}
                 >
@@ -231,37 +368,29 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
           )}
         </div>
 
-        {/* Type Filter */}
         <button
-          className={`cmap-filter-chip${filters.listing_type === "pg" ? " cmap-filter-chip--active" : ""}`}
-          onClick={() =>
-            updateFilter({
-              listing_type: filters.listing_type === "pg" ? undefined : "pg"
-            })
-          }
-        >
-          PG
-        </button>
-
-        {/* Verified Toggle */}
-        <button
+          type="button"
           className={`cmap-filter-chip${filters.verified_only ? " cmap-filter-chip--active" : ""}`}
           onClick={() => updateFilter({ verified_only: !filters.verified_only })}
         >
-          ✓ Verified
+          <ShieldCheck size={13} /> Verified only
         </button>
-      </div>
 
-      <div className="cmap-view-toggle">
-        <span className="cmap-view-toggle__btn cmap-view-toggle__btn--active">
-          <Map size={14} /> Map
-        </span>
-        <Link
-          href={`/${locale}/search${filterParams ? `?${filterParams}` : ""}` as Route}
-          className="cmap-view-toggle__btn"
+        <button
+          type="button"
+          className={`cmap-filter-chip${filters.near_metro ? " cmap-filter-chip--active" : ""}`}
+          onClick={() => updateFilter({ near_metro: !filters.near_metro })}
         >
-          <List size={14} /> List
-        </Link>
+          <TrainFront size={13} /> Near metro
+        </button>
+
+        <button
+          type="button"
+          className="cmap-filter-chip cmap-filter-chip--ghost"
+          onClick={resetFilters}
+        >
+          Reset
+        </button>
       </div>
     </div>
   );

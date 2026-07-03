@@ -13,6 +13,7 @@ import {
   Sofa,
   UtensilsCrossed
 } from "lucide-react";
+import { Badge } from "@cribliv/ui";
 import styles from "./listing-card.module.css";
 
 export interface ListingCardData {
@@ -104,9 +105,16 @@ export function ListingCardItem({
 
         <div className={styles.badgeRow}>
           {isVerified ? (
-            <span className={styles.verified} aria-label="Verified owner">
+            <Badge
+              tone="verified"
+              style={{
+                background: "rgba(255,255,255,0.94)",
+                boxShadow: "var(--shadow-sm)",
+                backdropFilter: "blur(6px)"
+              }}
+            >
               <ShieldCheck size={12} aria-hidden="true" /> Verified
-            </span>
+            </Badge>
           ) : (
             <span />
           )}
@@ -153,9 +161,9 @@ export function ListingCardItem({
             <span className={styles.price}>{rentDisplay}</span>
             {hasRent && <span className={styles.period}>{isPg ? "/mo onwards" : "/month"}</span>}
           </span>
-          <span className={styles.trust}>
-            <ShieldCheck size={12} aria-hidden="true" /> Zero brokerage
-          </span>
+          <Badge tone="neutral" style={{ fontSize: 11, padding: "4px 8px" }}>
+            <ShieldCheck size={12} aria-hidden="true" /> Live details
+          </Badge>
         </div>
       </Link>
     </article>

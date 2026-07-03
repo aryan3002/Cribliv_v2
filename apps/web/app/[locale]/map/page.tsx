@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
+import { cityCentroid } from "../../../lib/city-bboxes";
 
 const MapClient = dynamic(() => import("./map-client"), { ssr: false });
 
@@ -46,30 +47,32 @@ export default function MapPage({
   const listing_type =
     typeof searchParams.listing_type === "string" ? searchParams.listing_type : undefined;
   const verified_only = searchParams.verified_only === "true";
+  const near_metro = searchParams.near_metro === "true";
 
   if (bhk) initialFilters.bhk = bhk;
   if (max_rent) initialFilters.max_rent = max_rent;
   if (listing_type === "flat_house" || listing_type === "pg")
     initialFilters.listing_type = listing_type;
   if (verified_only) initialFilters.verified_only = true;
+  if (near_metro) initialFilters.near_metro = true;
 
   // Optional initial centering — used when arriving from a listing's
   // "Explore on CriblMap" link so the map opens on that listing's pin.
   const latParam = typeof searchParams.lat === "string" ? Number(searchParams.lat) : NaN;
   const lngParam = typeof searchParams.lng === "string" ? Number(searchParams.lng) : NaN;
   const zoomParam = typeof searchParams.zoom === "string" ? Number(searchParams.zoom) : NaN;
-  const initialCenter =
-    Number.isFinite(latParam) && Number.isFinite(lngParam)
-      ? { lat: latParam, lng: lngParam }
-      : undefined;
-  const initialZoom = Number.isFinite(zoomParam) ? zoomParam : undefined;
-
   // City slug (?city=lucknow) drives city-aware overlays (metro lines, etc.).
   // Defaults to "delhi" when absent so the existing experience is unchanged.
   const initialCity =
     typeof searchParams.city === "string" && /^[a-z][a-z0-9_-]{1,32}$/i.test(searchParams.city)
       ? searchParams.city.toLowerCase()
       : undefined;
+  const cityCenter = initialCity ? cityCentroid(initialCity) : null;
+  const initialCenter =
+    Number.isFinite(latParam) && Number.isFinite(lngParam)
+      ? { lat: latParam, lng: lngParam }
+      : cityCenter ?? undefined;
+  const initialZoom = Number.isFinite(zoomParam) ? zoomParam : cityCenter ? 12 : undefined;
 
   // Originating listing (?listing=<uuid>) — set by the listing detail page's
   // "Explore on CriblMap" link. Drives walk-time / distance-from-listing
@@ -88,6 +91,7 @@ export default function MapPage({
           max_rent?: number;
           listing_type?: "flat_house" | "pg";
           verified_only?: boolean;
+          near_metro?: boolean;
         }
       }
       initialCenter={initialCenter}

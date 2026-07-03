@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { CriblMapCanvas } from "../../../components/criblmap/CriblMapCanvas";
 import { ListingPinLayer } from "../../../components/criblmap/ListingPinLayer";
 import { TopBar } from "../../../components/criblmap/TopBar";
+import { MapResultsRail } from "../../../components/criblmap/MapResultsRail";
 import { SidePanel } from "../../../components/criblmap/panels/SidePanel";
 import { AreaStatsPanel } from "../../../components/criblmap/panels/AreaStatsPanel";
 import { SeekerFormPanel } from "../../../components/criblmap/panels/SeekerFormPanel";
@@ -27,7 +28,10 @@ import { DemandHeatmapLayer } from "../../../components/criblmap/DemandHeatmapLa
 import { useMapState, useMapDispatch } from "../../../components/criblmap/hooks/useMapState";
 import { useMapPins } from "../../../components/criblmap/hooks/useMapPins";
 import { useSeekerPins } from "../../../components/criblmap/hooks/useSeekerPins";
-import { useAlertZones } from "../../../components/criblmap/hooks/useAlertZones";
+import {
+  useAlertZones,
+  useMapAccessToken
+} from "../../../components/criblmap/hooks/useAlertZones";
 
 interface MapViewProps {
   locale: string;
@@ -52,19 +56,18 @@ function getPanelTitle(type: string): string {
 
 export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
-  const { isLoading, pins, panelContent, drawMode, demandViewActive } = useMapState();
+  const { isLoading, pins, panelContent, drawMode, selectedPinId } = useMapState();
   const dispatch = useMapDispatch();
 
   const [showBenchmark, setShowBenchmark] = useState(false);
   const [showAlertZone, setShowAlertZone] = useState(false);
   const [showCommuteInput, setShowCommuteInput] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const { token: accessToken } = useMapAccessToken();
 
   useMapPins();
   useSeekerPins();
-  // Load saved alert zones for authenticated users
-  const isAuthenticated = typeof document !== "undefined" && document.cookie.includes("token=");
-  useAlertZones(isAuthenticated);
+  useAlertZones(accessToken);
 
   const handleMapReady = useCallback((map: google.maps.Map) => {
     setMapInstance(map);
@@ -100,6 +103,14 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
     });
     return () => listener.remove();
   }, [mapInstance, drawMode, dispatch]);
+
+  useEffect(() => {
+    if (!mapInstance) return;
+    const listener = mapInstance.addListener("click", () => {
+      if (selectedPinId) dispatch({ type: "DESELECT_PIN" });
+    });
+    return () => listener.remove();
+  }, [mapInstance, selectedPinId, dispatch]);
 
   // Alert zone modal trigger from AreaStatsPanel
   useEffect(() => {
@@ -139,6 +150,7 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
       )}
 
       <TopBar locale={locale} onPlaceSelect={handlePlaceSelect} />
+      <MapResultsRail locale={locale} map={mapInstance} />
 
       {isLoading && pins.length === 0 && (
         <div className="cmap-loading">
@@ -146,15 +158,6 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
           <span className="cmap-loading__dot" />
           <span className="cmap-loading__dot" />
           Loading listings...
-        </div>
-      )}
-
-      {!isLoading && pins.length === 0 && drawMode === "idle" && (
-        <div className="cmap-empty">
-          <div className="cmap-empty__title">No listings in this area</div>
-          <div className="cmap-empty__desc">
-            Try zooming out or adjusting your filters to find verified rentals nearby.
-          </div>
         </div>
       )}
 
@@ -177,7 +180,13 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
 
       {/* Modals */}
       {showBenchmark && <BenchmarkModal onClose={() => setShowBenchmark(false)} />}
-      {showAlertZone && <AlertZoneModal onClose={() => setShowAlertZone(false)} />}
+      {showAlertZone && (
+        <AlertZoneModal
+          accessToken={accessToken}
+          locale={locale}
+          onClose={() => setShowAlertZone(false)}
+        />
+      )}
       <FilterDrawer open={showFilterDrawer} onClose={() => setShowFilterDrawer(false)} />
 
       {/* Mobile filter trigger */}

@@ -22,6 +22,14 @@ export interface AreaStatsResponse {
   trend: "up" | "down" | "stable";
 }
 
+export interface AreaStatsFilters {
+  bhk?: number;
+  max_rent?: number;
+  listing_type?: string;
+  verified_only?: boolean;
+  near_metro?: boolean;
+}
+
 export interface MetroStation {
   id: number;
   name: string;
@@ -56,6 +64,7 @@ export interface SeekerPin {
   radius_m: number;
   tags: string[];
   created_at: string;
+  source?: "seeker" | "estimated";
 }
 
 export interface LocalityInsight {
@@ -121,14 +130,13 @@ export class MapService {
     sw_lat: number,
     ne_lng: number,
     ne_lat: number,
-    listingType?: string,
-    nearMetro?: boolean
+    filters: AreaStatsFilters = {}
   ): Promise<AreaStatsResponse> {
     if (!this.database.isEnabled()) {
       return { total_pins: 0, by_bhk: [], verified_count: 0, verified_pct: 0, trend: "stable" };
     }
 
-    const metroClause = nearMetro
+    const metroClause = filters.near_metro
       ? `AND EXISTS (
            SELECT 1 FROM metro_stations ms
            WHERE ms.lat BETWEEN ll.lat::float8 - 0.009 AND ll.lat::float8 + 0.009
@@ -150,10 +158,22 @@ export class MapService {
          AND ll.lat IS NOT NULL
          AND ll.lat::float8 BETWEEN $1 AND $2
          AND ll.lng::float8 BETWEEN $3 AND $4
-         AND ($5::text IS NULL OR l.listing_type::text = $5)
+         AND ($5::smallint IS NULL OR l.bhk = $5)
+         AND ($6::int IS NULL OR l.monthly_rent <= $6)
+         AND ($7::text IS NULL OR l.listing_type::text = $7)
+         AND ($8::boolean IS NOT TRUE OR l.verification_status = 'verified')
          ${metroClause}
        GROUP BY l.bhk ORDER BY l.bhk`,
-      [sw_lat, ne_lat, sw_lng, ne_lng, listingType ?? null]
+      [
+        sw_lat,
+        ne_lat,
+        sw_lng,
+        ne_lng,
+        filters.bhk ?? null,
+        filters.max_rent ?? null,
+        filters.listing_type ?? null,
+        filters.verified_only ?? false
+      ]
     );
 
     const byBhk = bhkResult.rows;
@@ -172,8 +192,22 @@ export class MapService {
          WHERE l.status = 'active'
            AND ll.lat IS NOT NULL
            AND ll.lat::float8 BETWEEN $1 AND $2
-           AND ll.lng::float8 BETWEEN $3 AND $4`,
-        [sw_lat, ne_lat, sw_lng, ne_lng]
+           AND ll.lng::float8 BETWEEN $3 AND $4
+           AND ($5::smallint IS NULL OR l.bhk = $5)
+           AND ($6::int IS NULL OR l.monthly_rent <= $6)
+           AND ($7::text IS NULL OR l.listing_type::text = $7)
+           AND ($8::boolean IS NOT TRUE OR l.verification_status = 'verified')
+           ${metroClause}`,
+        [
+          sw_lat,
+          ne_lat,
+          sw_lng,
+          ne_lng,
+          filters.bhk ?? null,
+          filters.max_rent ?? null,
+          filters.listing_type ?? null,
+          filters.verified_only ?? false
+        ]
       );
       const r = trendResult.rows[0];
       if (r?.recent_avg && r?.older_avg) {
@@ -284,20 +318,68 @@ export class MapService {
   ): Promise<SeekerPin[]> {
     if (!this.database.isEnabled()) return [];
 
-    const result = await this.database.query<SeekerPin>(
+    const realPins = await this.getRealSeekerPins(sw_lat, sw_lng, ne_lat, ne_lng);
+    if (realPins.length > 0) return realPins;
+
+    return this.getEstimatedDemandPins(sw_lat, sw_lng, ne_lat, ne_lng);
+  }
+
+  private async getRealSeekerPins(
+    sw_lat: number,
+    sw_lng: number,
+    ne_lat: number,
+    ne_lng: number
+  ): Promise<SeekerPin[]> {
+    try {
+      const result = await this.database.query<SeekerPin>(
+        `SELECT
+           id::text,
+           lat,
+           lng,
+           COALESCE(budget_min, 0)::int AS budget_min,
+           budget_max::int AS budget_max,
+           COALESCE(bhk_preference, '{}'::smallint[]) AS bhk_preference,
+           COALESCE(move_in, 'flexible') AS move_in,
+           COALESCE(listing_type, 'flat_house') AS listing_type,
+           note,
+           radius_m,
+           tags,
+           created_at::text,
+           'seeker'::text AS source
+         FROM seeker_pins
+         WHERE is_active = true
+           AND expires_at > now()
+           AND lat BETWEEN $1 AND $2
+           AND lng BETWEEN $3 AND $4
+         ORDER BY created_at DESC
+         LIMIT 200`,
+        [sw_lat, ne_lat, sw_lng, ne_lng]
+      );
+
+      return result.rows.map((r) => this.normalizeSeekerPin(r));
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code !== "42703") {
+        if (code === "42P01") return [];
+        throw err;
+      }
+    }
+
+    const legacyResult = await this.database.query<SeekerPin>(
       `SELECT
          id::text,
          lat,
          lng,
-         budget_min,
-         budget_max,
-         bhk_preference,
-         move_in,
-         listing_type,
+         COALESCE(budget_min, 0)::int AS budget_min,
+         budget_max::int AS budget_max,
+         COALESCE(bhk_preference, '{}'::smallint[]) AS bhk_preference,
+         COALESCE(move_in, 'flexible') AS move_in,
+         COALESCE(listing_type, 'flat_house') AS listing_type,
          note,
-         radius_m,
-         tags,
-         created_at::text
+         1000::int AS radius_m,
+         '{}'::text[] AS tags,
+         created_at::text,
+         'seeker'::text AS source
        FROM seeker_pins
        WHERE is_active = true
          AND expires_at > now()
@@ -308,7 +390,66 @@ export class MapService {
       [sw_lat, ne_lat, sw_lng, ne_lng]
     );
 
-    return result.rows.map((r) => ({ ...r, lat: Number(r.lat), lng: Number(r.lng) }));
+    return legacyResult.rows.map((r) => this.normalizeSeekerPin(r));
+  }
+
+  private async getEstimatedDemandPins(
+    sw_lat: number,
+    sw_lng: number,
+    ne_lat: number,
+    ne_lng: number
+  ): Promise<SeekerPin[]> {
+    const result = await this.database.query<SeekerPin>(
+      `SELECT
+         ('estimated_' || l.id::text) AS id,
+         ll.lat::float8 AS lat,
+         ll.lng::float8 AS lng,
+         GREATEST(0, (l.monthly_rent * 0.75)::int) AS budget_min,
+         GREATEST(1000, (l.monthly_rent * 1.1)::int) AS budget_max,
+         CASE
+           WHEN l.bhk IS NULL THEN '{}'::smallint[]
+           ELSE ARRAY[l.bhk::smallint]
+         END AS bhk_preference,
+         CASE
+           WHEN l.created_at >= now() - INTERVAL '14 days' THEN 'within_month'
+           ELSE 'flexible'
+         END AS move_in,
+         l.listing_type,
+         NULL::text AS note,
+         CASE WHEN l.verification_status = 'verified' THEN 900 ELSE 650 END AS radius_m,
+         '{}'::text[] AS tags,
+         COALESCE(l.updated_at, l.created_at)::text AS created_at,
+         'estimated'::text AS source
+       FROM listings l
+       JOIN listing_locations ll ON ll.listing_id = l.id
+       WHERE l.status = 'active'
+         AND ll.lat IS NOT NULL
+         AND ll.lng IS NOT NULL
+         AND ll.lat::float8 BETWEEN $1 AND $2
+         AND ll.lng::float8 BETWEEN $3 AND $4
+       ORDER BY
+         CASE WHEN l.verification_status = 'verified' THEN 0 ELSE 1 END,
+         l.updated_at DESC NULLS LAST,
+         l.created_at DESC
+       LIMIT 120`,
+      [sw_lat, ne_lat, sw_lng, ne_lng]
+    );
+
+    return result.rows.map((r) => this.normalizeSeekerPin(r, "estimated"));
+  }
+
+  private normalizeSeekerPin(row: SeekerPin, defaultSource: "seeker" | "estimated" = "seeker") {
+    return {
+      ...row,
+      lat: Number(row.lat),
+      lng: Number(row.lng),
+      budget_min: Number(row.budget_min ?? 0),
+      budget_max: Number(row.budget_max ?? 0),
+      bhk_preference: Array.isArray(row.bhk_preference) ? row.bhk_preference.map(Number) : [],
+      radius_m: Number(row.radius_m ?? 1000),
+      tags: Array.isArray(row.tags) ? row.tags : [],
+      source: row.source ?? defaultSource
+    };
   }
 
   async createSeekerPin(

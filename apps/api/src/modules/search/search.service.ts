@@ -615,6 +615,8 @@ export class SearchService {
         city: string;
         city_name: string;
         locality: string | null;
+        lat: number | null;
+        lng: number | null;
         listing_type: "flat_house" | "pg";
         monthly_rent: number;
         bhk: number | null;
@@ -633,6 +635,8 @@ export class SearchService {
           c.slug AS city,
           c.name_en AS city_name,
           loc.name_en AS locality,
+          ll.lat::float8 AS lat,
+          ll.lng::float8 AS lng,
           l.listing_type::text,
           l.monthly_rent,
           l.bhk,
@@ -689,6 +693,8 @@ export class SearchService {
           city: row.city,
           city_name: row.city_name,
           locality: row.locality,
+          lat: row.lat,
+          lng: row.lng,
           listing_type: row.listing_type,
           monthly_rent: row.monthly_rent,
           bhk: row.bhk,
@@ -823,6 +829,7 @@ export class SearchService {
       max_rent?: number;
       listing_type?: "flat_house" | "pg";
       verified_only?: boolean;
+      near_metro?: boolean;
     } = {}
   ): Promise<
     Array<{
@@ -837,6 +844,8 @@ export class SearchService {
       furnishing: string | null;
       cover_photo: string | null;
       city: string;
+      locality: string | null;
+      locality_slug: string | null;
     }>
   > {
     if (!this.database.isEnabled()) return [];
@@ -850,7 +859,8 @@ export class SearchService {
       filters.bhk ?? null,
       filters.max_rent ?? null,
       filters.listing_type ?? null,
-      filters.verified_only ?? false
+      filters.verified_only ?? false,
+      filters.near_metro ?? false
     ];
 
     const result = await this.database.query<{
@@ -865,6 +875,8 @@ export class SearchService {
       furnishing: string | null;
       cover_photo: string | null;
       city: string;
+      locality: string | null;
+      locality_slug: string | null;
     }>(
       `SELECT
          l.id::text,
@@ -877,6 +889,8 @@ export class SearchService {
          l.verification_status::text,
          l.furnishing::text,
          c.slug AS city,
+         loc.name_en AS locality,
+         loc.slug AS locality_slug,
          (
            SELECT lp.blob_path
            FROM listing_photos lp
@@ -888,6 +902,7 @@ export class SearchService {
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
        JOIN cities c ON c.id = ll.city_id
+       LEFT JOIN localities loc ON loc.id = ll.locality_id
        WHERE l.status = 'active'
          AND ll.lat IS NOT NULL
          AND ll.lat::float8 BETWEEN $2 AND $4
@@ -896,6 +911,11 @@ export class SearchService {
          AND ($7::int IS NULL OR l.monthly_rent <= $7)
          AND ($8::text IS NULL OR l.listing_type::text = $8)
          AND ($9::boolean IS NOT TRUE OR l.verification_status = 'verified')
+         AND ($10::boolean IS NOT TRUE OR EXISTS (
+           SELECT 1 FROM metro_stations ms
+           WHERE ms.lat BETWEEN ll.lat::float8 - 0.009 AND ll.lat::float8 + 0.009
+             AND ms.lng BETWEEN ll.lng::float8 - 0.009 AND ll.lng::float8 + 0.009
+         ))
        ORDER BY l.created_at DESC
        LIMIT $5`,
       params

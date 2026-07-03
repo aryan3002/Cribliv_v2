@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import {
   Share2,
   MapPin,
@@ -576,17 +577,23 @@ export function PgDetailClient({
     detail.room_types.length > 0
       ? Math.min(...detail.room_types.map((r) => r.monthly_rent_paise))
       : null;
+  const monthlyAllInPaise =
+    lowestPrice != null
+      ? lowestPrice + Math.round((pd.security_deposit_paise ?? 0) / 11)
+      : detail.monthly_rent != null
+        ? detail.monthly_rent * 100 + Math.round((pd.security_deposit_paise ?? 0) / 11)
+        : null;
 
   return (
     <>
-      <div className="container ld-page">
+      <div className="container ld-page tenant-detail-page tenant-detail-page--pg">
         {/* Breadcrumb */}
         <nav className="ld-crumb" aria-label="Breadcrumb">
-          <Link href={`/${locale}`}>Home</Link>
+          <Link href={`/${locale}` as Route}>Home</Link>
           <ChevronRight size={14} className="ld-crumb__sep" aria-hidden="true" />
-          <Link href={`/${locale}/pg`}>PG</Link>
+          <Link href={`/${locale}/pg` as Route}>PG</Link>
           <ChevronRight size={14} className="ld-crumb__sep" aria-hidden="true" />
-          <Link href={`/${locale}/pg/${cityDisplay}`}>{toTitleCase(cityDisplay)}</Link>
+          <Link href={`/${locale}/pg/${cityDisplay}` as Route}>{toTitleCase(cityDisplay)}</Link>
           <ChevronRight size={14} className="ld-crumb__sep" aria-hidden="true" />
           <span className="ld-crumb__current">{detail.title ?? "PG"}</span>
         </nav>
@@ -644,6 +651,51 @@ export function PgDetailClient({
           listing_type="pg"
           pgTotalBeds={totalBeds || null}
         />
+
+        <section className="tenant-cost-strip" aria-label="PG pricing and trust summary">
+          <div className="tenant-cost-card tenant-cost-card--price">
+            <span className="tenant-cost-card__icon" aria-hidden="true">
+              <Wallet size={18} />
+            </span>
+            <span className="tenant-cost-card__label">Total monthly cost</span>
+            <strong>
+              {monthlyAllInPaise != null
+                ? rupees(monthlyAllInPaise)
+                  : "Request price"}
+            </strong>
+            <span className="tenant-cost-card__note">
+              Per person, with deposit spread across 11 months
+            </span>
+          </div>
+          <div className="tenant-cost-card">
+            <span className="tenant-cost-card__icon tenant-cost-card__icon--amber" aria-hidden="true">
+              <Shield size={18} />
+            </span>
+            <span className="tenant-cost-card__label">
+              {pd.security_deposit_paise != null ? "Security deposit" : "Move-in terms"}
+            </span>
+            <strong>
+              {pd.security_deposit_paise != null
+                ? rupees(pd.security_deposit_paise)
+                : pd.notice_period_days != null
+                  ? `${pd.notice_period_days} days`
+                  : "Ask owner"}
+            </strong>
+            <span className="tenant-cost-card__note">
+              {pd.security_deposit_paise != null && pd.notice_period_days != null
+                ? `${pd.notice_period_days} day notice period`
+                : "Terms shown before move-in"}
+            </span>
+          </div>
+          <div className="tenant-cost-card">
+            <span className="tenant-cost-card__icon tenant-cost-card__icon--trust" aria-hidden="true">
+              <ShieldCheck size={18} />
+            </span>
+            <span className="tenant-cost-card__label">PG trust</span>
+            <strong>Verified</strong>
+            <span className="tenant-cost-card__note">Meals and sharing captured</span>
+          </div>
+        </section>
 
         {/* Detail layout */}
         <div className="detail-layout">
@@ -787,16 +839,21 @@ export function PgDetailClient({
               <div>
                 <div className="detail-rail__price">
                   <strong>
-                    {lowestPrice != null
-                      ? `from ${rupees(lowestPrice)}`
-                      : detail.monthly_rent != null
-                        ? `from ₹${detail.monthly_rent.toLocaleString("en-IN")}`
+                    {monthlyAllInPaise != null
+                      ? `from ${rupees(monthlyAllInPaise)}`
                         : "Price on request"}
                   </strong>
-                  {(lowestPrice != null || detail.monthly_rent != null) && (
-                    <span>{t(locale as Locale, "perMonth")}</span>
+                  {monthlyAllInPaise != null && (
+                    <span>/mo all-in</span>
                   )}
                 </div>
+                {(lowestPrice != null || detail.monthly_rent != null) && (
+                  <div className="detail-rail__secondary">
+                    {lowestPrice != null
+                      ? `${rupees(lowestPrice)} rent`
+                      : `₹${detail.monthly_rent?.toLocaleString("en-IN")} rent`}
+                  </div>
+                )}
                 {pd.security_deposit_paise != null && (
                   <div className="pg-rail-deposit">
                     <Shield size={13} aria-hidden="true" />
@@ -921,13 +978,11 @@ export function PgDetailClient({
       <div className="cta-bar">
         <div>
           <div className="card__price">
-            {lowestPrice != null
-              ? `${rupees(lowestPrice)}`
-              : detail.monthly_rent != null
-                ? `₹${detail.monthly_rent.toLocaleString("en-IN")}`
+            {monthlyAllInPaise != null
+              ? `${rupees(monthlyAllInPaise)}`
                 : "Price on request"}
-            {(lowestPrice != null || detail.monthly_rent != null) && (
-              <span className="card__price-period">/mo</span>
+            {monthlyAllInPaise != null && (
+              <span className="card__price-period">/mo all-in</span>
             )}
           </div>
           {pd.security_deposit_paise != null && (
