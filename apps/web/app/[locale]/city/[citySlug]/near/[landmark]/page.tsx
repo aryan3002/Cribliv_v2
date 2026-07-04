@@ -9,6 +9,7 @@ import {
 } from "../../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../lib/seo";
+import { isAdminPreview } from "../../../../../../lib/admin-preview";
 
 export const revalidate = 86400;
 
@@ -42,11 +43,23 @@ const LANDMARK_TYPE_HINT_HI: Record<string, string> = {
 };
 
 export async function generateMetadata({
-  params
+  params,
+  searchParams
 }: {
   params: { locale: string; citySlug: string; landmark: string };
+  searchParams: { adminPreview?: string | string[] };
 }): Promise<Metadata> {
   const locale = params.locale === "hi" ? "hi" : "en";
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug) && !(await isAdminPreview(searchParams))) {
+    return buildPageMetadata({
+      title: "Not found",
+      description: "Page not available.",
+      pathname: `/city/${params.citySlug}/near/${params.landmark}`,
+      locale,
+      noindex: true
+    });
+  }
   const landmark = await fetchLandmark(params.citySlug, params.landmark);
   if (!landmark) {
     return buildPageMetadata({
@@ -78,12 +91,14 @@ export async function generateMetadata({
 }
 
 export default async function LandmarkHubPage({
-  params
+  params,
+  searchParams
 }: {
   params: { locale: string; citySlug: string; landmark: string };
+  searchParams: { adminPreview?: string | string[] };
 }) {
   const enabledCities = await fetchEnabledCities();
-  if (!enabledCities.has(params.citySlug)) notFound();
+  if (!enabledCities.has(params.citySlug) && !(await isAdminPreview(searchParams))) notFound();
   if (!isValidSlug(params.landmark)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 

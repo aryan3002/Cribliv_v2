@@ -1337,3 +1337,65 @@ export async function setSeoCityEnabled(
   });
   return mapSeoCityRow(raw);
 }
+
+// ── City review drill-in data (public SEO endpoints, no auth) ──────────────
+
+export interface SeoLocalityRow {
+  slug: string;
+  name_en: string;
+  name_hi: string;
+  lat: number | null;
+  lng: number | null;
+  listing_count: number;
+}
+
+export interface SeoLandmarkRow {
+  slug: string;
+  name_en: string;
+  name_hi: string;
+  type: string;
+  lat: number | null;
+  lng: number | null;
+}
+
+export interface SeoMetroRow {
+  station_name: string;
+  line_name: string;
+  lat: number | null;
+  lng: number | null;
+}
+
+export async function listCityLocalities(citySlug: string): Promise<SeoLocalityRow[]> {
+  const raw = await fetchApi<{ items?: SeoLocalityRow[] }>(
+    `/seo/localities/${encodeURIComponent(citySlug)}`
+  );
+  return raw.items ?? [];
+}
+
+export async function listCityLandmarks(citySlug: string): Promise<SeoLandmarkRow[]> {
+  const raw = await fetchApi<{ items?: SeoLandmarkRow[] }>(
+    `/landmarks/${encodeURIComponent(citySlug)}`
+  );
+  return raw.items ?? [];
+}
+
+interface MetroLineRaw {
+  line_name: string;
+  stations?: Array<{ name: string; lat: number | null; lng: number | null }>;
+}
+
+// /map/metro returns { lines: [{ line_name, stations: [{ name, lat, lng }] }] }
+// — flatten to one row per station for the review table.
+export async function listCityMetro(citySlug: string): Promise<SeoMetroRow[]> {
+  const raw = await fetchApi<{ lines?: MetroLineRaw[] }>(
+    `/map/metro?city=${encodeURIComponent(citySlug)}`
+  );
+  return (raw.lines ?? []).flatMap((line) =>
+    (line.stations ?? []).map((s) => ({
+      station_name: s.name,
+      line_name: line.line_name,
+      lat: s.lat,
+      lng: s.lng
+    }))
+  );
+}

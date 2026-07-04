@@ -62,6 +62,9 @@ export class SeoCityConfigService {
   async listAllWithCounts(): Promise<SeoCityConfigWithCity[]> {
     if (!this.database.isEnabled()) return [];
 
+    // Base row fields (name, status, enabled_at, notes) come from the stored
+    // config; the count columns are ignored here and replaced below with
+    // live counts, so cities that were never toggled don't show stale 0s.
     const { rows } = await this.database.query<SeoCityConfigWithCity>(
       `SELECT c.slug AS city_slug,
               c.name_en,
@@ -81,7 +84,11 @@ export class SeoCityConfigService {
        ORDER BY COALESCE(scc.programmatic_enabled, false) DESC, c.slug`,
       []
     );
-    return rows;
+
+    const withCounts = await Promise.all(
+      rows.map(async (r) => ({ ...r, ...(await this.computeCounts(r.city_slug)) }))
+    );
+    return withCounts;
   }
 
   async computeCounts(citySlug: string): Promise<RefreshedCounts> {

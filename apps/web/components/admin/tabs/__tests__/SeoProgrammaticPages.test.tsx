@@ -3,7 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../../lib/admin-api", () => ({
   listSeoCities: vi.fn(),
-  setSeoCityEnabled: vi.fn()
+  setSeoCityEnabled: vi.fn(),
+  // Also imported transitively by SeoCityReviewDrawer; stubbed so a future
+  // test that opens the drawer doesn't hit an undefined fetcher.
+  listCityLocalities: vi.fn(),
+  listCityLandmarks: vi.fn(),
+  listCityMetro: vi.fn()
 }));
 
 import { SeoProgrammaticPages } from "../SeoProgrammaticPages";
