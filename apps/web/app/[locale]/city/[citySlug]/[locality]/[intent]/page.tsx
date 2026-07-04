@@ -18,15 +18,28 @@ import {
   intentToSearchParams,
   renderIntentH1
 } from "../../../../../../lib/intent-filters";
+import { isAdminPreview } from "../../../../../../lib/admin-preview";
 
 export const revalidate = 86400;
 
 export async function generateMetadata({
-  params
+  params,
+  searchParams
 }: {
   params: { locale: string; citySlug: string; locality: string; intent: string };
+  searchParams: { adminPreview?: string | string[] };
 }): Promise<Metadata> {
   const locale = params.locale === "hi" ? "hi" : "en";
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug) && !(await isAdminPreview(searchParams))) {
+    return buildPageMetadata({
+      title: "Not found",
+      description: "Page not available.",
+      pathname: `/city/${params.citySlug}/${params.locality}/${params.intent}`,
+      locale,
+      noindex: true
+    });
+  }
   const intent = getIntent(params.intent);
   const data = await fetchLocality(params.citySlug, params.locality);
   if (!intent || !data || !intent.applies_to.includes("locality")) {
@@ -53,12 +66,14 @@ export async function generateMetadata({
 }
 
 export default async function LocalityIntentPage({
-  params
+  params,
+  searchParams
 }: {
   params: { locale: string; citySlug: string; locality: string; intent: string };
+  searchParams: { adminPreview?: string | string[] };
 }) {
   const enabledCities = await fetchEnabledCities();
-  if (!enabledCities.has(params.citySlug)) notFound();
+  if (!enabledCities.has(params.citySlug) && !(await isAdminPreview(searchParams))) notFound();
   if (!isValidSlug(params.locality) || !isValidSlug(params.intent)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 
