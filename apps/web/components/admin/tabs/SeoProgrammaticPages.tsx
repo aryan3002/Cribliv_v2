@@ -6,6 +6,7 @@ import { StatCard } from "../primitives/StatCard";
 import { StatusPill } from "../primitives/StatusPill";
 import { listSeoCities, setSeoCityEnabled, type SeoCityConfigVm } from "../../../lib/admin-api";
 import { formatDate, formatNumber } from "../../../lib/admin/format";
+import { SeoCityReviewDrawer } from "./SeoCityReviewDrawer";
 
 interface Props {
   accessToken: string;
@@ -16,6 +17,8 @@ export function SeoProgrammaticPages({ accessToken, onToast }: Props) {
   const [rows, setRows] = useState<SeoCityConfigVm[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingSlugs, setPendingSlugs] = useState<Set<string>>(() => new Set());
+  const [selected, setSelected] = useState<SeoCityConfigVm | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const onToastRef = useRef(onToast);
 
   useEffect(() => {
@@ -46,7 +49,7 @@ export function SeoProgrammaticPages({ accessToken, onToast }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, reloadKey]);
 
   const stats = useMemo(() => {
     return {
@@ -160,7 +163,10 @@ export function SeoProgrammaticPages({ accessToken, onToast }: Props) {
           <button
             type="button"
             className={`admin-btn ${willEnable ? "admin-btn--primary" : "admin-btn--ghost"} admin-btn--sm`}
-            onClick={() => void toggle(row)}
+            onClick={(e) => {
+              e.stopPropagation();
+              void toggle(row);
+            }}
             disabled={busy}
             aria-label={`${willEnable ? "Enable" : "Disable"} ${row.nameEn}`}
           >
@@ -190,8 +196,17 @@ export function SeoProgrammaticPages({ accessToken, onToast }: Props) {
         columns={columns}
         rows={rows}
         rowKey={(row) => row.citySlug}
+        onRowClick={(row) => setSelected(row)}
         emptyState="No cities configured"
         initialSort={{ key: "status", dir: "desc" }}
+      />
+
+      <SeoCityReviewDrawer
+        city={selected}
+        accessToken={accessToken}
+        onClose={() => setSelected(null)}
+        onToast={onToast}
+        onChanged={() => setReloadKey((k) => k + 1)}
       />
     </div>
   );
