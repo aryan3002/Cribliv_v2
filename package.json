@@ -13,6 +13,7 @@
     "typecheck": "turbo run typecheck",
     "db:migrate": "pnpm --filter @cribliv/api db:migrate",
     "db:seed": "pnpm --filter @cribliv/api db:seed",
+    "seed:reference": "pnpm --filter @cribliv/api seed:reference",
     "worker": "pnpm --filter @cribliv/api worker",
     "generate:city": "pnpm --filter @cribliv/api generate:city --"
   },

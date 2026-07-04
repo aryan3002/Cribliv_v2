@@ -110,28 +110,33 @@ async function seed() {
 
   // ── Dev seed users ─────────────────────────────────────────────────────────
   // These are idempotent: safe to re-run. They only exist in dev environments.
-  const seedUsers = [
-    { phone: "+919999999901", role: "owner" },
-    { phone: "+919999999902", role: "tenant" },
-    { phone: "+919999999903", role: "admin" },
-    { phone: "+919999999904", role: "pg_operator" }
-  ];
+  // Skipped when SEED_REFERENCE_ONLY=1 (the production reference-data seed) so
+  // test users NEVER land in prod. Run via `pnpm seed:reference` for that.
+  if (process.env.SEED_REFERENCE_ONLY === "1") {
+    console.log("Skipping dev seed users (SEED_REFERENCE_ONLY=1).");
+  } else {
+    const seedUsers = [
+      { phone: "+919999999901", role: "owner" },
+      { phone: "+919999999902", role: "tenant" },
+      { phone: "+919999999903", role: "admin" },
+      { phone: "+919999999904", role: "pg_operator" }
+    ];
 
-  for (const u of seedUsers) {
-    await client.query(
-      `
+    for (const u of seedUsers) {
+      await client.query(
+        `
       INSERT INTO users (phone_e164, role, preferred_language)
       VALUES ($1, $2::user_role, 'en')
       ON CONFLICT (phone_e164) DO UPDATE SET
         role = EXCLUDED.role,
         is_blocked = false
       `,
-      [u.phone, u.role]
-    );
-  }
+        [u.phone, u.role]
+      );
+    }
 
-  // Give tenant seed user 2 credits; ensure all have wallets
-  await client.query(`
+    // Give tenant seed user 2 credits; ensure all have wallets
+    await client.query(`
     INSERT INTO wallets (user_id, balance_credits, free_credits_granted)
     SELECT id,
       CASE WHEN role = 'tenant' THEN 2 ELSE 0 END,
@@ -141,7 +146,8 @@ async function seed() {
     ON CONFLICT (user_id) DO NOTHING
   `);
 
-  console.log("Seeded dev users: owner/tenant/admin/pg_operator (phones ending 901–904).");
+    console.log("Seeded dev users: owner/tenant/admin/pg_operator (phones ending 901–904).");
+  }
 
   // ── Metro station seed data ────────────────────────────────────────────────
   // Loads every `metro-stations*.json` file in the seeds dir so we can add a
