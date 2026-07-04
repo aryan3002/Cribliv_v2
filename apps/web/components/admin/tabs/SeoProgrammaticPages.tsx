@@ -202,6 +202,7 @@ export function SeoProgrammaticPages({ accessToken, onToast }: Props) {
       />
 
       <SeoCityReviewDrawer
+        key={selected?.citySlug ?? "none"}
         city={selected}
         accessToken={accessToken}
         onClose={() => setSelected(null)}
