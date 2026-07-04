@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { SeoAggregatesService } from "./seo-aggregates.service";
+import { readFeatureFlags } from "../../config/feature-flags";
 
 export const INDEXABLE_MIN = 3;
 
@@ -39,6 +40,7 @@ export class SeoCityConfigService {
 
   async listEnabled(): Promise<SeoCityConfigRow[]> {
     if (!this.database.isEnabled()) return [];
+    if (!readFeatureFlags().ff_programmatic_seo_cities_enabled) return [];
 
     const { rows } = await this.database.query<SeoCityConfigRow>(
       `SELECT city_slug,
