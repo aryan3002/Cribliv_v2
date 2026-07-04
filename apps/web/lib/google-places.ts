@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+import { API_KEY, ensureMapsLoaded } from "./google-maps";
 
 /**
  * Lightweight Google Places Autocomplete hook.
@@ -9,8 +9,6 @@ import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
  * Requires `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to be set.
  * When the key is absent, the hook is a no-op (returns empty predictions).
  */
-
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
 // Restrict suggestions to India
 const COMPONENT_RESTRICTIONS = { country: "in" };
@@ -45,10 +43,7 @@ let placesReady: Promise<void> | null = null;
 function ensurePlacesLoaded(): Promise<void> {
   if (!API_KEY) return Promise.resolve();
   if (!placesReady) {
-    setOptions({ key: API_KEY, v: "weekly" });
-    placesReady = importLibrary("places").then(() => {
-      /* places namespace now available on window.google */
-    });
+    placesReady = ensureMapsLoaded();
   }
   return placesReady;
 }

@@ -54,21 +54,24 @@ export function useGoogleMap(
       if (cancelled || !containerRef.current) return;
       if (typeof google === "undefined") return;
 
-      const googleColorScheme = (google.maps as unknown as {
-        ColorScheme?: { DARK: string; LIGHT: string };
-      }).ColorScheme;
+      const googleColorScheme = (
+        google.maps as unknown as {
+          ColorScheme?: { DARK: string; LIGHT: string };
+        }
+      ).ColorScheme;
+      const resolvedMapId = mapId?.trim() ? mapId : undefined;
       const mapOptions: google.maps.MapOptions & { colorScheme?: string } = {
         center,
         zoom,
         disableDefaultUI: true,
         zoomControl: true,
-        zoomControlOptions: { position: google.maps.ControlPosition.LEFT_BOTTOM },
+        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_BOTTOM },
         gestureHandling: "greedy",
         clickableIcons: false,
         minZoom: 8,
         maxZoom: 19,
-        styles: styles ?? CRIBLMAP_DARK_STYLE,
-        mapId: mapId,
+        styles: resolvedMapId ? undefined : (styles ?? CRIBLMAP_DARK_STYLE),
+        ...(resolvedMapId ? { mapId: resolvedMapId } : {}),
         colorScheme:
           colorScheme === "LIGHT"
             ? (googleColorScheme?.LIGHT ?? "LIGHT")

@@ -13,6 +13,10 @@ interface CriblMapCanvasProps {
   initialZoom?: number;
 }
 
+function roundViewportCoord(value: number): number {
+  return Number(value.toFixed(5));
+}
+
 export function CriblMapCanvas({
   onMapReady,
   mapRef: externalMapRef,
@@ -34,6 +38,7 @@ export function CriblMapCanvas({
   }, [currentCity]);
 
   const listenerRef = useRef<google.maps.MapsEventListener | null>(null);
+  const viewportKeyRef = useRef<string | null>(null);
 
   const syncViewport = useCallback(() => {
     if (!map) return;
@@ -46,6 +51,17 @@ export function CriblMapCanvas({
     const centerLatLng = center
       ? { lat: center.lat(), lng: center.lng() }
       : { lat: 28.6139, lng: 77.209 };
+    const zoom = map.getZoom() ?? 11;
+    const viewportKey = [
+      roundViewportCoord(sw.lat()),
+      roundViewportCoord(sw.lng()),
+      roundViewportCoord(ne.lat()),
+      roundViewportCoord(ne.lng()),
+      zoom
+    ].join(":");
+
+    if (viewportKey === viewportKeyRef.current) return;
+    viewportKeyRef.current = viewportKey;
 
     dispatch({
       type: "SET_VIEWPORT",
@@ -55,7 +71,7 @@ export function CriblMapCanvas({
         ne_lat: ne.lat(),
         ne_lng: ne.lng()
       },
-      zoom: map.getZoom() ?? 11,
+      zoom,
       center: centerLatLng
     });
 
