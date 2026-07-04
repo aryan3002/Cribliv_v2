@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PG Listing DTO contract > matches the JSON schema snapshot 1`] = `
+{
+  "$ref": "#/definitions/PgListingCreate",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "PgListingCreate": {},
+  },
+}
+`;
