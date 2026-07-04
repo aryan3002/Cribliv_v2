@@ -61,10 +61,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, contract-check, migration-check]
     env:
-      # ── Update these three values to match what you created in infra/azure-setup.sh ──
+      # ── Match infra/azure-setup.sh (RESOURCE_GROUP="Cribliv", ACR_NAME="criblivacr", API_APP_NAME="cribliv-api") ──
       ACR_NAME: criblivacr
       APP_NAME: cribliv-api
-      RESOURCE_GROUP: cribliv-rg
+      RESOURCE_GROUP: Cribliv
     steps:
       - uses: actions/checkout@v4
 
