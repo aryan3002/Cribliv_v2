@@ -23,15 +23,11 @@ import {
   FilterDrawer,
   FilterDrawerTrigger
 } from "../../../components/criblmap/overlays/FilterDrawer";
-import { OnboardingTooltip } from "../../../components/criblmap/overlays/OnboardingTooltip";
 import { DemandHeatmapLayer } from "../../../components/criblmap/DemandHeatmapLayer";
 import { useMapState, useMapDispatch } from "../../../components/criblmap/hooks/useMapState";
 import { useMapPins } from "../../../components/criblmap/hooks/useMapPins";
 import { useSeekerPins } from "../../../components/criblmap/hooks/useSeekerPins";
-import {
-  useAlertZones,
-  useMapAccessToken
-} from "../../../components/criblmap/hooks/useAlertZones";
+import { useAlertZones, useMapAccessToken } from "../../../components/criblmap/hooks/useAlertZones";
 
 interface MapViewProps {
   locale: string;
@@ -191,9 +187,6 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
 
       {/* Mobile filter trigger */}
       <FilterDrawerTrigger onClick={() => setShowFilterDrawer(true)} />
-
-      {/* First-visit onboarding */}
-      <OnboardingTooltip />
     </div>
   );
 }

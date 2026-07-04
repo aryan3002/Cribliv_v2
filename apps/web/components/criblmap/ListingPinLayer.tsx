@@ -65,6 +65,20 @@ interface ClusterGroup {
   lng: number;
 }
 
+interface PinMarkerRecord {
+  pin: MapPin;
+  element: HTMLDivElement;
+  marker: google.maps.marker.AdvancedMarkerElement;
+}
+
+function applySelectedState(records: Map<string, PinMarkerRecord>, selectedPinId: string | null) {
+  for (const { pin, element, marker } of records.values()) {
+    const selected = pin.id === selectedPinId;
+    element.className = getPinClass(pin, selected);
+    marker.zIndex = selected ? 10 : 5;
+  }
+}
+
 function clusterPins(pins: MapPin[], zoom: number): (MapPin | ClusterGroup)[] {
   if (zoom >= 14) return pins;
 
@@ -104,6 +118,8 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
   const dispatch = useMapDispatch();
   const router = useRouter();
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+  const pinRecordsRef = useRef<Map<string, PinMarkerRecord>>(new Map());
+  const selectedPinIdRef = useRef<string | null>(selectedPinId);
 
   const clustered = useMemo(() => clusterPins(pins, zoom), [pins, zoom]);
 
@@ -127,12 +143,18 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
   }, [commuteReachability, commuteMaxMinutes]);
 
   useEffect(() => {
+    selectedPinIdRef.current = selectedPinId;
+    applySelectedState(pinRecordsRef.current, selectedPinId);
+  }, [selectedPinId]);
+
+  useEffect(() => {
     if (!map || typeof google === "undefined") return;
 
     for (const m of markersRef.current) {
       m.map = null;
     }
     markersRef.current = [];
+    pinRecordsRef.current.clear();
 
     for (const item of clustered) {
       const el = document.createElement("div");
@@ -171,7 +193,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
         el.innerHTML = `<span class="criblmap-cluster__count">${item.pins.length}</span><span class="criblmap-cluster__label">${verifiedCount} verified</span>`;
       } else {
         const verified = item.verification_status === "verified";
-        el.className = getPinClass(item, item.id === selectedPinId);
+        el.className = getPinClass(item, item.id === selectedPinIdRef.current);
 
         // Trust glyph: real Cribliv brand mark for verified, dot for unverified
         const trustGlyph = verified
@@ -221,10 +243,12 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
         `;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          if (item.id === selectedPinId) {
+          if (item.id === selectedPinIdRef.current) {
             router.push(listingHref(locale, item));
             return;
           }
+          selectedPinIdRef.current = item.id;
+          applySelectedState(pinRecordsRef.current, item.id);
           dispatch({ type: "SELECT_PIN", pinId: item.id });
           map.panTo({ lat: item.lat, lng: item.lng });
         });
@@ -237,7 +261,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
           lng: isCluster(item) ? item.lng : item.lng
         },
         content: el,
-        zIndex: isCluster(item) ? 1 : item.id === selectedPinId ? 10 : 5
+        zIndex: isCluster(item) ? 1 : item.id === selectedPinIdRef.current ? 10 : 5
       });
 
       if (isCluster(item)) {
@@ -245,6 +269,8 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
           map.setZoom((map.getZoom() ?? 11) + 2);
           map.panTo({ lat: item.lat, lng: item.lng });
         });
+      } else {
+        pinRecordsRef.current.set(item.id, { pin: item, element: el, marker });
       }
 
       markersRef.current.push(marker);
@@ -255,8 +281,9 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
         m.map = null;
       }
       markersRef.current = [];
+      pinRecordsRef.current.clear();
     };
-  }, [map, clustered, selectedPinId, dispatch, router, locale, demandViewActive, reachabilityZones]);
+  }, [map, clustered, dispatch, router, locale, demandViewActive, reachabilityZones]);
 
   return null;
 }
