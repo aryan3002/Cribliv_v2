@@ -66,28 +66,72 @@ describe("SeoCityConfigService", () => {
   });
 
   it("lists every city with config defaults and refreshed count columns", async () => {
-    const rows = [
-      {
-        ...ENABLED_ROW,
-        name_en: "Lucknow",
-        name_hi: "लखनऊ",
-        is_active: true
-      }
-    ];
-    query.mockResolvedValueOnce({ rows });
+    const baseRow = {
+      ...ENABLED_ROW,
+      name_en: "Lucknow",
+      name_hi: "लखनऊ",
+      is_active: true
+    };
+    // Base cities query returns the row first; computeCounts then issues one
+    // landmark-count query per city against the same mocked `query` fn.
+    query
+      .mockResolvedValueOnce({ rows: [baseRow] })
+      .mockResolvedValueOnce({ rows: [{ count: 4 }] });
     const service = new SeoCityConfigService(database as never, aggregates as never);
 
-    await expect(service.listAllWithCounts()).resolves.toEqual(rows);
+    await expect(service.listAllWithCounts()).resolves.toEqual([
+      {
+        ...baseRow,
+        // Live counts come from computeCounts (aggregates + landmark query),
+        // NOT from the stored ENABLED_ROW count columns.
+        locality_count: 2,
+        landmark_count: 4,
+        metro_count: 2,
+        indexable_count: 1
+      }
+    ]);
+
+    expect(aggregates.localitiesForCity).toHaveBeenCalledWith("lucknow");
+    expect(aggregates.metroStationsForCity).toHaveBeenCalledWith("lucknow");
 
     const [sql, params] = query.mock.calls[0];
     expect(sql).toContain("FROM cities");
     expect(sql).toContain("LEFT JOIN seo_city_config");
     expect(sql).toContain("COALESCE(scc.programmatic_enabled, false)");
-    expect(sql).toContain("locality_count");
-    expect(sql).toContain("landmark_count");
-    expect(sql).toContain("metro_count");
-    expect(sql).toContain("indexable_count");
     expect(params).toEqual([]);
+
+    const [landmarkSql, landmarkParams] = query.mock.calls[1];
+    expect(landmarkSql).toContain("FROM landmarks");
+    expect(landmarkParams).toEqual(["lucknow"]);
+  });
+
+  it("returns live non-zero counts for a city whose stored counts are 0 (e.g. never toggled)", async () => {
+    const neverToggledRow = {
+      city_slug: "lucknow",
+      programmatic_enabled: false,
+      locality_count: 0,
+      landmark_count: 0,
+      metro_count: 0,
+      indexable_count: 0,
+      enabled_at: null,
+      notes: null,
+      created_at: null,
+      updated_at: null,
+      name_en: "Lucknow",
+      name_hi: "लखनऊ",
+      is_active: true
+    };
+    query
+      .mockResolvedValueOnce({ rows: [neverToggledRow] })
+      .mockResolvedValueOnce({ rows: [{ count: 4 }] });
+    const service = new SeoCityConfigService(database as never, aggregates as never);
+
+    const [result] = await service.listAllWithCounts();
+
+    expect(result.locality_count).toBe(2);
+    expect(result.landmark_count).toBe(4);
+    expect(result.metro_count).toBe(2);
+    expect(result.indexable_count).toBe(1);
   });
 
   it("computes indexable counts from locality listing counts and counts landmarks", async () => {
