@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProgrammaticPage, coalesceCopy } from "../../../../../../components/seo/programmatic-page";
-import { fetchLandmark, fetchLandmarkListings, fetchSeoCopy } from "../../../../../../lib/seo-api";
+import {
+  fetchEnabledCities,
+  fetchLandmark,
+  fetchLandmarkListings,
+  fetchSeoCopy
+} from "../../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../lib/seo";
 
-const SUPPORTED_CITIES = new Set(["lucknow"]);
 export const revalidate = 86400;
 
 const LANDMARK_TYPE_HINT_EN: Record<string, string> = {
@@ -53,6 +57,11 @@ export async function generateMetadata({
       noindex: true
     });
   }
+  const bundle = await fetchLandmarkListings(params.citySlug, params.landmark, {
+    radiusKm: 2,
+    limit: 24
+  });
+  const listingCount = bundle?.items.length ?? 0;
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
   const title =
     locale === "hi" ? `${name} के पास किराये के घर — Cribliv` : `Rentals near ${name} — Cribliv`;
@@ -63,7 +72,8 @@ export async function generateMetadata({
         ? `${name} के 2 किमी के दायरे में सत्यापित PG, फ्लैट और मकान। सीधे मालिक से संपर्क।`
         : `Verified PGs, flats, and houses within 2 km of ${name}. Direct owner contact, zero brokerage.`,
     pathname: `/city/${params.citySlug}/near/${params.landmark}`,
-    locale
+    locale,
+    noindex: listingCount < 3
   });
 }
 
@@ -72,7 +82,8 @@ export default async function LandmarkHubPage({
 }: {
   params: { locale: string; citySlug: string; landmark: string };
 }) {
-  if (!SUPPORTED_CITIES.has(params.citySlug)) notFound();
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug)) notFound();
   if (!isValidSlug(params.landmark)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 

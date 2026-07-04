@@ -15,7 +15,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node ../../infra/migrations/run-migrations.js",
-    "db:seed": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/seed.ts"
+    "db:seed": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/seed.ts",
+    "generate:city": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/generate-city.ts"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",

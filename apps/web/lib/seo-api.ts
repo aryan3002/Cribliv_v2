@@ -1,7 +1,7 @@
 /**
- * Server-only helpers for fetching SEO page data from the API. All calls
+ * Server-only helpers for fetching SEO page data from the API. Most calls
  * pass `{ server: true }` to fetchApi to ensure no client-side caching
- * during ISR builds.
+ * during ISR builds. The enabled-city config uses Next revalidation instead.
  *
  * Every function returns a typed shape with sensible fallbacks when the API
  * is unreachable — pages always render, even if aggregates show as zero.
@@ -85,6 +85,13 @@ const EMPTY_AGGREGATES: PageAggregates = {
   median_rent_3bhk: null
 };
 
+const FALLBACK_CITY_SLUGS = ["lucknow"];
+
+interface SeoCityRow {
+  city_slug: string;
+  programmatic_enabled: boolean;
+}
+
 export async function fetchLocalities(citySlug: string): Promise<LocalityRow[]> {
   try {
     const res = await fetchApi<{ items: LocalityRow[] }>(
@@ -95,6 +102,24 @@ export async function fetchLocalities(citySlug: string): Promise<LocalityRow[]> 
     return res.items ?? [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * City slugs whose programmatic SEO pages are live. Falls back to Lucknow on
+ * any API problem or empty enabled set so the reference city never goes dark.
+ */
+export async function fetchEnabledCities(): Promise<Set<string>> {
+  try {
+    const res = await fetchApi<{ items: SeoCityRow[] }>("/seo/cities", {
+      next: { revalidate: 3600 }
+    });
+    const enabled = (res.items ?? [])
+      .filter((city) => city.programmatic_enabled)
+      .map((city) => city.city_slug);
+    return new Set(enabled.length > 0 ? enabled : FALLBACK_CITY_SLUGS);
+  } catch {
+    return new Set(FALLBACK_CITY_SLUGS);
   }
 }
 

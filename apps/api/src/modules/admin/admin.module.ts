@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AdminController } from "./admin.controller";
+import { AdminSeoController } from "./admin-seo.controller";
 import { AdminAnalyticsService } from "./admin-analytics.service";
 import { AdminOpsService } from "./admin-ops.service";
 import { AdminOwnerHealthService } from "./admin-owner-health.service";
@@ -15,12 +16,13 @@ import { PgAdminListingEditService } from "./pg-admin-listing-edit.service";
 import { AzureBlobPhotoStorageService } from "../owner/azure-blob-photo-storage.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
+import { SeoModule } from "../seo/seo.module";
 
 @Module({
   // RentAgreementModule is imported for the RENT_AGREEMENT_SAS_ISSUER token
   // (AdminRentAgreementService issues admin PDF download links).
-  imports: [NotificationsModule, RentAgreementModule],
-  controllers: [AdminController],
+  imports: [NotificationsModule, RentAgreementModule, SeoModule],
+  controllers: [AdminController, AdminSeoController],
   providers: [
     AdminAnalyticsService,
     AdminOpsService,

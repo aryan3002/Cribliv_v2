@@ -1,0 +1,192 @@
+[
+  {
+    "slug": "dlf-mall-of-india",
+    "name_en": "DLF Mall of India Noida",
+    "name_hi": "डीएलएफ मॉल ऑफ इंडिया नोएडा",
+    "type": "mall",
+    "lat": 28.5674179,
+    "lng": 77.3211131,
+    "aka": ["mall of india", "dlf noida"],
+    "primary_locality_slug": "sector-18"
+  },
+  {
+    "slug": "the-great-india-place",
+    "name_en": "The Great India Place Noida",
+    "name_hi": "द ग्रेट इंडिया प्लेस नोएडा",
+    "type": "mall",
+    "lat": 28.5675234,
+    "lng": 77.325898,
+    "aka": ["gip mall", "great india place"],
+    "primary_locality_slug": "sector-18"
+  },
+  {
+    "slug": "worlds-of-wonder",
+    "name_en": "Worlds of Wonder Noida",
+    "name_hi": "वर्ल्ड्स ऑफ वंडर नोएडा",
+    "type": "park",
+    "lat": 28.5649333,
+    "lng": 77.3259652,
+    "aka": ["wow noida", "worlds of wonder water park"],
+    "primary_locality_slug": "sector-18"
+  },
+  {
+    "slug": "botanical-garden-metro-station",
+    "name_en": "Botanical Garden Metro Station Noida",
+    "name_hi": "बॉटनिकल गार्डन मेट्रो स्टेशन नोएडा",
+    "type": "station",
+    "lat": 28.5640335,
+    "lng": 77.3333779,
+    "aka": ["botanical garden metro"],
+    "primary_locality_slug": "sector-37"
+  },
+  {
+    "slug": "noida-city-centre-metro-station",
+    "name_en": "Noida City Centre Metro Station",
+    "name_hi": "नोएडा सिटी सेंटर मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.5752716,
+    "lng": 77.3561487,
+    "aka": ["city centre metro", "wave city centre metro"],
+    "primary_locality_slug": "sector-32"
+  },
+  {
+    "slug": "noida-electronic-city-metro-station",
+    "name_en": "Noida Electronic City Metro Station",
+    "name_hi": "नोएडा इलेक्ट्रॉनिक सिटी मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.6263239,
+    "lng": 77.3754323,
+    "aka": ["electronic city metro"],
+    "primary_locality_slug": "sector-62"
+  },
+  {
+    "slug": "okhla-bird-sanctuary",
+    "name_en": "Okhla Bird Sanctuary Noida",
+    "name_hi": "ओखला पक्षी विहार नोएडा",
+    "type": "park",
+    "lat": 28.5569866,
+    "lng": 77.3090031,
+    "aka": ["okhla bird sanctuary"],
+    "primary_locality_slug": "sector-95"
+  },
+  {
+    "slug": "iskcon-temple-noida",
+    "name_en": "ISKCON Temple Noida",
+    "name_hi": "इस्कॉन मंदिर नोएडा",
+    "type": "religious",
+    "lat": 28.5866105,
+    "lng": 77.3505215,
+    "aka": ["iskcon noida"],
+    "primary_locality_slug": "sector-33"
+  },
+  {
+    "slug": "amity-university-noida",
+    "name_en": "Amity University Noida",
+    "name_hi": "एमिटी विश्वविद्यालय नोएडा",
+    "type": "college",
+    "lat": 28.5432229,
+    "lng": 77.3327483,
+    "aka": ["amity noida"],
+    "primary_locality_slug": "sector-125"
+  },
+  {
+    "slug": "jaypee-hospital",
+    "name_en": "Jaypee Hospital Noida",
+    "name_hi": "जेपी अस्पताल नोएडा",
+    "type": "hospital",
+    "lat": 28.5154352,
+    "lng": 77.3713553,
+    "aka": ["jaypee hospital"],
+    "primary_locality_slug": "sector-128"
+  },
+  {
+    "slug": "fortis-hospital-noida",
+    "name_en": "Fortis Hospital Noida",
+    "name_hi": "फोर्टिस अस्पताल नोएडा",
+    "type": "hospital",
+    "lat": 28.618756,
+    "lng": 77.3726105,
+    "aka": ["fortis noida"],
+    "primary_locality_slug": "sector-62"
+  },
+  {
+    "slug": "kailash-hospital-noida",
+    "name_en": "Kailash Hospital Noida",
+    "name_hi": "कैलाश अस्पताल नोएडा",
+    "type": "hospital",
+    "lat": 28.5746768,
+    "lng": 77.3287281,
+    "aka": ["kailash noida"],
+    "primary_locality_slug": "sector-27"
+  },
+  {
+    "slug": "noida-stadium",
+    "name_en": "Noida Stadium",
+    "name_hi": "नोएडा स्टेडियम",
+    "type": "stadium",
+    "lat": 28.5908188,
+    "lng": 77.337293,
+    "aka": ["sector 21 stadium"],
+    "primary_locality_slug": "sector-21"
+  },
+  {
+    "slug": "rashtriya-dalit-prerna-sthal",
+    "name_en": "Rashtriya Dalit Prerna Sthal Noida",
+    "name_hi": "राष्ट्रीय दलित प्रेरणा स्थल नोएडा",
+    "type": "monument",
+    "lat": 28.5680364,
+    "lng": 77.3116012,
+    "aka": ["dalit prerna sthal"],
+    "primary_locality_slug": "sector-95"
+  },
+  {
+    "slug": "logix-cyber-park",
+    "name_en": "Logix Cyber Park Noida",
+    "name_hi": "लॉजिक्स साइबर पार्क नोएडा",
+    "type": "it_park",
+    "lat": 28.6118616,
+    "lng": 77.3663002,
+    "aka": ["logix cyber park"],
+    "primary_locality_slug": "sector-62"
+  },
+  {
+    "slug": "advant-navis-business-park",
+    "name_en": "Advant Navis Business Park Noida",
+    "name_hi": "एडवांट नेविस बिजनेस पार्क नोएडा",
+    "type": "office",
+    "lat": 28.5010783,
+    "lng": 77.4100306,
+    "aka": ["advant noida"],
+    "primary_locality_slug": "sector-142"
+  },
+  {
+    "slug": "atta-market",
+    "name_en": "Atta Market Noida",
+    "name_hi": "अट्टा मार्केट नोएडा",
+    "type": "market",
+    "lat": 28.5721607,
+    "lng": 77.3258053,
+    "aka": ["atta market"],
+    "primary_locality_slug": "sector-18"
+  },
+  {
+    "slug": "brahmaputra-market",
+    "name_en": "Brahmaputra Market Noida",
+    "name_hi": "ब्रह्मपुत्र मार्केट नोएडा",
+    "type": "market",
+    "lat": 28.5698989,
+    "lng": 77.3327254,
+    "aka": ["bp market"],
+    "primary_locality_slug": "sector-29"
+  },
+  {
+    "slug": "spice-world-mall",
+    "name_en": "Spice World Mall Noida",
+    "name_hi": "स्पाइस वर्ल्ड मॉल नोएडा",
+    "type": "mall",
+    "lat": 28.5862777,
+    "lng": 77.3411924,
+    "aka": ["spice mall noida"],
+    "primary_locality_slug": "sector-25"
+  }
+]

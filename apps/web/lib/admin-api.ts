@@ -1260,3 +1260,80 @@ export async function clearAdminPgOverride(
     body: JSON.stringify(body)
   });
 }
+
+// ── Admin Programmatic SEO city enablement ───────────────────────────────────
+
+export interface SeoCityConfigVm {
+  citySlug: string;
+  nameEn: string;
+  programmaticEnabled: boolean;
+  localityCount: number;
+  landmarkCount: number;
+  metroCount: number;
+  indexableCount: number;
+  enabledAt: string | null;
+  notes: string | null;
+  updatedAt: string | null;
+}
+
+interface SeoCityConfigRaw {
+  city_slug: string;
+  name_en?: string | null;
+  programmatic_enabled: boolean;
+  locality_count: number;
+  landmark_count: number;
+  metro_count: number;
+  indexable_count: number;
+  enabled_at: string | null;
+  notes: string | null;
+  updated_at: string | null;
+}
+
+function mapSeoCityRow(row: SeoCityConfigRaw): SeoCityConfigVm {
+  return {
+    citySlug: row.city_slug,
+    nameEn: row.name_en ?? titleFromSlug(row.city_slug),
+    programmaticEnabled: row.programmatic_enabled,
+    localityCount: row.locality_count,
+    landmarkCount: row.landmark_count,
+    metroCount: row.metro_count,
+    indexableCount: row.indexable_count,
+    enabledAt: row.enabled_at,
+    notes: row.notes,
+    updatedAt: row.updated_at
+  };
+}
+
+function titleFromSlug(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+export async function listSeoCities(accessToken: string): Promise<SeoCityConfigVm[]> {
+  const raw = await fetchApi<{ items?: SeoCityConfigRaw[] }>("/admin/seo/cities", {
+    headers: authHeaders(accessToken)
+  });
+  return (raw.items ?? []).map(mapSeoCityRow);
+}
+
+export async function setSeoCityEnabled(
+  accessToken: string,
+  slug: string,
+  enabled: boolean,
+  notes?: string
+): Promise<SeoCityConfigVm> {
+  const body: { programmatic_enabled: boolean; notes?: string } = {
+    programmatic_enabled: enabled
+  };
+  if (notes !== undefined) body.notes = notes;
+
+  const raw = await fetchApi<SeoCityConfigRaw>(`/admin/seo/cities/${encodeURIComponent(slug)}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(body)
+  });
+  return mapSeoCityRow(raw);
+}

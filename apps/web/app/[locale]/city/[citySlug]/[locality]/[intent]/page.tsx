@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProgrammaticPage, coalesceCopy } from "../../../../../../components/seo/programmatic-page";
-import { fetchListings, fetchLocality, fetchSeoCopy } from "../../../../../../lib/seo-api";
+import {
+  fetchEnabledCities,
+  fetchListings,
+  fetchLocality,
+  fetchSeoCopy
+} from "../../../../../../lib/seo-api";
 import {
   buildAggregateOffer,
   buildBreadcrumb,
@@ -14,7 +19,6 @@ import {
   renderIntentH1
 } from "../../../../../../lib/intent-filters";
 
-const SUPPORTED_CITIES = new Set(["lucknow"]);
 export const revalidate = 86400;
 
 export async function generateMetadata({
@@ -43,7 +47,8 @@ export async function generateMetadata({
         ? `${placeName} में ${locale === "hi" ? intent.label_hi : intent.label_en} — Cribliv पर सत्यापित लिस्टिंग।`
         : `Verified ${intent.label_en.toLowerCase()} in ${placeName}. Direct-owner contact, zero brokerage.`,
     pathname: `/city/${params.citySlug}/${params.locality}/${params.intent}`,
-    locale
+    locale,
+    noindex: data.aggregates.listing_count < 3
   });
 }
 
@@ -52,7 +57,8 @@ export default async function LocalityIntentPage({
 }: {
   params: { locale: string; citySlug: string; locality: string; intent: string };
 }) {
-  if (!SUPPORTED_CITIES.has(params.citySlug)) notFound();
+  const enabledCities = await fetchEnabledCities();
+  if (!enabledCities.has(params.citySlug)) notFound();
   if (!isValidSlug(params.locality) || !isValidSlug(params.intent)) notFound();
   const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
 

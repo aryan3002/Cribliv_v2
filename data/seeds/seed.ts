@@ -1,6 +1,7 @@
 const fs = require("fs") as typeof import("fs");
 const path = require("path") as typeof import("path");
 const { createRequire } = require("module") as typeof import("module");
+const { listSeedCityDirs } = require("./seed-helpers") as typeof import("./seed-helpers");
 
 const seedDir = __dirname;
 const repoRoot = path.resolve(seedDir, "../..");
@@ -198,27 +199,43 @@ async function seed() {
     console.warn("Metro station seed skipped:", err instanceof Error ? err.message : err);
   }
 
-  // ── Lucknow micro-localities (city-scoped sub-areas inside parent localities) ─
-  try {
-    type MicroLocality = {
-      slug: string;
-      name_en: string;
-      name_hi: string;
-      parent_slug: string;
-      lat?: number;
-      lng?: number;
-      seo_aliases?: string[];
-    };
+  // ── Per-city micro-localities + landmarks ───────────────────────────────────
+  // Iterates every data/seeds/<citySlug>/ directory that actually holds a
+  // micro-localities.json or landmarks.json (candidates = cities.json slugs).
+  // Lucknow's load is unchanged in shape; this just makes the loader apply to
+  // any city dropped into data/seeds/<slug>/.
+  const seedCitySlugs = listSeedCityDirs(
+    seedDir,
+    cities.map((c) => c.slug)
+  );
 
-    const microPath = path.join(seedDir, "lucknow", "micro-localities.json");
-    if (fs.existsSync(microPath)) {
-      const micros = JSON.parse(fs.readFileSync(microPath, "utf8")) as MicroLocality[];
-      const lucknowId = cityBySlug.get("lucknow");
-      if (lucknowId) {
+  for (const citySlug of seedCitySlugs) {
+    const cityId = cityBySlug.get(citySlug);
+    if (!cityId) {
+      console.warn(`Skipping ${citySlug} seed data: city not found in cities table.`);
+      continue;
+    }
+
+    // ── Micro-localities (city-scoped sub-areas inside parent localities) ─────
+    try {
+      type MicroLocality = {
+        slug: string;
+        name_en: string;
+        name_hi: string;
+        parent_slug: string;
+        lat?: number;
+        lng?: number;
+        seo_aliases?: string[];
+      };
+
+      const microPath = path.join(seedDir, citySlug, "micro-localities.json");
+      if (fs.existsSync(microPath)) {
+        const micros = JSON.parse(fs.readFileSync(microPath, "utf8")) as MicroLocality[];
+
         // Resolve parent locality ids in one query
         const parentRows = await client.query(
           `SELECT id, slug FROM localities WHERE city_id = $1`,
-          [lucknowId]
+          [cityId]
         );
         const parentBySlug = new Map(
           parentRows.rows.map((r: { id: number; slug: string }) => [r.slug, r.id])
@@ -237,7 +254,7 @@ async function seed() {
                parent_locality_id = EXCLUDED.parent_locality_id,
                seo_aliases = EXCLUDED.seo_aliases`,
             [
-              lucknowId,
+              cityId,
               m.slug,
               m.name_en,
               m.name_hi,
@@ -248,49 +265,35 @@ async function seed() {
             ]
           );
         }
-        console.log(`Seeded ${micros.length} Lucknow micro-localities.`);
-
-        // Best-effort: backfill geo_point if PostGIS available
-        try {
-          await client.query(
-            `UPDATE localities
-             SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
-             WHERE city_id = $1 AND lat IS NOT NULL AND lng IS NOT NULL AND geo_point IS NULL`,
-            [lucknowId]
-          );
-        } catch {
-          /* PostGIS not available, skip */
-        }
+        console.log(`Seeded ${micros.length} ${citySlug} micro-localities.`);
       }
+    } catch (err) {
+      console.warn(
+        `${citySlug} micro-localities seed skipped:`,
+        err instanceof Error ? err.message : err
+      );
     }
-  } catch (err) {
-    console.warn(
-      "Lucknow micro-localities seed skipped:",
-      err instanceof Error ? err.message : err
-    );
-  }
 
-  // ── Lucknow landmarks (colleges, hospitals, malls, etc.) ────────────────────
-  try {
-    type Landmark = {
-      slug: string;
-      name_en: string;
-      name_hi: string;
-      type: string;
-      aka?: string[];
-      lat: number;
-      lng: number;
-      primary_locality_slug?: string;
-    };
+    // ── Landmarks (colleges, hospitals, malls, etc.) ───────────────────────────
+    try {
+      type Landmark = {
+        slug: string;
+        name_en: string;
+        name_hi: string;
+        type: string;
+        aka?: string[];
+        lat: number;
+        lng: number;
+        primary_locality_slug?: string;
+      };
 
-    const landmarksPath = path.join(seedDir, "lucknow", "landmarks.json");
-    if (fs.existsSync(landmarksPath)) {
-      const landmarks = JSON.parse(fs.readFileSync(landmarksPath, "utf8")) as Landmark[];
-      const lucknowId = cityBySlug.get("lucknow");
-      if (lucknowId) {
+      const landmarksPath = path.join(seedDir, citySlug, "landmarks.json");
+      if (fs.existsSync(landmarksPath)) {
+        const landmarks = JSON.parse(fs.readFileSync(landmarksPath, "utf8")) as Landmark[];
+
         const localityRows = await client.query(
           `SELECT id, slug FROM localities WHERE city_id = $1`,
-          [lucknowId]
+          [cityId]
         );
         const localityBySlug = new Map(
           localityRows.rows.map((r: { id: number; slug: string }) => [r.slug, r.id])
@@ -314,7 +317,7 @@ async function seed() {
                primary_locality_id = EXCLUDED.primary_locality_id,
                updated_at = now()`,
             [
-              lucknowId,
+              cityId,
               l.slug,
               l.name_en,
               l.name_hi,
@@ -326,22 +329,50 @@ async function seed() {
             ]
           );
         }
-        console.log(`Seeded ${landmarks.length} Lucknow landmarks.`);
-
-        try {
-          await client.query(
-            `UPDATE landmarks
-             SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
-             WHERE city_id = $1 AND geo_point IS NULL`,
-            [lucknowId]
-          );
-        } catch {
-          /* PostGIS not available, skip */
-        }
+        console.log(`Seeded ${landmarks.length} ${citySlug} landmarks.`);
       }
+    } catch (err) {
+      console.warn(`${citySlug} landmarks seed skipped:`, err instanceof Error ? err.message : err);
     }
+
+    // ── geo_point backfills (once per city, after both loaders) ───────────────
+    // Hoisted out of the micro/landmark branches so a landmarks-only city still
+    // backfills locality geo_point (and vice versa). Best-effort: PostGIS may
+    // not be available.
+    try {
+      await client.query(
+        `UPDATE localities
+         SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
+         WHERE city_id = $1 AND lat IS NOT NULL AND lng IS NOT NULL AND geo_point IS NULL`,
+        [cityId]
+      );
+    } catch {
+      /* PostGIS not available, skip */
+    }
+
+    try {
+      await client.query(
+        `UPDATE landmarks
+         SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
+         WHERE city_id = $1 AND geo_point IS NULL`,
+        [cityId]
+      );
+    } catch {
+      /* PostGIS not available, skip */
+    }
+  }
+
+  // seo_city_config: which cities have programmatic SEO live. Idempotent —
+  // ON CONFLICT DO NOTHING so a re-seed never clobbers an admin-set flag.
+  try {
+    await client.query(
+      `INSERT INTO seo_city_config (city_slug, programmatic_enabled, enabled_at)
+       VALUES ('lucknow', true, now()), ('noida', false, NULL)
+       ON CONFLICT (city_slug) DO NOTHING`
+    );
+    console.log("Seeded seo_city_config: lucknow (enabled), noida (disabled).");
   } catch (err) {
-    console.warn("Lucknow landmarks seed skipped:", err instanceof Error ? err.message : err);
+    console.warn("seo_city_config seed skipped:", err instanceof Error ? err.message : err);
   }
 
   await client.end();
