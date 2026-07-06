@@ -5,6 +5,7 @@ import { Client } from "pg";
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const MIG = join(__dirname, "../../../infra/migrations");
+const BASELINE_FILE = "0001_init.sql";
 const FILE = "0045_seo_indexing_measurement.sql";
 const ROLLBACK_FILE = "0045_seo_indexing_measurement.rollback.sql";
 
@@ -13,6 +14,7 @@ describe.runIf(!!TEST_DB)("migration 0045_seo_indexing_measurement", () => {
   beforeAll(async () => {
     client = new Client({ connectionString: TEST_DB! });
     await client.connect();
+    await client.query(readFileSync(join(MIG, BASELINE_FILE), "utf8"));
     await client.query(readFileSync(join(MIG, FILE), "utf8"));
   });
   afterAll(async () => {
@@ -44,7 +46,7 @@ describe.runIf(!!TEST_DB)("migration 0045_seo_indexing_measurement", () => {
 
   it("creates the partial pending index on seo_indexing_queue", async () => {
     const r = await client.query(
-      `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_seo_indexing_queue_pending'`,
+      `SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_seo_indexing_queue_pending'`
     );
     expect(r.rowCount).toBe(1);
     expect(r.rows[0].indexdef).toContain("WHERE");
@@ -53,15 +55,15 @@ describe.runIf(!!TEST_DB)("migration 0045_seo_indexing_measurement", () => {
 
   it("upserts on url and re-queues on conflict (ON CONFLICT DO UPDATE)", async () => {
     await client.query(
-      `INSERT INTO seo_indexing_queue(url, reason) VALUES ('https://cribliv.com/a', 'new_listing')`,
+      `INSERT INTO seo_indexing_queue(url, reason) VALUES ('https://cribliv.com/a', 'new_listing')`
     );
     await client.query(
       `INSERT INTO seo_indexing_queue(url, reason, status)
        VALUES ('https://cribliv.com/a', 'content_changed', 'pending')
-       ON CONFLICT (url) DO UPDATE SET reason = EXCLUDED.reason, status = 'pending', updated_at = now()`,
+       ON CONFLICT (url) DO UPDATE SET reason = EXCLUDED.reason, status = 'pending', updated_at = now()`
     );
     const r = await client.query(
-      `SELECT reason, status FROM seo_indexing_queue WHERE url = 'https://cribliv.com/a'`,
+      `SELECT reason, status FROM seo_indexing_queue WHERE url = 'https://cribliv.com/a'`
     );
     expect(r.rowCount).toBe(1);
     expect(r.rows[0].reason).toBe("content_changed");
@@ -93,18 +95,18 @@ describe.runIf(!!TEST_DB)("migration 0045_seo_indexing_measurement", () => {
   it("idempotently upserts keyword_rankings per captured_at (re-poll updates the day's row)", async () => {
     await client.query(
       `INSERT INTO keyword_rankings(keyword, page, locale, position, impressions, clicks, ctr, captured_at)
-       VALUES ('2bhk noida', '/en/city/noida', 'en', 14, 100, 5, 0.05, '2026-07-06')`,
+       VALUES ('2bhk noida', '/en/city/noida', 'en', 14, 100, 5, 0.05, '2026-07-06')`
     );
     await client.query(
       `INSERT INTO keyword_rankings(keyword, page, locale, position, impressions, clicks, ctr, captured_at)
        VALUES ('2bhk noida', '/en/city/noida', 'en', 12, 140, 9, 0.064, '2026-07-06')
        ON CONFLICT (keyword, page, locale, captured_at)
        DO UPDATE SET position = EXCLUDED.position, impressions = EXCLUDED.impressions,
-                      clicks = EXCLUDED.clicks, ctr = EXCLUDED.ctr`,
+                      clicks = EXCLUDED.clicks, ctr = EXCLUDED.ctr`
     );
     const r = await client.query(
       `SELECT position, impressions FROM keyword_rankings
-       WHERE keyword = '2bhk noida' AND page = '/en/city/noida' AND locale = 'en' AND captured_at = '2026-07-06'`,
+       WHERE keyword = '2bhk noida' AND page = '/en/city/noida' AND locale = 'en' AND captured_at = '2026-07-06'`
     );
     expect(r.rowCount).toBe(1);
     expect(Number(r.rows[0].position)).toBe(12);
@@ -114,7 +116,7 @@ describe.runIf(!!TEST_DB)("migration 0045_seo_indexing_measurement", () => {
 
   it("creates the position index and the city_slug index on keyword_rankings", async () => {
     const idx = await client.query(
-      `SELECT indexname FROM pg_indexes WHERE tablename = 'keyword_rankings'`,
+      `SELECT indexname FROM pg_indexes WHERE tablename = 'keyword_rankings'`
     );
     const names = idx.rows.map((r) => r.indexname);
     expect(names).toContain("idx_keyword_rankings_position");
@@ -124,11 +126,9 @@ describe.runIf(!!TEST_DB)("migration 0045_seo_indexing_measurement", () => {
   it("adds the admin enum values used by the audited indexing endpoints", async () => {
     const tgt = await client.query(`SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
       WHERE t.typname = 'admin_target_type' AND e.enumlabel = 'seo_indexing_queue'`);
-    const submit =
-      await client.query(`SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+    const submit = await client.query(`SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
       WHERE t.typname = 'admin_action_type' AND e.enumlabel = 'submit_indexing_url'`);
-    const retry =
-      await client.query(`SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+    const retry = await client.query(`SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
       WHERE t.typname = 'admin_action_type' AND e.enumlabel = 'retry_indexing_url'`);
     expect(tgt.rowCount).toBe(1);
     expect(submit.rowCount).toBe(1);
