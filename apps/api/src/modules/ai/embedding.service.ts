@@ -159,6 +159,14 @@ export class EmbeddingService {
     }
   }
 
+  async embedText(
+    input: string
+  ): Promise<{ embedding: number[]; tokenCount: number; model: string } | null> {
+    const flags = readFeatureFlags();
+    if (!flags.ff_ai_embeddings) return null;
+    return this.callEmbeddingApi(input);
+  }
+
   /**
    * Semantic search: find top-K listings by cosine similarity to a query embedding.
    */
