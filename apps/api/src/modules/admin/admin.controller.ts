@@ -44,6 +44,8 @@ import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { PgAnalyticsOverrideService } from "./pg-analytics-override.service";
 import type { PgAdminPropertyPatch } from "@cribliv/shared-types";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { IndexingService } from "../seo/indexing.service";
+import { listingIndexPaths } from "../seo/seo-urls";
 
 // Clamp the ?days= query param to a sane window; default 30.
 function parseDays(raw?: string): number {
@@ -71,7 +73,8 @@ export class AdminController {
     @Inject(PgAdminAnalyticsService) private readonly pgAnalytics: PgAdminAnalyticsService,
     @Inject(PgAdminPropertiesService) private readonly pgProps: PgAdminPropertiesService,
     @Inject(PgAnalyticsOverrideService) private readonly pgOverrides: PgAnalyticsOverrideService,
-    @Inject(PgAdminListingEditService) private readonly pgEdit: PgAdminListingEditService
+    @Inject(PgAdminListingEditService) private readonly pgEdit: PgAdminListingEditService,
+    @Inject(IndexingService) private readonly indexing: IndexingService
   ) {}
 
   /* ── Live Operations dashboard ─────────────────────────────────── */
@@ -278,6 +281,38 @@ export class AdminController {
         // start→publish conversion. Best-effort; no-ops for non-PG listings
         // (the committed-draft lookup returns no row).
         void this.pgFunnel.trackPublished(listingId);
+        // Audit marker for the indexing enqueue; the queue write itself happens
+        // synchronously just below via IndexingService.enqueue.
+        this.database
+          .query(
+            `INSERT INTO outbound_events (event_type, aggregate_type, aggregate_id, payload, next_attempt_at)
+             VALUES ('seo.queue_indexing', 'listing', $1::uuid, $2::jsonb, now())`,
+            [listingId, JSON.stringify({ listing_id: listingId, reason: "listing_approved" })]
+          )
+          .catch(() => undefined);
+        // Slice 2: fast-track the just-approved listing's canonical page(s) to
+        // the Indexing API. enqueue() always writes (only *draining* is gated by
+        // FF_SEO_INDEXING), so the queue accumulates while the flag is off and
+        // drains at cutover. Best-effort — never fail the approval response.
+        try {
+          const loc = await this.database.query<{ listing_type: string; city: string | null }>(
+            `SELECT l.listing_type::text AS listing_type, c.slug AS city
+               FROM listings l
+               LEFT JOIN listing_locations ll ON ll.listing_id = l.id
+               LEFT JOIN cities c ON c.id = ll.city_id
+              WHERE l.id = $1::uuid
+              LIMIT 1`,
+            [listingId]
+          );
+          const loc0 = loc.rows[0];
+          if (loc0) {
+            for (const path of listingIndexPaths(loc0.listing_type, loc0.city, listingId)) {
+              await this.indexing.enqueue(path, "listing_approved").catch(() => undefined);
+            }
+          }
+        } catch {
+          // Indexing enqueue is best-effort; a failure must never block go-live.
+        }
       }
 
       logTelemetry("admin.listing_decision", {

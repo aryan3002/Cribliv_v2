@@ -53,6 +53,7 @@ function makeCtrl() {
   const pgEdit = {
     getFullListing: vi.fn(async () => ({}))
   } as any;
+  const indexing = { enqueue: vi.fn(async () => null) } as any;
 
   const ctrl = new AdminController(
     appState,
@@ -69,7 +70,8 @@ function makeCtrl() {
     pgAnalytics,
     pgProps,
     pgOverrides,
-    pgEdit
+    pgEdit,
+    indexing
   );
   return { ctrl, pgProps, pgOverrides, pgAnalytics };
 }
