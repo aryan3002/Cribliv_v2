@@ -1,0 +1,128 @@
+[
+  {
+    "slug": "bptp-princess-park",
+    "name_en": "BPTP Princess Park",
+    "name_hi": "बीपीटीपी प्रिंसेस पार्क",
+    "lat": 28.4050348,
+    "lng": 77.3431445,
+    "seo_aliases": [],
+    "parent_slug": "sector-86"
+  },
+  {
+    "slug": "omaxe-heights",
+    "name_en": "Omaxe Heights",
+    "name_hi": "ओमैक्स हाइट्स",
+    "lat": 28.405968,
+    "lng": 77.3388095,
+    "seo_aliases": [],
+    "parent_slug": "sector-86"
+  },
+  {
+    "slug": "srs-residency",
+    "name_en": "SRS Residency",
+    "name_hi": "एसआरएस रेजिडेंसी",
+    "lat": 28.4127773,
+    "lng": 77.3539284,
+    "seo_aliases": [],
+    "parent_slug": "sector-88"
+  },
+  {
+    "slug": "puri-pranayam",
+    "name_en": "Puri Pranayam",
+    "name_hi": "पुरी प्राणायाम",
+    "lat": 28.3972835,
+    "lng": 77.3565599,
+    "seo_aliases": [],
+    "parent_slug": "sector-82"
+  },
+  {
+    "slug": "omaxe-new-heights",
+    "name_en": "Omaxe New Heights",
+    "name_hi": "ओमैक्स न्यू हाइट्स",
+    "lat": 28.3850236,
+    "lng": 77.36892619999999,
+    "seo_aliases": [],
+    "parent_slug": "sector-78"
+  },
+  {
+    "slug": "bptp-park-grandeura",
+    "name_en": "BPTP Park Grandeura",
+    "name_hi": "बीपीटीपी पार्क ग्रैंड्यूरा",
+    "lat": 28.3955596,
+    "lng": 77.35361859999999,
+    "seo_aliases": [],
+    "parent_slug": "sector-82"
+  },
+  {
+    "slug": "rps-savana",
+    "name_en": "RPS Savana",
+    "name_hi": "आरपीएस सवाना",
+    "lat": 28.415148,
+    "lng": 77.3557719,
+    "seo_aliases": [],
+    "parent_slug": "sector-88"
+  },
+  {
+    "slug": "piyush-heights",
+    "name_en": "Piyush Heights",
+    "name_hi": "पीयूष हाइट्स",
+    "lat": 28.4149804,
+    "lng": 77.36546109999999,
+    "seo_aliases": [],
+    "parent_slug": "sector-89"
+  },
+  {
+    "slug": "eros-garden",
+    "name_en": "Eros Garden",
+    "name_hi": "इरोस गार्डन",
+    "lat": 28.494078,
+    "lng": 77.29079689999999,
+    "seo_aliases": [],
+    "parent_slug": "charmwood-village"
+  },
+  {
+    "slug": "lakewood-city",
+    "name_en": "Lakewood City",
+    "name_hi": "लेकवुड सिटी",
+    "lat": 28.4833535,
+    "lng": 77.28361509999999,
+    "seo_aliases": [],
+    "parent_slug": "surajkund"
+  },
+  {
+    "slug": "green-valley",
+    "name_en": "Green Valley",
+    "name_hi": "ग्रीन वैली",
+    "lat": 28.4089123,
+    "lng": 77.3177894,
+    "seo_aliases": [],
+    "parent_slug": "greenfield-colony"
+  },
+  {
+    "slug": "ip-colony",
+    "name_en": "IP Colony",
+    "name_hi": "आईपी कॉलोनी",
+    "lat": 28.4537472,
+    "lng": 77.31315049999999,
+    "seo_aliases": [],
+    "parent_slug": "sector-30"
+  },
+  {
+    "slug": "sector-15-market",
+    "name_en": "Sector 15 Market",
+    "name_hi": "सेक्टर 15 मार्केट",
+    "lat": 28.3955007,
+    "lng": 77.3244886,
+    "seo_aliases": [],
+    "parent_slug": "sector-15"
+  },
+  {
+    "slug": "sector-16-market",
+    "name_en": "Sector 16 Market",
+    "name_hi": "सेक्टर 16 मार्केट",
+    "lat": 28.4117072,
+    "lng": 77.32006,
+    "seo_aliases": [],
+    "parent_slug": "sector-16"
+  }
+]

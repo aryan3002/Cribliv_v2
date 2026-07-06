@@ -1,0 +1,146 @@
+[
+  {
+    "slug": "shipra-suncity",
+    "name_en": "Shipra Suncity",
+    "name_hi": "शिप्रा सनसिटी",
+    "lat": 28.6367882,
+    "lng": 77.3740732,
+    "seo_aliases": ["shipra sun city"],
+    "parent_slug": "indirapuram"
+  },
+  {
+    "slug": "orange-county",
+    "name_en": "Orange County",
+    "name_hi": "ऑरेंज काउंटी",
+    "lat": 28.6402649,
+    "lng": 77.36151370000002,
+    "seo_aliases": [],
+    "parent_slug": "indirapuram"
+  },
+  {
+    "slug": "vasundhara-sector-1",
+    "name_en": "Vasundhara Sector 1",
+    "name_hi": "वसुंधरा सेक्टर 1",
+    "lat": 28.6647371,
+    "lng": 77.3891427,
+    "seo_aliases": [],
+    "parent_slug": "vasundhara"
+  },
+  {
+    "slug": "vasundhara-sector-3",
+    "name_en": "Vasundhara Sector 3",
+    "name_hi": "वसुंधरा सेक्टर 3",
+    "lat": 28.6640413,
+    "lng": 77.38452339999999,
+    "seo_aliases": [],
+    "parent_slug": "vasundhara"
+  },
+  {
+    "slug": "vasundhara-sector-5",
+    "name_en": "Vasundhara Sector 5",
+    "name_hi": "वसुंधरा सेक्टर 5",
+    "lat": 28.6613803,
+    "lng": 77.37851619999999,
+    "seo_aliases": [],
+    "parent_slug": "vasundhara"
+  },
+  {
+    "slug": "vasundhara-sector-10",
+    "name_en": "Vasundhara Sector 10",
+    "name_hi": "वसुंधरा सेक्टर 10",
+    "lat": 28.6627081,
+    "lng": 77.36761419999999,
+    "seo_aliases": [],
+    "parent_slug": "vasundhara"
+  },
+  {
+    "slug": "gaur-city-ghaziabad",
+    "name_en": "Gaur City Ghaziabad",
+    "name_hi": "गौर सिटी गाज़ियाबाद",
+    "lat": 28.6107386,
+    "lng": 77.4250145,
+    "seo_aliases": ["gaur city"],
+    "parent_slug": "crossing-republik"
+  },
+  {
+    "slug": "paramount-symphony",
+    "name_en": "Paramount Symphony",
+    "name_hi": "पैरामाउंट सिम्फनी",
+    "lat": 28.6282549,
+    "lng": 77.4397188,
+    "seo_aliases": [],
+    "parent_slug": "crossing-republik"
+  },
+  {
+    "slug": "mahagun-mascot",
+    "name_en": "Mahagun Mascot",
+    "name_hi": "महागुन मैस्कॉट",
+    "lat": 28.6298911,
+    "lng": 77.4408942,
+    "seo_aliases": [],
+    "parent_slug": "crossing-republik"
+  },
+  {
+    "slug": "kw-srishti",
+    "name_en": "KW Srishti",
+    "name_hi": "केडब्ल्यू सृष्टि",
+    "lat": 28.7011331,
+    "lng": 77.4304587,
+    "seo_aliases": [],
+    "parent_slug": "raj-nagar-extension"
+  },
+  {
+    "slug": "ajnara-integrity",
+    "name_en": "Ajnara Integrity",
+    "name_hi": "अजनारा इंटीग्रिटी",
+    "lat": 28.7026011,
+    "lng": 77.4215925,
+    "seo_aliases": [],
+    "parent_slug": "raj-nagar-extension"
+  },
+  {
+    "slug": "gaur-cascades",
+    "name_en": "Gaur Cascades",
+    "name_hi": "गौर कैस्केड्स",
+    "lat": 28.7022661,
+    "lng": 77.4260905,
+    "seo_aliases": [],
+    "parent_slug": "raj-nagar-extension"
+  },
+  {
+    "slug": "saviour-greenisle",
+    "name_en": "Saviour Greenisle",
+    "name_hi": "सेवियर ग्रीनआइल",
+    "lat": 28.6335363,
+    "lng": 77.43076289999999,
+    "seo_aliases": [],
+    "parent_slug": "crossing-republik"
+  },
+  {
+    "slug": "aditya-mega-city",
+    "name_en": "Aditya Mega City",
+    "name_hi": "आदित्य मेगा सिटी",
+    "lat": 28.6373968,
+    "lng": 77.36151370000002,
+    "seo_aliases": [],
+    "parent_slug": "vaishali"
+  },
+  {
+    "slug": "vaishali-sector-1",
+    "name_en": "Vaishali Sector 1",
+    "name_hi": "वैशाली सेक्टर 1",
+    "lat": 28.6356338,
+    "lng": 77.3388511,
+    "seo_aliases": ["sector 1 vaishali"],
+    "parent_slug": "vaishali"
+  },
+  {
+    "slug": "vaishali-sector-4",
+    "name_en": "Vaishali Sector 4",
+    "name_hi": "वैशाली सेक्टर 4",
+    "lat": 28.6465998,
+    "lng": 77.3395938,
+    "seo_aliases": ["sector 4 vaishali"],
+    "parent_slug": "vaishali"
+  }
+]

@@ -1,0 +1,532 @@
+[
+  {
+    "slug": "medanta-the-medicity",
+    "name_en": "Medanta - The Medicity",
+    "name_hi": "मेदांता - द मेडिसिटी",
+    "type": "hospital",
+    "lat": 28.4594965,
+    "lng": 77.0266383,
+    "aka": ["medanta", "medicity", "medanta hospital", "medanta gurgaon"],
+    "primary_locality_slug": "sector-38"
+  },
+  {
+    "slug": "fortis-memorial-research-institute",
+    "name_en": "Fortis Memorial Research Institute",
+    "name_hi": "फोर्टिस मेमोरियल रिसर्च इंस्टिट्यूट",
+    "type": "hospital",
+    "lat": 28.4571635,
+    "lng": 77.07403780000001,
+    "aka": ["fortis hospital", "fmri", "fortis gurgaon"],
+    "primary_locality_slug": "sector-44"
+  },
+  {
+    "slug": "artemis-hospital",
+    "name_en": "Artemis Hospital",
+    "name_hi": "आर्टेमिस अस्पताल",
+    "type": "hospital",
+    "lat": 28.4315643,
+    "lng": 77.0722305,
+    "aka": ["artemis", "artemis gurgaon", "artemis hospital"],
+    "primary_locality_slug": "sector-51"
+  },
+  {
+    "slug": "max-hospital",
+    "name_en": "Max Hospital",
+    "name_hi": "मैक्स अस्पताल",
+    "type": "hospital",
+    "lat": 28.4613816,
+    "lng": 77.0747987,
+    "aka": ["max gurgaon", "max hospital sector 56"],
+    "primary_locality_slug": "sector-56"
+  },
+  {
+    "slug": "park-hospital",
+    "name_en": "Park Hospital",
+    "name_hi": "पार्क अस्पताल",
+    "type": "hospital",
+    "lat": 28.4199848,
+    "lng": 77.0483228,
+    "aka": ["park hospital gurgaon"],
+    "primary_locality_slug": "sector-47"
+  },
+  {
+    "slug": "paras-hospital",
+    "name_en": "Paras Hospital",
+    "name_hi": "पारस अस्पताल",
+    "type": "hospital",
+    "lat": 28.4513774,
+    "lng": 77.0857429,
+    "aka": ["paras gurgaon", "paras hospital"],
+    "primary_locality_slug": "sector-43"
+  },
+  {
+    "slug": "civil-hospital",
+    "name_en": "Civil Hospital",
+    "name_hi": "सिविल अस्पताल",
+    "type": "hospital",
+    "lat": 28.4564172,
+    "lng": 76.9965023,
+    "aka": ["civil hospital gurgaon"],
+    "primary_locality_slug": "civil-lines"
+  },
+  {
+    "slug": "gurugram-railway-station",
+    "name_en": "Gurugram Railway Station",
+    "name_hi": "गुरुग्राम रेलवे स्टेशन",
+    "type": "station",
+    "lat": 28.4891259,
+    "lng": 77.0113384,
+    "aka": ["gurgaon railway station", "gurugram station", "gurgaon train station"],
+    "primary_locality_slug": "railway-road"
+  },
+  {
+    "slug": "iffco-chowk-metro-station",
+    "name_en": "IFFCO Chowk Metro Station",
+    "name_hi": "आईएफएफसीओ चौक मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.47224,
+    "lng": 77.0724,
+    "aka": ["iffco metro", "iffco chowk", "iffco gurgaon"],
+    "primary_locality_slug": "iffco-chowk"
+  },
+  {
+    "slug": "sikanderpur-metro-station",
+    "name_en": "Sikanderpur Metro Station",
+    "name_hi": "सिकंदरपुर मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.48131,
+    "lng": 77.09312,
+    "aka": ["sikanderpur metro", "sikanderpur station"],
+    "primary_locality_slug": "sikanderpur"
+  },
+  {
+    "slug": "huda-city-centre-metro-station",
+    "name_en": "HUDA City Centre Metro Station",
+    "name_hi": "हुडा सिटी सेंटर मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.4592,
+    "lng": 77.07248,
+    "aka": ["huda metro", "huda city centre", "huda gurgaon"],
+    "primary_locality_slug": "sector-29"
+  },
+  {
+    "slug": "mg-road-metro-station",
+    "name_en": "MG Road Metro Station",
+    "name_hi": "एमजी रोड मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.47957,
+    "lng": 77.08006,
+    "aka": ["mg road metro", "mg metro gurgaon"],
+    "primary_locality_slug": "mg-road"
+  },
+  {
+    "slug": "dlf-cyber-hub",
+    "name_en": "DLF Cyber Hub",
+    "name_hi": "डीएलएफ साइबर हब",
+    "type": "it_park",
+    "lat": 28.4949762,
+    "lng": 77.0895421,
+    "aka": ["cyber hub", "cyberhub", "dlf cyberhub"],
+    "primary_locality_slug": "dlf-cyber-hub"
+  },
+  {
+    "slug": "dlf-cyber-city",
+    "name_en": "DLF Cyber City",
+    "name_hi": "डीएलएफ साइबर सिटी",
+    "type": "it_park",
+    "lat": 28.4949762,
+    "lng": 77.0895421,
+    "aka": ["cyber city", "cybercity", "dlf cybercity"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "ambience-mall",
+    "name_en": "Ambience Mall",
+    "name_hi": "एम्बिएंस मॉल",
+    "type": "mall",
+    "lat": 28.5048748,
+    "lng": 77.0969594,
+    "aka": ["ambience mall gurgaon", "ambience gurgaon"],
+    "primary_locality_slug": "dlf-phase-3"
+  },
+  {
+    "slug": "mgf-metropolitan-mall",
+    "name_en": "MGF Metropolitan Mall",
+    "name_hi": "एमजीएफ मेट्रोपॉलिटन मॉल",
+    "type": "mall",
+    "lat": 28.4809085,
+    "lng": 77.0802798,
+    "aka": ["mgf mall", "metropolitan mall", "mgf metropolitan"],
+    "primary_locality_slug": "mg-road"
+  },
+  {
+    "slug": "dlf-city-centre-mall",
+    "name_en": "DLF City Centre Mall",
+    "name_hi": "डीएलएफ सिटी सेंटर मॉल",
+    "type": "mall",
+    "lat": 28.4788618,
+    "lng": 77.08064209999999,
+    "aka": ["city centre mall", "dlf city centre"],
+    "primary_locality_slug": "dlf-phase-2"
+  },
+  {
+    "slug": "sahara-mall",
+    "name_en": "Sahara Mall",
+    "name_hi": "सहारा मॉल",
+    "type": "mall",
+    "lat": 28.4794099,
+    "lng": 77.0862897,
+    "aka": ["sahara mall gurgaon"],
+    "primary_locality_slug": "mg-road"
+  },
+  {
+    "slug": "dlf-mega-mall",
+    "name_en": "DLF Mega Mall",
+    "name_hi": "डीएलएफ मेगा मॉल",
+    "type": "mall",
+    "lat": 28.4763158,
+    "lng": 77.09326980000002,
+    "aka": ["mega mall", "dlf mega mall"],
+    "primary_locality_slug": "dlf-phase-1"
+  },
+  {
+    "slug": "omaxe-mall",
+    "name_en": "Omaxe Mall",
+    "name_hi": "ओमैक्स मॉल",
+    "type": "mall",
+    "lat": 28.4273677,
+    "lng": 77.0360109,
+    "aka": ["omaxe mall gurgaon"],
+    "primary_locality_slug": "sohna-road"
+  },
+  {
+    "slug": "good-earth-city-centre",
+    "name_en": "Good Earth City Centre",
+    "name_hi": "गुड अर्थ सिटी सेंटर",
+    "type": "mall",
+    "lat": 28.4215344,
+    "lng": 77.0537255,
+    "aka": ["good earth mall", "good earth city centre"],
+    "primary_locality_slug": "sohna-road"
+  },
+  {
+    "slug": "raheja-mall",
+    "name_en": "Raheja Mall",
+    "name_hi": "रहेजा मॉल",
+    "type": "mall",
+    "lat": 28.4233145,
+    "lng": 77.0394082,
+    "aka": ["raheja mall gurgaon"],
+    "primary_locality_slug": "sohna-road"
+  },
+  {
+    "slug": "vatika-town-square",
+    "name_en": "Vatika Town Square",
+    "name_hi": "वाटिका टाउन स्क्वायर",
+    "type": "mall",
+    "lat": 28.388883,
+    "lng": 76.9687768,
+    "aka": ["vatika town square", "vatika square"],
+    "primary_locality_slug": "vatika-city"
+  },
+  {
+    "slug": "dlf-golf-and-country-club",
+    "name_en": "DLF Golf and Country Club",
+    "name_hi": "डीएलएफ गोल्फ एंड कंट्री क्लब",
+    "type": "park",
+    "lat": 28.4547076,
+    "lng": 77.1059171,
+    "aka": ["dlf golf club", "golf club gurgaon"],
+    "primary_locality_slug": "golf-course-road"
+  },
+  {
+    "slug": "tau-devi-lal-stadium",
+    "name_en": "Tau Devi Lal Stadium",
+    "name_hi": "ताऊ देवी लाल स्टेडियम",
+    "type": "stadium",
+    "lat": 28.4429499,
+    "lng": 77.0358187,
+    "aka": ["tau stadium", "tau devi lal gurgaon"],
+    "primary_locality_slug": "sector-38"
+  },
+  {
+    "slug": "kingdom-of-dreams",
+    "name_en": "Kingdom of Dreams",
+    "name_hi": "किंगडम ऑफ ड्रीम्स",
+    "type": "monument",
+    "lat": 28.4682629,
+    "lng": 77.0690382,
+    "aka": ["kod", "kingdom dreams", "kod gurgaon"],
+    "primary_locality_slug": "sector-29"
+  },
+  {
+    "slug": "sheetla-mata-mandir",
+    "name_en": "Sheetla Mata Mandir",
+    "name_hi": "शीतला माता मंदिर",
+    "type": "religious",
+    "lat": 28.4788688,
+    "lng": 77.0315224,
+    "aka": ["sheetla mandir", "sheetla mata", "sheetla gurgaon"],
+    "primary_locality_slug": "sheetla-mata-road"
+  },
+  {
+    "slug": "leisure-valley-park",
+    "name_en": "Leisure Valley Park",
+    "name_hi": "लीजर वैली पार्क",
+    "type": "park",
+    "lat": 28.4697441,
+    "lng": 77.06617419999999,
+    "aka": ["leisure valley", "leisure valley park gurgaon"],
+    "primary_locality_slug": "sector-29"
+  },
+  {
+    "slug": "gurugram-bus-stand",
+    "name_en": "Gurugram Bus Stand",
+    "name_hi": "गुरुग्राम बस स्टैंड",
+    "type": "station",
+    "lat": 28.4653753,
+    "lng": 77.0326913,
+    "aka": ["gurgaon bus stand", "gurugram bus station"],
+    "primary_locality_slug": "old-gurgaon"
+  },
+  {
+    "slug": "gurugram-university",
+    "name_en": "Gurugram University",
+    "name_hi": "गुरुग्राम विश्वविद्यालय",
+    "type": "college",
+    "lat": 28.4228474,
+    "lng": 77.066841,
+    "aka": ["gurugram university", "gurgaon university"],
+    "primary_locality_slug": "sector-51"
+  },
+  {
+    "slug": "shiv-nadar-university",
+    "name_en": "Shiv Nadar University",
+    "name_hi": "शिव नाडर विश्वविद्यालय",
+    "type": "college",
+    "lat": 28.4643481,
+    "lng": 77.10462580000001,
+    "aka": ["shiv nadar gurgaon", "shiv nadar university"],
+    "primary_locality_slug": "sector-168"
+  },
+  {
+    "slug": "heritage-school",
+    "name_en": "Heritage School",
+    "name_hi": "हेरिटेज स्कूल",
+    "type": "college",
+    "lat": 28.4173466,
+    "lng": 77.06027019999999,
+    "aka": ["heritage school gurgaon"],
+    "primary_locality_slug": "sector-62"
+  },
+  {
+    "slug": "galleria-market",
+    "name_en": "Galleria Market",
+    "name_hi": "गैलरिया मार्केट",
+    "type": "market",
+    "lat": 28.46716,
+    "lng": 77.0818086,
+    "aka": ["galleria", "galleria market gurgaon"],
+    "primary_locality_slug": "dlf-phase-4"
+  },
+  {
+    "slug": "sadar-bazaar",
+    "name_en": "Sadar Bazaar",
+    "name_hi": "सदर बाज़ार",
+    "type": "market",
+    "lat": 28.4612568,
+    "lng": 77.02981919999999,
+    "aka": ["sadar bazar", "sadar gurgaon"],
+    "primary_locality_slug": "old-gurgaon"
+  },
+  {
+    "slug": "dlf-city-club",
+    "name_en": "DLF City Club",
+    "name_hi": "डीएलएफ सिटी क्लब",
+    "type": "office",
+    "lat": 28.4478997,
+    "lng": 77.0952588,
+    "aka": ["city club", "dlf club"],
+    "primary_locality_slug": "dlf-phase-4"
+  },
+  {
+    "slug": "dlf-corporate-park",
+    "name_en": "DLF Corporate Park",
+    "name_hi": "डीएलएफ कॉर्पोरेट पार्क",
+    "type": "office",
+    "lat": 28.4828443,
+    "lng": 77.1043155,
+    "aka": ["corporate park", "dlf corporate park"],
+    "primary_locality_slug": "dlf-phase-3"
+  },
+  {
+    "slug": "dlf-infinity-tower",
+    "name_en": "DLF Infinity Tower",
+    "name_hi": "डीएलएफ इन्फिनिटी टावर",
+    "type": "office",
+    "lat": 28.495584,
+    "lng": 77.0915458,
+    "aka": ["infinity tower", "dlf infinity tower"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-gateway-tower",
+    "name_en": "DLF Gateway Tower",
+    "name_hi": "डीएलएफ गेटवे टावर",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["gateway tower", "dlf gateway tower"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-plaza-tower",
+    "name_en": "DLF Plaza Tower",
+    "name_hi": "डीएलएफ प्लाजा टावर",
+    "type": "office",
+    "lat": 28.4708945,
+    "lng": 77.1017608,
+    "aka": ["plaza tower", "dlf plaza tower"],
+    "primary_locality_slug": "dlf-phase-1"
+  },
+  {
+    "slug": "dlf-square-tower",
+    "name_en": "DLF Square Tower",
+    "name_hi": "डीएलएफ स्क्वायर टावर",
+    "type": "office",
+    "lat": 28.4912797,
+    "lng": 77.08419169999999,
+    "aka": ["square tower", "dlf square tower"],
+    "primary_locality_slug": "dlf-phase-2"
+  },
+  {
+    "slug": "dlf-tower-8",
+    "name_en": "DLF Tower 8",
+    "name_hi": "डीएलएफ टावर 8",
+    "type": "office",
+    "lat": 28.4957197,
+    "lng": 77.0900434,
+    "aka": ["tower 8", "dlf tower 8"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-9a",
+    "name_en": "DLF Tower 9A",
+    "name_hi": "डीएलएफ टावर 9A",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 9a", "dlf tower 9a"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-9b",
+    "name_en": "DLF Tower 9B",
+    "name_hi": "डीएलएफ टावर 9B",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 9b", "dlf tower 9b"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-10",
+    "name_en": "DLF Tower 10",
+    "name_hi": "डीएलएफ टावर 10",
+    "type": "office",
+    "lat": 28.494381,
+    "lng": 77.0894883,
+    "aka": ["tower 10", "dlf tower 10"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-11",
+    "name_en": "DLF Tower 11",
+    "name_hi": "डीएलएफ टावर 11",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 11", "dlf tower 11"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-12",
+    "name_en": "DLF Tower 12",
+    "name_hi": "डीएलएफ टावर 12",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 12", "dlf tower 12"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-14",
+    "name_en": "DLF Tower 14",
+    "name_hi": "डीएलएफ टावर 14",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 14", "dlf tower 14"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-15",
+    "name_en": "DLF Tower 15",
+    "name_hi": "डीएलएफ टावर 15",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 15", "dlf tower 15"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-16",
+    "name_en": "DLF Tower 16",
+    "name_hi": "डीएलएफ टावर 16",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 16", "dlf tower 16"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-17",
+    "name_en": "DLF Tower 17",
+    "name_hi": "डीएलएफ टावर 17",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 17", "dlf tower 17"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-18",
+    "name_en": "DLF Tower 18",
+    "name_hi": "डीएलएफ टावर 18",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 18", "dlf tower 18"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-19",
+    "name_en": "DLF Tower 19",
+    "name_hi": "डीएलएफ टावर 19",
+    "type": "office",
+    "lat": 28.4981604,
+    "lng": 77.090125,
+    "aka": ["tower 19", "dlf tower 19"],
+    "primary_locality_slug": "dlf-cyber-city"
+  },
+  {
+    "slug": "dlf-tower-20",
+    "name_en": "DLF Tower 20",
+    "name_hi": "डीएलएफ टावर 20",
+    "type": "office",
+    "lat": 28.4159535,
+    "lng": 77.0455848,
+    "aka": ["tower 20", "dlf tower 20"],
+    "primary_locality_slug": "dlf-cyber-city"
+  }
+]

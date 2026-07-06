@@ -1,14 +1,5 @@
 [
   {
-    "city_slug": "gurugram",
-    "slug": "dlf-phase-2",
-    "name_en": "DLF Phase 2",
-    "name_hi": "डीएलएफ फेज 2",
-    "pincode": "122002",
-    "lat": 28.494,
-    "lng": 77.089
-  },
-  {
     "city_slug": "delhi",
     "slug": "dwarka",
     "name_en": "Dwarka",
@@ -1753,5 +1744,3101 @@
     "lat": 28.5401189,
     "lng": 77.4063625,
     "pincode": "201304"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-1",
+    "name_en": "Sector 1",
+    "name_hi": "सेक्टर 1",
+    "lat": 28.5176128,
+    "lng": 77.0453919,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-2",
+    "name_en": "Sector 2",
+    "name_hi": "सेक्टर 2",
+    "lat": 28.5095068,
+    "lng": 77.0319784,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-3",
+    "name_en": "Sector 3",
+    "name_hi": "सेक्टर 3",
+    "lat": 28.4909088,
+    "lng": 77.01758319999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-4",
+    "name_en": "Sector 4",
+    "name_hi": "सेक्टर 4",
+    "lat": 28.4738044,
+    "lng": 77.01067610000001,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-5",
+    "name_en": "Sector 5",
+    "name_hi": "सेक्टर 5",
+    "lat": 28.4794366,
+    "lng": 77.01758319999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-6",
+    "name_en": "Sector 6",
+    "name_hi": "सेक्टर 6",
+    "lat": 28.4745345,
+    "lng": 77.0262205,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-7",
+    "name_en": "Sector 7",
+    "name_hi": "सेक्टर 7",
+    "lat": 28.4643736,
+    "lng": 77.0142942,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-8",
+    "name_en": "Sector 8",
+    "name_hi": "सेक्टर 8",
+    "lat": 28.4668366,
+    "lng": 77.0225219,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-9",
+    "name_en": "Sector 9",
+    "name_hi": "सेक्टर 9",
+    "lat": 28.4603267,
+    "lng": 77.00000849999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-10",
+    "name_en": "Sector 10",
+    "name_hi": "सेक्टर 10",
+    "lat": 28.4536931,
+    "lng": 77.0009321,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-11",
+    "name_en": "Sector 11",
+    "name_hi": "सेक्टर 11",
+    "lat": 28.4530909,
+    "lng": 77.02017529999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-12",
+    "name_en": "Sector 12",
+    "name_hi": "सेक्टर 12",
+    "lat": 28.4723386,
+    "lng": 77.0320435,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-13",
+    "name_en": "Sector 13",
+    "name_hi": "सेक्टर 13",
+    "lat": 28.4756706,
+    "lng": 77.03919669999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-14",
+    "name_en": "Sector 14",
+    "name_hi": "सेक्टर 14",
+    "lat": 28.4710811,
+    "lng": 77.0454144,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-15",
+    "name_en": "Sector 15",
+    "name_hi": "सेक्टर 15",
+    "lat": 28.4621359,
+    "lng": 77.0463719,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-16",
+    "name_en": "Sector 16",
+    "name_hi": "सेक्टर 16",
+    "lat": 28.4684279,
+    "lng": 77.0521289,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-17",
+    "name_en": "Sector 17",
+    "name_hi": "सेक्टर 17",
+    "lat": 28.4790935,
+    "lng": 77.06084469999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-18",
+    "name_en": "Sector 18",
+    "name_hi": "सेक्टर 18",
+    "lat": 28.4908258,
+    "lng": 77.0690091,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-19",
+    "name_en": "Sector 19",
+    "name_hi": "सेक्टर 19",
+    "lat": 28.5040036,
+    "lng": 77.0748442,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-20",
+    "name_en": "Sector 20",
+    "name_hi": "सेक्टर 20",
+    "lat": 28.5106418,
+    "lng": 77.0856713,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-21",
+    "name_en": "Sector 21",
+    "name_hi": "सेक्टर 21",
+    "lat": 28.5133929,
+    "lng": 77.0722759,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-22",
+    "name_en": "Sector 22",
+    "name_hi": "सेक्टर 22",
+    "lat": 28.507241,
+    "lng": 77.06404859999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-23",
+    "name_en": "Sector 23",
+    "name_hi": "सेक्टर 23",
+    "lat": 28.5121376,
+    "lng": 77.0477559,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-24",
+    "name_en": "Sector 24",
+    "name_hi": "सेक्टर 24",
+    "lat": 28.4938677,
+    "lng": 77.1037786,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-25",
+    "name_en": "Sector 25",
+    "name_hi": "सेक्टर 25",
+    "lat": 28.4844116,
+    "lng": 77.0859978,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-26",
+    "name_en": "Sector 26",
+    "name_hi": "सेक्टर 26",
+    "lat": 28.4756705,
+    "lng": 77.1031525,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-27",
+    "name_en": "Sector 27",
+    "name_hi": "सेक्टर 27",
+    "lat": 28.4657793,
+    "lng": 77.0917003,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-28",
+    "name_en": "Sector 28",
+    "name_hi": "सेक्टर 28",
+    "lat": 28.4728421,
+    "lng": 77.08646139999999,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-29",
+    "name_en": "Sector 29",
+    "name_hi": "सेक्टर 29",
+    "lat": 28.4669058,
+    "lng": 77.0662896,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-30",
+    "name_en": "Sector 30",
+    "name_hi": "सेक्टर 30",
+    "lat": 28.4603762,
+    "lng": 77.0578855,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-31",
+    "name_en": "Sector 31",
+    "name_hi": "सेक्टर 31",
+    "lat": 28.4528403,
+    "lng": 77.0497982,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-32",
+    "name_en": "Sector 32",
+    "name_hi": "सेक्टर 32",
+    "lat": 28.4472372,
+    "lng": 77.04061469999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-33",
+    "name_en": "Sector 33",
+    "name_hi": "सेक्टर 33",
+    "lat": 28.4420427,
+    "lng": 77.02065379999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-34",
+    "name_en": "Sector 34",
+    "name_hi": "सेक्टर 34",
+    "lat": 28.4293894,
+    "lng": 77.0048023,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-35",
+    "name_en": "Sector 35",
+    "name_hi": "सेक्टर 35",
+    "lat": 28.4154983,
+    "lng": 77.002192,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-36",
+    "name_en": "Sector 36",
+    "name_hi": "सेक्टर 36",
+    "lat": 28.4160281,
+    "lng": 76.9914395,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-37",
+    "name_en": "Sector 37",
+    "name_hi": "सेक्टर 37",
+    "lat": 28.4375165,
+    "lng": 76.9999474,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-38",
+    "name_en": "Sector 38",
+    "name_hi": "सेक्टर 38",
+    "lat": 28.4346993,
+    "lng": 77.0430483,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-39",
+    "name_en": "Sector 39",
+    "name_hi": "सेक्टर 39",
+    "lat": 28.4433834,
+    "lng": 77.0515376,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-40",
+    "name_en": "Sector 40",
+    "name_hi": "सेक्टर 40",
+    "lat": 28.4498494,
+    "lng": 77.0566887,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-41",
+    "name_en": "Sector 41",
+    "name_hi": "सेक्टर 41",
+    "lat": 28.4556795,
+    "lng": 77.0631966,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-42",
+    "name_en": "Sector 42",
+    "name_hi": "सेक्टर 42",
+    "lat": 28.4576032,
+    "lng": 77.1020369,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-43",
+    "name_en": "Sector 43",
+    "name_hi": "सेक्टर 43",
+    "lat": 28.4629171,
+    "lng": 77.07724549999999,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-44",
+    "name_en": "Sector 44",
+    "name_hi": "सेक्टर 44",
+    "lat": 28.448479,
+    "lng": 77.0758733,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-45",
+    "name_en": "Sector 45",
+    "name_hi": "सेक्टर 45",
+    "lat": 28.446591,
+    "lng": 77.06595279999999,
+    "pincode": "122003"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-46",
+    "name_en": "Sector 46",
+    "name_hi": "सेक्टर 46",
+    "lat": 28.4374374,
+    "lng": 77.05857499999999,
+    "pincode": "122003"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-47",
+    "name_en": "Sector 47",
+    "name_hi": "सेक्टर 47",
+    "lat": 28.4275535,
+    "lng": 77.0491679,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-48",
+    "name_en": "Sector 48",
+    "name_hi": "सेक्टर 48",
+    "lat": 28.4176955,
+    "lng": 77.0359426,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-49",
+    "name_en": "Sector 49",
+    "name_hi": "सेक्टर 49",
+    "lat": 28.4121197,
+    "lng": 77.048024,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-50",
+    "name_en": "Sector 50",
+    "name_hi": "सेक्टर 50",
+    "lat": 28.4177867,
+    "lng": 77.0627653,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-51",
+    "name_en": "Sector 51",
+    "name_hi": "सेक्टर 51",
+    "lat": 28.4320397,
+    "lng": 77.0686159,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-52",
+    "name_en": "Sector 52",
+    "name_hi": "सेक्टर 52",
+    "lat": 28.4379091,
+    "lng": 77.07854789999999,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-53",
+    "name_en": "Sector 53",
+    "name_hi": "सेक्टर 53",
+    "lat": 28.4433129,
+    "lng": 77.0947514,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-54",
+    "name_en": "Sector 54",
+    "name_hi": "सेक्टर 54",
+    "lat": 28.4348171,
+    "lng": 77.10894119999999,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-55",
+    "name_en": "Sector 55",
+    "name_hi": "सेक्टर 55",
+    "lat": 28.4281173,
+    "lng": 77.1100123,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-56",
+    "name_en": "Sector 56",
+    "name_hi": "सेक्टर 56",
+    "lat": 28.4244603,
+    "lng": 77.09912419999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-57",
+    "name_en": "Sector 57",
+    "name_hi": "सेक्टर 57",
+    "lat": 28.4231993,
+    "lng": 77.07521059999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-58",
+    "name_en": "Sector 58",
+    "name_hi": "सेक्टर 58",
+    "lat": 28.4200136,
+    "lng": 77.1105434,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-59",
+    "name_en": "Sector 59",
+    "name_hi": "सेक्टर 59",
+    "lat": 28.4050911,
+    "lng": 77.1096829,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-60",
+    "name_en": "Sector 60",
+    "name_hi": "सेक्टर 60",
+    "lat": 28.400332,
+    "lng": 77.097455,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-61",
+    "name_en": "Sector 61",
+    "name_hi": "सेक्टर 61",
+    "lat": 28.4050436,
+    "lng": 77.0962693,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-62",
+    "name_en": "Sector 62",
+    "name_hi": "सेक्टर 62",
+    "lat": 28.4139095,
+    "lng": 77.08859439999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-63",
+    "name_en": "Sector 63",
+    "name_hi": "सेक्टर 63",
+    "lat": 28.3971448,
+    "lng": 77.08666459999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-64",
+    "name_en": "Sector 64",
+    "name_hi": "सेक्टर 64",
+    "lat": 28.3903001,
+    "lng": 77.0751538,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-65",
+    "name_en": "Sector 65",
+    "name_hi": "सेक्टर 65",
+    "lat": 28.4030424,
+    "lng": 77.06900519999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-66",
+    "name_en": "Sector 66",
+    "name_hi": "सेक्टर 66",
+    "lat": 28.3924859,
+    "lng": 77.0540907,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-67",
+    "name_en": "Sector 67",
+    "name_hi": "सेक्टर 67",
+    "lat": 28.3858823,
+    "lng": 77.0607728,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-68",
+    "name_en": "Sector 68",
+    "name_hi": "सेक्टर 68",
+    "lat": 28.3852948,
+    "lng": 77.04835539999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-69",
+    "name_en": "Sector 69",
+    "name_hi": "सेक्टर 69",
+    "lat": 28.3965979,
+    "lng": 77.034108,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-70",
+    "name_en": "Sector 70",
+    "name_hi": "सेक्टर 70",
+    "lat": 28.3967953,
+    "lng": 77.0233415,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-71",
+    "name_en": "Sector 71",
+    "name_hi": "सेक्टर 71",
+    "lat": 28.4103693,
+    "lng": 77.028145,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-72",
+    "name_en": "Sector 72",
+    "name_hi": "सेक्टर 72",
+    "lat": 28.4225192,
+    "lng": 77.0211379,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-73",
+    "name_en": "Sector 73",
+    "name_hi": "सेक्टर 73",
+    "lat": 28.4071621,
+    "lng": 77.01182460000001,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-74",
+    "name_en": "Sector 74",
+    "name_hi": "सेक्टर 74",
+    "lat": 28.4157699,
+    "lng": 77.01182460000001,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-75",
+    "name_en": "Sector 75",
+    "name_hi": "सेक्टर 75",
+    "lat": 28.3925371,
+    "lng": 77.0089452,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-76",
+    "name_en": "Sector 76",
+    "name_hi": "सेक्टर 76",
+    "lat": 28.3934596,
+    "lng": 76.9887876,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-77",
+    "name_en": "Sector 77",
+    "name_hi": "सेक्टर 77",
+    "lat": 28.3801295,
+    "lng": 76.9844677,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-78",
+    "name_en": "Sector 78",
+    "name_hi": "सेक्टर 78",
+    "lat": 28.3732763,
+    "lng": 76.9729472,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-79",
+    "name_en": "Sector 79",
+    "name_hi": "सेक्टर 79",
+    "lat": 28.3623546,
+    "lng": 76.97870759999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-80",
+    "name_en": "Sector 80",
+    "name_hi": "सेक्टर 80",
+    "lat": 28.3658642,
+    "lng": 76.9556643,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-81",
+    "name_en": "Sector 81",
+    "name_hi": "सेक्टर 81",
+    "lat": 28.4769508,
+    "lng": 77.02209909999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-82",
+    "name_en": "Sector 82",
+    "name_hi": "सेक्टर 82",
+    "lat": 28.3935416,
+    "lng": 76.95998519999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-83",
+    "name_en": "Sector 83",
+    "name_hi": "सेक्टर 83",
+    "lat": 28.3985667,
+    "lng": 76.9646908,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-84",
+    "name_en": "Sector 84",
+    "name_hi": "सेक्टर 84",
+    "lat": 28.3978683,
+    "lng": 76.9735741,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-85",
+    "name_en": "Sector 85",
+    "name_hi": "सेक्टर 85",
+    "lat": 28.40418,
+    "lng": 76.9513432,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-86",
+    "name_en": "Sector 86",
+    "name_hi": "सेक्टर 86",
+    "lat": 28.3986189,
+    "lng": 76.938379,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-87",
+    "name_en": "Sector 87",
+    "name_hi": "सेक्टर 87",
+    "lat": 28.3936162,
+    "lng": 76.9311761,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-88",
+    "name_en": "Sector 88",
+    "name_hi": "सेक्टर 88",
+    "lat": 28.4219512,
+    "lng": 76.9571046,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-89",
+    "name_en": "Sector 89",
+    "name_hi": "सेक्टर 89",
+    "lat": 28.4253428,
+    "lng": 76.94389269999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-90",
+    "name_en": "Sector 90",
+    "name_hi": "सेक्टर 90",
+    "lat": 28.4085198,
+    "lng": 76.9369384,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-91",
+    "name_en": "Sector 91",
+    "name_hi": "सेक्टर 91",
+    "lat": 28.4013829,
+    "lng": 76.92253199999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-92",
+    "name_en": "Sector 92",
+    "name_hi": "सेक्टर 92",
+    "lat": 28.407854,
+    "lng": 76.9153281,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-93",
+    "name_en": "Sector 93",
+    "name_hi": "सेक्टर 93",
+    "lat": 28.4152716,
+    "lng": 76.9326167,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-94",
+    "name_en": "Sector 94",
+    "name_hi": "सेक्टर 94",
+    "lat": 28.4223029,
+    "lng": 76.9311761,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-95",
+    "name_en": "Sector 95",
+    "name_hi": "सेक्टर 95",
+    "lat": 28.4171926,
+    "lng": 76.9081238,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-102",
+    "name_en": "Sector 102",
+    "name_hi": "सेक्टर 102",
+    "lat": 28.4749763,
+    "lng": 76.971507,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-103",
+    "name_en": "Sector 103",
+    "name_hi": "सेक्टर 103",
+    "lat": 28.4948731,
+    "lng": 76.9844677,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-104",
+    "name_en": "Sector 104",
+    "name_hi": "सेक्टर 104",
+    "lat": 28.478782,
+    "lng": 76.9959872,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-105",
+    "name_en": "Sector 105",
+    "name_hi": "सेक्टर 105",
+    "lat": 28.4951851,
+    "lng": 77.0114025,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-106",
+    "name_en": "Sector 106",
+    "name_hi": "सेक्टर 106",
+    "lat": 28.5007088,
+    "lng": 77.0003067,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-107",
+    "name_en": "Sector 107",
+    "name_hi": "सेक्टर 107",
+    "lat": 28.5052259,
+    "lng": 76.9729472,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-108",
+    "name_en": "Sector 108",
+    "name_hi": "सेक्टर 108",
+    "lat": 28.513372,
+    "lng": 76.9830277,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-109",
+    "name_en": "Sector 109",
+    "name_hi": "सेक्टर 109",
+    "lat": 28.5072801,
+    "lng": 77.0089452,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-110",
+    "name_en": "Sector 110",
+    "name_hi": "सेक्टर 110",
+    "lat": 28.5144929,
+    "lng": 77.0197325,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-111",
+    "name_en": "Sector 111",
+    "name_hi": "सेक्टर 111",
+    "lat": 28.5238449,
+    "lng": 77.0319784,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-112",
+    "name_en": "Sector 112",
+    "name_hi": "सेक्टर 112",
+    "lat": 28.5281881,
+    "lng": 77.01758319999999,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-113",
+    "name_en": "Sector 113",
+    "name_hi": "सेक्टर 113",
+    "lat": 28.528745,
+    "lng": 77.0233415,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-114",
+    "name_en": "Sector 114",
+    "name_hi": "सेक्टर 114",
+    "lat": 28.5333653,
+    "lng": 77.01182460000001,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-phase-1",
+    "name_en": "DLF Phase 1",
+    "name_hi": "डीएलएफ फेज़ 1",
+    "lat": 28.4650453,
+    "lng": 77.10071169999999,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-phase-2",
+    "name_en": "DLF Phase 2",
+    "name_hi": "डीएलएफ फेज़ 2",
+    "lat": 28.4876667,
+    "lng": 77.0881034,
+    "pincode": "122008"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-phase-3",
+    "name_en": "DLF Phase 3",
+    "name_hi": "डीएलएफ फेज़ 3",
+    "lat": 28.4916812,
+    "lng": 77.094897,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-phase-4",
+    "name_en": "DLF Phase 4",
+    "name_hi": "डीएलएफ फेज़ 4",
+    "lat": 28.4646699,
+    "lng": 77.0844801,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-phase-5",
+    "name_en": "DLF Phase 5",
+    "name_hi": "डीएलएफ फेज़ 5",
+    "lat": 28.4476911,
+    "lng": 77.09477849999999,
+    "pincode": "122011"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sushant-lok-phase-1",
+    "name_en": "Sushant Lok Phase 1",
+    "name_hi": "सुशांत लोक फेज़ 1",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sushant-lok-phase-2",
+    "name_en": "Sushant Lok Phase 2",
+    "name_hi": "सुशांत लोक फेज़ 2",
+    "lat": 28.4255615,
+    "lng": 77.0873907,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sushant-lok-phase-3",
+    "name_en": "Sushant Lok Phase 3",
+    "name_hi": "सुशांत लोक फेज़ 3",
+    "lat": 28.4183505,
+    "lng": 77.0758733,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "palam-vihar",
+    "name_en": "Palam Vihar",
+    "name_hi": "पालम विहार",
+    "lat": 28.5146969,
+    "lng": 77.0348848,
+    "pincode": "122017"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "south-city-1",
+    "name_en": "South City 1",
+    "name_hi": "साउथ सिटी 1",
+    "lat": 28.4583384,
+    "lng": 77.06652,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "south-city-2",
+    "name_en": "South City 2",
+    "name_hi": "साउथ सिटी 2",
+    "lat": 28.4175717,
+    "lng": 77.05284840000002,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "nirvana-country",
+    "name_en": "Nirvana Country",
+    "name_hi": "निर्वाणा कंट्री",
+    "lat": 28.4124299,
+    "lng": 77.06652,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "vatika-city",
+    "name_en": "Vatika City",
+    "name_hi": "वाटिका सिटी",
+    "lat": 28.4051331,
+    "lng": 77.0470069,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "golf-course-road",
+    "name_en": "Golf Course Road",
+    "name_hi": "गोल्फ कोर्स रोड",
+    "lat": 28.4504517,
+    "lng": 77.099354,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "golf-course-extension-road",
+    "name_en": "Golf Course Extension Road",
+    "name_hi": "गोल्फ कोर्स एक्सटेंशन रोड",
+    "lat": 28.4120642,
+    "lng": 77.0740202,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "mg-road",
+    "name_en": "MG Road",
+    "name_hi": "एमजी रोड",
+    "lat": 28.4781546,
+    "lng": 77.0725417,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sohna-road",
+    "name_en": "Sohna Road",
+    "name_hi": "सोहना रोड",
+    "lat": 28.41362,
+    "lng": 77.0413819,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "rajendra-park",
+    "name_en": "Rajendra Park",
+    "name_hi": "राजेन्द्र पार्क",
+    "lat": 28.492663,
+    "lng": 77.0060658,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "old-gurgaon",
+    "name_en": "Old Gurgaon",
+    "name_hi": "पुराना गुड़गांव",
+    "lat": 28.4904403,
+    "lng": 77.0569576,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "new-gurgaon",
+    "name_en": "New Gurgaon",
+    "name_hi": "नया गुड़गांव",
+    "lat": 28.3935909,
+    "lng": 76.9484561,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "udyog-vihar",
+    "name_en": "Udyog Vihar",
+    "name_hi": "उद्योग विहार",
+    "lat": 28.4984141,
+    "lng": 77.08492489999999,
+    "pincode": "122016"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "shivaji-nagar",
+    "name_en": "Shivaji Nagar",
+    "name_hi": "शिवाजी नगर",
+    "lat": 28.4489956,
+    "lng": 77.0290995,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "civil-lines",
+    "name_en": "Civil Lines",
+    "name_hi": "सिविल लाइन्स",
+    "lat": 28.4550108,
+    "lng": 77.0319784,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "railway-road",
+    "name_en": "Railway Road",
+    "name_hi": "रेलवे रोड",
+    "lat": 28.4671161,
+    "lng": 77.0209383,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "model-town",
+    "name_en": "Model Town",
+    "name_hi": "मॉडल टाउन",
+    "lat": 28.4558423,
+    "lng": 77.018303,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "ashok-vihar",
+    "name_en": "Ashok Vihar",
+    "name_hi": "अशोक विहार",
+    "lat": 28.4880408,
+    "lng": 77.01758319999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "laxman-vihar",
+    "name_en": "Laxman Vihar",
+    "name_hi": "लक्ष्मण विहार",
+    "lat": 28.4792711,
+    "lng": 77.00450409999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "patel-nagar",
+    "name_en": "Patel Nagar",
+    "name_hi": "पटेल नगर",
+    "lat": 28.4549833,
+    "lng": 77.0387868,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-110a",
+    "name_en": "Sector 110A",
+    "name_hi": "सेक्टर 110A",
+    "lat": 28.5178317,
+    "lng": 77.0290995,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-111a",
+    "name_en": "Sector 111A",
+    "name_hi": "सेक्टर 111A",
+    "lat": 28.5238449,
+    "lng": 77.0319784,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-112a",
+    "name_en": "Sector 112A",
+    "name_hi": "सेक्टर 112A",
+    "lat": 28.5281881,
+    "lng": 77.01758319999999,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-113a",
+    "name_en": "Sector 113A",
+    "name_hi": "सेक्टर 113A",
+    "lat": 28.528745,
+    "lng": 77.0233415,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-114a",
+    "name_en": "Sector 114A",
+    "name_hi": "सेक्टर 114A",
+    "lat": 28.5333653,
+    "lng": 77.01182460000001,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sector-115",
+    "name_en": "Sector 115",
+    "name_hi": "सेक्टर 115",
+    "lat": 28.538542,
+    "lng": 77.0060658,
+    "pincode": "122006"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "gurgaon-village",
+    "name_en": "Gurgaon Village",
+    "name_hi": "गुड़गांव गांव",
+    "lat": 28.4755554,
+    "lng": 77.02484299999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "khandsa",
+    "name_en": "Khandsa",
+    "name_hi": "खंडसा",
+    "lat": 28.4222734,
+    "lng": 76.99992979999999,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "basai",
+    "name_en": "Basai",
+    "name_hi": "बसई",
+    "lat": 28.4603189,
+    "lng": 76.9844026,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "badshahpur",
+    "name_en": "Badshahpur",
+    "name_hi": "बादशाहपुर",
+    "lat": 28.3982709,
+    "lng": 77.053568,
+    "pincode": "122101"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "bhondsi",
+    "name_en": "Bhondsi",
+    "name_hi": "भोंडसी",
+    "lat": 28.4571834,
+    "lng": 77.0299248,
+    "pincode": "122102"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "manesar",
+    "name_en": "Manesar",
+    "name_hi": "मानेसर",
+    "lat": 28.3515381,
+    "lng": 76.9427774,
+    "pincode": "122051"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "pataudi-road",
+    "name_en": "Pataudi Road",
+    "name_hi": "पटौदी रोड",
+    "lat": 28.4264204,
+    "lng": 76.9415199,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "hero-honda-chowk",
+    "name_en": "Hero Honda Chowk",
+    "name_hi": "हीरो होंडा चौक",
+    "lat": 28.4293272,
+    "lng": 77.0201384,
+    "pincode": "122001"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "iffco-chowk",
+    "name_en": "IFFCO Chowk",
+    "name_hi": "आईएफएफसीओ चौक",
+    "lat": 28.47224,
+    "lng": 77.0724,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sikanderpur",
+    "name_en": "Sikanderpur",
+    "name_hi": "सिकंदरपुर",
+    "lat": 28.4794221,
+    "lng": 77.1068059,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "mgf-metropolitan",
+    "name_en": "MGF Metropolitan",
+    "name_hi": "एमजीएफ मेट्रोपॉलिटन",
+    "lat": 28.4789946,
+    "lng": 77.08243740000002,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "ardee-city",
+    "name_en": "Ardee City",
+    "name_hi": "अर्डी सिटी",
+    "lat": 28.4419181,
+    "lng": 77.07841760000001,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "malibu-town",
+    "name_en": "Malibu Town",
+    "name_hi": "मालिबू टाउन",
+    "lat": 28.4233707,
+    "lng": 77.0463098,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "rosewood-city",
+    "name_en": "Rosewood City",
+    "name_hi": "रोज़वुड सिटी",
+    "lat": 28.4084534,
+    "lng": 77.05500719999999,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "greenwood-city",
+    "name_en": "Greenwood City",
+    "name_hi": "ग्रीनवुड सिटी",
+    "lat": 28.4456606,
+    "lng": 77.06148329999999,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "mayfield-garden",
+    "name_en": "Mayfield Garden",
+    "name_hi": "मयफील्ड गार्डन",
+    "lat": 28.4253544,
+    "lng": 77.06304709999999,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "sun-city",
+    "name_en": "Sun City",
+    "name_hi": "सन सिटी",
+    "lat": 28.4369353,
+    "lng": 77.1125599,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-garden-city",
+    "name_en": "DLF Garden City",
+    "name_hi": "डीएलएफ गार्डन सिटी",
+    "lat": 28.4047077,
+    "lng": 76.9103805,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-city",
+    "name_en": "DLF City",
+    "name_hi": "डीएलएफ सिटी",
+    "lat": 28.4949762,
+    "lng": 77.0895421,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-cyber-city",
+    "name_en": "DLF Cyber City",
+    "name_hi": "डीएलएफ साइबर सिटी",
+    "lat": 28.4949762,
+    "lng": 77.0895421,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-cyber-hub",
+    "name_en": "DLF Cyber Hub",
+    "name_hi": "डीएलएफ साइबर हब",
+    "lat": 28.4949762,
+    "lng": 77.0895421,
+    "pincode": "122002"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-corporate-greens",
+    "name_en": "DLF Corporate Greens",
+    "name_hi": "डीएलएफ कॉर्पोरेट ग्रीन्स",
+    "lat": 28.4068825,
+    "lng": 76.997787,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-ultima",
+    "name_en": "DLF Ultima",
+    "name_hi": "डीएलएफ अल्टिमा",
+    "lat": 28.4236369,
+    "lng": 77.0395231,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-new-town-heights",
+    "name_en": "DLF New Town Heights",
+    "name_hi": "डीएलएफ न्यू टाउन हाइट्स",
+    "lat": 28.4074933,
+    "lng": 76.9323689,
+    "pincode": "122018"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-park-place",
+    "name_en": "DLF Park Place",
+    "name_hi": "डीएलएफ पार्क प्लेस",
+    "lat": 28.4423253,
+    "lng": 77.1063722,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-crest",
+    "name_en": "DLF Crest",
+    "name_hi": "डीएलएफ क्रेस्ट",
+    "lat": 28.4449745,
+    "lng": 77.1115549,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-icon",
+    "name_en": "DLF Icon",
+    "name_hi": "डीएलएफ आइकॉन",
+    "lat": 28.4515718,
+    "lng": 77.0944492,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-belvedere-park",
+    "name_en": "DLF Belvedere Park",
+    "name_hi": "डीएलएफ बेल्वेडियर पार्क",
+    "lat": 28.490467,
+    "lng": 77.0910289,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-belvedere-towers",
+    "name_en": "DLF Belvedere Towers",
+    "name_hi": "डीएलएफ बेल्वेडियर टावर्स",
+    "lat": 28.4910333,
+    "lng": 77.0895286,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-summit",
+    "name_en": "DLF Summit",
+    "name_hi": "डीएलएफ समिट",
+    "lat": 28.4465012,
+    "lng": 77.104495,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-regency-park",
+    "name_en": "DLF Regency Park",
+    "name_hi": "डीएलएफ रीजेंसी पार्क",
+    "lat": 28.465399,
+    "lng": 77.0865944,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-ridgewood-estate",
+    "name_en": "DLF Ridgewood Estate",
+    "name_hi": "डीएलएफ रिजवुड एस्टेट",
+    "lat": 28.4661627,
+    "lng": 77.0814682,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-windsor-court",
+    "name_en": "DLF Windsor Court",
+    "name_hi": "डीएलएफ विंडसर कोर्ट",
+    "lat": 28.4635579,
+    "lng": 77.08568249999999,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-westend-heights",
+    "name_en": "DLF Westend Heights",
+    "name_hi": "डीएलएफ वेस्टेंड हाइट्स",
+    "lat": 28.4491957,
+    "lng": 77.09338079999999,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-pinnacle",
+    "name_en": "DLF Pinnacle",
+    "name_hi": "डीएलएफ पिनाकल",
+    "lat": 28.4528064,
+    "lng": 77.0959443,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-trinity-towers",
+    "name_en": "DLF Trinity Towers",
+    "name_hi": "डीएलएफ ट्रिनिटी टावर्स",
+    "lat": 28.4483687,
+    "lng": 77.0950478,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-carlton-estate",
+    "name_en": "DLF Carlton Estate",
+    "name_hi": "डीएलएफ कार्लटन एस्टेट",
+    "lat": 28.4494413,
+    "lng": 77.0960229,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-princeton-estate",
+    "name_en": "DLF Princeton Estate",
+    "name_hi": "डीएलएफ प्रिंसटन एस्टेट",
+    "lat": 28.4486475,
+    "lng": 77.0965291,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-silver-oaks",
+    "name_en": "DLF Silver Oaks",
+    "name_hi": "डीएलएफ सिल्वर ओक्स",
+    "lat": 28.4714045,
+    "lng": 77.10536259999999,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-hamilton-court",
+    "name_en": "DLF Hamilton Court",
+    "name_hi": "डीएलएफ हैमिल्टन कोर्ट",
+    "lat": 28.4677826,
+    "lng": 77.0847723,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-beverly-park",
+    "name_en": "DLF Beverly Park",
+    "name_hi": "डीएलएफ बेवर्ली पार्क",
+    "lat": 28.4783937,
+    "lng": 77.0773359,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-windsor-park",
+    "name_en": "DLF Windsor Park",
+    "name_hi": "डीएलएफ विंडसर पार्क",
+    "lat": 28.4714801,
+    "lng": 77.0446205,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-oakwood-estate",
+    "name_en": "DLF Oakwood Estate",
+    "name_hi": "डीएलएफ ओकवुड एस्टेट",
+    "lat": 28.4844875,
+    "lng": 77.0882115,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-regency-park-ii",
+    "name_en": "DLF Regency Park II",
+    "name_hi": "डीएलएफ रीजेंसी पार्क II",
+    "lat": 28.4658163,
+    "lng": 77.0864848,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-richmond-park",
+    "name_en": "DLF Richmond Park",
+    "name_hi": "डीएलएफ रिचमंड पार्क",
+    "lat": 28.4589107,
+    "lng": 77.0880924,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-park-towers",
+    "name_en": "DLF Park Towers",
+    "name_hi": "डीएलएफ पार्क टावर्स",
+    "lat": 28.4433713,
+    "lng": 77.1086041,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-belvedere-tower",
+    "name_en": "DLF Belvedere Tower",
+    "name_hi": "डीएलएफ बेल्वेडियर टावर",
+    "lat": 28.4908355,
+    "lng": 77.08936229999999,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-garden-villas",
+    "name_en": "DLF Garden Villas",
+    "name_hi": "डीएलएफ गार्डन विला",
+    "lat": 28.4596268,
+    "lng": 77.087384,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-royalton-towers",
+    "name_en": "DLF Royalton Towers",
+    "name_hi": "डीएलएफ रॉयलटन टावर्स",
+    "lat": 28.4495049,
+    "lng": 77.0968256,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-regency-towers",
+    "name_en": "DLF Regency Towers",
+    "name_hi": "डीएलएफ रीजेंसी टावर्स",
+    "lat": 28.3890756,
+    "lng": 76.9485974,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-ridgewood-towers",
+    "name_en": "DLF Ridgewood Towers",
+    "name_hi": "डीएलएफ रिजवुड टावर्स",
+    "lat": 28.4661627,
+    "lng": 77.0814682,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-windsor-towers",
+    "name_en": "DLF Windsor Towers",
+    "name_hi": "डीएलएफ विंडसर टावर्स",
+    "lat": 28.4313823,
+    "lng": 76.9965276,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-westend-towers",
+    "name_en": "DLF Westend Towers",
+    "name_hi": "डीएलएफ वेस्टेंड टावर्स",
+    "lat": 28.5118362,
+    "lng": 77.0443456,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-pinnacle-towers",
+    "name_en": "DLF Pinnacle Towers",
+    "name_hi": "डीएलएफ पिनाकल टावर्स",
+    "lat": 28.4528064,
+    "lng": 77.0959443,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-trinity-tower",
+    "name_en": "DLF Trinity Tower",
+    "name_hi": "डीएलएफ ट्रिनिटी टावर",
+    "lat": 28.4483687,
+    "lng": 77.0950478,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-carlton-towers",
+    "name_en": "DLF Carlton Towers",
+    "name_hi": "डीएलएफ कार्लटन टावर्स",
+    "lat": 28.4494413,
+    "lng": 77.0960229,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-princeton-towers",
+    "name_en": "DLF Princeton Towers",
+    "name_hi": "डीएलएफ प्रिंसटन टावर्स",
+    "lat": 28.4487132,
+    "lng": 77.0973254,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-silver-oaks-towers",
+    "name_en": "DLF Silver Oaks Towers",
+    "name_hi": "डीएलएफ सिल्वर ओक्स टावर्स",
+    "lat": 28.4714045,
+    "lng": 77.10536259999999,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-hamilton-towers",
+    "name_en": "DLF Hamilton Towers",
+    "name_hi": "डीएलएफ हैमिल्टन टावर्स",
+    "lat": 28.4677826,
+    "lng": 77.0847723,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-beverly-towers",
+    "name_en": "DLF Beverly Towers",
+    "name_hi": "डीएलएफ बेवर्ली टावर्स",
+    "lat": 28.3949541,
+    "lng": 76.921678,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-windsor-towers-ii",
+    "name_en": "DLF Windsor Towers II",
+    "name_hi": "डीएलएफ विंडसर टावर्स II",
+    "lat": 28.4313823,
+    "lng": 76.9965276,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-oakwood-towers",
+    "name_en": "DLF Oakwood Towers",
+    "name_hi": "डीएलएफ ओकवुड टावर्स",
+    "lat": 28.4844875,
+    "lng": 77.0882115,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-regency-towers-ii",
+    "name_en": "DLF Regency Towers II",
+    "name_hi": "डीएलएफ रीजेंसी टावर्स II",
+    "lat": 28.4713125,
+    "lng": 77.0939375,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-richmond-towers",
+    "name_en": "DLF Richmond Towers",
+    "name_hi": "डीएलएफ रिचमंड टावर्स",
+    "lat": 28.3890756,
+    "lng": 76.9485974,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-park-tower",
+    "name_en": "DLF Park Tower",
+    "name_hi": "डीएलएफ पार्क टावर",
+    "lat": 28.4433713,
+    "lng": 77.1086041,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-belvedere-towers-ii",
+    "name_en": "DLF Belvedere Towers II",
+    "name_hi": "डीएलएफ बेल्वेडियर टावर्स II",
+    "lat": 28.4910333,
+    "lng": 77.0895286,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-garden-villa",
+    "name_en": "DLF Garden Villa",
+    "name_hi": "डीएलएफ गार्डन विला",
+    "lat": 28.4594965,
+    "lng": 77.0266383,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-royalton-tower",
+    "name_en": "DLF Royalton Tower",
+    "name_hi": "डीएलएफ रॉयलटन टावर",
+    "lat": 28.4495049,
+    "lng": 77.0968256,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-regency-tower",
+    "name_en": "DLF Regency Tower",
+    "name_hi": "डीएलएफ रीजेंसी टावर",
+    "lat": 28.43019,
+    "lng": 77.0974762,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-ridgewood-tower",
+    "name_en": "DLF Ridgewood Tower",
+    "name_hi": "डीएलएफ रिजवुड टावर",
+    "lat": 28.4661627,
+    "lng": 77.0814682,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-windsor-tower",
+    "name_en": "DLF Windsor Tower",
+    "name_hi": "डीएलएफ विंडसर टावर",
+    "lat": 28.4313823,
+    "lng": 76.9965276,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-westend-tower",
+    "name_en": "DLF Westend Tower",
+    "name_hi": "डीएलएफ वेस्टेंड टावर",
+    "lat": 28.5118362,
+    "lng": 77.0443456,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-pinnacle-tower",
+    "name_en": "DLF Pinnacle Tower",
+    "name_hi": "डीएलएफ पिनाकल टावर",
+    "lat": 28.4528159,
+    "lng": 77.09569820000002,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-trinity-tower-ii",
+    "name_en": "DLF Trinity Tower II",
+    "name_hi": "डीएलएफ ट्रिनिटी टावर II",
+    "lat": 28.4483687,
+    "lng": 77.0950478,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-carlton-tower",
+    "name_en": "DLF Carlton Tower",
+    "name_hi": "डीएलएफ कार्लटन टावर",
+    "lat": 28.4494413,
+    "lng": 77.0960229,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-princeton-tower",
+    "name_en": "DLF Princeton Tower",
+    "name_hi": "डीएलएफ प्रिंसटन टावर",
+    "lat": 28.4487132,
+    "lng": 77.0973254,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-silver-oaks-tower",
+    "name_en": "DLF Silver Oaks Tower",
+    "name_hi": "डीएलएफ सिल्वर ओक्स टावर",
+    "lat": 28.4714045,
+    "lng": 77.10536259999999,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-hamilton-tower",
+    "name_en": "DLF Hamilton Tower",
+    "name_hi": "डीएलएफ हैमिल्टन टावर",
+    "lat": 28.4677826,
+    "lng": 77.0847723,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "gurugram",
+    "slug": "dlf-beverly-tower",
+    "name_en": "DLF Beverly Tower",
+    "name_hi": "डीएलएफ बेवर्ली टावर",
+    "lat": 28.4713125,
+    "lng": 77.0939375,
+    "pincode": "122009"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-7",
+    "name_en": "Sector 7",
+    "name_hi": "सेक्टर 7",
+    "lat": 28.3617378,
+    "lng": 77.326878,
+    "pincode": "121006"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-8",
+    "name_en": "Sector 8",
+    "name_hi": "सेक्टर 8",
+    "lat": 28.3646032,
+    "lng": 77.3341518,
+    "pincode": "121006"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-9",
+    "name_en": "Sector 9",
+    "name_hi": "सेक्टर 9",
+    "lat": 28.3766124,
+    "lng": 77.3319854,
+    "pincode": "121006"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-10",
+    "name_en": "Sector 10",
+    "name_hi": "सेक्टर 10",
+    "lat": 28.3767392,
+    "lng": 77.3252633,
+    "pincode": "121006"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-11",
+    "name_en": "Sector 11",
+    "name_hi": "सेक्टर 11",
+    "lat": 28.3704165,
+    "lng": 77.3220128,
+    "pincode": "121006"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-12",
+    "name_en": "Sector 12",
+    "name_hi": "सेक्टर 12",
+    "lat": 28.3842547,
+    "lng": 77.32535349999999,
+    "pincode": "121007"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-14",
+    "name_en": "Sector 14",
+    "name_hi": "सेक्टर 14",
+    "lat": 28.394938,
+    "lng": 77.3330185,
+    "pincode": "121007"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-15",
+    "name_en": "Sector 15",
+    "name_hi": "सेक्टर 15",
+    "lat": 28.3955007,
+    "lng": 77.3244886,
+    "pincode": "121007"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-16",
+    "name_en": "Sector 16",
+    "name_hi": "सेक्टर 16",
+    "lat": 28.4138045,
+    "lng": 77.3223915,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-16a",
+    "name_en": "Sector 16A",
+    "name_hi": "सेक्टर 16ए",
+    "lat": 28.4060902,
+    "lng": 77.3184825,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-17",
+    "name_en": "Sector 17",
+    "name_hi": "सेक्टर 17",
+    "lat": 28.410629,
+    "lng": 77.3322584,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-18",
+    "name_en": "Sector 18",
+    "name_hi": "सेक्टर 18",
+    "lat": 28.4192167,
+    "lng": 77.3271803,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-19",
+    "name_en": "Sector 19",
+    "name_hi": "सेक्टर 19",
+    "lat": 28.4230735,
+    "lng": 77.3122676,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-21a",
+    "name_en": "Sector 21A",
+    "name_hi": "सेक्टर 21ए",
+    "lat": 28.4222586,
+    "lng": 77.2972431,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-21b",
+    "name_en": "Sector 21B",
+    "name_hi": "सेक्टर 21बी",
+    "lat": 28.4173823,
+    "lng": 77.2994144,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-21c",
+    "name_en": "Sector 21C",
+    "name_hi": "सेक्टर 21सी",
+    "lat": 28.4318699,
+    "lng": 77.2971115,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-21d",
+    "name_en": "Sector 21D",
+    "name_hi": "सेक्टर 21डी",
+    "lat": 28.4170341,
+    "lng": 77.29008809999999,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-28",
+    "name_en": "Sector 28",
+    "name_hi": "सेक्टर 28",
+    "lat": 28.4354267,
+    "lng": 77.3143303,
+    "pincode": "121008"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-29",
+    "name_en": "Sector 29",
+    "name_hi": "सेक्टर 29",
+    "lat": 28.4339049,
+    "lng": 77.3223915,
+    "pincode": "121008"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-30",
+    "name_en": "Sector 30",
+    "name_hi": "सेक्टर 30",
+    "lat": 28.4425186,
+    "lng": 77.3223915,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-31",
+    "name_en": "Sector 31",
+    "name_hi": "सेक्टर 31",
+    "lat": 28.4433347,
+    "lng": 77.3122118,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-35",
+    "name_en": "Sector 35",
+    "name_hi": "सेक्टर 35",
+    "lat": 28.4698733,
+    "lng": 77.3080313,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-37",
+    "name_en": "Sector 37",
+    "name_hi": "सेक्टर 37",
+    "lat": 28.4810408,
+    "lng": 77.31166209999999,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-45",
+    "name_en": "Sector 45",
+    "name_hi": "सेक्टर 45",
+    "lat": 28.4498122,
+    "lng": 77.299284,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-46",
+    "name_en": "Sector 46",
+    "name_hi": "सेक्टर 46",
+    "lat": 28.4390521,
+    "lng": 77.30085059999999,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-48",
+    "name_en": "Sector 48",
+    "name_hi": "सेक्टर 48",
+    "lat": 28.4052465,
+    "lng": 77.28774489999999,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-49",
+    "name_en": "Sector 49",
+    "name_hi": "सेक्टर 49",
+    "lat": 28.3906353,
+    "lng": 77.271149,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-55",
+    "name_en": "Sector 55",
+    "name_hi": "सेक्टर 55",
+    "lat": 28.3450903,
+    "lng": 77.2946328,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-56",
+    "name_en": "Sector 56",
+    "name_hi": "सेक्टर 56",
+    "lat": 28.328708,
+    "lng": 77.2867456,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-62",
+    "name_en": "Sector 62",
+    "name_hi": "सेक्टर 62",
+    "lat": 28.3096315,
+    "lng": 77.3295708,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-64",
+    "name_en": "Sector 64",
+    "name_hi": "सेक्टर 64",
+    "lat": 28.3222028,
+    "lng": 77.3410569,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-65",
+    "name_en": "Sector 65",
+    "name_hi": "सेक्टर 65",
+    "lat": 28.3120113,
+    "lng": 77.3396212,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-75",
+    "name_en": "Sector 75",
+    "name_hi": "सेक्टर 75",
+    "lat": 28.368709,
+    "lng": 77.3467996,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-76",
+    "name_en": "Sector 76",
+    "name_hi": "सेक्टर 76",
+    "lat": 28.3697864,
+    "lng": 77.358284,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-77",
+    "name_en": "Sector 77",
+    "name_hi": "सेक्टर 77",
+    "lat": 28.3708628,
+    "lng": 77.3697672,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-78",
+    "name_en": "Sector 78",
+    "name_hi": "सेक्टर 78",
+    "lat": 28.3823656,
+    "lng": 77.36928879999999,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-79",
+    "name_en": "Sector 79",
+    "name_hi": "सेक्टर 79",
+    "lat": 28.3812767,
+    "lng": 77.358284,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-80",
+    "name_en": "Sector 80",
+    "name_hi": "सेक्टर 80",
+    "lat": 28.380199,
+    "lng": 77.3467996,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-81",
+    "name_en": "Sector 81",
+    "name_hi": "सेक्टर 81",
+    "lat": 28.3916882,
+    "lng": 77.3467996,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-82",
+    "name_en": "Sector 82",
+    "name_hi": "सेक्टर 82",
+    "lat": 28.3927662,
+    "lng": 77.358284,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-83",
+    "name_en": "Sector 83",
+    "name_hi": "सेक्टर 83",
+    "lat": 28.3938431,
+    "lng": 77.3697672,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-84",
+    "name_en": "Sector 84",
+    "name_hi": "सेक्टर 84",
+    "lat": 28.4053321,
+    "lng": 77.3697672,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-85",
+    "name_en": "Sector 85",
+    "name_hi": "सेक्टर 85",
+    "lat": 28.4047816,
+    "lng": 77.35597949999999,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-86",
+    "name_en": "Sector 86",
+    "name_hi": "सेक्टर 86",
+    "lat": 28.4038421,
+    "lng": 77.3467199,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-87",
+    "name_en": "Sector 87",
+    "name_hi": "सेक्टर 87",
+    "lat": 28.4215253,
+    "lng": 77.3395288,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-88",
+    "name_en": "Sector 88",
+    "name_hi": "सेक्टर 88",
+    "lat": 28.4214866,
+    "lng": 77.358284,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sector-89",
+    "name_en": "Sector 89",
+    "name_hi": "सेक्टर 89",
+    "lat": 28.4178524,
+    "lng": 77.36546109999999,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "nit-faridabad",
+    "name_en": "NIT Faridabad",
+    "name_hi": "एनआईटी फरीदाबाद",
+    "lat": 28.3922002,
+    "lng": 77.301675,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "nit-1",
+    "name_en": "NIT 1",
+    "name_hi": "एनआईटी 1",
+    "lat": 28.3816213,
+    "lng": 77.30085059999999,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "nit-2",
+    "name_en": "NIT 2",
+    "name_hi": "एनआईटी 2",
+    "lat": 28.3848187,
+    "lng": 77.2878755,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "nit-3",
+    "name_en": "NIT 3",
+    "name_hi": "एनआईटी 3",
+    "lat": 28.3989025,
+    "lng": 77.29111590000001,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "nit-5",
+    "name_en": "NIT 5",
+    "name_hi": "एनआईटी 5",
+    "lat": 28.4004238,
+    "lng": 77.30228679999999,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "old-faridabad",
+    "name_en": "Old Faridabad",
+    "name_hi": "ओल्ड फरीदाबाद",
+    "lat": 28.4221194,
+    "lng": 77.3257359,
+    "pincode": "121002"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "ballabhgarh",
+    "name_en": "Ballabhgarh",
+    "name_hi": "बल्लभगढ़",
+    "lat": 28.338774,
+    "lng": 77.3205629,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "greenfield-colony",
+    "name_en": "Greenfield Colony",
+    "name_hi": "ग्रीनफील्ड कॉलोनी",
+    "lat": 28.4625737,
+    "lng": 77.2891038,
+    "pincode": "121010"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "ashoka-enclave",
+    "name_en": "Ashoka Enclave",
+    "name_hi": "अशोका एन्क्लेव",
+    "lat": 28.4711134,
+    "lng": 77.3134367,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "charmwood-village",
+    "name_en": "Charmwood Village",
+    "name_hi": "चार्मवुड विलेज",
+    "lat": 28.4917218,
+    "lng": 77.2886424,
+    "pincode": "121009"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "surajkund",
+    "name_en": "Surajkund",
+    "name_hi": "सूरजकुंड",
+    "lat": 28.4842019,
+    "lng": 77.284176,
+    "pincode": "121009"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sainik-colony",
+    "name_en": "Sainik Colony",
+    "name_hi": "सैनिक कॉलोनी",
+    "lat": 28.3979841,
+    "lng": 77.2764329,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "spring-field-colony",
+    "name_en": "Spring Field Colony",
+    "name_hi": "स्प्रिंग फील्ड कॉलोनी",
+    "lat": 28.4525407,
+    "lng": 77.31449359999999,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "neharpar",
+    "name_en": "Neharpar",
+    "name_hi": "नेहरपार",
+    "lat": 28.4214347,
+    "lng": 77.33497919999999,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "greater-faridabad",
+    "name_en": "Greater Faridabad",
+    "name_hi": "ग्रेटर फरीदाबाद",
+    "lat": 28.4214347,
+    "lng": 77.33497919999999,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "bptp-parklands",
+    "name_en": "BPTP Parklands",
+    "name_hi": "बीपीटीपी पार्कलैंड्स",
+    "lat": 28.409812,
+    "lng": 77.36131189999999,
+    "pincode": "121004"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "ajronda",
+    "name_en": "Ajronda",
+    "name_hi": "अजरौंदा",
+    "lat": 28.3964259,
+    "lng": 77.3170066,
+    "pincode": "121007"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "bata-chowk",
+    "name_en": "Bata Chowk",
+    "name_hi": "बाटा चौक",
+    "lat": 28.3855534,
+    "lng": 77.3132354,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "neelam-bata-road",
+    "name_en": "Neelam Bata Road",
+    "name_hi": "नीलम बाटा रोड",
+    "lat": 28.3888521,
+    "lng": 77.3074495,
+    "pincode": "121001"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "mathura-road-faridabad",
+    "name_en": "Mathura Road Faridabad",
+    "name_hi": "मथुरा रोड फरीदाबाद",
+    "lat": 28.3903657,
+    "lng": 77.3126318,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "dlf-industrial-area-faridabad",
+    "name_en": "DLF Industrial Area Faridabad",
+    "name_hi": "डीएलएफ औद्योगिक क्षेत्र फरीदाबाद",
+    "lat": 28.4586615,
+    "lng": 77.3109035,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "sarai-khawaja",
+    "name_en": "Sarai Khawaja",
+    "name_hi": "सराय ख्वाजा",
+    "lat": 28.4791347,
+    "lng": 77.30731329999999,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "faridabad",
+    "slug": "anangpur",
+    "name_en": "Anangpur",
+    "name_hi": "अनंगपुर",
+    "lat": 28.4606029,
+    "lng": 77.2706868,
+    "pincode": "121003"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "indirapuram",
+    "name_en": "Indirapuram",
+    "name_hi": "इंदिरापुरम",
+    "lat": 28.6460176,
+    "lng": 77.3695166,
+    "pincode": "201014"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "vasundhara",
+    "name_en": "Vasundhara",
+    "name_hi": "वसुंधरा",
+    "lat": 28.6623758,
+    "lng": 77.37344,
+    "pincode": "201012"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "raj-nagar",
+    "name_en": "Raj Nagar",
+    "name_hi": "राज नगर",
+    "lat": 28.6826062,
+    "lng": 77.44740139999999,
+    "pincode": "201002"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "raj-nagar-extension",
+    "name_en": "Raj Nagar Extension",
+    "name_hi": "राज नगर एक्सटेंशन",
+    "lat": 28.7030425,
+    "lng": 77.430373,
+    "pincode": "201017"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "kavi-nagar",
+    "name_en": "Kavi Nagar",
+    "name_hi": "कवि नगर",
+    "lat": 28.6673204,
+    "lng": 77.4500042,
+    "pincode": "201002"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "nehru-nagar",
+    "name_en": "Nehru Nagar",
+    "name_hi": "नेहरू नगर",
+    "lat": 28.6534341,
+    "lng": 77.4443807,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "lohia-nagar",
+    "name_en": "Lohia Nagar",
+    "name_hi": "लोहिया नगर",
+    "lat": 28.6740045,
+    "lng": 77.4343394,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "shastri-nagar",
+    "name_en": "Shastri Nagar",
+    "name_hi": "शास्त्री नगर",
+    "lat": 28.6700383,
+    "lng": 77.46087519999999,
+    "pincode": "201002"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "govindpuram",
+    "name_en": "Govindpuram",
+    "name_hi": "गोविंदपुरम",
+    "lat": 28.6861583,
+    "lng": 77.49149349999999,
+    "pincode": "201013"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "sanjay-nagar",
+    "name_en": "Sanjay Nagar",
+    "name_hi": "संजय नगर",
+    "lat": 28.6939957,
+    "lng": 77.4549679,
+    "pincode": "201002"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "patel-nagar",
+    "name_en": "Patel Nagar",
+    "name_hi": "पटेल नगर",
+    "lat": 28.6736879,
+    "lng": 77.4243786,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "pratap-vihar",
+    "name_en": "Pratap Vihar",
+    "name_hi": "प्रताप विहार",
+    "lat": 28.6462685,
+    "lng": 77.4163299,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "vijay-nagar",
+    "name_en": "Vijay Nagar",
+    "name_hi": "विजय नगर",
+    "lat": 28.6461553,
+    "lng": 77.4241923,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "crossing-republik",
+    "name_en": "Crossing Republik",
+    "name_hi": "क्रॉसिंग रिपब्लिक",
+    "lat": 28.6299672,
+    "lng": 77.43507699999999,
+    "pincode": "201016"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "dundahera",
+    "name_en": "Dundahera",
+    "name_hi": "डूंडाहेड़ा",
+    "lat": 28.6351015,
+    "lng": 77.43922049999999,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "siddharth-vihar",
+    "name_en": "Siddharth Vihar",
+    "name_hi": "सिद्धार्थ विहार",
+    "lat": 28.6590525,
+    "lng": 77.4049277,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "lal-kuan",
+    "name_en": "Lal Kuan",
+    "name_hi": "लाल कुआं",
+    "lat": 28.6331684,
+    "lng": 77.4730653,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "wave-city",
+    "name_en": "Wave City",
+    "name_hi": "वेव सिटी",
+    "lat": 28.6535345,
+    "lng": 77.4996625,
+    "pincode": "201002"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "dasna",
+    "name_en": "Dasna",
+    "name_hi": "डासना",
+    "lat": 28.6807496,
+    "lng": 77.5218127,
+    "pincode": "201015"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "mohan-nagar",
+    "name_en": "Mohan Nagar",
+    "name_hi": "मोहन नगर",
+    "lat": 28.672818,
+    "lng": 77.3862836,
+    "pincode": "201007"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "arthala",
+    "name_en": "Arthala",
+    "name_hi": "अर्थला",
+    "lat": 28.6738477,
+    "lng": 77.3905711,
+    "pincode": "201007"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "sahibabad",
+    "name_en": "Sahibabad",
+    "name_hi": "साहिबाबाद",
+    "lat": 28.6795671,
+    "lng": 77.3595534,
+    "pincode": "201005"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "lajpat-nagar-sahibabad",
+    "name_en": "Lajpat Nagar Sahibabad",
+    "name_hi": "लाजपत नगर साहिबाबाद",
+    "lat": 28.6825594,
+    "lng": 77.36908749999999,
+    "pincode": "201005"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "rajendra-nagar-sahibabad",
+    "name_en": "Rajendra Nagar Sahibabad",
+    "name_hi": "राजेंद्र नगर साहिबाबाद",
+    "lat": 28.6866522,
+    "lng": 77.3701146,
+    "pincode": "201005"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "niti-khand",
+    "name_en": "Niti Khand",
+    "name_hi": "नीति खंड",
+    "lat": 28.6445808,
+    "lng": 77.36546109999999,
+    "pincode": "201014"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "nyay-khand",
+    "name_en": "Nyay Khand",
+    "name_hi": "न्याय खंड",
+    "lat": 28.6348932,
+    "lng": 77.35397739999999,
+    "pincode": "201014"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "gyan-khand",
+    "name_en": "Gyan Khand",
+    "name_hi": "ज्ञान खंड",
+    "lat": 28.6424415,
+    "lng": 77.3503886,
+    "pincode": "201014"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "shakti-khand",
+    "name_en": "Shakti Khand",
+    "name_hi": "शक्ति खंड",
+    "lat": 28.6468613,
+    "lng": 77.37072979999999,
+    "pincode": "201014"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "ahinsa-khand",
+    "name_en": "Ahinsa Khand",
+    "name_hi": "अहिंसा खंड",
+    "lat": 28.6433358,
+    "lng": 77.3826845,
+    "pincode": "201014"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "naya-ganj",
+    "name_en": "Naya Ganj",
+    "name_hi": "नया गंज",
+    "lat": 28.6650612,
+    "lng": 77.42699619999999,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "turab-nagar",
+    "name_en": "Turab Nagar",
+    "name_hi": "तुराब नगर",
+    "lat": 28.6597924,
+    "lng": 77.4338014,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "ambedkar-road",
+    "name_en": "Ambedkar Road",
+    "name_hi": "अंबेडकर रोड",
+    "lat": 28.6685479,
+    "lng": 77.4321848,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "model-town",
+    "name_en": "Model Town",
+    "name_hi": "मॉडल टाउन",
+    "lat": 28.6519639,
+    "lng": 77.43663219999999,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "chiranjiv-vihar",
+    "name_en": "Chiranjiv Vihar",
+    "name_hi": "चिरंजीव विहार",
+    "lat": 28.6688935,
+    "lng": 77.4716313,
+    "pincode": "201002"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "loha-mandi",
+    "name_en": "Loha Mandi",
+    "name_hi": "लोहा मंडी",
+    "lat": 28.6494866,
+    "lng": 77.4542783,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "bulandshahr-road-industrial-area",
+    "name_en": "Bulandshahr Road Industrial Area",
+    "name_hi": "बुलंदशहर रोड औद्योगिक क्षेत्र",
+    "lat": 28.6428044,
+    "lng": 77.45188329999999,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "maliwara",
+    "name_en": "Maliwara",
+    "name_hi": "मालीवाड़ा",
+    "lat": 28.668918,
+    "lng": 77.4336221,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "hapur-road",
+    "name_en": "Hapur Road",
+    "name_hi": "हापुड़ रोड",
+    "lat": 28.6754712,
+    "lng": 77.4639899,
+    "pincode": "201001"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "meerut-road-industrial-area",
+    "name_en": "Meerut Road Industrial Area",
+    "name_hi": "मेरठ रोड औद्योगिक क्षेत्र",
+    "lat": 28.6943878,
+    "lng": 77.44391879999999,
+    "pincode": "201003"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "avantika",
+    "name_en": "Avantika",
+    "name_hi": "अवंतिका",
+    "lat": 28.67597099999999,
+    "lng": 77.4859711,
+    "pincode": "201002"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "nandgram",
+    "name_en": "Nandgram",
+    "name_hi": "नंदग्राम",
+    "lat": 28.6903339,
+    "lng": 77.40789079999999,
+    "pincode": "201003"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "sehani-khurd",
+    "name_en": "Sehani Khurd",
+    "name_hi": "सेहानी खुर्द",
+    "lat": 28.69819739999999,
+    "lng": 77.41712369999999,
+    "pincode": "201003"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "morta",
+    "name_en": "Morta",
+    "name_hi": "मोर्टा",
+    "lat": 28.7262481,
+    "lng": 77.4534133,
+    "pincode": "201003"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "bamheta",
+    "name_en": "Bamheta",
+    "name_hi": "बम्हेटा",
+    "lat": 28.6460934,
+    "lng": 77.47857530000002,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "chipiyana-buzurg",
+    "name_en": "Chipiyana Buzurg",
+    "name_hi": "चिपियाना बुजुर्ग",
+    "lat": 28.6275162,
+    "lng": 77.453009,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "vaishali",
+    "name_en": "Vaishali",
+    "name_hi": "वैशाली",
+    "lat": 28.6429341,
+    "lng": 77.3401896,
+    "pincode": "201010"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "kaushambi",
+    "name_en": "Kaushambi",
+    "name_hi": "कौशांबी",
+    "lat": 28.6379035,
+    "lng": 77.32548369999999,
+    "pincode": "201010"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "shalimar-garden",
+    "name_en": "Shalimar Garden",
+    "name_hi": "शालीमार गार्डन",
+    "lat": 28.69048009999999,
+    "lng": 77.3360364,
+    "pincode": "201005"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "brij-vihar",
+    "name_en": "Brij Vihar",
+    "name_hi": "ब्रिज विहार",
+    "lat": 28.6705461,
+    "lng": 77.33674979999999,
+    "pincode": "201011"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "surya-nagar",
+    "name_en": "Surya Nagar",
+    "name_hi": "सूर्य नगर",
+    "lat": 28.6694598,
+    "lng": 77.33172449999999,
+    "pincode": "201011"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "chander-nagar",
+    "name_en": "Chander Nagar",
+    "name_hi": "चंदर नगर",
+    "lat": 28.664917,
+    "lng": 77.33028879999999,
+    "pincode": "201011"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "ramprastha",
+    "name_en": "Ramprastha",
+    "name_hi": "रामप्रस्था",
+    "lat": 28.6589969,
+    "lng": 77.32388259999999,
+    "pincode": "201011"
+  },
+  {
+    "city_slug": "ghaziabad",
+    "slug": "abhay-khand",
+    "name_en": "Abhay Khand",
+    "name_hi": "अभय खंड",
+    "lat": 28.6340801,
+    "lng": 77.3453639,
+    "pincode": "201014"
   }
 ]

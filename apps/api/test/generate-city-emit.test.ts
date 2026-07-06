@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   buildCityFiles,
   type DraftResult,
-  type VerifiedPlace,
+  type VerifiedPlace
 } from "../../../data/seeds/generate-city-helpers";
 
 const DRAFT: DraftResult = {
@@ -11,19 +11,19 @@ const DRAFT: DraftResult = {
       slug: "sector-62",
       name_en: "Sector 62",
       name_hi: "सेक्टर 62",
-      pincode: "201309",
+      pincode: "201309"
     },
     {
       slug: "ghost-area",
       name_en: "Ghost Area",
-      name_hi: "भूत क्षेत्र",
+      name_hi: "भूत क्षेत्र"
     },
     {
       // duplicate slug of a verified locality — should collapse to one
       slug: "sector-62",
       name_en: "Sector 62 Duplicate",
-      name_hi: "सेक्टर 62 डुप्लिकेट",
-    },
+      name_hi: "सेक्टर 62 डुप्लिकेट"
+    }
   ],
   micro_localities: [
     {
@@ -31,7 +31,7 @@ const DRAFT: DraftResult = {
       name_en: "Amrapali Society",
       name_hi: "आम्रपाली सोसाइटी",
       parent_slug: "sector-62",
-      seo_aliases: ["amrapali"],
+      seo_aliases: ["amrapali"]
     },
     {
       // parent_slug points at a locality that failed verification (ghost-area)
@@ -40,8 +40,8 @@ const DRAFT: DraftResult = {
       name_en: "Orphan Micro",
       name_hi: "अनाथ माइक्रो",
       parent_slug: "ghost-area",
-      seo_aliases: [],
-    },
+      seo_aliases: []
+    }
   ],
   landmarks: [
     {
@@ -50,28 +50,28 @@ const DRAFT: DraftResult = {
       name_hi: "एमिटी विश्वविद्यालय",
       type: "college",
       primary_locality_slug: "sector-62",
-      aka: ["Amity"],
-    },
-  ],
+      aka: ["Amity"]
+    }
+  ]
 };
 
 /** Verified places keyed by the exact query string the test expects. */
 const VERIFIED: Record<string, VerifiedPlace> = {
-  "Sector 62, Uttar Pradesh, India": {
+  "Sector 62, Noida, Uttar Pradesh, India": {
     canonical_name: "Sector 62, Noida, UP 201309, India",
     lat: 28.6266,
-    lng: 77.3723,
+    lng: 77.3723
   },
-  "Amrapali Society, Uttar Pradesh, India": {
+  "Amrapali Society, Noida, Uttar Pradesh, India": {
     canonical_name: "Amrapali Society, Noida",
     lat: 28.6111,
-    lng: 77.3688,
+    lng: 77.3688
   },
-  "Amity University, Uttar Pradesh, India": {
+  "Amity University, Noida, Uttar Pradesh, India": {
     canonical_name: "Amity University, Noida",
     lat: 28.5453,
-    lng: 77.3238,
-  },
+    lng: 77.3238
+  }
 };
 
 function makeFakeVerify() {
@@ -84,54 +84,60 @@ function makeFakeVerify() {
 }
 
 describe("generate-city-emit", () => {
-  it("queries verify with '<name_en>, <stateName>, India'", async () => {
+  it("queries verify with '<name_en>, <cityName>, <stateName>, India'", async () => {
     const { verify, calls } = makeFakeVerify();
     await buildCityFiles("Noida", "Uttar Pradesh", "noida", DRAFT, verify);
 
-    expect(calls).toContain("Sector 62, Uttar Pradesh, India");
-    expect(calls).toContain("Amrapali Society, Uttar Pradesh, India");
-    expect(calls).toContain("Amity University, Uttar Pradesh, India");
+    expect(calls).toContain("Sector 62, Noida, Uttar Pradesh, India");
+    expect(calls).toContain("Amrapali Society, Noida, Uttar Pradesh, India");
+    expect(calls).toContain("Amity University, Noida, Uttar Pradesh, India");
     // never queries by slug
     expect(calls.some((c) => c.includes("sector-62,"))).toBe(false);
   });
 
+  it("drops geocodes outside the supported city bounds", async () => {
+    const draft: DraftResult = {
+      localities: [
+        {
+          slug: "sector-62",
+          name_en: "Sector 62",
+          name_hi: "सेक्टर 62"
+        }
+      ],
+      micro_localities: [],
+      landmarks: []
+    };
+    const verify = vi.fn(
+      async (): Promise<VerifiedPlace> => ({
+        canonical_name: "Sector 62, Gurugram, Haryana, India",
+        lat: 28.3971448,
+        lng: 77.0866646
+      })
+    );
+
+    const result = await buildCityFiles("Noida", "Uttar Pradesh", "noida", draft, verify);
+
+    expect(result.localities).toEqual([]);
+    expect(result.dropped).toContain("locality:sector-62");
+  });
+
   it("drops an unverifiable locality and records it in dropped", async () => {
     const { verify } = makeFakeVerify();
-    const result = await buildCityFiles(
-      "Noida",
-      "Uttar Pradesh",
-      "noida",
-      DRAFT,
-      verify
-    );
+    const result = await buildCityFiles("Noida", "Uttar Pradesh", "noida", DRAFT, verify);
     expect(result.dropped).toContain("locality:ghost-area");
     expect(result.localities.find((l) => l.slug === "ghost-area")).toBeUndefined();
   });
 
   it("drops a micro whose parent_slug was not among surviving localities", async () => {
     const { verify } = makeFakeVerify();
-    const result = await buildCityFiles(
-      "Noida",
-      "Uttar Pradesh",
-      "noida",
-      DRAFT,
-      verify
-    );
+    const result = await buildCityFiles("Noida", "Uttar Pradesh", "noida", DRAFT, verify);
     expect(result.dropped).toContain("micro:orphan-micro");
-    expect(
-      result.micro_localities.find((m) => m.slug === "orphan-micro")
-    ).toBeUndefined();
+    expect(result.micro_localities.find((m) => m.slug === "orphan-micro")).toBeUndefined();
   });
 
   it("emits loader-shaped locality/micro/landmark objects with verified lat/lng", async () => {
     const { verify } = makeFakeVerify();
-    const result = await buildCityFiles(
-      "Noida",
-      "Uttar Pradesh",
-      "noida",
-      DRAFT,
-      verify
-    );
+    const result = await buildCityFiles("Noida", "Uttar Pradesh", "noida", DRAFT, verify);
 
     const locality = result.localities.find((l) => l.slug === "sector-62");
     expect(locality).toMatchObject({
@@ -141,19 +147,17 @@ describe("generate-city-emit", () => {
       name_hi: "सेक्टर 62",
       pincode: "201309",
       lat: 28.6266,
-      lng: 77.3723,
+      lng: 77.3723
     });
 
-    const micro = result.micro_localities.find(
-      (m) => m.slug === "amrapali-society"
-    );
+    const micro = result.micro_localities.find((m) => m.slug === "amrapali-society");
     expect(micro).toMatchObject({
       slug: "amrapali-society",
       name_en: "Amrapali Society",
       name_hi: "आम्रपाली सोसाइटी",
       lat: 28.6111,
       lng: 77.3688,
-      seo_aliases: ["amrapali"],
+      seo_aliases: ["amrapali"]
     });
 
     const landmark = result.landmarks.find((l) => l.slug === "amity-university");
@@ -163,7 +167,7 @@ describe("generate-city-emit", () => {
       type: "college",
       lat: 28.5453,
       lng: 77.3238,
-      aka: ["Amity"],
+      aka: ["Amity"]
     });
   });
 
@@ -173,47 +177,35 @@ describe("generate-city-emit", () => {
         {
           slug: "sector-62",
           name_en: "Sector 62",
-          name_hi: "सेक्टर 62",
-        },
+          name_hi: "सेक्टर 62"
+        }
       ],
       micro_localities: [
         {
           slug: "amrapali-society",
           name_en: "Amrapali Society",
           name_hi: "आम्रपाली सोसाइटी",
-          parent_slug: "sector-62",
-        },
+          parent_slug: "sector-62"
+        }
       ],
       landmarks: [
         {
           slug: "amity-university",
           name_en: "Amity University",
           name_hi: "एमिटी विश्वविद्यालय",
-          type: "college",
-        },
-      ],
+          type: "college"
+        }
+      ]
     };
     const { verify } = makeFakeVerify();
-    const result = await buildCityFiles(
-      "Noida",
-      "Uttar Pradesh",
-      "noida",
-      draftNoDefaults,
-      verify
-    );
+    const result = await buildCityFiles("Noida", "Uttar Pradesh", "noida", draftNoDefaults, verify);
     expect(result.micro_localities[0].seo_aliases).toEqual([]);
     expect(result.landmarks[0].aka).toEqual([]);
   });
 
   it("is idempotent on slug (duplicate verified localities collapse to one)", async () => {
     const { verify } = makeFakeVerify();
-    const result = await buildCityFiles(
-      "Noida",
-      "Uttar Pradesh",
-      "noida",
-      DRAFT,
-      verify
-    );
+    const result = await buildCityFiles("Noida", "Uttar Pradesh", "noida", DRAFT, verify);
     const matches = result.localities.filter((l) => l.slug === "sector-62");
     expect(matches).toHaveLength(1);
   });

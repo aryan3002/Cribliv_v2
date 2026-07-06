@@ -173,6 +173,38 @@ export interface VerifiedPlace {
   lng: number;
 }
 
+export interface CityBounds {
+  sw_lat: number;
+  sw_lng: number;
+  ne_lat: number;
+  ne_lng: number;
+}
+
+const CITY_BOUNDS: Record<string, CityBounds> = {
+  delhi: { sw_lat: 28.4, sw_lng: 76.84, ne_lat: 28.88, ne_lng: 77.35 },
+  gurugram: { sw_lat: 28.35, sw_lng: 76.84, ne_lat: 28.55, ne_lng: 77.13 },
+  noida: { sw_lat: 28.4, sw_lng: 77.3, ne_lat: 28.65, ne_lng: 77.55 },
+  ghaziabad: { sw_lat: 28.6, sw_lng: 77.28, ne_lat: 28.78, ne_lng: 77.55 },
+  faridabad: { sw_lat: 28.3, sw_lng: 77.25, ne_lat: 28.5, ne_lng: 77.42 },
+  chandigarh: { sw_lat: 30.65, sw_lng: 76.7, ne_lat: 30.82, ne_lng: 76.86 },
+  jaipur: { sw_lat: 26.78, sw_lng: 75.7, ne_lat: 27.01, ne_lng: 75.93 },
+  lucknow: { sw_lat: 26.7, sw_lng: 80.8, ne_lat: 26.95, ne_lng: 81.1 }
+};
+
+export function getCityBounds(citySlug: string): CityBounds | null {
+  return CITY_BOUNDS[citySlug.toLowerCase()] ?? null;
+}
+
+export function isWithinCityBounds(place: VerifiedPlace, bounds: CityBounds | null): boolean {
+  if (!bounds) return true;
+  return (
+    place.lat >= bounds.sw_lat &&
+    place.lat <= bounds.ne_lat &&
+    place.lng >= bounds.sw_lng &&
+    place.lng <= bounds.ne_lng
+  );
+}
+
 // ─── OUTPUT INTERFACES ──────────────────────────────────────────────────
 
 export interface LocalityOut {
@@ -606,7 +638,8 @@ export async function buildCityFiles(
   draft: DraftResult,
   verify: (query: string) => Promise<VerifiedPlace | null>
 ): Promise<CityFiles> {
-  const q = (name: string) => `${name}, ${stateName}, India`; // strong disambiguation (Review 4 MAJOR 3)
+  const q = (name: string) => `${name}, ${cityName}, ${stateName}, India`;
+  const cityBounds = getCityBounds(citySlug);
   const dropped: string[] = [];
   const localities: LocalityOut[] = [];
   const micro_localities: MicroLocalityOut[] = [];
@@ -614,7 +647,7 @@ export async function buildCityFiles(
 
   for (const cand of dedupeBySlug(draft.localities)) {
     const v = await verify(q(cand.name_en));
-    if (!v) {
+    if (!v || !isWithinCityBounds(v, cityBounds)) {
       dropped.push(`locality:${cand.slug}`);
       continue;
     }
@@ -628,7 +661,7 @@ export async function buildCityFiles(
       continue;
     } // Review 4 MAJOR 5
     const v = await verify(q(cand.name_en));
-    if (!v) {
+    if (!v || !isWithinCityBounds(v, cityBounds)) {
       dropped.push(`micro:${cand.slug}`);
       continue;
     }
@@ -637,7 +670,7 @@ export async function buildCityFiles(
 
   for (const cand of dedupeBySlug(draft.landmarks)) {
     const v = await verify(q(cand.name_en));
-    if (!v) {
+    if (!v || !isWithinCityBounds(v, cityBounds)) {
       dropped.push(`landmark:${cand.slug}`);
       continue;
     }

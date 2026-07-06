@@ -29,7 +29,7 @@ export const CITY_BBOXES: Record<string, CityBBox> = {
     ne: { lat: 28.65, lng: 77.55 }
   },
   ghaziabad: {
-    sw: { lat: 28.6, lng: 77.35 },
+    sw: { lat: 28.6, lng: 77.28 },
     ne: { lat: 28.78, lng: 77.55 }
   },
   faridabad: {
