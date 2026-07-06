@@ -15,7 +15,8 @@
     "db:seed": "pnpm --filter @cribliv/api db:seed",
     "seed:reference": "pnpm --filter @cribliv/api seed:reference",
     "worker": "pnpm --filter @cribliv/api worker",
-    "generate:city": "pnpm --filter @cribliv/api generate:city --"
+    "generate:city": "pnpm --filter @cribliv/api generate:city --",
+    "load:city": "pnpm --filter @cribliv/api load:city --"
   },
   "devDependencies": {
     "husky": "^9.1.6",
