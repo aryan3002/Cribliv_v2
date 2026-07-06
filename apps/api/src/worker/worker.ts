@@ -9,6 +9,12 @@ import { GoogleServiceAuth } from "../modules/seo/google/google-service-auth";
 import { IndexingService } from "../modules/seo/indexing.service";
 import { GscService } from "../modules/seo/gsc.service";
 import { readFeatureFlags } from "../config/feature-flags";
+import {
+  blogFlagEnabled,
+  runBlogEmbedSweep,
+  runBlogGenerator,
+  runBlogTopicPlanner
+} from "./blog-worker";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const REFUND_BATCH_SIZE = 100;
@@ -32,6 +38,9 @@ const PG_LEAD_AUTO_LOST_MS = 24 * 60 * 60 * 1000; // daily — auto-close unatte
 const PG_LEAD_AUTO_LOST_DAYS = 30; // PG lead untouched this long → moved to 'lost'
 const INDEXING_SUBMITTER_MS = 15 * 60 * 1000; // every 15 min
 const GSC_POLLER_MS = 7 * 24 * 60 * 60 * 1000; // weekly
+const BLOG_PLANNER_MS = 7 * 24 * 60 * 60 * 1000; // weekly
+const BLOG_GENERATOR_MS = 24 * 60 * 60 * 1000; // daily
+const BLOG_EMBED_SWEEP_MS = 5 * 60 * 1000; // every 5 minutes
 const DEFAULT_GOOGLE_INDEXING_DAILY_QUOTA = 200;
 
 // ── PG fraud sweep ──────────────────────────────────────────────────────────
@@ -497,6 +506,7 @@ export async function runOutboundDispatchDb(
         FROM outbound_events
         WHERE status = 'pending'
           AND next_attempt_at <= now()
+          AND event_type <> 'seo.embed_blog'
         ORDER BY created_at ASC
         FOR UPDATE SKIP LOCKED
         LIMIT $1
@@ -1684,6 +1694,88 @@ async function run() {
     };
     setInterval(runGscPoller, GSC_POLLER_MS);
     void runGscPoller();
+
+    // ── Blog topic planner (weekly, gated by FF_SEO_BLOG) ──
+    const runBlogPlanner = async () => {
+      if (!blogFlagEnabled()) return;
+      try {
+        const result = await runBlogTopicPlanner(pool);
+        if (result.created > 0) {
+          console.log(
+            JSON.stringify({
+              job: "blog_topic_planner",
+              created: result.created,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "blog_topic_planner",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runBlogPlanner, BLOG_PLANNER_MS);
+
+    // ── Blog generator (daily, gated by FF_SEO_BLOG). Writes drafts only. ──
+    const runBlogGen = async () => {
+      if (!blogFlagEnabled()) return;
+      try {
+        const result = await runBlogGenerator(pool, 3);
+        if (result.drafted > 0 || result.needsAttention > 0) {
+          console.log(
+            JSON.stringify({
+              job: "blog_generator",
+              drafted: result.drafted,
+              needs_attention: result.needsAttention,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "blog_generator",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runBlogGen, BLOG_GENERATOR_MS);
+
+    // ── Blog embed sweep (every 5 min, gated) ──
+    const runBlogEmbed = async () => {
+      if (!blogFlagEnabled()) return;
+      try {
+        const result = await runBlogEmbedSweep(pool, 25);
+        if (result.embedded > 0) {
+          console.log(
+            JSON.stringify({
+              job: "blog_embed_sweep",
+              embedded: result.embedded,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/relation .* does not exist/i.test(message)) {
+          console.error(
+            JSON.stringify({
+              job: "blog_embed_sweep",
+              error: message,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      }
+    };
+    setInterval(runBlogEmbed, BLOG_EMBED_SWEEP_MS);
   }
 
   console.log(
@@ -1705,7 +1797,10 @@ async function run() {
         "pg_fraud_sweep",
         "pg_lead_auto_lost_sweep",
         "indexing_submitter",
-        "gsc_poller"
+        "gsc_poller",
+        "blog_topic_planner",
+        "blog_generator",
+        "blog_embed_sweep"
       ],
       mode: pool ? "db" : "in_memory",
       whatsapp_enabled: whatsAppEnabled,
@@ -1720,7 +1815,10 @@ async function run() {
         seeker_pin_cleanup: SEEKER_PIN_CLEANUP_MS,
         alert_zone_sweep: ALERT_ZONE_SWEEP_MS,
         indexing_submitter: INDEXING_SUBMITTER_MS,
-        gsc_poller: GSC_POLLER_MS
+        gsc_poller: GSC_POLLER_MS,
+        blog_topic_planner: BLOG_PLANNER_MS,
+        blog_generator: BLOG_GENERATOR_MS,
+        blog_embed_sweep: BLOG_EMBED_SWEEP_MS
       }
     })
   );

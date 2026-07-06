@@ -7,6 +7,10 @@ import { BlogTopicPlannerService } from "../modules/blog/blog-topic-planner.serv
 import { BlogService } from "../modules/blog/blog.service";
 import { SeoAggregatesService } from "../modules/seo/seo-aggregates.service";
 
+export function blogFlagEnabled(): boolean {
+  return ["1", "true", "yes", "on"].includes((process.env.FF_SEO_BLOG ?? "").trim().toLowerCase());
+}
+
 export type PoolLike = {
   query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[]; rowCount?: number }>;
 };
