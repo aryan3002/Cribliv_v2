@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { SeoAggregatesService } from "./seo-aggregates.service";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { IndexingService } from "./indexing.service";
 
 export const INDEXABLE_MIN = 3;
 
@@ -35,7 +36,8 @@ export interface RefreshedCounts {
 export class SeoCityConfigService {
   constructor(
     private readonly database: DatabaseService,
-    private readonly aggregates: SeoAggregatesService
+    private readonly aggregates: SeoAggregatesService,
+    private readonly indexing: IndexingService
   ) {}
 
   async listEnabled(): Promise<SeoCityConfigRow[]> {
@@ -180,6 +182,12 @@ export class SeoCityConfigService {
         });
       }
       throw err;
+    }
+
+    if (enabled && rows[0]) {
+      for (const locale of ["en", "hi"] as const) {
+        this.indexing.enqueue(`/${locale}/city/${citySlug}`, "city_enabled").catch(() => undefined);
+      }
     }
 
     return rows[0] ?? null;

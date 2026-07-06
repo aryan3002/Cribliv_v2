@@ -20,6 +20,7 @@ describe("SeoCityConfigService", () => {
     localitiesForCity: ReturnType<typeof vi.fn>;
     metroStationsForCity: ReturnType<typeof vi.fn>;
   };
+  let indexing: { enqueue: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     query = vi.fn();
@@ -31,11 +32,16 @@ describe("SeoCityConfigService", () => {
       ]),
       metroStationsForCity: vi.fn(async () => [{ id: 1 }, { id: 2 }])
     };
+    indexing = { enqueue: vi.fn(async () => null) };
   });
 
   it("returns empty lists without querying when DB is disabled", async () => {
     database = { isEnabled: () => false, query };
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     await expect(service.listEnabled()).resolves.toEqual([]);
     await expect(service.listAllWithCounts()).resolves.toEqual([]);
@@ -45,7 +51,11 @@ describe("SeoCityConfigService", () => {
 
   it("returns null from setEnabled without querying when DB is disabled", async () => {
     database = { isEnabled: () => false, query };
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     await expect(service.setEnabled("noida", true, "reviewed")).resolves.toBeNull();
 
@@ -54,7 +64,11 @@ describe("SeoCityConfigService", () => {
 
   it("lists enabled city config rows without joining cities", async () => {
     query.mockResolvedValueOnce({ rows: [ENABLED_ROW] });
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     await expect(service.listEnabled()).resolves.toEqual([ENABLED_ROW]);
 
@@ -69,7 +83,11 @@ describe("SeoCityConfigService", () => {
     const original = process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED;
     process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED = "false";
     try {
-      const service = new SeoCityConfigService(database as never, aggregates as never);
+      const service = new SeoCityConfigService(
+        database as never,
+        aggregates as never,
+        indexing as never
+      );
 
       await expect(service.listEnabled()).resolves.toEqual([]);
 
@@ -95,7 +113,11 @@ describe("SeoCityConfigService", () => {
     query
       .mockResolvedValueOnce({ rows: [baseRow] })
       .mockResolvedValueOnce({ rows: [{ count: 4 }] });
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     await expect(service.listAllWithCounts()).resolves.toEqual([
       {
@@ -142,7 +164,11 @@ describe("SeoCityConfigService", () => {
     query
       .mockResolvedValueOnce({ rows: [neverToggledRow] })
       .mockResolvedValueOnce({ rows: [{ count: 4 }] });
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     const [result] = await service.listAllWithCounts();
 
@@ -154,7 +180,11 @@ describe("SeoCityConfigService", () => {
 
   it("computes indexable counts from locality listing counts and counts landmarks", async () => {
     query.mockResolvedValueOnce({ rows: [{ count: 4 }] });
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     await expect(service.computeCounts("lucknow")).resolves.toEqual({
       locality_count: 2,
@@ -172,7 +202,11 @@ describe("SeoCityConfigService", () => {
     query
       .mockResolvedValueOnce({ rows: [{ count: 4 }] })
       .mockResolvedValueOnce({ rows: [ENABLED_ROW] });
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     await expect(service.setEnabled("noida", true, "reviewed")).resolves.toEqual(ENABLED_ROW);
 
@@ -186,10 +220,62 @@ describe("SeoCityConfigService", () => {
   it("maps an unknown city (FK violation) to NotFoundException, not a raw 500", async () => {
     const fkError = Object.assign(new Error("violates foreign key constraint"), { code: "23503" });
     query.mockResolvedValueOnce({ rows: [{ count: 0 }] }).mockRejectedValueOnce(fkError);
-    const service = new SeoCityConfigService(database as never, aggregates as never);
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
 
     await expect(service.setEnabled("does-not-exist", true, "x")).rejects.toBeInstanceOf(
       NotFoundException
     );
+  });
+
+  it("enqueues the city hub URL (en + hi) for fast indexing when enabling a city", async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ count: 4 }] })
+      .mockResolvedValueOnce({ rows: [ENABLED_ROW] });
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
+
+    await service.setEnabled("noida", true, "reviewed");
+
+    expect(indexing.enqueue).toHaveBeenCalledTimes(2);
+    expect(indexing.enqueue).toHaveBeenCalledWith("/en/city/noida", "city_enabled");
+    expect(indexing.enqueue).toHaveBeenCalledWith("/hi/city/noida", "city_enabled");
+  });
+
+  it("does NOT enqueue indexing when disabling a city", async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ count: 4 }] })
+      .mockResolvedValueOnce({ rows: [{ ...ENABLED_ROW, programmatic_enabled: false }] });
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
+
+    await service.setEnabled("noida", false, "paused");
+
+    expect(indexing.enqueue).not.toHaveBeenCalled();
+  });
+
+  it("does not let an indexing enqueue failure break the city toggle response", async () => {
+    query
+      .mockResolvedValueOnce({ rows: [{ count: 4 }] })
+      .mockResolvedValueOnce({ rows: [ENABLED_ROW] });
+    indexing.enqueue = vi.fn(async () => {
+      throw new Error("db blip");
+    });
+    const service = new SeoCityConfigService(
+      database as never,
+      aggregates as never,
+      indexing as never
+    );
+
+    await expect(service.setEnabled("noida", true, "reviewed")).resolves.toEqual(ENABLED_ROW);
   });
 });
