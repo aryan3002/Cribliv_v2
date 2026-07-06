@@ -6,6 +6,7 @@ import { SeoCopyService } from "./seo-copy.service";
 import { GoogleServiceAuth } from "./google/google-service-auth";
 import { IndexingService } from "./indexing.service";
 import { GscService } from "./gsc.service";
+import { SeoSearchService } from "./seo-search.service";
 
 @Module({
   controllers: [SeoController],
@@ -15,7 +16,8 @@ import { GscService } from "./gsc.service";
     SeoCopyService,
     GoogleServiceAuth,
     IndexingService,
-    GscService
+    GscService,
+    SeoSearchService
   ],
   exports: [
     SeoAggregatesService,
@@ -23,7 +25,8 @@ import { GscService } from "./gsc.service";
     SeoCopyService,
     GoogleServiceAuth,
     IndexingService,
-    GscService
+    GscService,
+    SeoSearchService
   ]
 })
 export class SeoModule {}
