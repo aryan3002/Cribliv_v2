@@ -18,17 +18,25 @@ function rollback(name: string): string {
   return readFileSync(join(MIG, `${name}.rollback.sql`), "utf8");
 }
 
+async function cleanBlogTables(client: Client): Promise<void> {
+  await client.query(rollback(EMBEDDINGS)).catch(() => undefined);
+  await client.query(rollback(BRIEFS)).catch(() => undefined);
+  await client.query(rollback(POSTS)).catch(() => undefined);
+  await client.query(rollback(CATEGORIES)).catch(() => undefined);
+}
+
 describe.runIf(!!TEST_DB)("blog migrations", () => {
   let client: Client;
 
   beforeAll(async () => {
     client = new Client({ connectionString: TEST_DB! });
     await client.connect();
+    await cleanBlogTables(client);
     await client.query(sql(CATEGORIES));
   });
 
   afterAll(async () => {
-    await client.query(rollback(CATEGORIES));
+    await cleanBlogTables(client);
     await client.end();
   });
 
@@ -63,13 +71,13 @@ describe.runIf(!!TEST_DB)("blog_posts migration", () => {
   beforeAll(async () => {
     client = new Client({ connectionString: TEST_DB! });
     await client.connect();
+    await cleanBlogTables(client);
     await client.query(sql(CATEGORIES));
     await client.query(sql(POSTS));
   });
 
   afterAll(async () => {
-    await client.query(rollback(POSTS));
-    await client.query(rollback(CATEGORIES));
+    await cleanBlogTables(client);
     await client.end();
   });
 
@@ -133,5 +141,84 @@ describe.runIf(!!TEST_DB)("blog_posts migration", () => {
     expect(idxNames).toMatch(/status/);
     expect(idxNames).toMatch(/target_keyword/);
     expect(idxNames).toMatch(/city_slug/);
+  });
+});
+
+describe.runIf(!!TEST_DB)("blog_briefs migration", () => {
+  let client: Client;
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DB! });
+    await client.connect();
+    await cleanBlogTables(client);
+    await client.query(sql(BRIEFS));
+  });
+
+  afterAll(async () => {
+    await cleanBlogTables(client);
+    await client.end();
+  });
+
+  it("creates blog_briefs with source/status checks and jsonb columns", async () => {
+    const cols = await client.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = 'blog_briefs'`
+    );
+    const names = cols.rows.map((r) => r.column_name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "id",
+        "target_keyword",
+        "intent",
+        "outline",
+        "required_data",
+        "internal_link_targets",
+        "source",
+        "status",
+        "city_slug",
+        "created_at"
+      ])
+    );
+    const bad = client.query(
+      `INSERT INTO blog_briefs (target_keyword, source, status) VALUES ('k', 'bogus', 'pending')`
+    );
+    await expect(bad).rejects.toThrow();
+
+    const good = await client.query(
+      `INSERT INTO blog_briefs (target_keyword, source) VALUES ('2bhk rent noida', 'gsc_quickwin')
+       RETURNING status, outline`
+    );
+    expect(good.rows[0].status).toBe("pending");
+    expect(good.rows[0].outline).toEqual([]);
+  });
+});
+
+describe.runIf(!!TEST_DB)("blog_embeddings migration", () => {
+  let client: Client;
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: TEST_DB! });
+    await client.connect();
+    await cleanBlogTables(client);
+    await client.query(sql(CATEGORIES));
+    await client.query(sql(POSTS));
+    await client.query(sql(EMBEDDINGS));
+  });
+
+  afterAll(async () => {
+    await cleanBlogTables(client);
+    await client.end();
+  });
+
+  it("creates blog_embeddings keyed by blog_post_id when pgvector is present", async () => {
+    const hasVector = await client.query(`SELECT 1 FROM pg_extension WHERE extname = 'vector'`);
+    if (hasVector.rowCount === 0) return;
+
+    const tbl = await client.query(`SELECT to_regclass('public.blog_embeddings') AS t`);
+    expect(tbl.rows[0].t).toBe("blog_embeddings");
+
+    const idx = await client.query(
+      `SELECT indexdef FROM pg_indexes WHERE tablename = 'blog_embeddings'`
+    );
+    expect(idx.rows.map((r) => r.indexdef).join(" ")).toMatch(/hnsw/i);
   });
 });
