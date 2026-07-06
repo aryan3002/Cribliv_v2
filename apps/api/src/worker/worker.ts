@@ -5,6 +5,9 @@ import { WhatsAppClient } from "../modules/notifications/whatsapp.client";
 import { NotificationService } from "../modules/notifications/notification.service";
 import { PgScoreService } from "../modules/pg-operator/services/pg-score.service";
 import type { DatabaseService } from "../common/database.service";
+import { GoogleServiceAuth } from "../modules/seo/google/google-service-auth";
+import { IndexingService } from "../modules/seo/indexing.service";
+import { readFeatureFlags } from "../config/feature-flags";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const REFUND_BATCH_SIZE = 100;
@@ -26,6 +29,8 @@ const SEO_COPY_SWEEP_MS = 6 * 60 * 60 * 1000; // every 6 hours
 const PG_TTL_SWEEP_MS = 24 * 60 * 60 * 1000; // daily — expire pg_voice_agent_sessions + uncommitted pg_listing_drafts
 const PG_LEAD_AUTO_LOST_MS = 24 * 60 * 60 * 1000; // daily — auto-close unattended PG leads
 const PG_LEAD_AUTO_LOST_DAYS = 30; // PG lead untouched this long → moved to 'lost'
+const INDEXING_SUBMITTER_MS = 15 * 60 * 1000; // every 15 min
+const DEFAULT_GOOGLE_INDEXING_DAILY_QUOTA = 200;
 
 // ── PG fraud sweep ──────────────────────────────────────────────────────────
 // Runs priceAnomaly + contactReuse + scamText signals over PG listings
@@ -215,6 +220,37 @@ async function runSeoCopySweep(pool: Pool): Promise<number> {
   // most programmatic URLs only get a few hits per month.
   const { rowCount } = await pool.query(`DELETE FROM seo_page_copy WHERE expires_at < now()`);
   return rowCount ?? 0;
+}
+
+export async function runIndexingSubmitterJob(
+  pool: Pool
+): Promise<{ submitted: number; failed: number; skippedQuota: number }> {
+  try {
+    if (!readFeatureFlags().ff_seo_indexing) {
+      return { submitted: 0, failed: 0, skippedQuota: 0 };
+    }
+
+    const adapter = {
+      isEnabled: () => true,
+      query: (text: string, params?: unknown[]) => pool.query(text, params)
+    } as unknown as DatabaseService;
+    const auth = new GoogleServiceAuth();
+    const service = new IndexingService(adapter, auth);
+
+    const quota =
+      Number(process.env.GOOGLE_INDEXING_DAILY_QUOTA) || DEFAULT_GOOGLE_INDEXING_DAILY_QUOTA;
+    const submittedToday = await service.submittedCountToday();
+    return await service.drainPending(quota, submittedToday);
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        job: "indexing_submitter",
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      })
+    );
+    return { submitted: 0, failed: 0, skippedQuota: 0 };
+  }
 }
 
 async function runRefundSweepDb(pool: Pool) {
@@ -407,7 +443,7 @@ async function dispatchWhatsAppEvent(
   );
 }
 
-async function runOutboundDispatchDb(
+export async function runOutboundDispatchDb(
   pool: Pool,
   crmWebhookUrl: string | undefined,
   whatsAppClient?: WhatsAppClient
@@ -462,6 +498,9 @@ async function runOutboundDispatchDb(
                 timestamp: new Date().toISOString()
               })
             );
+          } else if (event.event_type === "seo.queue_indexing") {
+            // The actual seo_indexing_queue insert already happened
+            // synchronously. This outbound event is an audit marker only.
           } else if (crmWebhookUrl) {
             // Dispatch via CRM webhook
             await postOutboundEvent(crmWebhookUrl, event);
@@ -1559,6 +1598,34 @@ async function run() {
     setInterval(runPgLeadAutoLost, PG_LEAD_AUTO_LOST_MS);
     // Run once at boot too:
     void runPgLeadAutoLost();
+
+    // ── Indexing API submitter (every 15 min, gated by FF_SEO_INDEXING) ──
+    const runIndexingSubmitter = async () => {
+      try {
+        const result = await runIndexingSubmitterJob(pool);
+        if (result.submitted > 0 || result.failed > 0 || result.skippedQuota > 0) {
+          console.log(
+            JSON.stringify({
+              job: "indexing_submitter",
+              submitted_count: result.submitted,
+              failed_count: result.failed,
+              skipped_quota_count: result.skippedQuota,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "indexing_submitter",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    };
+    setInterval(runIndexingSubmitter, INDEXING_SUBMITTER_MS);
+    void runIndexingSubmitter();
   }
 
   console.log(
@@ -1578,7 +1645,8 @@ async function run() {
         "alert_zone_sweep",
         "seo_copy_sweep",
         "pg_fraud_sweep",
-        "pg_lead_auto_lost_sweep"
+        "pg_lead_auto_lost_sweep",
+        "indexing_submitter"
       ],
       mode: pool ? "db" : "in_memory",
       whatsapp_enabled: whatsAppEnabled,
@@ -1591,13 +1659,16 @@ async function run() {
         subscription_renewal_sweep: SUBSCRIPTION_RENEWAL_MS,
         saved_search_alert_sweep: SAVED_SEARCH_ALERT_MS,
         seeker_pin_cleanup: SEEKER_PIN_CLEANUP_MS,
-        alert_zone_sweep: ALERT_ZONE_SWEEP_MS
+        alert_zone_sweep: ALERT_ZONE_SWEEP_MS,
+        indexing_submitter: INDEXING_SUBMITTER_MS
       }
     })
   );
 }
 
-run().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (require.main === module) {
+  run().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
