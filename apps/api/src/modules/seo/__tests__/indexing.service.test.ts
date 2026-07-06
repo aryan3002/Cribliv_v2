@@ -53,6 +53,18 @@ describe("IndexingService", () => {
       expect(sql).toContain("status = 'pending'");
       expect(params).toEqual(["https://cribliv.com/a", "new_listing"]);
     });
+
+    it("normalizes a site-relative path to an absolute URL before storing", async () => {
+      // The Indexing API rejects relative URLs; enqueue must absolutize any
+      // path callers pass (e.g. the city-enable and listing-approval paths).
+      query.mockResolvedValueOnce({ rows: [] });
+      const service = new IndexingService(database as never, auth as never, fetchMock as never);
+
+      await service.enqueue("/en/city/noida", "city_enabled");
+
+      const [, params] = query.mock.calls[0];
+      expect(params).toEqual(["https://cribliv.com/en/city/noida", "city_enabled"]);
+    });
   });
 
   describe("drainPending", () => {

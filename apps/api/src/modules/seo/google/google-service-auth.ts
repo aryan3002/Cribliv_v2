@@ -15,6 +15,9 @@ interface CachedToken {
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const EXPIRY_SAFETY_MARGIN_MS = 5 * 60 * 1000;
+// Bound the token exchange so a hung socket can't stall the worker job that
+// awaits it (the callers wrap getAccessToken in their own try/catch).
+const FETCH_TIMEOUT_MS = 10_000;
 
 function base64url(input: Buffer | string): string {
   const buf = typeof input === "string" ? Buffer.from(input) : input;
@@ -47,7 +50,8 @@ export class GoogleServiceAuth {
     const response = await this.fetchImpl(TOKEN_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString()
+      body: body.toString(),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
     });
 
     if (!response.ok) {

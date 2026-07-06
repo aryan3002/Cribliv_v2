@@ -2,10 +2,14 @@ import { Injectable, Logger, Optional } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { GoogleServiceAuth } from "./google/google-service-auth";
+import { toAbsoluteSeoUrl } from "./seo-urls";
 
 const INDEXING_SCOPE = "https://www.googleapis.com/auth/indexing";
 const PUBLISH_ENDPOINT = "https://indexing.googleapis.com/v3/urlNotifications:publish";
 const MAX_ATTEMPTS_BEFORE_FAIL = 5;
+// Cap each Google call so a hung socket can't stall the ~15-min submitter job
+// (the await is already inside a try/catch, so a timeout marks the row failed).
+const FETCH_TIMEOUT_MS = 10_000;
 
 export interface SeoIndexingQueueRow {
   id: string;
@@ -39,6 +43,10 @@ export class IndexingService {
   async enqueue(url: string, reason: string): Promise<SeoIndexingQueueRow | null> {
     if (!this.database.isEnabled()) return null;
 
+    // The Indexing API requires absolute URLs; callers may pass a site-relative
+    // path (city hubs, listing pages). Normalize here so every enqueue path —
+    // and the dedup UNIQUE(url) key — is a consistent absolute URL.
+    const absoluteUrl = toAbsoluteSeoUrl(url);
     const { rows } = await this.database.query<SeoIndexingQueueRow>(
       `INSERT INTO seo_indexing_queue (url, reason)
        VALUES ($1, $2)
@@ -47,7 +55,7 @@ export class IndexingService {
          status = 'pending',
          updated_at = now()
        RETURNING ${QUEUE_ROW_COLUMNS}`,
-      [url, reason]
+      [absoluteUrl, reason]
     );
     return rows[0] ?? null;
   }
@@ -101,7 +109,8 @@ export class IndexingService {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({ url: row.url, type: "URL_UPDATED" })
+          body: JSON.stringify({ url: row.url, type: "URL_UPDATED" }),
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
         });
 
         if (response.ok) {

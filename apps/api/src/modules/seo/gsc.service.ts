@@ -7,6 +7,9 @@ const READONLY_SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 const ROW_LIMIT = 5000;
 const MAX_PAGES = 5;
 const LOOKBACK_DAYS = 28;
+// Bound each page fetch so a hung socket can't stall the weekly poller mid-loop
+// (the whole loop is wrapped in try/catch, so a timeout ends the poll safely).
+const FETCH_TIMEOUT_MS = 10_000;
 const CITY_HUB_PATTERN = /\/(en|hi)\/city\/([a-z0-9-]+)/;
 
 interface GscQueryRow {
@@ -87,7 +90,8 @@ export class GscService {
               dimensions: ["query", "page"],
               rowLimit: ROW_LIMIT,
               startRow: page * ROW_LIMIT
-            })
+            }),
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
           }
         );
 

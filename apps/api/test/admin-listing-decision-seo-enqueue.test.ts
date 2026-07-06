@@ -21,6 +21,8 @@ import { PgAdminPropertiesService } from "../src/modules/admin/pg-admin-properti
 import { PgAnalyticsOverrideService } from "../src/modules/admin/pg-analytics-override.service";
 import { PgAdminListingEditService } from "../src/modules/admin/pg-admin-listing-edit.service";
 import { AdminController } from "../src/modules/admin/admin.controller";
+import { IndexingService } from "../src/modules/seo/indexing.service";
+import { listingIndexPaths } from "../src/modules/seo/seo-urls";
 
 const ADMIN_ID = "00000000-0000-4000-8000-000000000001";
 const LISTING_ID = "00000000-0000-4000-8000-0000000000aa";
@@ -28,8 +30,10 @@ const LISTING_ID = "00000000-0000-4000-8000-0000000000aa";
 describe("AdminController.listingDecision - seo.queue_indexing enqueue on approve", () => {
   let app: INestApplication;
   let database: { isEnabled: () => boolean; query: ReturnType<typeof vi.fn> };
+  let indexing: { enqueue: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
+    indexing = { enqueue: vi.fn(async () => null) };
     database = {
       isEnabled: () => true,
       query: vi.fn(async (sql: string) => {
@@ -61,7 +65,8 @@ describe("AdminController.listingDecision - seo.queue_indexing enqueue on approv
         { provide: PgAdminAnalyticsService, useValue: {} },
         { provide: PgAdminPropertiesService, useValue: {} },
         { provide: PgAnalyticsOverrideService, useValue: {} },
-        { provide: PgAdminListingEditService, useValue: {} }
+        { provide: PgAdminListingEditService, useValue: {} },
+        { provide: IndexingService, useValue: indexing }
       ]
     })
       .overrideGuard(AuthGuard)
@@ -98,6 +103,14 @@ describe("AdminController.listingDecision - seo.queue_indexing enqueue on approv
     expect(params[0]).toBe(LISTING_ID);
     const payload = JSON.parse(params[1]);
     expect(payload).toEqual({ listing_id: LISTING_ID, reason: "listing_approved" });
+
+    // ...and actually queues the listing's canonical page(s) for the Indexing
+    // API (flat_house -> /{locale}/listing/{id} in both locales).
+    const expectedPaths = listingIndexPaths("flat_house", undefined, LISTING_ID);
+    expect(indexing.enqueue).toHaveBeenCalledTimes(expectedPaths.length);
+    for (const path of expectedPaths) {
+      expect(indexing.enqueue).toHaveBeenCalledWith(path, "listing_approved");
+    }
   });
 
   it("does NOT enqueue on reject", async () => {
@@ -110,5 +123,6 @@ describe("AdminController.listingDecision - seo.queue_indexing enqueue on approv
       sql.includes("seo.queue_indexing")
     );
     expect(enqueueCall).toBeUndefined();
+    expect(indexing.enqueue).not.toHaveBeenCalled();
   });
 });

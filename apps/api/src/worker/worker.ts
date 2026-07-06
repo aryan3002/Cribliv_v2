@@ -528,8 +528,10 @@ export async function runOutboundDispatchDb(
               })
             );
           } else if (event.event_type === "seo.queue_indexing") {
-            // The actual seo_indexing_queue insert already happened
-            // synchronously. This outbound event is an audit marker only.
+            // Audit marker only. The seo_indexing_queue write happens
+            // synchronously in AdminController.listingDecision (via
+            // IndexingService.enqueue) at approval time; nothing to dispatch
+            // here — just fall through and mark the event dispatched.
           } else if (crmWebhookUrl) {
             // Dispatch via CRM webhook
             await postOutboundEvent(crmWebhookUrl, event);
