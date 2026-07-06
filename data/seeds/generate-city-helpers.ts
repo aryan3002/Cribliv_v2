@@ -17,7 +17,7 @@ export const LANDMARK_TYPES = [
   "religious",
   "park",
   "stadium",
-  "monument",
+  "monument"
 ] as const;
 
 export type LandmarkType = (typeof LANDMARK_TYPES)[number];
@@ -93,7 +93,7 @@ const LANDMARK_SYNONYMS: Record<string, LandmarkType> = {
   "cricket stadium": "stadium",
 
   // Monument synonyms
-  memorial: "monument",
+  memorial: "monument"
 };
 
 export function mapLandmarkType(raw: string): LandmarkType | null {
@@ -222,7 +222,7 @@ export function toLocalityOut(
     name_en: cand.name_en,
     name_hi: cand.name_hi,
     lat: v.lat,
-    lng: v.lng,
+    lng: v.lng
   };
 
   if (cand.pincode) {
@@ -242,7 +242,7 @@ export function toMicroLocalityOut(
     name_hi: cand.name_hi,
     lat: v.lat,
     lng: v.lng,
-    seo_aliases: cand.seo_aliases ?? [],
+    seo_aliases: cand.seo_aliases ?? []
   };
 
   if (cand.parent_slug) {
@@ -264,7 +264,7 @@ export function toLandmarkOut(
     type,
     lat: v.lat,
     lng: v.lng,
-    aka: cand.aka ?? [],
+    aka: cand.aka ?? []
   };
 
   if (cand.primary_locality_slug) {
@@ -287,8 +287,15 @@ export class GeocodeAbortError extends Error {
   }
 }
 
-interface GeocodeResult { formatted_address?: string; geometry?: { location?: { lat?: number; lng?: number } }; }
-interface GeocodeBody { status?: string; results?: GeocodeResult[]; error_message?: string; }
+interface GeocodeResult {
+  formatted_address?: string;
+  geometry?: { location?: { lat?: number; lng?: number } };
+}
+interface GeocodeBody {
+  status?: string;
+  results?: GeocodeResult[];
+  error_message?: string;
+}
 
 export function buildGeocodeUrl(query: string, apiKey: string): string {
   const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
@@ -305,25 +312,37 @@ export function parseGeocodeResponse(body: unknown): VerifiedPlace | "abort" | n
   if (b.status !== "OK") return null;
   const top = b.results?.[0];
   const loc = top?.geometry?.location;
-  if (!top || typeof top.formatted_address !== "string" || !loc ||
-      typeof loc.lat !== "number" || typeof loc.lng !== "number") return null;
+  if (
+    !top ||
+    typeof top.formatted_address !== "string" ||
+    !loc ||
+    typeof loc.lat !== "number" ||
+    typeof loc.lng !== "number"
+  )
+    return null;
   return { canonical_name: top.formatted_address, lat: loc.lat, lng: loc.lng };
 }
 
 export async function verifyPlace(
-  query: string, apiKey: string, fetchImpl: GeocodeFetch = fetch
+  query: string,
+  apiKey: string,
+  fetchImpl: GeocodeFetch = fetch
 ): Promise<VerifiedPlace | null> {
   let res: Response;
   try {
     res = await fetchImpl(buildGeocodeUrl(query, apiKey));
-  } catch { return null; }
+  } catch {
+    return null;
+  }
   if (!res.ok) return null;
   const body = (await res.json().catch(() => null)) as unknown;
   const parsed = parseGeocodeResponse(body);
   if (parsed === "abort") {
     const status = (body as GeocodeBody)?.status ?? "unknown";
     // mirrors metro-walk.service.ts logging of status + error_message
-    console.error(`Geocode ${status} for "${query}": ${(body as GeocodeBody)?.error_message ?? ""}`);
+    console.error(
+      `Geocode ${status} for "${query}": ${(body as GeocodeBody)?.error_message ?? ""}`
+    );
     throw new GeocodeAbortError(status);
   }
   return parsed;
@@ -353,7 +372,7 @@ export function readAiConfig(): AiConfig {
       process.env.AZURE_OPENAI_CHAT_DEPLOYMENT?.trim() ||
       process.env.AZURE_OPENAI_EXTRACT_DEPLOYMENT?.trim() ||
       "",
-    timeoutMs: Math.max(Number(process.env.SEO_GENERATE_TIMEOUT_MS) || 30000, 10000),
+    timeoutMs: Math.max(Number(process.env.SEO_GENERATE_TIMEOUT_MS) || 120000, 10000)
   };
 }
 
@@ -396,7 +415,9 @@ Generate JSON with exactly this shape:
 }
 
 Rules:
-- List well-known localities (neighborhoods/sectors/colonies), smaller micro-localities within them, and notable landmarks (colleges, hospitals, malls, markets, stations, airports, IT parks, offices, religious sites, parks, stadiums, monuments).
+- Be EXHAUSTIVE, not selective. List every locality you know for this city, not just the famous ones. For a large city this should be 60+ localities — the more complete, the better.
+- For cities organised into numbered sectors, phases, blocks, or pockets (e.g. Noida, Greater Noida, Gurugram, Chandigarh, Faridabad), enumerate the COMPLETE numbered range that actually exists — every sector/phase/block from the lowest to the highest real one — in addition to named colonies, villages, townships, and residential neighbourhoods.
+- Also include smaller micro-localities within those localities, and notable landmarks (colleges, hospitals, malls, markets, stations, airports, IT parks, offices, religious sites, parks, stadiums, monuments).
 - "name_hi" MUST be written in Devanagari script (नागरी लिपि), not transliterated Latin.
 - Every entry you return will be independently verified against Google Maps/Geocoding before being published — entries that cannot be verified are silently discarded. This means you should be generous and list everything you know is real, because hallucinated or made-up entries are automatically filtered out and cost nothing; the risk is only in omitting real places.
 - "aka"/"seo_aliases" should capture common alternative spellings, abbreviations, or informal names that locals actually search for (e.g. metro-station short names, common misspellings, English/Hindi transliteration variants).
@@ -455,7 +476,9 @@ export function parseDraftResponse(content: string): DraftResult {
     return { localities: [], micro_localities: [], landmarks: [] };
   }
 
-  const rawLocalities = Array.isArray(body.localities) ? (body.localities as RawLocalityCandidate[]) : [];
+  const rawLocalities = Array.isArray(body.localities)
+    ? (body.localities as RawLocalityCandidate[])
+    : [];
   const localities: LocalityCandidate[] = [];
   for (const c of rawLocalities) {
     if (typeof c?.name_en !== "string" || typeof c?.name_hi !== "string") continue;
@@ -479,14 +502,16 @@ export function parseDraftResponse(content: string): DraftResult {
       slug,
       name_en: c.name_en,
       name_hi: c.name_hi,
-      parent_slug: c.parent_slug,
+      parent_slug: c.parent_slug
     };
     const aliases = asStringArray(c.seo_aliases);
     if (aliases) cand.seo_aliases = aliases;
     micro_localities.push(cand);
   }
 
-  const rawLandmarks = Array.isArray(body.landmarks) ? (body.landmarks as RawLandmarkCandidate[]) : [];
+  const rawLandmarks = Array.isArray(body.landmarks)
+    ? (body.landmarks as RawLandmarkCandidate[])
+    : [];
   const landmarks: LandmarkCandidate[] = [];
   for (const c of rawLandmarks) {
     if (typeof c?.name_en !== "string" || typeof c?.name_hi !== "string") continue;
@@ -494,7 +519,12 @@ export function parseDraftResponse(content: string): DraftResult {
     if (!mappedType) continue;
     const slug = slugify(c.name_en);
     if (!slug) continue;
-    const cand: LandmarkCandidate = { slug, name_en: c.name_en, name_hi: c.name_hi, type: mappedType };
+    const cand: LandmarkCandidate = {
+      slug,
+      name_en: c.name_en,
+      name_hi: c.name_hi,
+      type: mappedType
+    };
     if (typeof c.primary_locality_slug === "string" && c.primary_locality_slug) {
       cand.primary_locality_slug = c.primary_locality_slug;
     }
@@ -506,7 +536,7 @@ export function parseDraftResponse(content: string): DraftResult {
   return {
     localities: dedupeBySlug(localities),
     micro_localities: dedupeBySlug(micro_localities),
-    landmarks: dedupeBySlug(landmarks),
+    landmarks: dedupeBySlug(landmarks)
   };
 }
 
@@ -536,15 +566,15 @@ export async function draftCity(
           {
             role: "system",
             content:
-              "You produce structured local-search seed data for an Indian rental platform. Reply with valid JSON only.",
+              "You produce structured local-search seed data for an Indian rental platform. Reply with valid JSON only."
           },
-          { role: "user", content: buildDraftPrompt(cityName, stateName) },
+          { role: "user", content: buildDraftPrompt(cityName, stateName) }
         ],
         temperature: 0.4,
-        max_tokens: 4000,
-        response_format: { type: "json_object" },
+        max_tokens: 16384,
+        response_format: { type: "json_object" }
       }),
-      signal: controller.signal,
+      signal: controller.signal
     });
     if (!response.ok) return empty;
     const payload = (await response.json().catch(() => ({}))) as {
@@ -584,21 +614,33 @@ export async function buildCityFiles(
 
   for (const cand of dedupeBySlug(draft.localities)) {
     const v = await verify(q(cand.name_en));
-    if (!v) { dropped.push(`locality:${cand.slug}`); continue; }
+    if (!v) {
+      dropped.push(`locality:${cand.slug}`);
+      continue;
+    }
     localities.push(toLocalityOut(citySlug, cand, v));
   }
   const keptLocalitySlugs = new Set(localities.map((l) => l.slug));
 
   for (const cand of dedupeBySlug(draft.micro_localities)) {
-    if (!cand.parent_slug || !keptLocalitySlugs.has(cand.parent_slug)) { dropped.push(`micro:${cand.slug}`); continue; } // Review 4 MAJOR 5
+    if (!cand.parent_slug || !keptLocalitySlugs.has(cand.parent_slug)) {
+      dropped.push(`micro:${cand.slug}`);
+      continue;
+    } // Review 4 MAJOR 5
     const v = await verify(q(cand.name_en));
-    if (!v) { dropped.push(`micro:${cand.slug}`); continue; }
+    if (!v) {
+      dropped.push(`micro:${cand.slug}`);
+      continue;
+    }
     micro_localities.push(toMicroLocalityOut(cand, v));
   }
 
   for (const cand of dedupeBySlug(draft.landmarks)) {
     const v = await verify(q(cand.name_en));
-    if (!v) { dropped.push(`landmark:${cand.slug}`); continue; }
+    if (!v) {
+      dropped.push(`landmark:${cand.slug}`);
+      continue;
+    }
     landmarks.push(toLandmarkOut(cand, v, mapLandmarkType(cand.type ?? "") ?? "monument"));
   }
 
@@ -606,6 +648,6 @@ export async function buildCityFiles(
     localities: dedupeBySlug(localities),
     micro_localities: dedupeBySlug(micro_localities),
     landmarks: dedupeBySlug(landmarks),
-    dropped,
+    dropped
   };
 }

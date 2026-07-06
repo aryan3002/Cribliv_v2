@@ -37,235 +37,1721 @@
   },
   {
     "city_slug": "noida",
+    "slug": "sector-1",
+    "name_en": "Sector 1",
+    "name_hi": "सेक्टर 1",
+    "lat": 28.6356338,
+    "lng": 77.3388511,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-2",
+    "name_en": "Sector 2",
+    "name_hi": "सेक्टर 2",
+    "lat": 28.5846875,
+    "lng": 77.31592959999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-3",
+    "name_en": "Sector 3",
+    "name_hi": "सेक्टर 3",
+    "lat": 28.5801663,
+    "lng": 77.3179566,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-4",
+    "name_en": "Sector 4",
+    "name_hi": "सेक्टर 4",
+    "lat": 28.6669331,
+    "lng": 77.4698387,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-5",
+    "name_en": "Sector 5",
+    "name_hi": "सेक्टर 5",
+    "lat": 28.6690844,
+    "lng": 77.4698387,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-6",
+    "name_en": "Sector 6",
+    "name_hi": "सेक्टर 6",
+    "lat": 28.593565,
+    "lng": 77.3188016,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-7",
+    "name_en": "Sector 7",
+    "name_hi": "सेक्टर 7",
+    "lat": 28.6714421,
+    "lng": 77.4739616,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-8",
+    "name_en": "Sector 8",
+    "name_hi": "सेक्टर 8",
+    "lat": 28.687214,
+    "lng": 77.4490424,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-9",
+    "name_en": "Sector 9",
+    "name_hi": "सेक्टर 9",
+    "lat": 28.5869496,
+    "lng": 77.3269988,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-10",
+    "name_en": "Sector 10",
+    "name_hi": "सेक्टर 10",
+    "lat": 28.5903498,
+    "lng": 77.3320182,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-11",
+    "name_en": "Sector 11",
+    "name_hi": "सेक्टर 11",
+    "lat": 28.5985755,
+    "lng": 77.3338783,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-12",
+    "name_en": "Sector 12",
+    "name_hi": "सेक्टर 12",
+    "lat": 28.5962491,
+    "lng": 77.3396212,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-13",
+    "name_en": "Sector 13",
+    "name_hi": "सेक्टर 13",
+    "lat": 28.6792709,
+    "lng": 77.4522697,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-14",
+    "name_en": "Sector 14",
+    "name_hi": "सेक्टर 14",
+    "lat": 28.5867411,
+    "lng": 77.30731329999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
     "slug": "sector-15",
     "name_en": "Sector 15",
     "name_hi": "सेक्टर 15",
-    "lat": 28.5827979,
-    "lng": 77.3102221
+    "lat": 28.5820607,
+    "lng": 77.3109035,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-15a",
+    "name_en": "Sector 15A",
+    "name_hi": "सेक्टर 15ए",
+    "lat": 28.5760515,
+    "lng": 77.3080313,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-16",
     "name_en": "Sector 16",
     "name_hi": "सेक्टर 16",
-    "lat": 28.5778608,
-    "lng": 77.3150912
+    "lat": 28.5773799,
+    "lng": 77.31449359999999,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-16a",
     "name_en": "Sector 16A",
     "name_hi": "सेक्टर 16ए",
-    "lat": 28.5683047,
-    "lng": 77.3158364
+    "lat": 28.5677517,
+    "lng": 77.31598149999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-17",
+    "name_en": "Sector 17",
+    "name_hi": "सेक्टर 17",
+    "lat": 28.5734839,
+    "lng": 77.3188016,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-18",
     "name_en": "Sector 18",
     "name_hi": "सेक्टर 18",
-    "lat": 28.5705399,
-    "lng": 77.3228931
+    "lat": 28.570317,
+    "lng": 77.3218196,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-19",
+    "name_en": "Sector 19",
+    "name_hi": "सेक्टर 19",
+    "lat": 28.5774092,
+    "lng": 77.3223915,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-20",
+    "name_en": "Sector 20",
+    "name_hi": "सेक्टर 20",
+    "lat": 28.5839608,
+    "lng": 77.3310067,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-21",
     "name_en": "Sector 21",
     "name_hi": "सेक्टर 21",
-    "lat": 28.5868228,
-    "lng": 77.3361622
+    "lat": 28.5875737,
+    "lng": 77.3350992,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-22",
+    "name_en": "Sector 22",
+    "name_hi": "सेक्टर 22",
+    "lat": 28.597062,
+    "lng": 77.34823519999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-23",
+    "name_en": "Sector 23",
+    "name_hi": "सेक्टर 23",
+    "lat": 28.5929334,
+    "lng": 77.35276999999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-24",
+    "name_en": "Sector 24",
+    "name_hi": "सेक्टर 24",
+    "lat": 28.5908651,
+    "lng": 77.34954189999999,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-25",
     "name_en": "Sector 25",
     "name_hi": "सेक्टर 25",
-    "lat": 28.5830083,
-    "lng": 77.3398191
+    "lat": 28.583792,
+    "lng": 77.3388291,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-25a",
+    "name_en": "Sector 25A",
+    "name_hi": "सेक्टर 25ए",
+    "lat": 28.5859654,
+    "lng": 77.34464609999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-26",
+    "name_en": "Sector 26",
+    "name_hi": "सेक्टर 26",
+    "lat": 28.5792792,
+    "lng": 77.3345961,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-27",
     "name_en": "Sector 27",
     "name_hi": "सेक्टर 27",
-    "lat": 28.5746768,
-    "lng": 77.3287281
+    "lat": 28.5750829,
+    "lng": 77.328135,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-28",
+    "name_en": "Sector 28",
+    "name_hi": "सेक्टर 28",
+    "lat": 28.5718356,
+    "lng": 77.3317246,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-29",
     "name_en": "Sector 29",
     "name_hi": "सेक्टर 29",
-    "lat": 28.5708315,
-    "lng": 77.3358207
+    "lat": 28.5681286,
+    "lng": 77.33393099999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-30",
+    "name_en": "Sector 30",
+    "name_hi": "सेक्टर 30",
+    "lat": 28.5739477,
+    "lng": 77.33890339999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-31",
+    "name_en": "Sector 31",
+    "name_hi": "सेक्टर 31",
+    "lat": 28.576709,
+    "lng": 77.3453639,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-32",
     "name_en": "Sector 32",
     "name_hi": "सेक्टर 32",
-    "lat": 28.579608,
-    "lng": 77.3502425
+    "lat": 28.5827178,
+    "lng": 77.34823519999999,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-33",
     "name_en": "Sector 33",
     "name_hi": "सेक्टर 33",
-    "lat": 28.5883995,
-    "lng": 77.3563336
+    "lat": 28.5892678,
+    "lng": 77.3568485,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-34",
+    "name_en": "Sector 34",
+    "name_hi": "सेक्टर 34",
+    "lat": 28.5838004,
+    "lng": 77.3597194,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-35",
+    "name_en": "Sector 35",
+    "name_hi": "सेक्टर 35",
+    "lat": 28.5798759,
+    "lng": 77.3561307,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-36",
+    "name_en": "Sector 36",
+    "name_hi": "सेक्टर 36",
+    "lat": 28.5712415,
+    "lng": 77.34823519999999,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-37",
     "name_en": "Sector 37",
     "name_hi": "सेक्टर 37",
-    "lat": 28.5625199,
-    "lng": 77.3401813
+    "lat": 28.5670458,
+    "lng": 77.3417748,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-38",
     "name_en": "Sector 38",
     "name_hi": "सेक्टर 38",
-    "lat": 28.5581844,
-    "lng": 77.329477
+    "lat": 28.5648533,
+    "lng": 77.3231663,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-39",
+    "name_en": "Sector 39",
+    "name_hi": "सेक्टर 39",
+    "lat": 28.5720533,
+    "lng": 77.3568485,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-40",
+    "name_en": "Sector 40",
+    "name_hi": "सेक्टर 40",
+    "lat": 28.563999,
+    "lng": 77.35569919999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-41",
+    "name_en": "Sector 41",
+    "name_hi": "सेक्टर 41",
+    "lat": 28.5639862,
+    "lng": 77.3625903,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-42",
+    "name_en": "Sector 42",
+    "name_hi": "सेक्टर 42",
+    "lat": 28.557977,
+    "lng": 77.3597194,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-43",
+    "name_en": "Sector 43",
+    "name_hi": "सेक्टर 43",
+    "lat": 28.5600748,
+    "lng": 77.3530119,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-44",
+    "name_en": "Sector 44",
+    "name_hi": "सेक्टर 44",
+    "lat": 28.553364,
+    "lng": 77.3372504,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-45",
+    "name_en": "Sector 45",
+    "name_hi": "सेक्टर 45",
+    "lat": 28.5514267,
+    "lng": 77.3511063,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-46",
+    "name_en": "Sector 46",
+    "name_hi": "सेक्टर 46",
+    "lat": 28.5522379,
+    "lng": 77.3597194,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-47",
+    "name_en": "Sector 47",
+    "name_hi": "सेक्टर 47",
+    "lat": 28.550449,
+    "lng": 77.37120259999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-48",
+    "name_en": "Sector 48",
+    "name_hi": "सेक्टर 48",
+    "lat": 28.5559182,
+    "lng": 77.3683319,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-49",
+    "name_en": "Sector 49",
+    "name_hi": "सेक्टर 49",
+    "lat": 28.5636272,
+    "lng": 77.3725608,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-50",
     "name_en": "Sector 50",
     "name_hi": "सेक्टर 50",
-    "lat": 28.5711552,
-    "lng": 77.3674862
+    "lat": 28.5719972,
+    "lng": 77.36936779999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-51",
+    "name_en": "Sector 51",
+    "name_hi": "सेक्टर 51",
+    "lat": 28.5797807,
+    "lng": 77.3657104,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-52",
+    "name_en": "Sector 52",
+    "name_hi": "सेक्टर 52",
+    "lat": 28.5880236,
+    "lng": 77.3704052,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-53",
+    "name_en": "Sector 53",
+    "name_hi": "सेक्टर 53",
+    "lat": 28.5898088,
+    "lng": 77.3625903,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-54",
+    "name_en": "Sector 54",
+    "name_hi": "सेक्टर 54",
+    "lat": 28.5978743,
+    "lng": 77.3568485,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-55",
+    "name_en": "Sector 55",
+    "name_hi": "सेक्टर 55",
+    "lat": 28.6052204,
+    "lng": 77.34804190000001,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-56",
+    "name_en": "Sector 56",
+    "name_hi": "सेक्टर 56",
+    "lat": 28.6011096,
+    "lng": 77.343575,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-57",
+    "name_en": "Sector 57",
+    "name_hi": "सेक्टर 57",
+    "lat": 28.6051563,
+    "lng": 77.35336769999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-58",
+    "name_en": "Sector 58",
+    "name_hi": "सेक्टर 58",
+    "lat": 28.6067511,
+    "lng": 77.3597194,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-59",
+    "name_en": "Sector 59",
+    "name_hi": "सेक्टर 59",
+    "lat": 28.6075627,
+    "lng": 77.3683319,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-60",
+    "name_en": "Sector 60",
+    "name_hi": "सेक्टर 60",
+    "lat": 28.6024748,
+    "lng": 77.36761419999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-61",
+    "name_en": "Sector 61",
+    "name_hi": "सेक्टर 61",
+    "lat": 28.5960875,
+    "lng": 77.3683319,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-62",
     "name_en": "Sector 62",
     "name_hi": "सेक्टर 62",
-    "lat": 28.6211447,
-    "lng": 77.3643493,
+    "lat": 28.627981,
+    "lng": 77.3648567,
     "pincode": "201309"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-63",
+    "name_en": "Sector 63",
+    "name_hi": "सेक्टर 63",
+    "lat": 28.6209681,
+    "lng": 77.3811702,
+    "pincode": "201307"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-64",
+    "name_en": "Sector 64",
+    "name_hi": "सेक्टर 64",
+    "lat": 28.611892,
+    "lng": 77.3762261,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-65",
+    "name_en": "Sector 65",
+    "name_hi": "सेक्टर 65",
+    "lat": 28.6125822,
+    "lng": 77.38480469999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-66",
+    "name_en": "Sector 66",
+    "name_hi": "सेक्टर 66",
+    "lat": 28.6055049,
+    "lng": 77.3769437,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-67",
+    "name_en": "Sector 67",
+    "name_hi": "सेक्टर 67",
+    "lat": 28.6063152,
+    "lng": 77.3855549,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-68",
+    "name_en": "Sector 68",
+    "name_hi": "सेक्टर 68",
+    "lat": 28.6068551,
+    "lng": 77.3912953,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-69",
+    "name_en": "Sector 69",
+    "name_hi": "सेक्टर 69",
+    "lat": 28.6128626,
+    "lng": 77.39416539999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-70",
+    "name_en": "Sector 70",
+    "name_hi": "सेक्टर 70",
+    "lat": 28.5974385,
+    "lng": 77.3826845,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-71",
+    "name_en": "Sector 71",
+    "name_hi": "सेक्टर 71",
+    "lat": 28.5996207,
+    "lng": 77.3736349,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-72",
+    "name_en": "Sector 72",
+    "name_hi": "सेक्टर 72",
+    "lat": 28.5870831,
+    "lng": 77.3774542,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-73",
+    "name_en": "Sector 73",
+    "name_hi": "सेक्टर 73",
+    "lat": 28.587934,
+    "lng": 77.3867398,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-74",
     "name_en": "Sector 74",
     "name_hi": "सेक्टर 74",
-    "lat": 28.571677,
-    "lng": 77.3875764
+    "lat": 28.5752944,
+    "lng": 77.3912953,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-75",
     "name_en": "Sector 75",
     "name_hi": "सेक्टर 75",
-    "lat": 28.5715456,
-    "lng": 77.3826956
+    "lat": 28.5752703,
+    "lng": 77.38238369999999,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-76",
     "name_en": "Sector 76",
     "name_hi": "सेक्टर 76",
-    "lat": 28.5653305,
-    "lng": 77.3796581
+    "lat": 28.5682139,
+    "lng": 77.3834998,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-77",
+    "name_en": "Sector 77",
+    "name_hi": "सेक्टर 77",
+    "lat": 28.5688192,
+    "lng": 77.3909312,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-78",
     "name_en": "Sector 78",
     "name_hi": "सेक्टर 78",
-    "lat": 28.5642814,
-    "lng": 77.386686
+    "lat": 28.5613693,
+    "lng": 77.3847351,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-79",
+    "name_en": "Sector 79",
+    "name_hi": "सेक्टर 79",
+    "lat": 28.5583465,
+    "lng": 77.39416539999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-80",
+    "name_en": "Sector 80",
+    "name_hi": "सेक्टर 80",
+    "lat": 28.5565541,
+    "lng": 77.4056451,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-81",
+    "name_en": "Sector 81",
+    "name_hi": "सेक्टर 81",
+    "lat": 28.5500064,
+    "lng": 77.3970354,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-82",
+    "name_en": "Sector 82",
+    "name_hi": "सेक्टर 82",
+    "lat": 28.5293772,
+    "lng": 77.3912953,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-83",
+    "name_en": "Sector 83",
+    "name_hi": "सेक्टर 83",
+    "lat": 28.5241753,
+    "lng": 77.3970354,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-84",
+    "name_en": "Sector 84",
+    "name_hi": "सेक्टर 84",
+    "lat": 28.5287724,
+    "lng": 77.40779739999999,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-85",
+    "name_en": "Sector 85",
+    "name_hi": "सेक्टर 85",
+    "lat": 28.5189727,
+    "lng": 77.4027753,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-86",
+    "name_en": "Sector 86",
+    "name_hi": "सेक्टर 86",
+    "lat": 28.5223812,
+    "lng": 77.4085149,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-87",
+    "name_en": "Sector 87",
+    "name_hi": "सेक्टर 87",
+    "lat": 28.5289286,
+    "lng": 77.41712369999999,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-88",
+    "name_en": "Sector 88",
+    "name_hi": "सेक्टर 88",
+    "lat": 28.5326051,
+    "lng": 77.4257319,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-89",
+    "name_en": "Sector 89",
+    "name_hi": "सेक्टर 89",
+    "lat": 28.5241069,
+    "lng": 77.4192758,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-90",
+    "name_en": "Sector 90",
+    "name_hi": "सेक्टर 90",
+    "lat": 28.5135223,
+    "lng": 77.4135367,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-91",
+    "name_en": "Sector 91",
+    "name_hi": "सेक्टर 91",
+    "lat": 28.5110359,
+    "lng": 77.39413119999999,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-92",
+    "name_en": "Sector 92",
+    "name_hi": "सेक्टर 92",
+    "lat": 28.5189502,
+    "lng": 77.3948829,
+    "pincode": "201305"
   },
   {
     "city_slug": "noida",
     "slug": "sector-93",
     "name_en": "Sector 93",
     "name_hi": "सेक्टर 93",
-    "lat": 28.5229507,
-    "lng": 77.3861165
+    "lat": 28.5234282,
+    "lng": 77.38547969999999,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-93a",
+    "name_en": "Sector 93A",
+    "name_hi": "सेक्टर 93ए",
+    "lat": 28.5178727,
+    "lng": 77.3834021,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-93b",
+    "name_en": "Sector 93B",
+    "name_hi": "सेक्टर 93बी",
+    "lat": 28.5121551,
+    "lng": 77.3912953,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-94",
+    "name_en": "Sector 94",
+    "name_hi": "सेक्टर 94",
+    "lat": 28.5515875,
+    "lng": 77.3223915,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-95",
     "name_en": "Sector 95",
     "name_hi": "सेक्टर 95",
-    "lat": 28.5680364,
-    "lng": 77.3116012
+    "lat": 28.5688264,
+    "lng": 77.3112625,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-96",
+    "name_en": "Sector 96",
+    "name_hi": "सेक्टर 96",
+    "lat": 28.5454721,
+    "lng": 77.34733729999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-97",
+    "name_en": "Sector 97",
+    "name_hi": "सेक्टर 97",
+    "lat": 28.5402186,
+    "lng": 77.35397739999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-98",
+    "name_en": "Sector 98",
+    "name_hi": "सेक्टर 98",
+    "lat": 28.5350196,
+    "lng": 77.3597194,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-99",
+    "name_en": "Sector 99",
+    "name_hi": "सेक्टर 99",
+    "lat": 28.5442788,
+    "lng": 77.3590017,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-100",
     "name_en": "Sector 100",
     "name_hi": "सेक्टर 100",
-    "lat": 28.5422873,
-    "lng": 77.3650963
+    "lat": 28.5452415,
+    "lng": 77.36794789999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-101",
+    "name_en": "Sector 101",
+    "name_hi": "सेक्टर 101",
+    "lat": 28.5541284,
+    "lng": 77.3798142,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-102",
+    "name_en": "Sector 102",
+    "name_hi": "सेक्टर 102",
+    "lat": 28.5447584,
+    "lng": 77.38699,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-104",
     "name_en": "Sector 104",
     "name_hi": "सेक्टर 104",
-    "lat": 28.5410157,
-    "lng": 77.3669885
+    "lat": 28.5403358,
+    "lng": 77.3741314,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-105",
+    "name_en": "Sector 105",
+    "name_hi": "सेक्टर 105",
+    "lat": 28.5314753,
+    "lng": 77.3710375,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-107",
+    "name_en": "Sector 107",
+    "name_hi": "सेक्टर 107",
+    "lat": 28.5481191,
+    "lng": 77.3769437,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-108",
+    "name_en": "Sector 108",
+    "name_hi": "सेक्टर 108",
+    "lat": 28.5280294,
+    "lng": 77.3769437,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-110",
+    "name_en": "Sector 110",
+    "name_hi": "सेक्टर 110",
+    "lat": 28.5322238,
+    "lng": 77.3834021,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-112",
+    "name_en": "Sector 112",
+    "name_hi": "सेक्टर 112",
+    "lat": 28.5633477,
+    "lng": 77.4092323,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-113",
+    "name_en": "Sector 113",
+    "name_hi": "सेक्टर 113",
+    "lat": 28.5620244,
+    "lng": 77.4027753,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-115",
+    "name_en": "Sector 115",
+    "name_hi": "सेक्टर 115",
+    "lat": 28.5675177,
+    "lng": 77.40779739999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-116",
+    "name_en": "Sector 116",
+    "name_hi": "सेक्टर 116",
+    "lat": 28.567225,
+    "lng": 77.3970354,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-117",
+    "name_en": "Sector 117",
+    "name_hi": "सेक्टर 117",
+    "lat": 28.578703,
+    "lng": 77.3970354,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-118",
+    "name_en": "Sector 118",
+    "name_hi": "सेक्टर 118",
+    "lat": 28.5823808,
+    "lng": 77.4056451,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-119",
+    "name_en": "Sector 119",
+    "name_hi": "सेक्टर 119",
+    "lat": 28.5878501,
+    "lng": 77.4027753,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-120",
+    "name_en": "Sector 120",
+    "name_hi": "सेक्टर 120",
+    "lat": 28.5865263,
+    "lng": 77.3963179,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-121",
+    "name_en": "Sector 121",
+    "name_hi": "सेक्टर 121",
+    "lat": 28.6005955,
+    "lng": 77.4003841,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-122",
+    "name_en": "Sector 122",
+    "name_hi": "सेक्टर 122",
+    "lat": 28.5930976,
+    "lng": 77.3969121,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-123",
+    "name_en": "Sector 123",
+    "name_hi": "सेक्टर 123",
+    "lat": 28.5969967,
+    "lng": 77.4085149,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-125",
     "name_en": "Sector 125",
     "name_hi": "सेक्टर 125",
-    "lat": 28.5454077,
-    "lng": 77.3297605
+    "lat": 28.5437925,
+    "lng": 77.3310067,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-126",
+    "name_en": "Sector 126",
+    "name_hi": "सेक्टर 126",
+    "lat": 28.5388659,
+    "lng": 77.3396212,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-127",
+    "name_en": "Sector 127",
+    "name_hi": "सेक्टर 127",
+    "lat": 28.5339382,
+    "lng": 77.34823519999999,
+    "pincode": "201301"
   },
   {
     "city_slug": "noida",
     "slug": "sector-128",
     "name_en": "Sector 128",
     "name_hi": "सेक्टर 128",
-    "lat": 28.5198543,
-    "lng": 77.3739664
+    "lat": 28.5225511,
+    "lng": 77.3561383,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-129",
+    "name_en": "Sector 129",
+    "name_hi": "सेक्टर 129",
+    "lat": 28.5061446,
+    "lng": 77.3884251,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-130",
+    "name_en": "Sector 130",
+    "name_hi": "सेक्टर 130",
+    "lat": 28.4978019,
+    "lng": 77.3912953,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-131",
+    "name_en": "Sector 131",
+    "name_hi": "सेक्टर 131",
+    "lat": 28.5133591,
+    "lng": 77.358284,
+    "pincode": "201304"
   },
   {
     "city_slug": "noida",
     "slug": "sector-132",
     "name_en": "Sector 132",
     "name_hi": "सेक्टर 132",
-    "lat": 28.5117059,
-    "lng": 77.3767844
+    "lat": 28.5132612,
+    "lng": 77.37775769999999,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-133",
+    "name_en": "Sector 133",
+    "name_hi": "सेक्टर 133",
+    "lat": 28.5045275,
+    "lng": 77.37120259999999,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-134",
+    "name_en": "Sector 134",
+    "name_hi": "सेक्टर 134",
+    "lat": 28.5005149,
+    "lng": 77.381967,
+    "pincode": "201304"
   },
   {
     "city_slug": "noida",
     "slug": "sector-135",
     "name_en": "Sector 135",
     "name_hi": "सेक्टर 135",
-    "lat": 28.4980047,
-    "lng": 77.4000326
+    "lat": 28.4986092,
+    "lng": 77.3999054,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-136",
+    "name_en": "Sector 136",
+    "name_hi": "सेक्टर 136",
+    "lat": 28.5046197,
+    "lng": 77.4027753,
+    "pincode": "201304"
   },
   {
     "city_slug": "noida",
     "slug": "sector-137",
     "name_en": "Sector 137",
     "name_hi": "सेक्टर 137",
-    "lat": 28.5107689,
-    "lng": 77.4036068
+    "lat": 28.5080282,
+    "lng": 77.4085149,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-138",
+    "name_en": "Sector 138",
+    "name_hi": "सेक्टर 138",
+    "lat": 28.5174466,
+    "lng": 77.41712369999999,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-140",
+    "name_en": "Sector 140",
+    "name_hi": "सेक्टर 140",
+    "lat": 28.5143283,
+    "lng": 77.42214520000002,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-141",
+    "name_en": "Sector 141",
+    "name_hi": "सेक्टर 141",
+    "lat": 28.5059637,
+    "lng": 77.41712369999999,
+    "pincode": "201305"
   },
   {
     "city_slug": "noida",
     "slug": "sector-142",
     "name_en": "Sector 142",
     "name_hi": "सेक्टर 142",
-    "lat": 28.5001784,
-    "lng": 77.4093075
+    "lat": 28.4999533,
+    "lng": 77.4142541,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-143",
+    "name_en": "Sector 143",
+    "name_hi": "सेक्टर 143",
+    "lat": 28.5010274,
+    "lng": 77.4257319,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-143b",
+    "name_en": "Sector 143B",
+    "name_hi": "सेक्टर 143बी",
+    "lat": 28.4952854,
+    "lng": 77.4257319,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-144",
+    "name_en": "Sector 144",
+    "name_hi": "सेक्टर 144",
+    "lat": 28.495828,
+    "lng": 77.43388139999999,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-145",
+    "name_en": "Sector 145",
+    "name_hi": "सेक्टर 145",
+    "lat": 28.4862964,
+    "lng": 77.4406382,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-146",
+    "name_en": "Sector 146",
+    "name_hi": "सेक्टर 146",
+    "lat": 28.4695181,
+    "lng": 77.45728969999999,
+    "pincode": "201305"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-147",
+    "name_en": "Sector 147",
+    "name_hi": "सेक्टर 147",
+    "lat": 28.4611868,
+    "lng": 77.468046,
+    "pincode": "201305"
   },
   {
     "city_slug": "noida",
     "slug": "sector-150",
     "name_en": "Sector 150",
     "name_hi": "सेक्टर 150",
-    "lat": 28.4289092,
-    "lng": 77.4776416
+    "lat": 28.4223225,
+    "lng": 77.4902726,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-151",
+    "name_en": "Sector 151",
+    "name_hi": "सेक्टर 151",
+    "lat": 28.4449842,
+    "lng": 77.4629647,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-152",
+    "name_en": "Sector 152",
+    "name_hi": "सेक्टर 152",
+    "lat": 28.4452728,
+    "lng": 77.4744994,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-153",
+    "name_en": "Sector 153",
+    "name_hi": "सेक्टर 153",
+    "lat": 28.4504834,
+    "lng": 77.46876309999999,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-154",
+    "name_en": "Sector 154",
+    "name_hi": "सेक्टर 154",
+    "lat": 28.4575723,
+    "lng": 77.46579179999999,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-155",
+    "name_en": "Sector 155",
+    "name_hi": "सेक्टर 155",
+    "lat": 28.4520194,
+    "lng": 77.45442109999999,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-156",
+    "name_en": "Sector 156",
+    "name_hi": "सेक्टर 156",
+    "lat": 28.4574959,
+    "lng": 77.45155249999999,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-157",
+    "name_en": "Sector 157",
+    "name_hi": "सेक्टर 157",
+    "lat": 28.4609027,
+    "lng": 77.45728969999999,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-158",
+    "name_en": "Sector 158",
+    "name_hi": "सेक्टर 158",
+    "lat": 28.4598326,
+    "lng": 77.44581509999999,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-162",
+    "name_en": "Sector 162",
+    "name_hi": "सेक्टर 162",
+    "lat": 28.4679123,
+    "lng": 77.44007739999999,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-163",
+    "name_en": "Sector 163",
+    "name_hi": "सेक्टर 163",
+    "lat": 28.4791306,
+    "lng": 77.4372084,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-164",
+    "name_en": "Sector 164",
+    "name_hi": "सेक्टर 164",
+    "lat": 28.4757231,
+    "lng": 77.4314703,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-165",
+    "name_en": "Sector 165",
+    "name_hi": "सेक्टर 165",
+    "lat": 28.4806612,
+    "lng": 77.4228625,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-166",
+    "name_en": "Sector 166",
+    "name_hi": "सेक्टर 166",
+    "lat": 28.486672,
+    "lng": 77.4257319,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-167",
+    "name_en": "Sector 167",
+    "name_hi": "सेक्टर 167",
+    "lat": 28.4889864,
+    "lng": 77.4162001,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sector-168",
+    "name_en": "Sector 168",
+    "name_hi": "सेक्टर 168",
+    "lat": 28.4936741,
+    "lng": 77.4085149,
+    "pincode": "201310"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "atta-market",
+    "name_en": "Atta Market",
+    "name_hi": "अट्टा मार्केट",
+    "lat": 28.5727278,
+    "lng": 77.3259812,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "harola",
+    "name_en": "Harola",
+    "name_hi": "हरोला",
+    "lat": 28.5878278,
+    "lng": 77.3188016,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "naya-bans",
+    "name_en": "Naya Bans",
+    "name_hi": "नया बांस",
+    "lat": 27.9369383,
+    "lng": 77.8778159,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "chhalera",
+    "name_en": "Chhalera",
+    "name_hi": "छलेरा",
+    "lat": 28.5555687,
+    "lng": 77.3417748,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "barola",
+    "name_en": "Barola",
+    "name_hi": "बरौला",
+    "lat": 28.5613883,
+    "lng": 77.3712314,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "salarpur",
+    "name_en": "Salarpur",
+    "name_hi": "सलारपुर",
+    "lat": 28.5456897,
+    "lng": 77.3882686,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "hoshiarpur",
+    "name_en": "Hoshiarpur",
+    "name_hi": "होशियारपुर",
+    "lat": 29.5569462,
+    "lng": 77.6554021,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "bhangel",
+    "name_en": "Bhangel",
+    "name_hi": "भंगेल",
+    "lat": 28.5412117,
+    "lng": 77.3876605,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sadarpur",
+    "name_en": "Sadarpur",
+    "name_hi": "सदरपुर",
+    "lat": 28.5271512,
+    "lng": 79.5505094,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "gejha",
+    "name_en": "Gejha",
+    "name_hi": "गेझा",
+    "lat": 28.9203393,
+    "lng": 77.56265839999999,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "shahdara",
+    "name_en": "Shahdara",
+    "name_hi": "शाहदरा",
+    "lat": 29.5463128,
+    "lng": 77.9524488,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sorkha",
+    "name_en": "Sorkha",
+    "name_hi": "सोरखा",
+    "lat": 28.5718202,
+    "lng": 77.40523110000001,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "parthala-khanjarpur",
+    "name_en": "Parthala Khanjarpur",
+    "name_hi": "पार्थला खंजरपुर",
+    "lat": 28.5926692,
+    "lng": 77.4006229,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "yakubpur",
+    "name_en": "Yakubpur",
+    "name_hi": "याकूबपुर",
+    "lat": 26.764825,
+    "lng": 79.7161493,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "garhi-chaukhandi",
+    "name_en": "Garhi Chaukhandi",
+    "name_hi": "गढ़ी चौखंडी",
+    "lat": 28.5986029,
+    "lng": 77.3972385,
+    "pincode": "201309"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "bisrakh",
+    "name_en": "Bisrakh",
+    "name_hi": "बिसरख",
+    "lat": 28.568093,
+    "lng": 77.4344775,
+    "pincode": "201306"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "chhijarsi",
+    "name_en": "Chhijarsi",
+    "name_hi": "छिजारसी",
+    "lat": 28.6304542,
+    "lng": 77.3905778,
+    "pincode": "201307"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "chotpur",
+    "name_en": "Chotpur",
+    "name_hi": "छोटपुर",
+    "lat": 28.6196419,
+    "lng": 77.3979852,
+    "pincode": "201307"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sarai-kale-khan",
+    "name_en": "Sarai Kale Khan",
+    "name_hi": "सराय काले खां",
+    "lat": 28.5906098,
+    "lng": 77.2605619,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "mamura",
+    "name_en": "Mamura",
+    "name_hi": "मामूरा",
+    "lat": 28.6026361,
+    "lng": 77.3769437,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "nithari",
+    "name_en": "Nithari",
+    "name_hi": "निठारी",
+    "lat": 28.5770877,
+    "lng": 77.3417748,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "sultanpur",
+    "name_en": "Sultanpur",
+    "name_hi": "सुल्तानपुर",
+    "lat": 26.2585371,
+    "lng": 82.06598579999999,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "kulesara",
+    "name_en": "Kulesara",
+    "name_hi": "कुलेसरा",
+    "lat": 28.5240388,
+    "lng": 77.4383292,
+    "pincode": "201306"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "hindon-vihar",
+    "name_en": "Hindon Vihar",
+    "name_hi": "हिंडन विहार",
+    "lat": 28.558488,
+    "lng": 77.3765849,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "shahberi",
+    "name_en": "Shahberi",
+    "name_hi": "शहबेरी",
+    "lat": 28.6201615,
+    "lng": 77.43715519999999,
+    "pincode": "201009"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "mor-atta",
+    "name_en": "Mor Atta",
+    "name_hi": "मोर अट्टा",
+    "lat": 28.6102645,
+    "lng": 77.84030159999999,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "raipur-khadar",
+    "name_en": "Raipur Khadar",
+    "name_hi": "रायपुर खादर",
+    "lat": 29.1577433,
+    "lng": 78.130787,
+    "pincode": "201304"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "jhundpura",
+    "name_en": "Jhundpura",
+    "name_hi": "झुंडपुरा",
+    "lat": 28.5972624,
+    "lng": 77.3313656,
+    "pincode": "201301"
+  },
+  {
+    "city_slug": "noida",
+    "slug": "nagla-charandas",
+    "name_en": "Nagla Charandas",
+    "name_hi": "नगला चरनदास",
+    "lat": 28.5401189,
+    "lng": 77.4063625,
+    "pincode": "201304"
   }
 ]
