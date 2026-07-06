@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 
 describe("fetchEnabledCities", () => {
-  it("returns enabled city slugs as a Set and requests hourly revalidation", async () => {
+  it("returns enabled city slugs as a Set and fetches fresh (no-store)", async () => {
     f.mockResolvedValueOnce({
       items: [
         { city_slug: "lucknow", programmatic_enabled: true },
@@ -25,7 +25,9 @@ describe("fetchEnabledCities", () => {
     expect(cities).toBeInstanceOf(Set);
     expect(cities.has("lucknow")).toBe(true);
     expect(cities.has("noida")).toBe(true);
-    expect(f).toHaveBeenCalledWith("/seo/cities", { next: { revalidate: 3600 } });
+    // Fetched no-store so an admin enabling a city is reflected on the next
+    // render rather than gated on a stale per-fetch cache.
+    expect(f).toHaveBeenCalledWith("/seo/cities", undefined, { server: true });
   });
 
   it("excludes disabled cities from the returned Set", async () => {

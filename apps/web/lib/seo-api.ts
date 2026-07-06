@@ -1,7 +1,8 @@
 /**
- * Server-only helpers for fetching SEO page data from the API. Most calls
- * pass `{ server: true }` to fetchApi to ensure no client-side caching
- * during ISR builds. The enabled-city config uses Next revalidation instead.
+ * Server-only helpers for fetching SEO page data from the API. All calls pass
+ * `{ server: true }` to fetchApi (no-store) so a page's ISR revalidation, not
+ * a stale per-fetch cache, governs freshness — including the enabled-city
+ * config, which must reflect an admin toggle on the next render.
  *
  * Every function returns a typed shape with sensible fallbacks when the API
  * is unreachable — pages always render, even if aggregates show as zero.
@@ -108,11 +109,17 @@ export async function fetchLocalities(citySlug: string): Promise<LocalityRow[]> 
 /**
  * City slugs whose programmatic SEO pages are live. Falls back to Lucknow on
  * any API problem or empty enabled set so the reference city never goes dark.
+ *
+ * Fetched no-store (`server: true`) — NOT cached — so an admin enabling a city
+ * is reflected on the next render. A cached copy here would gate the hub's
+ * programmatic grids on a stale enabled-set: the hub would keep rendering the
+ * plain search fallback for a freshly-enabled city until the cache expired.
+ * The hub itself is ISR (revalidate=3600), which bounds how often this runs.
  */
 export async function fetchEnabledCities(): Promise<Set<string>> {
   try {
-    const res = await fetchApi<{ items: SeoCityRow[] }>("/seo/cities", {
-      next: { revalidate: 3600 }
+    const res = await fetchApi<{ items: SeoCityRow[] }>("/seo/cities", undefined, {
+      server: true
     });
     const enabled = (res.items ?? [])
       .filter((city) => city.programmatic_enabled)

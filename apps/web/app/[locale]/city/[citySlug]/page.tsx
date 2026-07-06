@@ -6,7 +6,8 @@ import { ListingCardItem } from "../../../../components/listing-card";
 import {
   fetchLocalities,
   fetchLandmarks,
-  fetchMetroStationsForCity
+  fetchMetroStationsForCity,
+  fetchEnabledCities
 } from "../../../../lib/seo-api";
 import { intentsByCategory } from "../../../../lib/intent-filters";
 
@@ -32,6 +33,13 @@ interface SearchResponse {
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
+
+// ISR: re-render at most hourly so an admin enabling a city's programmatic SEO
+// (fetchEnabledCities) is picked up without a redeploy. Without this the hub is
+// prerendered once at build and the enabled-city decision is frozen until the
+// next deploy — the reason a freshly-enabled city kept rendering the plain
+// search fallback instead of its locality/metro/landmark discovery grids.
+export const revalidate = 3600;
 
 const CITIES = [
   "delhi",
@@ -216,10 +224,12 @@ export default async function CityPage({
   const typeChips = ["Flat/House", "PG", "1 BHK", "2 BHK", "Furnished"];
   const localities = CITY_LOCALITIES[params.citySlug] ?? ["Sector 1", "Sector 2", "Central"];
 
-  // Programmatic SEO enrichment — Lucknow only for now. Each fetch is best-
-  // effort and returns [] if the API is down so the page still renders.
-  const isLucknow = params.citySlug === "lucknow";
-  const [liveLocalities, liveLandmarks, liveMetros] = isLucknow
+  // Programmatic SEO enrichment — shown for any city enabled via the admin
+  // toggle (fetchEnabledCities), not just Lucknow. Each fetch is best-effort
+  // and returns [] if the API is down so the page still renders.
+  const enabledCities = await fetchEnabledCities();
+  const isProgrammatic = enabledCities.has(params.citySlug);
+  const [liveLocalities, liveLandmarks, liveMetros] = isProgrammatic
     ? await Promise.all([
         fetchLocalities(params.citySlug),
         fetchLandmarks(params.citySlug),
@@ -227,7 +237,7 @@ export default async function CityPage({
       ])
     : [[], [], []];
 
-  const intentGroups = isLucknow ? intentsByCategory("locality") : [];
+  const intentGroups = isProgrammatic ? intentsByCategory("locality") : [];
 
   // Group landmarks by type for "Browse by landmark" tiles
   const landmarkGroups: Array<{
@@ -236,7 +246,7 @@ export default async function CityPage({
     label_hi: string;
     items: typeof liveLandmarks;
   }> = [];
-  if (isLucknow && liveLandmarks.length > 0) {
+  if (isProgrammatic && liveLandmarks.length > 0) {
     const groupDefs = [
       { type: "college", label_en: "Universities & colleges", label_hi: "विश्वविद्यालय और कॉलेज" },
       { type: "hospital", label_en: "Hospitals", label_hi: "अस्पताल" },
@@ -463,8 +473,8 @@ export default async function CityPage({
           </div>
         </section>
 
-        {/* Lucknow programmatic SEO: live localities grid (links to /city/lucknow/[locality]) */}
-        {isLucknow && liveLocalities.length > 0 && (
+        {/* Programmatic SEO: live localities grid (links to /city/[citySlug]/[locality]) */}
+        {isProgrammatic && liveLocalities.length > 0 && (
           <section style={{ marginBottom: "var(--space-10)" }}>
             <h3
               style={{
@@ -475,7 +485,7 @@ export default async function CityPage({
               }}
             >
               <MapPin size={18} style={{ color: "var(--brand)" }} aria-hidden="true" />
-              {isHindi ? "लखनऊ के सभी इलाके" : "All Lucknow localities"}
+              {isHindi ? `${cityCapitalized} के सभी इलाके` : `All ${cityCapitalized} localities`}
             </h3>
             <div
               className="listing-grid"
@@ -502,16 +512,16 @@ export default async function CityPage({
           </section>
         )}
 
-        {/* Lucknow programmatic SEO: intent categories */}
-        {isLucknow && intentGroups.length > 0 && (
+        {/* Programmatic SEO: intent categories */}
+        {isProgrammatic && intentGroups.length > 0 && (
           <section style={{ marginBottom: "var(--space-10)" }}>
             <h3 style={{ marginBottom: "var(--space-4)" }}>
               {isHindi ? "श्रेणी के अनुसार ब्राउज़ करें" : "Browse by category"}
             </h3>
             <p className="body-sm text-secondary" style={{ marginBottom: "var(--space-4)" }}>
               {isHindi
-                ? "बजट, ऑडियंस, फर्निशिंग और जीवनशैली से लखनऊ में किराये खोजें।"
-                : "Find Lucknow rentals by property type, audience, budget, and lifestyle."}
+                ? `बजट, ऑडियंस, फर्निशिंग और जीवनशैली से ${cityCapitalized} में किराये खोजें।`
+                : `Find ${cityCapitalized} rentals by property type, audience, budget, and lifestyle.`}
             </p>
             {intentGroups.map((g) => (
               <div key={g.category.slug} style={{ marginBottom: "var(--space-5)" }}>
@@ -538,8 +548,8 @@ export default async function CityPage({
           </section>
         )}
 
-        {/* Lucknow programmatic SEO: metro stations grid */}
-        {isLucknow && liveMetros.filter((m) => m.station_name).length > 0 && (
+        {/* Programmatic SEO: metro stations grid */}
+        {isProgrammatic && liveMetros.filter((m) => m.station_name).length > 0 && (
           <section style={{ marginBottom: "var(--space-10)" }}>
             <h3 style={{ marginBottom: "var(--space-4)" }}>
               {isHindi ? "मेट्रो स्टेशन के पास" : "Browse by metro station"}
@@ -561,8 +571,8 @@ export default async function CityPage({
           </section>
         )}
 
-        {/* Lucknow programmatic SEO: landmarks grouped by type */}
-        {isLucknow && landmarkGroups.length > 0 && (
+        {/* Programmatic SEO: landmarks grouped by type */}
+        {isProgrammatic && landmarkGroups.length > 0 && (
           <section style={{ marginBottom: "var(--space-10)" }}>
             <h3 style={{ marginBottom: "var(--space-4)" }}>
               {isHindi ? "लोकप्रिय स्थानों के पास" : "Near popular landmarks"}
