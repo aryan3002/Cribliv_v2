@@ -54,3 +54,11 @@ DROP TRIGGER IF EXISTS trg_blog_posts_touch ON blog_posts;
 CREATE TRIGGER trg_blog_posts_touch
   BEFORE UPDATE ON blog_posts
   FOR EACH ROW EXECUTE FUNCTION blog_posts_touch_updated_at();
+
+-- Admin audit vocabulary for blog moderation (mirrors the 0043 pattern).
+ALTER TYPE admin_target_type ADD VALUE IF NOT EXISTS 'blog_post';
+ALTER TYPE admin_action_type ADD VALUE IF NOT EXISTS 'blog_approve';
+ALTER TYPE admin_action_type ADD VALUE IF NOT EXISTS 'blog_publish';
+ALTER TYPE admin_action_type ADD VALUE IF NOT EXISTS 'blog_archive';
+ALTER TYPE admin_action_type ADD VALUE IF NOT EXISTS 'blog_edit';
+ALTER TYPE admin_action_type ADD VALUE IF NOT EXISTS 'blog_generate';

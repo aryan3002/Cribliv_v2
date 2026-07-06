@@ -67,6 +67,17 @@ export class BlogBriefService {
     return rows;
   }
 
+  async getById(id: string): Promise<BlogBriefRow | null> {
+    if (!this.database.isEnabled()) return null;
+    const { rows } = await this.database.query<BlogBriefRow>(
+      `SELECT ${BRIEF_COLUMNS}
+       FROM blog_briefs
+       WHERE id = $1::uuid`,
+      [id]
+    );
+    return rows[0] ?? null;
+  }
+
   async countPending(): Promise<number> {
     if (!this.database.isEnabled()) return 0;
     const { rows } = await this.database.query<{ n: number }>(
