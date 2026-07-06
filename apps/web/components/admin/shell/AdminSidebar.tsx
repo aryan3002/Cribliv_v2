@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   ShieldCheck,
+  TrendingUp,
   Users,
   Wrench
 } from "lucide-react";
@@ -31,6 +32,7 @@ export type AdminTab =
   | "pg-properties"
   | "fraud"
   | "seo"
+  | "search-performance"
   | "system";
 
 interface NavItem {
@@ -63,7 +65,8 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "pg-listings", label: "PG Overview", icon: BarChart3 },
     { id: "pg-properties", label: "PG Listings", icon: Building2 },
     { id: "users", label: "Users", icon: Users },
-    { id: "seo", label: "Programmatic SEO", icon: Globe }
+    { id: "seo", label: "Programmatic SEO", icon: Globe },
+    { id: "search-performance", label: "Search Performance", icon: TrendingUp }
   ];
   const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];
 
