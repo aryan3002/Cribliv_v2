@@ -9,6 +9,7 @@ const CATEGORIES = "0046_blog_categories";
 const POSTS = "0047_blog_posts";
 const BRIEFS = "0048_blog_briefs";
 const EMBEDDINGS = "0049_blog_embeddings";
+const BLOG_MIGRATION_TEST_LOCK = 30460049;
 
 function sql(name: string): string {
   return readFileSync(join(MIG, `${name}.sql`), "utf8");
@@ -25,18 +26,28 @@ async function cleanBlogTables(client: Client): Promise<void> {
   await client.query(rollback(CATEGORIES)).catch(() => undefined);
 }
 
+async function lockBlogMigrations(client: Client): Promise<void> {
+  await client.query(`SELECT pg_advisory_lock($1)`, [BLOG_MIGRATION_TEST_LOCK]);
+}
+
+async function unlockBlogMigrations(client: Client): Promise<void> {
+  await client.query(`SELECT pg_advisory_unlock($1)`, [BLOG_MIGRATION_TEST_LOCK]);
+}
+
 describe.runIf(!!TEST_DB)("blog migrations", () => {
   let client: Client;
 
   beforeAll(async () => {
     client = new Client({ connectionString: TEST_DB! });
     await client.connect();
+    await lockBlogMigrations(client);
     await cleanBlogTables(client);
     await client.query(sql(CATEGORIES));
   });
 
   afterAll(async () => {
     await cleanBlogTables(client);
+    await unlockBlogMigrations(client);
     await client.end();
   });
 
@@ -71,6 +82,7 @@ describe.runIf(!!TEST_DB)("blog_posts migration", () => {
   beforeAll(async () => {
     client = new Client({ connectionString: TEST_DB! });
     await client.connect();
+    await lockBlogMigrations(client);
     await cleanBlogTables(client);
     await client.query(sql(CATEGORIES));
     await client.query(sql(POSTS));
@@ -78,6 +90,7 @@ describe.runIf(!!TEST_DB)("blog_posts migration", () => {
 
   afterAll(async () => {
     await cleanBlogTables(client);
+    await unlockBlogMigrations(client);
     await client.end();
   });
 
@@ -150,12 +163,14 @@ describe.runIf(!!TEST_DB)("blog_briefs migration", () => {
   beforeAll(async () => {
     client = new Client({ connectionString: TEST_DB! });
     await client.connect();
+    await lockBlogMigrations(client);
     await cleanBlogTables(client);
     await client.query(sql(BRIEFS));
   });
 
   afterAll(async () => {
     await cleanBlogTables(client);
+    await unlockBlogMigrations(client);
     await client.end();
   });
 
@@ -198,6 +213,7 @@ describe.runIf(!!TEST_DB)("blog_embeddings migration", () => {
   beforeAll(async () => {
     client = new Client({ connectionString: TEST_DB! });
     await client.connect();
+    await lockBlogMigrations(client);
     await cleanBlogTables(client);
     await client.query(sql(CATEGORIES));
     await client.query(sql(POSTS));
@@ -206,6 +222,7 @@ describe.runIf(!!TEST_DB)("blog_embeddings migration", () => {
 
   afterAll(async () => {
     await cleanBlogTables(client);
+    await unlockBlogMigrations(client);
     await client.end();
   });
 
