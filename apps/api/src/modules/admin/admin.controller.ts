@@ -278,6 +278,13 @@ export class AdminController {
         // start→publish conversion. Best-effort; no-ops for non-PG listings
         // (the committed-draft lookup returns no row).
         void this.pgFunnel.trackPublished(listingId);
+        this.database
+          .query(
+            `INSERT INTO outbound_events (event_type, aggregate_type, aggregate_id, payload, next_attempt_at)
+             VALUES ('seo.queue_indexing', 'listing', $1::uuid, $2::jsonb, now())`,
+            [listingId, JSON.stringify({ listing_id: listingId, reason: "listing_approved" })]
+          )
+          .catch(() => undefined);
       }
 
       logTelemetry("admin.listing_decision", {
