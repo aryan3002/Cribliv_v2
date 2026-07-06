@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { GoogleServiceAuth } from "./google/google-service-auth";
@@ -51,9 +51,9 @@ export class GscService {
   constructor(
     private readonly database: DatabaseService,
     private readonly auth: GoogleServiceAuth,
-    fetchImpl: typeof fetch = fetch
+    @Optional() fetchImpl?: typeof fetch
   ) {
-    this.fetchImpl = fetchImpl;
+    this.fetchImpl = fetchImpl ?? fetch;
   }
 
   async pollAndUpsert(capturedAt?: string): Promise<{ rowsUpserted: number; pagesRead: number }> {

@@ -1,5 +1,6 @@
 import { createSign } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { Injectable, Optional } from "@nestjs/common";
 
 interface ServiceAccountKey {
   client_email: string;
@@ -20,12 +21,13 @@ function base64url(input: Buffer | string): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+@Injectable()
 export class GoogleServiceAuth {
   private readonly cache = new Map<string, CachedToken>();
   private readonly fetchImpl: typeof fetch;
 
-  constructor(fetchImpl: typeof fetch = fetch) {
-    this.fetchImpl = fetchImpl;
+  constructor(@Optional() fetchImpl?: typeof fetch) {
+    this.fetchImpl = fetchImpl ?? fetch;
   }
 
   async getAccessToken(scopes: string[]): Promise<string> {
