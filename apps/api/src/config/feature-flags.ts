@@ -78,6 +78,9 @@ export interface FeatureFlags {
   ff_pg_voice_listing: boolean;
   ff_pg_admin_analytics: boolean;
   ff_programmatic_seo_cities_enabled: boolean;
+  /** Slice 2 - Indexing + Measurement (default OFF; flip at v1->v2 cutover) */
+  ff_seo_indexing: boolean;
+  ff_seo_gsc: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -157,7 +160,9 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_pg_fraud_ai: false,
   ff_pg_voice_listing: false,
   ff_pg_admin_analytics: false,
-  ff_programmatic_seo_cities_enabled: true
+  ff_programmatic_seo_cities_enabled: true,
+  ff_seo_indexing: false,
+  ff_seo_gsc: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -410,6 +415,8 @@ export function readFeatureFlags(): FeatureFlags {
     ff_programmatic_seo_cities_enabled: parseBooleanEnv(
       "FF_PROGRAMMATIC_SEO_CITIES_ENABLED",
       defaultFeatureFlags.ff_programmatic_seo_cities_enabled
-    )
+    ),
+    ff_seo_indexing: parseBooleanEnv("FF_SEO_INDEXING", defaultFeatureFlags.ff_seo_indexing),
+    ff_seo_gsc: parseBooleanEnv("FF_SEO_GSC", defaultFeatureFlags.ff_seo_gsc)
   };
 }
