@@ -1,4 +1,4 @@
-import { fetchApi, buildSearchQuery } from "./api";
+import { fetchApi, buildSearchQuery, getApiBaseUrl } from "./api";
 import type { ListingType, VerificationType, VerificationResult } from "@cribliv/shared-types";
 
 export interface AdminListingVm {
@@ -1398,4 +1398,224 @@ export async function listCityMetro(citySlug: string): Promise<SeoMetroRow[]> {
       lng: s.lng
     }))
   );
+}
+
+// ── Search Performance (Slice 2 — Indexing + Measurement) ──────────────────
+
+export interface SearchPerformanceRowVm {
+  keyword: string;
+  page: string;
+  locale: string;
+  citySlug: string | null;
+  position: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  capturedAt: string;
+  isTarget: boolean;
+  isIgnored: boolean;
+}
+
+export interface SearchPerformanceResultVm {
+  items: SearchPerformanceRowVm[];
+  total: number;
+  totals: { totalImpressions: number; totalClicks: number; avgPosition: number | null };
+}
+
+interface SearchPerformanceRawRow {
+  keyword: string;
+  page: string;
+  locale: string;
+  city_slug: string | null;
+  position: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  captured_at: string;
+  is_target: boolean;
+  is_ignored: boolean;
+}
+
+interface SearchPerformanceRawResult {
+  items: SearchPerformanceRawRow[];
+  total: number;
+  totals: { total_impressions: number; total_clicks: number; avg_position: number | null };
+}
+
+export interface IndexingQueueRowVm {
+  id: string;
+  url: string;
+  status: "pending" | "submitted" | "failed" | "skipped";
+  reason: string | null;
+  attempts: number;
+  submittedAt: string | null;
+  updatedAt: string;
+}
+
+interface IndexingQueueRawRow {
+  id: string;
+  url: string;
+  status: "pending" | "submitted" | "failed" | "skipped";
+  reason: string | null;
+  attempts: number;
+  submitted_at: string | null;
+  updated_at: string;
+}
+
+export interface IndexingQueueResultVm {
+  items: IndexingQueueRowVm[];
+  total: number;
+  summary: { countsByStatus: Record<string, number>; submittedToday: number; dailyQuota: number };
+}
+
+function mapSearchPerformanceRow(row: SearchPerformanceRawRow): SearchPerformanceRowVm {
+  return {
+    keyword: row.keyword,
+    page: row.page,
+    locale: row.locale,
+    citySlug: row.city_slug,
+    position: row.position,
+    impressions: row.impressions,
+    clicks: row.clicks,
+    ctr: row.ctr,
+    capturedAt: row.captured_at,
+    isTarget: row.is_target,
+    isIgnored: row.is_ignored
+  };
+}
+
+function mapIndexingQueueRow(row: IndexingQueueRawRow): IndexingQueueRowVm {
+  return {
+    id: row.id,
+    url: row.url,
+    status: row.status,
+    reason: row.reason,
+    attempts: row.attempts,
+    submittedAt: row.submitted_at,
+    updatedAt: row.updated_at
+  };
+}
+
+interface SearchPerformanceFilterParams {
+  citySlug?: string;
+  locale?: string;
+  quickWins?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+function searchPerformanceQueryParams(
+  params?: SearchPerformanceFilterParams
+): Record<string, string> {
+  const query: Record<string, string> = {};
+  if (params?.citySlug) query.city_slug = params.citySlug;
+  if (params?.locale) query.locale = params.locale;
+  if (params?.quickWins) query.quick_wins = "true";
+  if (params?.limit != null) query.limit = String(params.limit);
+  if (params?.offset != null) query.offset = String(params.offset);
+  return query;
+}
+
+function withSearchQuery(path: string, query: Record<string, string>): string {
+  const qs = buildSearchQuery(query);
+  return `${path}${qs ? `?${qs}` : ""}`;
+}
+
+export async function fetchSearchPerformance(
+  accessToken: string,
+  params?: SearchPerformanceFilterParams
+): Promise<SearchPerformanceResultVm> {
+  const raw = await fetchApi<SearchPerformanceRawResult>(
+    withSearchQuery("/admin/seo/search-performance", searchPerformanceQueryParams(params)),
+    { headers: authHeaders(accessToken) }
+  );
+  return {
+    items: raw.items.map(mapSearchPerformanceRow),
+    total: raw.total,
+    totals: {
+      totalImpressions: raw.totals.total_impressions,
+      totalClicks: raw.totals.total_clicks,
+      avgPosition: raw.totals.avg_position
+    }
+  };
+}
+
+export function searchPerformanceExportUrl(params?: {
+  citySlug?: string;
+  locale?: string;
+  quickWins?: boolean;
+}): string {
+  return `${getApiBaseUrl()}${withSearchQuery(
+    "/admin/seo/search-performance/export",
+    searchPerformanceQueryParams(params)
+  )}`;
+}
+
+export async function fetchSeoCoverage(
+  accessToken: string
+): Promise<{ indexedCount: number | null; submittedCount: number | null }> {
+  const raw = await fetchApi<{ indexed_count: number | null; submitted_count: number | null }>(
+    "/admin/seo/coverage",
+    { headers: authHeaders(accessToken) }
+  );
+  return { indexedCount: raw.indexed_count, submittedCount: raw.submitted_count };
+}
+
+export async function fetchIndexingQueue(
+  accessToken: string,
+  params?: { status?: string; limit?: number; offset?: number }
+): Promise<IndexingQueueResultVm> {
+  const query: Record<string, string> = {};
+  if (params?.status) query.status = params.status;
+  if (params?.limit != null) query.limit = String(params.limit);
+  if (params?.offset != null) query.offset = String(params.offset);
+
+  const raw = await fetchApi<{
+    items: IndexingQueueRawRow[];
+    total: number;
+    summary: {
+      counts_by_status: Record<string, number>;
+      submitted_today: number;
+      daily_quota: number;
+    };
+  }>(withSearchQuery("/admin/seo/indexing-queue", query), {
+    headers: authHeaders(accessToken)
+  });
+
+  return {
+    items: raw.items.map(mapIndexingQueueRow),
+    total: raw.total,
+    summary: {
+      countsByStatus: raw.summary.counts_by_status,
+      submittedToday: raw.summary.submitted_today,
+      dailyQuota: raw.summary.daily_quota
+    }
+  };
+}
+
+export async function submitIndexingUrl(
+  accessToken: string,
+  url: string,
+  reason?: string
+): Promise<IndexingQueueRowVm> {
+  const body: { url: string; reason?: string } = { url };
+  if (reason !== undefined) body.reason = reason;
+
+  const raw = await fetchApi<IndexingQueueRawRow>("/admin/seo/indexing-queue", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(body)
+  });
+  return mapIndexingQueueRow(raw);
+}
+
+export async function retryIndexingUrl(
+  accessToken: string,
+  id: string
+): Promise<IndexingQueueRowVm> {
+  const raw = await fetchApi<IndexingQueueRawRow>(
+    `/admin/seo/indexing-queue/${encodeURIComponent(id)}/retry`,
+    { method: "POST", headers: authHeaders(accessToken) }
+  );
+  return mapIndexingQueueRow(raw);
 }
