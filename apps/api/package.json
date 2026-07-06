@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "node ../../infra/migrations/run-migrations.js",
     "db:seed": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/seed.ts",
+    "seed:reference": "SEED_REFERENCE_ONLY=1 ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/seed.ts",
     "generate:city": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/generate-city.ts"
   },
   "dependencies": {
