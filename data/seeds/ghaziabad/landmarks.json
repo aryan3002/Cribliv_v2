@@ -1,0 +1,202 @@
+[
+  {
+    "slug": "ghaziabad-railway-station",
+    "name_en": "Ghaziabad Railway Station",
+    "name_hi": "गाज़ियाबाद रेलवे स्टेशन",
+    "type": "station",
+    "lat": 28.6534785,
+    "lng": 77.42744,
+    "aka": [],
+    "primary_locality_slug": "ghaziabad station"
+  },
+  {
+    "slug": "shaheed-sthal-metro-station",
+    "name_en": "Shaheed Sthal Metro Station",
+    "name_hi": "शहीद स्थल मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.670621,
+    "lng": 77.415453,
+    "aka": [],
+    "primary_locality_slug": "new bus adda metro"
+  },
+  {
+    "slug": "hindon-river-metro-station",
+    "name_en": "Hindon River Metro Station",
+    "name_hi": "हिंडन रिवर मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.67341499999999,
+    "lng": 77.40637,
+    "aka": [],
+    "primary_locality_slug": "hindon metro"
+  },
+  {
+    "slug": "mohan-nagar-metro-station",
+    "name_en": "Mohan Nagar Metro Station",
+    "name_hi": "मोहन नगर मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.67848,
+    "lng": 77.383933,
+    "aka": [],
+    "primary_locality_slug": "mohan-nagar"
+  },
+  {
+    "slug": "shipra-mall",
+    "name_en": "Shipra Mall",
+    "name_hi": "शिप्रा मॉल",
+    "type": "mall",
+    "lat": 28.6341036,
+    "lng": 77.3705522,
+    "aka": [],
+    "primary_locality_slug": "indirapuram"
+  },
+  {
+    "slug": "opulent-mall",
+    "name_en": "Opulent Mall",
+    "name_hi": "ओपुलेंट मॉल",
+    "type": "mall",
+    "lat": 28.6541728,
+    "lng": 77.4368109,
+    "aka": [],
+    "primary_locality_slug": "naya-ganj"
+  },
+  {
+    "slug": "santosh-medical-college",
+    "name_en": "Santosh Medical College",
+    "name_hi": "संतोष मेडिकल कॉलेज",
+    "type": "college",
+    "lat": 28.6489819,
+    "lng": 77.4085767,
+    "aka": [],
+    "primary_locality_slug": "pratap-vihar"
+  },
+  {
+    "slug": "ims-ghaziabad",
+    "name_en": "IMS Ghaziabad",
+    "name_hi": "आईएमएस गाज़ियाबाद",
+    "type": "college",
+    "lat": 28.6798005,
+    "lng": 77.5058645,
+    "aka": [],
+    "primary_locality_slug": "lal-kuan"
+  },
+  {
+    "slug": "ajay-kumar-garg-engineering-college",
+    "name_en": "Ajay Kumar Garg Engineering College",
+    "name_hi": "अजय कुमार गर्ग इंजीनियरिंग कॉलेज",
+    "type": "college",
+    "lat": 28.6756736,
+    "lng": 77.5020041,
+    "aka": [],
+    "primary_locality_slug": "dasna"
+  },
+  {
+    "slug": "abes-engineering-college",
+    "name_en": "ABES Engineering College",
+    "name_hi": "एबीईएस इंजीनियरिंग कॉलेज",
+    "type": "college",
+    "lat": 28.6340537,
+    "lng": 77.4455928,
+    "aka": [],
+    "primary_locality_slug": "lal-kuan"
+  },
+  {
+    "slug": "swarna-jayanti-park",
+    "name_en": "Swarna Jayanti Park",
+    "name_hi": "स्वर्ण जयंती पार्क",
+    "type": "park",
+    "lat": 28.6417161,
+    "lng": 77.36831819999999,
+    "aka": [],
+    "primary_locality_slug": "indirapuram"
+  },
+  {
+    "slug": "city-forest-ghaziabad",
+    "name_en": "City Forest Ghaziabad",
+    "name_hi": "सिटी फॉरेस्ट गाज़ियाबाद",
+    "type": "park",
+    "lat": 28.6972246,
+    "lng": 77.4006589,
+    "aka": [],
+    "primary_locality_slug": "raj-nagar-extension"
+  },
+  {
+    "slug": "drizzling-land-water-park",
+    "name_en": "Drizzling Land Water Park",
+    "name_hi": "ड्रिज़लिंग लैंड वॉटर पार्क",
+    "type": "park",
+    "lat": 28.7261484,
+    "lng": 77.4695698,
+    "aka": [],
+    "primary_locality_slug": "morta"
+  },
+  {
+    "slug": "iskcon-ghaziabad",
+    "name_en": "ISKCON Ghaziabad",
+    "name_hi": "इस्कॉन गाज़ियाबाद",
+    "type": "religious",
+    "lat": 28.6823722,
+    "lng": 77.45081909999999,
+    "aka": [],
+    "primary_locality_slug": "raj-nagar"
+  },
+  {
+    "slug": "vaishali-metro-station",
+    "name_en": "Vaishali Metro Station",
+    "name_hi": "वैशाली मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.64984,
+    "lng": 77.33968,
+    "aka": [],
+    "primary_locality_slug": "vaishali"
+  },
+  {
+    "slug": "kaushambi-metro-station",
+    "name_en": "Kaushambi Metro Station",
+    "name_hi": "कौशांबी मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.64548,
+    "lng": 77.32436,
+    "aka": [],
+    "primary_locality_slug": "kaushambi"
+  },
+  {
+    "slug": "mahagun-metro-mall",
+    "name_en": "Mahagun Metro Mall",
+    "name_hi": "महागुन मेट्रो मॉल",
+    "type": "mall",
+    "lat": 28.6447975,
+    "lng": 77.3358579,
+    "aka": [],
+    "primary_locality_slug": "vaishali"
+  },
+  {
+    "slug": "pacific-mall-ghaziabad",
+    "name_en": "Pacific Mall Ghaziabad",
+    "name_hi": "पैसिफिक मॉल गाज़ियाबाद",
+    "type": "mall",
+    "lat": 28.6464533,
+    "lng": 77.3200057,
+    "aka": [],
+    "primary_locality_slug": "kaushambi"
+  },
+  {
+    "slug": "yashoda-super-speciality-hospital-kaushambi",
+    "name_en": "Yashoda Super Speciality Hospital Kaushambi",
+    "name_hi": "यशोदा सुपर स्पेशलिटी हॉस्पिटल कौशांबी",
+    "type": "hospital",
+    "lat": 28.6453167,
+    "lng": 77.3285961,
+    "aka": [],
+    "primary_locality_slug": "kaushambi"
+  },
+  {
+    "slug": "max-super-speciality-hospital-vaishali",
+    "name_en": "Max Super Speciality Hospital Vaishali",
+    "name_hi": "मैक्स सुपर स्पेशलिटी हॉस्पिटल वैशाली",
+    "type": "hospital",
+    "lat": 28.6345207,
+    "lng": 77.3329679,
+    "aka": [],
+    "primary_locality_slug": "vaishali"
+  }
+]

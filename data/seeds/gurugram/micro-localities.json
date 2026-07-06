@@ -1,0 +1,416 @@
+[
+  {
+    "slug": "block-a",
+    "name_en": "Block A",
+    "name_hi": "ब्लॉक ए",
+    "lat": 28.5064085,
+    "lng": 77.03701629999999,
+    "seo_aliases": ["a block", "block a phase 1", "dlf1-a"],
+    "parent_slug": "dlf-phase-1"
+  },
+  {
+    "slug": "block-b",
+    "name_en": "Block B",
+    "name_hi": "ब्लॉक बी",
+    "lat": 28.4706353,
+    "lng": 77.097455,
+    "seo_aliases": ["b block", "block b phase 1", "dlf1-b"],
+    "parent_slug": "dlf-phase-1"
+  },
+  {
+    "slug": "block-c",
+    "name_en": "Block C",
+    "name_hi": "ब्लॉक सी",
+    "lat": 28.4539122,
+    "lng": 77.0811923,
+    "seo_aliases": ["c block", "block c phase 2", "dlf2-c"],
+    "parent_slug": "dlf-phase-2"
+  },
+  {
+    "slug": "block-d",
+    "name_en": "Block D",
+    "name_hi": "ब्लॉक डी",
+    "lat": 28.4684566,
+    "lng": 77.10464809999999,
+    "seo_aliases": ["d block", "block d phase 3", "dlf3-d"],
+    "parent_slug": "dlf-phase-3"
+  },
+  {
+    "slug": "block-e",
+    "name_en": "Block E",
+    "name_hi": "ब्लॉक ई",
+    "lat": 28.4877867,
+    "lng": 77.0186629,
+    "seo_aliases": ["e block", "block e phase 4", "dlf4-e"],
+    "parent_slug": "dlf-phase-4"
+  },
+  {
+    "slug": "block-f",
+    "name_en": "Block F",
+    "name_hi": "ब्लॉक एफ",
+    "lat": 28.5069642,
+    "lng": 77.0427737,
+    "seo_aliases": ["f block", "block f phase 5", "dlf5-f"],
+    "parent_slug": "dlf-phase-5"
+  },
+  {
+    "slug": "block-g",
+    "name_en": "Block G",
+    "name_hi": "ब्लॉक जी",
+    "lat": 28.4493632,
+    "lng": 77.0589648,
+    "seo_aliases": ["g block", "block g palam", "palam-g"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-h",
+    "name_en": "Block H",
+    "name_hi": "ब्लॉक एच",
+    "lat": 28.5003715,
+    "lng": 77.0414187,
+    "seo_aliases": ["h block", "block h palam", "palam-h"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-i",
+    "name_en": "Block I",
+    "name_hi": "ब्लॉक आई",
+    "lat": 28.4903764,
+    "lng": 77.0157837,
+    "seo_aliases": ["i block", "block i palam", "palam-i"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-j",
+    "name_en": "Block J",
+    "name_hi": "ब्लॉक जे",
+    "lat": 28.5055686,
+    "lng": 77.0292319,
+    "seo_aliases": ["j block", "block j palam", "palam-j"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-k",
+    "name_en": "Block K",
+    "name_hi": "ब्लॉक के",
+    "lat": 28.5043251,
+    "lng": 77.0173116,
+    "seo_aliases": ["k block", "block k palam", "palam-k"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-l",
+    "name_en": "Block L",
+    "name_hi": "ब्लॉक एल",
+    "lat": 28.4547301,
+    "lng": 77.06256259999999,
+    "seo_aliases": ["l block", "block l palam", "palam-l"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-m",
+    "name_en": "Block M",
+    "name_hi": "ब्लॉक एम",
+    "lat": 28.4541291,
+    "lng": 77.0600442,
+    "seo_aliases": ["m block", "block m palam", "palam-m"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-n",
+    "name_en": "Block N",
+    "name_hi": "ब्लॉक एन",
+    "lat": 28.4522321,
+    "lng": 77.0589648,
+    "seo_aliases": ["n block", "block n palam", "palam-n"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-o",
+    "name_en": "Block O",
+    "name_hi": "ब्लॉक ओ",
+    "lat": 28.4516534,
+    "lng": 77.0604039,
+    "seo_aliases": ["o block", "block o palam", "palam-o"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-p",
+    "name_en": "Block P",
+    "name_hi": "ब्लॉक पी",
+    "lat": 28.4503574,
+    "lng": 77.061843,
+    "seo_aliases": ["p block", "block p palam", "palam-p"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-q",
+    "name_en": "Block Q",
+    "name_hi": "ब्लॉक क्यू",
+    "lat": 28.4481364,
+    "lng": 77.0611235,
+    "seo_aliases": ["q block", "block q palam", "palam-q"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-r",
+    "name_en": "Block R",
+    "name_hi": "ब्लॉक आर",
+    "lat": 28.5018234,
+    "lng": 77.01182460000001,
+    "seo_aliases": ["r block", "block r palam", "palam-r"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-s",
+    "name_en": "Block S",
+    "name_hi": "ब्लॉक एस",
+    "lat": 28.410492,
+    "lng": 77.0463719,
+    "seo_aliases": ["s block", "block s palam", "palam-s"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-t",
+    "name_en": "Block T",
+    "name_hi": "ब्लॉक टी",
+    "lat": 28.5126466,
+    "lng": 77.01254449999999,
+    "seo_aliases": ["t block", "block t palam", "palam-t"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-u",
+    "name_en": "Block U",
+    "name_hi": "ब्लॉक यू",
+    "lat": 28.4921556,
+    "lng": 77.09660869999999,
+    "seo_aliases": ["u block", "block u palam", "palam-u"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-v",
+    "name_en": "Block V",
+    "name_hi": "ब्लॉक वी",
+    "lat": 28.5045867,
+    "lng": 77.01514499999999,
+    "seo_aliases": ["v block", "block v palam", "palam-v"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-w",
+    "name_en": "Block W",
+    "name_hi": "ब्लॉक डब्ल्यू",
+    "lat": 28.4047529,
+    "lng": 77.0463719,
+    "seo_aliases": ["w block", "block w palam", "palam-w"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-x",
+    "name_en": "Block X",
+    "name_hi": "ब्लॉक एक्स",
+    "lat": 28.4594965,
+    "lng": 77.0266383,
+    "seo_aliases": ["x block", "block x palam", "palam-x"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-y",
+    "name_en": "Block Y",
+    "name_hi": "ब्लॉक वाई",
+    "lat": 28.4594965,
+    "lng": 77.0266383,
+    "seo_aliases": ["y block", "block y palam", "palam-y"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "block-z",
+    "name_en": "Block Z",
+    "name_hi": "ब्लॉक ज़ेड",
+    "lat": 28.4594965,
+    "lng": 77.0266383,
+    "seo_aliases": ["z block", "block z palam", "palam-z"],
+    "parent_slug": "palam-vihar"
+  },
+  {
+    "slug": "sushant-lok-block-a",
+    "name_en": "Sushant Lok Block A",
+    "name_hi": "सुशांत लोक ब्लॉक ए",
+    "lat": 28.4538299,
+    "lng": 77.078318,
+    "seo_aliases": ["a block sushant", "sushant-a"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-b",
+    "name_en": "Sushant Lok Block B",
+    "name_hi": "सुशांत लोक ब्लॉक बी",
+    "lat": 28.4607853,
+    "lng": 77.0766007,
+    "seo_aliases": ["b block sushant", "sushant-b"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-c",
+    "name_en": "Sushant Lok Block C",
+    "name_hi": "सुशांत लोक ब्लॉक सी",
+    "lat": 28.4521138,
+    "lng": 77.0847034,
+    "seo_aliases": ["c block sushant", "sushant-c"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-d",
+    "name_en": "Sushant Lok Block D",
+    "name_hi": "सुशांत लोक ब्लॉक डी",
+    "lat": 28.4532741,
+    "lng": 77.0771828,
+    "seo_aliases": ["d block sushant", "sushant-d"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-e",
+    "name_en": "Sushant Lok Block E",
+    "name_hi": "सुशांत लोक ब्लॉक ई",
+    "lat": 28.4698856,
+    "lng": 77.0779866,
+    "seo_aliases": ["e block sushant", "sushant-e"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-f",
+    "name_en": "Sushant Lok Block F",
+    "name_hi": "सुशांत लोक ब्लॉक एफ",
+    "lat": 28.4521472,
+    "lng": 77.0811566,
+    "seo_aliases": ["f block sushant", "sushant-f"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-g",
+    "name_en": "Sushant Lok Block G",
+    "name_hi": "सुशांत लोक ब्लॉक जी",
+    "lat": 28.4523361,
+    "lng": 77.08055329999999,
+    "seo_aliases": ["g block sushant", "sushant-g"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-h",
+    "name_en": "Sushant Lok Block H",
+    "name_hi": "सुशांत लोक ब्लॉक एच",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["h block sushant", "sushant-h"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-i",
+    "name_en": "Sushant Lok Block I",
+    "name_hi": "सुशांत लोक ब्लॉक आई",
+    "lat": 28.4540437,
+    "lng": 77.07887439999999,
+    "seo_aliases": ["i block sushant", "sushant-i"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-j",
+    "name_en": "Sushant Lok Block J",
+    "name_hi": "सुशांत लोक ब्लॉक जे",
+    "lat": 28.4516764,
+    "lng": 77.0797886,
+    "seo_aliases": ["j block sushant", "sushant-j"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-k",
+    "name_en": "Sushant Lok Block K",
+    "name_hi": "सुशांत लोक ब्लॉक के",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["k block sushant", "sushant-k"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-l",
+    "name_en": "Sushant Lok Block L",
+    "name_hi": "सुशांत लोक ब्लॉक एल",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["l block sushant", "sushant-l"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-m",
+    "name_en": "Sushant Lok Block M",
+    "name_hi": "सुशांत लोक ब्लॉक एम",
+    "lat": 28.4863518,
+    "lng": 77.0882039,
+    "seo_aliases": ["m block sushant", "sushant-m"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-n",
+    "name_en": "Sushant Lok Block N",
+    "name_hi": "सुशांत लोक ब्लॉक एन",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["n block sushant", "sushant-n"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-o",
+    "name_en": "Sushant Lok Block O",
+    "name_hi": "सुशांत लोक ब्लॉक ओ",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["o block sushant", "sushant-o"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-p",
+    "name_en": "Sushant Lok Block P",
+    "name_hi": "सुशांत लोक ब्लॉक पी",
+    "lat": 28.4873385,
+    "lng": 77.08991259999999,
+    "seo_aliases": ["p block sushant", "sushant-p"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-q",
+    "name_en": "Sushant Lok Block Q",
+    "name_hi": "सुशांत लोक ब्लॉक क्यू",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["q block sushant", "sushant-q"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-r",
+    "name_en": "Sushant Lok Block R",
+    "name_hi": "सुशांत लोक ब्लॉक आर",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["r block sushant", "sushant-r"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-s",
+    "name_en": "Sushant Lok Block S",
+    "name_hi": "सुशांत लोक ब्लॉक एस",
+    "lat": 28.410492,
+    "lng": 77.0463719,
+    "seo_aliases": ["s block sushant", "sushant-s"],
+    "parent_slug": "sushant-lok-phase-1"
+  },
+  {
+    "slug": "sushant-lok-block-t",
+    "name_en": "Sushant Lok Block T",
+    "name_hi": "सुशांत लोक ब्लॉक टी",
+    "lat": 28.4634412,
+    "lng": 77.07675569999999,
+    "seo_aliases": ["t block sushant", "sushant-t"],
+    "parent_slug": "sushant-lok-phase-1"
+  }
+]

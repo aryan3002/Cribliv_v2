@@ -1,0 +1,222 @@
+[
+  {
+    "slug": "faridabad-railway-station",
+    "name_en": "Faridabad Railway Station",
+    "name_hi": "फरीदाबाद रेलवे स्टेशन",
+    "type": "station",
+    "lat": 28.4131321,
+    "lng": 77.3063141,
+    "aka": [],
+    "primary_locality_slug": "old-faridabad"
+  },
+  {
+    "slug": "old-faridabad-metro-station",
+    "name_en": "Old Faridabad Metro Station",
+    "name_hi": "ओल्ड फरीदाबाद मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.4107712,
+    "lng": 77.31150749999999,
+    "aka": [],
+    "primary_locality_slug": "old-faridabad"
+  },
+  {
+    "slug": "neelam-chowk-ajronda-metro-station",
+    "name_en": "Neelam Chowk Ajronda Metro Station",
+    "name_hi": "नीलम चौक अजरौंदा मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.397668,
+    "lng": 77.312365,
+    "aka": [],
+    "primary_locality_slug": "ajronda"
+  },
+  {
+    "slug": "bata-chowk-metro-station",
+    "name_en": "Bata Chowk Metro Station",
+    "name_hi": "बाटा चौक मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.38599,
+    "lng": 77.31342,
+    "aka": [],
+    "primary_locality_slug": "bata-chowk"
+  },
+  {
+    "slug": "escorts-mujesar-metro-station",
+    "name_en": "Escorts Mujesar Metro Station",
+    "name_hi": "एस्कॉर्ट्स मुजेसर मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.37016,
+    "lng": 77.31493999999999,
+    "aka": [],
+    "primary_locality_slug": "sector-11"
+  },
+  {
+    "slug": "raja-nahar-singh-metro-station",
+    "name_en": "Raja Nahar Singh Metro Station",
+    "name_hi": "राजा नाहर सिंह मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.339801,
+    "lng": 77.316446,
+    "aka": [],
+    "primary_locality_slug": "ballabhgarh"
+  },
+  {
+    "slug": "badkhal-mor-metro-station",
+    "name_en": "Badkhal Mor Metro Station",
+    "name_hi": "बड़खल मोड़ मेट्रो स्टेशन",
+    "type": "station",
+    "lat": 28.4228115,
+    "lng": 77.31013490000001,
+    "aka": [],
+    "primary_locality_slug": "sector-28"
+  },
+  {
+    "slug": "asian-institute-of-medical-sciences",
+    "name_en": "Asian Institute of Medical Sciences",
+    "name_hi": "एशियन इंस्टीट्यूट ऑफ मेडिकल साइंसेज",
+    "type": "hospital",
+    "lat": 28.4260624,
+    "lng": 77.2996388,
+    "aka": [],
+    "primary_locality_slug": "sector-21a"
+  },
+  {
+    "slug": "qrg-health-city",
+    "name_en": "QRG Health City",
+    "name_hi": "क्यूआरजी हेल्थ सिटी",
+    "type": "hospital",
+    "lat": 28.415731,
+    "lng": 77.3198517,
+    "aka": [],
+    "primary_locality_slug": "sector-16"
+  },
+  {
+    "slug": "fortis-escorts-hospital-faridabad",
+    "name_en": "Fortis Escorts Hospital Faridabad",
+    "name_hi": "फोर्टिस एस्कॉर्ट्स हॉस्पिटल फरीदाबाद",
+    "type": "hospital",
+    "lat": 28.391214,
+    "lng": 77.30689749999999,
+    "aka": [],
+    "primary_locality_slug": "neelam-bata-road"
+  },
+  {
+    "slug": "amrita-hospital-faridabad",
+    "name_en": "Amrita Hospital Faridabad",
+    "name_hi": "अमृता हॉस्पिटल फरीदाबाद",
+    "type": "hospital",
+    "lat": 28.4259424,
+    "lng": 77.3540639,
+    "aka": [],
+    "primary_locality_slug": "sector-88"
+  },
+  {
+    "slug": "crown-interiorz-mall",
+    "name_en": "Crown Interiorz Mall",
+    "name_hi": "क्राउन इंटीरियर्ज मॉल",
+    "type": "mall",
+    "lat": 28.4695543,
+    "lng": 77.30689269999999,
+    "aka": [],
+    "primary_locality_slug": "sector-35"
+  },
+  {
+    "slug": "crown-plaza-faridabad",
+    "name_en": "Crown Plaza Faridabad",
+    "name_hi": "क्राउन प्लाज़ा फरीदाबाद",
+    "type": "mall",
+    "lat": 28.3976602,
+    "lng": 77.3130776,
+    "aka": [],
+    "primary_locality_slug": "sector-15"
+  },
+  {
+    "slug": "ef3-mall",
+    "name_en": "EF3 Mall",
+    "name_hi": "ईएफ3 मॉल",
+    "type": "mall",
+    "lat": 28.407474,
+    "lng": 77.310214,
+    "aka": [],
+    "primary_locality_slug": "sector-20a"
+  },
+  {
+    "slug": "srs-mall-faridabad",
+    "name_en": "SRS Mall Faridabad",
+    "name_hi": "एसआरएस मॉल फरीदाबाद",
+    "type": "mall",
+    "lat": 28.3865253,
+    "lng": 77.3166959,
+    "aka": [],
+    "primary_locality_slug": "sector-12"
+  },
+  {
+    "slug": "manav-rachna-university",
+    "name_en": "Manav Rachna University",
+    "name_hi": "मानव रचना यूनिवर्सिटी",
+    "type": "college",
+    "lat": 28.4089123,
+    "lng": 77.3177894,
+    "aka": [],
+    "primary_locality_slug": "surajkund"
+  },
+  {
+    "slug": "ymca-university-faridabad",
+    "name_en": "YMCA University Faridabad",
+    "name_hi": "वाईएमसीए यूनिवर्सिटी फरीदाबाद",
+    "type": "college",
+    "lat": 28.3674749,
+    "lng": 77.3158949,
+    "aka": [],
+    "primary_locality_slug": "sector-6"
+  },
+  {
+    "slug": "lingayas-vidyapeeth",
+    "name_en": "Lingayas Vidyapeeth",
+    "name_hi": "लिंगयाज़ विद्यापीठ",
+    "type": "college",
+    "lat": 28.4091583,
+    "lng": 77.40390769999999,
+    "aka": [],
+    "primary_locality_slug": "faridabad"
+  },
+  {
+    "slug": "surajkund-lake",
+    "name_en": "Surajkund Lake",
+    "name_hi": "सूरजकुंड झील",
+    "type": "park",
+    "lat": 28.4842019,
+    "lng": 77.284176,
+    "aka": [],
+    "primary_locality_slug": "surajkund"
+  },
+  {
+    "slug": "town-park-faridabad",
+    "name_en": "Town Park Faridabad",
+    "name_hi": "टाउन पार्क फरीदाबाद",
+    "type": "park",
+    "lat": 28.385244,
+    "lng": 77.3219996,
+    "aka": [],
+    "primary_locality_slug": "sector-12"
+  },
+  {
+    "slug": "raja-nahar-singh-palace",
+    "name_en": "Raja Nahar Singh Palace",
+    "name_hi": "राजा नाहर सिंह पैलेस",
+    "type": "monument",
+    "lat": 28.3403684,
+    "lng": 77.3195626,
+    "aka": [],
+    "primary_locality_slug": "ballabhgarh"
+  },
+  {
+    "slug": "iskcon-faridabad",
+    "name_en": "ISKCON Faridabad",
+    "name_hi": "इस्कॉन फरीदाबाद",
+    "type": "religious",
+    "lat": 28.4779362,
+    "lng": 77.313786,
+    "aka": [],
+    "primary_locality_slug": "sector-37"
+  }
+]
