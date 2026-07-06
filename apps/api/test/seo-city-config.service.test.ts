@@ -65,6 +65,24 @@ describe("SeoCityConfigService", () => {
     expect(params).toEqual([]);
   });
 
+  it("short-circuits listEnabled to [] without querying when the kill-switch flag is off", async () => {
+    const original = process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED;
+    process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED = "false";
+    try {
+      const service = new SeoCityConfigService(database as never, aggregates as never);
+
+      await expect(service.listEnabled()).resolves.toEqual([]);
+
+      expect(query).not.toHaveBeenCalled();
+    } finally {
+      if (original === undefined) {
+        delete process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED;
+      } else {
+        process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED = original;
+      }
+    }
+  });
+
   it("lists every city with config defaults and refreshed count columns", async () => {
     const baseRow = {
       ...ENABLED_ROW,
