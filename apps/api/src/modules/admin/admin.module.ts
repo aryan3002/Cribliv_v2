@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AdminController } from "./admin.controller";
 import { AdminSeoController } from "./admin-seo.controller";
+import { AdminSeoSearchController } from "./admin-seo-search.controller";
 import { AdminAnalyticsService } from "./admin-analytics.service";
 import { AdminOpsService } from "./admin-ops.service";
 import { AdminOwnerHealthService } from "./admin-owner-health.service";
@@ -22,7 +23,7 @@ import { SeoModule } from "../seo/seo.module";
   // RentAgreementModule is imported for the RENT_AGREEMENT_SAS_ISSUER token
   // (AdminRentAgreementService issues admin PDF download links).
   imports: [NotificationsModule, RentAgreementModule, SeoModule],
-  controllers: [AdminController, AdminSeoController],
+  controllers: [AdminController, AdminSeoController, AdminSeoSearchController],
   providers: [
     AdminAnalyticsService,
     AdminOpsService,
