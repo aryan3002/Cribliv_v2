@@ -1,4 +1,4 @@
-import { fetchApi, buildSearchQuery, getApiBaseUrl } from "./api";
+import { ApiError, fetchApi, buildSearchQuery, getApiBaseUrl } from "./api";
 import type { ListingType, VerificationType, VerificationResult } from "@cribliv/shared-types";
 
 export interface AdminListingVm {
@@ -1549,6 +1549,27 @@ export function searchPerformanceExportUrl(params?: {
     "/admin/seo/search-performance/export",
     searchPerformanceQueryParams(params)
   )}`;
+}
+
+export async function fetchSearchPerformanceCsv(
+  accessToken: string,
+  params?: { citySlug?: string; locale?: string; quickWins?: boolean }
+): Promise<string> {
+  const response = await fetch(searchPerformanceExportUrl(params), {
+    headers: authHeaders(accessToken)
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const errorPayload = payload?.error ?? payload ?? {};
+    throw new ApiError(errorPayload?.message ?? `Request failed with status ${response.status}`, {
+      status: response.status,
+      code: errorPayload?.code,
+      details: errorPayload?.details
+    });
+  }
+
+  return response.text();
 }
 
 export async function fetchSeoCoverage(

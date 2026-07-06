@@ -5,7 +5,8 @@ import {
   fetchIndexingQueue,
   submitIndexingUrl,
   retryIndexingUrl,
-  searchPerformanceExportUrl
+  searchPerformanceExportUrl,
+  fetchSearchPerformanceCsv
 } from "../admin-api";
 
 const RAW_PERFORMANCE = {
@@ -70,6 +71,22 @@ describe("admin-api search performance client fns", () => {
     expect(url).toContain("/admin/seo/search-performance/export");
     expect(url).toContain("city_slug=noida");
     expect(url).toContain("quick_wins=true");
+  });
+
+  it("fetches the CSV export with the admin bearer token", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "keyword,page\n2bhk noida,/en/city/noida\n"
+    });
+
+    const csv = await fetchSearchPerformanceCsv("tok", { citySlug: "noida", quickWins: true });
+
+    expect(csv).toContain("2bhk noida");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/admin/seo/search-performance/export");
+    expect(String(url)).toContain("city_slug=noida");
+    expect(String(url)).toContain("quick_wins=true");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer tok");
   });
 
   it("fetches coverage and maps to camelCase", async () => {

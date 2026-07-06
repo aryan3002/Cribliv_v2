@@ -9,9 +9,9 @@ import { StatusPill } from "../primitives/StatusPill";
 import {
   fetchIndexingQueue,
   fetchSearchPerformance,
+  fetchSearchPerformanceCsv,
   fetchSeoCoverage,
   retryIndexingUrl,
-  searchPerformanceExportUrl,
   submitIndexingUrl,
   type IndexingQueueRowVm,
   type SearchPerformanceRowVm
@@ -54,6 +54,7 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
   const [loading, setLoading] = useState(true);
   const [manualUrl, setManualUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const onToastRef = useRef(onToast);
@@ -151,6 +152,27 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
       onToast(err instanceof Error ? err.message : "Could not retry URL", "danger");
     } finally {
       setRetryingId(null);
+    }
+  }
+
+  async function handleExportCsv() {
+    setExporting(true);
+    try {
+      const csv = await fetchSearchPerformanceCsv(accessToken, {
+        quickWins: quickWins || undefined
+      });
+      const blobUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = "search-performance.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Could not export CSV", "danger");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -295,13 +317,15 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
         >
           Quick wins
         </button>
-        <a
-          href={searchPerformanceExportUrl({ quickWins: quickWins || undefined })}
+        <button
+          type="button"
           className="admin-btn admin-btn--ghost admin-btn--sm"
           style={{ marginLeft: "auto" }}
+          onClick={() => void handleExportCsv()}
+          disabled={exporting}
         >
-          Export CSV
-        </a>
+          {exporting ? "Exporting..." : "Export CSV"}
+        </button>
       </div>
 
       <DataTable

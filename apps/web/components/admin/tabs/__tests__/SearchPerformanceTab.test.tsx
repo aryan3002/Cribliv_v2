@@ -6,9 +6,7 @@ const fetchSeoCoverage = vi.fn();
 const fetchIndexingQueue = vi.fn();
 const submitIndexingUrl = vi.fn();
 const retryIndexingUrl = vi.fn();
-const searchPerformanceExportUrl = vi.fn(
-  (..._args: unknown[]) => "http://api.test/admin/seo/search-performance/export"
-);
+const fetchSearchPerformanceCsv = vi.fn();
 
 vi.mock("../../../../lib/admin-api", () => ({
   fetchSearchPerformance: (...args: unknown[]) => fetchSearchPerformance(...args),
@@ -16,7 +14,7 @@ vi.mock("../../../../lib/admin-api", () => ({
   fetchIndexingQueue: (...args: unknown[]) => fetchIndexingQueue(...args),
   submitIndexingUrl: (...args: unknown[]) => submitIndexingUrl(...args),
   retryIndexingUrl: (...args: unknown[]) => retryIndexingUrl(...args),
-  searchPerformanceExportUrl: (...args: unknown[]) => searchPerformanceExportUrl(...args)
+  fetchSearchPerformanceCsv: (...args: unknown[]) => fetchSearchPerformanceCsv(...args)
 }));
 
 import { SearchPerformanceTab } from "../SearchPerformanceTab";
@@ -65,9 +63,7 @@ describe("SearchPerformanceTab", () => {
     fetchSearchPerformance.mockResolvedValue(PERFORMANCE_RESULT);
     fetchSeoCoverage.mockResolvedValue({ indexedCount: 42, submittedCount: 7 });
     fetchIndexingQueue.mockResolvedValue(QUEUE_RESULT);
-    searchPerformanceExportUrl.mockReturnValue(
-      "http://api.test/admin/seo/search-performance/export"
-    );
+    fetchSearchPerformanceCsv.mockResolvedValue("keyword,page\n2bhk noida,/en/city/noida\n");
   });
 
   it("loads and renders rankings, coverage stats, and the indexing queue", async () => {
@@ -94,12 +90,29 @@ describe("SearchPerformanceTab", () => {
     });
   });
 
-  it("renders a CSV export link built from searchPerformanceExportUrl", async () => {
+  it("downloads CSV through the authenticated admin client", async () => {
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    URL.createObjectURL = vi.fn(() => "blob:search-performance");
+    URL.revokeObjectURL = vi.fn();
+    HTMLAnchorElement.prototype.click = vi.fn();
+
     render(<SearchPerformanceTab accessToken="tok" onToast={onToast} />);
     await screen.findByText("2bhk noida");
 
-    const link = screen.getByRole("link", { name: /export csv/i });
-    expect(link).toHaveAttribute("href", "http://api.test/admin/seo/search-performance/export");
+    fireEvent.click(screen.getByRole("button", { name: /export csv/i }));
+
+    await waitFor(() => {
+      expect(fetchSearchPerformanceCsv).toHaveBeenCalledWith("tok", expect.objectContaining({}));
+    });
+    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:search-performance");
+
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    HTMLAnchorElement.prototype.click = originalClick;
   });
 
   it("submits a manual indexing URL and reloads the queue", async () => {
