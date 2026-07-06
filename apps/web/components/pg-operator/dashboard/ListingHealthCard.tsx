@@ -14,25 +14,37 @@ function titleCase(s?: string | null): string {
 }
 function statusVariant(status: string) {
   const s = status.toLowerCase();
-  if (s === "active" || s === "published") return styles.lbadgeActive;
+  if (s === "active" || s === "published" || s === "live") return styles.lbadgeActive;
   if (s === "draft" || s === "pending" || s === "pending_review") return styles.lbadgePending;
   return styles.lbadgeDraft;
+}
+function statusLabel(status: string) {
+  return status.replace(/_/g, " ");
+}
+function relativeUpdated(iso?: string | null) {
+  if (!iso) return null;
+  const updated = new Date(iso).getTime();
+  if (!Number.isFinite(updated)) return null;
+  const days = Math.floor((Date.now() - updated) / 86_400_000);
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
 }
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const GENDER: Record<string, string> = { boys: "Boys", girls: "Girls", coed: "Co-ed" };
 
 function scoreGradient(score: number | null): string {
-  if (score == null) return "rgba(255,255,255,.18)";
-  if (score >= 70) return "linear-gradient(90deg,#1aa564,#3ddc8b)";
-  if (score >= 40) return "linear-gradient(90deg,#0066ff,#3a8bff)";
-  return "rgba(255,255,255,.18)";
+  if (score == null) return "var(--d-border-strong)";
+  if (score >= 70) return "var(--d-success)";
+  if (score >= 40) return "var(--d-brand)";
+  return "var(--d-danger)";
 }
 
 function scoreDisplayColor(score: number | null): string {
-  if (score == null) return "#9ca3af";
-  if (score >= 70) return "#3ddc8b";
-  if (score >= 40) return "#ffb24d";
-  return "#ff8e92";
+  if (score == null) return "var(--d-text-soft)";
+  if (score >= 70) return "var(--d-success)";
+  if (score >= 40) return "var(--d-warning)";
+  return "var(--d-danger)";
 }
 
 export default function ListingHealthCard({
@@ -46,6 +58,7 @@ export default function ListingHealthCard({
   const score = data.composite_score ?? null;
   const name = data.title?.trim() || `PG #${data.listing_id.slice(0, 8)}`;
   const loc = [titleCase(data.locality_slug), titleCase(data.city_slug)].filter(Boolean).join(", ");
+  const updated = relativeUpdated(data.last_updated);
   const rent =
     data.starting_rent_paise && data.starting_rent_paise > 0
       ? `from ₹${Math.round(data.starting_rent_paise / 100).toLocaleString("en-IN")}/mo`
@@ -68,11 +81,12 @@ export default function ListingHealthCard({
   const pts = series
     .map((v, i) => `${(i / (series.length - 1 || 1)) * 80},${30 - (v / sparkMax) * 28}`)
     .join(" ");
-  const sparkColor = data.status === "active" ? "#3ddc8b" : "#8fb6ff";
+  const sparkColor = data.status === "active" ? "var(--d-success)" : "var(--d-brand)";
 
   return (
     <motion.article
       className={styles.lcard}
+      data-status={data.status}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -89,7 +103,7 @@ export default function ListingHealthCard({
         )}
         <span className={`${styles.lbadge} ${statusVariant(data.status)}`}>
           <span className={styles.lbadgeDot} />
-          {titleCase(data.status)}
+          {statusLabel(data.status)}
         </span>
         {rent && <span className={styles.lprice}>{rent}</span>}
       </div>
@@ -102,6 +116,7 @@ export default function ListingHealthCard({
             <MapPin size={12} /> {loc}
           </span>
         )}
+        {updated && <div className={styles.lupdated}>Updated {updated}</div>}
 
         {chips.length > 0 && (
           <div className={styles.lchips}>
@@ -148,7 +163,7 @@ export default function ListingHealthCard({
             </svg>
           ) : (
             <svg viewBox="0 0 80 30" className={styles.lspark}>
-              <text x="40" y="18" textAnchor="middle" fontSize="9" fill="rgba(255,255,255,.3)">
+              <text x="40" y="18" textAnchor="middle" fontSize="9" fill="var(--d-text-soft)">
                 No data
               </text>
             </svg>

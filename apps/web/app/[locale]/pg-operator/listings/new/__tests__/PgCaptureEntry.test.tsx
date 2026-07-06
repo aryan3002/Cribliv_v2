@@ -21,4 +21,11 @@ describe("PgCaptureEntry", () => {
     const voiceBtn = screen.getByRole("button", { name: /talk to list/i });
     expect(voiceBtn).toBeDisabled();
   });
+
+  it("uses the responsive capture option grid instead of an inline fixed two-column style", () => {
+    const { container } = render(<PgCaptureEntry onManual={vi.fn()} />);
+    const options = container.querySelector(".pgo-capture-options");
+    expect(options).toBeTruthy();
+    expect(options).not.toHaveStyle({ gridTemplateColumns: "1fr 1fr" });
+  });
 });

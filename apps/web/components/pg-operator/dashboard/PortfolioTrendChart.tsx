@@ -25,11 +25,11 @@ export function PortfolioTrendChart({ trend }: { trend: TrendPoint[] }) {
           <h3 className={styles.trendTitle}>Funnel trend</h3>
           <div className={styles.trendLegend}>
             <span className={styles.legendPill}>
-              <span className={styles.legendDot} style={{ background: "#3a8bff" }} />
+              <span className={styles.legendDot} style={{ background: "var(--d-brand)" }} />
               Views
             </span>
             <span className={styles.legendPill}>
-              <span className={styles.legendDot} style={{ background: "#ff8e92" }} />
+              <span className={styles.legendDot} style={{ background: "var(--d-warning)" }} />
               Leads
             </span>
           </div>
@@ -56,14 +56,14 @@ export function PortfolioTrendChart({ trend }: { trend: TrendPoint[] }) {
           <AreaChart data={visible} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
             <defs>
               <linearGradient id="pgoViews" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3a8bff" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#3a8bff" stopOpacity={0} />
+                <stop offset="0%" stopColor="var(--d-brand)" stopOpacity={0.18} />
+                <stop offset="100%" stopColor="var(--d-brand)" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid vertical={false} stroke="rgba(255,255,255,.06)" />
+            <CartesianGrid vertical={false} stroke="var(--d-border)" />
             <XAxis
               dataKey="day"
-              tick={{ fontSize: 10, fill: "rgba(255,255,255,.35)" }}
+              tick={{ fontSize: 10, fill: "var(--d-text-soft)" }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(d: string) => d.slice(5)}
@@ -72,18 +72,18 @@ export function PortfolioTrendChart({ trend }: { trend: TrendPoint[] }) {
             <YAxis hide />
             <Tooltip
               contentStyle={{
-                background: "#0a1020",
-                border: "1px solid rgba(255,255,255,.1)",
+                background: "var(--d-surface)",
+                border: "1px solid var(--d-border)",
                 borderRadius: 10,
-                color: "#fff"
+                color: "var(--d-text)"
               }}
-              labelStyle={{ color: "rgba(255,255,255,.6)" }}
-              cursor={{ stroke: "rgba(255,255,255,.15)" }}
+              labelStyle={{ color: "var(--d-text-soft)" }}
+              cursor={{ stroke: "var(--d-border-strong)" }}
             />
             <Area
               type="monotone"
               dataKey="views"
-              stroke="#3a8bff"
+              stroke="var(--d-brand)"
               strokeWidth={2.5}
               fill="url(#pgoViews)"
               isAnimationActive={false}
@@ -91,7 +91,7 @@ export function PortfolioTrendChart({ trend }: { trend: TrendPoint[] }) {
             <Area
               type="monotone"
               dataKey="leads"
-              stroke="#ff8e92"
+              stroke="var(--d-warning)"
               strokeWidth={2}
               fill="transparent"
               isAnimationActive={false}

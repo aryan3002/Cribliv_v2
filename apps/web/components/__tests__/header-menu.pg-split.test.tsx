@@ -9,6 +9,7 @@ let __sessionState: {
   status: "authenticated" | "unauthenticated" | "loading";
   data: unknown;
 } = { status: "unauthenticated", data: null };
+let __pathname = "/en";
 
 vi.mock("next-auth/react", () => ({
   useSession: () => __sessionState,
@@ -18,12 +19,13 @@ vi.mock("next-auth/react", () => ({
 // Stub next/navigation usePathname — the component only reads pathname to close
 // the menu on route change; a stable string is enough.
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/en"
+  usePathname: () => __pathname
 }));
 
 // Polyfill window.matchMedia for jsdom — the header menu uses it to decide
 // whether to portal the popover to <body> on mobile.
 beforeEach(() => {
+  __pathname = "/en";
   if (typeof window !== "undefined" && !window.matchMedia) {
     Object.defineProperty(window, "matchMedia", {
       writable: true,
@@ -81,6 +83,19 @@ describe("HeaderMenu role split", () => {
     expect(hrefs).toContain("/en/pg-operator/dashboard");
     expect(hrefs).toContain("/en/pg-operator/listings/new");
     expect(hrefs).not.toContain("/en/owner/dashboard");
+  });
+
+  it("pg_operator on PG routes sees mobile links for PG dashboard sections", () => {
+    __pathname = "/en/pg-operator/dashboard";
+    setSession("pg_operator");
+    render(<HeaderMenu locale="en" />);
+    openMenu();
+
+    const hrefs = allHrefs();
+    expect(hrefs).toContain("/en/pg-operator/dashboard#overview-section");
+    expect(hrefs).toContain("/en/pg-operator/dashboard#analytics-section");
+    expect(hrefs).toContain("/en/pg-operator/dashboard#listings-section");
+    expect(hrefs).toContain("/en/pg-operator/dashboard#leads-section");
   });
 
   it("owner sees owner dashboard link, not PG dashboard", () => {

@@ -1,54 +1,65 @@
 import type { PgSearchInsights } from "@cribliv/shared-types";
 import styles from "@/app/[locale]/pg-operator/dashboard/pg-dashboard.module.css";
 
+function readableFilterKey(key: string) {
+  const label = key.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export function SearchInsights({ insights }: { insights: PgSearchInsights }) {
   return (
     <div className={styles.siPanel}>
-      <div className={styles.siGroup}>
-        <p className={styles.siLabel}>Top searches</p>
-        <div className={styles.siChips}>
+      <section className={styles.siCard} aria-label="Top searches">
+        <h3 className={styles.siTitle}>Top searches</h3>
+        <div className={styles.siList}>
           {insights.top_queries.length > 0 ? (
-            insights.top_queries.map((q) => (
-              <span key={q.query} className={`${styles.siChip} ${styles.siChipBlue}`}>
-                {q.query}
+            insights.top_queries.map((q, i) => (
+              <div key={q.query} className={styles.siRow}>
+                <span className={styles.siRank}>{i + 1}</span>
+                <span className={styles.siTerm}>{q.query}</span>
                 <span className={styles.siCount}>{q.count}</span>
-              </span>
+              </div>
             ))
           ) : (
-            <span className={styles.siEmpty}>No searches yet</span>
+            <p className={styles.siEmpty}>No searches recorded yet</p>
           )}
         </div>
-      </div>
-      <div className={styles.siGroup}>
-        <p className={styles.siLabel}>Popular filters</p>
-        <div className={styles.siChips}>
+      </section>
+
+      <section className={styles.siCard} aria-label="Popular filters">
+        <h3 className={styles.siTitle}>Popular filters</h3>
+        <div className={styles.siList}>
           {insights.top_filters.length > 0 ? (
             insights.top_filters.map((f) => (
-              <span key={`${f.key}:${f.value}`} className={`${styles.siChip} ${styles.siChipBlue}`}>
-                {f.key}: {f.value}
+              <div key={`${f.key}:${f.value}`} className={styles.siRow}>
+                <span className={styles.siTerm}>
+                  <span className={styles.siFilterLabel}>{readableFilterKey(f.key)}</span>
+                  <span className={styles.siFilterValue}>{f.value}</span>
+                </span>
                 <span className={styles.siCount}>{f.count}</span>
-              </span>
+              </div>
             ))
           ) : (
-            <span className={styles.siEmpty}>No filters yet</span>
+            <p className={styles.siEmpty}>No filters used yet</p>
           )}
         </div>
-      </div>
-      <div className={styles.siGroup}>
-        <p className={styles.siLabel}>Zero-result queries</p>
-        <div className={styles.siChips}>
+      </section>
+
+      <section className={`${styles.siCard} ${styles.siCardWarn}`} aria-label="Zero-result queries">
+        <h3 className={styles.siTitle}>Zero-result queries</h3>
+        <div className={styles.siList}>
           {insights.zero_result_queries.length > 0 ? (
             insights.zero_result_queries.map((q) => (
-              <span key={q.query} className={`${styles.siChip} ${styles.siChipRed}`}>
-                {q.query}
-                <span className={styles.siCount}>{q.count}</span>
-              </span>
+              <div key={q.query} className={`${styles.siRow} ${styles.siRowWarn}`}>
+                <span className={styles.siTerm}>{q.query}</span>
+                <span className={`${styles.siCount} ${styles.siCountWarn}`}>{q.count}</span>
+              </div>
             ))
           ) : (
-            <span className={styles.siEmpty}>No unmet demand yet</span>
+            <p className={styles.siEmpty}>No zero-result queries</p>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

@@ -36,11 +36,16 @@ const VALID: Record<PgLeadStatus, PgLeadStatus[]> = {
 };
 
 const COLUMNS: { status: PgLeadStatus; label: string; rail: string; Icon: typeof Inbox }[] = [
-  { status: "new", label: "New", rail: "#3a8bff", Icon: Inbox },
-  { status: "contacted", label: "Contacted", rail: "#ffb24d", Icon: Phone },
-  { status: "visit_scheduled", label: "Visit scheduled", rail: "#a78bff", Icon: CalendarCheck },
-  { status: "deal_done", label: "Deal done", rail: "#3ddc8b", Icon: CheckCircle2 },
-  { status: "lost", label: "Lost", rail: "rgba(255,255,255,.4)", Icon: XCircle }
+  { status: "new", label: "New", rail: "var(--d-brand)", Icon: Inbox },
+  { status: "contacted", label: "Contacted", rail: "var(--d-warning)", Icon: Phone },
+  {
+    status: "visit_scheduled",
+    label: "Visit scheduled",
+    rail: "var(--d-brand-dark)",
+    Icon: CalendarCheck
+  },
+  { status: "deal_done", label: "Deal done", rail: "var(--d-success)", Icon: CheckCircle2 },
+  { status: "lost", label: "Lost", rail: "var(--d-text-soft)", Icon: XCircle }
 ];
 const LABEL: Record<PgLeadStatus, string> = COLUMNS.reduce(
   (a, c) => ({ ...a, [c.status]: c.label }),
@@ -190,7 +195,7 @@ export default function PgLeadsBoard({
                       <div className={styles.kbList}>
                         {list.length === 0 && (
                           <div className={styles.kbEmpty}>
-                            <MessageSquare size={18} style={{ color: "rgba(255,255,255,.2)" }} />
+                            <MessageSquare size={18} style={{ color: "var(--d-text-soft)" }} />
                             Drop leads here
                           </div>
                         )}

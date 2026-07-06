@@ -14,7 +14,7 @@ import type { Locale } from "../lib/i18n";
  * and shouldn't see the consumer chrome.
  * ──────────────────────────────────────────────────────────────────── */
 
-const NO_CHROME_PATHS = [/\/admin(\/|$)/, /\/pg-operator(\/|$)/];
+const NO_CHROME_PATHS = [/\/admin(\/|$)/];
 
 export function LocaleChrome({ locale, children }: { locale: Locale; children: ReactNode }) {
   const pathname = usePathname();
