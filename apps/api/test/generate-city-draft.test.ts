@@ -4,26 +4,22 @@ import {
   parseDraftResponse,
   draftCity,
   readAiConfig,
-  type DraftResult,
+  type DraftResult
 } from "../../../data/seeds/generate-city-helpers";
 
 /** Helper to create a Response-like object */
-function jsonResponse(
-  body: unknown,
-  ok: boolean = true,
-  status: number = 200
-): Response {
+function jsonResponse(body: unknown, ok: boolean = true, status: number = 200): Response {
   return {
     ok,
     status,
     json: async () => body,
-    text: async () => JSON.stringify(body),
+    text: async () => JSON.stringify(body)
   } as unknown as Response;
 }
 
 function chatCompletion(content: string): unknown {
   return {
-    choices: [{ message: { content } }],
+    choices: [{ message: { content } }]
   };
 }
 
@@ -58,7 +54,7 @@ describe("generate-city-draft", () => {
       expect(parseDraftResponse("not json")).toEqual({
         localities: [],
         micro_localities: [],
-        landmarks: [],
+        landmarks: []
       });
     });
 
@@ -68,57 +64,57 @@ describe("generate-city-draft", () => {
           {
             name_en: "Sector 62",
             name_hi: "सेक्टर 62",
-            pincode: "201309",
+            pincode: "201309"
           },
           {
             // duplicate slug (same slugified name) — should be dropped by dedupe
             name_en: "Sector 62",
             name_hi: "सेक्टर 62 डुप्लिकेट",
-            pincode: "201309",
+            pincode: "201309"
           },
           {
             // missing name_en — dropped
-            name_hi: "अज्ञात",
-          },
+            name_hi: "अज्ञात"
+          }
         ],
         micro_localities: [
           {
             name_en: "Vibhuti Khand",
             name_hi: "विभूति खंड",
             parent_slug: "gomti-nagar",
-            seo_aliases: ["vibhutikhand"],
+            seo_aliases: ["vibhutikhand"]
           },
           {
             // missing parent_slug — dropped
             name_en: "Orphan Colony",
-            name_hi: "अनाथ कॉलोनी",
-          },
+            name_hi: "अनाथ कॉलोनी"
+          }
         ],
         landmarks: [
           {
             name_en: "University of Lucknow",
             name_hi: "लखनऊ विश्वविद्यालय",
             type: "University", // maps to college
-            aka: ["LU"],
+            aka: ["LU"]
           },
           {
             name_en: "City Center",
             name_hi: "सिटी सेंटर",
-            type: "shopping mall", // maps to mall
+            type: "shopping mall" // maps to mall
           },
           {
             // unmappable type — dropped
             name_en: "Nightclub Zone",
             name_hi: "नाइट क्लब",
-            type: "nightclub",
+            type: "nightclub"
           },
           {
             // empty slug after slugify — dropped
             name_en: "!!!",
             name_hi: "कुछ नहीं",
-            type: "monument",
-          },
-        ],
+            type: "monument"
+          }
+        ]
       });
 
       const result = parseDraftResponse(body);
@@ -128,7 +124,7 @@ describe("generate-city-draft", () => {
         slug: "sector-62",
         name_en: "Sector 62",
         name_hi: "सेक्टर 62",
-        pincode: "201309",
+        pincode: "201309"
       });
 
       expect(result.micro_localities).toHaveLength(1);
@@ -137,7 +133,7 @@ describe("generate-city-draft", () => {
         name_en: "Vibhuti Khand",
         name_hi: "विभूति खंड",
         parent_slug: "gomti-nagar",
-        seo_aliases: ["vibhutikhand"],
+        seo_aliases: ["vibhutikhand"]
       });
 
       expect(result.landmarks).toHaveLength(2);
@@ -145,12 +141,12 @@ describe("generate-city-draft", () => {
         slug: "university-of-lucknow",
         name_en: "University of Lucknow",
         type: "college",
-        aka: ["LU"],
+        aka: ["LU"]
       });
       expect(result.landmarks[1]).toMatchObject({
         slug: "city-center",
         name_en: "City Center",
-        type: "mall",
+        type: "mall"
       });
     });
 
@@ -162,16 +158,13 @@ describe("generate-city-draft", () => {
             name_en: "Sector 18",
             name_hi: "सेक्टर 18",
             parent_slug: "sector-18-parent",
-            seo_aliases: ["sec18", "sector eighteen"],
-          },
+            seo_aliases: ["sec18", "sector eighteen"]
+          }
         ],
-        landmarks: [],
+        landmarks: []
       });
       const result = parseDraftResponse(body);
-      expect(result.micro_localities[0].seo_aliases).toEqual([
-        "sec18",
-        "sector eighteen",
-      ]);
+      expect(result.micro_localities[0].seo_aliases).toEqual(["sec18", "sector eighteen"]);
     });
 
     it("defaults missing arrays to empty", () => {
@@ -179,7 +172,7 @@ describe("generate-city-draft", () => {
       expect(result).toEqual({
         localities: [],
         micro_localities: [],
-        landmarks: [],
+        landmarks: []
       });
     });
   });
@@ -189,7 +182,7 @@ describe("generate-city-draft", () => {
       endpoint: "https://example.openai.azure.com",
       apiKey: "test-key",
       deployment: "gpt-4o",
-      timeoutMs: 30000,
+      timeoutMs: 30000
     };
 
     it("posts to the chat completions endpoint with api-key header and returns parsed output", async () => {
@@ -197,11 +190,9 @@ describe("generate-city-draft", () => {
         jsonResponse(
           chatCompletion(
             JSON.stringify({
-              localities: [
-                { name_en: "Sector 62", name_hi: "सेक्टर 62" },
-              ],
+              localities: [{ name_en: "Sector 62", name_hi: "सेक्टर 62" }],
               micro_localities: [],
-              landmarks: [],
+              landmarks: []
             })
           )
         )
@@ -225,7 +216,7 @@ describe("generate-city-draft", () => {
       expect(result).toEqual({
         localities: [],
         micro_localities: [],
-        landmarks: [],
+        landmarks: []
       });
     });
 
@@ -236,7 +227,7 @@ describe("generate-city-draft", () => {
       expect(result).toEqual({
         localities: [],
         micro_localities: [],
-        landmarks: [],
+        landmarks: []
       });
     });
   });
@@ -273,9 +264,9 @@ describe("generate-city-draft", () => {
       expect(config.deployment).toBe("extract-deploy");
     });
 
-    it("defaults timeoutMs to 30000", () => {
+    it("defaults timeoutMs to 120000", () => {
       const config = readAiConfig();
-      expect(config.timeoutMs).toBe(30000);
+      expect(config.timeoutMs).toBe(120000);
     });
 
     it("enforces a minimum timeoutMs of 10000", () => {
@@ -297,6 +288,6 @@ describe("generate-city-draft", () => {
 const _typeCheck: DraftResult = {
   localities: [],
   micro_localities: [],
-  landmarks: [],
+  landmarks: []
 };
 void _typeCheck;

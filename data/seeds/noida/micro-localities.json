@@ -1,110 +1,182 @@
 [
   {
-    "slug": "atta-market",
-    "name_en": "Atta Market",
-    "name_hi": "अट्टा मार्केट",
-    "lat": 28.5721607,
-    "lng": 77.3258053,
-    "seo_aliases": ["atta", "atta noida", "sector 18 market"],
-    "parent_slug": "sector-18"
-  },
-  {
-    "slug": "brahmaputra-market",
-    "name_en": "Brahmaputra Market",
-    "name_hi": "ब्रह्मपुत्र मार्केट",
-    "lat": 28.5698989,
-    "lng": 77.3327254,
-    "seo_aliases": ["bp market", "brahmaputra complex"],
-    "parent_slug": "sector-29"
-  },
-  {
-    "slug": "film-city",
-    "name_en": "Film City Noida",
-    "name_hi": "फिल्म सिटी नोएडा",
-    "lat": 28.5738812,
-    "lng": 77.3140723,
-    "seo_aliases": ["noida film city", "sector 16a film city"],
-    "parent_slug": "sector-16a"
-  },
-  {
-    "slug": "jaypee-wish-town",
-    "name_en": "Jaypee Wish Town",
-    "name_hi": "जेपी विश टाउन",
-    "lat": 28.5084767,
-    "lng": 77.3668022,
-    "seo_aliases": ["wish town", "jaypee greens wish town"],
-    "parent_slug": "sector-128"
-  },
-  {
-    "slug": "ats-one-hamlet",
-    "name_en": "ATS One Hamlet",
-    "name_hi": "एटीएस वन हैमलेट",
-    "lat": 28.5357781,
-    "lng": 77.3735004,
-    "seo_aliases": ["ats hamlet", "one hamlet"],
-    "parent_slug": "sector-104"
-  },
-  {
-    "slug": "lotus-boulevard",
-    "name_en": "3C Lotus Boulevard",
-    "name_hi": "3सी लोटस बुलेवार्ड",
-    "lat": 28.5431655,
-    "lng": 77.3670433,
-    "seo_aliases": ["lotus boulevard"],
-    "parent_slug": "sector-100"
+    "slug": "amrapali-sapphire",
+    "name_en": "Amrapali Sapphire",
+    "name_hi": "अम्रपाली सैफायर",
+    "lat": 28.5500821,
+    "lng": 77.3451652,
+    "seo_aliases": ["amrapali sapphire sector 45", "sapphire noida"],
+    "parent_slug": "sector-45"
   },
   {
     "slug": "supertech-capetown",
     "name_en": "Supertech Capetown",
-    "name_hi": "सुपरटेक केपटाउन",
-    "lat": 28.5793679,
-    "lng": 77.3922672,
-    "seo_aliases": ["capetown noida"],
+    "name_hi": "सुपरटेक केप टाउन",
+    "lat": 28.5745096,
+    "lng": 77.3905778,
+    "seo_aliases": ["capetown sector 74", "supertech capetown noida"],
     "parent_slug": "sector-74"
   },
   {
-    "slug": "gardenia-gateway",
-    "name_en": "Gardenia Gateway",
-    "name_hi": "गार्डेनिया गेटवे",
-    "lat": 28.5718906,
-    "lng": 77.3852344,
-    "seo_aliases": ["gardenia sector 75"],
-    "parent_slug": "sector-75"
+    "slug": "prateek-wisteria",
+    "name_en": "Prateek Wisteria",
+    "name_hi": "प्रतीक विस्टेरिया",
+    "lat": 28.5700706,
+    "lng": 77.3891427,
+    "seo_aliases": ["prateek wisteria sector 77", "wisteria noida"],
+    "parent_slug": "sector-77"
   },
   {
-    "slug": "antriksh-golf-view",
-    "name_en": "Antriksh Golf View",
-    "name_hi": "अंतरिक्ष गोल्फ व्यू",
-    "lat": 28.5591472,
-    "lng": 77.386461,
-    "seo_aliases": ["golf view noida"],
+    "slug": "ats-greens-village",
+    "name_en": "ATS Greens Village",
+    "name_hi": "एटीएस ग्रीन्स विलेज",
+    "lat": 28.5181978,
+    "lng": 77.3830433,
+    "seo_aliases": ["ats greens sector 93a", "ats village noida"],
+    "parent_slug": "sector-93a"
+  },
+  {
+    "slug": "mahagun-moderne",
+    "name_en": "Mahagun Moderne",
+    "name_hi": "महागुन मॉडर्न",
+    "lat": 28.5637717,
+    "lng": 77.38687960000001,
+    "seo_aliases": ["mahagun moderne sector 78", "moderne noida"],
     "parent_slug": "sector-78"
+  },
+  {
+    "slug": "stellar-jeevan",
+    "name_en": "Stellar Jeevan",
+    "name_hi": "स्टेलर जीवन",
+    "lat": 28.5662766,
+    "lng": 77.4484987,
+    "seo_aliases": ["stellar jeevan sector 1", "jeevan noida"],
+    "parent_slug": "sector-1"
+  },
+  {
+    "slug": "parsvnath-prestige",
+    "name_en": "Parsvnath Prestige",
+    "name_hi": "पार्श्वनाथ प्रेस्टिज",
+    "lat": 28.5167102,
+    "lng": 77.3845733,
+    "seo_aliases": ["parsvnath prestige sector 93a", "prestige noida"],
+    "parent_slug": "sector-93a"
+  },
+  {
+    "slug": "omaxe-grandwoods",
+    "name_en": "Omaxe Grandwoods",
+    "name_hi": "ओमैक्स ग्रैंडवुड्स",
+    "lat": 26.7568635,
+    "lng": 80.924971,
+    "seo_aliases": ["omaxe grandwoods sector 93b", "grandwoods noida"],
+    "parent_slug": "sector-93b"
+  },
+  {
+    "slug": "gaur-sportswood",
+    "name_en": "Gaur Sportswood",
+    "name_hi": "गौर स्पोर्ट्सवुड",
+    "lat": 28.5623709,
+    "lng": 77.3984858,
+    "seo_aliases": ["gaur sportswood sector 79", "sportswood noida"],
+    "parent_slug": "sector-79"
+  },
+  {
+    "slug": "express-zenith",
+    "name_en": "Express Zenith",
+    "name_hi": "एक्सप्रेस ज़ेनिथ",
+    "lat": 28.5692979,
+    "lng": 77.39237159999999,
+    "seo_aliases": ["express zenith sector 77", "zenith noida"],
+    "parent_slug": "sector-77"
+  },
+  {
+    "slug": "amrapali-silicon-city",
+    "name_en": "Amrapali Silicon City",
+    "name_hi": "अम्रपाली सिलिकॉन सिटी",
+    "lat": 28.5692612,
+    "lng": 77.3805318,
+    "seo_aliases": ["amrapali silicon city sector 76", "silicon city noida"],
+    "parent_slug": "sector-76"
+  },
+  {
+    "slug": "shatabdi-vihar",
+    "name_en": "Shatabdi Vihar",
+    "name_hi": "शताब्दी विहार",
+    "lat": 28.5881264,
+    "lng": 77.3648862,
+    "seo_aliases": ["shatabdi vihar sector 52", "shatabdi vihar noida"],
+    "parent_slug": "sector-52"
+  },
+  {
+    "slug": "jalvayu-vihar",
+    "name_en": "Jalvayu Vihar",
+    "name_hi": "जलवायु विहार",
+    "lat": 28.5849837,
+    "lng": 77.337694,
+    "seo_aliases": ["jalvayu vihar sector 21", "jalvayu noida"],
+    "parent_slug": "sector-21"
+  },
+  {
+    "slug": "metro-hospital-area",
+    "name_en": "Metro Hospital Area",
+    "name_hi": "मेट्रो अस्पताल क्षेत्र",
+    "lat": 25.2563549,
+    "lng": 82.9600167,
+    "seo_aliases": ["metro hospital sector 11", "metro hospital noida"],
+    "parent_slug": "sector-11"
   },
   {
     "slug": "logix-blossom-county",
     "name_en": "Logix Blossom County",
     "name_hi": "लॉजिक्स ब्लॉसम काउंटी",
-    "lat": 28.5101961,
-    "lng": 77.4151913,
-    "seo_aliases": ["blossom county"],
+    "lat": 28.5092163,
+    "lng": 77.4135367,
+    "seo_aliases": ["logix blossom county sector 137", "blossom county noida"],
     "parent_slug": "sector-137"
   },
   {
-    "slug": "paras-tierea",
-    "name_en": "Paras Tierea",
-    "name_hi": "पारस टिएरिया",
-    "lat": 28.5074927,
-    "lng": 77.4132241,
-    "seo_aliases": ["paras tierea noida"],
-    "parent_slug": "sector-137"
+    "slug": "assotech-windsor-court",
+    "name_en": "Assotech Windsor Court",
+    "name_hi": "एसोटेक विंडसर कोर्ट",
+    "lat": 28.5603181,
+    "lng": 77.3885067,
+    "seo_aliases": ["assotech windsor court sector 78", "windsor court noida"],
+    "parent_slug": "sector-78"
   },
   {
-    "slug": "advant-navis-business-park",
-    "name_en": "Advant Navis Business Park",
-    "name_hi": "एडवांट नेविस बिजनेस पार्क",
-    "lat": 28.5010783,
-    "lng": 77.4100306,
-    "seo_aliases": ["advant noida", "navis business park"],
-    "parent_slug": "sector-142"
+    "slug": "sunworld-vanalika",
+    "name_en": "Sunworld Vanalika",
+    "name_hi": "सनवर्ल्ड वनालिका",
+    "lat": 28.5494671,
+    "lng": 77.3766302,
+    "seo_aliases": ["sunworld vanalika sector 107", "vanalika noida"],
+    "parent_slug": "sector-107"
+  },
+  {
+    "slug": "ajnara-grand-heritage",
+    "name_en": "Ajnara Grand Heritage",
+    "name_hi": "अजनारा ग्रैंड हेरिटेज",
+    "lat": 28.5735423,
+    "lng": 77.3919005,
+    "seo_aliases": ["ajnara grand heritage sector 74", "grand heritage noida"],
+    "parent_slug": "sector-74"
+  },
+  {
+    "slug": "sector-18-market",
+    "name_en": "Sector 18 Market",
+    "name_hi": "सेक्टर 18 मार्केट",
+    "lat": 28.570317,
+    "lng": 77.3218196,
+    "seo_aliases": ["sec18 market", "noida market", "atta market"],
+    "parent_slug": "sector-18"
+  },
+  {
+    "slug": "amrapali-zodiac",
+    "name_en": "Amrapali Zodiac",
+    "name_hi": "अम्रपाली ज़ोडियाक",
+    "lat": 28.5841168,
+    "lng": 77.3973942,
+    "seo_aliases": ["amrapali zodiac sector 120", "zodiac noida"],
+    "parent_slug": "sector-120"
   }
 ]
