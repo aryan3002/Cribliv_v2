@@ -3,15 +3,30 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Search, Heart, Globe, Plus, FileText } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  FileText,
+  Globe,
+  Heart,
+  LayoutDashboard,
+  Plus,
+  Search,
+  UsersRound
+} from "lucide-react";
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { HeaderMenu } from "./header-menu";
 import { BrandLockup } from "./brand/brand-lockup";
+import { getPgDashboardLinks } from "./pg-operator/dashboard-links";
+
+const pgIcons = [LayoutDashboard, BarChart3, Building2, UsersRound];
 
 export function Header({ locale }: { locale: Locale }) {
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
+  const isPgOperatorRoute = pathname?.startsWith(`/${locale}/pg-operator`) ?? false;
+  const pgLinks = getPgDashboardLinks(locale);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -36,38 +51,66 @@ export function Header({ locale }: { locale: Locale }) {
 
         {/* ── Center: Primary nav (desktop only) ──────────────────── */}
         <nav className="nav-center" aria-label="Primary">
-          <Link
-            href={`/${locale}/search`}
-            className={`nav-tab${isActive(`/${locale}/search`) ? " nav-tab--active" : ""}`}
-          >
-            <Search size={15} aria-hidden="true" />
-            <span>{t(locale, "navSearch")}</span>
-          </Link>
-          <Link
-            href={`/${locale}/shortlist`}
-            className={`nav-tab${isActive(`/${locale}/shortlist`) ? " nav-tab--active" : ""}`}
-          >
-            <Heart size={15} aria-hidden="true" />
-            <span>{t(locale, "navSaved")}</span>
-          </Link>
-          <Link
-            href={`/${locale}/rent-agreement`}
-            className={`nav-tab${isActive(`/${locale}/rent-agreement`) ? " nav-tab--active" : ""}`}
-          >
-            <FileText size={15} aria-hidden="true" />
-            <span>Rent Agreement</span>
-          </Link>
+          {isPgOperatorRoute ? (
+            pgLinks.map((link, i) => {
+              const Icon = pgIcons[i] ?? LayoutDashboard;
+              const active =
+                link.label === "Dashboard"
+                  ? pathname === `/${locale}/pg-operator/dashboard`
+                  : link.label === "Listings"
+                    ? pathname?.startsWith(`/${locale}/pg-operator/listings`)
+                    : false;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href as any}
+                  className={`nav-tab${active ? " nav-tab--active" : ""}`}
+                >
+                  <Icon size={15} aria-hidden="true" />
+                  <span>{link.label}</span>
+                </Link>
+              );
+            })
+          ) : (
+            <>
+              <Link
+                href={`/${locale}/search`}
+                className={`nav-tab${isActive(`/${locale}/search`) ? " nav-tab--active" : ""}`}
+              >
+                <Search size={15} aria-hidden="true" />
+                <span>{t(locale, "navSearch")}</span>
+              </Link>
+              <Link
+                href={`/${locale}/shortlist`}
+                className={`nav-tab${isActive(`/${locale}/shortlist`) ? " nav-tab--active" : ""}`}
+              >
+                <Heart size={15} aria-hidden="true" />
+                <span>{t(locale, "navSaved")}</span>
+              </Link>
+              <Link
+                href={`/${locale}/rent-agreement`}
+                className={`nav-tab${isActive(`/${locale}/rent-agreement`) ? " nav-tab--active" : ""}`}
+              >
+                <FileText size={15} aria-hidden="true" />
+                <span>Rent Agreement</span>
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* ── Right: Actions ──────────────────────────────────────── */}
         <div className="nav-actions">
           <Link
-            href={`/${locale}/owner/dashboard`}
+            href={
+              isPgOperatorRoute
+                ? `/${locale}/pg-operator/listings/new`
+                : `/${locale}/owner/dashboard`
+            }
             className="nav-host-link"
-            title={t(locale, "navPostProperty")}
+            title={isPgOperatorRoute ? "New listing" : t(locale, "navPostProperty")}
           >
             <Plus size={14} aria-hidden="true" />
-            <span>{t(locale, "navPostProperty")}</span>
+            <span>{isPgOperatorRoute ? "New listing" : t(locale, "navPostProperty")}</span>
           </Link>
 
           <Link

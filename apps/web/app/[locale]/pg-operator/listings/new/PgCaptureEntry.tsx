@@ -21,11 +21,11 @@ export default function PgCaptureEntry({ onManual, onVoice }: Props) {
           </p>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="pgo-capture-options">
           {/* Manual (type it myself) */}
           <motion.button
             type="button"
-            className="pgo-glass pgo-glass--sm"
+            className="pgo-glass pgo-glass--sm pgo-capture-option"
             style={{ padding: "24px 16px", textAlign: "center", cursor: "pointer", border: "none" }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
@@ -52,7 +52,7 @@ export default function PgCaptureEntry({ onManual, onVoice }: Props) {
           {/* Voice (Talk to list) */}
           <motion.button
             type="button"
-            className="pgo-glass pgo-glass--sm"
+            className="pgo-glass pgo-glass--sm pgo-capture-option"
             style={{
               padding: "24px 16px",
               textAlign: "center",

@@ -287,28 +287,30 @@ export default async function Page({
           {detail.room_types.length === 0 ? (
             <p className={styles.controlNote}>No room types configured.</p>
           ) : (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Sharing</th>
-                  <th>Type</th>
-                  <th>Rent / mo</th>
-                  <th>Vacancy</th>
-                  <th>Available</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.room_types.map((r, i) => (
-                  <tr key={i}>
-                    <td>{titleCase(r.sharing)}</td>
-                    <td>{r.ac ? "AC" : "Non-AC"}</td>
-                    <td>{rupees(r.monthly_rent_paise)}</td>
-                    <td>{r.vacancy_count}</td>
-                    <td>{r.available_from ?? "Now"}</td>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Sharing</th>
+                    <th>Type</th>
+                    <th>Rent / mo</th>
+                    <th>Vacancy</th>
+                    <th>Available</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {detail.room_types.map((r, i) => (
+                    <tr key={i}>
+                      <td>{titleCase(r.sharing)}</td>
+                      <td>{r.ac ? "AC" : "Non-AC"}</td>
+                      <td>{rupees(r.monthly_rent_paise)}</td>
+                      <td>{r.vacancy_count}</td>
+                      <td>{r.available_from ?? "Now"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 

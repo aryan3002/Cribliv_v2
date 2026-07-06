@@ -42,8 +42,10 @@ const PUBLIC_PREFIXES = [
   "/en/listing",
   "/en/shortlist",
   "/en/pg",
+  "/en/pg-operator/become",
   "/en/map",
   "/hi/map",
+  "/hi/pg-operator/become",
   "/_next",
   "/favicon",
   "/public",
@@ -73,8 +75,27 @@ const locales = ["en", "hi"] as const;
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+const RAW_PUBLIC_PREFIXES = new Set([
+  "/api/auth",
+  "/auth",
+  "/_next",
+  "/favicon",
+  "/public",
+  "/.well-known",
+  "/md",
+  "/docs/api",
+  "/robots.txt"
+]);
+
+function matchesPublicPrefix(pathname: string, prefix: string): boolean {
+  if (RAW_PUBLIC_PREFIXES.has(prefix)) {
+    return pathname.startsWith(prefix);
+  }
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  return PUBLIC_PREFIXES.some((prefix) => matchesPublicPrefix(pathname, prefix));
 }
 
 function getRequiredRoles(pathname: string): UserRole[] | null {

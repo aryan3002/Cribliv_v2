@@ -32,6 +32,11 @@ function getApiBaseUrl() {
   return raw.endsWith("/") ? raw.slice(0, -1) : raw;
 }
 
+function getWebBaseUrl() {
+  const raw = process.env.E2E_BASE_URL || "http://localhost:3000";
+  return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+}
+
 export async function loginWithOtp(request: APIRequestContext, phone: string, purpose = "login") {
   const sendResponse = await request.post(`${getApiBaseUrl()}/auth/otp/send`, {
     data: {
@@ -75,6 +80,45 @@ export async function loginAsRole(request: APIRequestContext, role: Role) {
 }
 
 export async function setSessionOnPage(page: Page, session: OtpVerifyResponse) {
+  const nextAuthChallenge = await page.context().request.post(`${getApiBaseUrl()}/auth/otp/send`, {
+    data: {
+      phone_e164: session.user.phone_e164,
+      purpose: "login"
+    }
+  });
+  expect(nextAuthChallenge.ok()).toBeTruthy();
+
+  const challengeJson = await nextAuthChallenge.json();
+  const challengeData = challengeJson?.data as OtpSendResponse;
+  expect(challengeData?.challenge_id).toBeTruthy();
+  if (!challengeData?.dev_otp) {
+    throw new Error(
+      "OTP send response did not include dev_otp. Run E2E with OTP_PROVIDER=mock for test login."
+    );
+  }
+
+  const csrfResponse = await page.context().request.get(`${getWebBaseUrl()}/api/auth/csrf`);
+  expect(csrfResponse.ok()).toBeTruthy();
+  const csrfJson = (await csrfResponse.json()) as { csrfToken?: string };
+  const csrfToken = csrfJson.csrfToken;
+  if (!csrfToken) {
+    throw new Error("NextAuth CSRF endpoint did not return a token.");
+  }
+
+  const callbackResponse = await page
+    .context()
+    .request.post(`${getWebBaseUrl()}/api/auth/callback/credentials`, {
+      form: {
+        csrfToken,
+        challengeId: challengeData.challenge_id,
+        otpCode: challengeData.dev_otp,
+        phone: session.user.phone_e164,
+        redirect: "false",
+        json: "true"
+      }
+    });
+  expect(callbackResponse.ok()).toBeTruthy();
+
   await page.addInitScript(
     ({ key, value }) => {
       window.localStorage.setItem(key, JSON.stringify(value));

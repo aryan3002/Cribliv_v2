@@ -29,16 +29,16 @@ export default function PgInsights({ data }: { data: PgDashboardData }) {
     avgScore == null
       ? "#9ca3af"
       : avgScore >= 70
-        ? "#3ddc8b"
+        ? "var(--d-success)"
         : avgScore >= 40
-          ? "#ffb24d"
-          : "#ff8e92";
+          ? "var(--d-warning)"
+          : "var(--d-danger)";
 
   const cards = [
     {
       icon: <Building2 size={18} />,
-      tint: "#3a8bff",
-      bg: "rgba(58,139,255,.14)",
+      tint: "var(--d-brand)",
+      bg: "var(--d-brand-soft)",
       val: `${active}/${lh.length}`,
       label: "Live listings",
       sub: `${lh.length - active} hidden or in review`
@@ -46,7 +46,7 @@ export default function PgInsights({ data }: { data: PgDashboardData }) {
     {
       icon: <Gauge size={18} />,
       tint: scoreColor,
-      bg: "rgba(61,220,139,.12)",
+      bg: "var(--d-success-soft)",
       val: avgScore != null ? `${avgScore}` : "—",
       label: "Avg listing quality",
       sub:
@@ -54,32 +54,32 @@ export default function PgInsights({ data }: { data: PgDashboardData }) {
     },
     {
       icon: <DoorOpen size={18} />,
-      tint: "#3a8bff",
-      bg: "rgba(58,139,255,.14)",
+      tint: "var(--d-brand)",
+      bg: "var(--d-brand-soft)",
       val: `${vacancies}`,
       label: "Open vacancies",
       sub: "Beds available to fill"
     },
     {
       icon: <Target size={18} />,
-      tint: "#3ddc8b",
-      bg: "rgba(61,220,139,.12)",
+      tint: "var(--d-success)",
+      bg: "var(--d-success-soft)",
       val: `${conversion}%`,
       label: "Lead conversion",
       sub: "Leads per search appearance (7d)"
     },
     {
       icon: <Inbox size={18} />,
-      tint: "#ffb24d",
-      bg: "rgba(255,178,77,.14)",
+      tint: "var(--d-warning)",
+      bg: "var(--d-warning-soft)",
       val: `${newLeads}`,
       label: "New leads",
       sub: "Awaiting your first response"
     },
     {
       icon: <TrendingUp size={18} />,
-      tint: "#a78bff",
-      bg: "rgba(167,139,255,.14)",
+      tint: "var(--d-brand)",
+      bg: "var(--d-surface-raised)",
       val: top ? `${top.views_7d}` : "—",
       label: "Top performer (views)",
       sub: topName
@@ -107,7 +107,7 @@ export default function PgInsights({ data }: { data: PgDashboardData }) {
                   marginLeft: 6,
                   fontSize: 12,
                   fontWeight: 700,
-                  color: "#3ddc8b"
+                  color: "var(--d-success)"
                 }}
               >
                 <ArrowUp size={11} />

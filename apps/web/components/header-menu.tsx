@@ -18,10 +18,14 @@ import {
   Info,
   LayoutGrid,
   Home,
+  BarChart3,
+  Building2,
+  UsersRound,
   ChevronRight
 } from "lucide-react";
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
+import { getPgDashboardLinks } from "./pg-operator/dashboard-links";
 
 function formatPhone(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(-10);
@@ -65,6 +69,13 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
   const portalRootRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const portalMenuToBody = useMatchMedia(MOBILE_MENU_PORTAL_MQ);
+  const isPgOperatorRoute = pathname?.startsWith(`/${locale}/pg-operator`) ?? false;
+  const pgSectionIcons = [
+    <Home size={16} aria-hidden="true" />,
+    <BarChart3 size={16} aria-hidden="true" />,
+    <Building2 size={16} aria-hidden="true" />,
+    <UsersRound size={16} aria-hidden="true" />
+  ];
 
   // Close on outside pointerdown (portal menu is outside triggerRef subtree)
   useEffect(() => {
@@ -141,11 +152,22 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
           : []),
         ...(role === "pg_operator"
           ? [
-              {
-                href: `/${locale}/pg-operator/dashboard`,
-                icon: <Home size={16} aria-hidden="true" />,
-                label: t(locale, "menuPgDashboard")
-              } as MenuItem,
+              ...(isPgOperatorRoute
+                ? getPgDashboardLinks(locale).map(
+                    (link, i) =>
+                      ({
+                        href: link.href,
+                        icon: pgSectionIcons[i] ?? <Home size={16} aria-hidden="true" />,
+                        label: link.label
+                      }) as MenuItem
+                  )
+                : [
+                    {
+                      href: `/${locale}/pg-operator/dashboard`,
+                      icon: <Home size={16} aria-hidden="true" />,
+                      label: t(locale, "menuPgDashboard")
+                    } as MenuItem
+                  ]),
               {
                 href: `/${locale}/pg-operator/listings/new`,
                 icon: <Plus size={16} aria-hidden="true" />,

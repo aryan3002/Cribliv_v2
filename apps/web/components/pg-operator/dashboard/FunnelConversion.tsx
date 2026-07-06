@@ -15,7 +15,7 @@ export function FunnelConversion({
     { label: "Leads", value: p.leads },
     { label: "Deals", value: deals }
   ];
-  const max = Math.max(p.appearances, 1);
+  const max = Math.max(...stages.map((s) => s.value), 1);
 
   const transitions = stages.slice(0, -1).map((s, i) => {
     const next = stages[i + 1];
@@ -33,15 +33,26 @@ export function FunnelConversion({
       <h3 className={styles.funnelTitle}>Conversion funnel</h3>
       {stages.map((s, i) => {
         const isLast = i === stages.length - 1;
+        const prev = i > 0 ? stages[i - 1] : null;
+        const context =
+          prev == null
+            ? "Base exposure"
+            : prev.value > 0
+              ? `${Math.round((s.value / prev.value) * 100)}% of ${prev.label.toLowerCase()}`
+              : `No ${prev.label.toLowerCase()} yet`;
+        const width = s.value === 0 ? 0 : (s.value / max) * 100;
         return (
           <div key={s.label} className={styles.funnelRow}>
-            <div className={styles.funnelBarWrap}>
+            <div className={styles.funnelMeta}>
+              <span className={styles.funnelLabel}>{s.label}</span>
+              <span className={styles.funnelContext}>{context}</span>
+            </div>
+            <div className={styles.funnelBarWrap} aria-hidden="true">
               <div
                 className={`${styles.funnelBar} ${isLast ? styles.funnelBarRed : styles.funnelBarBlue}`}
-                style={{ width: `${Math.max((s.value / max) * 100, 4)}%` }}
-              >
-                <span className={styles.funnelBarLabel}>{s.label}</span>
-              </div>
+                data-testid={`funnel-bar-${s.label.toLowerCase()}`}
+                style={{ width: `${width}%` }}
+              />
             </div>
             <span className={styles.funnelCount}>{s.value.toLocaleString()}</span>
           </div>
