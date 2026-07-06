@@ -184,7 +184,11 @@ async function main() {
       );
     }
 
-    // 4. geo_point backfills (best-effort; PostGIS may be absent)
+    // 4. geo_point backfills (best-effort; PostGIS may be absent). Wrapped in a
+    // SAVEPOINT: inside a transaction, a failed statement aborts the WHOLE txn,
+    // so a plain try/catch can't recover — ROLLBACK TO SAVEPOINT keeps the main
+    // transaction alive if PostGIS/geo is unavailable.
+    await client.query("SAVEPOINT geo");
     try {
       await client.query(
         `UPDATE localities SET geo_point = ST_SetSRID(ST_MakePoint(lng::float8, lat::float8), 4326)::geography
@@ -196,8 +200,10 @@ async function main() {
          WHERE city_id = $1 AND geo_point IS NULL`,
         [cityId]
       );
-    } catch {
-      /* PostGIS not available — skip */
+      await client.query("RELEASE SAVEPOINT geo");
+    } catch (e) {
+      await client.query("ROLLBACK TO SAVEPOINT geo");
+      console.warn("geo_point backfill skipped:", e instanceof Error ? e.message : e);
     }
 
     const after = {
