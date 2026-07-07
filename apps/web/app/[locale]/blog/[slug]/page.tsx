@@ -6,12 +6,7 @@ import { Masthead } from "../_components/Masthead";
 import { formatDate, cityLabel, deskLabel } from "../_components/blog-format";
 import { fetchBlogPost } from "../../../../lib/blog-api";
 import { EDITORIAL_AUTHOR, authorPath } from "../../../../lib/blog-author";
-import {
-  buildArticle,
-  buildBreadcrumb,
-  buildFaqPage,
-  renderJsonLd
-} from "../../../../lib/structured-data";
+import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/structured-data";
 
 export const revalidate = 3600;
 
@@ -85,10 +80,13 @@ export default async function BlogDetailPage({
 
   return (
     <div className={styles.paper}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: renderJsonLd(...jsonLdNodes) }}
-      />
+      {jsonLdNodes.map((node, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(node) }}
+        />
+      ))}
       <Masthead locale={locale} activeCategory={post.category_slug ?? null} dateLabel={dateLabel} />
 
       <Link href={`/${locale}/blog`} className={styles.backToFront}>

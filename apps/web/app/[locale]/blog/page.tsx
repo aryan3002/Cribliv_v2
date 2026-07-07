@@ -6,7 +6,7 @@ import { formatDate, cityLabel, deskLabel, formatRent } from "./_components/blog
 import { fetchBlogList } from "../../../lib/blog-api";
 import { fetchApi, buildSearchQuery } from "../../../lib/api";
 import { authorPath } from "../../../lib/blog-author";
-import { buildOrganization, buildWebSiteSearch, renderJsonLd } from "../../../lib/structured-data";
+import { buildOrganization, buildWebSiteSearch } from "../../../lib/structured-data";
 
 export const revalidate = 3600;
 
@@ -82,12 +82,13 @@ export default async function BlogHubPage({ params }: { params: { locale: string
 
   return (
     <div className={styles.paper}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: renderJsonLd(buildWebSiteSearch(), buildOrganization())
-        }}
-      />
+      {[buildWebSiteSearch(), buildOrganization()].map((node, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(node) }}
+        />
+      ))}
       <Masthead locale={locale} activeCategory={null} dateLabel={dateLabel} />
 
       {!lead ? (
