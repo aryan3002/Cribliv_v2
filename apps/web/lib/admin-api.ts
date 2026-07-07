@@ -1738,6 +1738,73 @@ export async function generateBlogNow(
   return mapAdminBlogRow(raw);
 }
 
+export interface QualityCheckVm {
+  id: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+  value?: number | string | null;
+  threshold?: number | string | null;
+}
+
+export interface AdminBlogFullVm {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  categorySlug: string | null;
+  citySlug: string | null;
+  author: string;
+  excerpt: string | null;
+  bodyEn: string;
+  bodyHi: string;
+  faqItems: Array<{ q: string; a: string }>;
+  sources: Array<{ label: string; asof?: string | null }>;
+  dataAsof: string | null;
+  qualityScore: number | null;
+  qualityPassed: boolean;
+  qualityChecks: QualityCheckVm[];
+  updatedAt: string;
+  publishedAt: string | null;
+}
+
+// Full post (incl. body + quality breakdown) for the admin preview — GET
+// /admin/blog/:id returns any status, so drafts can be read before publishing.
+export async function fetchAdminBlogPost(
+  accessToken: string,
+  id: string
+): Promise<AdminBlogFullVm> {
+  const res = await fetchApi<{ post: Record<string, unknown> }>(
+    `/admin/blog/${encodeURIComponent(id)}`,
+    { headers: authHeaders(accessToken) }
+  );
+  const p = res.post ?? {};
+  const qb = (p.quality_breakdown ?? {}) as Record<string, unknown>;
+  const s = (v: unknown): string => (typeof v === "string" ? v : "");
+  return {
+    id: s(p.id),
+    slug: s(p.slug),
+    title: s(p.title),
+    status: s(p.status),
+    categorySlug: (p.category_slug as string | null) ?? null,
+    citySlug: (p.city_slug as string | null) ?? null,
+    author: s(p.author),
+    excerpt: (p.excerpt as string | null) ?? null,
+    bodyEn: s(p.body_en),
+    bodyHi: s(p.body_hi),
+    faqItems: Array.isArray(p.faq_items) ? (p.faq_items as Array<{ q: string; a: string }>) : [],
+    sources: Array.isArray(p.sources)
+      ? (p.sources as Array<{ label: string; asof?: string | null }>)
+      : [],
+    dataAsof: (p.data_asof as string | null) ?? null,
+    qualityScore: p.quality_score != null ? Number(p.quality_score) : null,
+    qualityPassed: Boolean(qb.passed),
+    qualityChecks: Array.isArray(qb.checks) ? (qb.checks as QualityCheckVm[]) : [],
+    updatedAt: s(p.updated_at),
+    publishedAt: (p.published_at as string | null) ?? null
+  };
+}
+
 export interface PlanTopicsResult {
   created: number;
   bySource: Record<string, number>;

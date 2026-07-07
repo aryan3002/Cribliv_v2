@@ -17,6 +17,7 @@ import {
   type AdminBlogRowVm
 } from "../../../lib/admin-api";
 import { formatDate } from "../../../lib/admin/format";
+import { BlogPreviewModal } from "../BlogPreviewModal";
 
 interface Props {
   accessToken: string;
@@ -86,6 +87,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
   const [generating, setGenerating] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [planMsg, setPlanMsg] = useState<string | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const onToastRef = useRef(onToast);
 
   useEffect(() => {
@@ -259,6 +261,9 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
         const busy = actingId === r.id;
         return (
           <div style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end" }}>
+            <button type="button" style={btnStyle} onClick={() => setPreviewId(r.id)}>
+              Preview
+            </button>
             {(r.status === "draft" || r.status === "needs_attention") && (
               <button
                 type="button"
@@ -456,6 +461,14 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
           emptyState={loading ? "Loading…" : "No posts in this view."}
         />
       </SectionCard>
+
+      {previewId ? (
+        <BlogPreviewModal
+          accessToken={accessToken}
+          id={previewId}
+          onClose={() => setPreviewId(null)}
+        />
+      ) : null}
     </div>
   );
 }
