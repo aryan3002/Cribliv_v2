@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { buildSearchQuery, getApiBaseUrl } from "../lib/api";
+import { fetchAllBlogSlugs } from "../lib/blog-api";
 import {
   fetchEnabledCities,
   fetchLandmarks,
@@ -31,7 +32,11 @@ const HUB_CITIES = [
   "lucknow"
 ];
 
-type ChunkDescriptor = { kind: "core" } | { kind: "listings" } | { kind: "city"; citySlug: string };
+type ChunkDescriptor =
+  | { kind: "core" }
+  | { kind: "listings" }
+  | { kind: "blog" }
+  | { kind: "city"; citySlug: string };
 
 type SitemapListing = {
   id: string;
@@ -51,6 +56,7 @@ export async function resolveChunks(): Promise<ChunkDescriptor[]> {
   return [
     { kind: "core" },
     { kind: "listings" },
+    { kind: "blog" },
     ...cities.map((citySlug) => ({ kind: "city" as const, citySlug }))
   ];
 }
@@ -166,6 +172,25 @@ async function buildCityChunk(citySlug: string): Promise<MetadataRoute.Sitemap> 
   ];
 }
 
+const BLOG_DESKS = ["data-reports", "local-guides", "tenancy", "market-updates"];
+
+async function buildBlogChunk(): Promise<MetadataRoute.Sitemap> {
+  const rows: MetadataRoute.Sitemap = [];
+  rows.push(...entry(BASE_URL, "/blog", { priority: 0.8, freq: "daily" }));
+  for (const desk of BLOG_DESKS) {
+    rows.push(...entry(BASE_URL, `/blog/category/${desk}`, { priority: 0.6, freq: "weekly" }));
+  }
+  rows.push(...entry(BASE_URL, "/blog/author/aditi-sharma", { priority: 0.4, freq: "monthly" }));
+  try {
+    for (const slug of await fetchAllBlogSlugs()) {
+      rows.push(...entry(BASE_URL, `/blog/${slug}`, { priority: 0.7, freq: "weekly" }));
+    }
+  } catch {
+    // best-effort — published posts are added when the API is reachable
+  }
+  return rows;
+}
+
 export default async function sitemap({ id }: { id: number }): Promise<MetadataRoute.Sitemap> {
   const chunks = await resolveChunks();
   const chunk = chunks[id];
@@ -173,5 +198,6 @@ export default async function sitemap({ id }: { id: number }): Promise<MetadataR
 
   if (chunk.kind === "core") return buildCoreChunk();
   if (chunk.kind === "listings") return buildListingsChunk();
+  if (chunk.kind === "blog") return buildBlogChunk();
   return buildCityChunk(chunk.citySlug);
 }
