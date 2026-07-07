@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import styles from "../cribliv-times.module.css";
 import { Masthead } from "../_components/Masthead";
-import { formatDate, cityLabel, deskLabel } from "../_components/blog-format";
+import { formatDate, cityLabel, deskLabel, formatRent } from "../_components/blog-format";
+import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { fetchBlogPost } from "../../../../lib/blog-api";
 import { EDITORIAL_AUTHOR, authorPath } from "../../../../lib/blog-author";
 import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/structured-data";
@@ -11,6 +12,15 @@ import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/str
 export const revalidate = 3600;
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
+
+interface BridgeListing {
+  id: string;
+  title: string;
+  city: string;
+  locality?: string | null;
+  listing_type: "flat_house" | "pg";
+  monthly_rent: number;
+}
 
 export async function generateMetadata({
   params
@@ -55,6 +65,30 @@ export default async function BlogDetailPage({
   const data = await fetchBlogPost(params.slug);
   if (!data) notFound();
   const { post, related } = data;
+
+  // Conversion bridge: pull a few real listings matched to the story (same city,
+  // and BHK if the title/slug implies one), so the article ends on live rentals
+  // — each link is tagged ?ref=blog-{slug} for click -> unlock attribution.
+  const bhkMatch = `${post.title} ${post.slug}`.match(/(\d)\s*bhk/i);
+  let bridgeListings: BridgeListing[] = [];
+  if (post.city_slug) {
+    try {
+      const query = buildSearchQuery({
+        city: post.city_slug,
+        sort: "verified",
+        page_size: "3",
+        ...(bhkMatch ? { bhk: bhkMatch[1] } : {})
+      });
+      const res = await fetchApi<{ items: BridgeListing[] }>(
+        `/listings/search?${query}`,
+        undefined,
+        { server: true }
+      );
+      bridgeListings = (res.items ?? []).slice(0, 3);
+    } catch {
+      // best-effort — the article still prints without live listings
+    }
+  }
 
   const body = (hi && post.body_hi) || post.body_en || "";
   const dateLabel = formatDate(post.published_at ?? post.updated_at, locale);
@@ -139,7 +173,42 @@ export default async function BlogDetailPage({
         ) : null}
       </article>
 
-      {post.city_slug ? (
+      {bridgeListings.length > 0 ? (
+        <section className={styles.classifieds} aria-label="Rentals related to this story">
+          <div className={styles.classHead}>
+            <h3>
+              {hi
+                ? `${cityLabel(post.city_slug ?? "")} में उपलब्ध किराये`
+                : `Open rentals in ${cityLabel(post.city_slug ?? "")}`}
+            </h3>
+            <span>{hi ? "सत्यापित लिस्टिंग" : "Verified · from live listings"}</span>
+          </div>
+          <div className={styles.ads}>
+            {bridgeListings.map((listing) => (
+              <Link
+                className={styles.ad}
+                href={`/${locale}/listing/${listing.id}?ref=blog-${post.slug}`}
+                key={listing.id}
+              >
+                <div className={styles.adTop}>
+                  <h5>{listing.title}</h5>
+                  <span className={styles.price}>
+                    {formatRent(listing.monthly_rent)}
+                    <small>{hi ? "/माह" : "/month"}</small>
+                  </span>
+                </div>
+                <p>
+                  {[listing.locality, cityLabel(listing.city)].filter(Boolean).join(", ")} ·{" "}
+                  {listing.listing_type === "pg" ? "PG" : hi ? "फ्लैट" : "Flat/House"}
+                </p>
+                <span className={styles.adCta}>
+                  {hi ? "संपर्क अनलॉक करें →" : "Unlock contact →"}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : post.city_slug ? (
         <div className={styles.bridge}>
           <div>
             <p className={styles.kicker}>{hi ? "क्लासिफाइड्स से" : "From the Classifieds"}</p>

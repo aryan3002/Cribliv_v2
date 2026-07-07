@@ -10,11 +10,13 @@ import {
   approveBlogPost,
   archiveBlogPost,
   fetchAdminBlogPosts,
+  fetchBlogConversion,
   generateBlogNow,
   generateNextBlogBrief,
   planBlogTopics,
   publishBlogPost,
-  type AdminBlogRowVm
+  type AdminBlogRowVm,
+  type BlogConversionRow
 } from "../../../lib/admin-api";
 import { formatDate } from "../../../lib/admin/format";
 import { BlogPreviewModal } from "../BlogPreviewModal";
@@ -88,6 +90,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
   const [planning, setPlanning] = useState(false);
   const [planMsg, setPlanMsg] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [conversion, setConversion] = useState<BlogConversionRow[]>([]);
   const onToastRef = useRef(onToast);
 
   useEffect(() => {
@@ -110,6 +113,20 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
       }
     }
     load();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchBlogConversion(accessToken)
+      .then((rows) => {
+        if (!cancelled) setConversion(rows.filter((r) => r.clicks > 0 || r.unlocks > 0));
+      })
+      .catch(() => {
+        /* best-effort — hidden until migration 0050 + traffic exist */
+      });
     return () => {
       cancelled = true;
     };
@@ -461,6 +478,53 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
           emptyState={loading ? "Loading…" : "No posts in this view."}
         />
       </SectionCard>
+
+      {conversion.length > 0 ? (
+        <SectionCard
+          title="Top converting posts"
+          subtitle="Which published posts send readers to listings — and drive real contact-unlocks."
+        >
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "var(--ad-text-muted, #64748b)" }}>
+                <th style={{ padding: "6px 8px", fontWeight: 600 }}>Post</th>
+                <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "right" }}>Clicks</th>
+                <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "right" }}>Unlocks</th>
+                <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "right" }}>Conv.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {conversion.map((r) => (
+                <tr key={r.slug} style={{ borderTop: "1px solid var(--ad-border)" }}>
+                  <td style={{ padding: "8px" }}>
+                    <a
+                      href={`/en/blog/${r.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontWeight: 600, color: "inherit", textDecoration: "none" }}
+                    >
+                      {r.title ?? r.slug}
+                    </a>
+                  </td>
+                  <td style={{ padding: "8px", textAlign: "right" }}>{r.clicks}</td>
+                  <td style={{ padding: "8px", textAlign: "right", fontWeight: 700 }}>
+                    {r.unlocks}
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px",
+                      textAlign: "right",
+                      color: "var(--ad-text-muted, #64748b)"
+                    }}
+                  >
+                    {r.clicks > 0 ? `${Math.round((r.unlocks / r.clicks) * 100)}%` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </SectionCard>
+      ) : null}
 
       {previewId ? (
         <BlogPreviewModal

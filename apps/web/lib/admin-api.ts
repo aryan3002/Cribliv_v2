@@ -1709,6 +1709,27 @@ async function blogPostAction(
   return mapAdminBlogRow(raw);
 }
 
+export interface BlogConversionRow {
+  slug: string;
+  title: string | null;
+  clicks: number;
+  unlocks: number;
+}
+
+// Per-post content -> revenue: referral clicks + actual contact-unlocks.
+// Returns [] on any DB that predates migration 0050 (handled server-side).
+export async function fetchBlogConversion(accessToken: string): Promise<BlogConversionRow[]> {
+  const res = await fetchApi<{ items: BlogConversionRow[] }>("/admin/blog/conversion", {
+    headers: authHeaders(accessToken)
+  });
+  return (res.items ?? []).map((r) => ({
+    slug: r.slug,
+    title: r.title ?? null,
+    clicks: Number(r.clicks) || 0,
+    unlocks: Number(r.unlocks) || 0
+  }));
+}
+
 export const approveBlogPost = (accessToken: string, id: string) =>
   blogPostAction(accessToken, id, "approve");
 export const publishBlogPost = (accessToken: string, id: string) =>

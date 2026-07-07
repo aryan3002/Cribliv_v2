@@ -78,11 +78,22 @@ interface PricingIntelResponse {
   sample_size: number;
 }
 
-async function fetchListing(listingId: string): Promise<ListingDetailResponse | null> {
+// A blog-referral ref (e.g. 'blog-2bhk-rent-in-noida') is forwarded to the API
+// so the server-side view event is attributed to the post that drove it.
+function blogRef(raw: string | string[] | undefined): string | null {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return typeof v === "string" && /^blog-[a-z0-9:_-]{1,110}$/i.test(v) ? v : null;
+}
+
+async function fetchListing(
+  listingId: string,
+  ref?: string | null
+): Promise<ListingDetailResponse | null> {
   try {
-    return await fetchApi<ListingDetailResponse>(`/listings/${listingId}`, undefined, {
-      server: true
-    });
+    const path = ref
+      ? `/listings/${listingId}?ref=${encodeURIComponent(ref)}`
+      : `/listings/${listingId}`;
+    return await fetchApi<ListingDetailResponse>(path, undefined, { server: true });
   } catch {
     return null;
   }
@@ -140,12 +151,15 @@ function formatAvailableFromShort(iso: string | null | undefined, locale: Locale
 }
 
 export default async function ListingDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: { locale: string; listingId: string };
+  searchParams?: { ref?: string | string[] };
 }) {
   const locale: Locale = isValidLocale(params.locale) ? params.locale : "en";
-  const payload = await fetchListing(params.listingId);
+  const sourceRef = blogRef(searchParams?.ref);
+  const payload = await fetchListing(params.listingId, sourceRef);
 
   if (!payload) {
     return (
@@ -230,8 +244,7 @@ export default async function ListingDetailPage({
   const summaryLine = summaryParts.join(" · ");
   const availableShort = formatAvailableFromShort(listing.available_from, locale);
   const totalMoveIn = listing.monthly_rent + (listing.security_deposit ?? 0);
-  const monthlyAllIn =
-    listing.monthly_rent + Math.round((listing.security_deposit ?? 0) / 11);
+  const monthlyAllIn = listing.monthly_rent + Math.round((listing.security_deposit ?? 0) / 11);
 
   return (
     <>
@@ -337,7 +350,10 @@ export default async function ListingDetailPage({
             </span>
           </div>
           <div className="tenant-cost-card">
-            <span className="tenant-cost-card__icon tenant-cost-card__icon--amber" aria-hidden="true">
+            <span
+              className="tenant-cost-card__icon tenant-cost-card__icon--amber"
+              aria-hidden="true"
+            >
               <Shield size={18} />
             </span>
             <span className="tenant-cost-card__label">Move-in estimate</span>
@@ -349,7 +365,10 @@ export default async function ListingDetailPage({
             </span>
           </div>
           <div className="tenant-cost-card">
-            <span className="tenant-cost-card__icon tenant-cost-card__icon--trust" aria-hidden="true">
+            <span
+              className="tenant-cost-card__icon tenant-cost-card__icon--trust"
+              aria-hidden="true"
+            >
               <ShieldCheck size={18} />
             </span>
             <span className="tenant-cost-card__label">Owner trust</span>
@@ -564,15 +583,17 @@ export default async function ListingDetailPage({
           {/* Sticky right rail */}
           <aside className="detail-layout__sidebar">
             <div className="detail-rail">
-            <div>
-              <div className="detail-rail__price">
+              <div>
+                <div className="detail-rail__price">
                   <strong>₹{monthlyAllIn.toLocaleString("en-IN")}</strong>
                   <span>/mo all-in</span>
-              </div>
-              {(listing.security_deposit || availableShort) && (
-                <div className="detail-rail__secondary">
+                </div>
+                {(listing.security_deposit || availableShort) && (
+                  <div className="detail-rail__secondary">
                     <span>₹{listing.monthly_rent.toLocaleString("en-IN")} rent</span>
-                    {(listing.security_deposit || availableShort) && <span aria-hidden="true">·</span>}
+                    {(listing.security_deposit || availableShort) && (
+                      <span aria-hidden="true">·</span>
+                    )}
                     {listing.security_deposit && (
                       <span>
                         ₹{listing.security_deposit.toLocaleString("en-IN")}{" "}
@@ -594,7 +615,7 @@ export default async function ListingDetailPage({
               {summaryLine && <div className="detail-rail__summary">{summaryLine}</div>}
 
               <div className="detail-rail__panel">
-                <UnlockContactPanel listingId={params.listingId} />
+                <UnlockContactPanel listingId={params.listingId} source={sourceRef ?? undefined} />
               </div>
 
               <div className="detail-rail__reassure">

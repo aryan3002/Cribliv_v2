@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, Inject, NotFoundException, Param } from "@nestjs/common";
+import { Controller, Get, Headers, Inject, NotFoundException, Param, Query } from "@nestjs/common";
 import { ok } from "../../common/response";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
@@ -99,8 +99,13 @@ export class ListingsController {
   @Get("listings/:listing_id")
   async detail(
     @Param("listing_id") listingId: string,
-    @Headers("authorization") authHeader: string | undefined
+    @Headers("authorization") authHeader: string | undefined,
+    @Query("ref") ref?: string
   ) {
+    // Traffic-source tag (e.g. a blog post drove this view). Only accept a
+    // bounded blog- ref so it's safe to store as event metadata.
+    const sourceRef =
+      typeof ref === "string" && /^blog-[a-z0-9:_-]{1,110}$/i.test(ref) ? ref : null;
     if (this.database.isEnabled() && /^[0-9a-f-]{36}$/i.test(listingId)) {
       // If the request is from the listing's owner (operator preview), allow
       // viewing in any status. Otherwise enforce status='active' for public.
@@ -172,7 +177,8 @@ export class ListingsController {
           void this.analytics.trackEvent({
             listing_id: listing.id,
             user_id: viewerId ?? undefined,
-            event_type: "view"
+            event_type: "view",
+            metadata: sourceRef ? { source: sourceRef } : undefined
           });
         }
 

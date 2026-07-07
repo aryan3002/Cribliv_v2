@@ -102,6 +102,47 @@ export class AdminBlogController {
     return ok({ items });
   }
 
+  // Content -> revenue: per-post referral clicks + actual contact-unlocks,
+  // joined by the 'blog-{slug}' source tag. Guarded so it returns [] on any DB
+  // that predates migration 0050 (contact_unlocks.source).
+  @Get("conversion")
+  async conversion() {
+    try {
+      const { rows } = await this.database.query<{
+        slug: string;
+        title: string | null;
+        clicks: number;
+        unlocks: number;
+      }>(
+        `WITH clicks AS (
+           SELECT (metadata->>'source') AS source, COUNT(*)::int AS clicks
+           FROM listing_events
+           WHERE event_type = 'view' AND metadata->>'source' LIKE 'blog-%'
+           GROUP BY 1
+         ),
+         unlocks AS (
+           SELECT source, COUNT(*)::int AS unlocks
+           FROM contact_unlocks
+           WHERE source LIKE 'blog-%'
+           GROUP BY 1
+         )
+         SELECT
+           substr(COALESCE(c.source, u.source), 6) AS slug,
+           p.title,
+           COALESCE(c.clicks, 0)::int AS clicks,
+           COALESCE(u.unlocks, 0)::int AS unlocks
+         FROM clicks c
+         FULL OUTER JOIN unlocks u ON u.source = c.source
+         LEFT JOIN blog_posts p ON p.slug = substr(COALESCE(c.source, u.source), 6)
+         ORDER BY unlocks DESC, clicks DESC
+         LIMIT 100`
+      );
+      return ok({ items: rows });
+    } catch {
+      return ok({ items: [] });
+    }
+  }
+
   @Get(":id")
   async getOne(@Param("id") id: string) {
     const post = await this.blog.getById(id);

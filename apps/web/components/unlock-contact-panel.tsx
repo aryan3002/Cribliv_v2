@@ -15,6 +15,9 @@ import { trackEvent } from "../lib/analytics";
 
 interface UnlockContactPanelProps {
   listingId: string;
+  // Traffic-source tag (e.g. 'blog-2bhk-rent-in-noida') for content->revenue
+  // attribution; recorded on the unlock when present.
+  source?: string;
 }
 
 interface UnlockResponse {
@@ -75,7 +78,7 @@ function createClientKey() {
   return typeof crypto !== "undefined" ? crypto.randomUUID() : `${Date.now()}_${Math.random()}`;
 }
 
-export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
+export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProps) {
   // NextAuth session — used as auth source when localStorage token is absent
   const { data: nextAuthSession, status: sessionStatus } = useSession();
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -221,7 +224,7 @@ export function UnlockContactPanel({ listingId }: UnlockContactPanelProps) {
           Authorization: `Bearer ${token}`,
           "Idempotency-Key": idempotencyKey
         },
-        body: JSON.stringify({ listing_id: listingId })
+        body: JSON.stringify(source ? { listing_id: listingId, source } : { listing_id: listingId })
       });
       setUnlock(response);
       await refreshWalletSnapshot(token);
