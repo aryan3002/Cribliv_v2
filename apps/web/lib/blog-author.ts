@@ -14,6 +14,7 @@ export const EDITORIAL_AUTHOR = {
     "अदिति शर्मा Cribliv के लिए भारत के किराया बाज़ार पर लिखती हैं और लाइव लिस्टिंग डेटा को किरायेदारों के लिए व्यावहारिक सलाह में बदलती हैं। वे 2023 से लखनऊ और एनसीआर में किराये पर नज़र रख रही हैं।"
 } as const;
 
-export function authorPath(locale: "en" | "hi"): string {
-  return `/${locale}/blog/author/${EDITORIAL_AUTHOR.slug}`;
+// Typed as Route so `next/link` typedRoutes accepts it at call sites.
+export function authorPath(locale: "en" | "hi"): import("next").Route {
+  return `/${locale}/blog/author/${EDITORIAL_AUTHOR.slug}` as import("next").Route;
 }
