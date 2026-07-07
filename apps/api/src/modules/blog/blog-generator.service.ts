@@ -1,5 +1,6 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import { SeoAggregatesService } from "../seo/seo-aggregates.service";
+import { buildRentChartSvg, rentBarsFromFacts } from "./blog-chart";
 import { callBlogJson } from "./blog-llm";
 import { countCitedDataPoints, qualityScore } from "./quality-gate";
 import type {
@@ -50,8 +51,42 @@ function slugify(input: string): string {
     .slice(0, 80);
 }
 
-function renderDataFactBlock(facts: BlogDataPoint[], dataAsof: string | null): string {
+function titleizeSlug(slug: string): string {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function renderDataFactBlock(
+  facts: BlogDataPoint[],
+  dataAsof: string | null,
+  place: string | null
+): string {
   if (facts.length === 0) return "";
+
+  const listingCount = facts.find((f) => f.key === "listing_count")?.value;
+  const captionParts = ["Median monthly rent from Cribliv live listings"];
+  if (place) captionParts.push(place);
+  if (typeof listingCount === "number" && listingCount > 0) {
+    captionParts.push(`based on ${listingCount} active listing${listingCount === 1 ? "" : "s"}`);
+  }
+  if (dataAsof) captionParts.push(`data as of ${dataAsof}`);
+  const caption = `${captionParts.join(" · ")}.`;
+
+  // When rent medians are available, lead with the Data Desk chart. Otherwise
+  // fall back to the plain figures list (e.g. counts-only localities).
+  const bars = rentBarsFromFacts(facts);
+  if (bars.length > 0) {
+    const title = place ? `What renters pay in ${place}` : "Median monthly rent by home type";
+    return `
+<figure data-blog-chart="cribliv-live-listings">
+  ${buildRentChartSvg(bars, title)}
+  <figcaption>${caption}</figcaption>
+</figure>`;
+  }
+
   const items = facts
     .map(
       (fact) =>
@@ -214,7 +249,8 @@ export class BlogGeneratorService {
       ? bodyAfterCheck
       : `<h1>${seo.h1}</h1>\n${bodyAfterCheck}`;
     const dataAsof = isDataPost ? new Date().toISOString().slice(0, 10) : null;
-    const bodyEn = `${bodyWithH1}\n${renderDataFactBlock(dataFacts, dataAsof)}`;
+    const place = brief.city_slug ? titleizeSlug(brief.city_slug) : null;
+    const bodyEn = `${bodyWithH1}\n${renderDataFactBlock(dataFacts, dataAsof, place)}`;
     // Data posts cite live listings; non-data posts (guides/evergreen) are
     // attributed to Cribliv's editorial desk. Every post carries >=1 source so
     // the gate's "cited sources" check can pass — otherwise non-data posts are
