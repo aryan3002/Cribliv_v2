@@ -103,6 +103,34 @@ export class BlogGeneratorService {
     return facts;
   }
 
+  // Applies an editor instruction to one field of an existing post and returns
+  // the full revised text (body stays HTML; title/excerpt stay plain). Used by
+  // the admin "ask AI to revise" edit control — it proposes, the human saves.
+  async revise(input: {
+    target: "body" | "title" | "excerpt";
+    currentText: string;
+    instruction: string;
+    keyword: string;
+  }): Promise<string | null> {
+    const isBody = input.target === "body";
+    const guidance = isBody
+      ? "Return valid HTML using only <p>, <h2>, <h3>, <ul>, <li>, <blockquote>. Keep the parts the instruction does not mention. Never invent statistics or numbers not already present."
+      : "Return plain text only — no HTML, no quotes around it.";
+    const result = await this.callJson<{ revised: string }>({
+      system:
+        "You are a senior editor for an Indian rental platform. Apply the user's instruction to the provided content and return the COMPLETE revised version of that field. " +
+        guidance +
+        ' Reply JSON only as {"revised":"..."}.',
+      user:
+        `Target keyword: ${input.keyword}\nField: ${input.target}\n` +
+        `INSTRUCTION: ${input.instruction}\n\nCURRENT ${input.target.toUpperCase()}:\n${input.currentText}`,
+      maxTokens: isBody ? 4000 : 500,
+      temperature: 0.4
+    });
+    const revised = result?.revised?.trim();
+    return revised && revised.length > 0 ? revised : null;
+  }
+
   async generate(
     brief: BlogBriefRow,
     uniquenessDistance: number | null = null
