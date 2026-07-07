@@ -195,6 +195,52 @@ export class AdminBlogController {
     return ok(row);
   }
 
+  @Post(":id/revise")
+  async revise(
+    @Req() req: { user: UserContext },
+    @Param("id") id: string,
+    @Body() body: { instruction?: string; target?: "body" | "title" | "excerpt" }
+  ) {
+    const instruction = body.instruction?.trim();
+    if (!instruction) {
+      throw new BadRequestException({
+        code: "missing_instruction",
+        message: "Provide an instruction for the revision"
+      });
+    }
+    const target = body.target ?? "body";
+    if (!["body", "title", "excerpt"].includes(target)) {
+      throw new BadRequestException({
+        code: "invalid_target",
+        message: "target must be body, title, or excerpt"
+      });
+    }
+    const post = await this.blog.getById(id);
+    if (!post) {
+      throw new NotFoundException({ code: "blog_post_not_found", message: "Post not found" });
+    }
+    const currentText =
+      target === "body"
+        ? (post.body_en ?? "")
+        : target === "title"
+          ? post.title
+          : (post.excerpt ?? "");
+    const revised = await this.generator.revise({
+      target,
+      currentText,
+      instruction,
+      keyword: post.target_keyword ?? post.title
+    });
+    if (!revised) {
+      throw new BadRequestException({
+        code: "revise_failed",
+        message: "The editor could not produce a revision"
+      });
+    }
+    logTelemetry("admin.blog_revised", { admin_user_id: req.user.id, post_id: id, target });
+    return ok({ target, revised });
+  }
+
   @Post("plan")
   async plan(
     @Req() req: { user: UserContext },

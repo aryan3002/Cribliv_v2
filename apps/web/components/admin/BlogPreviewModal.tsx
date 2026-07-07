@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { fetchAdminBlogPost, type AdminBlogFullVm } from "../../lib/admin-api";
+import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import {
+  fetchAdminBlogPost,
+  reviseBlogPost,
+  updateBlogPost,
+  type AdminBlogFullVm
+} from "../../lib/admin-api";
 
 interface Props {
   accessToken: string;
   id: string;
   onClose: () => void;
+  onSaved?: () => void;
 }
+
+type ReviseTarget = "body" | "title" | "excerpt";
 
 const DESK_LABEL: Record<string, string> = {
   "data-reports": "Data Reports",
@@ -24,42 +33,139 @@ function cityLabel(slug: string | null): string {
     .join(" ");
 }
 
-// Reads a draft (any status) so an editor can review the actual article — and,
-// for needs_attention posts, see exactly which quality checks failed — before
-// deciding to publish. Content never leaves the admin; publishing stays the
-// only path to a public post.
-export function BlogPreviewModal({ accessToken, id, onClose }: Props) {
+const input: CSSProperties = {
+  width: "100%",
+  padding: "8px 10px",
+  borderRadius: 8,
+  border: "1px solid #d8d2c4",
+  background: "#fff",
+  fontSize: 14,
+  fontFamily: "inherit"
+};
+
+const label: CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 700,
+  color: "#6b6659",
+  margin: "0 0 4px",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em"
+};
+
+const btn: CSSProperties = {
+  border: "1px solid #d8d2c4",
+  background: "#fff",
+  borderRadius: 6,
+  padding: "6px 14px",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer"
+};
+
+// Read + edit a draft without publishing. Two edit paths converge on the same
+// fields: direct typing, and "ask AI to revise" (LLM rewrites a field on an
+// instruction). Save persists via PATCH; publishing stays a separate step.
+export function BlogPreviewModal({ accessToken, id, onClose, onSaved }: Props) {
   const [post, setPost] = useState<AdminBlogFullVm | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchAdminBlogPost(accessToken, id)
-      .then((p) => {
-        if (!cancelled) setPost(p);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load post");
-      });
-    return () => {
-      cancelled = true;
-    };
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState("");
+  const [excerpt, setExcerpt] = useState("");
+  const [body, setBody] = useState("");
+  const [faq, setFaq] = useState<Array<{ q: string; a: string }>>([]);
+
+  const [instruction, setInstruction] = useState("");
+  const [reviseTarget, setReviseTarget] = useState<ReviseTarget>("body");
+  const [revising, setRevising] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const p = await fetchAdminBlogPost(accessToken, id);
+      setPost(p);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load post");
+    }
   }, [accessToken, id]);
 
   useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !editing) onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, editing]);
 
+  const startEdit = () => {
+    if (!post) return;
+    setTitle(post.title);
+    setExcerpt(post.excerpt ?? "");
+    setBody(post.bodyEn);
+    setFaq(post.faqItems.map((f) => ({ ...f })));
+    setStatus(null);
+    setEditing(true);
+  };
+
+  const askAi = useCallback(async () => {
+    const ins = instruction.trim();
+    if (!ins) {
+      setStatus("Type an instruction first (e.g. “shorten the deposit section”).");
+      return;
+    }
+    setRevising(true);
+    setStatus(`Revising ${reviseTarget}… (~20s)`);
+    try {
+      const revised = await reviseBlogPost(accessToken, id, {
+        instruction: ins,
+        target: reviseTarget
+      });
+      if (reviseTarget === "body") setBody(revised);
+      else if (reviseTarget === "title") setTitle(revised);
+      else setExcerpt(revised);
+      setInstruction("");
+      setStatus("AI revision applied — review it, then Save.");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Revision failed.");
+    } finally {
+      setRevising(false);
+    }
+  }, [accessToken, id, instruction, reviseTarget]);
+
+  const save = useCallback(async () => {
+    setSaving(true);
+    setStatus("Saving…");
+    try {
+      await updateBlogPost(accessToken, id, {
+        title: title.trim(),
+        excerpt: excerpt.trim() || null,
+        body_en: body,
+        faq_items: faq.filter((f) => f.q.trim() || f.a.trim())
+      });
+      await load();
+      setEditing(false);
+      setStatus("Saved.");
+      onSaved?.();
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }, [accessToken, id, title, excerpt, body, faq, load, onSaved]);
+
+  const busy = revising || saving;
   const failedChecks = post?.qualityChecks.filter((c) => !c.passed) ?? [];
   const needsAttention = post?.status === "needs_attention";
 
   return (
     <div
-      onClick={onClose}
+      onClick={() => !editing && onClose()}
       style={{
         position: "fixed",
         inset: 0,
@@ -76,7 +182,7 @@ export function BlogPreviewModal({ accessToken, id, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "#fbfaf7",
-          width: "min(760px, 100%)",
+          width: "min(780px, 100%)",
           borderRadius: 12,
           boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
           overflow: "hidden"
@@ -93,7 +199,8 @@ export function BlogPreviewModal({ accessToken, id, onClose }: Props) {
             borderBottom: "1px solid #e7e2d6",
             background: "#fff",
             position: "sticky",
-            top: 0
+            top: 0,
+            zIndex: 2
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12 }}>
@@ -105,7 +212,7 @@ export function BlogPreviewModal({ accessToken, id, onClose }: Props) {
                 color: "#c2301c"
               }}
             >
-              Preview
+              {editing ? "Edit" : "Preview"}
             </span>
             {post ? (
               <span style={{ color: "#64748b" }}>
@@ -114,30 +221,210 @@ export function BlogPreviewModal({ accessToken, id, onClose }: Props) {
               </span>
             ) : null}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              border: "1px solid #e7e2d6",
-              background: "#fff",
-              borderRadius: 6,
-              padding: "4px 12px",
-              fontSize: 13,
-              cursor: "pointer"
-            }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {!editing && post ? (
+              <button type="button" style={btn} onClick={startEdit}>
+                Edit
+              </button>
+            ) : null}
+            {editing ? (
+              <>
+                <button
+                  type="button"
+                  style={{ ...btn, opacity: busy ? 0.6 : 1 }}
+                  disabled={busy}
+                  onClick={() => {
+                    setEditing(false);
+                    setStatus(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...btn,
+                    borderColor: "#0d9f4f",
+                    background: "#0d9f4f",
+                    color: "#fff",
+                    opacity: busy ? 0.6 : 1
+                  }}
+                  disabled={busy}
+                  onClick={save}
+                >
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </>
+            ) : (
+              <button type="button" style={btn} onClick={onClose}>
+                Close
+              </button>
+            )}
+          </div>
         </div>
 
-        <div style={{ padding: "24px 32px 36px" }}>
+        <div style={{ padding: "20px 32px 36px" }}>
+          {status ? (
+            <p
+              style={{
+                margin: "0 0 16px",
+                fontSize: 13,
+                color: status.includes("fail") || status.includes("Failed") ? "#b91c1c" : "#0d7a3d"
+              }}
+            >
+              {status}
+            </p>
+          ) : null}
+
           {error ? (
             <p style={{ color: "#b91c1c" }}>{error}</p>
           ) : !post ? (
-            <p style={{ color: "#64748b" }}>Loading preview…</p>
+            <p style={{ color: "#64748b" }}>Loading…</p>
+          ) : editing ? (
+            /* ── EDIT MODE ─────────────────────────────────────────── */
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* AI revise panel */}
+              <div
+                style={{
+                  border: "1px solid #cfe3ff",
+                  background: "#f2f7ff",
+                  borderRadius: 10,
+                  padding: "14px 16px"
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: "#1e40af" }}>
+                  Ask AI to revise
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <select
+                    style={{ ...input, width: 120 }}
+                    value={reviseTarget}
+                    onChange={(e) => setReviseTarget(e.target.value as ReviseTarget)}
+                    disabled={busy}
+                    aria-label="Field to revise"
+                  >
+                    <option value="body">Body</option>
+                    <option value="title">Title</option>
+                    <option value="excerpt">Excerpt</option>
+                  </select>
+                  <input
+                    style={{ ...input, flex: 1, minWidth: 200 }}
+                    value={instruction}
+                    onChange={(e) => setInstruction(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !busy) askAi();
+                    }}
+                    placeholder="e.g. shorten the deposit section · make the intro punchier · add a metro-connectivity paragraph"
+                    disabled={busy}
+                  />
+                  <button
+                    type="button"
+                    style={{
+                      ...btn,
+                      borderColor: "#1e40af",
+                      background: "#1e40af",
+                      color: "#fff",
+                      opacity: busy ? 0.6 : 1,
+                      cursor: revising ? "wait" : "pointer"
+                    }}
+                    disabled={busy}
+                    onClick={askAi}
+                  >
+                    {revising ? "Revising…" : "Ask AI"}
+                  </button>
+                </div>
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#4b6bb5" }}>
+                  The AI rewrites the selected field; you review the result and Save. It won’t
+                  invent numbers not already in the post.
+                </p>
+              </div>
+
+              <div>
+                <label style={label}>Title</label>
+                <input style={input} value={title} onChange={(e) => setTitle(e.target.value)} />
+              </div>
+
+              <div>
+                <label style={label}>Excerpt</label>
+                <textarea
+                  style={{ ...input, minHeight: 60, resize: "vertical" }}
+                  value={excerpt}
+                  onChange={(e) => setExcerpt(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={label}>Body (HTML)</label>
+                <textarea
+                  style={{
+                    ...input,
+                    minHeight: 320,
+                    resize: "vertical",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    fontSize: 13,
+                    lineHeight: 1.5
+                  }}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  spellCheck={false}
+                />
+              </div>
+
+              <div>
+                <label style={label}>Q &amp; A</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {faq.map((f, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        border: "1px solid #e7e2d6",
+                        borderRadius: 8,
+                        padding: 10,
+                        background: "#fff"
+                      }}
+                    >
+                      <input
+                        style={{ ...input, marginBottom: 6, fontWeight: 600 }}
+                        value={f.q}
+                        placeholder="Question"
+                        onChange={(e) =>
+                          setFaq((prev) =>
+                            prev.map((x, j) => (j === i ? { ...x, q: e.target.value } : x))
+                          )
+                        }
+                      />
+                      <textarea
+                        style={{ ...input, minHeight: 48, resize: "vertical" }}
+                        value={f.a}
+                        placeholder="Answer"
+                        onChange={(e) =>
+                          setFaq((prev) =>
+                            prev.map((x, j) => (j === i ? { ...x, a: e.target.value } : x))
+                          )
+                        }
+                      />
+                      <button
+                        type="button"
+                        style={{ ...btn, marginTop: 6, borderColor: "#e0b4b4", color: "#b91c1c" }}
+                        onClick={() => setFaq((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    style={{ ...btn, alignSelf: "flex-start" }}
+                    onClick={() => setFaq((prev) => [...prev, { q: "", a: "" }])}
+                  >
+                    + Add Q&amp;A
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
+            /* ── READ MODE ─────────────────────────────────────────── */
             <>
-              {/* Quality report — only when the gate flagged it */}
               {needsAttention && failedChecks.length > 0 ? (
                 <div
                   style={{
@@ -150,7 +437,7 @@ export function BlogPreviewModal({ accessToken, id, onClose }: Props) {
                 >
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: "#92400e" }}>
                     Flagged “needs attention” — {failedChecks.length} check
-                    {failedChecks.length === 1 ? "" : "s"} to fix before publishing
+                    {failedChecks.length === 1 ? "" : "s"} to fix (Edit to fix, or Approve anyway)
                   </div>
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "#7c5b13" }}>
                     {failedChecks.map((c) => (
@@ -165,7 +452,6 @@ export function BlogPreviewModal({ accessToken, id, onClose }: Props) {
                 </div>
               ) : null}
 
-              {/* Article */}
               <article className="blog-preview-article">
                 <p className="kicker">{DESK_LABEL[post.categorySlug ?? ""] ?? "Cribliv Times"}</p>
                 <h1>{post.title}</h1>
