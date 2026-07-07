@@ -77,6 +77,7 @@ const fakeGen = {
   })
 };
 
+let pendingQueue: Array<Record<string, unknown>> = [];
 const fakeBriefs = {
   createBrief: async (brief: Record<string, unknown>) => ({
     id: "b1",
@@ -84,7 +85,10 @@ const fakeBriefs = {
     post_type: "data_report"
   }),
   getById: async () => null,
-  markDone: async () => undefined
+  markDone: async () => undefined,
+  markDropped: async () => undefined,
+  claimNextPending: async () => pendingQueue.shift() ?? null,
+  countPending: async () => pendingQueue.length
 };
 
 const fakePlanner = {
@@ -179,5 +183,34 @@ describe("AdminBlogController (integration)", () => {
     expect(response.status).toBe(201);
     expect(response.body.data.created).toBe(3);
     expect(sqls.some((sql) => /INSERT INTO admin_actions/i.test(sql))).toBe(true);
+  });
+
+  it("generate-next drafts the next pending brief and reports remaining", async () => {
+    sqls.length = 0;
+    pendingQueue = [
+      {
+        id: "b2",
+        target_keyword: "1bhk rent hazratganj",
+        city_slug: "lucknow",
+        category_slug: "data-reports",
+        post_type: "data_report",
+        internal_link_targets: [],
+        intent: null
+      }
+    ];
+    const response = await request(app.getHttpServer()).post("/admin/blog/generate-next").send({});
+    expect(response.status).toBe(201);
+    expect(response.body.data.post).not.toBeNull();
+    expect(["draft", "needs_attention"]).toContain(response.body.data.post.status);
+    expect(response.body.data.remaining).toBe(0);
+    expect(sqls.some((sql) => /INSERT INTO admin_actions/i.test(sql))).toBe(true);
+  });
+
+  it("generate-next returns null post when no briefs are pending", async () => {
+    pendingQueue = [];
+    const response = await request(app.getHttpServer()).post("/admin/blog/generate-next").send({});
+    expect(response.status).toBe(201);
+    expect(response.body.data.post).toBeNull();
+    expect(response.body.data.remaining).toBe(0);
   });
 });

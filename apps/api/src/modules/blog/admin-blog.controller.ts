@@ -22,9 +22,15 @@ import { logTelemetry } from "../../common/telemetry";
 import type { UserContext } from "../../common/types";
 import { toAbsoluteSeoUrl } from "../seo/seo-urls";
 import { BlogBriefService } from "./blog-brief.service";
-import { BlogGeneratorService } from "./blog-generator.service";
+import { BlogGeneratorService, type GeneratedPost } from "./blog-generator.service";
 import { BlogTopicPlannerService } from "./blog-topic-planner.service";
-import type { BlogBriefRow, BlogFaqItem, BlogPostType, BlogStatus } from "./blog.types";
+import type {
+  BlogBriefRow,
+  BlogFaqItem,
+  BlogPostRow,
+  BlogPostType,
+  BlogStatus
+} from "./blog.types";
 import { BlogService } from "./blog.service";
 
 type BlogAction = "blog_approve" | "blog_publish" | "blog_archive" | "blog_edit" | "blog_generate";
@@ -213,7 +219,54 @@ export class AdminBlogController {
         message: "The generator could not produce a post"
       });
     }
+    const row = await this.persistGenerated(req.user.id, brief, generated, "manual");
+    logTelemetry("admin.blog_generated_now", {
+      admin_user_id: req.user.id,
+      post_id: row.id,
+      gate_passed: generated.quality.passed
+    });
+    return ok(row);
+  }
 
+  // Drains one planner-created brief into a draft. This is the autonomous
+  // recommendation path, exposed for the admin "Plan topics" flow: the UI
+  // plans a batch, then calls this repeatedly to watch the queue fill. Returns
+  // { post: null, remaining: 0 } when no pending briefs are left.
+  @Post("generate-next")
+  async generateNext(@Req() req: { user: UserContext }) {
+    const brief = await this.briefs.claimNextPending();
+    if (!brief) return ok({ post: null, remaining: 0 });
+
+    try {
+      const generated = await this.generator.generate(brief);
+      if (!generated) {
+        await this.briefs.markDropped(brief.id, "generation_failed").catch(() => undefined);
+        return ok({ post: null, remaining: await this.briefs.countPending(), dropped: true });
+      }
+      const row = await this.persistGenerated(req.user.id, brief, generated, "planner");
+      logTelemetry("admin.blog_generated_next", {
+        admin_user_id: req.user.id,
+        post_id: row.id,
+        gate_passed: generated.quality.passed
+      });
+      return ok({ post: row, remaining: await this.briefs.countPending() });
+    } catch (err) {
+      // The claimed brief is flipped to 'generating'; reset it so a thrown
+      // step never orphans it there (mirrors the worker's safety net).
+      await this.briefs.markDropped(brief.id, "generation_error").catch(() => undefined);
+      throw new BadRequestException({
+        code: "generation_failed",
+        message: err instanceof Error ? err.message : "Generation failed"
+      });
+    }
+  }
+
+  private async persistGenerated(
+    adminId: string,
+    brief: BlogBriefRow,
+    generated: GeneratedPost,
+    generatedBy: "manual" | "planner"
+  ): Promise<BlogPostRow> {
     const status: "draft" | "needs_attention" = generated.quality.passed
       ? "draft"
       : "needs_attention";
@@ -229,7 +282,7 @@ export class AdminBlogController {
       intent: generated.intent,
       city_slug: generated.citySlug,
       category_slug: generated.categorySlug,
-      generated_by: "manual",
+      generated_by: generatedBy,
       status,
       quality_score: generated.quality.score,
       quality_breakdown: generated.quality,
@@ -240,16 +293,11 @@ export class AdminBlogController {
       brief_id: brief.id
     });
     await this.briefs.markDone(brief.id).catch(() => undefined);
-    await this.audit(req.user.id, row.id, "blog_generate", {
+    await this.audit(adminId, row.id, "blog_generate", {
       status: row.status,
       quality_score: generated.quality.score
     });
-    logTelemetry("admin.blog_generated_now", {
-      admin_user_id: req.user.id,
-      post_id: row.id,
-      gate_passed: generated.quality.passed
-    });
-    return ok(row);
+    return row;
   }
 
   private async resolveBrief(body: GenerateNowBody): Promise<BlogBriefRow> {

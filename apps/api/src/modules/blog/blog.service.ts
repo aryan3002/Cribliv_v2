@@ -230,6 +230,11 @@ export class BlogService {
          script = EXCLUDED.script,
          brief_id = EXCLUDED.brief_id,
          updated_at = now()
+       -- Never let a regeneration clobber a post a human has already moved
+       -- forward: only refresh drafts still awaiting review. A conflict on a
+       -- published/in_review/archived slug updates zero rows (RETURNING empty),
+       -- and we return the existing row untouched below.
+       WHERE blog_posts.status IN ('brief', 'generating', 'draft', 'needs_attention')
        RETURNING ${POST_RETURNING_COLUMNS}`,
       [
         input.slug,
@@ -256,8 +261,19 @@ export class BlogService {
       ]
     );
 
-    if (!rows[0]) throw new Error("Failed to upsert blog draft");
-    return rows[0];
+    if (rows[0]) return rows[0];
+
+    // No row returned means the slug already exists in a protected state
+    // (published / in_review / archived) and the guarded UPDATE was skipped.
+    // Return the existing post as-is rather than throwing, so a redundant
+    // regeneration is a safe no-op instead of an error.
+    const existing = await this.database.query<BlogPostRow>(
+      `SELECT ${POST_RETURNING_COLUMNS} FROM blog_posts WHERE slug = $1`,
+      [input.slug]
+    );
+    if (existing.rows[0]) return existing.rows[0];
+
+    throw new Error("Failed to upsert blog draft");
   }
 
   async transition(

@@ -5,7 +5,9 @@ import { BlogBriefService } from "./blog-brief.service";
 import { EVERGREEN_SEEDS } from "./evergreen-seeds";
 import type { BriefSource } from "./blog.types";
 
-const INDEXABLE_MIN = 3;
+// A locality needs at least this many active listings before a "rent trends"
+// data report is credible — a median over 2-3 listings is noise, not a report.
+const DATA_TREND_MIN_LISTINGS = 5;
 
 @Injectable()
 export class BlogTopicPlannerService {
@@ -16,6 +18,39 @@ export class BlogTopicPlannerService {
     private readonly aggregates: SeoAggregatesService,
     private readonly briefs: BlogBriefService
   ) {}
+
+  // Cities the operator has switched on for programmatic SEO (slice 1). The
+  // planner targets these by default so it never plans for a city with no data.
+  private async enabledCities(): Promise<string[]> {
+    if (!this.database.isEnabled()) return [];
+    try {
+      const { rows } = await this.database.query<{ city_slug: string }>(
+        `SELECT city_slug FROM seo_city_config
+         WHERE programmatic_enabled = true
+         ORDER BY city_slug`
+      );
+      return rows.map((r) => r.city_slug);
+    } catch {
+      return [];
+    }
+  }
+
+  // Keywords already covered by a live or in-flight post. Used to dedup so
+  // repeated planning never re-proposes a topic that already has a post
+  // (archived posts are excluded — those slots are open again).
+  private async coveredKeywords(): Promise<Set<string>> {
+    if (!this.database.isEnabled()) return new Set();
+    try {
+      const { rows } = await this.database.query<{ kw: string }>(
+        `SELECT DISTINCT lower(target_keyword) AS kw
+         FROM blog_posts
+         WHERE status <> 'archived' AND target_keyword IS NOT NULL`
+      );
+      return new Set(rows.map((r) => r.kw));
+    } catch {
+      return new Set();
+    }
+  }
 
   private async rankingsTableExists(): Promise<boolean> {
     if (!this.database.isEnabled()) return false;
@@ -32,7 +67,9 @@ export class BlogTopicPlannerService {
   async planTopics(
     opts: { citySlugs?: string[]; maxBriefs?: number } = {}
   ): Promise<{ created: number; bySource: Record<BriefSource, number> }> {
-    const cities = opts.citySlugs ?? ["lucknow"];
+    const requested = opts.citySlugs?.filter(Boolean) ?? [];
+    const cities = requested.length ? requested : (await this.enabledCities()) || [];
+    const effectiveCities = cities.length ? cities : ["noida"];
     const cap = opts.maxBriefs ?? 25;
     const bySource: Record<BriefSource, number> = {
       gsc_quickwin: 0,
@@ -42,13 +79,17 @@ export class BlogTopicPlannerService {
       manual: 0
     };
     let created = 0;
+    const covered = await this.coveredKeywords();
 
     const tryCreate = async (input: Parameters<BlogBriefService["createBrief"]>[0]) => {
       if (created >= cap) return;
+      const key = input.target_keyword.trim().toLowerCase();
+      if (covered.has(key)) return; // already has a post — don't re-propose
       const row = await this.briefs.createBrief(input);
       if (row) {
         created++;
         bySource[input.source]++;
+        covered.add(key); // guard against dup candidates within this same run
       }
     };
 
@@ -71,7 +112,7 @@ export class BlogTopicPlannerService {
         );
 
         for (const row of rows) {
-          const citySlug = cities.find((city) => row.page.includes(`/${city}`)) ?? null;
+          const citySlug = effectiveCities.find((city) => row.page.includes(`/${city}`)) ?? null;
           await tryCreate({
             target_keyword: row.keyword,
             intent: "informational",
@@ -114,12 +155,12 @@ export class BlogTopicPlannerService {
       }
     }
 
-    for (const city of cities) {
+    for (const city of effectiveCities) {
       if (created >= cap) break;
       const localities = await this.aggregates.localitiesForCity(city);
       for (const locality of localities) {
         if (created >= cap) break;
-        if ((locality.listing_count ?? 0) < INDEXABLE_MIN) continue;
+        if ((locality.listing_count ?? 0) < DATA_TREND_MIN_LISTINGS) continue;
 
         await tryCreate({
           target_keyword: `rent trends in ${locality.name_en}`,
