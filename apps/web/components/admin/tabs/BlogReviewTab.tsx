@@ -479,11 +479,11 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
         />
       </SectionCard>
 
-      {conversion.length > 0 ? (
-        <SectionCard
-          title="Top converting posts"
-          subtitle="Which published posts send readers to listings — and drive real contact-unlocks."
-        >
+      <SectionCard
+        title="Top converting posts"
+        subtitle="Which published posts send readers to listings — and drive real contact-unlocks."
+      >
+        {conversion.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--ad-text-muted, #64748b)" }}>
@@ -523,8 +523,14 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
               ))}
             </tbody>
           </table>
-        </SectionCard>
-      ) : null}
+        ) : (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ad-text-muted, #64748b)" }}>
+            No conversions tracked yet. When a reader opens a published post and clicks through to a
+            listing (each link is tagged to the post), it shows up here with clicks, unlocks, and
+            conversion rate — so you can see which stories actually drive contact reveals.
+          </p>
+        )}
+      </SectionCard>
 
       {previewId ? (
         <BlogPreviewModal
