@@ -116,6 +116,42 @@ export function buildWebSiteSearch(): JsonLd {
   };
 }
 
+export interface ArticleInput {
+  headline: string;
+  description?: string | null;
+  authorName: string;
+  authorUrl: string;
+  datePublished?: string | null;
+  dateModified?: string | null;
+  image?: string | null;
+  url: string;
+}
+
+/** schema.org Article for blog posts — carries the byline (Person) + publisher
+ *  (Organization) that drive E-E-A-T signals. */
+export function buildArticle(input: ArticleInput): JsonLd {
+  const abs = (p: string) => (p.startsWith("http") ? p : `${SITE_URL}${p}`);
+  const out: JsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: input.headline,
+    mainEntityOfPage: abs(input.url),
+    author: { "@type": "Person", name: input.authorName, url: abs(input.authorUrl) },
+    publisher: {
+      "@type": "Organization",
+      name: "Cribliv",
+      url: SITE_URL,
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/images/logo.png` }
+    }
+  };
+  if (input.description) out.description = input.description;
+  if (input.datePublished) out.datePublished = input.datePublished;
+  if (input.dateModified ?? input.datePublished)
+    out.dateModified = input.dateModified ?? input.datePublished;
+  if (input.image) out.image = abs(input.image);
+  return out;
+}
+
 /** Inline script-tag string for embedding multiple schemas in one block. */
 export function renderJsonLd(...nodes: JsonLd[]): string {
   return JSON.stringify(nodes.length === 1 ? nodes[0] : nodes);
