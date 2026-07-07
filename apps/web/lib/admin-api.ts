@@ -1715,3 +1715,25 @@ export const publishBlogPost = (accessToken: string, id: string) =>
   blogPostAction(accessToken, id, "publish");
 export const archiveBlogPost = (accessToken: string, id: string) =>
   blogPostAction(accessToken, id, "archive");
+
+export interface GenerateBlogInput {
+  target_keyword: string;
+  city_slug?: string;
+  category_slug?: string;
+}
+
+// Kicks off a synchronous data-grounded generation run on the API (Azure OpenAI).
+// Returns the created draft (status 'draft' if it cleared the quality gate,
+// else 'needs_attention'). The call blocks for the generation duration (~15-25s),
+// so callers should show a busy state.
+export async function generateBlogNow(
+  accessToken: string,
+  input: GenerateBlogInput
+): Promise<AdminBlogRowVm> {
+  const raw = await fetchApi<AdminBlogRawRow>("/admin/blog/generate-now", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(input)
+  });
+  return mapAdminBlogRow(raw);
+}
