@@ -1805,6 +1805,42 @@ export async function fetchAdminBlogPost(
   };
 }
 
+export interface BlogPatch {
+  title?: string;
+  excerpt?: string | null;
+  meta_description?: string | null;
+  body_en?: string | null;
+  faq_items?: Array<{ q: string; a: string }>;
+}
+
+// Saves manual edits to a draft (partial — only provided fields change).
+export async function updateBlogPost(
+  accessToken: string,
+  id: string,
+  patch: BlogPatch
+): Promise<void> {
+  await fetchApi(`/admin/blog/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(patch)
+  });
+}
+
+// LLM-assisted edit: applies an instruction to one field and returns the
+// proposed revised text (does NOT save — the caller drops it into the editable
+// field, then Save persists it). Blocks for the LLM duration on body targets.
+export async function reviseBlogPost(
+  accessToken: string,
+  id: string,
+  input: { instruction: string; target: "body" | "title" | "excerpt" }
+): Promise<string> {
+  const res = await fetchApi<{ target: string; revised: string }>(
+    `/admin/blog/${encodeURIComponent(id)}/revise`,
+    { method: "POST", headers: authHeaders(accessToken), body: JSON.stringify(input) }
+  );
+  return res.revised;
+}
+
 export interface PlanTopicsResult {
   created: number;
   bySource: Record<string, number>;

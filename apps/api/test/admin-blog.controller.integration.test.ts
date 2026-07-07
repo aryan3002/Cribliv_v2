@@ -74,7 +74,8 @@ const fakeGen = {
     citedDataPointCount: 3,
     isDataPost: true,
     quality: { score: 1, passed: true, checks: [] }
-  })
+  }),
+  revise: async () => "<p>Revised body.</p>"
 };
 
 let pendingQueue: Array<Record<string, unknown>> = [];
@@ -212,5 +213,21 @@ describe("AdminBlogController (integration)", () => {
     expect(response.status).toBe(201);
     expect(response.body.data.post).toBeNull();
     expect(response.body.data.remaining).toBe(0);
+  });
+
+  it("revise returns a proposed revision (no save)", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/admin/blog/00000000-0000-0000-0000-00000000000a/revise")
+      .send({ instruction: "shorten the intro", target: "body" });
+    expect(response.status).toBe(201);
+    expect(response.body.data.target).toBe("body");
+    expect(response.body.data.revised).toContain("Revised");
+  });
+
+  it("revise rejects a missing instruction", async () => {
+    const response = await request(app.getHttpServer())
+      .post("/admin/blog/00000000-0000-0000-0000-00000000000a/revise")
+      .send({ target: "body" });
+    expect(response.status).toBe(400);
   });
 });

@@ -467,6 +467,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
           accessToken={accessToken}
           id={previewId}
           onClose={() => setPreviewId(null)}
+          onSaved={() => setReloadKey((k) => k + 1)}
         />
       ) : null}
     </div>
