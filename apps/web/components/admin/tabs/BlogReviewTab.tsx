@@ -10,6 +10,7 @@ import {
   approveBlogPost,
   archiveBlogPost,
   fetchAdminBlogPosts,
+  generateBlogNow,
   publishBlogPost,
   type AdminBlogRowVm
 } from "../../../lib/admin-api";
@@ -38,6 +39,13 @@ const FILTERS: Array<{ value: string; label: string }> = [
 ];
 
 const PENDING = new Set(["draft", "needs_attention", "in_review"]);
+
+const DESK_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "market-updates", label: "Market Updates" },
+  { value: "data-reports", label: "Data Reports" },
+  { value: "local-guides", label: "Local Guides" },
+  { value: "tenancy", label: "Tenancy" }
+];
 
 const fieldStyle: CSSProperties = {
   height: 34,
@@ -70,6 +78,10 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [kw, setKw] = useState("");
+  const [genCity, setGenCity] = useState("");
+  const [genCategory, setGenCategory] = useState("market-updates");
+  const [generating, setGenerating] = useState(false);
   const onToastRef = useRef(onToast);
 
   useEffect(() => {
@@ -128,6 +140,39 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
     },
     [accessToken]
   );
+
+  const generate = useCallback(async () => {
+    const keyword = kw.trim();
+    if (!keyword) {
+      onToastRef.current("Enter a target keyword first", "warn");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const row = await generateBlogNow(accessToken, {
+        target_keyword: keyword,
+        city_slug: genCity.trim() || undefined,
+        category_slug: genCategory
+      });
+      onToastRef.current(
+        row.status === "needs_attention"
+          ? "Draft generated — flagged 'needs attention' (below the quality bar). Review before publishing."
+          : "Draft generated and ready for review.",
+        row.status === "needs_attention" ? "warn" : "trust"
+      );
+      setKw("");
+      setGenCity("");
+      setFilter("pending");
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      onToastRef.current(
+        err instanceof Error ? err.message : "Generation failed — check the AI config on the API.",
+        "danger"
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }, [accessToken, kw, genCity, genCategory]);
 
   const columns: Column<AdminBlogRowVm>[] = [
     {
@@ -219,6 +264,87 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
         <StatCard label="In review" value={counts.in_review ?? 0} />
         <StatCard label="Published" value={counts.published ?? 0} />
       </div>
+
+      <SectionCard
+        title="Generate a draft"
+        subtitle="Runs a data-grounded generation pass (Azure OpenAI) and drops the result into the queue below. Nothing goes live until you publish it. Generation takes ~15–25s."
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(220px, 2fr) minmax(150px, 1fr) minmax(140px, 1fr) auto",
+            gap: 10,
+            alignItems: "end"
+          }}
+        >
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+            <span style={{ fontWeight: 600, color: "var(--ad-text-muted, #64748b)" }}>
+              Target keyword
+            </span>
+            <input
+              style={fieldStyle}
+              value={kw}
+              onChange={(e) => setKw(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !generating) generate();
+              }}
+              placeholder="e.g. 2bhk rent in noida"
+              disabled={generating}
+              aria-label="Target keyword"
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+            <span style={{ fontWeight: 600, color: "var(--ad-text-muted, #64748b)" }}>Desk</span>
+            <select
+              style={fieldStyle}
+              value={genCategory}
+              onChange={(e) => setGenCategory(e.target.value)}
+              disabled={generating}
+              aria-label="Desk"
+            >
+              {DESK_OPTIONS.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12 }}>
+            <span style={{ fontWeight: 600, color: "var(--ad-text-muted, #64748b)" }}>
+              City slug <span style={{ fontWeight: 400 }}>(optional)</span>
+            </span>
+            <input
+              style={fieldStyle}
+              value={genCity}
+              onChange={(e) => setGenCity(e.target.value)}
+              placeholder="noida"
+              disabled={generating}
+              aria-label="City slug"
+            />
+          </label>
+          <button
+            type="button"
+            style={{
+              ...btnStyle,
+              height: 34,
+              padding: "0 16px",
+              borderColor: "var(--ad-trust, #0d9f4f)",
+              color: "#fff",
+              background: "var(--ad-trust, #0d9f4f)",
+              opacity: generating ? 0.7 : 1,
+              cursor: generating ? "wait" : "pointer"
+            }}
+            disabled={generating}
+            onClick={generate}
+          >
+            {generating ? "Generating…" : "Generate a post"}
+          </button>
+        </div>
+        <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--ad-text-muted, #64748b)" }}>
+          City slug grounds the piece in live listing data for that city (adds a data-report angle).
+          Leave blank for an evergreen editorial post.
+        </p>
+      </SectionCard>
 
       <SectionCard
         title="Blog review queue"

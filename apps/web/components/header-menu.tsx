@@ -21,6 +21,7 @@ import {
   BarChart3,
   Building2,
   UsersRound,
+  Newspaper,
   ChevronRight
 } from "lucide-react";
 import type { Locale } from "../lib/i18n";
@@ -197,6 +198,11 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
       href: `/${locale}/map`,
       icon: <Map size={16} aria-hidden="true" />,
       label: t(locale, "menuMap")
+    },
+    {
+      href: `/${locale}/blog`,
+      icon: <Newspaper size={16} aria-hidden="true" />,
+      label: "Cribliv Times"
     },
     {
       href: `/${locale}/become-owner`,
