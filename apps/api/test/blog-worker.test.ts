@@ -128,6 +128,57 @@ describe("blog-worker orchestration", () => {
     expect(calls.some((call) => /status = 'published'/i.test(call))).toBe(false);
   });
 
+  it("drops a claimed brief (never orphans it in 'generating') when a step throws", async () => {
+    let claimed = 0;
+    const { pool, calls } = makePool([
+      [
+        /UPDATE blog_briefs b[\s\S]*SET status = 'generating'/i,
+        () => {
+          claimed += 1;
+          return claimed === 1
+            ? {
+                rows: [
+                  {
+                    id: "b1",
+                    target_keyword: "how to make a rent agreement",
+                    intent: null,
+                    outline: [],
+                    required_data: [],
+                    internal_link_targets: [],
+                    source: "evergreen",
+                    status: "generating",
+                    city_slug: null,
+                    category_slug: null,
+                    post_type: "evergreen",
+                    notes: null,
+                    created_at: "t",
+                    updated_at: "t"
+                  }
+                ]
+              }
+            : { rows: [] };
+        }
+      ],
+      [/FROM localities/i, () => ({ rows: [] })],
+      [/UPDATE blog_briefs[\s\S]*SET status = 'dropped'/i, () => ({ rows: [] })]
+    ]);
+
+    // callJson throws → generator.generate rejects mid-loop. The loop must catch
+    // it, reset the brief to 'dropped', and resolve (not crash the sweep).
+    const result = await runBlogGenerator(pool as never, 1, {
+      callJson: (async () => {
+        throw new Error("LLM exploded");
+      }) as never,
+      embedForUniqueness: async () => null
+    });
+
+    expect(result.drafted).toBe(0);
+    expect(result.needsAttention).toBe(0);
+    expect(calls.some((c) => /UPDATE blog_briefs[\s\S]*SET status = 'dropped'/i.test(c))).toBe(
+      true
+    );
+  });
+
   it("runBlogEmbedSweep processes seo.embed_blog events and marks them dispatched", async () => {
     let drained = 0;
     const { pool, calls } = makePool([

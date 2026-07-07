@@ -69,54 +69,66 @@ export async function runBlogGenerator(
     const brief = await briefs.claimNextPending();
     if (!brief) break;
 
-    let generated = await generator.generate(brief);
-    if (generated) {
-      const distance = await uniqueness(generated.bodyEn, generated.title);
-      generated = await generator.generate(brief, distance);
-    }
-
-    if (!generated || !generated.quality.passed) {
-      const retry = await generator.generate(brief);
-      if (retry) {
-        const distance = await uniqueness(retry.bodyEn, retry.title);
+    try {
+      let generated = await generator.generate(brief);
+      if (generated) {
+        const distance = await uniqueness(generated.bodyEn, generated.title);
         generated = await generator.generate(brief, distance);
       }
+
+      if (!generated || !generated.quality.passed) {
+        const retry = await generator.generate(brief);
+        if (retry) {
+          const distance = await uniqueness(retry.bodyEn, retry.title);
+          generated = await generator.generate(brief, distance);
+        }
+      }
+
+      if (!generated) {
+        await briefs.markDropped(brief.id, "generation_failed");
+        continue;
+      }
+
+      const status: "draft" | "needs_attention" = generated.quality.passed
+        ? "draft"
+        : "needs_attention";
+      await blog.upsertDraft({
+        slug: generated.slug,
+        title: generated.title,
+        meta_title: generated.metaTitle,
+        meta_description: generated.metaDescription,
+        excerpt: generated.excerpt,
+        body_en: generated.bodyEn,
+        body_hi: generated.bodyHi,
+        target_keyword: generated.targetKeyword,
+        intent: generated.intent,
+        city_slug: generated.citySlug,
+        category_slug: generated.categorySlug,
+        generated_by: "planner",
+        status,
+        quality_score: generated.quality.score,
+        quality_breakdown: generated.quality,
+        faq_items: generated.faqItems,
+        sources: generated.sources,
+        data_asof: generated.dataAsof,
+        script: "en",
+        brief_id: brief.id
+      });
+
+      if (status === "draft") drafted += 1;
+      else needsAttention += 1;
+      await briefs.markDone(brief.id);
+    } catch (err) {
+      // A claimed brief is already flipped to 'generating'. If any step throws
+      // (embedding/LLM/DB error), reset it to 'dropped' so it is never orphaned
+      // in 'generating' — otherwise the pending-only unique index would block
+      // re-planning that topic. Continue with the next brief.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        JSON.stringify({ job: "blog_generator", brief_id: brief.id, status: "error", message })
+      );
+      await briefs.markDropped(brief.id, "generation_error").catch(() => undefined);
     }
-
-    if (!generated) {
-      await briefs.markDropped(brief.id, "generation_failed");
-      continue;
-    }
-
-    const status: "draft" | "needs_attention" = generated.quality.passed
-      ? "draft"
-      : "needs_attention";
-    await blog.upsertDraft({
-      slug: generated.slug,
-      title: generated.title,
-      meta_title: generated.metaTitle,
-      meta_description: generated.metaDescription,
-      excerpt: generated.excerpt,
-      body_en: generated.bodyEn,
-      body_hi: generated.bodyHi,
-      target_keyword: generated.targetKeyword,
-      intent: generated.intent,
-      city_slug: generated.citySlug,
-      category_slug: generated.categorySlug,
-      generated_by: "planner",
-      status,
-      quality_score: generated.quality.score,
-      quality_breakdown: generated.quality,
-      faq_items: generated.faqItems,
-      sources: generated.sources,
-      data_asof: generated.dataAsof,
-      script: "en",
-      brief_id: brief.id
-    });
-
-    if (status === "draft") drafted += 1;
-    else needsAttention += 1;
-    await briefs.markDone(brief.id);
   }
 
   return { drafted, needsAttention };
@@ -199,7 +211,10 @@ export async function runBlogEmbedSweep(
        WHERE id = $1`,
       [event.id, failed ? "failed" : "pending", nextAttemptCount]
     );
-    if (!failed) break;
+    // Do NOT break the batch on a retryable failure: the re-queued event gets a
+    // 10-min backoff (next_attempt_at), so healthy events behind it still get
+    // processed this tick and this row won't be re-picked until the backoff
+    // elapses. (Previously this `break` let one flaky post stall the batch.)
   }
 
   return { embedded };

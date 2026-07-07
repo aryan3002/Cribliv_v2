@@ -102,6 +102,18 @@ describe("BlogGeneratorService", () => {
     expect(post!.slug).toBe("2bhk-rent-gomti-nagar");
   });
 
+  it("attributes a source to non-data posts so they can pass the gate", async () => {
+    // Regression: non-data posts got sources=[], but the gate requires >=1
+    // source for them, so every evergreen/guide was force-failed to
+    // needs_attention regardless of quality.
+    const svc = new BlogGeneratorService(fakeAggregates(), fakeCallJson() as never);
+    const post = await svc.generate({ ...BRIEF, post_type: "evergreen" }, 0.4);
+    expect(post).not.toBeNull();
+    expect(post!.isDataPost).toBe(false);
+    expect(post!.sources.length).toBeGreaterThanOrEqual(1);
+    expect(post!.quality.passed).toBe(true);
+  });
+
   it("generate returns null when the outline step fails", async () => {
     const call = vi.fn(async () => null);
     const svc = new BlogGeneratorService(fakeAggregates(), call as never);

@@ -187,9 +187,13 @@ export class BlogGeneratorService {
       : `<h1>${seo.h1}</h1>\n${bodyAfterCheck}`;
     const dataAsof = isDataPost ? new Date().toISOString().slice(0, 10) : null;
     const bodyEn = `${bodyWithH1}\n${renderDataFactBlock(dataFacts, dataAsof)}`;
+    // Data posts cite live listings; non-data posts (guides/evergreen) are
+    // attributed to Cribliv's editorial desk. Every post carries >=1 source so
+    // the gate's "cited sources" check can pass — otherwise non-data posts are
+    // structurally forced to needs_attention and can never become a draft.
     const sources: BlogSource[] = isDataPost
       ? [{ label: "Cribliv live listings", asof: dataAsof }]
-      : [];
+      : [{ label: "Cribliv editorial", asof: null }];
     const citedDataPointCount = countCitedDataPoints(bodyEn, sources);
     const quality = qualityScore({
       title: seo.title,

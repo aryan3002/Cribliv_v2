@@ -268,10 +268,10 @@ export class BlogService {
     const publishedAtSql = to === "published" ? ", published_at = now()" : "";
     const { rows } = await this.database.query<BlogPostRow>(
       `UPDATE blog_posts
-       SET status = '${to}'${publishedAtSql}, updated_at = now()
+       SET status = $2${publishedAtSql}, updated_at = now()
        WHERE id = $1::uuid
        RETURNING ${POST_RETURNING_COLUMNS}`,
-      [id]
+      [id, to]
     );
     return rows[0] ?? null;
   }

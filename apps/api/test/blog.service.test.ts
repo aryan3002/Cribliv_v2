@@ -93,8 +93,11 @@ describe("BlogService (DB-only)", () => {
     });
     const { service } = svc(query);
     const row = await service.transition(ROW.id, "published");
-    const [sql] = query.mock.calls[0];
-    expect(sql).toMatch(/status\s*=\s*'published'/i);
+    const [sql, params] = query.mock.calls[0];
+    // status is bound as a param ($2), not interpolated, and 'published' still
+    // stamps published_at = now().
+    expect(sql).toMatch(/status\s*=\s*\$2/i);
+    expect(params).toContain("published");
     expect(sql).toMatch(/published_at\s*=\s*now\(\)/i);
     expect(row?.status).toBe("published");
   });
