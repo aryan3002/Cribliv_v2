@@ -23,10 +23,15 @@ export class ContactsService {
     @Inject(LeadsService) private readonly leadsService: LeadsService
   ) {}
 
-  async unlockContact(userId: string, listingId: string, idempotencyKey: string) {
+  async unlockContact(
+    userId: string,
+    listingId: string,
+    idempotencyKey: string,
+    source: string | null = null
+  ) {
     let result: Awaited<ReturnType<typeof this.unlockContactDb>>;
     if (this.database.isEnabled()) {
-      result = await this.unlockContactDb(userId, listingId, idempotencyKey);
+      result = await this.unlockContactDb(userId, listingId, idempotencyKey, source);
     } else {
       result = this.unlockContactInMemory(userId, listingId, idempotencyKey);
     }
@@ -50,6 +55,24 @@ export class ContactsService {
     });
 
     return result;
+  }
+
+  // Cached presence of the migration-0050 `contact_unlocks.source` column. Only
+  // caches `true`; while false it re-checks each unlock so it self-heals the
+  // moment the migration is applied (no restart needed).
+  private contactUnlockSourcePresent = false;
+  private async hasContactUnlockSource(): Promise<boolean> {
+    if (this.contactUnlockSourcePresent) return true;
+    try {
+      const { rows } = await this.database.query(
+        `SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'contact_unlocks' AND column_name = 'source' LIMIT 1`
+      );
+      this.contactUnlockSourcePresent = rows.length > 0;
+    } catch {
+      this.contactUnlockSourcePresent = false;
+    }
+    return this.contactUnlockSourcePresent;
   }
 
   /**
@@ -140,7 +163,12 @@ export class ContactsService {
     return this.markOwnerRespondedInMemory(ownerUserId, unlockId, channel);
   }
 
-  private async unlockContactDb(userId: string, listingId: string, idempotencyKey: string) {
+  private async unlockContactDb(
+    userId: string,
+    listingId: string,
+    idempotencyKey: string,
+    source: string | null = null
+  ) {
     const client = await this.database.getClient();
     try {
       await client.query("BEGIN");
@@ -299,6 +327,15 @@ export class ContactsService {
         );
       }
 
+      // The `source` column ships in migration 0050. Until it's applied on a
+      // given DB, omit it so this revenue-critical INSERT never fails on a
+      // deploy-before-migrate ordering. Once present, it's cached as true.
+      const hasSource = await this.hasContactUnlockSource();
+      const sourceCol = hasSource ? ",\n          source" : "";
+      const sourceVal = hasSource ? ", $5" : "";
+      const unlockParams = hasSource
+        ? [userId, listingId, walletTxnId, idempotencyKey, source]
+        : [userId, listingId, walletTxnId, idempotencyKey];
       const unlockResult = await client.query<{
         id: string;
         response_deadline_at: string;
@@ -309,13 +346,13 @@ export class ContactsService {
           listing_id,
           wallet_txn_id,
           idempotency_key,
-          response_deadline_at
+          response_deadline_at${sourceCol}
         )
-        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now() + interval '12 hours')
+        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now() + interval '12 hours'${sourceVal})
         ON CONFLICT (tenant_user_id, listing_id, idempotency_key) DO NOTHING
         RETURNING id::text, response_deadline_at::text
         `,
-        [userId, listingId, walletTxnId, idempotencyKey]
+        unlockParams
       );
 
       let unlockId = unlockResult.rows[0]?.id;

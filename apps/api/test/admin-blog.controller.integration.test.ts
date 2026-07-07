@@ -230,4 +230,10 @@ describe("AdminBlogController (integration)", () => {
       .send({ target: "body" });
     expect(response.status).toBe(400);
   });
+
+  it("conversion resolves before :id and returns an items array", async () => {
+    const response = await request(app.getHttpServer()).get("/admin/blog/conversion");
+    expect(response.status).toBe(200);
+    expect(Array.isArray(response.body.data.items)).toBe(true);
+  });
 });
