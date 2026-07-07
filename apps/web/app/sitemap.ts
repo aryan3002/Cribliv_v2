@@ -56,8 +56,8 @@ export async function resolveChunks(): Promise<ChunkDescriptor[]> {
   return [
     { kind: "core" },
     { kind: "listings" },
-    { kind: "blog" },
-    ...cities.map((citySlug) => ({ kind: "city" as const, citySlug }))
+    ...cities.map((citySlug) => ({ kind: "city" as const, citySlug })),
+    { kind: "blog" }
   ];
 }
 

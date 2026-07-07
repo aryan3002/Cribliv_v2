@@ -11,6 +11,7 @@ import {
   Globe,
   LayoutDashboard,
   LogOut,
+  Newspaper,
   ShieldCheck,
   TrendingUp,
   Users,
@@ -33,6 +34,7 @@ export type AdminTab =
   | "fraud"
   | "seo"
   | "search-performance"
+  | "blog"
   | "system";
 
 interface NavItem {
@@ -66,7 +68,8 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "pg-properties", label: "PG Listings", icon: Building2 },
     { id: "users", label: "Users", icon: Users },
     { id: "seo", label: "Programmatic SEO", icon: Globe },
-    { id: "search-performance", label: "Search Performance", icon: TrendingUp }
+    { id: "search-performance", label: "Search Performance", icon: TrendingUp },
+    { id: "blog", label: "Blog Review", icon: Newspaper, count: counts.blog }
   ];
   const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];
 

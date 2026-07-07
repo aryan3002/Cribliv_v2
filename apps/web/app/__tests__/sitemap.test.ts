@@ -102,13 +102,21 @@ describe("sitemap", () => {
   it("generateSitemaps returns core, listings, and one chunk per enabled city", async () => {
     mocks.fetchEnabledCities.mockResolvedValueOnce(new Set(["lucknow", "noida"]));
 
-    await expect(generateSitemaps()).resolves.toEqual([{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }]);
+    // core, listings, 2 city chunks, then the trailing blog chunk
+    await expect(generateSitemaps()).resolves.toEqual([
+      { id: 0 },
+      { id: 1 },
+      { id: 2 },
+      { id: 3 },
+      { id: 4 }
+    ]);
   });
 
   it("generateSitemaps falls back to Lucknow when enabled-city lookup rejects", async () => {
     mocks.fetchEnabledCities.mockRejectedValueOnce(new Error("api unavailable"));
 
-    await expect(generateSitemaps()).resolves.toEqual([{ id: 0 }, { id: 1 }, { id: 2 }]);
+    // core, listings, 1 fallback city chunk, then the trailing blog chunk
+    await expect(generateSitemaps()).resolves.toEqual([{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }]);
   });
 
   it("sitemap id 0 is the core chunk and excludes programmatic metro or near URLs", async () => {

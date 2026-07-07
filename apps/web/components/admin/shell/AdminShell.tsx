@@ -19,6 +19,7 @@ import { PgPropertiesTab } from "../tabs/PgPropertiesTab";
 import { FraudTab } from "../tabs/FraudTab";
 import { SeoProgrammaticPages } from "../tabs/SeoProgrammaticPages";
 import { SearchPerformanceTab } from "../tabs/SearchPerformanceTab";
+import { BlogReviewTab } from "../tabs/BlogReviewTab";
 import { SystemTab } from "../tabs/SystemTab";
 
 interface Props {
@@ -39,6 +40,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   fraud: "Fraud Intelligence",
   seo: "Programmatic SEO",
   "search-performance": "Search Performance",
+  blog: "Blog Review",
   system: "System Tools"
 };
 
@@ -126,6 +128,8 @@ export function AdminShell({ accessToken }: Props) {
         return <SeoProgrammaticPages key={`seo-${k}`} accessToken={accessToken} onToast={push} />;
       case "search-performance":
         return <SearchPerformanceTab key={`sp-${k}`} accessToken={accessToken} onToast={push} />;
+      case "blog":
+        return <BlogReviewTab key={`blog-${k}`} accessToken={accessToken} onToast={push} />;
       case "system":
         return <SystemTab key={`sy-${k}`} accessToken={accessToken} onToast={push} />;
     }
