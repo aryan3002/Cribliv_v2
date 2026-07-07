@@ -1737,3 +1737,44 @@ export async function generateBlogNow(
   });
   return mapAdminBlogRow(raw);
 }
+
+export interface PlanTopicsResult {
+  created: number;
+  bySource: Record<string, number>;
+}
+
+// Runs the topic planner: proposes briefs from GSC quick-wins, content gaps,
+// live-listing data trends, and evergreen seeds. Creates briefs only — call
+// generateNextBlogBrief to turn them into drafts.
+export async function planBlogTopics(
+  accessToken: string,
+  input: { citySlugs?: string[]; maxBriefs?: number } = {}
+): Promise<PlanTopicsResult> {
+  const body: { city_slugs?: string[]; max_briefs?: number } = {};
+  if (input.citySlugs?.length) body.city_slugs = input.citySlugs;
+  if (input.maxBriefs != null) body.max_briefs = input.maxBriefs;
+  const raw = await fetchApi<{ created?: number; bySource?: Record<string, number> }>(
+    "/admin/blog/plan",
+    { method: "POST", headers: authHeaders(accessToken), body: JSON.stringify(body) }
+  );
+  return { created: raw.created ?? 0, bySource: raw.bySource ?? {} };
+}
+
+export interface GenerateNextResult {
+  post: AdminBlogRowVm | null;
+  remaining: number;
+}
+
+// Drains one pending brief into a draft (the autonomous path). Returns the
+// created post + how many briefs remain pending, or post=null when the queue
+// of briefs is empty. Blocks for the generation duration, like generateBlogNow.
+export async function generateNextBlogBrief(accessToken: string): Promise<GenerateNextResult> {
+  const raw = await fetchApi<{ post: AdminBlogRawRow | null; remaining?: number }>(
+    "/admin/blog/generate-next",
+    { method: "POST", headers: authHeaders(accessToken) }
+  );
+  return {
+    post: raw.post ? mapAdminBlogRow(raw.post) : null,
+    remaining: raw.remaining ?? 0
+  };
+}

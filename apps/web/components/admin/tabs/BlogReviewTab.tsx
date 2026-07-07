@@ -11,6 +11,8 @@ import {
   archiveBlogPost,
   fetchAdminBlogPosts,
   generateBlogNow,
+  generateNextBlogBrief,
+  planBlogTopics,
   publishBlogPost,
   type AdminBlogRowVm
 } from "../../../lib/admin-api";
@@ -82,6 +84,8 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
   const [genCity, setGenCity] = useState("");
   const [genCategory, setGenCategory] = useState("market-updates");
   const [generating, setGenerating] = useState(false);
+  const [planning, setPlanning] = useState(false);
+  const [planMsg, setPlanMsg] = useState<string | null>(null);
   const onToastRef = useRef(onToast);
 
   useEffect(() => {
@@ -173,6 +177,56 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
       setGenerating(false);
     }
   }, [accessToken, kw, genCity, genCategory]);
+
+  // The autonomous path: let the planner propose a batch of briefs (from live
+  // data trends + evergreen seeds), then draft a few so the queue visibly fills.
+  const DRAFT_CAP = 3;
+  const planAndDraft = useCallback(async () => {
+    setPlanning(true);
+    setPlanMsg("Planning topics…");
+    try {
+      const res = await planBlogTopics(accessToken, { maxBriefs: 8 });
+      const breakdown = Object.entries(res.bySource)
+        .filter(([, n]) => n > 0)
+        .map(([k, n]) => `${n} ${k.replace(/_/g, "-")}`)
+        .join(", ");
+      if (res.created === 0) {
+        onToastRef.current(
+          "No new topics to plan — everything current is already covered.",
+          "warn"
+        );
+        return;
+      }
+      onToastRef.current(
+        `Planned ${res.created} topic${res.created === 1 ? "" : "s"} (${breakdown}).`,
+        "trust"
+      );
+      setFilter("pending");
+
+      const cap = Math.min(res.created, DRAFT_CAP);
+      let drafted = 0;
+      for (let i = 0; i < cap; i += 1) {
+        setPlanMsg(`Drafting ${i + 1} of ${cap}… (~20s each)`);
+        const next = await generateNextBlogBrief(accessToken);
+        setReloadKey((k) => k + 1);
+        if (next.post) drafted += 1;
+        if (!next.post && next.remaining === 0) break;
+      }
+      const leftover = Math.max(res.created - drafted, 0);
+      onToastRef.current(
+        `Drafted ${drafted} post${drafted === 1 ? "" : "s"} into the queue.` +
+          (leftover > 0
+            ? ` ${leftover} more brief${leftover === 1 ? "" : "s"} queued — click again to draft more.`
+            : ""),
+        "trust"
+      );
+    } catch (err) {
+      onToastRef.current(err instanceof Error ? err.message : "Planning failed", "danger");
+    } finally {
+      setPlanning(false);
+      setPlanMsg(null);
+    }
+  }, [accessToken]);
 
   const columns: Column<AdminBlogRowVm>[] = [
     {
@@ -331,10 +385,10 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
               borderColor: "var(--ad-trust, #0d9f4f)",
               color: "#fff",
               background: "var(--ad-trust, #0d9f4f)",
-              opacity: generating ? 0.7 : 1,
-              cursor: generating ? "wait" : "pointer"
+              opacity: generating || planning ? 0.7 : 1,
+              cursor: generating ? "wait" : planning ? "not-allowed" : "pointer"
             }}
-            disabled={generating}
+            disabled={generating || planning}
             onClick={generate}
           >
             {generating ? "Generating…" : "Generate a post"}
@@ -344,6 +398,37 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
           City slug grounds the piece in live listing data for that city (adds a data-report angle).
           Leave blank for an evergreen editorial post.
         </p>
+
+        <div
+          style={{
+            marginTop: 14,
+            paddingTop: 14,
+            borderTop: "1px solid var(--ad-border)",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap"
+          }}
+        >
+          <button
+            type="button"
+            style={{
+              ...btnStyle,
+              height: 34,
+              padding: "0 16px",
+              opacity: generating || planning ? 0.7 : 1,
+              cursor: generating ? "not-allowed" : planning ? "wait" : "pointer"
+            }}
+            disabled={generating || planning}
+            onClick={planAndDraft}
+          >
+            {planning ? "Working…" : "Plan topics"}
+          </button>
+          <span style={{ fontSize: 12, color: "var(--ad-text-muted, #64748b)" }}>
+            {planMsg ??
+              "Auto-recommend: the planner proposes topics from live rent data + evergreen gaps, then drafts a few into the queue."}
+          </span>
+        </div>
       </SectionCard>
 
       <SectionCard
