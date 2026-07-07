@@ -10,6 +10,7 @@ import {
   Globe,
   Heart,
   LayoutDashboard,
+  Newspaper,
   Plus,
   Search,
   UsersRound
@@ -93,6 +94,16 @@ export function Header({ locale }: { locale: Locale }) {
               >
                 <FileText size={15} aria-hidden="true" />
                 <span>Rent Agreement</span>
+              </Link>
+              {/* CRIBLIV TIMES — a serif masthead chip so the blog reads as
+                  "the newspaper", distinct from the sans nav tabs. */}
+              <Link
+                href={`/${locale}/blog`}
+                className={`nav-times${isActive(`/${locale}/blog`) ? " nav-times--active" : ""}`}
+                aria-label="Cribliv Times"
+              >
+                <Newspaper size={14} aria-hidden="true" />
+                <span className="nav-times__word">Cribliv Times</span>
               </Link>
             </>
           )}

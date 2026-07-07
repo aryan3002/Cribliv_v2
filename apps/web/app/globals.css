@@ -536,6 +536,43 @@ h4,
   background: var(--text-primary);
 }
 
+/* CRIBLIV TIMES — a serif masthead chip in the primary nav. Reads as "the
+   newspaper" (Fraunces serif in a hairline box) against the sans nav tabs; the
+   press red mirrors the blog's flag colour. */
+.nav-times {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: 0.005em;
+  color: var(--text-primary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+.nav-times svg {
+  opacity: 0.7;
+}
+.nav-times:hover,
+.nav-times--active {
+  color: #c2301c;
+  border-color: #c2301c;
+  background: rgba(194, 48, 28, 0.05);
+}
+.nav-times:hover svg,
+.nav-times--active svg {
+  opacity: 1;
+}
+
 @media (max-width: 900px) {
   .nav-center {
     display: none;

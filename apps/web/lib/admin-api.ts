@@ -1640,3 +1640,78 @@ export async function retryIndexingUrl(
   );
   return mapIndexingQueueRow(raw);
 }
+
+// ── Blog review (Task 24) ──────────────────────────────────────────────────
+export interface AdminBlogRowVm {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  categorySlug: string | null;
+  citySlug: string | null;
+  author: string;
+  qualityScore: number | null;
+  excerpt: string | null;
+  updatedAt: string;
+  publishedAt: string | null;
+}
+
+interface AdminBlogRawRow {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  category_slug?: string | null;
+  city_slug?: string | null;
+  author?: string | null;
+  quality_score?: number | string | null;
+  excerpt?: string | null;
+  updated_at?: string | null;
+  published_at?: string | null;
+}
+
+function mapAdminBlogRow(r: AdminBlogRawRow): AdminBlogRowVm {
+  return {
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    status: r.status,
+    categorySlug: r.category_slug ?? null,
+    citySlug: r.city_slug ?? null,
+    author: r.author ?? "",
+    qualityScore: r.quality_score != null ? Number(r.quality_score) : null,
+    excerpt: r.excerpt ?? null,
+    updatedAt: r.updated_at ?? "",
+    publishedAt: r.published_at ?? null
+  };
+}
+
+export async function fetchAdminBlogPosts(
+  accessToken: string,
+  status?: string
+): Promise<AdminBlogRowVm[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const res = await fetchApi<{ items: AdminBlogRawRow[] }>(`/admin/blog${qs}`, {
+    headers: authHeaders(accessToken)
+  });
+  return (res.items ?? []).map(mapAdminBlogRow);
+}
+
+async function blogPostAction(
+  accessToken: string,
+  id: string,
+  action: "approve" | "publish" | "archive"
+): Promise<AdminBlogRowVm> {
+  const raw = await fetchApi<AdminBlogRawRow>(`/admin/blog/${encodeURIComponent(id)}/${action}`, {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+  return mapAdminBlogRow(raw);
+}
+
+export const approveBlogPost = (accessToken: string, id: string) =>
+  blogPostAction(accessToken, id, "approve");
+export const publishBlogPost = (accessToken: string, id: string) =>
+  blogPostAction(accessToken, id, "publish");
+export const archiveBlogPost = (accessToken: string, id: string) =>
+  blogPostAction(accessToken, id, "archive");
