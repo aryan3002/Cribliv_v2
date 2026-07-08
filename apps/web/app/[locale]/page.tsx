@@ -639,35 +639,33 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
 
       {/* ── How It Works ── */}
       <AnimateOnScroll delay={100}>
-        <section className="home-section home-section--surface">
+        <section
+          className="home-section home-section--surface home-section--editorial"
+          data-testid="home-how-it-works"
+        >
           <div className="container">
-            <div className="edi-head">
+            <div className="edi-head edi-head--solo">
               <div>
                 <span className="edi-eyebrow">{isHindi ? "सरल प्रक्रिया" : "How It Works"}</span>
                 <h2 className="edi-title">
                   {isHindi ? "तीन कदम. स्पष्ट जानकारी." : "Three steps. Clear details."}
                 </h2>
               </div>
-              <p className="edi-lede">
-                {isHindi
-                  ? "खोजें, लाइव विवरण देखें, और सही लगे तो आगे बढ़ें।"
-                  : "Search, review live details, and continue when the listing fits."}
-              </p>
             </div>
-            <div className="hiw">
+            <div className="hiw hiw--editorial">
               {HOW_IT_WORKS.map((step, i) => {
                 const Icon = step.icon;
                 return (
-                  <div key={i} className="hiw-step">
-                    <div className="hiw-num" aria-hidden="true">
-                      {String(i + 1).padStart(2, "0")}
-                    </div>
-                    <div className="hiw-step__head">
-                      <span className="hiw-icon" aria-hidden="true">
-                        <Icon size={20} />
+                  <div key={i} className="hiw-step" data-testid="home-how-it-works-step">
+                    <div className="hiw-step__mark">
+                      <span className="hiw-num" aria-hidden="true">
+                        {String(i + 1).padStart(2, "0")}
                       </span>
-                      <h3>{isHindi ? step.titleHi : step.title}</h3>
+                      <span className="hiw-icon" aria-hidden="true">
+                        <Icon size={21} />
+                      </span>
                     </div>
+                    <h3>{isHindi ? step.titleHi : step.title}</h3>
                     <p>{isHindi ? step.descHi : step.desc}</p>
                   </div>
                 );
