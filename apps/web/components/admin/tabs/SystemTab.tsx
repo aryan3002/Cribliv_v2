@@ -14,8 +14,19 @@ interface Props {
   onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
 }
 
+type AiRunResult = {
+  title: string;
+  detail: string;
+};
+
+function listingLabel(count: number) {
+  return count === 1 ? "listing" : "listings";
+}
+
 export function SystemTab({ accessToken, onToast }: Props) {
   const [aiBusy, setAiBusy] = useState<"backfill" | "scores" | null>(null);
+  const [backfillResult, setBackfillResult] = useState<AiRunResult | null>(null);
+  const [scoreResult, setScoreResult] = useState<AiRunResult | null>(null);
   const [walletUserId, setWalletUserId] = useState("");
   const [walletDelta, setWalletDelta] = useState("0");
   const [walletReason, setWalletReason] = useState("");
@@ -25,7 +36,13 @@ export function SystemTab({ accessToken, onToast }: Props) {
     setAiBusy("backfill");
     try {
       const r = await triggerAiBackfill(accessToken);
-      onToast(r.message ?? "Backfill triggered", "trust");
+      const count = r.backfilled ?? 0;
+      const message = `Backfill complete: ${count} ${listingLabel(count)} embedded`;
+      setBackfillResult({
+        title: "Last run",
+        detail: `${count} ${listingLabel(count)} embedded`
+      });
+      onToast(message, "trust");
     } catch (err) {
       onToast(err instanceof Error ? err.message : "Backfill failed", "danger");
     } finally {
@@ -37,7 +54,13 @@ export function SystemTab({ accessToken, onToast }: Props) {
     setAiBusy("scores");
     try {
       const r = await triggerAiRecomputeScores(accessToken);
-      onToast(r.message ?? "Recompute triggered", "trust");
+      const count = r.recomputed ?? 0;
+      const message = `Scores recomputed: ${count} ${listingLabel(count)}`;
+      setScoreResult({
+        title: "Last run",
+        detail: `${count} ${listingLabel(count)} recomputed`
+      });
+      onToast(message, "trust");
     } catch (err) {
       onToast(err instanceof Error ? err.message : "Recompute failed", "danger");
     } finally {
@@ -104,6 +127,7 @@ export function SystemTab({ accessToken, onToast }: Props) {
           >
             {aiBusy === "backfill" ? "Running…" : "Run backfill"}
           </button>
+          {backfillResult && <RunResult result={backfillResult} />}
         </SectionCard>
 
         <SectionCard
@@ -127,6 +151,7 @@ export function SystemTab({ accessToken, onToast }: Props) {
           >
             {aiBusy === "scores" ? "Running…" : "Recompute scores"}
           </button>
+          {scoreResult && <RunResult result={scoreResult} />}
         </SectionCard>
 
         <SectionCard
@@ -179,6 +204,15 @@ export function SystemTab({ accessToken, onToast }: Props) {
   );
 }
 
+function RunResult({ result }: { result: AiRunResult }) {
+  return (
+    <div style={runResultStyle} role="status">
+      <span style={runResultLabelStyle}>{result.title}</span>
+      <span style={runResultValueStyle}>{result.detail}</span>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -196,4 +230,29 @@ const fieldStyle: React.CSSProperties = {
   background: "var(--ad-surface)",
   fontSize: 13,
   fontFamily: "inherit"
+};
+
+const runResultStyle: React.CSSProperties = {
+  marginTop: 12,
+  padding: "10px 12px",
+  borderRadius: 8,
+  border: "1px solid color-mix(in srgb, var(--ad-accent) 22%, var(--ad-border))",
+  background: "color-mix(in srgb, var(--ad-accent) 7%, var(--ad-surface))",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10
+};
+
+const runResultLabelStyle: React.CSSProperties = {
+  color: "var(--ad-text-2)",
+  fontSize: 12,
+  fontWeight: 600
+};
+
+const runResultValueStyle: React.CSSProperties = {
+  color: "var(--ad-text)",
+  fontSize: 13,
+  fontWeight: 700,
+  textAlign: "right"
 };

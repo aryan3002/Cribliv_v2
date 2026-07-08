@@ -537,14 +537,14 @@ export async function resolveAdminFraudFlag(accessToken: string, flagId: string)
 /* ── System / AI / Wallet Functions ───────────────────────────────────── */
 
 export async function triggerAiBackfill(accessToken: string) {
-  return fetchApi<{ message: string }>("/admin/ai/backfill-embeddings", {
+  return fetchApi<{ backfilled: number }>("/admin/ai/backfill-embeddings", {
     method: "POST",
     headers: authHeaders(accessToken)
   });
 }
 
 export async function triggerAiRecomputeScores(accessToken: string) {
-  return fetchApi<{ message: string }>("/admin/ai/recompute-scores", {
+  return fetchApi<{ recomputed: number }>("/admin/ai/recompute-scores", {
     method: "POST",
     headers: authHeaders(accessToken)
   });
