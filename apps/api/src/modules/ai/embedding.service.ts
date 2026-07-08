@@ -68,6 +68,10 @@ interface ListingRow {
   furnishing?: string;
 }
 
+function isMissingEmbeddingsTable(error: unknown): boolean {
+  return (error as { code?: string })?.code === "42P01";
+}
+
 @Injectable()
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
@@ -119,7 +123,7 @@ export class EmbeddingService {
       await this.database.query(
         `INSERT INTO listing_embeddings (listing_id, embedding, model, token_count)
          VALUES ($1, $2::vector, $3, $4)
-         ON CONFLICT (listing_id, embedding, model, token_count) DO UPDATE SET
+         ON CONFLICT (listing_id) DO UPDATE SET
            embedding = EXCLUDED.embedding,
            model = EXCLUDED.model,
            token_count = EXCLUDED.token_count`,
@@ -215,14 +219,23 @@ export class EmbeddingService {
     if (!flags.ff_ai_embeddings) return 0;
     if (!this.database.isEnabled()) return 0;
 
-    const missing = await this.database.query<{ id: string }>(
-      `SELECT l.id::text
-       FROM listings l
-       LEFT JOIN listing_embeddings le ON le.listing_id = l.id
-       WHERE l.status = 'active' AND le.listing_id IS NULL
-       LIMIT $1`,
-      [batchSize]
-    );
+    let missing: { rows: Array<{ id: string }> };
+    try {
+      missing = await this.database.query<{ id: string }>(
+        `SELECT l.id::text
+         FROM listings l
+         LEFT JOIN listing_embeddings le ON le.listing_id = l.id
+         WHERE l.status = 'active' AND le.listing_id IS NULL
+         LIMIT $1`,
+        [batchSize]
+      );
+    } catch (error) {
+      if (isMissingEmbeddingsTable(error)) {
+        this.logger.warn("listing_embeddings table unavailable — skipping embedding backfill");
+        return 0;
+      }
+      throw error;
+    }
 
     let count = 0;
     for (const row of missing.rows) {

@@ -9,6 +9,7 @@ const CATEGORIES = "0046_blog_categories";
 const POSTS = "0047_blog_posts";
 const BRIEFS = "0048_blog_briefs";
 const EMBEDDINGS = "0049_blog_embeddings";
+const LISTING_EMBEDDINGS_REPAIR = "0051_repair_listing_embeddings";
 const BLOG_MIGRATION_TEST_LOCK = 30460049;
 
 function sql(name: string): string {
@@ -237,5 +238,17 @@ describe.runIf(!!TEST_DB)("blog_embeddings migration", () => {
       `SELECT indexdef FROM pg_indexes WHERE tablename = 'blog_embeddings'`
     );
     expect(idx.rows.map((r) => r.indexdef).join(" ")).toMatch(/hnsw/i);
+  });
+});
+
+describe("listing_embeddings repair migration", () => {
+  it("installs pgvector and recreates the listing embedding table/index when 0006 was already recorded", () => {
+    const migration = sql(LISTING_EMBEDDINGS_REPAIR);
+
+    expect(migration).toMatch(/CREATE EXTENSION IF NOT EXISTS vector/i);
+    expect(migration).toMatch(/CREATE TABLE IF NOT EXISTS listing_embeddings/i);
+    expect(migration).toMatch(/embedding\s+vector\(1536\)/i);
+    expect(migration).toMatch(/idx_listing_embeddings_hnsw/i);
+    expect(migration).toMatch(/USING hnsw \(embedding vector_cosine_ops\)/i);
   });
 });
