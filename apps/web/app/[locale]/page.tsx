@@ -493,32 +493,47 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             <div className="home-city-grid">
               {CITIES.map((city) => {
                 const Icon = city.icon;
+                const total = cityTotals.get(city.name.toLowerCase()) ?? 0;
+                const hasLiveInventory = total > 0;
+                const countLabel = hasLiveInventory
+                  ? `${formatCompactCount(total)} live rentals`
+                  : "Browse city";
                 return (
                   <Link
                     key={city.name}
                     href={`/${params.locale}/city/${city.name.toLowerCase()}` as Route}
-                    className="home-city-card"
+                    className={`home-city-card ${
+                      hasLiveInventory ? "home-city-card--live" : "home-city-card--empty"
+                    }`}
                   >
-                    <div
-                      className="home-city-card__art"
-                      style={{
-                        backgroundImage: `linear-gradient(180deg, rgba(7,16,34,0.1) 0%, rgba(7,16,34,0.58) 100%), url('/images/cities/${city.photo}-map.jpg'), ${city.gradient}`
-                      }}
-                    >
+                    <div className="home-city-card__art">
+                      <span
+                        className="home-city-card__map"
+                        style={{
+                          backgroundImage: `url('/images/cities/${city.photo}-map.jpg'), ${city.gradient}`
+                        }}
+                        aria-hidden="true"
+                      />
                       <div className="home-city-card__grid" aria-hidden="true" />
                       <span className="home-city-card__shape" aria-hidden="true" />
-                      <span className="home-city-card__pin" aria-hidden="true">
+                      <span
+                        className={`home-city-card__pin home-city-card__status-dot ${
+                          hasLiveInventory
+                            ? "home-city-card__status-dot--live"
+                            : "home-city-card__status-dot--muted"
+                        }`}
+                        aria-hidden="true"
+                      >
                         <Icon size={13} />
+                      </span>
+                      <span className="home-city-card__arrow" aria-hidden="true">
+                        <ArrowRight size={20} />
                       </span>
                       <span className="home-city-card__map-label">Cribliv</span>
                     </div>
                     <div className="home-city-card__body">
                       <span className="home-city-card__name">{city.name}</span>
-                      <span className="home-city-card__count">
-                        {(cityTotals.get(city.name.toLowerCase()) ?? 0) > 0
-                          ? `${formatCompactCount(cityTotals.get(city.name.toLowerCase()) ?? 0)} live rentals`
-                          : "Browse city"}
-                      </span>
+                      <span className="home-city-card__count">{countLabel}</span>
                     </div>
                   </Link>
                 );
