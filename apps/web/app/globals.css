@@ -7400,16 +7400,23 @@ a.feature-card:hover .icon-circle {
   text-align: center;
 }
 
-/* Mobile: stack the preview below the suggestions list */
+/* Mobile: keep suggestions compact; the rich preview is desktop-only. */
 @media (max-width: 720px) {
   .search-dropdown--with-preview {
-    flex-direction: column;
+    display: block;
+    max-height: min(320px, calc(30dvh - 4px));
+    overflow: hidden;
   }
+
+  .search-dropdown--with-preview .search-dropdown__list {
+    max-height: min(320px, calc(30dvh - 4px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 6px;
+  }
+
   .search-preview {
-    min-width: auto;
-    max-width: none;
-    border-left: none;
-    border-top: 1px solid #ebebeb;
+    display: none;
   }
 }
 
