@@ -18870,6 +18870,49 @@ a.feature-card:hover .icon-circle {
 }
 
 @media (max-width: 700px) {
+  .tenant-results-toolbar,
+  .tenant-results-toolbar .segbar,
+  .tenant-results-filter-card,
+  .tenant-results-page .search-filters,
+  .tenant-results-page .search-filters__row,
+  .tenant-results-page .search-filters__row--filters,
+  .tenant-results-map-shell,
+  .tenant-results-list-panel,
+  .tenant-results-page .empty-state {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .tenant-results-map-shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .tenant-results-toolbar .segbar,
+  .tenant-results-filter-card {
+    overflow: hidden;
+  }
+
+  .tenant-results-toolbar .segbar__toggle {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tenant-results-toolbar .segbar__form {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
+  .tenant-results-page .search-filters__row {
+    align-items: stretch;
+  }
+
+  .tenant-results-page .search-filters__chips {
+    max-width: 100%;
+  }
+
   .tenant-results-map-panel {
     display: block;
     order: -1;

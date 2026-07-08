@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -34,6 +34,20 @@ describe("SearchHero Homes|PG toggle", () => {
     fireEvent.change(input, { target: { value: "2bhk noida" } });
     fireEvent.submit(input.closest("form")!);
     expect(push).toHaveBeenCalledWith(expect.stringContaining("/en/search"));
+  });
+
+  it("routes a known city in Homes mode as a canonical city param only", async () => {
+    render(<SearchHero locale="en" />);
+    const input = screen.getByLabelText(/agentic search/i);
+    fireEvent.change(input, { target: { value: "Noida" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith(expect.stringContaining("/en/search?"));
+    });
+    const href = push.mock.calls.at(-1)?.[0] as string;
+    expect(href).toContain("city=noida");
+    expect(href).not.toContain("q=Noida");
   });
 
   it("routes a city SUGGESTION to /pg (not /search) when PG is toggled", async () => {
