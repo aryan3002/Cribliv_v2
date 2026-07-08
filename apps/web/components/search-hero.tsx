@@ -369,7 +369,13 @@ export function SearchHero({ locale }: { locale: Locale }) {
       pushRecentSearch(query);
       setRecent(readRecentSearches());
     }
-    const search = buildSearchQuery({ ...filters, q: query });
+    const residual =
+      typeof filters.q === "string" && filters.q.trim()
+        ? { q: filters.q }
+        : filters.city || filters.locality || filters.listing_type
+          ? {}
+          : placeSearchParam(query);
+    const search = buildSearchQuery({ ...filters, ...residual });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     router.push(`/${locale}/search${search ? `?${search}` : ""}` as any);
   }
@@ -928,7 +934,11 @@ function SectionedDropdown({
       </div>
 
       {showPreviewPane ? (
-        <PreviewPane preview={displayPreview} loading={previewLoading && !displayPreview} segment={segment} />
+        <PreviewPane
+          preview={displayPreview}
+          loading={previewLoading && !displayPreview}
+          segment={segment}
+        />
       ) : null}
     </div>
   );
