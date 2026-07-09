@@ -1055,6 +1055,37 @@ export function mapTenantPref(
   return "any";
 }
 
+/**
+ * Title from stored `nameListing`, else composed from address parts (v1's own
+ * fallback). De-dups repeated tokens ("Lucknow, Lucknow" → "Lucknow") and drops
+ * empty slots ("Near,"). Used for PGs (all 19 have empty nameListing) and any
+ * blank flat. `prefix` e.g. "PG in".
+ */
+export function composeTitleFromAddress(
+  doc: { nameListing?: string; society?: string; landmark?: string; city?: string },
+  prefix = ""
+): string {
+  const stored = (doc.nameListing ?? "").toString().trim();
+  if (stored) return stored.slice(0, 300);
+  const raw = [doc.society, doc.landmark, doc.city]
+    .map((s) => (s ?? "").toString())
+    .join(", ")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const p of raw) {
+    const k = p.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      clean.push(p);
+    }
+  }
+  const body = clean.join(", ") || "Listing";
+  return `${prefix ? prefix + " " : ""}${body}`.slice(0, 300);
+}
+
 function pincode6(v: unknown): string | null {
   const digits = String(v ?? "").replace(/\D/g, "");
   return digits.length >= 6 ? digits.slice(0, 6) : null;
@@ -1086,7 +1117,7 @@ export function mapFlat(doc: V1Property): FlatInput {
 
   return {
     v1Id: String(doc._id),
-    titleEn: (doc.nameListing ?? "Untitled listing").toString().slice(0, 300),
+    titleEn: composeTitleFromAddress(doc),
     descriptionEn: doc.description ? String(doc.description) : null,
     monthlyRent: rent && rent > 0 ? rent : 0,
     securityDeposit: toInt(doc.expected_deposit),
@@ -1751,7 +1782,7 @@ describe("mapRoomTypes", () => {
 - [ ] **Step 3: Extend `map-pg.ts`**
 
 ```ts
-import { toInt, mapFurnishing } from "./map-flat";
+import { toInt, mapFurnishing, composeTitleFromAddress } from "./map-flat";
 import { normalizeCitySlug } from "./cities";
 
 export type Sharing = "single" | "double" | "triple" | "quad" | "dorm";
@@ -1893,9 +1924,9 @@ export function mapPg(doc: any): PgInput {
     .join(", ");
   return {
     v1Id: String(doc._id),
-    titleEn: (doc.nameListing ?? "PG").toString().slice(0, 300),
+    titleEn: composeTitleFromAddress(doc, "PG in"),
     descriptionEn: doc.description ? String(doc.description) : null,
-    displayName: (doc.nameListing ?? doc.society ?? "PG").toString().slice(0, 200),
+    displayName: composeTitleFromAddress(doc, "PG in").slice(0, 200),
     citySlug,
     addressLine1: (addr || String(doc.nameListing ?? "Address unavailable")).slice(0, 500),
     landmark: doc.landmark ? String(doc.landmark) : null,
