@@ -124,6 +124,10 @@ function createFakeDb(input: { challenges?: DbChallenge[]; users?: DbUser[] } = 
         return { rowCount: 1, rows: [] };
       }
 
+      if (text.includes("UPDATE users SET last_login_at = now() WHERE id = $1::uuid")) {
+        return { rowCount: 1, rows: [] };
+      }
+
       if (text.includes("INSERT INTO sessions(user_id, refresh_token_hash, expires_at)")) {
         sessionCounter += 1;
         const id = `30000000-0000-4000-8000-00000000000${sessionCounter}`;
