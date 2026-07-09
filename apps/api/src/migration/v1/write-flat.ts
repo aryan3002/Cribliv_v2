@@ -117,6 +117,7 @@ export async function writeFlat(
   let cover = true;
   let idx = 0;
   for (const publicId of cfg.skipPhotos ? [] : flat.publicIds) {
+    await client.query("SAVEPOINT photo");
     try {
       const { buffer, contentType } = await downloadImage(
         cloudinaryUrl(cfg.cloudinaryCloud, publicId)
@@ -132,10 +133,12 @@ export async function writeFlat(
            blob_path=EXCLUDED.blob_path, sort_order=EXCLUDED.sort_order, is_cover=EXCLUDED.is_cover, updated_at=now()`,
         [listingId, blobName, idx, cover, `v1:${publicId}`]
       );
+      await client.query("RELEASE SAVEPOINT photo");
       report.photosOk++;
       cover = false;
       idx++;
     } catch (e) {
+      await client.query("ROLLBACK TO SAVEPOINT photo");
       report.photosFail++;
       report.add(
         "warn",
