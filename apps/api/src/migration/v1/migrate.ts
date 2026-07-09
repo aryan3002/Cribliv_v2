@@ -26,8 +26,46 @@ async function main() {
 
   try {
     await client.query("BEGIN");
-    // --- orchestration added in later tasks ---
-    console.log("(no migration steps wired yet)");
+    const { ensureCities } = require("./cities");
+    const { fetchVerified } = require("./mongo-source");
+    const { loadOwnerPhoneByName } = require("./excel-source");
+    const {
+      resolveOwnerPhone,
+      upsertOwner,
+      IMPORT_FALLBACK_PHONE,
+      IMPORT_FALLBACK_NAME
+    } = require("./owners");
+    const { mapFlat } = require("./map-flat");
+    const { writeFlat } = require("./write-flat");
+    const { makeContainerClient } = require("./azure-photos");
+    const { newReport } = require("./report");
+
+    const cityIdBySlug = await ensureCities(client);
+    const excelByName = cfg.excelPath ? loadOwnerPhoneByName(cfg.excelPath) : new Map();
+    const container = cfg.skipPhotos ? null : makeContainerClient(cfg.azure);
+
+    if (cfg.collection === "properties" || cfg.collection === "both") {
+      const report = newReport();
+      const docs = await fetchVerified(cfg, "properties");
+      console.log(`fetched ${docs.length} verified properties from Mongo`);
+
+      // Duplicate detection (same name + near-identical geo).
+      const seen = new Map<string, string>();
+      for (const doc of docs) {
+        const flat = mapFlat(doc);
+        const key = `${flat.titleEn.toLowerCase()}|${flat.lat?.toFixed(3)}|${flat.lng?.toFixed(3)}`;
+        if (seen.has(key)) report.add("dupe", `${flat.v1Id} ~ ${seen.get(key)} (${flat.titleEn})`);
+        else seen.set(key, flat.v1Id);
+
+        const { phone, source } = resolveOwnerPhone(doc, excelByName);
+        const ownerPhone = phone ?? IMPORT_FALLBACK_PHONE;
+        const ownerName = source === "import_fallback" ? IMPORT_FALLBACK_NAME : (doc.owner ?? null);
+        const ownerId = await upsertOwner(client, ownerPhone, ownerName);
+        const cityId = flat.citySlug ? (cityIdBySlug.get(flat.citySlug) ?? null) : null;
+        await writeFlat(client, container, cfg, flat, cityId, ownerId, source, report);
+      }
+      report.print("PROPERTIES → flats");
+    }
     if (cfg.apply) {
       await client.query("COMMIT");
       console.log("\n✅ COMMITTED.");
