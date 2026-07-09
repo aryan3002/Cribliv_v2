@@ -21,6 +21,7 @@ export async function purgeNonMigrated(client: Q, _report: Report): Promise<void
   console.log(`to delete (fake):   ${fake}`);
 
   // Safety: never purge everything. A tiny map means the migration hasn't run.
+  // Expected migrated count is 86 (67 flats + 19 PGs), so 50 is a deliberate "clearly-migrated" threshold.
   if (mapCount < 50) {
     throw new Error(
       `SAFETY ABORT: v1_migration_map has only ${mapCount} rows (<50). Run the migration before purging.`
@@ -75,7 +76,11 @@ export async function purgeNonMigrated(client: Q, _report: Report): Promise<void
 
   // 4. Delete orphaned pg_properties (not referenced by any surviving listing).
   const delPgProps = await client.query(
-    `DELETE FROM pg_properties WHERE id NOT IN (SELECT pg_property_id FROM listings WHERE pg_property_id IS NOT NULL)`
+    `DELETE FROM pg_properties WHERE id NOT IN (
+       SELECT pg_property_id FROM listings WHERE pg_property_id IS NOT NULL
+       UNION
+       SELECT pg_property_id FROM pg_listings WHERE pg_property_id IS NOT NULL
+     )`
   );
   console.log(`  deleted orphaned pg_properties: ${delPgProps.rowCount ?? 0}`);
 
