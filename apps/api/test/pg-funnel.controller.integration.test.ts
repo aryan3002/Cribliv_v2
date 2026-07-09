@@ -19,7 +19,7 @@ function buildApp(opts: { authed: boolean; userId?: string }) {
   const guard = {
     canActivate: (ctx: any) => {
       if (!opts.authed) return false;
-      ctx.switchToHttp().getRequest().user = { id: opts.userId ?? "op-1", role: "operator" };
+      ctx.switchToHttp().getRequest().user = { id: opts.userId ?? "op-1", role: "pg_operator" };
       return true;
     }
   };
