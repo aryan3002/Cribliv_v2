@@ -147,6 +147,66 @@ describe("PgSearchService.search", () => {
     expect(listing?.verified).toBe(true);
   });
 
+  it("suggest keeps seeded PG cities and localities visible when inventory is zero", async () => {
+    const calls: string[] = [];
+    const database = {
+      isEnabled: () => true,
+      query: vi.fn(async (sql: string) => {
+        calls.push(sql);
+        if (/FROM cities c/.test(sql)) {
+          return {
+            rows: [
+              {
+                slug: "noida",
+                name_en: "Noida",
+                listing_count: 0,
+                min_rent: null,
+                max_rent: null
+              }
+            ],
+            rowCount: 1
+          };
+        }
+        if (/FROM localities loc/.test(sql)) {
+          return {
+            rows: [
+              {
+                slug: "sector-62",
+                name_en: "Sector 62",
+                city_slug: "noida",
+                listing_count: 0,
+                min_rent: null,
+                max_rent: null
+              }
+            ],
+            rowCount: 1
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      })
+    };
+    const svc = new PgSearchService(database as never);
+
+    const rows = await svc.suggest("noi", 6);
+    const citySql = calls.find((sql) => /FROM cities c/.test(sql)) ?? "";
+    const localitySql = calls.find((sql) => /FROM localities loc/.test(sql)) ?? "";
+
+    expect(citySql).toMatch(/LEFT JOIN LATERAL/);
+    expect(citySql).not.toMatch(/stats\.listing_count > 0/);
+    expect(localitySql).toMatch(/LEFT JOIN LATERAL/);
+    expect(localitySql).not.toMatch(/stats\.listing_count > 0/);
+    expect(rows).toEqual([
+      { type: "city", label: "Noida", value: "noida", listing_count: 0 },
+      {
+        type: "locality",
+        label: "Sector 62, noida",
+        value: "sector-62",
+        city_slug: "noida",
+        listing_count: 0
+      }
+    ]);
+  });
+
   it("suggest returns [] for short terms", async () => {
     const svc = new PgSearchService({ isEnabled: () => true, query: vi.fn() } as never);
     expect(await svc.suggest("a")).toEqual([]);

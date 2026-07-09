@@ -253,10 +253,9 @@ export class PgSearchService {
   }
 
   /**
-   * Tenant-facing PG autocomplete — mirrors the property `suggest`, scoped to
-   * the PG segment. Returns: cities + localities that actually HAVE active PG
-   * inventory, and PG listings (matched by title/city/locality) carrying
-   * `city_slug` so the UI can route to /pg/[city]/[id]. Drafts never leak.
+   * Tenant-facing PG autocomplete. Returns seeded active cities/localities with
+   * live PG aggregates, including zero-count places, plus active PG listings.
+   * Drafts, pending, paused, and archived listings never leak.
    */
   async suggest(q: string, limit = 8): Promise<PgSuggestRow[]> {
     const term = (q ?? "").trim().toLowerCase();
@@ -279,18 +278,18 @@ export class PgSearchService {
         max_rent: number | null;
       }>(
         `SELECT c.slug, c.name_en,
-              stats.listing_count::int AS listing_count,
+              COALESCE(stats.listing_count, 0)::int AS listing_count,
               stats.min_rent::int AS min_rent,
               stats.max_rent::int AS max_rent,
               similarity(c.name_en, $1) AS sim
        FROM cities c
-       JOIN LATERAL (
+       LEFT JOIN LATERAL (
          SELECT count(*)::int AS listing_count, min(l.monthly_rent) AS min_rent, max(l.monthly_rent) AS max_rent
          FROM listings l
          JOIN listing_locations ll ON ll.listing_id = l.id
          WHERE ll.city_id = c.id AND l.status = 'active' AND l.listing_type = 'pg'
        ) stats ON true
-       WHERE c.is_active = true AND stats.listing_count > 0
+       WHERE c.is_active = true
          AND (similarity(c.name_en, $1) > 0.15 OR c.name_en ILIKE '%' || $1 || '%' OR c.name_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
@@ -306,19 +305,19 @@ export class PgSearchService {
         max_rent: number | null;
       }>(
         `SELECT loc.slug, loc.name_en, c.slug AS city_slug,
-              stats.listing_count::int AS listing_count,
+              COALESCE(stats.listing_count, 0)::int AS listing_count,
               stats.min_rent::int AS min_rent,
               stats.max_rent::int AS max_rent,
               similarity(loc.name_en, $1) AS sim
        FROM localities loc
        JOIN cities c ON c.id = loc.city_id
-       JOIN LATERAL (
+       LEFT JOIN LATERAL (
          SELECT count(DISTINCT l.id)::int AS listing_count, min(l.monthly_rent) AS min_rent, max(l.monthly_rent) AS max_rent
          FROM listings l
          JOIN listing_locations ll ON ll.listing_id = l.id
          WHERE l.status = 'active' AND l.listing_type = 'pg' AND ll.locality_id = loc.id
        ) stats ON true
-       WHERE c.is_active = true AND stats.listing_count > 0
+       WHERE c.is_active = true
          AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%' OR loc.name_hi ILIKE '%' || $1 || '%')
        ORDER BY sim DESC
        LIMIT 3`,
