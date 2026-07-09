@@ -1020,6 +1020,22 @@ describe("mapFlat", () => {
     expect(f.warnings).toContain("no geo");
     expect(f.addressLine1.length).toBeGreaterThan(0); // never empty (NOT NULL col)
   });
+  it("never emits an empty addressLine1 when nameListing is blank and address is missing", () => {
+    const f = mapFlat({ _id: "z", nameListing: "" } as any);
+    expect(f.addressLine1).toBe("Address unavailable");
+  });
+  it("nulls geo and warns consistently for non-numeric (string) coordinates", () => {
+    const f = mapFlat({
+      _id: "g",
+      nameListing: "X",
+      expected_rent: 5000,
+      city: "Lucknow",
+      location: { coordinates: ["80.9", "26.8"] }
+    } as any);
+    expect(f.lat).toBeNull();
+    expect(f.lng).toBeNull();
+    expect(f.warnings).toContain("no geo");
+  });
 });
 ```
 
@@ -1136,14 +1152,14 @@ export function mapFlat(doc: V1Property): FlatInput {
   if (!citySlug) warnings.push(`unknown city: ${doc.city ?? "(none)"}`);
 
   const coords = doc.location?.coordinates;
-  const lng = Array.isArray(coords) ? (coords[0] ?? null) : null;
-  const lat = Array.isArray(coords) ? (coords[1] ?? null) : null;
+  const lng = Array.isArray(coords) && typeof coords[0] === "number" ? coords[0] : null;
+  const lat = Array.isArray(coords) && typeof coords[1] === "number" ? coords[1] : null;
   if (lat == null || lng == null) warnings.push("no geo");
 
   const addressParts = [doc.houseNum, doc.society, doc.landmark, doc.city]
     .map((s) => (s ?? "").toString().trim())
     .filter(Boolean);
-  const addressLine1 = addressParts.join(", ") || (doc.nameListing ?? "Address unavailable");
+  const addressLine1 = addressParts.join(", ") || doc.nameListing?.trim() || "Address unavailable";
 
   return {
     v1Id: String(doc._id),
@@ -1165,8 +1181,8 @@ export function mapFlat(doc: V1Property): FlatInput {
     addressLine1: addressLine1.slice(0, 500),
     landmark: doc.landmark ? String(doc.landmark) : null,
     pincode: pincode6(doc.pincode),
-    lat: typeof lat === "number" ? lat : null,
-    lng: typeof lng === "number" ? lng : null,
+    lat,
+    lng,
     publicIds: Array.isArray(doc.cloudinary_public_ids)
       ? doc.cloudinary_public_ids.map((p) => String(p)).filter(Boolean)
       : [],
@@ -1941,8 +1957,8 @@ export function mapPg(doc: any): PgInput {
   const citySlug = normalizeCitySlug(doc.city ?? "");
   if (!citySlug) warnings.push(`unknown city: ${doc.city ?? "(none)"}`);
   const coords = doc.location?.coordinates;
-  const lng = Array.isArray(coords) ? (coords[0] ?? null) : null;
-  const lat = Array.isArray(coords) ? (coords[1] ?? null) : null;
+  const lng = Array.isArray(coords) && typeof coords[0] === "number" ? coords[0] : null;
+  const lat = Array.isArray(coords) && typeof coords[1] === "number" ? coords[1] : null;
   if (lat == null || lng == null) warnings.push("no geo");
 
   const am = mapPgAmenities(doc.amenities);
@@ -1958,14 +1974,14 @@ export function mapPg(doc: any): PgInput {
     descriptionEn: doc.description ? String(doc.description) : null,
     displayName: composeTitleFromAddress(doc, "PG in").slice(0, 200),
     citySlug,
-    addressLine1: (addr || String(doc.nameListing ?? "Address unavailable")).slice(0, 500),
+    addressLine1: (addr || doc.nameListing?.trim() || "Address unavailable").slice(0, 500),
     landmark: doc.landmark ? String(doc.landmark) : null,
     pincode:
       String(doc.pincode ?? "")
         .replace(/\D/g, "")
         .slice(0, 6) || null,
-    lat: typeof lat === "number" ? lat : null,
-    lng: typeof lng === "number" ? lng : null,
+    lat,
+    lng,
     totalBeds,
     startingRentPaise,
     monthlyRentRupees: startingRentPaise > 0 ? Math.round(startingRentPaise / 100) : 0,
