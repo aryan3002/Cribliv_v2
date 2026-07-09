@@ -20,7 +20,13 @@ type ProductEvent =
   | "lead_csv_exported"
   | "owner_dashboard_opened"
   | "contact_unlock_clicked"
-  | "kanban_view_toggled";
+  | "kanban_view_toggled"
+  | "listening_hero_viewed"
+  | "hero_chip_locked"
+  | "hero_voice_started"
+  | "hero_voice_transcript"
+  | "hero_submitted"
+  | "hero_map_handoff";
 
 export type TrackEvent = ListingEventType | ProductEvent | PgEventName | "search_impression";
 

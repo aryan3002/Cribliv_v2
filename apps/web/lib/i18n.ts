@@ -313,7 +313,42 @@ const dictionary: Dictionary = {
   pgDashboardEmpty: {
     en: "Once your listing is live, performance shows here.",
     hi: "Once your listing is live, performance shows here."
-  }
+  },
+  listenHeroTitle: { en: "Tell me what you're looking for", hi: "बताइए, कैसा घर चाहिए?" },
+  listenHeroSub: {
+    en: "Type or speak — Hindi or English. Live homes across {city}.",
+    hi: "टाइप करें या बोलें — हिंदी या अंग्रेज़ी में। {city} के लाइव घर।"
+  },
+  listenHeroCountIdle: {
+    en: "{n} homes live in {city} right now",
+    hi: "{n} घर अभी {city} में लाइव हैं"
+  },
+  listenHeroCountMatching: { en: "{n} homes match so far…", hi: "{n} घर अब तक मैच हुए…" },
+  listenHeroCountReady: {
+    en: "{n} homes match — press enter or keep talking",
+    hi: "{n} घर मैच — एंटर दबाएँ या बोलते रहें"
+  },
+  listenHeroListening: { en: "Listening…", hi: "सुन रहे हैं…" },
+  listenHeroGrowing: {
+    en: "Cribliv is growing in {city} — tell us what you need",
+    hi: "Cribliv {city} में बढ़ रहा है — बताइए आपको क्या चाहिए"
+  },
+  listenHeroExample1: { en: "2BHK Gomti Nagar under 15k", hi: "गोमती नगर में 2BHK, 15 हज़ार तक" },
+  listenHeroExample2: {
+    en: "furnished flat near Hazratganj",
+    hi: "हज़रतगंज के पास फर्निश्ड फ्लैट"
+  },
+  listenHeroExample3: { en: "PG with food in Indira Nagar", hi: "इंदिरा नगर में खाने के साथ PG" },
+  listenHeroCityStrip: { en: "Browse rentals by city", hi: "शहर के अनुसार किराये देखें" },
+  mayaSectionTitle: {
+    en: "List your property by talking to Maya",
+    hi: "Maya से बात करके अपनी प्रॉपर्टी लिस्ट करें"
+  },
+  mayaSectionSub: {
+    en: "Speak in Hindi or English — Maya fills in the listing as you talk.",
+    hi: "हिंदी या अंग्रेज़ी में बोलें — Maya आपकी लिस्टिंग खुद भर देती है।"
+  },
+  mayaSectionCta: { en: "Try voice listing", hi: "वॉइस लिस्टिंग आज़माएं" }
 };
 
 export function t(locale: Locale, key: string): string {
