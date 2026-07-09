@@ -666,7 +666,8 @@ function SectionedDropdown({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     cities.length > 0 ? cities[0].data.value : null,
-    localities.length > 0 ? localities[0].data.value : null
+    localities.length > 0 ? localities[0].data.value : null,
+    localities.length > 0 ? localities[0].data.city_slug ?? null : null
   ]);
 
   useEffect(() => {

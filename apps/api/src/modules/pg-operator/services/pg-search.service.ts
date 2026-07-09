@@ -269,7 +269,7 @@ export class PgSearchService {
     // PERF-M1: the three lookups are independent (each only needs `term`), so
     // fire them concurrently instead of three sequential awaits.
     const [cityRows, locRows, listingRows] = await Promise.all([
-      // Cities with active PG inventory.
+      // Active cities, with PG aggregates attached (including zero-count places).
       this.db.query<{
         slug: string;
         name_en: string;
@@ -295,7 +295,7 @@ export class PgSearchService {
        LIMIT 3`,
         [term]
       ),
-      // Localities with active PG inventory.
+      // Active localities, with PG aggregates attached (including zero-count places).
       this.db.query<{
         slug: string;
         name_en: string;

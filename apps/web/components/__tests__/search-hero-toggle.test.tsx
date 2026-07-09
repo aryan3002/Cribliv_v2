@@ -219,6 +219,94 @@ describe("SearchHero Homes|PG toggle", () => {
     });
     expect(screen.queryByText(/72 listings/i)).not.toBeInTheDocument();
   });
+
+  it("refreshes locality preview city identity when first locality slug repeats across cities", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/pg/suggest")) {
+        if (u.includes("q=phase1")) {
+          return {
+            ok: true,
+            json: async () => ({
+              data: [
+                {
+                  type: "locality",
+                  label: "Sector 62, noida",
+                  value: "sector-62",
+                  city_slug: "noida",
+                  listing_count: 0
+                }
+              ]
+            })
+          };
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                type: "locality",
+                label: "Sector 62, gurgaon",
+                value: "sector-62",
+                city_slug: "gurgaon",
+                listing_count: 0
+              }
+            ]
+          })
+        };
+      }
+      if (u.includes("/pg/preview")) {
+        const city = new URL(u).searchParams.get("city");
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              type: "locality",
+              slug: "sector-62",
+              name: "Sector 62",
+              city_slug: city,
+              listing_count: 0,
+              rent_band: null,
+              verified_pct: null,
+              avg_bhk: null,
+              sharing: [],
+              sample_photos: []
+            }
+          })
+        };
+      }
+      return { ok: true, json: async () => ({ data: { cities: [], localities: [] } }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SearchHero locale="en" />);
+    fireEvent.click(screen.getByRole("button", { name: /^PG$/i }));
+    const input = screen.getByLabelText(/agentic search/i);
+
+    fireEvent.change(input, { target: { value: "phase1" } });
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) => {
+          const u = String(url);
+          return u.includes("/pg/preview") && u.includes("value=sector-62") && u.includes("city=noida");
+        })
+      ).toBe(true);
+    });
+
+    fireEvent.change(input, { target: { value: "phase2" } });
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) => {
+          const u = String(url);
+          return (
+            u.includes("/pg/preview") &&
+            u.includes("value=sector-62") &&
+            u.includes("city=gurgaon")
+          );
+        })
+      ).toBe(true);
+    });
+  });
 });
 
 afterEach(() => {
