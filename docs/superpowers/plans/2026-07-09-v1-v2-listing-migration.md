@@ -1437,6 +1437,7 @@ export async function writeFlat(
   // so we don't touch prod storage until the real prod apply.
   let cover = true;
   let idx = 0;
+  let listingPhotosOk = 0;
   for (const publicId of cfg.skipPhotos ? [] : flat.publicIds) {
     // Per-photo SAVEPOINT: a failed photo (network OR a listing_photos INSERT
     // error) rolls back only this photo and keeps the outer txn alive — a bad
@@ -1459,6 +1460,7 @@ export async function writeFlat(
       );
       await client.query("RELEASE SAVEPOINT photo");
       report.photosOk++;
+      listingPhotosOk++;
       cover = false;
       idx++;
     } catch (e) {
@@ -1470,7 +1472,8 @@ export async function writeFlat(
       );
     }
   }
-  if (report.photosOk === 0 && flat.publicIds.length > 0)
+  // Per-listing failure warning; silent under --skip-photos (photos not attempted).
+  if (!cfg.skipPhotos && flat.publicIds.length > 0 && listingPhotosOk === 0)
     report.add("warn", `${flat.v1Id} — all photos failed`);
 
   // Map row (idempotency key + 301 source).
