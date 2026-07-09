@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { mapFlat, mapFurnishing, mapTenantPref, composeTitleFromAddress } from "../map-flat";
+import {
+  mapFlat,
+  mapFurnishing,
+  mapTenantPref,
+  composeTitleFromAddress,
+  mapFlatAmenities
+} from "../map-flat";
 
 describe("composeTitleFromAddress", () => {
   it("passes through a stored nameListing", () => {
@@ -84,6 +90,7 @@ describe("mapFlat", () => {
     expect(f.addressLine1).toContain("Green Society");
     expect(f.publicIds).toEqual(["cribliv/properties/abc/1.png"]);
     expect(f.warnings).toEqual([]);
+    expect(f.amenities).toEqual(expect.arrayContaining(["Lift", "Parking"]));
   });
   it("warns and defaults when rent missing / city unknown / no geo", () => {
     const f = mapFlat({ _id: "x", nameListing: "X", city: "Atlantis" } as any);
@@ -107,5 +114,27 @@ describe("mapFlat", () => {
     expect(f.lat).toBeNull();
     expect(f.lng).toBeNull();
     expect(f.warnings).toContain("no geo");
+  });
+});
+
+describe("mapFlatAmenities", () => {
+  it("maps v1 amenity objects to canonical display names, dropping unmappable", () => {
+    const r = mapFlatAmenities([
+      { amenityName: "Wi-Fi" },
+      { amenityName: "Air Conditioner" },
+      { amenityName: "Refrigerator" },
+      { amenityName: "Television" },
+      { amenityName: "Gated Security" },
+      { amenityName: "Park" }
+    ]);
+    expect(r.amenities).toEqual(expect.arrayContaining(["WiFi", "AC", "Fridge", "TV", "Security"]));
+    expect(r.amenities).not.toContain("[object Object]");
+    expect(r.unmapped).toContain("Park");
+  });
+  it("accepts bare strings too and de-dupes", () => {
+    expect(mapFlatAmenities(["Parking", "parking", "Lift"]).amenities.sort()).toEqual([
+      "Lift",
+      "Parking"
+    ]);
   });
 });

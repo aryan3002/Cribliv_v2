@@ -40,6 +40,7 @@ export async function writeFlat(
       `UPDATE listings SET title_en=$2, description_en=$3, monthly_rent=$4, security_deposit=$5,
          bhk=$6, bathrooms=$7, area_sqft=$8, furnishing=$9::furnishing_type,
          preferred_tenant=$10::tenant_pref, available_from=$11, contact_phone_encrypted=$12,
+         amenities=$13::jsonb,
          status='active', verification_status='verified', updated_at=now()
        WHERE id=$1::uuid`,
       [
@@ -54,7 +55,8 @@ export async function writeFlat(
         flat.furnishing,
         flat.preferredTenant,
         flat.availableFrom,
-        await ownerPhone(client, ownerId)
+        await ownerPhone(client, ownerId),
+        JSON.stringify(flat.amenities ?? [])
       ]
     );
   } else {

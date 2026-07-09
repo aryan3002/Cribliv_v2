@@ -56,6 +56,70 @@ export function mapTenantPref(
 }
 
 /**
+ * v1 property amenity name (lowercased) → one of the 17 canonical flat display
+ * names the web ListingAmenities component matches on. Derived from the real v1
+ * distinct set (Air Conditioner, Gas Pipeline, Gated Security, Gym, Lift, Park,
+ * Parking, Power Backup, Refrigerator, Television, Washing Machine, Wi-Fi) plus
+ * common synonyms. "Park" (nearby park/garden) has no v2 flat amenity → unmapped.
+ */
+export const FLAT_AMENITY_ALIAS: Record<string, string> = {
+  "wi-fi": "WiFi",
+  wifi: "WiFi",
+  internet: "WiFi",
+  "air conditioner": "AC",
+  ac: "AC",
+  "air conditioning": "AC",
+  geyser: "Geyser",
+  "water geyser": "Geyser",
+  "hot water": "Geyser",
+  "washing machine": "Washing Machine",
+  refrigerator: "Fridge",
+  fridge: "Fridge",
+  television: "TV",
+  tv: "TV",
+  parking: "Parking",
+  "car parking": "Parking",
+  "bike parking": "Parking",
+  "power backup": "Power Backup",
+  inverter: "Power Backup",
+  generator: "Power Backup",
+  "gas pipeline": "Gas Pipeline",
+  "piped gas": "Gas Pipeline",
+  lift: "Lift",
+  elevator: "Lift",
+  "gated security": "Security",
+  security: "Security",
+  "security guard": "Security",
+  guard: "Security",
+  cctv: "CCTV",
+  gym: "Gym",
+  gymnasium: "Gym",
+  "swimming pool": "Swimming Pool",
+  pool: "Swimming Pool",
+  balcony: "Balcony",
+  kitchen: "Kitchen",
+  "modular kitchen": "Kitchen",
+  "water purifier": "Water Purifier",
+  ro: "Water Purifier"
+};
+
+/** Map v1 amenities (objects or strings) → canonical flat display names; collects unmapped. */
+export function mapFlatAmenities(v1: unknown): { amenities: string[]; unmapped: string[] } {
+  if (!Array.isArray(v1)) return { amenities: [], unmapped: [] };
+  const out = new Set<string>();
+  const unmapped: string[] = [];
+  for (const a of v1) {
+    const raw = typeof a === "string" ? a : (a as { amenityName?: string })?.amenityName;
+    const name = (raw ?? "").toString().trim();
+    if (!name) continue;
+    const display = FLAT_AMENITY_ALIAS[name.toLowerCase()];
+    if (display) out.add(display);
+    else unmapped.push(name);
+  }
+  return { amenities: [...out], unmapped };
+}
+
+/**
  * Title from stored `nameListing`, else composed from address parts (v1's own
  * fallback). De-dups repeated tokens ("Lucknow, Lucknow" → "Lucknow") and drops
  * empty slots ("Near,"). Used for PGs (all 19 have empty nameListing) and any
@@ -115,6 +179,10 @@ export function mapFlat(doc: V1Property): FlatInput {
     .filter(Boolean);
   const addressLine1 = addressParts.join(", ") || doc.nameListing?.trim() || "Address unavailable";
 
+  const flatAmenities = mapFlatAmenities(doc.amenities);
+  if (flatAmenities.unmapped.length)
+    warnings.push(`unmapped amenities: ${flatAmenities.unmapped.join(", ")}`);
+
   return {
     v1Id: String(doc._id),
     titleEn: composeTitleFromAddress(doc),
@@ -128,9 +196,7 @@ export function mapFlat(doc: V1Property): FlatInput {
     preferredTenant: mapTenantPref(doc.pref_tenant),
     availableFrom: isoDate(doc.avail_from),
     whatsappAvailable: false,
-    amenities: Array.isArray(doc.amenities)
-      ? doc.amenities.map((a) => String(a)).filter(Boolean)
-      : [],
+    amenities: flatAmenities.amenities,
     citySlug,
     addressLine1: addressLine1.slice(0, 500),
     landmark: doc.landmark ? String(doc.landmark) : null,
