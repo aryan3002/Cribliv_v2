@@ -1438,6 +1438,10 @@ export async function writeFlat(
   let cover = true;
   let idx = 0;
   for (const publicId of cfg.skipPhotos ? [] : flat.publicIds) {
+    // Per-photo SAVEPOINT: a failed photo (network OR a listing_photos INSERT
+    // error) rolls back only this photo and keeps the outer txn alive — a bad
+    // photo is logged, never fatal to the batch.
+    await client.query("SAVEPOINT photo");
     try {
       const { buffer, contentType } = await downloadImage(
         cloudinaryUrl(cfg.cloudinaryCloud, publicId)
@@ -1453,10 +1457,12 @@ export async function writeFlat(
            blob_path=EXCLUDED.blob_path, sort_order=EXCLUDED.sort_order, is_cover=EXCLUDED.is_cover, updated_at=now()`,
         [listingId, blobName, idx, cover, `v1:${publicId}`]
       );
+      await client.query("RELEASE SAVEPOINT photo");
       report.photosOk++;
       cover = false;
       idx++;
     } catch (e) {
+      await client.query("ROLLBACK TO SAVEPOINT photo");
       report.photosFail++;
       report.add(
         "warn",
@@ -2156,6 +2162,8 @@ export async function writePg(
   let cover = true,
     idx = 0;
   for (const publicId of cfg.skipPhotos ? [] : pg.publicIds) {
+    // Per-photo SAVEPOINT — a bad photo is logged, never aborts the outer txn.
+    await client.query("SAVEPOINT photo");
     try {
       const { buffer, contentType } = await downloadImage(
         cloudinaryUrl(cfg.cloudinaryCloud, publicId)
@@ -2170,10 +2178,12 @@ export async function writePg(
          ON CONFLICT (listing_id, client_upload_id) DO UPDATE SET blob_path=EXCLUDED.blob_path, updated_at=now()`,
         [listingId, blobName, idx, cover, `v1:${publicId}`]
       );
+      await client.query("RELEASE SAVEPOINT photo");
       report.photosOk++;
       cover = false;
       idx++;
     } catch (e) {
+      await client.query("ROLLBACK TO SAVEPOINT photo");
       report.photosFail++;
       report.add(
         "warn",
