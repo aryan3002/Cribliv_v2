@@ -56,8 +56,8 @@ The differentiating moment: **the user watches the city respond to their words b
 ### New homepage structure (flag ON)
 
 1. **Listening hero** — full-viewport-height section (min 560 px, max 100svh minus header).
-2. **Live in Lucknow** — one `ListingCarousel` of flats/houses (existing `popularHomes` bucket).
-3. **Latest PGs in Lucknow** — one `ListingCarousel` (existing `trendingPgs` bucket).
+2. **Live in {city}** — one `ListingCarousel` of flats/houses (existing `popularHomes` bucket, fetched for the resolved city per §5.4).
+3. **Latest PGs in {city}** — one `ListingCarousel` (existing `trendingPgs` bucket, resolved city).
 4. **Maya showcase** — one full-width section for the voice listing agent (repurposed from the current AI-showcase card, promoted to its own section; static art + copy + CTA to `/{locale}/owner/listings/new`; a looping product video is a later enhancement, NOT v1).
 5. **Owner CTA banner** — keep current `cta-banner` as-is.
 6. **City link strip** — a compact, server-rendered row of plain text links to all 8 `/{locale}/city/{slug}` pages ("Browse rentals: Delhi · Gurugram · Noida · …"). This preserves internal linking for the SEO city pages without the empty-looking card grid.
@@ -110,7 +110,7 @@ The differentiating moment: **the user watches the city respond to their words b
 - Headline (HI locale: "बताइए, कैसा घर चाहिए?" / EN locale: "Tell me what you're looking for").
 - Subline (EN: "Type or speak — Hindi or English. Live homes across Lucknow." / HI equivalent, §9).
 - Input placeholder cycles through 3 example queries every 4 s (type-writer swap, reduced-motion: static first example). Examples: "2BHK Gomti Nagar under 15k", "furnished flat near Hazratganj", "PG with food in Indira Nagar".
-- Counter: "**{N} homes** live in Lucknow right now" where N = server-fetched total.
+- Counter: "**{N} homes** live in {city} right now" where N = server-fetched total for the resolved city; suppressed below the city's `minHeroInventory` threshold (§5.4), in which case the growth subline renders instead.
 - All pins at full opacity, mic ring pulsing.
 
 **State B — typing (chips streaming):**
@@ -138,18 +138,38 @@ The differentiating moment: **the user watches the city respond to their words b
 
 ## 5. Backdrop: static map + real pins
 
-### 5.1 The map image
+### 5.1 The map image(s)
 
-- New asset: `apps/web/public/images/home/lucknow-dusk@{1600,2400}.webp` (+ portrait crop `lucknow-dusk-mobile@900.webp`).
-- Produced once via the Google Static Maps API using a dark/dusk style consistent with `CRIBLMAP_LIGHT_STYLE`'s palette direction (a dark variant; styling JSON checked into `apps/web/lib/map-styles.ts` alongside the existing style so the hero and CriblMap read as the same product).
-- **The image's geographic bounds are part of the contract.** Record them as constants next to the projection helper:
+- Per-city assets: `apps/web/public/images/home/{city}-dusk@{1600,2400}.webp` (+ portrait crop `{city}-dusk-mobile@900.webp`). v1 ships **lucknow** only; the pipeline must make adding a city a data task, not a code task.
+- Produced via the Google Static Maps API using a dark/dusk style consistent with `CRIBLMAP_LIGHT_STYLE`'s palette direction (a dark variant; styling JSON checked into `apps/web/lib/map-styles.ts` alongside the existing style so the hero and CriblMap read as the same product). The generation command/script is checked in (`scripts/generate-home-map.md` or a small node script) so regeneration is repeatable per city.
+- **Each image's geographic bounds are part of the contract**, recorded in the city config (§5.4):
   ```ts
-  export const HOME_MAP_BOUNDS = {
-    sw: { lat: 26.76, lng: 80.87 }, // final values captured when the asset is generated
-    ne: { lat: 26.95, lng: 81.06 }
+  // apps/web/lib/home-city-config.ts
+  export const HOME_CITIES: Record<string, HomeCityConfig> = {
+    lucknow: {
+      backdrop: "/images/home/lucknow-dusk",
+      bounds: { sw: { lat: 26.76, lng: 80.87 }, ne: { lat: 26.95, lng: 81.06 } }, // captured at asset generation
+      center: { lat: 26.8467, lng: 80.9462 },
+      zoom: 12,
+      minHeroInventory: 25
+    }
   };
   ```
-  A small script or documented manual procedure must regenerate image + bounds together (they are only valid as a pair).
+  Image + bounds are only valid as a pair; the generation script must output both together.
+
+### 5.4 Multi-city readiness (v1 requirement)
+
+The concept is city-agnostic — the parser's dictionary already covers all 8 cities and their localities, so **the input itself is the city switcher** (typing "Cyber City" resolves Gurugram with no dropdown). v1 ships with one city configured but must be built city-parametric:
+
+- **`HOME_CITIES` config is the single source of city truth** for the hero: backdrop asset, bounds, center/zoom, inventory threshold. Nothing else in the hero may hardcode a city slug. Adding a city later = one config entry + one generated asset pair.
+- **Resolved city** drives the backdrop, pins fetch, counter, and both carousels. Resolution order:
+  1. City/locality chip parsed from the query (live — a mid-typing city change crossfades the backdrop 400 ms and refetches pins client-side via `GET /listings/search/map`),
+  2. last-used city (`localStorage` key `cribliv:home-city`),
+  3. request geo (Vercel `x-vercel-ip-city` header, matched against `HOME_CITIES`, server-side),
+  4. default: `lucknow`.
+     In v1, steps 1's crossfade and client refetch only activate when the target city exists in `HOME_CITIES`; a chip for an unconfigured city keeps the current backdrop and routes normally on submit.
+- **Inventory threshold rule:** a city gets the full treatment (live counter, pins) only when its listing total ≥ `minHeroInventory`. Below threshold: same hero, no count number, no pins, subline swaps to the growth framing (`listenHeroGrowing`, §9). **A small inventory number must never render above the fold.**
+- Server-side, `page.tsx` resolves the city before fetching pins/counts/carousels, so first paint is already the right city (no client flash).
 
 ### 5.2 Pin projection
 
@@ -174,12 +194,12 @@ Homepage LCP and SEO outrank interactivity; the Maps JS SDK costs ~100 KB+ and a
 
 ### 6.1 Routing
 
-- Homes segment (default): submit → `/{locale}/map?city=lucknow&…` with filters mapped from chips:
+- Homes segment (default): submit → `/{locale}/map?city={resolvedCity}&…` with filters mapped from chips:
   - bhk chip → `bhk`
   - budget chip → `max_rent`
   - furnishing chip → **dropped from the map URL in v1** (the map has no furnishing filter). The chip still renders, still dims pins, and still feeds the count fetch (`/listings/search` supports `furnishing`) — it is only omitted from the handoff. Map-side furnishing filter is phase 2.
   - listing-type chip `pg` → see PG note below
-  - locality chip → **no `locality` param exists on the map**; instead compute the centroid of matching hero pins for that `locality_slug` and pass `lat`,`lng`,`zoom=14`. If no matching pins, fall back to `city=lucknow` default center.
+  - locality chip → **no `locality` param exists on the map**; instead compute the centroid of matching hero pins for that `locality_slug` and pass `lat`,`lng`,`zoom=14`. If no matching pins, fall back to the resolved city's configured center.
 - Chip confidence ≥ 0.7 → route directly (fast path, no network). Confidence < 0.7 → `POST /search/agentic-route` exactly as today, but when the response's `route` is the search results page, translate to the map URL instead. `clarifying_question` responses render inline in the panel as today.
 - PG segment toggle: unchanged — routes to `/{locale}/pg?…` (existing behavior). A "pg" listing-type chip typed in Homes mode routes to the map with `listing_type=pg`.
 - URL is pushed with `router.push` so back-button returns to the homepage.
@@ -224,12 +244,13 @@ New files:
 
 - `apps/web/components/home-listening-hero.tsx` (client) — the hero. Composes: `parseQuery` + dictionary fetch (extracted, see below), `VoiceSearchButton`, restyled chip row, counter, pin layer, submit/transition logic. Dynamic-imported from `page.tsx` with an SSR placeholder that reserves full hero height (CLS guard, mirroring the existing `SearchHero` loading placeholder approach).
 - `apps/web/components/home-hero-pins.tsx` (client, tiny) — pin layer + dim predicate.
-- `apps/web/lib/geo.ts` — `projectToBounds`, `HOME_MAP_BOUNDS`, centroid helper. Unit-tested.
+- `apps/web/lib/geo.ts` — `projectToBounds`, centroid helper. Unit-tested.
+- `apps/web/lib/home-city-config.ts` — `HOME_CITIES` config + `resolveHomeCity(queryChips, storedCity, geoCity)` (§5.4). Unit-tested.
 - `apps/web/lib/hero-query.ts` — extraction of the query-state machinery currently inline in `SearchHero` (parse effect, `chipsToFilters`, debounced count fetch, agentic-route submit). **Extraction rule:** `SearchHero` must keep working unchanged (it consumes the extracted hook); no behavior change with the flag off. If extraction proves too entangled, v1 may duplicate the ~150 lines instead and file a follow-up — do not destabilize `SearchHero` for the fallback path.
 
 Modified files:
 
-- `apps/web/app/[locale]/page.tsx` — flag branch: `ff_listening_hero` ? new structure (§3) : current JSX untouched. Server-side additions: pins fetch, total count fetch (already exists as `allLucknowBucket`).
+- `apps/web/app/[locale]/page.tsx` — flag branch: `ff_listening_hero` ? new structure (§3) : current JSX untouched. Server-side additions: city resolution (§5.4), pins fetch, total count fetch (generalize the existing `allLucknowBucket` pattern to the resolved city).
 - `apps/web/lib/feature-flags.ts` — add `ff_listening_hero: process.env.NEXT_PUBLIC_FF_LISTENING_HERO` to `ENV_FLAG_MAP`.
 - `apps/web/lib/i18n.ts` — new strings (§9).
 - `apps/web/app/globals.css` — `hero-listen-*` styles + keyframes; dark-map style JSON additions in `lib/map-styles.ts`.
@@ -246,8 +267,9 @@ All added via `apps/web/lib/i18n.ts`. Keys and values (EN / HI):
 | Key                       | EN                                                                 | HI                                                                |
 | ------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
 | `listenHeroTitle`         | Tell me what you're looking for                                    | बताइए, कैसा घर चाहिए?                                             |
-| `listenHeroSub`           | Type or speak — Hindi or English. Live homes across Lucknow.       | टाइप करें या बोलें — हिंदी या अंग्रेज़ी में। लखनऊ के लाइव घर।     |
-| `listenHeroCountIdle`     | {n} homes live in Lucknow right now                                | {n} घर अभी लखनऊ में लाइव हैं                                      |
+| `listenHeroSub`           | Type or speak — Hindi or English. Live homes across {city}.        | टाइप करें या बोलें — हिंदी या अंग्रेज़ी में। {city} के लाइव घर।   |
+| `listenHeroCountIdle`     | {n} homes live in {city} right now                                 | {n} घर अभी {city} में लाइव हैं                                    |
+| `listenHeroGrowing`       | Cribliv is growing in {city} — tell us what you need               | Cribliv {city} में बढ़ रहा है — बताइए आपको क्या चाहिए             |
 | `listenHeroCountMatching` | {n} homes match so far…                                            | {n} घर अब तक मैच हुए…                                             |
 | `listenHeroCountReady`    | {n} homes match — press enter or keep talking                      | {n} घर मैच — एंटर दबाएँ या बोलते रहें                             |
 | `listenHeroListening`     | Listening…                                                         | सुन रहे हैं…                                                      |
@@ -319,7 +341,7 @@ Success metrics for rollout (§13): search-start rate (`hero_submitted` / `liste
 
 - **Hindi copy review** by a native speaker before flag-on (§9).
 - **Phase 2 — map-side polish:** AI summary sentence over results ("Cheapest is ₹11k in Vibhuti Khand…") — one cheap LLM call over the result set; docked chip strip on the map toolbar so refinement stays conversational; `locality` and `furnishing` params on the map endpoint.
-- **Phase 2 — city expansion:** when a second city has real inventory, the hero needs a city switcher (or IP-based default). The backdrop asset process (§5.1) must be repeated per city — keep it scripted.
+- **City expansion (mostly de-risked by §5.4):** adding a city = one `HOME_CITIES` entry + one scripted asset pair; resolution (query > stored > geo > default) is built in v1. Remaining phase-2 items: Hindi city-name declension in interpolated strings, and whether the idle backdrop should be a national view that flies into the resolved city.
 - **PG segment on the map** — revisit after phase 2 (PG page currently has richer PG-specific filters).
 - Maya section video loop (v1 ships static art).
 
@@ -347,11 +369,12 @@ Success metrics for rollout (§13): search-start rate (`hero_submitted` / `liste
 
 ## 16. Decision log
 
-| Decision                           | Choice                                              | Why                                                                        |
-| ---------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
-| Subdomain vs path                  | Path (`/map`); optional 301 vanity subdomain later  | SEO equity consolidation pre-cutover; auth/session simplicity              |
-| Live map vs static backdrop on `/` | Static image + DOM pins                             | LCP, SEO, Maps billing; live map is one enter away                         |
-| Chip parsing                       | Client-side `smart-parser` (existing)               | Zero latency; LLM only on low-confidence submit                            |
-| Submit target                      | CriblMap (`/map`) for Homes; `/pg` unchanged for PG | Map is the differentiated experience; PG page has segment-specific filters |
-| Fallback                           | Full old homepage behind flag                       | Cutover safety; instant rollback                                           |
-| New analytics                      | `track()`/PostHog only                              | `trackEvent()` is a dead end (no listener)                                 |
+| Decision                           | Choice                                                                                | Why                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Subdomain vs path                  | Path (`/map`); optional 301 vanity subdomain later                                    | SEO equity consolidation pre-cutover; auth/session simplicity                                                                    |
+| Live map vs static backdrop on `/` | Static image + DOM pins                                                               | LCP, SEO, Maps billing; live map is one enter away                                                                               |
+| Chip parsing                       | Client-side `smart-parser` (existing)                                                 | Zero latency; LLM only on low-confidence submit                                                                                  |
+| Submit target                      | CriblMap (`/map`) for Homes; `/pg` unchanged for PG                                   | Map is the differentiated experience; PG page has segment-specific filters                                                       |
+| Fallback                           | Full old homepage behind flag                                                         | Cutover safety; instant rollback                                                                                                 |
+| New analytics                      | `track()`/PostHog only                                                                | `trackEvent()` is a dead end (no listener)                                                                                       |
+| Multi-city                         | City-parametric from v1 (`HOME_CITIES` config, resolution chain, inventory threshold) | Query-as-city-switcher scales; hardcoding Lucknow would need a rewrite at expansion; small counts must never show above the fold |
