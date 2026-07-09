@@ -66,6 +66,34 @@ async function main() {
       }
       report.print("PROPERTIES → flats");
     }
+    if (cfg.collection === "pgs" || cfg.collection === "both") {
+      const { mapPg } = require("./map-pg");
+      const { writePg } = require("./write-pg");
+      const report = newReport();
+      const docs = await fetchVerified(cfg, "pgs");
+      console.log(`fetched ${docs.length} verified pgs from Mongo`);
+      for (const doc of docs) {
+        const pg = mapPg(doc);
+        const { phone, source } = resolveOwnerPhone(doc, excelByName);
+        const operatorPhone = phone ?? IMPORT_FALLBACK_PHONE;
+        const operatorName =
+          source === "import_fallback" ? IMPORT_FALLBACK_NAME : (doc.owner ?? null);
+        // PG operators get role pg_operator (not owner) — matches v2 PG model.
+        const opId = (
+          await client.query(
+            `INSERT INTO users (phone_e164, role, full_name, preferred_language)
+               VALUES ($1,'pg_operator'::user_role,$2,'en')
+               ON CONFLICT (phone_e164) DO UPDATE SET role='pg_operator', is_blocked=false,
+                 full_name=COALESCE(users.full_name, EXCLUDED.full_name)
+               RETURNING id::text`,
+            [operatorPhone, operatorName]
+          )
+        ).rows[0].id;
+        const cityId = pg.citySlug ? (cityIdBySlug.get(pg.citySlug) ?? null) : null;
+        await writePg(client, container, cfg, pg, cityId, opId, source, report);
+      }
+      report.print("PGS → pg listings");
+    }
     if (cfg.apply) {
       await client.query("COMMIT");
       console.log("\n✅ COMMITTED.");
