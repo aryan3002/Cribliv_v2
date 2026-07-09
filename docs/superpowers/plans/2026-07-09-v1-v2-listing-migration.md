@@ -19,7 +19,7 @@
 - **Prod writes are the USER's.** The sandbox guard blocks prod DB/Azure writes. Run order: local v2 (dry-run → apply → eyeball) first, then the user runs prod.
 - **Scope = `verified: true` only** — 67 properties + 19 pgs = 86. Never migrate unverified rows.
 - **Idempotent:** keyed on `v1_id` in `v1_migration_map`, owners on `phone_e164`, photos on `(listing_id, client_upload_id)` with a deterministic `client_upload_id = 'v1:'+public_id`, deterministic blob paths.
-- **Phone → E.164:** strip whitespace, strip leading zeros, keep an existing `+91`, else prepend `+91`; assert `/^\+91\d{10}$/`.
+- **Phone → E.164:** strip whitespace, strip leading zeros, keep an existing `+91`, else prepend `+91`; the 10 digits must form a valid Indian mobile — assert `/^[6-9]\d{9}$/` (leading 6–9), reject otherwise.
 - **Owner phones verified 2026-07-09:** 86/86 clean 10-digit `ownerPhone` → Tier-1 covers all; Excel/import-fallback are safety nets.
 - **Migration number:** `0051` is taken (`repair_listing_embeddings`) → this migration is **`0052`**.
 - Commits end with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
@@ -405,7 +405,8 @@ export function normalizeE164(raw: string | number | null | undefined): string |
   if (s.startsWith("+91")) s = s.slice(3);
   else if (s.startsWith("91") && s.length === 12) s = s.slice(2);
   s = s.replace(/^0+/, "");
-  if (!/^\d{10}$/.test(s)) return null;
+  // Valid Indian mobile: exactly 10 digits, leading 6-9. Rejects garbage 10-digit strings.
+  if (!/^[6-9]\d{9}$/.test(s)) return null;
   return `+91${s}`;
 }
 ```
