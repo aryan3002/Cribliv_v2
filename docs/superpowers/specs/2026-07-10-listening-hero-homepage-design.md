@@ -164,7 +164,7 @@ The concept is city-agnostic — the parser's dictionary already covers all 8 ci
 - **`HOME_CITIES` config is the single source of city truth** for the hero: backdrop asset, bounds, center/zoom, inventory threshold. Nothing else in the hero may hardcode a city slug. Adding a city later = one config entry + one generated asset pair.
 - **Resolved city** drives the backdrop, pins fetch, counter, and both carousels. Resolution order:
   1. City/locality chip parsed from the query (live — a mid-typing city change crossfades the backdrop 400 ms and refetches pins client-side via `GET /listings/search/map`),
-  2. last-used city (`localStorage` key `cribliv:home-city`),
+  2. last-used city (cookie `cribliv_home_city`, set client-side on submit — a cookie, not localStorage, so the server can read it at first paint),
   3. request geo (Vercel `x-vercel-ip-city` header, matched against `HOME_CITIES`, server-side),
   4. default: `lucknow`.
      In v1, steps 1's crossfade and client refetch only activate when the target city exists in `HOME_CITIES`; a chip for an unconfigured city keeps the current backdrop and routes normally on submit.
@@ -256,7 +256,7 @@ Modified files:
 - `apps/web/app/globals.css` — `hero-listen-*` styles + keyframes; dark-map style JSON additions in `lib/map-styles.ts`.
 - `apps/web/app/[locale]/map/map-client.tsx` (or `map-view.tsx`) — read-and-strip `?src=hero`, entry fade + pin stagger, `view-transition-name` on the toolbar search field.
 
-Flag semantics: web-side only (`NEXT_PUBLIC_FF_LISTENING_HERO` env or PostHog remote `ff_listening_hero`). No API-side flag needed — no new API surface in v1.
+Flag semantics: web-side only. **The structural branch in `page.tsx` is a server component, so it reads `process.env.NEXT_PUBLIC_FF_LISTENING_HERO` directly** (the `useFlag` hook is client-only and cannot gate server-rendered structure without hydration mismatch). Consequence for rollout: v1 toggling is an env-var flip + redeploy (~1 min on Vercel) rather than a PostHog remote toggle; PostHog-based gradual rollout would need middleware-level bucketing and is deferred. No API-side flag needed — no new API surface in v1.
 
 ---
 
@@ -331,7 +331,7 @@ Success metrics for rollout (§13): search-start rate (`hero_submitted` / `liste
 1. Ship with `ff_listening_hero` OFF. Old homepage untouched and default.
 2. Local/dev: `NEXT_PUBLIC_FF_LISTENING_HERO=1`.
 3. Preview deploy → manual QA on real devices (low-end Android + iOS Safari; voice on both; Hindi locale).
-4. Prod: enable via PostHog remote flag for internal users first, then 50/50 if PostHog experimentation is available, else 100 % with the env var after a week of watching metrics (§10).
+4. Prod: enable with the env var (`NEXT_PUBLIC_FF_LISTENING_HERO=1` in Vercel → redeploy). The branch is server-rendered, so PostHog remote toggling doesn't apply in v1 (see §8 flag semantics); watch the §10 metrics for a week before considering the old path removable.
 5. Keep the old homepage code path for at least one full cycle after 100 % — instant rollback is the flag.
 6. Precondition for prod: v1→v2 domain cutover complete (this page only matters on cribliv.com traffic) and prod Azure OpenAI key fixed (for the low-confidence submit path; not required for chips).
 
