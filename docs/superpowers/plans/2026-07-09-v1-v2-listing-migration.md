@@ -196,6 +196,7 @@ export interface MigrationConfig {
   excelPath?: string;
   azure: { account: string; key: string; container: string };
   apply: boolean;
+  skipPhotos: boolean;
   collection: Collection;
   maskedDbHost: string;
 }
@@ -225,6 +226,11 @@ export function loadConfig(): MigrationConfig {
   if (!["properties", "pgs", "both"].includes(collectionArg)) {
     throw new Error(`--collection must be properties | pgs | both (got "${collectionArg}")`);
   }
+  // Azure Blob is NOT transactional — an upload sticks even on dry-run ROLLBACK.
+  // Skip photos for LOCAL validation so prod Azure stays clean until cutover.
+  const skipPhotos = hasFlag("skip-photos");
+  // Azure creds only required when we actually copy photos (i.e. NOT --skip-photos).
+  const azureReq = skipPhotos ? (name: string) => process.env[name]?.trim() || "" : required;
   return {
     databaseUrl,
     mongoUrl: required("MONGO_URL"),
@@ -232,11 +238,12 @@ export function loadConfig(): MigrationConfig {
     cloudinaryCloud: required("CLOUDINARY_CLOUD_NAME"),
     excelPath: process.env.EXCEL_PATH?.trim() || undefined,
     azure: {
-      account: required("AZURE_STORAGE_ACCOUNT_NAME"),
-      key: required("AZURE_STORAGE_ACCOUNT_KEY"),
+      account: azureReq("AZURE_STORAGE_ACCOUNT_NAME"),
+      key: azureReq("AZURE_STORAGE_ACCOUNT_KEY"),
       container: process.env.AZURE_STORAGE_CONTAINER_LISTING_PHOTOS?.trim() || "listing-photos"
     },
     apply: hasFlag("apply"),
+    skipPhotos,
     collection: collectionArg,
     maskedDbHost: maskDbHost(databaseUrl)
   };
@@ -1348,9 +1355,11 @@ export async function writeFlat(
   }
 
   // Photos (download from Cloudinary → upload to Azure → record).
+  // Skipped for local validation (--skip-photos): Azure Blob isn't transactional,
+  // so we don't touch prod storage until the real prod apply.
   let cover = true;
   let idx = 0;
-  for (const publicId of flat.publicIds) {
+  for (const publicId of cfg.skipPhotos ? [] : flat.publicIds) {
     try {
       const { buffer, contentType } = await downloadImage(
         cloudinaryUrl(cfg.cloudinaryCloud, publicId)
@@ -1418,7 +1427,7 @@ const { newReport } = require("./report");
 
 const cityIdBySlug = await ensureCities(client);
 const excelByName = cfg.excelPath ? loadOwnerPhoneByName(cfg.excelPath) : new Map();
-const container = makeContainerClient(cfg.azure);
+const container = cfg.skipPhotos ? null : makeContainerClient(cfg.azure);
 
 if (cfg.collection === "properties" || cfg.collection === "both") {
   const report = newReport();
@@ -1453,7 +1462,7 @@ DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/cribliv_v2" \
 MONGO_URL="<read-only>" MONGO_DB="test" CLOUDINARY_CLOUD_NAME="dia01qg8p" \
 EXCEL_PATH="/Users/aryantripathi/Downloads/Cribliv_Property_Location.xlsx" \
 AZURE_STORAGE_ACCOUNT_NAME="criblivimgstorage" AZURE_STORAGE_ACCOUNT_KEY="<key>" \
-  bash -c 'cd apps/api && pnpm migrate:v1 --collection properties'
+  bash -c 'cd apps/api && pnpm migrate:v1 --collection properties --skip-photos'
 ```
 
 Expected: `fetched 67 verified properties`, report with `migrated: 67` (or fewer + skips), `owner source: {"mongo":67,…}`, `↩️  DRY-RUN — rolled back`. Note: photos DO upload to Azure even in dry-run (blob storage isn't transactional) — that's fine and idempotent; only the Postgres rows roll back.
@@ -1461,15 +1470,16 @@ Expected: `fetched 67 verified properties`, report with `migrated: 67` (or fewer
 - [ ] **Step 5: Local apply + verify row counts**
 
 ```bash
-# same env + --apply
-… pnpm migrate:v1 --collection properties --apply
+# same env + --apply (LOCAL keeps --skip-photos; no prod Azure writes)
+… pnpm migrate:v1 --collection properties --skip-photos --apply
 psql "postgresql://postgres:postgres@127.0.0.1:5432/cribliv_v2" -c \
   "SELECT count(*) FROM v1_migration_map WHERE v1_collection='properties';
-   SELECT count(*) FROM listings WHERE listing_type='flat_house' AND status='active';
-   SELECT count(*) FROM listing_photos p JOIN v1_migration_map m ON m.v2_listing_id=p.listing_id;"
+   SELECT count(*) FROM listings WHERE listing_type='flat_house' AND status='active';"
 ```
 
-Expected: map rows = migrated count; listings present; photos present.
+Expected: map rows = migrated count; listings present. (`listing_photos` stays
+empty locally — photos copy on the prod apply, or a deliberate local photo pass
+without `--skip-photos`.)
 
 - [ ] **Step 6: Idempotency check — re-run apply, counts unchanged**
 
@@ -2064,10 +2074,10 @@ export async function writePg(
     }
   }
 
-  // 8. photos.
+  // 8. photos (skipped for local via --skip-photos; Azure Blob isn't transactional).
   let cover = true,
     idx = 0;
-  for (const publicId of pg.publicIds) {
+  for (const publicId of cfg.skipPhotos ? [] : pg.publicIds) {
     try {
       const { buffer, contentType } = await downloadImage(
         cloudinaryUrl(cfg.cloudinaryCloud, publicId)
@@ -2145,8 +2155,8 @@ Note: move the `mapPg`/`writePg` requires to the top of the `try` block alongsid
 - [ ] **Step 3: Local dry-run then apply (PGs)**
 
 ```bash
-… pnpm migrate:v1 --collection pgs           # dry-run: fetched 19 verified pgs, report
-… pnpm migrate:v1 --collection pgs --apply    # commit
+… pnpm migrate:v1 --collection pgs --skip-photos            # dry-run: fetched 19 verified pgs, report
+… pnpm migrate:v1 --collection pgs --skip-photos --apply    # commit (local)
 psql "postgresql://postgres:postgres@127.0.0.1:5432/cribliv_v2" -c \
   "SELECT count(*) FROM v1_migration_map WHERE v1_collection='pgs';
    SELECT count(*) FROM listings WHERE listing_type='pg' AND status='active';
@@ -2198,9 +2208,9 @@ Start web + api locally (`pnpm dev`), open 3–5 migrated listings (flats + PGs)
 
 - [ ] **Step 1: Apply migration 0052 to prod** — the USER runs `run-migrations.js` with the prod `DATABASE_URL` (root `.env`). Verify `\d v1_migration_map`.
 
-- [ ] **Step 2: Prod dry-run** — the USER runs `pnpm migrate:v1 --collection both` with prod `DATABASE_URL` + read-only `MONGO_URL` + real Azure creds + Excel path. Review the reconciliation report (expect `owner source: {"mongo":86}`, `migrated: 86`, dupes reviewed).
+- [ ] **Step 2: Prod dry-run** — the USER runs `pnpm migrate:v1 --collection both` with prod `DATABASE_URL` + read-only `MONGO_URL` + real Azure creds + Excel path. **Omit `--skip-photos`** so photos copy to prod Azure. Review the reconciliation report (expect `owner source: {"mongo":86}`, `migrated: 86`, `photos ok` ≈ all, dupes reviewed).
 
-- [ ] **Step 3: Prod apply** — the USER re-runs with `--apply`. Verify counts (86 map rows) and spot-check 3 prod listings render.
+- [ ] **Step 3: Prod apply** — the USER re-runs with `--apply` (no `--skip-photos`). Verify counts (86 map rows), photos copied, and spot-check 3 prod listings render.
 
 - [ ] **Step 4: Record outcome** — note final counts + any skipped rows in the spec's §11 or a short run log. The 301-map generator (GSC-driven) is a separate cutover-time task (out of scope for this plan; tracked in the spec §7).
 
