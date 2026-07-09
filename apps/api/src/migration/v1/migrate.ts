@@ -83,7 +83,7 @@ async function main() {
           await client.query(
             `INSERT INTO users (phone_e164, role, full_name, preferred_language)
                VALUES ($1,'pg_operator'::user_role,$2,'en')
-               ON CONFLICT (phone_e164) DO UPDATE SET role='pg_operator', is_blocked=false,
+               ON CONFLICT (phone_e164) DO UPDATE SET role = CASE WHEN users.role = 'admin' THEN users.role ELSE 'pg_operator'::user_role END, is_blocked=false,
                  full_name=COALESCE(users.full_name, EXCLUDED.full_name)
                RETURNING id::text`,
             [operatorPhone, operatorName]

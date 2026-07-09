@@ -27,7 +27,7 @@ export async function upsertOwner(
     `INSERT INTO users (phone_e164, role, full_name, preferred_language)
      VALUES ($1, 'owner'::user_role, $2, 'en')
      ON CONFLICT (phone_e164) DO UPDATE SET
-       role = 'owner',
+       role = CASE WHEN users.role IN ('pg_operator','admin') THEN users.role ELSE 'owner'::user_role END,
        is_blocked = false,
        full_name = COALESCE(users.full_name, EXCLUDED.full_name)
      RETURNING id::text`,
