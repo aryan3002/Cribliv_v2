@@ -54,6 +54,12 @@ export function pinMatchesChips(pin: HeroPin, chips: ParsedChip[]): boolean {
       case "amenity":
         // Pins carry no amenity data — an amenity chip must never dim pins.
         break;
+      default: {
+        // Exhaustiveness guard: if ChipKind gains a new member, this fails to
+        // compile until that member is handled explicitly above.
+        const _exhaustive: never = chip.kind;
+        return _exhaustive ? true : true;
+      }
     }
   }
   return true;

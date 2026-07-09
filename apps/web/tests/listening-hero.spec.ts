@@ -38,7 +38,7 @@ test.describe("listening hero homepage", () => {
     expect(url.searchParams.get("max_rent")).toBe("15000");
     // src=hero is stripped by the map client after arrival; assert the
     // handoff worked by checking the map page rendered.
-    await expect(page.locator(".map-entry--hero, [class*='map']").first()).toBeVisible();
+    await expect(page.locator(".map-entry--hero").first()).toBeVisible();
   });
 
   test("zero-chip query still navigates without an error UI", async ({ page }) => {

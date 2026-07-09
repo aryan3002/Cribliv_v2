@@ -69,6 +69,7 @@ export default function HomeListeningHero({
   const countAbortRef = useRef<AbortController | null>(null);
   const countTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const prevChipKeysRef = useRef<Set<string>>(new Set());
+  const lastChipLabelRef = useRef<string>("");
   const reducedMotion =
     typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -129,9 +130,14 @@ export default function HomeListeningHero({
           confidence: result.confidence,
           via: voiceStage === "idle" ? "typed" : "voice"
         });
+        lastChipLabelRef.current = chip.label;
+        // The debounced count for this new chip set hasn't resolved yet, so
+        // announce with the same ellipsis fallback the visible counter uses
+        // rather than a blank/stale number. The re-resolve effect below
+        // re-announces with the real count once it lands.
         setLiveMessage(
           `${chip.label} — ${fill(t(locale, "listenHeroCountMatching"), {
-            n: String(matchCount ?? "")
+            n: "…"
           })}`
         );
       }
@@ -140,6 +146,18 @@ export default function HomeListeningHero({
     // matchCount intentionally omitted: live message uses the value at lock time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, dictionary, locale, voiceStage]);
+
+  // Re-announce the live region once the debounced match count resolves, so
+  // screen-reader users eventually hear the real number instead of the
+  // "so far…" placeholder from the chip-lock announcement above.
+  useEffect(() => {
+    if (chips.length === 0 || matchCount === null) return;
+    const label = lastChipLabelRef.current;
+    if (!label) return;
+    setLiveMessage(
+      `${label} — ${fill(t(locale, "listenHeroCountReady"), { n: String(matchCount) })}`
+    );
+  }, [matchCount, locale, chips.length]);
 
   // Debounced counter fetch whenever the chip set changes.
   const chipsSignature = chips.map(chipKey).join("|");
@@ -222,7 +240,9 @@ export default function HomeListeningHero({
         match_count: matchCount ?? -1,
         query_length: queryText.length
       });
-      document.cookie = `${HOME_CITY_COOKIE}=${city.slug};path=/;max-age=${60 * 60 * 24 * 90}`;
+      document.cookie = `${HOME_CITY_COOKIE}=${city.slug};path=/;max-age=${
+        60 * 60 * 24 * 90
+      };SameSite=Lax`;
       setSubmitting(true);
       rootRef.current?.closest(".hero-listen")?.setAttribute("data-submitting", "true");
       if (reducedMotion) {
