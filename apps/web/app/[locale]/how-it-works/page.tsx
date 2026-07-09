@@ -1,30 +1,243 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import {
+  ArrowRight,
+  BadgeCheck,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  FileCheck2,
+  Home,
+  MessageCircle,
   Search,
   ShieldCheck,
-  Phone,
-  ArrowRight,
-  CheckCircle2,
-  Zap,
-  Clock,
-  CreditCard,
-  Star,
-  Sparkles
+  Sparkles,
+  UserCheck
 } from "lucide-react";
+import styles from "./how-it-works.module.css";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
+
+type LocaleKey = "en" | "hi";
+type LocalizedText = Record<LocaleKey, string>;
+type Tone = "brand" | "trust" | "accent" | "amber";
+
+type ProcessStep = {
+  icon: LucideIcon;
+  tone: Tone;
+  title: LocalizedText;
+  desc: LocalizedText;
+  features: Record<LocaleKey, string[]>;
+};
+
+type TrustItem = {
+  icon: LucideIcon;
+  tone: Tone;
+  title: LocalizedText;
+  desc: LocalizedText;
+};
+
+type PathItem = {
+  icon: LucideIcon;
+  tone: Tone;
+  label: LocalizedText;
+  title: LocalizedText;
+  desc: LocalizedText;
+  cta: LocalizedText;
+  href: (locale: LocaleKey) => string;
+};
+
+const HERO = {
+  breadcrumbHome: { en: "Home", hi: "होम" },
+  breadcrumbCurrent: { en: "How it works", hi: "यह कैसे काम करता है" },
+  title: {
+    en: "Find a verified rental without the broker runaround",
+    hi: "ब्रोकर की भागदौड़ के बिना सत्यापित किराया खोजें"
+  },
+  lede: {
+    en: "Cribliv connects natural-language search, owner verification, and protected contact unlocks into one clear path from shortlist to phone call.",
+    hi: "Cribliv प्राकृतिक भाषा खोज, मालिक सत्यापन और सुरक्षित संपर्क अनलॉक को शॉर्टलिस्ट से फोन कॉल तक एक साफ रास्ते में जोड़ता है।"
+  },
+  primaryCta: { en: "Find verified rentals", hi: "खोज शुरू करें" },
+  secondaryCta: { en: "List your property", hi: "प्रॉपर्टी लिस्ट करें" },
+  proof: [
+    { en: "No broker spam", hi: "ब्रोकर स्पैम नहीं" },
+    { en: "Verified owners", hi: "सत्यापित मालिक" },
+    { en: "12-hour protection", hi: "12-घंटे सुरक्षा" }
+  ],
+  previewLabel: { en: "Example search", hi: "उदाहरण खोज" },
+  previewQuery: { en: "2BHK near metro under ₹15k", hi: "मेट्रो के पास 2BHK ₹15k के अंदर" },
+  previewRows: [
+    {
+      icon: Search,
+      title: { en: "AI reads the full request", hi: "AI पूरी जरूरत समझता है" },
+      meta: { en: "Budget, city, locality and type", hi: "बजट, शहर, इलाका और प्रकार" }
+    },
+    {
+      icon: BadgeCheck,
+      title: { en: "Verified listings move up", hi: "सत्यापित लिस्टिंग ऊपर आती हैं" },
+      meta: { en: "Owner and property signals checked", hi: "मालिक और प्रॉपर्टी संकेत जांचे गए" }
+    },
+    {
+      icon: MessageCircle,
+      title: { en: "Unlock direct owner contact", hi: "सीधा मालिक संपर्क अनलॉक करें" },
+      meta: { en: "Protected by the response guarantee", hi: "प्रतिक्रिया गारंटी से सुरक्षित" }
+    }
+  ]
+} as const;
+
+const PROCESS_STEPS: ProcessStep[] = [
+  {
+    icon: Search,
+    tone: "brand",
+    title: { en: "Search in your own words", hi: "अपनी भाषा में खोजें" },
+    desc: {
+      en: "Type or speak what you need. Cribliv turns real requests into useful filters for city, budget, home type, locality, and move-in needs.",
+      hi: "जो चाहिए उसे टाइप या बोलें। Cribliv शहर, बजट, घर के प्रकार, इलाके और मूव-इन जरूरतों को उपयोगी फिल्टर में बदल देता है।"
+    },
+    features: {
+      en: ["Voice and text search", "Budget and locality filters", "Hindi and English support"],
+      hi: ["वॉइस और टेक्स्ट खोज", "बजट और इलाके के फिल्टर", "हिंदी और अंग्रेजी सपोर्ट"]
+    }
+  },
+  {
+    icon: ShieldCheck,
+    tone: "trust",
+    title: { en: "Trust the listing before you visit", hi: "विजिट से पहले लिस्टिंग पर भरोसा करें" },
+    desc: {
+      en: "Owner identity, property details, photos, and quality signals are checked before a listing earns Cribliv's verified treatment.",
+      hi: "लिस्टिंग को Cribliv का सत्यापित संकेत मिलने से पहले मालिक की पहचान, प्रॉपर्टी विवरण, फोटो और गुणवत्ता संकेत जांचे जाते हैं।"
+    },
+    features: {
+      en: ["Aadhaar OTP checks", "Property document review", "Quality scoring before listing"],
+      hi: ["Aadhaar OTP जांच", "प्रॉपर्टी दस्तावेज समीक्षा", "लिस्टिंग से पहले गुणवत्ता स्कोर"]
+    }
+  },
+  {
+    icon: MessageCircle,
+    tone: "accent",
+    title: { en: "Contact the owner directly", hi: "मालिक से सीधे जुड़ें" },
+    desc: {
+      en: "Unlock the owner's contact after you find a match. If the owner does not respond within 12 hours, the unlock is protected.",
+      hi: "मैच मिलने के बाद मालिक का संपर्क अनलॉक करें। अगर मालिक 12 घंटे में जवाब नहीं देता, तो आपका अनलॉक सुरक्षित रहता है।"
+    },
+    features: {
+      en: ["Zero brokerage contact", "Secure UPI/card payment", "12-hour no-response refund"],
+      hi: ["शून्य ब्रोकरेज संपर्क", "सुरक्षित UPI/कार्ड भुगतान", "12-घंटे नो-रिस्पॉन्स रिफंड"]
+    }
+  }
+];
+
+const TRUST_ITEMS: TrustItem[] = [
+  {
+    icon: UserCheck,
+    tone: "trust",
+    title: { en: "Aadhaar-verified owners", hi: "Aadhaar-सत्यापित मालिक" },
+    desc: {
+      en: "Owners complete identity verification before tenant contact unlocks are trusted.",
+      hi: "किरायेदार संपर्क अनलॉक भरोसेमंद होने से पहले मालिक पहचान सत्यापन पूरा करते हैं।"
+    }
+  },
+  {
+    icon: FileCheck2,
+    tone: "brand",
+    title: { en: "Property document signals", hi: "प्रॉपर्टी दस्तावेज संकेत" },
+    desc: {
+      en: "Listing details are checked against documents and review signals before they are promoted.",
+      hi: "प्रमोट होने से पहले लिस्टिंग विवरण दस्तावेजों और समीक्षा संकेतों से मिलाए जाते हैं।"
+    }
+  },
+  {
+    icon: Home,
+    tone: "accent",
+    title: { en: "Direct owner contact", hi: "सीधा मालिक संपर्क" },
+    desc: {
+      en: "You pay for the owner's contact, not a broker queue or hidden handoff.",
+      hi: "आप मालिक के संपर्क के लिए भुगतान करते हैं, ब्रोकर कतार या छिपे हुए हैंडऑफ के लिए नहीं।"
+    }
+  },
+  {
+    icon: Clock3,
+    tone: "amber",
+    title: { en: "12-hour response protection", hi: "12-घंटे प्रतिक्रिया सुरक्षा" },
+    desc: {
+      en: "If an unlocked owner does not respond in time, the refund flow is built in.",
+      hi: "अगर अनलॉक किया गया मालिक समय पर जवाब नहीं देता, तो रिफंड फ्लो पहले से बना है।"
+    }
+  }
+];
+
+const PATHS: PathItem[] = [
+  {
+    icon: Search,
+    tone: "brand",
+    label: { en: "For tenants", hi: "किरायेदारों के लिए" },
+    title: { en: "Start with a real search", hi: "एक असली खोज से शुरू करें" },
+    desc: {
+      en: "Describe the home you want, compare verified options, and unlock only when a listing is worth a call.",
+      hi: "अपना घर बताएं, सत्यापित विकल्पों की तुलना करें, और केवल सही लिस्टिंग पर संपर्क अनलॉक करें।"
+    },
+    cta: { en: "Start your search", hi: "सत्यापित किराये खोजें" },
+    href: (locale) => `/${locale}/search`
+  },
+  {
+    icon: Home,
+    tone: "trust",
+    label: { en: "For owners", hi: "मालिकों के लिए" },
+    title: { en: "Publish a verified listing", hi: "सत्यापित लिस्टिंग प्रकाशित करें" },
+    desc: {
+      en: "Complete quick verification, keep control of your listing, and connect with tenants who know what they want.",
+      hi: "त्वरित सत्यापन पूरा करें, अपनी लिस्टिंग पर नियंत्रण रखें, और स्पष्ट जरूरत वाले किरायेदारों से जुड़ें।"
+    },
+    cta: { en: "List your property", hi: "प्रॉपर्टी लिस्ट करें" },
+    href: (locale) => `/${locale}/become-owner`
+  }
+];
+
+const SECTION_COPY = {
+  processTitle: {
+    en: "From vague search to verified owner call",
+    hi: "आम खोज से सत्यापित मालिक कॉल तक"
+  },
+  processLede: {
+    en: "The page is simple because the hard work happens behind the scenes: request understanding, trust checks, and protected contact.",
+    hi: "रास्ता सरल है क्योंकि कठिन काम पीछे होता है: जरूरत समझना, भरोसे की जांच, और सुरक्षित संपर्क।"
+  },
+  trustTitle: { en: "What Cribliv checks for you", hi: "Cribliv आपके लिए क्या जांचता है" },
+  trustLede: {
+    en: "Verification is built into the journey instead of being a badge you have to interpret on your own.",
+    hi: "सत्यापन यात्रा का हिस्सा है, सिर्फ ऐसा बैज नहीं जिसे आपको खुद समझना पड़े।"
+  },
+  pathsTitle: { en: "One page, two clear paths", hi: "एक पेज, दो साफ रास्ते" },
+  pathsLede: {
+    en: "Most visitors are here to search, but owners get a direct route without interrupting the tenant journey.",
+    hi: "ज्यादातर लोग खोजने आते हैं, लेकिन मालिकों के लिए भी किरायेदार यात्रा को रोके बिना सीधा रास्ता है।"
+  },
+  finalTitle: {
+    en: "Ready to search with fewer surprises?",
+    hi: "कम सरप्राइज़ के साथ किराया खोजने के लिए तैयार?"
+  },
+  finalDesc: {
+    en: "Browse verified rentals first. Unlock contact only when the listing, owner, and location make sense.",
+    hi: "पहले सत्यापित किराये देखें। संपर्क तभी अनलॉक करें जब लिस्टिंग, मालिक और लोकेशन सही लगे।"
+  },
+  finalCta: { en: "Open search", hi: "अब खोजें" },
+  finalOwner: { en: "Owners can list a property instead", hi: "मालिक अपनी प्रॉपर्टी लिस्ट कर सकते हैं" }
+} as const;
 
 export async function generateMetadata({
   params
 }: {
   params: { locale: string };
 }): Promise<Metadata> {
-  const isHindi = params.locale === "hi";
-  const title = isHindi ? "कैसे काम करता है" : "How It Works";
-  const description = isHindi
-    ? "3 आसान चरणों में Cribliv पर सत्यापित किराये का मकान खोजें। AI खोज, मालिक सत्यापन, और 12-घंटे गारंटी।"
-    : "Find a verified rental on Cribliv in 3 simple steps. AI-powered search, owner verification, and a 12-hour refund guarantee.";
+  const locale = normalizeLocale(params.locale);
+  const title = locale === "hi" ? "यह कैसे काम करता है" : "How It Works";
+  const description =
+    locale === "hi"
+      ? "Cribliv पर सत्यापित किराये खोजें: प्राकृतिक खोज, मालिक सत्यापन, सीधा संपर्क और 12-घंटे प्रतिक्रिया सुरक्षा।"
+      : "Find a verified rental on Cribliv with natural search, owner verification, direct contact unlocks, and 12-hour response protection.";
+
   return {
     title,
     description,
@@ -38,357 +251,225 @@ export async function generateMetadata({
     openGraph: {
       title,
       description,
-      url: `${BASE_URL}/${params.locale}/how-it-works`,
+      url: `${BASE_URL}/${locale}/how-it-works`,
       siteName: "Cribliv",
       type: "website"
     }
   };
 }
 
-const STEPS = [
-  {
-    icon: Search,
-    title: "Search Naturally",
-    titleHi: "प्राकृतिक खोज",
-    desc: 'Type or speak exactly what you want — "2BHK near metro under ₹15k" — and our AI understands context, not just keywords. Filter by city, budget, type, locality, and more.',
-    descHi:
-      'जो आप चाहते हैं वो टाइप या बोलें — "मेट्रो के पास 2BHK ₹15k के अंदर" — और हमारा AI संदर्भ समझता है, सिर्फ शब्द नहीं।',
-    features: [
-      "Natural language + voice search",
-      "Smart filters: city, budget, type, locality",
-      "Hindi & English supported"
-    ],
-    featuresHi: [
-      "प्राकृतिक भाषा + आवाज खोज",
-      "स्मार्ट फिल्टर: शहर, बजट, प्रकार",
-      "हिंदी और अंग्रेजी समर्थित"
-    ]
-  },
-  {
-    icon: ShieldCheck,
-    title: "Verified Owners Only",
-    titleHi: "केवल सत्यापित मालिक",
-    desc: "Every owner goes through Aadhaar verification and property document checks before their listing goes live. No fake listings, no ghost owners, no bait-and-switch.",
-    descHi:
-      "प्रत्येक मालिक Aadhaar सत्यापन और संपत्ति दस्तावेज जांच से गुजरता है। कोई नकली लिस्टिंग नहीं, कोई धोखा नहीं।",
-    features: [
-      "Aadhaar OTP verification",
-      "Property document matching",
-      "AI-powered quality scoring"
-    ],
-    featuresHi: ["Aadhaar OTP सत्यापन", "संपत्ति दस्तावेज मिलान", "AI गुणवत्ता स्कोरिंग"]
-  },
-  {
-    icon: Phone,
-    title: "Unlock & Connect",
-    titleHi: "अनलॉक करें और जुड़ें",
-    desc: "Found a place you love? Pay a small unlock fee to reveal the owner's direct contact. If they don't respond within 12 hours, you get an automatic full refund.",
-    descHi:
-      "पसंदीदा जगह मिली? मालिक का सीधा संपर्क पाने के लिए एक छोटी अनलॉक फीस दें। 12 घंटे में जवाब न आने पर पूरा रिफंड।",
-    features: [
-      "Direct owner contact — zero brokers",
-      "12-hour refund guarantee",
-      "Secure UPI/card payments"
-    ],
-    featuresHi: [
-      "सीधा मालिक संपर्क — शून्य ब्रोकर",
-      "12-घंटे रिफंड गारंटी",
-      "सुरक्षित UPI/कार्ड भुगतान"
-    ]
-  }
-];
-
-const GUARANTEES = [
-  {
-    icon: ShieldCheck,
-    title: "100% Verified",
-    desc: "Every owner is Aadhaar-verified"
-  },
-  {
-    icon: Clock,
-    title: "12hr Refund",
-    desc: "Auto-refund if no response"
-  },
-  {
-    icon: CreditCard,
-    title: "Zero Brokerage",
-    desc: "No hidden charges, ever"
-  },
-  {
-    icon: Sparkles,
-    title: "AI-Powered",
-    desc: "Smart search that understands you"
-  }
-];
-
 export default function HowItWorksPage({ params }: { params: { locale: string } }) {
-  const isHindi = params.locale === "hi";
+  const locale = normalizeLocale(params.locale);
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: isHindi
-      ? "Cribliv पर सत्यापित किराये का मकान कैसे खोजें"
-      : "How to Find a Verified Rental on Cribliv",
-    description: isHindi
-      ? "3 आसान चरणों में Cribliv पर अपना अगला किराये का मकान खोजें।"
-      : "Find your next rental home on Cribliv in 3 simple steps.",
-    step: STEPS.map((s, i) => ({
+    name:
+      locale === "hi"
+        ? "Cribliv पर सत्यापित किराये का घर कैसे खोजें"
+        : "How to find a verified rental on Cribliv",
+    description:
+      locale === "hi"
+        ? "Cribliv पर खोज, सत्यापन और मालिक संपर्क की प्रक्रिया।"
+        : "The Cribliv process for search, verification, and direct owner contact.",
+    step: PROCESS_STEPS.map((step, index) => ({
       "@type": "HowToStep",
-      position: i + 1,
-      name: isHindi ? s.titleHi : s.title,
-      text: isHindi ? s.descHi : s.desc
+      position: index + 1,
+      name: step.title[locale],
+      text: step.desc[locale]
     }))
   };
 
   return (
-    <>
+    <div className={styles.page}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* Hero */}
-      <section
-        className="hero--landing"
-        style={{ paddingTop: "var(--space-16)", paddingBottom: "var(--space-10)" }}
-      >
-        <div className="hero-glow" aria-hidden="true" />
-        <div className="container" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
-          <nav
-            className="breadcrumb"
-            style={{
-              marginBottom: "var(--space-6)",
-              fontSize: "var(--text-sm)",
-              display: "flex",
-              justifyContent: "center",
-              gap: "var(--space-2)"
-            }}
-          >
-            <a
-              href={`/${params.locale}`}
-              className="text-secondary"
-              style={{ textDecoration: "none", color: "rgba(255,255,255,0.5)" }}
-            >
-              Home
-            </a>
-            <span style={{ color: "rgba(255,255,255,0.35)" }}>{" / "}</span>
-            <span style={{ color: "rgba(255,255,255,0.8)" }}>How It Works</span>
-          </nav>
-          <p
-            className="overline animate-in"
-            style={{
-              color: "rgba(255,255,255,0.5)",
-              marginBottom: "var(--space-3)"
-            }}
-          >
-            {isHindi ? "कैसे काम करता है" : "How It Works"}
-          </p>
-          <h1
-            className="display animate-in animate-in-delay-1"
-            style={{ maxWidth: 680, margin: "0 auto var(--space-5)" }}
-          >
-            {isHindi ? "3 आसान चरणों में अपना घर खोजें" : "Find Your Home in 3 Simple Steps"}
-          </h1>
-          <p
-            className="hero-subtitle animate-in animate-in-delay-2"
-            style={{ maxWidth: 520, margin: "0 auto" }}
-          >
-            {isHindi
-              ? "कोई ब्रोकर नहीं। कोई नकली लिस्टिंग नहीं। बस सत्यापित मालिक और AI-संचालित खोज।"
-              : "No brokers. No fake listings. Just verified owners and AI-powered search that actually works."}
-          </p>
+      <section className={styles.hero} data-testid="how-hero">
+        <div className={`container ${styles.heroInner}`}>
+          <div className={styles.heroCopy}>
+            <nav className={styles.breadcrumb} aria-label={HERO.breadcrumbCurrent[locale]}>
+              <Link href={`/${locale}`}>{HERO.breadcrumbHome[locale]}</Link>
+              <span aria-hidden="true">/</span>
+              <span>{HERO.breadcrumbCurrent[locale]}</span>
+            </nav>
+
+            <h1>{HERO.title[locale]}</h1>
+            <p className={styles.heroLede}>{HERO.lede[locale]}</p>
+
+            <div className={styles.heroActions}>
+              <Link href={`/${locale}/search`} className={`btn btn--primary ${styles.action}`}>
+                {HERO.primaryCta[locale]} <ArrowRight size={17} aria-hidden="true" />
+              </Link>
+              <Link href={`/${locale}/become-owner`} className={`btn btn--secondary ${styles.action}`}>
+                {HERO.secondaryCta[locale]}
+              </Link>
+            </div>
+
+            <ul className={styles.proofList} aria-label="Cribliv assurances">
+              {HERO.proof.map((item) => (
+                <li key={item.en}>
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  {item[locale]}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className={styles.previewCard} aria-label={HERO.previewLabel[locale]}>
+            <div className={styles.previewHeader}>
+              <span>{HERO.previewLabel[locale]}</span>
+              <Sparkles size={18} aria-hidden="true" />
+            </div>
+            <div className={styles.searchMock}>
+              <Search size={18} aria-hidden="true" />
+              <span>{HERO.previewQuery[locale]}</span>
+            </div>
+            <div className={styles.previewRows}>
+              {HERO.previewRows.map((row) => {
+                const Icon = row.icon;
+                return (
+                  <div key={row.title.en} className={styles.previewRow}>
+                    <span className={styles.previewIcon} aria-hidden="true">
+                      <Icon size={18} />
+                    </span>
+                    <span>
+                      <strong>{row.title[locale]}</strong>
+                      <small>{row.meta[locale]}</small>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className={styles.previewFooter}>
+              <span>
+                <CreditCard size={15} aria-hidden="true" />
+                {locale === "hi" ? "सुरक्षित अनलॉक" : "Protected unlock"}
+              </span>
+              <span>{locale === "hi" ? "12 घंटे" : "12 hours"}</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Steps */}
-      <section className="section" style={{ paddingTop: "var(--space-14)" }}>
-        <div
-          style={{
-            maxWidth: 800,
-            margin: "0 auto",
-            display: "flex",
-            flexDirection: "column",
-            gap: "var(--space-12)"
-          }}
-        >
-          {STEPS.map((step, i) => {
-            const Icon = step.icon;
-            const features = isHindi ? step.featuresHi : step.features;
-            return (
-              <div
-                key={step.title}
-                style={{
-                  display: "flex",
-                  gap: "var(--space-8)",
-                  alignItems: "flex-start",
-                  flexWrap: "wrap"
-                }}
-              >
-                {/* Step indicator */}
-                <div style={{ flex: "0 0 auto", textAlign: "center" }}>
-                  <span
-                    className="step-number step-number--brand"
-                    style={{
-                      width: 56,
-                      height: 56,
-                      fontSize: 22,
-                      marginBottom: "var(--space-3)"
-                    }}
-                  >
-                    {i + 1}
-                  </span>
-                </div>
+      <section className={styles.section} data-testid="how-process">
+        <div className="container">
+          <div className={styles.sectionHead}>
+            <h2>{SECTION_COPY.processTitle[locale]}</h2>
+            <p>{SECTION_COPY.processLede[locale]}</p>
+          </div>
 
-                {/* Content */}
-                <div style={{ flex: 1, minWidth: 280 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "var(--space-3)",
-                      marginBottom: "var(--space-3)"
-                    }}
-                  >
-                    <Icon size={24} style={{ color: "var(--brand)" }} />
-                    <h2 style={{ margin: 0, fontSize: 22 }}>
-                      {isHindi ? step.titleHi : step.title}
-                    </h2>
+          <div className={styles.processGrid}>
+            {PROCESS_STEPS.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <article
+                  key={step.title.en}
+                  className={`${styles.processStep} ${styles[step.tone]}`}
+                  data-testid="how-process-step"
+                >
+                  <div className={styles.stepTop}>
+                    <span className={styles.stepNumber}>{String(index + 1).padStart(2, "0")}</span>
+                    <span className={styles.stepIcon} aria-hidden="true">
+                      <Icon size={22} />
+                    </span>
                   </div>
-                  <p
-                    className="text-secondary"
-                    style={{
-                      lineHeight: 1.7,
-                      marginBottom: "var(--space-4)",
-                      fontSize: 16
-                    }}
-                  >
-                    {isHindi ? step.descHi : step.desc}
-                  </p>
-                  <ul
-                    style={{
-                      listStyle: "none",
-                      padding: 0,
-                      margin: 0,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "var(--space-2)"
-                    }}
-                  >
-                    {features.map((f) => (
-                      <li
-                        key={f}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "var(--space-2)",
-                          color: "var(--text-secondary)",
-                          fontSize: 14
-                        }}
-                      >
-                        <CheckCircle2 size={16} style={{ color: "var(--brand)", flexShrink: 0 }} />
-                        {f}
+                  <h3>{step.title[locale]}</h3>
+                  <p>{step.desc[locale]}</p>
+                  <ul>
+                    {step.features[locale].map((feature) => (
+                      <li key={feature}>
+                        <CheckCircle2 size={15} aria-hidden="true" />
+                        {feature}
                       </li>
                     ))}
                   </ul>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Trust Guarantees */}
-      <section className="section section--alt" style={{ padding: "var(--space-14) 0" }}>
-        <div
-          style={{
-            maxWidth: "var(--container-max)",
-            margin: "0 auto",
-            paddingLeft: "var(--space-6)",
-            paddingRight: "var(--space-6)"
-          }}
-        >
-          <div style={{ textAlign: "center", marginBottom: "var(--space-10)" }}>
-            <p
-              className="overline"
-              style={{ color: "var(--brand)", marginBottom: "var(--space-2)" }}
-            >
-              {isHindi ? "हमारी गारंटी" : "Our Guarantees"}
-            </p>
-            <h2>{isHindi ? "आपका भरोसा, हमारी प्राथमिकता" : "Your Trust, Our Priority"}</h2>
-          </div>
-          <div className="grid grid-4">
-            {GUARANTEES.map((g) => {
-              const Icon = g.icon;
-              return (
-                <div key={g.title} className="feature-card" style={{ padding: "var(--space-6)" }}>
-                  <Icon
-                    size={28}
-                    style={{
-                      color: "var(--brand)",
-                      marginBottom: "var(--space-3)"
-                    }}
-                  />
-                  <h3 className="feature-card__title" style={{ marginBottom: "var(--space-2)" }}>
-                    {g.title}
-                  </h3>
-                  <p className="feature-card__desc">{g.desc}</p>
-                </div>
+                </article>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* Owner CTA */}
-      <section className="section">
-        <div
-          style={{
-            maxWidth: 700,
-            margin: "0 auto",
-            textAlign: "center"
-          }}
-        >
-          <Star size={32} style={{ color: "var(--amber)", marginBottom: "var(--space-4)" }} />
-          <h2 style={{ marginBottom: "var(--space-4)" }}>
-            {isHindi ? "क्या आप मालिक हैं?" : "Are You a Property Owner?"}
-          </h2>
-          <p
-            className="text-secondary"
-            style={{
-              marginBottom: "var(--space-6)",
-              lineHeight: 1.7,
-              fontSize: 16
-            }}
-          >
-            {isHindi
-              ? "Cribliv पर अपनी संपत्ति लिस्ट करें और हज़ारों सत्यापित किरायेदारों से जुड़ें। कोई कमीशन नहीं, बस त्वरित Aadhaar सत्यापन।"
-              : "List your property on Cribliv and reach thousands of verified tenants actively looking for a home. Quick Aadhaar verification, no commission, and full control over your listing."}
-          </p>
-          <Link href={`/${params.locale}/become-owner`} className="btn btn--lg">
-            {isHindi ? "मालिक बनें" : "List Your Property"} <ArrowRight size={18} />
-          </Link>
+      <section className={`${styles.section} ${styles.trustSection}`} data-testid="how-trust">
+        <div className="container">
+          <div className={styles.trustLayout}>
+            <div className={styles.sectionHead}>
+              <h2>{SECTION_COPY.trustTitle[locale]}</h2>
+              <p>{SECTION_COPY.trustLede[locale]}</p>
+            </div>
+            <div className={styles.trustGrid}>
+              {TRUST_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <article key={item.title.en} className={`${styles.trustItem} ${styles[item.tone]}`}>
+                    <span className={styles.trustIcon} aria-hidden="true">
+                      <Icon size={21} />
+                    </span>
+                    <div>
+                      <h3>{item.title[locale]}</h3>
+                      <p>{item.desc[locale]}</p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Search CTA */}
-      <section
-        className="cta-banner"
-        style={{
-          marginLeft: "var(--space-6)",
-          marginRight: "var(--space-6)"
-        }}
-      >
-        <h2>{isHindi ? "अभी खोजना शुरू करें" : "Start Searching Now"}</h2>
-        <p>
-          {isHindi
-            ? "हजारों सत्यापित किराये के मकान आपका इंतजार कर रहे हैं।"
-            : "Thousands of verified listings in 8 cities. No sign-up needed to browse."}
-        </p>
-        <Link href={`/${params.locale}/search`} className="btn btn--lg">
-          {isHindi ? "सत्यापित किराये खोजें" : "Find Verified Rentals"} <ArrowRight size={18} />
-        </Link>
+      <section className={styles.section} data-testid="how-audience-paths">
+        <div className="container">
+          <div className={styles.sectionHead}>
+            <h2>{SECTION_COPY.pathsTitle[locale]}</h2>
+            <p>{SECTION_COPY.pathsLede[locale]}</p>
+          </div>
+
+          <div className={styles.pathGrid}>
+            {PATHS.map((path) => {
+              const Icon = path.icon;
+              return (
+                <article key={path.title.en} className={`${styles.pathCard} ${styles[path.tone]}`}>
+                  <div className={styles.pathHeader}>
+                    <span className={styles.pathIcon} aria-hidden="true">
+                      <Icon size={21} />
+                    </span>
+                    <span className={styles.pathLabel}>{path.label[locale]}</span>
+                  </div>
+                  <h3>{path.title[locale]}</h3>
+                  <p>{path.desc[locale]}</p>
+                  <Link href={path.href(locale) as Route} className={styles.pathLink}>
+                    {path.cta[locale]} <ArrowRight size={16} aria-hidden="true" />
+                  </Link>
+                </article>
+              );
+            })}
+          </div>
+        </div>
       </section>
-    </>
+
+      <section className={styles.finalCta} data-testid="how-final-cta">
+        <div className={`container ${styles.finalInner}`}>
+          <div>
+            <h2>{SECTION_COPY.finalTitle[locale]}</h2>
+            <p>{SECTION_COPY.finalDesc[locale]}</p>
+          </div>
+          <div className={styles.finalActions}>
+            <Link href={`/${locale}/search`} className={`btn ${styles.finalButton}`}>
+              {SECTION_COPY.finalCta[locale]} <ArrowRight size={17} aria-hidden="true" />
+            </Link>
+            <Link href={`/${locale}/become-owner`} className={styles.finalOwnerLink}>
+              {SECTION_COPY.finalOwner[locale]}
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
   );
+}
+
+function normalizeLocale(locale: string): LocaleKey {
+  return locale === "hi" ? "hi" : "en";
 }
