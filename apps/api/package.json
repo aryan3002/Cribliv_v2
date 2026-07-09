@@ -18,7 +18,8 @@
     "db:seed": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/seed.ts",
     "seed:reference": "SEED_REFERENCE_ONLY=1 ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/seed.ts",
     "generate:city": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/generate-city.ts",
-    "load:city": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/load-city.ts"
+    "load:city": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' ../../data/seeds/load-city.ts",
+    "migrate:v1": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' src/migration/v1/migrate.ts"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.31.0",
@@ -35,6 +36,7 @@
     "handlebars": "^4.7.9",
     "helmet": "^8.1.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.48.0",
+    "mongodb": "^6.12.0",
     "multer": "^2.1.1",
     "pg": "^8.13.0",
     "puppeteer": "^25.0.4",
@@ -43,6 +45,7 @@
     "sharp": "^0.34.5",
     "socket.io": "^4.8.3",
     "uuid": "^10.0.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
