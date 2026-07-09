@@ -93,10 +93,10 @@ export class SearchController {
   }
 
   @Get("listings/search/preview")
-  async preview(@Query() query: { type?: string; value?: string }) {
+  async preview(@Query() query: { type?: string; value?: string; city?: string }) {
     if (query.type !== "city" && query.type !== "locality") return ok(null);
     if (!query.value) return ok(null);
-    return ok(await this.searchService.getSearchPreview(query.type, query.value));
+    return ok(await this.searchService.getSearchPreview(query.type, query.value, query.city));
   }
 
   @Get("listings/search/map")

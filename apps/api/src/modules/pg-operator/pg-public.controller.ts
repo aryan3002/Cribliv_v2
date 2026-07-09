@@ -43,8 +43,8 @@ export class PgPublicController {
   }
 
   @Get("preview")
-  async preview(@Query() query: { type?: string; value?: string }) {
-    return ok(await this.search.preview(query.type ?? "city", query.value ?? ""));
+  async preview(@Query() query: { type?: string; value?: string; city?: string }) {
+    return ok(await this.search.preview(query.type ?? "city", query.value ?? "", query.city));
   }
 
   @Get("listings/:id")

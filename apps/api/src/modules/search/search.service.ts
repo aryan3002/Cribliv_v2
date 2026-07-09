@@ -1159,7 +1159,8 @@ export class SearchService {
    */
   async getSearchPreview(
     type: "city" | "locality",
-    slug: string
+    slug: string,
+    citySlug?: string
   ): Promise<{
     type: "city" | "locality";
     slug: string;
@@ -1171,9 +1172,10 @@ export class SearchService {
     avg_bhk: number | null;
     sample_photos: string[];
   } | null> {
+    const normalizedCitySlug = citySlug?.trim().toLowerCase() || null;
     if (!this.database.isEnabled() || !slug) return null;
 
-    const cacheKey = `${type}:${slug}`;
+    const cacheKey = `${type}:${slug}:${normalizedCitySlug ?? ""}`;
     const cached = this.previewCache.get(cacheKey);
     const now = Date.now();
     if (cached && cached.expiresAt > now) {
@@ -1246,17 +1248,24 @@ export class SearchService {
           .filter((u): u is string => Boolean(u))
       };
     } else {
+      const locParams: unknown[] = [slug];
+      const cityPredicate = normalizedCitySlug ? ` AND c.slug = $2` : "";
+      if (normalizedCitySlug) locParams.push(normalizedCitySlug);
+
       const locRows = await this.database.query<{
-        slug: string;
         name_en: string;
+        id: number;
+        city_id: number;
+        slug: string;
         city_slug: string;
       }>(
-        `SELECT loc.slug, loc.name_en, c.slug AS city_slug
+        `SELECT loc.id, loc.city_id, loc.slug, loc.name_en, c.slug AS city_slug
          FROM localities loc
          JOIN cities c ON c.id = loc.city_id
-         WHERE loc.slug = $1
+         WHERE loc.slug = $1${cityPredicate}
+         ORDER BY c.slug
          LIMIT 1`,
-        [slug]
+        locParams
       );
       const loc = locRows.rows[0];
       if (!loc) return null;
@@ -1279,16 +1288,15 @@ export class SearchService {
            avg(l.bhk)::float AS avg_bhk
          FROM listings l
          JOIN listing_locations ll ON ll.listing_id = l.id
-         JOIN localities loc ON loc.city_id = ll.city_id
-         WHERE loc.slug = $1
-           AND l.status = 'active'
+         WHERE l.status = 'active'
            AND l.listing_type = 'flat_house'
+           AND ll.city_id = $2
            AND (
-             ll.locality_id = loc.id
-             OR l.title_en ILIKE '%' || loc.name_en || '%'
-             OR l.description_en ILIKE '%' || loc.name_en || '%'
+             ll.locality_id = $1
+             OR l.title_en ILIKE '%' || $3 || '%'
+             OR l.description_en ILIKE '%' || $3 || '%'
            )`,
-        [slug]
+        [loc.id, loc.city_id, loc.name_en]
       );
       const row = stats.rows[0] ?? {
         listing_count: 0,
@@ -1303,24 +1311,23 @@ export class SearchService {
          FROM listing_photos lp
          JOIN listings l ON l.id = lp.listing_id
          JOIN listing_locations ll ON ll.listing_id = l.id
-         JOIN localities loc ON loc.city_id = ll.city_id
-         WHERE loc.slug = $1
-           AND l.status = 'active'
+         WHERE l.status = 'active'
            AND l.listing_type = 'flat_house'
            AND lp.is_cover = true
+           AND ll.city_id = $2
            AND (
-             ll.locality_id = loc.id
-             OR l.title_en ILIKE '%' || loc.name_en || '%'
-             OR l.description_en ILIKE '%' || loc.name_en || '%'
+             ll.locality_id = $1
+             OR l.title_en ILIKE '%' || $3 || '%'
+             OR l.description_en ILIKE '%' || $3 || '%'
            )
          ORDER BY l.created_at DESC
          LIMIT 4`,
-        [slug]
+        [loc.id, loc.city_id, loc.name_en]
       );
 
       value = {
         type: "locality",
-        slug,
+        slug: loc.slug,
         name: loc.name_en,
         city_slug: loc.city_slug,
         listing_count: row.listing_count ?? 0,

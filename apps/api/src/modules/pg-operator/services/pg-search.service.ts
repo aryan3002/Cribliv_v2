@@ -408,13 +408,20 @@ export class PgSearchService {
    * stats (count, rent band, verified %, sharing kinds, sample covers) for a
    * city or locality so PG mode shows PG data instead of flat/house data.
    */
-  async preview(type: string, value: string): Promise<PgPreview | null> {
+  async preview(type: string, value: string, citySlug?: string): Promise<PgPreview | null> {
     const slug = (value ?? "").trim().toLowerCase();
+    const normalizedCitySlug = citySlug?.trim().toLowerCase() || null;
     if (!slug || !this.db.isEnabled()) return null;
-    return this.cached(`preview:${type}:${slug}`, () => this.runPreview(type, slug));
+    return this.cached(`preview:${type}:${slug}:${normalizedCitySlug ?? ""}`, () =>
+      this.runPreview(type, slug, normalizedCitySlug)
+    );
   }
 
-  private async runPreview(type: string, slug: string): Promise<PgPreview | null> {
+  private async runPreview(
+    type: string,
+    slug: string,
+    citySlug: string | null
+  ): Promise<PgPreview | null> {
     const buildBand = (min: number | null, max: number | null) =>
       min != null && max != null ? { min: Number(min), max: Number(max) } : null;
 
@@ -480,11 +487,17 @@ export class PgSearchService {
       };
     }
 
-    const locRows = await this.db.query<{ name_en: string; city_slug: string }>(
-      `SELECT loc.name_en, c.slug AS city_slug
+    const locParams: unknown[] = [slug];
+    const cityPredicate = citySlug ? ` AND c.slug = $2` : "";
+    if (citySlug) locParams.push(citySlug);
+
+    const locRows = await this.db.query<{ id: number; name_en: string; city_slug: string }>(
+      `SELECT loc.id, loc.name_en, c.slug AS city_slug
        FROM localities loc JOIN cities c ON c.id = loc.city_id
-       WHERE loc.slug = $1 LIMIT 1`,
-      [slug]
+       WHERE loc.slug = $1${cityPredicate}
+       ORDER BY c.slug
+       LIMIT 1`,
+      locParams
     );
     const loc = locRows.rows[0];
     if (!loc) return null;
@@ -505,15 +518,11 @@ export class PgSearchService {
             FROM pg_room_types rt
             JOIN listings l2 ON l2.id = rt.listing_id
             JOIN listing_locations ll2 ON ll2.listing_id = l2.id
-            JOIN localities loc2 ON loc2.city_id = ll2.city_id
-            WHERE loc2.slug = $1 AND l2.status = 'active' AND l2.listing_type = 'pg'
-              AND ll2.locality_id = loc2.id) AS sharing
+            WHERE ll2.locality_id = $1 AND l2.status = 'active' AND l2.listing_type = 'pg') AS sharing
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
-       JOIN localities loc ON loc.city_id = ll.city_id
-       WHERE loc.slug = $1 AND l.status = 'active' AND l.listing_type = 'pg'
-         AND ll.locality_id = loc.id`,
-      [slug]
+       WHERE ll.locality_id = $1 AND l.status = 'active' AND l.listing_type = 'pg'`,
+      [loc.id]
     );
     const row = stats.rows[0];
 
@@ -522,12 +531,11 @@ export class PgSearchService {
        FROM listing_photos lp
        JOIN listings l ON l.id = lp.listing_id
        JOIN listing_locations ll ON ll.listing_id = l.id
-       JOIN localities loc ON loc.city_id = ll.city_id
-       WHERE loc.slug = $1 AND l.status = 'active' AND l.listing_type = 'pg'
-         AND ll.locality_id = loc.id AND lp.is_cover = true
+       WHERE ll.locality_id = $1 AND l.status = 'active' AND l.listing_type = 'pg'
+         AND lp.is_cover = true
        ORDER BY l.created_at DESC
        LIMIT 4`,
-      [slug]
+      [loc.id]
     );
 
     const count = row?.listing_count ?? 0;
