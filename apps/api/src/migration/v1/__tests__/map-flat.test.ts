@@ -92,4 +92,20 @@ describe("mapFlat", () => {
     expect(f.warnings).toContain("no geo");
     expect(f.addressLine1.length).toBeGreaterThan(0); // never empty (NOT NULL col)
   });
+  it("never emits an empty addressLine1 when nameListing is blank and address is missing", () => {
+    const f = mapFlat({ _id: "z", nameListing: "" } as any);
+    expect(f.addressLine1).toBe("Address unavailable");
+  });
+  it("nulls geo and warns consistently for non-numeric (string) coordinates", () => {
+    const f = mapFlat({
+      _id: "g",
+      nameListing: "X",
+      expected_rent: 5000,
+      city: "Lucknow",
+      location: { coordinates: ["80.9", "26.8"] }
+    } as any);
+    expect(f.lat).toBeNull();
+    expect(f.lng).toBeNull();
+    expect(f.warnings).toContain("no geo");
+  });
 });

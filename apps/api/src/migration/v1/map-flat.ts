@@ -106,14 +106,14 @@ export function mapFlat(doc: V1Property): FlatInput {
   if (!citySlug) warnings.push(`unknown city: ${doc.city ?? "(none)"}`);
 
   const coords = doc.location?.coordinates;
-  const lng = Array.isArray(coords) ? (coords[0] ?? null) : null;
-  const lat = Array.isArray(coords) ? (coords[1] ?? null) : null;
+  const lng = Array.isArray(coords) && typeof coords[0] === "number" ? coords[0] : null;
+  const lat = Array.isArray(coords) && typeof coords[1] === "number" ? coords[1] : null;
   if (lat == null || lng == null) warnings.push("no geo");
 
   const addressParts = [doc.houseNum, doc.society, doc.landmark, doc.city]
     .map((s) => (s ?? "").toString().trim())
     .filter(Boolean);
-  const addressLine1 = addressParts.join(", ") || (doc.nameListing ?? "Address unavailable");
+  const addressLine1 = addressParts.join(", ") || doc.nameListing?.trim() || "Address unavailable";
 
   return {
     v1Id: String(doc._id),
@@ -135,8 +135,8 @@ export function mapFlat(doc: V1Property): FlatInput {
     addressLine1: addressLine1.slice(0, 500),
     landmark: doc.landmark ? String(doc.landmark) : null,
     pincode: pincode6(doc.pincode),
-    lat: typeof lat === "number" ? lat : null,
-    lng: typeof lng === "number" ? lng : null,
+    lat,
+    lng,
     publicIds: Array.isArray(doc.cloudinary_public_ids)
       ? doc.cloudinary_public_ids.map((p) => String(p)).filter(Boolean)
       : [],
