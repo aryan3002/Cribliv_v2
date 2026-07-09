@@ -10,6 +10,7 @@ import {
   Globe,
   Heart,
   LayoutDashboard,
+  Map,
   Newspaper,
   Plus,
   Search,
@@ -104,6 +105,17 @@ export function Header({ locale }: { locale: Locale }) {
               >
                 <Newspaper size={14} aria-hidden="true" />
                 <span className="nav-times__word">Cribliv Times</span>
+              </Link>
+              {/* CRIBLMAP — gradient live-map CTA. Deep-links to the verified
+                  rent-intelligence map; the pulse dot signals live inventory. */}
+              <Link
+                href={`/${locale}/map`}
+                className={`nav-cribmap${isActive(`/${locale}/map`) ? " nav-cribmap--active" : ""}`}
+                aria-label="CriblMap — live rent map"
+              >
+                <Map size={15} aria-hidden="true" />
+                <span>CriblMap</span>
+                <span className="nav-cribmap__dot" aria-hidden="true" />
               </Link>
             </>
           )}

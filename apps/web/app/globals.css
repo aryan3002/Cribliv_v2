@@ -573,6 +573,111 @@ h4,
   opacity: 1;
 }
 
+/* CRIBLMAP — a gradient live-map CTA in the primary nav. Brand blue→coral wash
+   (the homepage hero's palette) with an ambient drift, a hover sheen sweep, and
+   a pulsing "live" dot, so the map reads as live inventory rather than a static
+   picture. Deep-links to /{locale}/map. */
+.nav-cribmap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 4px;
+  padding: 7px 15px 7px 13px;
+  border-radius: var(--radius-full);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(120deg, var(--brand) 0%, #5b57ff 46%, var(--accent) 100%);
+  background-size: 180% 180%;
+  box-shadow:
+    0 2px 10px -2px rgba(255, 90, 95, 0.5),
+    0 1px 3px rgba(0, 102, 255, 0.35);
+  animation: cribmap-drift 7s ease-in-out infinite;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+.nav-cribmap svg,
+.nav-cribmap span {
+  position: relative;
+  z-index: 1;
+}
+/* Hover sheen — a light streak sweeps across the pill. */
+.nav-cribmap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 65%
+  );
+  transform: translateX(-160%);
+  transition: transform 0.7s ease;
+}
+.nav-cribmap:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 5px 18px -2px rgba(255, 90, 95, 0.6),
+    0 2px 6px rgba(0, 102, 255, 0.4);
+}
+.nav-cribmap:hover::after {
+  transform: translateX(160%);
+}
+.nav-cribmap--active {
+  box-shadow:
+    0 2px 10px -2px rgba(255, 90, 95, 0.5),
+    0 0 0 2px rgba(255, 255, 255, 0.6) inset;
+}
+/* Live pulse dot. */
+.nav-cribmap__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
+  animation: cribmap-pulse 2s infinite;
+}
+@keyframes cribmap-drift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+@keyframes cribmap-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-cribmap {
+    animation: none;
+  }
+  .nav-cribmap__dot {
+    animation: none;
+  }
+  .nav-cribmap::after {
+    transition: none;
+  }
+}
+
 @media (max-width: 900px) {
   .nav-center {
     display: none;
