@@ -9,6 +9,7 @@ export interface MigrationConfig {
   azure: { account: string; key: string; container: string };
   apply: boolean;
   skipPhotos: boolean;
+  purge: boolean;
   collection: Collection;
   maskedDbHost: string;
 }
@@ -56,6 +57,7 @@ export function loadConfig(): MigrationConfig {
     },
     apply: hasFlag("apply"),
     skipPhotos,
+    purge: hasFlag("purge"),
     collection: collectionArg,
     maskedDbHost: maskDbHost(databaseUrl)
   };
