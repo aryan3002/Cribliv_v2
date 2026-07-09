@@ -24,4 +24,14 @@ describe("normalizeE164", () => {
     expect(normalizeE164("")).toBeNull();
     expect(normalizeE164(null)).toBeNull();
   });
+  it("rejects a 10-digit number not starting with 6-9", () => {
+    expect(normalizeE164("1234567890")).toBeNull();
+  });
+  it("accepts numbers starting with 6/7/8/9", () => {
+    expect(normalizeE164("6000000000")).toBe("+916000000000");
+    expect(normalizeE164("9998887776")).toBe("+919998887776");
+  });
+  it("rejects undefined", () => {
+    expect(normalizeE164(undefined)).toBeNull();
+  });
 });

@@ -8,6 +8,6 @@ export function normalizeE164(raw: string | number | null | undefined): string |
   if (s.startsWith("+91")) s = s.slice(3);
   else if (s.startsWith("91") && s.length === 12) s = s.slice(2);
   s = s.replace(/^0+/, "");
-  if (!/^\d{10}$/.test(s)) return null;
+  if (!/^[6-9]\d{9}$/.test(s)) return null;
   return `+91${s}`;
 }
