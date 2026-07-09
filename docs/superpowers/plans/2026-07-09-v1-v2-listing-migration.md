@@ -927,7 +927,37 @@ export interface FlatInput {
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { mapFlat, mapFurnishing, mapTenantPref } from "../map-flat";
+import { mapFlat, mapFurnishing, mapTenantPref, composeTitleFromAddress } from "../map-flat";
+
+describe("composeTitleFromAddress", () => {
+  it("passes through a stored nameListing", () => {
+    expect(composeTitleFromAddress({ nameListing: "3 BHK near Alambagh" })).toBe(
+      "3 BHK near Alambagh"
+    );
+  });
+  it("composes from address when nameListing is blank, de-duping repeated tokens", () => {
+    // All 19 v1 PGs have blank nameListing; v1 composes from address at render.
+    expect(
+      composeTitleFromAddress(
+        { nameListing: "", society: "GLS Hotel", landmark: "HCLTech IT City", city: "Lucknow" },
+        "PG in"
+      )
+    ).toBe("PG in GLS Hotel, HCLTech IT City, Lucknow");
+  });
+  it("drops empty slots and de-dupes case-insensitively", () => {
+    expect(
+      composeTitleFromAddress({
+        nameListing: "  ",
+        society: "",
+        landmark: "Lucknow",
+        city: "lucknow"
+      })
+    ).toBe("Lucknow");
+  });
+  it("falls back to 'Listing' when everything is blank", () => {
+    expect(composeTitleFromAddress({ nameListing: "" })).toBe("Listing");
+  });
+});
 
 describe("mapFurnishing", () => {
   it("maps known values", () => {
