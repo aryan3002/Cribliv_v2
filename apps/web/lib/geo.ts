@@ -47,3 +47,105 @@ export function formatDistance(meters: number): string {
   }
   return `${(meters / 1000).toFixed(1)} km`;
 }
+
+// Web Mercator helpers for the homepage hero: project real listing
+// coordinates onto a static map image with known geographic bounds, and
+// derive those bounds deterministically from a center + zoom so the
+// backdrop image and the pin layer can never drift apart.
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+export interface GeoBounds {
+  sw: GeoPoint;
+  ne: GeoPoint;
+}
+
+// Mercator y for a latitude in degrees (unscaled; monotonic in lat).
+function mercY(lat: number): number {
+  return Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+}
+
+export function projectToBounds(
+  lat: number,
+  lng: number,
+  bounds: GeoBounds
+): { xPct: number; yPct: number } {
+  const xPct = ((lng - bounds.sw.lng) / (bounds.ne.lng - bounds.sw.lng)) * 100;
+  const yPct =
+    ((mercY(bounds.ne.lat) - mercY(lat)) / (mercY(bounds.ne.lat) - mercY(bounds.sw.lat))) * 100;
+  return { xPct, yPct };
+}
+
+export function centroidOf(points: GeoPoint[]): GeoPoint | null {
+  if (points.length === 0) return null;
+  const sum = points.reduce((acc, p) => ({ lat: acc.lat + p.lat, lng: acc.lng + p.lng }), {
+    lat: 0,
+    lng: 0
+  });
+  return { lat: sum.lat / points.length, lng: sum.lng / points.length };
+}
+
+// World-pixel helpers at a given zoom (256px base tile).
+function worldSize(zoom: number): number {
+  return 256 * 2 ** zoom;
+}
+
+function lngToWorldX(lng: number, zoom: number): number {
+  return ((lng + 180) / 360) * worldSize(zoom);
+}
+
+function latToWorldY(lat: number, zoom: number): number {
+  const rad = (lat * Math.PI) / 180;
+  const n = Math.log(Math.tan(rad) + 1 / Math.cos(rad));
+  return ((1 - n / Math.PI) / 2) * worldSize(zoom);
+}
+
+function worldYToLat(y: number, zoom: number): number {
+  const n = Math.PI - (2 * Math.PI * y) / worldSize(zoom);
+  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+function worldXToLng(x: number, zoom: number): number {
+  return (x / worldSize(zoom)) * 360 - 180;
+}
+
+export function boundsFromCenterZoom(
+  center: GeoPoint,
+  zoom: number,
+  widthPx: number,
+  heightPx: number
+): GeoBounds {
+  const cx = lngToWorldX(center.lng, zoom);
+  const cy = latToWorldY(center.lat, zoom);
+  return {
+    sw: { lat: worldYToLat(cy + heightPx / 2, zoom), lng: worldXToLng(cx - widthPx / 2, zoom) },
+    ne: { lat: worldYToLat(cy - heightPx / 2, zoom), lng: worldXToLng(cx + widthPx / 2, zoom) }
+  };
+}
+
+export function zoomToFitBounds(
+  bounds: GeoBounds,
+  widthPx: number,
+  heightPx: number,
+  maxZoom = 15
+): number {
+  const center: GeoPoint = {
+    lat: (bounds.sw.lat + bounds.ne.lat) / 2,
+    lng: (bounds.sw.lng + bounds.ne.lng) / 2
+  };
+  for (let z = maxZoom; z >= 1; z--) {
+    const img = boundsFromCenterZoom(center, z, widthPx, heightPx);
+    if (
+      img.sw.lat <= bounds.sw.lat &&
+      img.ne.lat >= bounds.ne.lat &&
+      img.sw.lng <= bounds.sw.lng &&
+      img.ne.lng >= bounds.ne.lng
+    ) {
+      return z;
+    }
+  }
+  return 1;
+}
