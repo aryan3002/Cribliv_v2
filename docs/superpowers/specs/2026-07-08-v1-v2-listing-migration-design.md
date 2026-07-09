@@ -27,7 +27,8 @@ user runs it themselves (all writes stay in the user's hands).
 - **`properties`** — flats/houses. Owner denormalized: `ownerPhone` (10-digit,
   67/67), `owner`, `ownerEmail`, plus `userId`. `type` ∈ {Apartment, House/Villa,
   Independent House, Single Rooms, Villa}.
-- **`pgs`** — PGs. **No `ownerPhone`** (0/19); owner only via `userId`. Rich
+- **`pgs`** — PGs. `ownerPhone` **now 19/19** (verified 2026-07-09; was 0/19
+  earlier — owner numbers were added). Rich
   `rooms[]` (beds/bathrooms/kitchens + per-room rent/deposit), `amenities[]`,
   `services[]`.
 - Both: `nameListing` (title), `description`, `expected_rent`, `expected_deposit`,
@@ -86,12 +87,24 @@ v2's `cities`** — add it (seed row + optional `seo_city_config`).
 
 For each listing, resolve an owner phone → normalize to E.164 (`+91` + 10 digits):
 
-1. **Mongo `ownerPhone`** if present (covers all 67 properties).
+1. **Mongo `ownerPhone`** if present. **Verified 2026-07-09: covers all 86 —
+   properties 67/67 AND pgs 19/19.** This is now the sole tier that fires in
+   practice; tiers 2–3 are safety nets that should never be reached for the
+   current verified set.
 2. else **Excel** row where `Property Name` matches `nameListing` (normalized,
    fuzzy-tolerant) → `Owner Mobile`.
 3. else **`import_fallback`**: attach to a single dedicated **"Cribliv Import"
    owner account** (created once); store original `owner`/`ownerEmail` on the
    listing as metadata; **log for manual review**.
+
+The script still implements all three tiers (defensive — new/re-added listings
+or a re-run after data changes could reintroduce a gap), but the dry-run report
+is expected to show `owner_source = mongo` for 86/86.
+
+**Phone format verified 2026-07-09:** all 86 `ownerPhone` values are clean
+10-digit strings (one 9-digit PG value was found and fixed at source, re-checked
+→ 0 bad). The E.164 normalizer only needs to prepend `+91`; still guard against
+malformed input defensively.
 
 Owner accounts are **upserted by phone** (`users` unique on phone) with role
 `owner` — so contact-unlock reveals the real owner where we have a number.
@@ -110,13 +123,31 @@ flagged (not silently published imageless).
 
 ## 7. 301 redirect map (cutover artifact)
 
-The migration records `v1_id`, `v1_name`, `v2_listing_id`. A separate generator
-reads `v1_migration_map` and emits `old_url → new_url`:
+**v1 URL format (RESOLVED 2026-07-09):** flats are served at
+`https://cribliv.com/properties/<slug>-<v1_id>` where `<v1_id>` is the 24-hex
+Mongo ObjectId as the **final `-`-delimited token** of the path, e.g.
+`…/properties/3-bhk-for-rent-near-krishna-nagar-alambagh-69940773dd3811521305c48c`.
+The `<slug>` prefix is SEO text and its format **drifts** (`3-bhk` vs `3bhk` seen
+in the wild) — so we do **not** regenerate slugs. The trailing ObjectId is the
+stable join key.
 
-- **new_url** = v2 canonical: `/{locale}/pg/{city}/{id}` (PG) or `/{locale}/listing/{id}`.
-- **old_url** = v1 pattern applied to the v1 id/slug. **⚠️ Open input:** the live
-  v1 listing-URL format (e.g. `cribliv.com/property/<id>`) — not yet provided;
-  plugged in at generation time. The migration itself does **not** block on it.
+The migration records `v1_id`, `v1_name`, `v2_listing_id`. A separate generator
+emits `old_url → new_url`:
+
+- **new_url** = v2 canonical: `/{locale}/pg/{city}/{id}` (PG) or
+  `/{locale}/listing/{id}` — built from the v2 listing UUID (v2 has **no listing
+  slug**; confirmed in schema).
+- **old_url** = the **exact** indexed v1 URL, sourced from **Google Search
+  Console** (Performance → Pages export). For each `/properties/…-<id>` URL we
+  extract the trailing 24-hex `<id>`, join to `v1_migration_map.v1_id`, and pair
+  it to the new_url. Using GSC (not regenerated slugs) means we redirect the
+  URLs that actually hold SEO equity, exact-matched, ranked by impressions.
+- **PG URL path:** the three sampled URLs are all flats under `/properties/`.
+  The PG path (possibly `/pg/…`) will be confirmed from the same GSC export
+  before generating the map.
+
+The migration itself does **not** block on the 301 map — the map is a separate
+downstream generator that reads `v1_migration_map` + the GSC export at cutover.
 
 ## 8. Execution model
 
@@ -145,7 +176,9 @@ Azure blob creds, `CLOUDINARY_CLOUD_NAME=dia01qg8p`, path to the Excel.
 1. **v1 listing URL format** — for the 301 generator (deferrable; migration runs without it).
 2. **Excel name-match reconciliation** — the script reports unmatched/ambiguous
    names; user resolves those before the final owner pass.
-3. **PG owner accounts** — confirmed: Mongo has none; use Excel, else import account.
+3. **PG owner accounts** — RESOLVED (2026-07-09): Mongo `pgs.ownerPhone` is now
+   19/19, so PGs resolve via Tier 1 like properties. Excel/import fallback no
+   longer expected to fire.
 
 ## 11. Testing
 
