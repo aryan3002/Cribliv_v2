@@ -1496,15 +1496,18 @@ Depends on all Phase-A shared infra. Milestone (after Task B4): 19 verified PGs 
 
 **Files:** none (discovery + recording into the next tasks' constants).
 
-- [ ] **Step 1: Run the discovery queries (user, read-only Compass)**
+- [x] **Step 1: Discovery COMPLETE (2026-07-09, read-only Compass).** Recorded distinct values:
+  - `property.type`: Apartment, House/Villa, Independent House, Single Rooms, Villa — _no v2 column; not migrated._
+  - `property.furnishing`: Fully Furnished, Semi Furnished, Unfurnished — all covered by `mapFurnishing`.
+  - `property.pref_tenant`: Anyone, Family, Family/Girls, Girls — covered by `mapTenantPref` (Anyone→any, Girls→female, Family\*→family).
+  - **pg amenity names**: Air Conditioner, Fridge, Microwave, Room Heater, Television, Wardrobe, Washing Machine, Water Geyser, WiFi.
+  - **pg bed types** — the `type` string **IS the sharing kind**; `count` is the quantity/vacancy: single, double, triple, four/Four (`four`→`quad`).
+  - **pg bathroom types**: shared, private (no western/indian split → default western).
+  - **PG room shape**: `rooms[].{ roomNumber, beds:[{type,count}], bathrooms:[{type}], balconies:[{type}], kitchens:[{type}], expected_rent, expected_deposit, floor, area }`; `amenities:[{amenityName, amenityImages}]`. `area` is frequently `0` → treat as null.
 
-Run the block already provided in chat (`property.type/furnishing/pref_tenant` distinct; `pgs` amenity names; bed/bathroom types; one full PG doc). Record the exact distinct values.
+- [x] **Step 2: Lookup tables filled** from the values above — `AMENITY_ALIAS` (B2), `SHARING_ALIAS` + `BATHROOM_ALIAS` (B3). "Room Heater" has no v2 amenity code → intentionally reported as **unmapped** (not silently dropped).
 
-- [ ] **Step 2: Fill the amenity/bathroom/bed lookup tables**
-
-Using the recorded values, complete `AMENITY_ALIAS`, `BATHROOM_ALIAS`, and `SHARING_BY_BEDS` in Task B2/B3 (they ship with sensible defaults + an "unmapped → warning" fallback, so they are correct even before this step; discovery just widens coverage). No code runs here — this task de-risks B2/B3.
-
-_(No commit — this is a data-gathering task feeding B2/B3.)_
+_(No commit — discovery recorded into B2/B3 below.)_
 
 ---
 
@@ -1528,21 +1531,28 @@ import { describe, it, expect } from "vitest";
 import { mapPgAmenities } from "../map-pg";
 
 describe("mapPgAmenities", () => {
-  it("buckets known amenity names (string[] or {amenityName})", () => {
+  it("buckets the real v1 PG amenity names", () => {
     const r = mapPgAmenities([
+      { amenityName: "Air Conditioner" },
+      { amenityName: "Water Geyser" },
       { amenityName: "WiFi" },
-      { amenityName: "AC" },
-      { amenityName: "Laundry" },
-      "Parking"
+      { amenityName: "Television" },
+      { amenityName: "Wardrobe" },
+      { amenityName: "Washing Machine" },
+      { amenityName: "Fridge" },
+      { amenityName: "Microwave" }
     ]);
-    expect(r.core).toContain("wifi");
-    expect(r.room).toContain("ac");
-    expect(r.services).toContain("laundry");
-    expect(r.extras).toContain("parking_2w");
+    expect(r.room).toEqual(expect.arrayContaining(["ac", "tv", "wardrobe"]));
+    expect(r.core).toEqual(expect.arrayContaining(["hot_water", "wifi"]));
+    expect(r.services).toContain("laundry"); // Washing Machine
+    expect(r.extras).toEqual(expect.arrayContaining(["fridge", "microwave"]));
   });
-  it("collects unmapped names without throwing", () => {
-    const r = mapPgAmenities([{ amenityName: "Rooftop Helipad" }]);
-    expect(r.unmapped).toContain("Rooftop Helipad");
+  it("accepts a bare string[] too", () => {
+    expect(mapPgAmenities(["Parking"]).extras).toContain("parking_2w");
+  });
+  it("reports Room Heater as unmapped (no v2 code) without throwing", () => {
+    const r = mapPgAmenities([{ amenityName: "Room Heater" }]);
+    expect(r.unmapped).toContain("Room Heater");
     expect(r.core.length + r.room.length + r.services.length + r.extras.length).toBe(0);
   });
 });
@@ -1562,6 +1572,7 @@ export const AMENITY_ALIAS: Record<string, [Bucket, string]> = {
   internet: ["core", "wifi"],
   "hot water": ["core", "hot_water"],
   geyser: ["core", "hot_water"],
+  "water geyser": ["core", "hot_water"],
   "power backup": ["core", "power_backup"],
   inverter: ["core", "power_backup"],
   generator: ["core", "power_backup"],
@@ -1672,33 +1683,54 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 Append to `map-pg.test.ts`:
 
 ```ts
-import { mapRoomTypes, sharingFromBeds } from "../map-pg";
+import { mapRoomTypes, sharingFromBedType } from "../map-pg";
 
-describe("sharingFromBeds", () => {
-  it("maps bed count → sharing kind", () => {
-    expect(sharingFromBeds(1)).toBe("single");
-    expect(sharingFromBeds(2)).toBe("double");
-    expect(sharingFromBeds(3)).toBe("triple");
-    expect(sharingFromBeds(4)).toBe("quad");
-    expect(sharingFromBeds(7)).toBe("dorm");
+describe("sharingFromBedType", () => {
+  it("maps bed.type string → sharing kind (four → quad)", () => {
+    expect(sharingFromBedType("single")).toBe("single");
+    expect(sharingFromBedType("double")).toBe("double");
+    expect(sharingFromBedType("triple")).toBe("triple");
+    expect(sharingFromBedType("four")).toBe("quad");
+    expect(sharingFromBedType("Four")).toBe("quad");
   });
 });
 
 describe("mapRoomTypes", () => {
-  it("maps a v1 room to a pg_room_types row (rent → paise)", () => {
+  it("uses bed.type as sharing, count as vacancy, rent → paise, shared → shared_western", () => {
+    // Real v1 shape: beds:[{type: <sharing>, count: <quantity>}], area often 0.
     const rt = mapRoomTypes([
       {
-        beds: [{ type: "single", count: 2 }],
-        bathrooms: [{ type: "attached" }],
-        expected_rent: 8000,
-        area: 120
+        beds: [{ type: "double", count: 5 }],
+        bathrooms: [{ type: "shared" }],
+        expected_rent: 4000,
+        area: 0
       }
     ]);
     expect(rt[0].sharing).toBe("double");
-    expect(rt[0].bathroomKind).toBe("attached_western");
-    expect(rt[0].monthlyRentPaise).toBe(800000);
-    expect(rt[0].roomSizeSqft).toBe(120);
-    expect(rt[0].vacancyCount).toBeGreaterThanOrEqual(1);
+    expect(rt[0].vacancyCount).toBe(5);
+    expect(rt[0].monthlyRentPaise).toBe(400000);
+    expect(rt[0].bathroomKind).toBe("shared_western");
+    expect(rt[0].roomSizeSqft).toBeNull(); // area 0 → null
+    expect(rt[0].ac).toBe(false); // v1 has no per-room AC
+  });
+  it("aggregates rooms that collapse to the same (sharing,ac,bathroom,furnishing) tuple", () => {
+    // The pg_room_types UNIQUE key would otherwise ON CONFLICT-overwrite the first.
+    const rt = mapRoomTypes([
+      {
+        beds: [{ type: "single", count: 2 }],
+        bathrooms: [{ type: "private" }],
+        expected_rent: 8000
+      },
+      {
+        beds: [{ type: "single", count: 3 }],
+        bathrooms: [{ type: "private" }],
+        expected_rent: 7000
+      }
+    ]);
+    expect(rt).toHaveLength(1);
+    expect(rt[0].vacancyCount).toBe(5); // 2 + 3
+    expect(rt[0].monthlyRentPaise).toBe(700000); // min positive rent
+    expect(rt[0].bathroomKind).toBe("attached_western"); // private → attached_western
   });
 });
 ```
@@ -1718,24 +1750,28 @@ export type BathroomKind =
   | "shared_western"
   | "shared_indian";
 
-export function sharingFromBeds(count: number): Sharing {
-  if (count <= 1) return "single";
-  if (count === 2) return "double";
-  if (count === 3) return "triple";
-  if (count === 4) return "quad";
-  return "dorm";
+/** v1 bed.type IS the sharing kind (count = quantity). 'four'/'Four' → quad. */
+export const SHARING_ALIAS: Record<string, Sharing> = {
+  single: "single",
+  double: "double",
+  triple: "triple",
+  four: "quad",
+  quad: "quad",
+  dorm: "dorm"
+};
+export function sharingFromBedType(type: string): Sharing {
+  return SHARING_ALIAS[(type ?? "").trim().toLowerCase()] ?? "single";
 }
 
-/** v1 bathroom label → v2 kind. Extend from B1 discovery. Default attached_western. */
+/** v1 bathroom label → v2 kind. v1 only has shared/private; no western/indian split → default western. */
 export const BATHROOM_ALIAS: Record<string, BathroomKind> = {
+  private: "attached_western",
   attached: "attached_western",
-  "attached western": "attached_western",
   western: "attached_western",
   "attached indian": "attached_indian",
   indian: "attached_indian",
   shared: "shared_western",
   common: "shared_western",
-  "shared western": "shared_western",
   "shared indian": "shared_indian"
 };
 
@@ -1750,30 +1786,53 @@ export interface RoomType {
   availableFrom: string | null;
 }
 
+/**
+ * Map v1 rooms[] → pg_room_types rows. v1 room.beds is [{type: sharing-kind,
+ * count: quantity}], one entry per sharing option. Rows are AGGREGATED by the
+ * DB's UNIQUE key (sharing, ac, bathroom_kind, furnishing) — summing vacancy and
+ * taking the min positive rent — so the writer's ON CONFLICT never silently
+ * overwrites two colliding rooms. v1 has no per-room AC → ac=false (PG-level
+ * "Air Conditioner" amenity lands on pg_details.amenities.room instead).
+ */
 export function mapRoomTypes(rooms: any[]): RoomType[] {
   if (!Array.isArray(rooms)) return [];
-  return rooms.map((r) => {
-    const bedCount = Array.isArray(r.beds)
-      ? r.beds.reduce((s: number, b: any) => s + (toInt(b?.count) ?? 1), 0)
-      : 1;
-    const bedType = (
-      Array.isArray(r.beds) && r.beds[0]?.type ? String(r.beds[0].type) : ""
-    ).toLowerCase();
+  const byKey = new Map<string, RoomType>();
+  for (const r of rooms) {
+    const beds = Array.isArray(r.beds) && r.beds.length ? r.beds : [{ type: "single", count: 1 }];
     const bathLabel = (
       Array.isArray(r.bathrooms) && r.bathrooms[0]?.type ? String(r.bathrooms[0].type) : ""
     ).toLowerCase();
+    const furnishing = mapFurnishing(r.furnishing) ?? "semi_furnished";
+    const bathroomKind = BATHROOM_ALIAS[bathLabel] ?? "attached_western";
     const rent = toInt(r.expected_rent) ?? 0;
-    return {
-      sharing: sharingFromBeds(bedCount),
-      ac: bedType.includes("ac") || bathLabel.includes("ac"),
-      bathroomKind: BATHROOM_ALIAS[bathLabel] ?? "attached_western",
-      furnishing: mapFurnishing(r.furnishing) ?? "semi_furnished",
-      roomSizeSqft: toInt(r.area),
-      monthlyRentPaise: rent > 0 ? rent * 100 : 0,
-      vacancyCount: Math.max(1, bedCount),
-      availableFrom: null
-    };
-  });
+    const paise = rent > 0 ? rent * 100 : 0;
+    const area = toInt(r.area);
+    for (const b of beds) {
+      const sharing = sharingFromBedType(String(b?.type ?? "single"));
+      const ac = false;
+      const vacancy = Math.max(1, toInt(b?.count) ?? 1);
+      const key = `${sharing}|${ac}|${bathroomKind}|${furnishing}`;
+      const existing = byKey.get(key);
+      if (existing) {
+        existing.vacancyCount += vacancy;
+        if (paise > 0 && (existing.monthlyRentPaise === 0 || paise < existing.monthlyRentPaise))
+          existing.monthlyRentPaise = paise;
+        if (area && area > 0 && !existing.roomSizeSqft) existing.roomSizeSqft = area;
+      } else {
+        byKey.set(key, {
+          sharing,
+          ac,
+          bathroomKind,
+          furnishing,
+          roomSizeSqft: area && area > 0 ? area : null,
+          monthlyRentPaise: paise,
+          vacancyCount: vacancy,
+          availableFrom: null
+        });
+      }
+    }
+  }
+  return [...byKey.values()];
 }
 
 export interface PgInput {

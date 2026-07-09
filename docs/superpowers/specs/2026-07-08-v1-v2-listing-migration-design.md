@@ -137,14 +137,18 @@ emits `old_url → new_url`:
 - **new_url** = v2 canonical: `/{locale}/pg/{city}/{id}` (PG) or
   `/{locale}/listing/{id}` — built from the v2 listing UUID (v2 has **no listing
   slug**; confirmed in schema).
-- **old_url** = the **exact** indexed v1 URL, sourced from **Google Search
-  Console** (Performance → Pages export). For each `/properties/…-<id>` URL we
+- **old_url** = the **exact** indexed v1 URL, sourced from the **Google Search
+  Console** Performance → Pages export (in hand 2026-07-09 at
+  `~/Downloads/cribliv/Pages.csv`, **63 indexed pages**). For each listing URL we
   extract the trailing 24-hex `<id>`, join to `v1_migration_map.v1_id`, and pair
   it to the new_url. Using GSC (not regenerated slugs) means we redirect the
   URLs that actually hold SEO equity, exact-matched, ranked by impressions.
-- **PG URL path:** the three sampled URLs are all flats under `/properties/`.
-  The PG path (possibly `/pg/…`) will be confirmed from the same GSC export
-  before generating the map.
+- **PG URL path (RESOLVED):** PGs are served at `https://cribliv.com/pgs/<v1_id>`
+  and also `…/pgs/<slug>-<v1_id>` (both end in the 24-hex ObjectId → same
+  trailing-id extraction). Flats are `…/properties/<slug>-<v1_id>`.
+- **Index health (GSC Page Indexing, `~/Downloads/cribliv-2/`):** 58 URLs are
+  currently **404**, 19 already redirect, 24 crawled-not-indexed. A clean 301 map
+  at cutover recovers this lost equity rather than adding to it.
 
 The migration itself does **not** block on the 301 map — the map is a separate
 downstream generator that reads `v1_migration_map` + the GSC export at cutover.
