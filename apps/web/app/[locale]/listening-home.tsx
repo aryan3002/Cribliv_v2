@@ -9,6 +9,7 @@ import { HOME_CITY_COOKIE, resolveHomeCity } from "../../lib/home-city-config";
 import type { HeroPin } from "../../lib/hero-query";
 import { ListingCarousel } from "../../components/listing-carousel";
 import type { ListingCardData } from "../../components/listing-card";
+import { HomeHeroMapArt } from "../../components/home-hero-map-art";
 
 const HomeListeningHero = dynamic(() => import("../../components/home-listening-hero"), {
   ssr: false,
@@ -116,15 +117,15 @@ export async function ListeningHomePage({ locale }: { locale: Locale }) {
       />
 
       {/* ── Listening hero ── */}
-      {/* Task 4's Static Maps backdrop asset was skipped (403 on generation) —
-          there is no file under public/images/home/. The <Image> backdrop is
-          intentionally omitted here; the section falls back to the flat
-          .hero-listen background (#0F1728) defined in globals.css. Restore
-          the <Image src={`${city.backdrop}.png`} .../> once the asset lands. */}
+      {/* Backdrop is a designed inline-SVG dusk map (HomeHeroMapArt) — no
+          Maps billing, no network. Layer order matters: art, wash, then pins
+          ON TOP so rent labels stay crisp. */}
       <section className="hero-listen" data-submitting="false">
         <div className="hero-listen__backdrop" aria-hidden="true">
-          <div id="hero-listen-pins" className="hero-listen__pins" />
+          <HomeHeroMapArt />
           <div className="hero-listen__wash" />
+          <div className="hero-listen__glow" />
+          <div id="hero-listen-pins" className="hero-listen__pins" />
         </div>
         <div className="hero-listen__glass">
           <h1 className="hero-listen__title">{t(locale, "listenHeroTitle")}</h1>
@@ -166,24 +167,34 @@ export async function ListeningHomePage({ locale }: { locale: Locale }) {
       )}
 
       {/* ── Maya showcase ── */}
-      <section className="home-section home-section--surface">
+      <section className="home-section maya-band-section">
         <div className="container">
-          <div className="edi-head">
-            <div>
-              <span className="edi-eyebrow">{isHindi ? "AI वॉइस" : "AI Voice"}</span>
-              <h2 className="edi-title">{t(locale, "mayaSectionTitle")}</h2>
+          <div className="maya-band">
+            <div className="maya-band__copy">
+              <span className="maya-band__eyebrow">{isHindi ? "AI वॉइस" : "AI Voice"}</span>
+              <h2 className="maya-band__title">{t(locale, "mayaSectionTitle")}</h2>
+              <p className="maya-band__sub">{t(locale, "mayaSectionSub")}</p>
+              <Link href={`/${locale}/owner/listings/new` as Route} className="maya-band__cta">
+                {t(locale, "mayaSectionCta")} <ArrowRight size={16} />
+              </Link>
             </div>
-            <p className="edi-lede">{t(locale, "mayaSectionSub")}</p>
+            <div className="maya-band__stage" aria-hidden="true">
+              <div className="maya-band__orb">
+                <span className="maya-band__ring" />
+                <span className="maya-band__ring maya-band__ring--2" />
+                <Mic size={26} />
+              </div>
+              <div className="maya-band__bubble maya-band__bubble--maya">
+                नमस्ते! मैं Maya हूँ — boliye…
+              </div>
+              <div className="maya-band__bubble maya-band__bubble--user">
+                &ldquo;2BHK, Gomti Nagar, semi-furnished&rdquo;
+              </div>
+              <div className="maya-band__bubble maya-band__bubble--field">
+                <span className="maya-band__check">✓</span> BHK · Locality · Rent filled
+              </div>
+            </div>
           </div>
-          <Link href={`/${locale}/owner/listings/new` as Route} className="ai-feature">
-            <div className="ai-mini-mic" aria-hidden="true">
-              <Mic size={22} />
-            </div>
-            <div className="ai-bubble">नमस्ते! Boliye…</div>
-            <span className="ai-feature__cta">
-              {t(locale, "mayaSectionCta")} <ArrowRight size={14} />
-            </span>
-          </Link>
         </div>
       </section>
 
@@ -229,13 +240,14 @@ export async function ListeningHomePage({ locale }: { locale: Locale }) {
         <div className="container">
           <p className="home-city-strip__label">{t(locale, "listenHeroCityStrip")}</p>
           <p className="home-city-strip__links">
-            {CITY_LINKS.map((slug, i) => (
-              <span key={slug}>
-                {i > 0 && <span aria-hidden="true"> · </span>}
-                <Link href={`/${locale}/city/${slug}` as Route}>
-                  {slug.charAt(0).toUpperCase() + slug.slice(1)}
-                </Link>
-              </span>
+            {CITY_LINKS.map((slug) => (
+              <Link
+                key={slug}
+                href={`/${locale}/city/${slug}` as Route}
+                className="home-city-strip__link"
+              >
+                {slug.charAt(0).toUpperCase() + slug.slice(1)}
+              </Link>
             ))}
           </p>
         </div>

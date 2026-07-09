@@ -262,15 +262,33 @@ export default function HomeListeningHero({
     [submitWith, chips, query, chipConfidence]
   );
 
-  const counter = (() => {
-    if (!showCount) return fill(t(locale, "listenHeroGrowing"), { city: cityLabel });
+  // Counter as JSX so the number gets its own styled span (amber, tabular).
+  const counterNode = (() => {
+    if (!showCount) return <>{fill(t(locale, "listenHeroGrowing"), { city: cityLabel })}</>;
+    let template: string;
+    let n: string;
     if (chips.length === 0) {
-      return totalCount === null
-        ? null
-        : fill(t(locale, "listenHeroCountIdle"), { n: String(totalCount), city: cityLabel });
+      if (totalCount === null) return null;
+      template = fill(t(locale, "listenHeroCountIdle"), { city: cityLabel });
+      n = String(totalCount);
+    } else if (matchCount === null) {
+      template = t(locale, "listenHeroCountMatching");
+      n = "…";
+    } else if (matchCount === 0) {
+      // "0 homes match" is a small-number confession — never render it.
+      return <>{t(locale, "listenHeroCountZero")}</>;
+    } else {
+      template = t(locale, "listenHeroCountReady");
+      n = String(matchCount);
     }
-    if (matchCount === null) return fill(t(locale, "listenHeroCountMatching"), { n: "…" });
-    return fill(t(locale, "listenHeroCountReady"), { n: String(matchCount) });
+    const [before, after = ""] = template.split("{n}");
+    return (
+      <>
+        {before}
+        <span className="hero-listen__counter-num">{n}</span>
+        {after}
+      </>
+    );
   })();
 
   // ---- Pin layer (portaled into the server-rendered backdrop container) ----
@@ -290,13 +308,17 @@ export default function HomeListeningHero({
   const pinLayer =
     pinHost && showCount
       ? createPortal(
-          projected.map(({ pin, pos }) => {
+          projected.map(({ pin, pos }, i) => {
             const matches = chips.length === 0 || pinMatchesChips(pin, chips);
             return (
               <span
                 key={pin.id}
                 className={`hero-listen__pin${matches ? "" : " hero-listen__pin--dim"}`}
-                style={{ left: `${pos.xPct}%`, top: `${pos.yPct}%` }}
+                style={{
+                  left: `${pos.xPct}%`,
+                  top: `${pos.yPct}%`,
+                  animationDelay: `${Math.min(i, 24) * 45}ms`
+                }}
               >
                 {labelledIds.has(pin.id) && (
                   <span className="hero-listen__pin-label">
@@ -370,9 +392,9 @@ export default function HomeListeningHero({
           )}
         </div>
 
-        {counter && (
+        {counterNode && (
           <p className="hero-listen__counter" aria-hidden="true">
-            {counter}
+            {counterNode}
           </p>
         )}
         <p className="sr-only" aria-live="polite">

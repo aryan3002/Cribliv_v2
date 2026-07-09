@@ -328,6 +328,10 @@ const dictionary: Dictionary = {
     en: "{n} homes match — press enter or keep talking",
     hi: "{n} घर मैच — एंटर दबाएँ या बोलते रहें"
   },
+  listenHeroCountZero: {
+    en: "No exact matches yet — try widening, or press enter to explore",
+    hi: "अभी कोई सटीक मैच नहीं — थोड़ा बदलें या एंटर दबाकर देखें"
+  },
   listenHeroListening: { en: "Listening…", hi: "सुन रहे हैं…" },
   listenHeroGrowing: {
     en: "Cribliv is growing in {city} — tell us what you need",
