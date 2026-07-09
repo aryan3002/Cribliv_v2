@@ -33,22 +33,24 @@ DATABASE_URL="$DATABASE_URL" node ../../infra/migrations/run-migrations.js
 psql "$DATABASE_URL" -c "\d v1_migration_map"
 ```
 
-## Step 1 — flats (photos ON)
+## Step 1 — flats
+
+**Dry-run with `--skip-photos`** (fast — validates the DB mapping in seconds without copying photos), then **apply WITHOUT `--skip-photos`** so photos copy exactly once. (Running the dry-run with photos ON would upload every photo, roll the DB back, then re-upload on apply — double the slow part.)
 
 ```bash
-# DRY-RUN — review the report (expect migrated ~67, owner source {mongo:...}, photos ok/fail)
-pnpm migrate:v1 --collection properties
-# APPLY
+# DRY-RUN — fast DB validation (expect migrated ~67, owner source {mongo:...})
+pnpm migrate:v1 --collection properties --skip-photos
+# APPLY — copies Cloudinary→Azure photos (the slow step; watch photos ok/fail)
 pnpm migrate:v1 --collection properties --apply
 ```
 
-Watch **`photos ok/fail`** — this is the first real Cloudinary→Azure copy. A few failures are logged per-photo and are non-fatal (re-runnable). `unmapped amenities: Park` lines are expected.
+Watch **`photos ok/fail`** on the apply — this is the first real Cloudinary→Azure copy. A few failures are logged per-photo and are non-fatal (re-runnable). `unmapped amenities: Park` lines are expected.
 
-## Step 2 — PGs (photos ON)
+## Step 2 — PGs
 
 ```bash
-pnpm migrate:v1 --collection pgs            # dry-run
-pnpm migrate:v1 --collection pgs --apply    # apply
+pnpm migrate:v1 --collection pgs --skip-photos   # dry-run (fast)
+pnpm migrate:v1 --collection pgs --apply         # apply (photos copy)
 ```
 
 Expected `unmapped amenities: Room Heater` on ~3 PGs (no v2 code — intended).
