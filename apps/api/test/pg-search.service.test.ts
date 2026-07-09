@@ -147,7 +147,7 @@ describe("PgSearchService.search", () => {
     expect(listing?.verified).toBe(true);
   });
 
-  it("suggest keeps seeded PG cities and localities visible when inventory is zero", async () => {
+  it("suggest includes seeded city localities when the term matches city slug", async () => {
     const calls: string[] = [];
     const database = {
       isEnabled: () => true,
@@ -168,6 +168,10 @@ describe("PgSearchService.search", () => {
           };
         }
         if (/FROM localities loc/.test(sql)) {
+          const hasCityMatchPredicate =
+            /c\.slug ILIKE '%' \|\| \$1 \|\| '%'/i.test(sql) &&
+            /c\.name_en ILIKE '%' \|\| \$1 \|\| '%'/i.test(sql);
+          if (!hasCityMatchPredicate) return { rows: [], rowCount: 0 };
           return {
             rows: [
               {
@@ -195,6 +199,8 @@ describe("PgSearchService.search", () => {
     expect(citySql).not.toMatch(/stats\.listing_count > 0/);
     expect(localitySql).toMatch(/LEFT JOIN LATERAL/);
     expect(localitySql).not.toMatch(/stats\.listing_count > 0/);
+    expect(localitySql).toMatch(/c\.slug ILIKE '%' \|\| \$1 \|\| '%'/);
+    expect(localitySql).toMatch(/c\.name_en ILIKE '%' \|\| \$1 \|\| '%'/);
     expect(rows).toEqual([
       { type: "city", label: "Noida", value: "noida", listing_count: 0 },
       {

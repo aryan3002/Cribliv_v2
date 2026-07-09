@@ -308,7 +308,11 @@ export class PgSearchService {
               COALESCE(stats.listing_count, 0)::int AS listing_count,
               stats.min_rent::int AS min_rent,
               stats.max_rent::int AS max_rent,
-              similarity(loc.name_en, $1) AS sim
+              GREATEST(similarity(loc.name_en, $1), similarity(c.name_en, $1), similarity(c.slug, $1)) AS sim,
+              CASE
+                WHEN (c.slug ILIKE '%' || $1 || '%' OR c.name_en ILIKE '%' || $1 || '%' OR c.name_hi ILIKE '%' || $1 || '%') THEN 1
+                ELSE 0
+              END AS city_match
        FROM localities loc
        JOIN cities c ON c.id = loc.city_id
        LEFT JOIN LATERAL (
@@ -318,8 +322,15 @@ export class PgSearchService {
          WHERE l.status = 'active' AND l.listing_type = 'pg' AND ll.locality_id = loc.id
        ) stats ON true
        WHERE c.is_active = true
-         AND (similarity(loc.name_en, $1) > 0.15 OR loc.name_en ILIKE '%' || $1 || '%' OR loc.name_hi ILIKE '%' || $1 || '%')
-       ORDER BY sim DESC
+         AND (
+           similarity(loc.name_en, $1) > 0.15
+           OR loc.name_en ILIKE '%' || $1 || '%'
+           OR loc.name_hi ILIKE '%' || $1 || '%'
+           OR c.slug ILIKE '%' || $1 || '%'
+           OR c.name_en ILIKE '%' || $1 || '%'
+           OR c.name_hi ILIKE '%' || $1 || '%'
+         )
+       ORDER BY city_match DESC, sim DESC, loc.name_en ASC
        LIMIT 3`,
         [term]
       ),
