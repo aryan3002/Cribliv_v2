@@ -24,6 +24,7 @@ const fakeDb = {
 const fakeLlm = {
   requestTurn: async () => ({ finalText: "", toolCalls: [], done: true })
 };
+const appState = new AppStateService();
 
 @Module({
   providers: [
@@ -31,7 +32,7 @@ const fakeLlm = {
     PgVoiceSessionService,
     PgExtractionService,
     PgConversationOrchestrator,
-    AppStateService,
+    { provide: AppStateService, useValue: appState },
     { provide: DatabaseService, useValue: fakeDb },
     { provide: PgLlmClient, useValue: fakeLlm }
   ]
@@ -58,19 +59,30 @@ describe("VoiceAgentPgGateway (integration)", () => {
   });
 
   let testOperatorCounter = 0;
-  // Gateway now validates operator UUID format and rejects non-UUID handshakes
-  // with `unauth_handshake`. Tests synthesise a deterministic UUID per client.
+  // Gateway authenticates WebSocket handshakes with the same access-token
+  // contract as HTTP. Tests synthesize one operator session per client so the
+  // per-operator daily cap does not couple otherwise independent cases.
   function makeOpUuid(n: number): string {
     const seq = String(n).padStart(12, "0");
     return `00000000-0000-0000-0000-${seq}`;
   }
-  async function newClient(): Promise<ClientSocket> {
+  function makeOperatorToken(): string {
     testOperatorCounter++;
+    const operatorId = makeOpUuid(testOperatorCounter);
+    appState.users.set(operatorId, {
+      id: operatorId,
+      phone: `+91988888${String(testOperatorCounter).padStart(4, "0")}`,
+      role: "pg_operator",
+      preferred_language: "en"
+    });
+    return appState.createSession(operatorId).accessToken;
+  }
+  async function newClient(): Promise<ClientSocket> {
     const c = ioClient(url, {
       transports: ["websocket", "polling"],
       forceNew: true,
       reconnection: false,
-      auth: { userId: makeOpUuid(testOperatorCounter) }
+      auth: { token: makeOperatorToken() }
     });
     await new Promise<void>((resolve, reject) => {
       const tm = setTimeout(() => reject(new Error(`connect timeout url=${url}`)), 4000);
