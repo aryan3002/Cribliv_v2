@@ -20321,3 +20321,22 @@ a.feature-card:hover .icon-circle {
     font-size: 22px;
   }
 }
+
+.home-city-strip-section {
+  padding: var(--space-8) 0;
+}
+.home-city-strip__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #667);
+  margin: 0 0 var(--space-2);
+}
+.home-city-strip__links {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.9;
+}
+.home-city-strip__links a {
+  color: var(--brand);
+  text-decoration: none;
+}

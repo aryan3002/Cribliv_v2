@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { ListingCarousel } from "../../components/listing-carousel";
 import { ListingCardItem, type ListingCardData } from "../../components/listing-card";
+import { ListeningHomePage } from "./listening-home";
 
 /* City photos: Unsplash free license — unsplash.com/license */
 
@@ -186,6 +187,12 @@ function formatCompactCount(value: number): string {
 }
 
 export default async function HomePage({ params }: { params: { locale: Locale } }) {
+  const listeningHeroEnabled =
+    process.env.NEXT_PUBLIC_FF_LISTENING_HERO === "1" ||
+    process.env.NEXT_PUBLIC_FF_LISTENING_HERO === "true";
+  if (listeningHeroEnabled) {
+    return <ListeningHomePage locale={params.locale} />;
+  }
   const isHindi = params.locale === "hi";
 
   // Fetch popular localities for the bar
