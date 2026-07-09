@@ -20308,7 +20308,8 @@ a.feature-card:hover .icon-circle {
     animation: none;
   }
   .hero-listen__glass,
-  .hero-listen__pin {
+  .hero-listen__pin,
+  .hero-listen[data-submitting="true"] .hero-listen__backdrop img {
     transition: none;
   }
 }

@@ -146,6 +146,7 @@ export default function HomeListeningHero({
   useEffect(() => {
     if (countTimerRef.current) clearTimeout(countTimerRef.current);
     if (chips.length === 0) {
+      countAbortRef.current?.abort();
       setMatchCount(null);
       return;
     }
@@ -169,6 +170,7 @@ export default function HomeListeningHero({
     }, COUNT_DEBOUNCE_MS);
     return () => {
       if (countTimerRef.current) clearTimeout(countTimerRef.current);
+      countAbortRef.current?.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chipsSignature, city.slug]);
@@ -199,22 +201,26 @@ export default function HomeListeningHero({
     [router, reducedMotion]
   );
 
-  const handleSubmit = useCallback(
-    (e?: React.FormEvent) => {
-      e?.preventDefault();
+  // Submit with an explicit chip set / query / confidence rather than the
+  // component's state. The voice path parses the final transcript and calls
+  // this synchronously — it must NOT rely on `query`/`chips` state, which the
+  // preceding `setQuery(text)` hasn't flushed yet (stale-closure bug).
+  const submitWith = useCallback(
+    (chipsToUse: ParsedChip[], queryText: string, confidenceToUse: number) => {
       if (submitting) return;
+      const trimmed = queryText.trim();
       const url =
-        chips.length > 0
-          ? buildMapHandoffUrl(locale, chips, city, pins)
+        chipsToUse.length > 0
+          ? buildMapHandoffUrl(locale, chipsToUse, city, pins)
           : `/${locale}/map?city=${city.slug}&src=hero${
-              query.trim() ? `&q=${encodeURIComponent(query.trim())}` : ""
+              trimmed ? `&q=${encodeURIComponent(trimmed)}` : ""
             }`;
       track("hero_submitted", {
-        chips_count: chips.length,
-        confidence: chipConfidence,
-        source: chips.length > 0 && chipConfidence >= 0.7 ? "fastpath" : "regex",
+        chips_count: chipsToUse.length,
+        confidence: confidenceToUse,
+        source: chipsToUse.length > 0 && confidenceToUse >= 0.7 ? "fastpath" : "regex",
         match_count: matchCount ?? -1,
-        query_length: query.length
+        query_length: queryText.length
       });
       document.cookie = `${HOME_CITY_COOKIE}=${city.slug};path=/;max-age=${60 * 60 * 24 * 90}`;
       setSubmitting(true);
@@ -225,18 +231,15 @@ export default function HomeListeningHero({
         setTimeout(() => navigate(url), 350);
       }
     },
-    [
-      chips,
-      chipConfidence,
-      city,
-      locale,
-      matchCount,
-      navigate,
-      pins,
-      query,
-      reducedMotion,
-      submitting
-    ]
+    [city, locale, matchCount, navigate, pins, reducedMotion, submitting]
+  );
+
+  const handleSubmit = useCallback(
+    (e?: React.FormEvent) => {
+      e?.preventDefault();
+      submitWith(chips, query, chipConfidence);
+    },
+    [submitWith, chips, query, chipConfidence]
   );
 
   const counter = (() => {
@@ -315,10 +318,13 @@ export default function HomeListeningHero({
               if (stage === "listening") track("hero_voice_started", { path: "webspeech" });
             }}
             onResult={(result) => {
-              const text = result.transcription?.text?.trim();
-              track("hero_voice_transcript", { length: text?.length ?? 0, locale });
+              const text = result.transcription?.text?.trim() ?? "";
+              track("hero_voice_transcript", { length: text.length, locale });
               if (text) setQuery(text);
-              handleSubmit();
+              // Submit with the freshly parsed transcript — not the stale
+              // `chips`/`query` state, which the setQuery above hasn't flushed.
+              const parsed = parseQuery(text, dictionary.cities, dictionary.localities);
+              submitWith(parsed.chips, text, parsed.confidence);
             }}
           />
           <button type="submit" className="hero-listen__submit" disabled={submitting}>
