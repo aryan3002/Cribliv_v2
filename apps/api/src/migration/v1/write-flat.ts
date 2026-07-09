@@ -162,6 +162,7 @@ export async function writeFlat(
   );
   report.migrated++;
   report.ownerSource[ownerSource] = (report.ownerSource[ownerSource] ?? 0) + 1;
+  if (flat.warnings.length) report.add("warn", `${flat.v1Id}: ${flat.warnings.join("; ")}`);
 }
 
 async function ownerPhone(client: Q, ownerId: string): Promise<string | null> {

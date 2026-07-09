@@ -169,4 +169,5 @@ export async function writePg(
   );
   report.migrated++;
   report.ownerSource[ownerSource] = (report.ownerSource[ownerSource] ?? 0) + 1;
+  if (pg.warnings.length) report.add("warn", `PG ${pg.v1Id}: ${pg.warnings.join("; ")}`);
 }
