@@ -51,137 +51,6 @@ type BlendedSuggestion =
   | { source: "cribliv"; data: CriblivSuggestion }
   | { source: "google"; data: PlacePrediction };
 
-const FALLBACK_SUGGESTIONS: CriblivSuggestion[] = [
-  {
-    type: "city",
-    label: "Delhi",
-    value: "delhi",
-    listing_count: 1240,
-    rent_band: { min: 12000, max: 42000 }
-  },
-  {
-    type: "city",
-    label: "Gurugram",
-    value: "gurugram",
-    listing_count: 980,
-    rent_band: { min: 16000, max: 52000 }
-  },
-  {
-    type: "city",
-    label: "Noida",
-    value: "noida",
-    listing_count: 860,
-    rent_band: { min: 10000, max: 34000 }
-  },
-  {
-    type: "city",
-    label: "Ghaziabad",
-    value: "ghaziabad",
-    listing_count: 520,
-    rent_band: { min: 8000, max: 26000 }
-  },
-  {
-    type: "city",
-    label: "Faridabad",
-    value: "faridabad",
-    listing_count: 410,
-    rent_band: { min: 8000, max: 24000 }
-  },
-  {
-    type: "city",
-    label: "Chandigarh",
-    value: "chandigarh",
-    listing_count: 390,
-    rent_band: { min: 14000, max: 38000 }
-  },
-  {
-    type: "city",
-    label: "Jaipur",
-    value: "jaipur",
-    listing_count: 610,
-    rent_band: { min: 8000, max: 28000 }
-  },
-  {
-    type: "city",
-    label: "Lucknow",
-    value: "lucknow",
-    listing_count: 740,
-    rent_band: { min: 12000, max: 30000 }
-  },
-  {
-    type: "locality",
-    label: "Gomti Nagar, Lucknow",
-    value: "gomti-nagar",
-    city_slug: "lucknow",
-    listing_count: 84,
-    rent_band: { min: 11000, max: 32000 }
-  },
-  {
-    type: "locality",
-    label: "Indira Nagar, Lucknow",
-    value: "indira-nagar",
-    city_slug: "lucknow",
-    listing_count: 62,
-    rent_band: { min: 9000, max: 26000 }
-  },
-  {
-    type: "locality",
-    label: "Lucknow Cantt, Lucknow",
-    value: "lucknow-cantt",
-    city_slug: "lucknow",
-    listing_count: 38,
-    rent_band: { min: 10000, max: 28000 }
-  },
-  {
-    type: "locality",
-    label: "Sector 62, Noida",
-    value: "sector-62",
-    city_slug: "noida",
-    listing_count: 72,
-    rent_band: { min: 12000, max: 36000 }
-  },
-  {
-    type: "locality",
-    label: "Cyber City, Gurugram",
-    value: "cyber-city",
-    city_slug: "gurugram",
-    listing_count: 41,
-    rent_band: { min: 22000, max: 62000 }
-  }
-];
-
-function normalizeSuggestionText(value: string): string {
-  return value.toLowerCase().replace(/[-_]+/g, " ");
-}
-
-function fallbackCriblivSuggestions(q: string, segment: "homes" | "pg"): CriblivSuggestion[] {
-  const normalized = normalizeSuggestionText(q.trim());
-  if (normalized.length < 2) return [];
-
-  const scored = FALLBACK_SUGGESTIONS.map((item) => {
-    const haystack = normalizeSuggestionText(
-      [item.label, item.value, item.city_slug, item.type].filter(Boolean).join(" ")
-    );
-    const exact = haystack === normalized;
-    const starts = haystack.startsWith(normalized);
-    const includes = haystack.includes(normalized);
-    const cityBoost =
-      item.type === "locality" && item.city_slug
-        ? normalizeSuggestionText(item.city_slug).includes(normalized)
-        : false;
-    const segmentBoost = segment === "pg" ? 0.5 : 0;
-    const score = exact ? 100 : starts ? 70 : includes ? 45 : cityBoost ? 32 : 0;
-    return { item, score: score + segmentBoost };
-  })
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score || (b.item.listing_count ?? 0) - (a.item.listing_count ?? 0))
-    .map(({ item }) => item);
-
-  const cityMatches = scored.filter((item) => item.type === "city").slice(0, 2);
-  const localityMatches = scored.filter((item) => item.type === "locality").slice(0, 4);
-  return [...cityMatches, ...localityMatches].slice(0, 6);
-}
-
 export function SearchHero({ locale }: { locale: Locale }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -272,13 +141,12 @@ export function SearchHero({ locale }: { locale: Locale }) {
         const res = await fetch(`${base}${path}?q=${encodeURIComponent(q)}&limit=6`, { signal });
         if (res.ok) {
           const body = await res.json();
-          const data = body.data ?? [];
-          return data.length > 0 ? data : fallbackCriblivSuggestions(q, segment);
+          return Array.isArray(body.data) ? body.data : [];
         }
       } catch {
         /* aborted or network error */
       }
-      return fallbackCriblivSuggestions(q, segment);
+      return [];
     },
     [segment]
   );
@@ -773,7 +641,11 @@ function SectionedDropdown({
     cities.length + localities.length + listings.length + google.length > 0 || showRecent;
 
   // -- Preview hover state --
-  const [hovered, setHovered] = useState<{ type: "city" | "locality"; slug: string } | null>(null);
+  const [hovered, setHovered] = useState<{
+    type: "city" | "locality";
+    slug: string;
+    citySlug?: string;
+  } | null>(null);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -786,7 +658,7 @@ function SectionedDropdown({
       setHovered({ type: "city", slug: cities[0].data.value });
     } else if (localities[0]) {
       const slug = localities[0].data.value;
-      setHovered({ type: "locality", slug });
+      setHovered({ type: "locality", slug, citySlug: localities[0].data.city_slug });
     } else {
       setHovered(null);
       setPreview(null);
@@ -802,7 +674,7 @@ function SectionedDropdown({
       setPreview(null);
       return;
     }
-    const key = `${segment}:${hovered.type}:${hovered.slug}`;
+    const key = `${segment}:${hovered.type}:${hovered.slug}:${hovered.citySlug ?? ""}`;
     const cached = previewCacheRef.current.get(key);
     if (cached !== undefined) {
       setPreview(cached);
@@ -821,7 +693,11 @@ function SectionedDropdown({
     // PG mode reads the PG-scoped preview so the hover card shows PG inventory
     // (count, rent band, sharing) instead of flat/house data.
     const previewPath = segment === "pg" ? "/pg/preview" : "/listings/search/preview";
-    fetch(`${base}${previewPath}?type=${hovered.type}&value=${encodeURIComponent(hovered.slug)}`, {
+    const params = new URLSearchParams({ type: hovered.type, value: hovered.slug });
+    if (hovered.type === "locality" && hovered.citySlug) {
+      params.set("city", hovered.citySlug);
+    }
+    fetch(`${base}${previewPath}?${params.toString()}`, {
       signal: controller.signal
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -839,10 +715,10 @@ function SectionedDropdown({
       });
   }, [hovered, segment]);
 
-  function scheduleHover(type: "city" | "locality", slug: string) {
+  function scheduleHover(type: "city" | "locality", slug: string, citySlug?: string) {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => {
-      setHovered({ type, slug });
+      setHovered({ type, slug, citySlug });
     }, 180);
   }
 
@@ -855,7 +731,10 @@ function SectionedDropdown({
   const showPreviewPane = (cities.length > 0 || localities.length > 0) && hovered !== null;
   const previewSeed = hovered
     ? [...cities, ...localities].find(
-        (s) => s.data.type === hovered.type && s.data.value === hovered.slug
+        (s) =>
+          s.data.type === hovered.type &&
+          s.data.value === hovered.slug &&
+          (hovered.type === "city" || s.data.city_slug === hovered.citySlug)
       )?.data
     : null;
   const previewFromSeed = previewSeed ? previewFromSuggestion(previewSeed, segment) : null;
@@ -888,7 +767,7 @@ function SectionedDropdown({
                 key={`l-${s.data.value}-${i}`}
                 data={s.data}
                 onClick={() => onPickSuggestion(s)}
-                onHover={() => scheduleHover("locality", s.data.value)}
+                onHover={() => scheduleHover("locality", s.data.value, s.data.city_slug)}
                 onLeave={cancelHover}
               />
             ))}
@@ -957,9 +836,9 @@ function previewFromSuggestion(
     city_slug: suggestion.city_slug,
     listing_count: suggestion.listing_count ?? 0,
     rent_band: suggestion.rent_band ?? null,
-    verified_pct: suggestion.listing_count ? 100 : null,
-    avg_bhk: segment === "pg" ? null : 2.3,
-    sharing: segment === "pg" ? ["single", "double"] : undefined,
+    verified_pct: null,
+    avg_bhk: null,
+    sharing: segment === "pg" ? [] : undefined,
     sample_photos: []
   };
 }

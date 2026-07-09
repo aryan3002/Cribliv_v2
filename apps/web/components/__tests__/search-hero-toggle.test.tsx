@@ -135,6 +135,90 @@ describe("SearchHero Homes|PG toggle", () => {
 
     expect(push).toHaveBeenCalledWith("/en/pg/lucknow/pg-1");
   });
+
+  it("does not render hardcoded PG fallback inventory when suggest returns empty", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/pg/suggest")) {
+        return { ok: true, json: async () => ({ data: [] }) };
+      }
+      return { ok: true, json: async () => ({ data: { cities: [], localities: [] } }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SearchHero locale="en" />);
+    fireEvent.click(screen.getByRole("button", { name: /^PG$/i }));
+    fireEvent.change(screen.getByLabelText(/agentic search/i), { target: { value: "Noida" } });
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/pg/suggest"))).toBe(true);
+    });
+    expect(screen.queryByText(/860 listings/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sector 62/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("requests PG locality preview with the suggestion city slug", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      const u = String(url);
+      if (u.includes("/pg/suggest")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: [
+              {
+                type: "locality",
+                label: "Sector 62, noida",
+                value: "sector-62",
+                city_slug: "noida",
+                listing_count: 0
+              }
+            ]
+          })
+        };
+      }
+      if (u.includes("/pg/preview")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              type: "locality",
+              slug: "sector-62",
+              name: "Sector 62",
+              city_slug: "noida",
+              listing_count: 0,
+              rent_band: null,
+              verified_pct: null,
+              avg_bhk: null,
+              sharing: [],
+              sample_photos: []
+            }
+          })
+        };
+      }
+      return { ok: true, json: async () => ({ data: { cities: [], localities: [] } }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SearchHero locale="en" />);
+    fireEvent.click(screen.getByRole("button", { name: /^PG$/i }));
+    fireEvent.change(screen.getByLabelText(/agentic search/i), { target: { value: "sector 62" } });
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) => {
+          const u = String(url);
+          return (
+            u.includes("/pg/preview") &&
+            u.includes("type=locality") &&
+            u.includes("value=sector-62") &&
+            u.includes("city=noida")
+          );
+        })
+      ).toBe(true);
+    });
+    expect(screen.queryByText(/72 listings/i)).not.toBeInTheDocument();
+  });
 });
 
 afterEach(() => {
