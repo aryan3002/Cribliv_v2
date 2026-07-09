@@ -40,11 +40,28 @@ export async function purgeNonMigrated(client: Q, _report: Report): Promise<void
   ).rows;
   bd.forEach((r: any) => console.log(`  ${r.listing_type}/${r.status}: ${r.n}`));
 
-  // 1. Clear blocking (NO ACTION) children of the fake listings.
-  for (const t of ["contact_unlocks", "shortlists", "verification_attempts", "sales_leads"]) {
-    const r = await client.query(`DELETE FROM ${t} WHERE listing_id IN (${fakeSel})`);
-    console.log(`  cleared ${t}: ${r.rowCount ?? 0}`);
-  }
+  // 1. Clear blocking (NO ACTION) descendants in child→parent order.
+  //    Verified full FK tree: contact_unlocks is itself blocked by contact_events + leads.
+  const unlocksOfFakes = `SELECT id FROM contact_unlocks WHERE listing_id IN (${fakeSel})`;
+  const clear = async (label: string, sql: string) => {
+    const r = await client.query(sql);
+    console.log(`  cleared ${label}: ${r.rowCount ?? 0}`);
+  };
+  await clear(
+    "contact_events",
+    `DELETE FROM contact_events WHERE contact_unlock_id IN (${unlocksOfFakes})`
+  );
+  await clear(
+    "leads",
+    `DELETE FROM leads WHERE listing_id IN (${fakeSel}) OR contact_unlock_id IN (${unlocksOfFakes})`
+  );
+  await clear("contact_unlocks", `DELETE FROM contact_unlocks WHERE listing_id IN (${fakeSel})`);
+  await clear("shortlists", `DELETE FROM shortlists WHERE listing_id IN (${fakeSel})`);
+  await clear(
+    "verification_attempts",
+    `DELETE FROM verification_attempts WHERE listing_id IN (${fakeSel})`
+  );
+  await clear("sales_leads", `DELETE FROM sales_leads WHERE listing_id IN (${fakeSel})`);
 
   // 2. Delete the fake listings (cascades locations/photos/events/scores/leads/boosts/metro_walks/fraud_flags).
   const delListings = await client.query(`DELETE FROM listings WHERE id IN (${fakeSel})`);
