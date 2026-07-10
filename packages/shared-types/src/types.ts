@@ -23,7 +23,9 @@ export type WalletTxnType =
   | "debit_contact_unlock"
   | "refund_no_response"
   | "admin_adjustment"
-  | "purchase_pack";
+  | "purchase_pack"
+  | "debit_lead_unlock"
+  | "refund_lead_dispute";
 
 export type UnlockStatus = "active" | "refunded" | "cancelled";
 
@@ -89,6 +91,12 @@ export type ListingEventType =
 
 export type LeadStatus = "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost";
 
+export type LeadAccessState = "free" | "locked" | "unlocked" | "expired";
+
+export type LeadCalledBy = "owner" | "team";
+
+export type CallbackStatus = "awaiting_call" | "call_claimed" | "refunded";
+
 export interface Lead {
   id: string;
   listing_id: string;
@@ -98,6 +106,13 @@ export interface Lead {
   status: LeadStatus;
   tenant_phone_masked?: string | null;
   owner_notes?: string | null;
+  access_state?: LeadAccessState;
+  call_deadline_at?: string | null;
+  called_at?: string | null;
+  called_by?: LeadCalledBy | null;
+  unlocked_at?: string | null;
+  tenant_confirmed_at?: string | null;
+  disputed_at?: string | null;
   status_changed_at: string;
   created_at: string;
 }

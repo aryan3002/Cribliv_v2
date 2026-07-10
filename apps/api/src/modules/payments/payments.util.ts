@@ -5,7 +5,10 @@ export type PaymentProvider = "razorpay" | "upi";
 
 export const CREDIT_PLANS = {
   starter_10: { amountPaise: 9900, credits: 10 },
-  growth_20: { amountPaise: 19900, credits: 20 }
+  growth_20: { amountPaise: 19900, credits: 20 },
+  // Owner lead-unlock packs (placeholder pricing per 2026-07-10 spec §4 — tune before launch)
+  leads_5: { amountPaise: 29900, credits: 5 },
+  leads_15: { amountPaise: 69900, credits: 15 }
 } as const;
 
 export type CreditPlanId = keyof typeof CREDIT_PLANS;
