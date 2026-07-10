@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   NotFoundException,
@@ -355,6 +356,33 @@ export class LeadsService {
         [ownerUserId, leadId, idempotencyKey]
       );
       const debitInserted = Boolean(debit.rows[0]?.id);
+      if (!debitInserted) {
+        // The key was already used. If it paid for THIS lead, the lead was
+        // flipped in that same transaction and the early idempotent-return
+        // path above would have caught it — reaching here means the key
+        // belongs to something else (another lead or another flow). Reject,
+        // mirroring the tenant-side duplicate_unlock guard.
+        const existingTxn = await client.query<{ id: string; reference_id: string | null }>(
+          `SELECT id::text, reference_id::text FROM wallet_transactions
+           WHERE wallet_user_id = $1::uuid AND idempotency_key = $2
+           LIMIT 1`,
+          [ownerUserId, idempotencyKey]
+        );
+        if (existingTxn.rows[0]?.reference_id !== leadId) {
+          throw new ConflictException({
+            code: "duplicate_unlock",
+            message: "Idempotency-Key already used for another unlock"
+          });
+        }
+        // Key matches this lead but the lead is still locked — heal by
+        // flipping it using the already-paid transaction.
+        await client.query(
+          `UPDATE leads SET access_state = 'unlocked', unlocked_at = COALESCE(unlocked_at, now()),
+                            unlock_txn_id = COALESCE(unlock_txn_id, $2::uuid), updated_at = now()
+           WHERE id = $1::uuid`,
+          [leadId, existingTxn.rows[0].id]
+        );
+      }
       if (debitInserted) {
         await client.query(
           `UPDATE wallets SET balance_credits = balance_credits - 1, updated_at = now()

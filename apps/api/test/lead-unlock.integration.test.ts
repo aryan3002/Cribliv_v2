@@ -34,13 +34,14 @@ async function loginWithOtp(app: INestApplication, phone: string) {
 describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
   let app: INestApplication;
   let db: Client;
-  const phones = [randPhone(), randPhone(), randPhone(), randPhone(), randPhone()];
-  const [ownerPhone, tenant1, tenant2, tenant3, tenant4] = phones;
+  const phones = [randPhone(), randPhone(), randPhone(), randPhone(), randPhone(), randPhone()];
+  const [ownerPhone, tenant1, tenant2, tenant3, tenant4, tenant5] = phones;
   let listingId: string;
   let ownerToken: string;
   let freeLeadId: string;
   let lockedLeadId: string;
   let expiredLeadId: string;
+  let otherLockedLeadId: string;
 
   beforeAll(async () => {
     process.env.DATABASE_URL = TEST_DB;
@@ -80,12 +81,13 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
       await new Promise((r) => setTimeout(r, 300));
     }
 
-    // First 2 tenants land free leads (first-2-free-per-owner); the next two
+    // First 2 tenants land free leads (first-2-free-per-owner); the rest
     // land locked leads.
     await requestCallback(tenant1, "lu-t1");
     await requestCallback(tenant2, "lu-t2");
     await requestCallback(tenant3, "lu-t3");
     await requestCallback(tenant4, "lu-t4");
+    await requestCallback(tenant5, "lu-t5");
 
     const leadsResult = await db.query<{ id: string; access_state: string }>(
       `SELECT id::text, access_state FROM leads WHERE listing_id = $1 ORDER BY created_at ASC`,
@@ -95,6 +97,7 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
     freeLeadId = rows[0].id;
     lockedLeadId = rows[2].id;
     expiredLeadId = rows[3].id;
+    otherLockedLeadId = rows[4].id;
   }, 60_000);
 
   afterAll(async () => {
@@ -177,6 +180,21 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
       [ownerPhone]
     );
     expect(txns.rows[0].n).toBe(1);
+  });
+
+  it("409s when the idempotency key was used for a different lead — no free reveal", async () => {
+    // ownerToken already has credits from the earlier seeding
+    const res = await http(app)
+      .post(`/v1/owner/leads/${otherLockedLeadId}/unlock`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set("Idempotency-Key", "lu-1") // the SAME key that unlocked lockedLeadId earlier
+      .expect(409);
+    expect(JSON.stringify(res.body)).toContain("duplicate_unlock");
+    expect(JSON.stringify(res.body)).not.toContain("+91"); // no phone leaked
+    const state = await db.query(`SELECT access_state FROM leads WHERE id = $1::uuid`, [
+      otherLockedLeadId
+    ]);
+    expect(state.rows[0].access_state).toBe("locked");
   });
 
   it("free leads unlock without debiting", async () => {
