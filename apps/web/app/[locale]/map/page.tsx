@@ -71,7 +71,7 @@ export default function MapPage({
   const initialCenter =
     Number.isFinite(latParam) && Number.isFinite(lngParam)
       ? { lat: latParam, lng: lngParam }
-      : cityCenter ?? undefined;
+      : (cityCenter ?? undefined);
   const initialZoom = Number.isFinite(zoomParam) ? zoomParam : cityCenter ? 12 : undefined;
 
   // Originating listing (?listing=<uuid>) — set by the listing detail page's
@@ -81,6 +81,10 @@ export default function MapPage({
     typeof searchParams.listing === "string" && /^[0-9a-f-]{36}$/i.test(searchParams.listing)
       ? searchParams.listing
       : undefined;
+
+  // Listening-hero handoff marker (?src=hero) — drives a one-shot entry
+  // fade and handoff analytics event in MapClient, then gets stripped.
+  const fromHero = searchParams.src === "hero";
 
   return (
     <MapClient
@@ -98,6 +102,7 @@ export default function MapPage({
       initialZoom={initialZoom}
       initialCity={initialCity}
       initialOriginatingListingId={initialOriginatingListingId}
+      fromHero={fromHero}
     />
   );
 }
