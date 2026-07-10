@@ -14,7 +14,10 @@ describe.runIf(!!TEST_DB)("migration 0053_lead_monetization", () => {
     await client.query(readFileSync(join(MIG, "0053_lead_monetization.sql"), "utf8"));
   });
   afterAll(async () => {
+    // Verify the rollback runs cleanly, then re-apply: other DB-gated suites
+    // share this database and need 0053 in place.
     await client.query(readFileSync(join(MIG, "0053_lead_monetization.rollback.sql"), "utf8"));
+    await client.query(readFileSync(join(MIG, "0053_lead_monetization.sql"), "utf8"));
     await client.end();
   });
 
