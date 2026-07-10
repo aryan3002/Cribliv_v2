@@ -28,18 +28,19 @@ function formatDeadline(iso: string) {
 }
 
 export function CallbacksClient() {
-  const { data: session } = useSession();
-  const [token, setToken] = useState<string | null>(null);
+  const { data: session, status: sessionStatus } = useSession();
+  const [token, setToken] = useState<string | null | undefined>(undefined);
   const [items, setItems] = useState<CallbackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (sessionStatus === "loading") return;
     const stored = readAuthSession();
     const nextAuthToken = (session as { accessToken?: string } | null)?.accessToken ?? null;
-    setToken(stored?.access_token ?? nextAuthToken);
-  }, [session]);
+    setToken(stored?.access_token ?? nextAuthToken ?? null);
+  }, [session, sessionStatus]);
 
   async function load(activeToken: string) {
     setLoading(true);
@@ -79,7 +80,10 @@ export function CallbacksClient() {
     }
   }
 
-  if (!token && !loading) {
+  if (token === undefined) {
+    return <p style={{ padding: "var(--space-6)" }}>Loading…</p>;
+  }
+  if (token === null) {
     return <p style={{ padding: "var(--space-6)" }}>Please log in to see your callbacks.</p>;
   }
 
