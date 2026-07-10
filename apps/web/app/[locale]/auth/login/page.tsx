@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import type { UserRole } from "../../../../auth.config";
 import { BrandLockup } from "../../../../components/brand/brand-lockup";
+import { t } from "../../../../lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -110,7 +111,8 @@ function LoginPageInner() {
   const fromPath = normalizeFromPath(params.get("from"), locale);
 
   // UI state
-  const [tab, setTab] = useState<"login" | "signup">("login");
+  const initialTab = params.get("tab") === "signup" ? "signup" : "login";
+  const [tab, setTab] = useState<"login" | "signup">(initialTab);
   const [step, setStep] = useState<1 | 2>(1);
 
   // Form state
@@ -367,6 +369,30 @@ function LoginPageInner() {
               </button>
             ))}
           </motion.div>
+
+          {/* Signup benefits strip */}
+          {tab === "signup" ? (
+            <div
+              className="auth-benefits"
+              data-testid="signup-benefits"
+              style={{
+                margin: "var(--space-3) 0",
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-1)"
+              }}
+            >
+              {(["loginBenefit1", "loginBenefit2", "loginBenefit3"] as const).map((key) => (
+                <p
+                  key={key}
+                  className="caption"
+                  style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}
+                >
+                  <span aria-hidden="true">✦</span> {t(locale, key)}
+                </p>
+              ))}
+            </div>
+          ) : null}
 
           {/* Step 1 — Phone */}
           {step === 1 && (
