@@ -42,6 +42,8 @@ export const analyticsEvents = [
   "callback_requested",
   "callback_confirmed",
   "callback_disputed",
+  // Lead monetization — one-time welcome credits celebration
+  "welcome_credits_shown",
   // Phase C – Voice search events
   "voice_search_started",
   "voice_search_recording_complete",
