@@ -39,6 +39,7 @@ describe.runIf(!!TEST_DB)("lead call-click (DB)", () => {
   let listingId: string;
   let ownerToken: string;
   let freeLeadId: string;
+  let secondFreeLeadId: string;
   let lockedLeadId: string;
 
   beforeAll(async () => {
@@ -91,6 +92,7 @@ describe.runIf(!!TEST_DB)("lead call-click (DB)", () => {
     );
     const rows = leadsResult.rows;
     freeLeadId = rows[0].id;
+    secondFreeLeadId = rows[1].id;
     lockedLeadId = rows[2].id;
   }, 60_000);
 
@@ -164,5 +166,27 @@ describe.runIf(!!TEST_DB)("lead call-click (DB)", () => {
       .post(`/v1/owner/leads/${lockedLeadId}/call-click`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .expect(409);
+  });
+
+  it("legacy /owner/contact-unlocks/:id/responded also stamps the linked lead as called", async () => {
+    const before = await db.query<{ contact_unlock_id: string; called_at: string | null }>(
+      `SELECT contact_unlock_id::text, called_at::text FROM leads WHERE id = $1::uuid`,
+      [secondFreeLeadId]
+    );
+    const contactUnlockId = before.rows[0].contact_unlock_id;
+    expect(before.rows[0].called_at).toBeNull();
+
+    await http(app)
+      .post(`/v1/owner/contact-unlocks/${contactUnlockId}/responded`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ channel: "call" })
+      .expect(201);
+
+    const after = await db.query<{ called_at: string | null; called_by: string | null }>(
+      `SELECT called_at::text, called_by FROM leads WHERE id = $1::uuid`,
+      [secondFreeLeadId]
+    );
+    expect(after.rows[0].called_at).not.toBeNull();
+    expect(after.rows[0].called_by).toBe("owner");
   });
 });

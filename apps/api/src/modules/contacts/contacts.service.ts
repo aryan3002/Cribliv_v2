@@ -625,6 +625,16 @@ export class ContactsService {
         [unlockId, JSON.stringify({ channel })]
       );
 
+      if (readFeatureFlags().ff_callback_leads) {
+        // Callback model: a responded unlock IS a claimed call — stamp the
+        // linked lead so dispute fraud-accounting and the owner card agree.
+        await client.query(
+          `UPDATE leads SET called_at = now(), called_by = 'owner', updated_at = now()
+           WHERE contact_unlock_id = $1::uuid AND called_at IS NULL`,
+          [unlockId]
+        );
+      }
+
       await client.query("COMMIT");
       const updated = updateResult.rows[0];
       logTelemetry("contact.owner_responded", {
