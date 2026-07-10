@@ -63,6 +63,8 @@ interface UnlockRecord {
   responseDeadlineAt: number;
   ownerRespondedAt?: number;
   refundTxnId?: string;
+  tenantConfirmedAt?: number;
+  disputedAt?: number;
 }
 
 interface PaymentOrderRecord {

@@ -1,4 +1,4 @@
-import { Body, Controller, Inject, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
 import { Roles } from "../../common/roles.decorator";
 import { RolesGuard } from "../../common/roles.guard";
@@ -26,6 +26,21 @@ export class ContactsController {
         sanitizeSource(body.source)
       )
     );
+  }
+
+  @Get("callbacks")
+  async listCallbacks(@Req() req: { user: { id: string } }) {
+    return ok(await this.contactsService.listCallbacks(req.user.id));
+  }
+
+  @Post("callbacks/:id/confirm")
+  async confirmCallback(@Req() req: { user: { id: string } }, @Param("id") callbackId: string) {
+    return ok(await this.contactsService.confirmCallback(req.user.id, callbackId));
+  }
+
+  @Post("callbacks/:id/dispute")
+  async disputeCallback(@Req() req: { user: { id: string } }, @Param("id") callbackId: string) {
+    return ok(await this.contactsService.disputeCallback(req.user.id, callbackId));
   }
 }
 
