@@ -424,6 +424,106 @@ export class LeadsService {
     }
   }
 
+  /**
+   * Shared claim-a-call helper: stamps the lead and flips the linked
+   * contact_unlock to 'responded' so the refund sweep skips it. First claim
+   * wins; later calls are no-ops. `client` must be inside a transaction.
+   */
+  private async markLeadCalled(
+    client: { query: (sql: string, params?: unknown[]) => Promise<{ rowCount: number | null }> },
+    leadId: string,
+    contactUnlockId: string | null,
+    calledBy: "owner" | "team"
+  ): Promise<boolean> {
+    const stamped = await client.query(
+      `UPDATE leads SET called_at = now(), called_by = $2, updated_at = now()
+       WHERE id = $1::uuid AND called_at IS NULL`,
+      [leadId, calledBy]
+    );
+    if (!stamped.rowCount) return false;
+
+    if (contactUnlockId) {
+      const responded = await client.query(
+        `UPDATE contact_unlocks
+         SET owner_response_status = 'responded', owner_responded_at = now(), updated_at = now()
+         WHERE id = $1::uuid AND owner_response_status = 'pending'`,
+        [contactUnlockId]
+      );
+      if (responded.rowCount) {
+        await client.query(
+          `INSERT INTO contact_events(contact_unlock_id, actor_role, event_type, metadata)
+           VALUES ($1::uuid, $2, 'owner_responded', $3::jsonb)`,
+          [
+            contactUnlockId,
+            calledBy === "team" ? "system" : "owner",
+            JSON.stringify({ channel: "call", called_by: calledBy })
+          ]
+        );
+      }
+    }
+    return true;
+  }
+
+  async recordCallClick(leadId: string, ownerUserId: string) {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Call tracking is not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+      const leadResult = await client.query<{
+        id: string;
+        access_state: string;
+        contact_unlock_id: string | null;
+        called_at: string | null;
+        tenant_phone: string | null;
+      }>(
+        `SELECT ld.id::text, ld.access_state, ld.contact_unlock_id::text,
+                ld.called_at::text, u.phone_e164 AS tenant_phone
+         FROM leads ld
+         LEFT JOIN users u ON u.id = ld.tenant_user_id
+         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
+         FOR UPDATE OF ld`,
+        [leadId, ownerUserId]
+      );
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      }
+      if (lead.access_state !== "free" && lead.access_state !== "unlocked") {
+        throw new ConflictException({
+          code: "lead_locked",
+          message: "Unlock the lead before calling"
+        });
+      }
+
+      await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "owner");
+      const stamped = await client.query<{ called_at: string }>(
+        `SELECT called_at::text FROM leads WHERE id = $1::uuid`,
+        [leadId]
+      );
+      await client.query("COMMIT");
+      logTelemetry("lead.call_clicked", { lead_id: leadId, owner_user_id: ownerUserId });
+      return {
+        lead_id: leadId,
+        called_at: stamped.rows[0].called_at,
+        tel: `tel:${lead.tenant_phone ?? ""}`
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getLeadStats(ownerUserId: string): Promise<Record<string, number>> {
     if (!this.database.isEnabled()) {
       return { new: 0, contacted: 0, visit_scheduled: 0, deal_done: 0, lost: 0, total: 0 };

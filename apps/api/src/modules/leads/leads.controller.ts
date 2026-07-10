@@ -72,4 +72,10 @@ export class LeadsController {
     const idempotencyKey = requireIdempotencyKey(req.headers["idempotency-key"]);
     return ok(await this.leadsService.unlockLead(leadId, req.user.id, idempotencyKey));
   }
+
+  @Post("owner/leads/:id/call-click")
+  @Roles("owner", "pg_operator")
+  async callClick(@AuthUser() user: { id: string }, @Param("id") leadId: string) {
+    return ok(await this.leadsService.recordCallClick(leadId, user.id));
+  }
 }
