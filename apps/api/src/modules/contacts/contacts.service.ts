@@ -78,7 +78,12 @@ export class ContactsService {
     });
 
     // Fire-and-forget: create lead for owner's inbox
-    this.createLeadFromUnlock(listingId, userId, result.unlock_id).catch((err) => {
+    this.createLeadFromUnlock(
+      listingId,
+      userId,
+      result.unlock_id,
+      (result as { response_deadline_at?: string }).response_deadline_at ?? null
+    ).catch((err) => {
       logTelemetry("lead.creation_error", {
         listing_id: listingId,
         tenant_user_id: userId,
@@ -110,7 +115,12 @@ export class ContactsService {
   /**
    * Notify the listing owner that a tenant unlocked their contact info.
    */
-  private async createLeadFromUnlock(listingId: string, tenantUserId: string, unlockId: string) {
+  private async createLeadFromUnlock(
+    listingId: string,
+    tenantUserId: string,
+    unlockId: string,
+    callDeadlineAt: string | null
+  ) {
     if (!this.database.isEnabled()) return;
 
     // Get owner_user_id and tenant phone for the lead
@@ -134,7 +144,8 @@ export class ContactsService {
       owner_user_id: ownerUserId,
       tenant_user_id: tenantUserId,
       contact_unlock_id: unlockId,
-      tenant_phone_masked: masked ?? undefined
+      tenant_phone_masked: masked ?? undefined,
+      call_deadline_at: callDeadlineAt ?? undefined
     });
   }
 

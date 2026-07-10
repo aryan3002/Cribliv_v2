@@ -29,6 +29,7 @@ export class LeadsService {
     tenant_user_id: string;
     contact_unlock_id?: string;
     tenant_phone_masked?: string;
+    call_deadline_at?: string;
   }): Promise<{ lead_id: string; created: boolean }> {
     const flags = readFeatureFlags();
     if (!flags.ff_lead_management_enabled || !this.database.isEnabled()) {
@@ -49,11 +50,22 @@ export class LeadsService {
         return { lead_id: existing.rows[0].id, created: false };
       }
 
+      // First 2 leads per owner (lifetime) arrive free/un-blurred — the owner's
+      // taste of lead quality. Racing concurrent leads can occasionally grant a
+      // 3rd freebie; acceptable at current scale.
+      const ownerLeadCount = await this.database.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM leads WHERE owner_user_id = $1::uuid`,
+        [params.owner_user_id]
+      );
+      const accessState = Number(ownerLeadCount.rows[0]?.n ?? 0) < 2 ? "free" : "locked";
+
       const result = await this.database.query<{ id: string }>(
-        `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, contact_unlock_id, tenant_phone_masked, status)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'new')
+        `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, contact_unlock_id,
+                            tenant_phone_masked, status, access_state, call_deadline_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'new', $6, $7::timestamptz)
          ON CONFLICT (listing_id, tenant_user_id) DO UPDATE SET
            contact_unlock_id = COALESCE(EXCLUDED.contact_unlock_id, leads.contact_unlock_id),
+           call_deadline_at = COALESCE(EXCLUDED.call_deadline_at, leads.call_deadline_at),
            updated_at = now()
          RETURNING id::text`,
         [
@@ -61,7 +73,9 @@ export class LeadsService {
           params.owner_user_id,
           params.tenant_user_id,
           params.contact_unlock_id ?? null,
-          params.tenant_phone_masked ?? null
+          params.tenant_phone_masked ?? null,
+          accessState,
+          params.call_deadline_at ?? null
         ]
       );
 
@@ -90,6 +104,8 @@ export class LeadsService {
       return { items: [], total: 0, page, page_size: pageSize };
     }
 
+    const flags = readFeatureFlags();
+
     const params: unknown[] = [ownerUserId];
     let statusClause = "";
     if (status) {
@@ -104,6 +120,11 @@ export class LeadsService {
       params
     );
 
+    // Full tenant number is exposed ONLY for free/unlocked leads with the flag on.
+    const tenantPhoneSelect = flags.ff_callback_leads
+      ? `CASE WHEN ld.access_state IN ('free','unlocked') THEN u.phone_e164 ELSE NULL END`
+      : `NULL`;
+
     const result = await this.database.query<{
       id: string;
       listing_id: string;
@@ -115,6 +136,11 @@ export class LeadsService {
       status_changed_at: string;
       owner_notes: string | null;
       created_at: string;
+      access_state: string;
+      call_deadline_at: string | null;
+      called_at: string | null;
+      called_by: string | null;
+      tenant_phone: string | null;
     }>(
       `SELECT
          ld.id::text,
@@ -126,7 +152,12 @@ export class LeadsService {
          ld.status::text,
          ld.status_changed_at::text,
          ld.owner_notes,
-         ld.created_at::text
+         ld.created_at::text,
+         ld.access_state,
+         ld.call_deadline_at::text,
+         ld.called_at::text,
+         ld.called_by,
+         ${tenantPhoneSelect} AS tenant_phone
        FROM leads ld
        JOIN listings l ON l.id = ld.listing_id
        LEFT JOIN users u ON u.id = ld.tenant_user_id
