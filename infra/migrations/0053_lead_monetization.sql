@@ -8,6 +8,7 @@ ALTER TYPE wallet_txn_type ADD VALUE IF NOT EXISTS 'debit_lead_unlock';
 ALTER TYPE wallet_txn_type ADD VALUE IF NOT EXISTS 'refund_lead_dispute';
 ALTER TYPE contact_event_type ADD VALUE IF NOT EXISTS 'dispute_refund';
 ALTER TYPE contact_event_type ADD VALUE IF NOT EXISTS 'tenant_confirmed';
+ALTER TYPE wallet_ref_type ADD VALUE IF NOT EXISTS 'lead';
 
 ALTER TABLE leads
   ADD COLUMN IF NOT EXISTS access_state        text        NOT NULL DEFAULT 'locked',

@@ -345,13 +345,11 @@ export class LeadsService {
         );
       }
 
-      // reference_type is left NULL: wallet_ref_type has no 'lead' member (only
-      // user/listing/contact_unlock/payment/admin — see migration 0001), and
-      // 0053 didn't extend the enum. reference_id still carries the lead id.
+      // reference_type is 'lead'; reference_id carries the lead id.
       const debit = await client.query<{ id: string }>(
         `INSERT INTO wallet_transactions(
            wallet_user_id, txn_type, credits_delta, reference_type, reference_id, idempotency_key, metadata)
-         VALUES ($1::uuid, 'debit_lead_unlock', -1, NULL, $2::uuid, $3, '{}'::jsonb)
+         VALUES ($1::uuid, 'debit_lead_unlock', -1, 'lead', $2::uuid, $3, '{}'::jsonb)
          ON CONFLICT (wallet_user_id, idempotency_key) DO NOTHING
          RETURNING id::text`,
         [ownerUserId, leadId, idempotencyKey]

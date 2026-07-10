@@ -73,6 +73,8 @@ describe.runIf(!!TEST_DB)("migration 0053_lead_monetization", () => {
     const eventValues = e.rows.map((x) => x.v);
     expect(eventValues).toContain("dispute_refund");
     expect(eventValues).toContain("tenant_confirmed");
+    const ref = await client.query(`SELECT unnest(enum_range(NULL::wallet_ref_type))::text AS v`);
+    expect(ref.rows.map((x) => x.v)).toContain("lead");
   });
 
   it("creates the sweep/rescue partial index", async () => {
