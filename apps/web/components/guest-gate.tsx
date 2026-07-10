@@ -6,11 +6,12 @@ import { useFlag } from "../lib/feature-flags";
 import { t, type Locale } from "../lib/i18n";
 import { trackEvent } from "../lib/analytics";
 
-export const GUEST_FREE_CARDS = 6;
-
-export function isCardGated(input: { index: number; isGuest: boolean; flagOn: boolean }): boolean {
-  return input.flagOn && input.isGuest && input.index >= GUEST_FREE_CARDS;
-}
+// Value exports live in lib/guest-gating.ts (a plain shared module) so server
+// components get the real number — importing them from this "use client" file
+// in an RSC yields a client-reference Proxy, which made
+// `index >= GUEST_FREE_CARDS` silently false and disabled gating entirely.
+// Re-exported here for client-side consumers and existing unit tests.
+export { GUEST_FREE_CARDS, isCardGated } from "../lib/guest-gating";
 
 /**
  * SEO-safe guest gate: children (a server-rendered listing card) stay in the

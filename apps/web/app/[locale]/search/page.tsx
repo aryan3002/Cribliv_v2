@@ -9,7 +9,13 @@ import { SearchFilters } from "./search-filters";
 import { SearchResultsMap } from "./SearchResultsMap";
 import { SegmentedSearchBar } from "../../../components/search/SegmentedSearchBar";
 import { ListingCardItem } from "../../../components/listing-card";
-import { GuestGate, GUEST_FREE_CARDS } from "../../../components/guest-gate";
+import { GuestGate } from "../../../components/guest-gate";
+// NOTE: must come from the plain lib module, NOT components/guest-gate — a
+// value re-exported through a "use client" file arrives in this Server
+// Component as a client-reference Proxy, and `index >= Proxy` is silently
+// false (gating never engages). Caught by guest-gating.spec.ts against a
+// DB-backed run with >6 listings.
+import { GUEST_FREE_CARDS } from "../../../lib/guest-gating";
 import type { Locale } from "../../../lib/i18n";
 import {
   MapPin,
