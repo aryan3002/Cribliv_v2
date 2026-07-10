@@ -352,7 +352,109 @@ const dictionary: Dictionary = {
     en: "Speak in Hindi or English — Maya fills in the listing as you talk.",
     hi: "हिंदी या अंग्रेज़ी में बोलें — Maya आपकी लिस्टिंग खुद भर देती है।"
   },
-  mayaSectionCta: { en: "Try voice listing", hi: "वॉइस लिस्टिंग आज़माएं" }
+  mayaSectionCta: { en: "Try voice listing", hi: "वॉइस लिस्टिंग आज़माएं" },
+  // ── Lead monetization: tenant callback flow ────────────────────────────────
+  cbGuaranteeIntro: {
+    en: "Use 1 credit — you'll get a call for this property within 24 hours. If nobody calls, your credit comes back automatically. Guaranteed.",
+    hi: "1 क्रेडिट में — इस प्रॉपर्टी के लिए 24 घंटे के भीतर आपको कॉल आएगी। कॉल न आए तो आपका क्रेडिट अपने आप वापस। गारंटीड।"
+  },
+  cbRequestButton: { en: "Request Callback", hi: "कॉलबैक का अनुरोध करें" },
+  cbVerifyButton: { en: "Verify & Request Callback", hi: "सत्यापित करें और कॉलबैक पाएं" },
+  cbRequestedTitle: { en: "Callback requested ✓", hi: "कॉलबैक अनुरोध हो गया ✓" },
+  cbStepRequested: { en: "Requested ✓", hi: "अनुरोध हो गया ✓" },
+  cbStepOwnerNotified: { en: "Owner notified ✓", hi: "मालिक को सूचित किया गया ✓" },
+  cbStepCallOnWay: { en: "Call on its way — by {time}", hi: "कॉल आने वाली है — {time} तक" },
+  cbRefundReassure: {
+    en: "No call by then? Your credit comes back automatically. Credits left: {n}",
+    hi: "तब तक कॉल नहीं? आपका क्रेडिट अपने आप वापस आ जाएगा। बचे क्रेडिट: {n}"
+  },
+  cbGuestHint: {
+    en: "Guest browsing is open. Sign in with OTP to request a callback — new accounts get 2 free credits.",
+    hi: "मेहमान के तौर पर ब्राउज़िंग खुली है। कॉलबैक के लिए OTP से साइन इन करें — नए खातों को 2 मुफ़्त क्रेडिट मिलते हैं।"
+  },
+  cbMyCallbacks: { en: "My Callbacks", hi: "मेरी कॉलबैक" },
+  cbGuaranteeLine: {
+    en: "Every request is guaranteed: a call within 24 hours or your credit back.",
+    hi: "हर अनुरोध की गारंटी: 24 घंटे में कॉल या आपका क्रेडिट वापस।"
+  },
+  cbGotCall: { en: "Yes, I got the call", hi: "हाँ, मुझे कॉल आई" },
+  cbNoCall: { en: "No call — refund my credit", hi: "कॉल नहीं आई — मेरा क्रेडिट वापस करें" },
+  cbRefundedCaption: {
+    en: "Nobody called in time, so your credit came back automatically.",
+    hi: "समय पर किसी ने कॉल नहीं की, इसलिए आपका क्रेडिट अपने आप वापस आ गया।"
+  },
+  cbConfirmedCaption: {
+    en: "Confirmed — glad the call happened.",
+    hi: "पुष्टि हो गई — अच्छा लगा कि कॉल हुई।"
+  },
+  cbDisputedCaption: {
+    en: "Dispute recorded — your credit was refunded.",
+    hi: "शिकायत दर्ज — आपका क्रेडिट वापस कर दिया गया।"
+  },
+  cbCallMadePrompt: { en: "Call made — did you get it?", hi: "कॉल की गई — क्या आपको मिली?" },
+  cbEmptyState: {
+    en: "No callback requests yet. Find a property and request a callback.",
+    hi: "अभी कोई कॉलबैक अनुरोध नहीं। कोई प्रॉपर्टी चुनें और कॉलबैक मांगें।"
+  },
+  cbLoginPrompt: {
+    en: "Please log in to see your callbacks.",
+    hi: "अपनी कॉलबैक देखने के लिए कृपया लॉग इन करें।"
+  },
+  // ── Lead monetization: owner lead cards ────────────────────────────────────
+  leadFreeBadge: { en: "FREE LEAD", hi: "मुफ़्त लीड" },
+  leadUnlockButton: { en: "Unlock for 1 credit", hi: "1 क्रेडिट में अनलॉक करें" },
+  leadCallNow: { en: "Call now", hi: "अभी कॉल करें" },
+  leadCallAgain: { en: "Call again", hi: "फिर कॉल करें" },
+  leadCallReminder: {
+    en: "Call before the timer ends or the tenant is refunded.",
+    hi: "टाइमर खत्म होने से पहले कॉल करें वरना किरायेदार को रिफंड हो जाएगा।"
+  },
+  leadExpired: {
+    en: "Expired — respond faster next time.",
+    hi: "समय समाप्त — अगली बार जल्दी जवाब दें।"
+  },
+  leadNoCredits: { en: "Not enough lead credits", hi: "लीड क्रेडिट कम हैं" },
+  leadBuyPackSub: {
+    en: "Buy 5 lead credits for ₹299 to unlock tenant contacts instantly.",
+    hi: "किरायेदार का नंबर तुरंत अनलॉक करने के लिए ₹299 में 5 लीड क्रेडिट खरीदें।"
+  },
+  leadBuyPackButton: { en: "Buy 5 credits — ₹299", hi: "5 क्रेडिट खरीदें — ₹299" },
+  leadPaidRefresh: { en: "I've paid — refresh", hi: "भुगतान कर दिया — रीफ्रेश करें" },
+  leadOpenUpi: { en: "Open UPI App", hi: "UPI ऐप खोलें" },
+  leadCreditsAdded: {
+    en: "Credits added — unlock the lead now.",
+    hi: "क्रेडिट जुड़ गए — अब लीड अनलॉक करें।"
+  },
+  // ── Guest gating ────────────────────────────────────────────────────────────
+  gateHeadline: { en: "Sign up free — get 2 credits", hi: "मुफ़्त साइन अप करें — 2 क्रेडिट पाएं" },
+  gateSub: {
+    en: "Owners call you back within 24 hours.",
+    hi: "मालिक 24 घंटे के भीतर आपको कॉल करते हैं।"
+  },
+  gateButton: { en: "Create free account", hi: "मुफ़्त खाता बनाएं" },
+  galleryGateCta: {
+    en: "Sign up free to see all photos",
+    hi: "सभी फ़ोटो देखने के लिए मुफ़्त साइन अप करें"
+  },
+  // ── Welcome credits celebration ────────────────────────────────────────────
+  welcomeTitle: { en: "Welcome to Cribliv! 🎉", hi: "Cribliv में आपका स्वागत है! 🎉" },
+  welcomeTenantBody: {
+    en: "You've got 2 free credits — request callbacks and get a call within 24 hours.",
+    hi: "आपको 2 मुफ़्त क्रेडिट मिले हैं — कॉलबैक मांगें और 24 घंटे के भीतर कॉल पाएं।"
+  },
+  welcomeOwnerBody: {
+    en: "Welcome! Your first 2 tenant leads are free.",
+    hi: "स्वागत है! आपकी पहली 2 किरायेदार लीड मुफ़्त हैं।"
+  },
+  welcomeCta: { en: "Start exploring", hi: "खोजना शुरू करें" },
+  // ── Login page benefits ─────────────────────────────────────────────────────
+  loginBenefitsTitle: { en: "Why sign up?", hi: "साइन अप क्यों करें?" },
+  loginBenefit1: { en: "2 free credits on signup", hi: "साइन अप पर 2 मुफ़्त क्रेडिट" },
+  loginBenefit2: {
+    en: "Guaranteed callback in 24 hours — or your credit back",
+    hi: "24 घंटे में कॉलबैक की गारंटी — वरना क्रेडिट वापस"
+  },
+  loginBenefit3: { en: "Verified listings, no brokers", hi: "सत्यापित लिस्टिंग, कोई ब्रोकर नहीं" }
 };
 
 export function t(locale: Locale, key: string): string {
