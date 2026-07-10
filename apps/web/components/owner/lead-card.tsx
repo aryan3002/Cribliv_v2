@@ -66,6 +66,7 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
   const callbackMode = useFlag("ff_callback_leads");
   const [phone, setPhone] = useState<string | null>(lead.tenantPhone);
   const [accessState, setAccessState] = useState(lead.accessState);
+  const [calledAt, setCalledAt] = useState(lead.calledAt);
   const [unlockKey] = useState(() =>
     typeof crypto !== "undefined" ? crypto.randomUUID() : `${lead.id}-unlock`
   );
@@ -74,8 +75,16 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
   const [cardError, setCardError] = useState<string | null>(null);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
 
+  // Parent refetches replace the leads array wholesale; adopt fresh server
+  // truth over any local optimistic state when it arrives.
   useEffect(() => {
-    if (!callbackMode || !lead.callDeadlineAt || lead.calledAt) {
+    setAccessState(lead.accessState);
+    setPhone(lead.tenantPhone);
+    setCalledAt(lead.calledAt);
+  }, [lead.accessState, lead.tenantPhone, lead.calledAt]);
+
+  useEffect(() => {
+    if (!callbackMode || !lead.callDeadlineAt || calledAt) {
       setRemainingMs(null);
       return;
     }
@@ -83,7 +92,7 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
     tick();
     const timer = setInterval(tick, 60_000);
     return () => clearInterval(timer);
-  }, [callbackMode, lead.callDeadlineAt, lead.calledAt]);
+  }, [callbackMode, lead.callDeadlineAt, calledAt]);
 
   async function handleUnlock() {
     if (!accessToken) return;
@@ -110,6 +119,7 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
     try {
       const res = await recordLeadCallClick(accessToken, lead.id);
       trackEvent("call_clicked", { lead_id: lead.id });
+      setCalledAt(res.calledAt);
       window.location.href = res.tel;
     } catch (err) {
       setCardError(err instanceof Error ? err.message : "Unable to start call");
@@ -204,9 +214,9 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
                   onClick={() => void handleCall()}
                   disabled={!accessToken}
                 >
-                  {lead.calledAt ? "Call again" : "Call now"}
+                  {calledAt ? "Call again" : "Call now"}
                 </button>
-                {!lead.calledAt ? (
+                {!calledAt ? (
                   <p
                     className="caption"
                     style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
