@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import { useSession } from "next-auth/react";
 import { Building2, Home, ShieldCheck, Sparkles, ArrowUpRight } from "lucide-react";
 import { listingHref } from "../../lib/listing-href";
+import { readAuthSession } from "../../lib/client-auth";
+import { useFlag } from "../../lib/feature-flags";
+import type { Locale } from "../../lib/i18n";
+import { GuestGate, isCardGated } from "../guest-gate";
 import { useMapDispatch, useMapState, type MapPin } from "./hooks/useMapState";
 
 interface MapResultsRailProps {
@@ -45,8 +50,7 @@ function furnishLabel(value: string | null | undefined): string {
 
 function pinSubtitle(pin: MapPin): string {
   const locality = titleCase(pin.locality ?? pin.locality_slug ?? pin.city);
-  const spec =
-    pin.listing_type === "pg" ? "PG stay" : pin.bhk ? `${pin.bhk} BHK` : "Flat / house";
+  const spec = pin.listing_type === "pg" ? "PG stay" : pin.bhk ? `${pin.bhk} BHK` : "Flat / house";
   return [spec, locality].filter(Boolean).join(" · ");
 }
 
@@ -118,6 +122,11 @@ function ResultCard({
 export function MapResultsRail({ locale, map }: MapResultsRailProps) {
   const { pins, selectedPinId, isLoading, city } = useMapState();
   const dispatch = useMapDispatch();
+  const { data: session, status: sessionStatus } = useSession();
+  const isGuest =
+    sessionStatus !== "loading" &&
+    !((session as { accessToken?: string } | null)?.accessToken ?? readAuthSession()?.access_token);
+  const gatingOn = useFlag("ff_guest_gating");
   const selectedPin = selectedPinId ? pins.find((pin) => pin.id === selectedPinId) : null;
   const orderedPins = selectedPin
     ? [selectedPin, ...pins.filter((pin) => pin.id !== selectedPin.id)]
@@ -163,14 +172,19 @@ export function MapResultsRail({ locale, map }: MapResultsRailProps) {
             <p>Try zooming out or adjusting filters to find verified rentals nearby.</p>
           </div>
         ) : (
-          orderedPins.slice(0, 12).map((pin) => (
-            <ResultCard
+          orderedPins.slice(0, 12).map((pin, index) => (
+            <GuestGate
               key={pin.id}
-              pin={pin}
-              selected={pin.id === selectedPinId}
-              locale={locale}
-              onSelect={() => selectPin(pin)}
-            />
+              gated={isCardGated({ index, isGuest, flagOn: gatingOn })}
+              locale={locale as Locale}
+            >
+              <ResultCard
+                pin={pin}
+                selected={pin.id === selectedPinId}
+                locale={locale}
+                onSelect={() => selectPin(pin)}
+              />
+            </GuestGate>
           ))
         )}
       </div>
