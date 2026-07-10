@@ -40,6 +40,8 @@ export const analyticsEvents = [
   "call_clicked",
   // Lead monetization — tenant-side callback request flow
   "callback_requested",
+  "callback_confirmed",
+  "callback_disputed",
   // Phase C – Voice search events
   "voice_search_started",
   "voice_search_recording_complete",
