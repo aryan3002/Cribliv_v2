@@ -72,7 +72,7 @@ interface PaymentOrderRecord {
   providerOrderId: string;
   amountPaise: number;
   creditsToGrant: number;
-  planId: "starter_10" | "growth_20";
+  planId: "starter_10" | "growth_20" | "leads_5" | "leads_15";
   status: "created" | "authorized" | "captured" | "failed" | "refunded";
   providerPaymentId?: string;
 }
