@@ -524,6 +524,90 @@ export class LeadsService {
     }
   }
 
+  /** Leads at risk of breaking the 24h promise: uncalled, < 6h to deadline. */
+  async getRescueQueue() {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Callbacks are not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      return { items: [] };
+    }
+    const result = await this.database.query(
+      `SELECT ld.id::text AS lead_id, ld.listing_id::text,
+              COALESCE(NULLIF(l.title_en, ''), 'Listing') AS listing_title,
+              ld.owner_user_id::text,
+              COALESCE(o.full_name, 'Owner') AS owner_name, o.phone_e164 AS owner_phone,
+              COALESCE(t.full_name, 'Tenant') AS tenant_name, t.phone_e164 AS tenant_phone,
+              ld.access_state, ld.call_deadline_at::text, ld.created_at::text
+       FROM leads ld
+       JOIN listings l ON l.id = ld.listing_id
+       JOIN users o ON o.id = ld.owner_user_id
+       JOIN users t ON t.id = ld.tenant_user_id
+       WHERE ld.called_at IS NULL
+         AND ld.call_deadline_at IS NOT NULL
+         AND ld.call_deadline_at > now()
+         AND ld.call_deadline_at <= now() + interval '6 hours'
+         AND ld.access_state <> 'expired'
+       ORDER BY ld.call_deadline_at ASC
+       LIMIT 100`
+    );
+    return { items: result.rows };
+  }
+
+  async teamMarkCalled(leadId: string) {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Callbacks are not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+      const leadResult = await client.query<{
+        id: string;
+        contact_unlock_id: string | null;
+        called_at: string | null;
+        status: string;
+      }>(
+        `SELECT id::text, contact_unlock_id::text, called_at::text, status::text
+         FROM leads WHERE id = $1::uuid FOR UPDATE`,
+        [leadId]
+      );
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      }
+      if (lead.called_at) {
+        throw new ConflictException({ code: "already_called", message: "Call already claimed" });
+      }
+      await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "team");
+      await client.query(
+        `INSERT INTO lead_events (lead_id, to_status, notes)
+         VALUES ($1::uuid, $2::lead_status, 'team_called')`,
+        [leadId, lead.status]
+      );
+      const stamped = await client.query<{ called_at: string }>(
+        `SELECT called_at::text FROM leads WHERE id = $1::uuid`,
+        [leadId]
+      );
+      await client.query("COMMIT");
+      logTelemetry("lead.team_called", { lead_id: leadId });
+      return { lead_id: leadId, called_at: stamped.rows[0].called_at, called_by: "team" as const };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getLeadStats(ownerUserId: string): Promise<Record<string, number>> {
     if (!this.database.isEnabled()) {
       return { new: 0, contacted: 0, visit_scheduled: 0, deal_done: 0, lost: 0, total: 0 };
