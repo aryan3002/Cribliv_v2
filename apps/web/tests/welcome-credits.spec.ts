@@ -35,6 +35,15 @@ test("new signup sees the welcome-credits celebration exactly once", async ({ pa
   await expect(page.getByTestId("welcome-credit-count")).toContainText("2", { timeout: 5_000 });
 
   await page.getByRole("button", { name: /start exploring/i }).click();
-  await page.reload();
+
+  // Reload and wait for the session to actually rehydrate — the modal renders
+  // null while useSession() is loading, so asserting too early passes vacuously.
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/auth/session")),
+    page.reload()
+  ]);
+  // If the once-only guard regressed, the modal opens immediately after the
+  // session resolves; give it a bounded window to (wrongly) appear.
+  await page.waitForTimeout(1500);
   await expect(page.getByTestId("welcome-credit-count")).toHaveCount(0);
 });
