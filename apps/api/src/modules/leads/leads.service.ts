@@ -4,10 +4,13 @@ import {
   Logger,
   BadRequestException,
   HttpException,
-  HttpStatus
+  HttpStatus,
+  NotFoundException,
+  ForbiddenException
 } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { logTelemetry } from "../../common/telemetry";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ["contacted", "lost"],
@@ -251,6 +254,148 @@ export class LeadsService {
       phone: row.rows[0].phone_e164 ?? null,
       tenant_name: row.rows[0].tenant_name
     };
+  }
+
+  /**
+   * Paid reveal of a lead's tenant contact (ff_callback_leads).
+   * Mirrors the tenant-side wallet debit in ContactsService.unlockContactDb:
+   * row lock → idempotent txn insert → balance decrement → state flip, all in
+   * one transaction. Free leads return the phone without touching the wallet.
+   */
+  async unlockLead(leadId: string, ownerUserId: string, idempotencyKey: string) {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Lead unlock is not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+
+      const leadResult = await client.query<{
+        id: string;
+        access_state: string;
+        call_deadline_at: string | null;
+        deadline_passed: boolean;
+        tenant_phone: string | null;
+        tenant_name: string;
+      }>(
+        `SELECT ld.id::text, ld.access_state, ld.call_deadline_at::text,
+                (ld.call_deadline_at IS NOT NULL AND ld.call_deadline_at <= now()) AS deadline_passed,
+                u.phone_e164 AS tenant_phone,
+                COALESCE(u.full_name, 'Tenant') AS tenant_name
+         FROM leads ld
+         LEFT JOIN users u ON u.id = ld.tenant_user_id
+         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
+         FOR UPDATE OF ld`,
+        [leadId, ownerUserId]
+      );
+
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      }
+
+      const balanceRow = async () => {
+        const r = await client.query<{ balance_credits: number }>(
+          `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid LIMIT 1`,
+          [ownerUserId]
+        );
+        return Number(r.rows[0]?.balance_credits ?? 0);
+      };
+
+      // Idempotent success paths: already visible → return without debiting.
+      if (lead.access_state === "free" || lead.access_state === "unlocked") {
+        const credits = await balanceRow();
+        await client.query("COMMIT");
+        return {
+          lead_id: lead.id,
+          access_state: lead.access_state === "free" ? "free" : "unlocked",
+          tenant_phone: lead.tenant_phone,
+          tenant_name: lead.tenant_name,
+          credits_remaining: credits
+        };
+      }
+
+      if (lead.access_state === "expired" || lead.deadline_passed) {
+        throw new HttpException(
+          { code: "lead_expired", message: "Lead expired — it can no longer be unlocked" },
+          HttpStatus.GONE
+        );
+      }
+
+      await client.query(
+        `INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
+         VALUES ($1::uuid, 0, 0) ON CONFLICT (user_id) DO NOTHING`,
+        [ownerUserId]
+      );
+      const walletResult = await client.query<{ balance_credits: number }>(
+        `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid FOR UPDATE`,
+        [ownerUserId]
+      );
+      if (Number(walletResult.rows[0]?.balance_credits ?? 0) < 1) {
+        throw new HttpException(
+          { code: "insufficient_credits", message: "Insufficient credits" },
+          HttpStatus.PAYMENT_REQUIRED
+        );
+      }
+
+      // reference_type is left NULL: wallet_ref_type has no 'lead' member (only
+      // user/listing/contact_unlock/payment/admin — see migration 0001), and
+      // 0053 didn't extend the enum. reference_id still carries the lead id.
+      const debit = await client.query<{ id: string }>(
+        `INSERT INTO wallet_transactions(
+           wallet_user_id, txn_type, credits_delta, reference_type, reference_id, idempotency_key, metadata)
+         VALUES ($1::uuid, 'debit_lead_unlock', -1, NULL, $2::uuid, $3, '{}'::jsonb)
+         ON CONFLICT (wallet_user_id, idempotency_key) DO NOTHING
+         RETURNING id::text`,
+        [ownerUserId, leadId, idempotencyKey]
+      );
+      const debitInserted = Boolean(debit.rows[0]?.id);
+      if (debitInserted) {
+        await client.query(
+          `UPDATE wallets SET balance_credits = balance_credits - 1, updated_at = now()
+           WHERE user_id = $1::uuid AND balance_credits >= 1`,
+          [ownerUserId]
+        );
+        await client.query(
+          `UPDATE leads SET access_state = 'unlocked', unlocked_at = now(),
+                            unlock_txn_id = $2::uuid, updated_at = now()
+           WHERE id = $1::uuid`,
+          [leadId, debit.rows[0].id]
+        );
+        await client.query(
+          `INSERT INTO lead_events (lead_id, to_status, actor_user_id, notes)
+           VALUES ($1::uuid, (SELECT status FROM leads WHERE id = $1::uuid), $2::uuid, 'lead_unlocked')`,
+          [leadId, ownerUserId]
+        );
+      }
+
+      const credits = await balanceRow();
+      await client.query("COMMIT");
+      logTelemetry("lead.unlocked", {
+        lead_id: leadId,
+        owner_user_id: ownerUserId,
+        debited: debitInserted
+      });
+      return {
+        lead_id: leadId,
+        access_state: "unlocked",
+        tenant_phone: lead.tenant_phone,
+        tenant_name: lead.tenant_name,
+        credits_remaining: credits
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getLeadStats(ownerUserId: string): Promise<Record<string, number>> {

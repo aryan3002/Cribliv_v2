@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Inject, Param, Patch, Query, Res, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards
+} from "@nestjs/common";
 import type { Response } from "express";
 import { LeadsService } from "./leads.service";
 import { ok } from "../../common/response";
@@ -6,6 +18,7 @@ import { AuthGuard } from "../../common/auth.guard";
 import { RolesGuard } from "../../common/roles.guard";
 import { Roles } from "../../common/roles.decorator";
 import { AuthUser } from "../../common/auth-user.decorator";
+import { requireIdempotencyKey } from "../../common/idempotency.util";
 
 @Controller()
 @UseGuards(AuthGuard, RolesGuard)
@@ -48,5 +61,15 @@ export class LeadsController {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="leads.csv"');
     res.send(csv);
+  }
+
+  @Post("owner/leads/:id/unlock")
+  @Roles("owner", "pg_operator")
+  async unlockLead(
+    @Req() req: { user: { id: string }; headers: Record<string, string> },
+    @Param("id") leadId: string
+  ) {
+    const idempotencyKey = requireIdempotencyKey(req.headers["idempotency-key"]);
+    return ok(await this.leadsService.unlockLead(leadId, req.user.id, idempotencyKey));
   }
 }
