@@ -48,7 +48,7 @@ export function GuestGate({
           gap: "var(--space-2)",
           textAlign: "center",
           padding: "var(--space-4)",
-          background: "color-mix(in srgb, var(--surface-default) 55%, transparent)",
+          background: "color-mix(in srgb, var(--surface) 55%, transparent)",
           borderRadius: "var(--radius-md)"
         }}
       >
