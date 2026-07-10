@@ -24,6 +24,8 @@ declare module "next-auth" {
     accessToken: string;
     /** Wallet credit balance, synced from /auth/me on every session read */
     walletBalance: number;
+    /** True only during the session created by first-ever OTP verify (signup). */
+    isNewUser?: boolean;
     user: {
       id: string;
       phone: string;
@@ -40,6 +42,7 @@ declare module "next-auth" {
     accessToken: string;
     refreshToken: string | null;
     tokenIssuedAt: number;
+    isNewUser: boolean;
   }
 }
 
@@ -52,6 +55,7 @@ declare module "next-auth/jwt" {
     accessToken: string;
     refreshToken: string | null;
     tokenIssuedAt: number;
+    isNewUser?: boolean;
   }
 }
 
