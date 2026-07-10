@@ -19,7 +19,7 @@ const CONFETTI_PIECES = 24;
 // the redirect before the user ever sees it — burning the one-time flag for
 // nothing. Suppress the effect while on /auth/* so it only ever fires once
 // the user actually lands on their destination page.
-const SUPPRESSED_PATHS = [/\/auth\//];
+const SUPPRESSED_PATHS = [/\/auth(\/|$)/];
 
 /**
  * One-time celebration on a new user's first landing after signup.

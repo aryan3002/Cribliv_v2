@@ -14,8 +14,17 @@ export interface StoredAuthSession {
 const AUTH_KEY = "cribliv:auth-session";
 const GUEST_SHORTLIST_KEY = "cribliv:guest-shortlist";
 
+// `window` can exist without `window.localStorage` — some test/SSR-adjacent
+// environments (this repo's vitest jsdom setup under Node's own guarded
+// global `localStorage`) and privacy-restricted browser contexts leave
+// `window.localStorage` undefined rather than absent entirely. Guard both,
+// not just `typeof window`.
+function hasLocalStorage(): boolean {
+  return typeof window !== "undefined" && Boolean(window.localStorage);
+}
+
 export function readAuthSession(): StoredAuthSession | null {
-  if (typeof window === "undefined") {
+  if (!hasLocalStorage()) {
     return null;
   }
 
@@ -32,21 +41,21 @@ export function readAuthSession(): StoredAuthSession | null {
 }
 
 export function writeAuthSession(session: StoredAuthSession) {
-  if (typeof window === "undefined") {
+  if (!hasLocalStorage()) {
     return;
   }
   window.localStorage.setItem(AUTH_KEY, JSON.stringify(session));
 }
 
 export function clearAuthSession() {
-  if (typeof window === "undefined") {
+  if (!hasLocalStorage()) {
     return;
   }
   window.localStorage.removeItem(AUTH_KEY);
 }
 
 export function readGuestShortlist(): string[] {
-  if (typeof window === "undefined") {
+  if (!hasLocalStorage()) {
     return [];
   }
   const raw = window.localStorage.getItem(GUEST_SHORTLIST_KEY);
@@ -66,7 +75,7 @@ export function readGuestShortlist(): string[] {
 }
 
 export function writeGuestShortlist(listingIds: string[]) {
-  if (typeof window === "undefined") {
+  if (!hasLocalStorage()) {
     return;
   }
   window.localStorage.setItem(GUEST_SHORTLIST_KEY, JSON.stringify(Array.from(new Set(listingIds))));

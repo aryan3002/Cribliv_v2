@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Camera, Grid3x3, X } from "lucide-react";
 import { t, type Locale } from "../../lib/i18n";
 import { useFlag } from "../../lib/feature-flags";
+import { readAuthSession } from "../../lib/client-auth";
 import { trackEvent } from "../../lib/analytics";
 
 interface ListingGalleryProps {
@@ -26,7 +27,17 @@ export function ListingGallery({
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const gatingOn = useFlag("ff_guest_gating");
-  const gated = Boolean(isGuest) && gatingOn;
+  // Panel-signup users hold a localStorage session with no NextAuth cookie —
+  // the server-passed `isGuest` prop (derived from `await auth()`) can't see
+  // it, so it would wall off customers the unlock panel already treats as
+  // signed in. Un-gate on mount for them. SSR frame briefly renders gated
+  // (matching the server HTML) then un-gates once this effect runs
+  // client-side — acceptable flash, avoids a hydration mismatch.
+  const [hasLocalSession, setHasLocalSession] = useState(false);
+  useEffect(() => {
+    setHasLocalSession(Boolean(readAuthSession()?.access_token));
+  }, []);
+  const gated = Boolean(isGuest) && gatingOn && !hasLocalSession;
 
   const openLightbox = useCallback(() => {
     previousFocusRef.current = (document.activeElement as HTMLElement) ?? null;

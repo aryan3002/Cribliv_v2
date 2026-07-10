@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFlag } from "../lib/feature-flags";
+import { readAuthSession } from "../lib/client-auth";
 import { t, type Locale } from "../lib/i18n";
 import { trackEvent } from "../lib/analytics";
 
@@ -28,7 +29,29 @@ export function GuestGate({
   children: ReactNode;
 }) {
   const flagOn = useFlag("ff_guest_gating");
-  if (!gated || !flagOn) return <>{children}</>;
+
+  // Panel-signup users hold a localStorage session with no NextAuth cookie —
+  // the server-computed `gated` prop (derived from `await auth()`) can't see
+  // it, so it would wall off customers who already signed up through the
+  // listing-page OTP panel. Un-gate on mount for them. The SSR frame briefly
+  // renders gated (matching the server HTML, avoiding a hydration mismatch)
+  // then un-gates once this effect runs client-side — acceptable flash.
+  const [hasLocalSession, setHasLocalSession] = useState(false);
+  useEffect(() => {
+    setHasLocalSession(Boolean(readAuthSession()?.access_token));
+  }, []);
+
+  const gateRendered = gated && flagOn && !hasLocalSession;
+
+  const viewedRef = useRef(false);
+  useEffect(() => {
+    if (gateRendered && !viewedRef.current) {
+      viewedRef.current = true;
+      trackEvent("guest_gate_viewed", { surface: "card" });
+    }
+  }, [gateRendered]);
+
+  if (!gateRendered) return <>{children}</>;
 
   return (
     <div style={{ position: "relative" }} data-testid="guest-gate">
