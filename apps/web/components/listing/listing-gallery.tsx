@@ -1,20 +1,43 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Camera, Grid3x3, X } from "lucide-react";
 import { t, type Locale } from "../../lib/i18n";
+import { useFlag } from "../../lib/feature-flags";
+import { readAuthSession } from "../../lib/client-auth";
+import { trackEvent } from "../../lib/analytics";
 
 interface ListingGalleryProps {
   photos: string[];
   title: string;
   locale: Locale;
   onPhotoClick?: (index: number) => void;
+  isGuest?: boolean;
 }
 
-export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingGalleryProps) {
+export function ListingGallery({
+  photos,
+  title,
+  locale,
+  onPhotoClick,
+  isGuest
+}: ListingGalleryProps) {
   const [open, setOpen] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const gatingOn = useFlag("ff_guest_gating");
+  // Panel-signup users hold a localStorage session with no NextAuth cookie —
+  // the server-passed `isGuest` prop (derived from `await auth()`) can't see
+  // it, so it would wall off customers the unlock panel already treats as
+  // signed in. Un-gate on mount for them. SSR frame briefly renders gated
+  // (matching the server HTML) then un-gates once this effect runs
+  // client-side — acceptable flash, avoids a hydration mismatch.
+  const [hasLocalSession, setHasLocalSession] = useState(false);
+  useEffect(() => {
+    setHasLocalSession(Boolean(readAuthSession()?.access_token));
+  }, []);
+  const gated = Boolean(isGuest) && gatingOn && !hasLocalSession;
 
   const openLightbox = useCallback(() => {
     previousFocusRef.current = (document.activeElement as HTMLElement) ?? null;
@@ -56,7 +79,7 @@ export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingG
 
   return (
     <>
-      <div className="gallery">
+      <div className="gallery" style={gated ? { position: "relative" } : undefined}>
         <div
           className="gallery__main"
           onClick={openLightbox}
@@ -79,6 +102,11 @@ export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingG
             className="gallery__thumb"
             data-testid={`pg-thumb-${i + 1}`}
             onClick={() => {
+              if (gated) {
+                trackEvent("guest_gate_viewed", { surface: "gallery" });
+                window.location.href = `/${locale}/auth/login?tab=signup`;
+                return;
+              }
               onPhotoClick?.(i + 1);
               openLightbox();
             }}
@@ -87,6 +115,11 @@ export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingG
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
+                if (gated) {
+                  trackEvent("guest_gate_viewed", { surface: "gallery" });
+                  window.location.href = `/${locale}/auth/login?tab=signup`;
+                  return;
+                }
                 onPhotoClick?.(i + 1);
                 openLightbox();
               }
@@ -94,7 +127,12 @@ export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingG
             aria-label={showAllLabel}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={`${title} - photo ${i + 2}`} loading="lazy" />
+            <img
+              src={url}
+              alt={`${title} - photo ${i + 2}`}
+              loading="lazy"
+              style={gated ? { filter: "blur(10px)" } : undefined}
+            />
           </div>
         ))}
         <button
@@ -106,6 +144,24 @@ export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingG
           <Grid3x3 size={14} aria-hidden="true" />
           {showAllLabel}
         </button>
+        {gated ? (
+          <Link
+            href={`/${locale}/auth/login?tab=signup`}
+            className="btn btn--primary btn--sm"
+            data-testid="gallery-gate-cta"
+            style={{
+              position: "absolute",
+              bottom: "var(--space-3)",
+              left: "50%",
+              transform: "translateX(-50%)",
+              textDecoration: "none",
+              zIndex: 2
+            }}
+            onClick={() => trackEvent("guest_gate_signup_clicked", { surface: "gallery" })}
+          >
+            {t(locale, "galleryGateCta")}
+          </Link>
+        ) : null}
       </div>
 
       {open && (
@@ -134,7 +190,7 @@ export function ListingGallery({ photos, title, locale, onPhotoClick }: ListingG
             </button>
           </div>
           <div className="lightbox__scroll">
-            {photos.map((url, i) => (
+            {(gated ? photos.slice(0, 1) : photos).map((url, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 key={url}

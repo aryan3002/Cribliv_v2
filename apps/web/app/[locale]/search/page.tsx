@@ -2,12 +2,21 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { auth } from "../../../auth";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
 import { PG_CITY_CONTENT } from "../../../lib/pg-city-content";
 import { SearchFilters } from "./search-filters";
 import { SearchResultsMap } from "./SearchResultsMap";
 import { SegmentedSearchBar } from "../../../components/search/SegmentedSearchBar";
 import { ListingCardItem } from "../../../components/listing-card";
+import { GuestGate } from "../../../components/guest-gate";
+// NOTE: must come from the plain lib module, NOT components/guest-gate — a
+// value re-exported through a "use client" file arrives in this Server
+// Component as a client-reference Proxy, and `index >= Proxy` is silently
+// false (gating never engages). Caught by guest-gating.spec.ts against a
+// DB-backed run with >6 listings.
+import { GUEST_FREE_CARDS } from "../../../lib/guest-gating";
+import type { Locale } from "../../../lib/i18n";
 import {
   MapPin,
   Map as MapIcon,
@@ -185,6 +194,9 @@ export default async function SearchResultsPage({
     const qs = buildSearchQuery(rest);
     redirect(`/${params.locale}/pg${qs ? `?${qs}` : ""}`);
   }
+
+  const session = await auth();
+  const isGuest = !session?.user?.id;
 
   const filters = normalizeSearchParams(searchParams);
   let response: SearchResponse = { items: [], total: 0, page: 1, page_size: 20 };
@@ -393,25 +405,30 @@ export default async function SearchResultsPage({
             </div>
           ) : (
             <div className="listing-grid">
-              {response.items.map((item) => (
-                <ListingCardItem
+              {response.items.map((item, index) => (
+                <GuestGate
                   key={item.id}
-                  locale={params.locale}
-                  listing={{
-                    id: item.id,
-                    title: item.title,
-                    city: item.city,
-                    city_name: item.city_name ?? cityLabel(item.city),
-                    locality: item.locality,
-                    listing_type: item.listing_type,
-                    monthly_rent: item.monthly_rent,
-                    bhk: item.bhk ?? null,
-                    furnishing: item.furnishing ?? null,
-                    area_sqft: item.area_sqft ?? null,
-                    verification_status: item.verification_status,
-                    cover_photo: item.cover_photo ?? null
-                  }}
-                />
+                  gated={isGuest && index >= GUEST_FREE_CARDS}
+                  locale={params.locale as Locale}
+                >
+                  <ListingCardItem
+                    locale={params.locale}
+                    listing={{
+                      id: item.id,
+                      title: item.title,
+                      city: item.city,
+                      city_name: item.city_name ?? cityLabel(item.city),
+                      locality: item.locality,
+                      listing_type: item.listing_type,
+                      monthly_rent: item.monthly_rent,
+                      bhk: item.bhk ?? null,
+                      furnishing: item.furnishing ?? null,
+                      area_sqft: item.area_sqft ?? null,
+                      verification_status: item.verification_status,
+                      cover_photo: item.cover_photo ?? null
+                    }}
+                  />
+                </GuestGate>
               ))}
             </div>
           )}

@@ -544,7 +544,7 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
                       enableDrag={canDrag}
                     />
                   ) : (
-                    <LeadsPipeline accessToken={accessToken} />
+                    <LeadsPipeline accessToken={accessToken} locale={loc} />
                   )}
                 </div>
               </>

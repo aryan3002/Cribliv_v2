@@ -13,9 +13,11 @@ import { fetchApi } from "../lib/api";
 import { ApiError } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
 import { useFlag } from "../lib/feature-flags";
+import { t, type Locale } from "../lib/i18n";
 
 interface UnlockContactPanelProps {
   listingId: string;
+  locale: Locale;
   // Traffic-source tag (e.g. 'blog-2bhk-rent-in-noida') for content->revenue
   // attribution; recorded on the unlock when present.
   source?: string;
@@ -83,7 +85,7 @@ function createClientKey() {
   return typeof crypto !== "undefined" ? crypto.randomUUID() : `${Date.now()}_${Math.random()}`;
 }
 
-export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProps) {
+export function UnlockContactPanel({ listingId, locale, source }: UnlockContactPanelProps) {
   // NextAuth session — used as auth source when localStorage token is absent
   const { data: nextAuthSession, status: sessionStatus } = useSession();
   const callbackMode = useFlag("ff_callback_leads");
@@ -438,7 +440,7 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
         style={{ color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}
       >
         {callbackMode
-          ? "Use 1 credit — you'll get a call for this property within 24 hours. If nobody calls, your credit comes back automatically. Guaranteed."
+          ? t(locale, "cbGuaranteeIntro")
           : "Unlock contact for 1 credit. Auto-refund if no response in 12 hours."}
       </p>
 
@@ -476,7 +478,7 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
             : sessionStatus === "loading"
               ? "Loading..."
               : callbackMode
-                ? "Request Callback"
+                ? t(locale, "cbRequestButton")
                 : "Unlock Number"}
         </button>
         <button
@@ -495,7 +497,7 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
           style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
         >
           {callbackMode
-            ? "Guest browsing is open. Sign in with OTP to request a callback — new accounts get 2 free credits."
+            ? t(locale, "cbGuestHint")
             : "Guest browsing is open. OTP is required only for unlock."}
         </p>
       ) : null}
@@ -539,7 +541,7 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
             disabled={loading}
             style={{ marginTop: "var(--space-2)", width: "100%" }}
           >
-            {callbackMode ? "Verify & Request Callback" : "Verify & Unlock"}
+            {callbackMode ? t(locale, "cbVerifyButton") : "Verify & Unlock"}
           </button>
         </div>
       ) : null}
@@ -551,15 +553,14 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
             data-testid="callback-requested"
             style={{ marginTop: "var(--space-4)" }}
           >
-            <p style={{ fontWeight: 700 }}>Callback requested ✓</p>
+            <p style={{ fontWeight: 700 }}>{t(locale, "cbRequestedTitle")}</p>
             <ol style={{ margin: "var(--space-2) 0", paddingLeft: "var(--space-4)" }}>
-              <li>Requested ✓</li>
-              <li>Owner notified ✓</li>
-              <li>Call on its way — by {refundTimeLabel}</li>
+              <li>{t(locale, "cbStepRequested")}</li>
+              <li>{t(locale, "cbStepOwnerNotified")}</li>
+              <li>{t(locale, "cbStepCallOnWay").replace("{time}", refundTimeLabel)}</li>
             </ol>
             <p className="caption" style={{ color: "var(--text-secondary)" }}>
-              No call by then? Your credit comes back automatically. Credits left:{" "}
-              {unlock.credits_remaining}
+              {t(locale, "cbRefundReassure").replace("{n}", String(unlock.credits_remaining))}
             </p>
           </div>
         ) : (

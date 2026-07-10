@@ -42,6 +42,11 @@ export const analyticsEvents = [
   "callback_requested",
   "callback_confirmed",
   "callback_disputed",
+  // Lead monetization — one-time welcome credits celebration
+  "welcome_credits_shown",
+  // Lead monetization — SEO-safe guest gating (blurred cards + signup CTA)
+  "guest_gate_signup_clicked",
+  "guest_gate_viewed",
   // Phase C – Voice search events
   "voice_search_started",
   "voice_search_recording_complete",

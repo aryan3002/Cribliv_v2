@@ -7,9 +7,11 @@ import { LeadCreditsPanel } from "./lead-credits-panel";
 import { useFlag } from "../../lib/feature-flags";
 import { trackEvent } from "../../lib/analytics";
 import { ApiError } from "../../lib/api";
+import { t, type Locale } from "../../lib/i18n";
 
 interface LeadCardProps {
   lead: LeadVm;
+  locale: Locale;
   onStatusChange: (leadId: string, newStatus: LeadStatus, notes?: string) => Promise<void>;
   updating?: boolean;
   accessToken?: string | null;
@@ -56,7 +58,7 @@ function formatDate(iso: string) {
   }
 }
 
-export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCardProps) {
+export function LeadCard({ lead, locale, onStatusChange, updating, accessToken }: LeadCardProps) {
   const [showNotes, setShowNotes] = useState(false);
   const [noteText, setNoteText] = useState(lead.ownerNotes ?? "");
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | null>(null);
@@ -173,7 +175,7 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
           <div style={{ marginTop: "var(--space-2)" }} data-testid="lead-monetization">
             {accessState === "free" ? (
               <span className="caption" style={{ fontWeight: 700, color: "#166534" }}>
-                FREE LEAD
+                {t(locale, "leadFreeBadge")}
               </span>
             ) : null}
             {remainingMs !== null && accessState !== "expired" ? (
@@ -201,7 +203,7 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
                   disabled={unlockBusy || !accessToken}
                   style={{ marginTop: "var(--space-1)" }}
                 >
-                  {unlockBusy ? "Unlocking…" : "Unlock for 1 credit"}
+                  {unlockBusy ? "Unlocking…" : t(locale, "leadUnlockButton")}
                 </button>
               </div>
             ) : null}
@@ -214,14 +216,14 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
                   onClick={() => void handleCall()}
                   disabled={!accessToken}
                 >
-                  {calledAt ? "Call again" : "Call now"}
+                  {calledAt ? t(locale, "leadCallAgain") : t(locale, "leadCallNow")}
                 </button>
                 {!calledAt ? (
                   <p
                     className="caption"
                     style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
                   >
-                    Call before the timer ends or the tenant is refunded.
+                    {t(locale, "leadCallReminder")}
                   </p>
                 ) : null}
               </div>
@@ -232,12 +234,16 @@ export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCa
                 className="caption"
                 style={{ color: "var(--text-tertiary)", marginTop: "var(--space-2)" }}
               >
-                Expired — respond faster next time.
+                {t(locale, "leadExpired")}
               </p>
             ) : null}
 
             {needsCredits && accessToken ? (
-              <LeadCreditsPanel accessToken={accessToken} onPurchased={() => void handleUnlock()} />
+              <LeadCreditsPanel
+                accessToken={accessToken}
+                locale={locale}
+                onPurchased={() => void handleUnlock()}
+              />
             ) : null}
             {cardError ? (
               <p className="alert alert--error" style={{ marginTop: "var(--space-2)" }}>

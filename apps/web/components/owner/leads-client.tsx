@@ -10,6 +10,7 @@ import { LeadsPipeline } from "./leads-pipeline";
 import { LeadStatsWidget } from "./lead-stats-widget";
 import { LeadKanban, LeadKanbanSkeleton } from "./lead-kanban";
 import { track } from "../../lib/track";
+import { type Locale } from "../../lib/i18n";
 
 const VIEW_KEY = "cribliv:owner_leads_view";
 type ViewMode = "board" | "list";
@@ -50,6 +51,7 @@ function useCanDrag(): boolean {
 }
 
 export function LeadsClient({ locale }: { locale: string }) {
+  const loc = locale as Locale;
   const { data: session, status } = useSession();
   const accessToken = session?.accessToken ?? null;
   const [view, setView] = useViewMode();
@@ -203,7 +205,7 @@ export function LeadsClient({ locale }: { locale: string }) {
             enableDrag={canDrag}
           />
         ) : (
-          <LeadsPipeline accessToken={accessToken} />
+          <LeadsPipeline accessToken={accessToken} locale={loc} />
         )}
       </div>
     </section>

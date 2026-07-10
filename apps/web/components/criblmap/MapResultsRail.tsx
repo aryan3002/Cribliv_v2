@@ -1,9 +1,15 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import type { Route } from "next";
+import { useSession } from "next-auth/react";
 import { Building2, Home, ShieldCheck, Sparkles, ArrowUpRight } from "lucide-react";
 import { listingHref } from "../../lib/listing-href";
+import { readAuthSession } from "../../lib/client-auth";
+import { useFlag } from "../../lib/feature-flags";
+import type { Locale } from "../../lib/i18n";
+import { GuestGate, GUEST_FREE_CARDS } from "../guest-gate";
 import { useMapDispatch, useMapState, type MapPin } from "./hooks/useMapState";
 
 interface MapResultsRailProps {
@@ -45,8 +51,7 @@ function furnishLabel(value: string | null | undefined): string {
 
 function pinSubtitle(pin: MapPin): string {
   const locality = titleCase(pin.locality ?? pin.locality_slug ?? pin.city);
-  const spec =
-    pin.listing_type === "pg" ? "PG stay" : pin.bhk ? `${pin.bhk} BHK` : "Flat / house";
+  const spec = pin.listing_type === "pg" ? "PG stay" : pin.bhk ? `${pin.bhk} BHK` : "Flat / house";
   return [spec, locality].filter(Boolean).join(" · ");
 }
 
@@ -118,10 +123,24 @@ function ResultCard({
 export function MapResultsRail({ locale, map }: MapResultsRailProps) {
   const { pins, selectedPinId, isLoading, city } = useMapState();
   const dispatch = useMapDispatch();
+  const { data: session, status: sessionStatus } = useSession();
+  const isGuest =
+    sessionStatus !== "loading" &&
+    !((session as { accessToken?: string } | null)?.accessToken ?? readAuthSession()?.access_token);
+  const gatingOn = useFlag("ff_guest_gating");
   const selectedPin = selectedPinId ? pins.find((pin) => pin.id === selectedPinId) : null;
   const orderedPins = selectedPin
     ? [selectedPin, ...pins.filter((pin) => pin.id !== selectedPin.id)]
     : pins;
+  // Gate by identity from the STABLE (un-reordered) `pins` list, not from
+  // `orderedPins` — orderedPins moves the selected pin to index 0, so
+  // index-based gating let a guest un-blur any card by clicking its map
+  // marker, and re-gated already-free cards once selection pushed them
+  // past the threshold. Membership in this set is immune to reordering.
+  const gatedPinIds = useMemo(() => {
+    if (!gatingOn || !isGuest) return null;
+    return new Set(pins.slice(GUEST_FREE_CARDS).map((p) => p.id));
+  }, [pins, gatingOn, isGuest]);
   const verifiedCount = pins.filter((pin) => pin.verification_status === "verified").length;
   const headingCount = verifiedCount > 0 ? verifiedCount : pins.length;
   const headingNoun = verifiedCount > 0 ? "verified home" : "home";
@@ -164,13 +183,18 @@ export function MapResultsRail({ locale, map }: MapResultsRailProps) {
           </div>
         ) : (
           orderedPins.slice(0, 12).map((pin) => (
-            <ResultCard
+            <GuestGate
               key={pin.id}
-              pin={pin}
-              selected={pin.id === selectedPinId}
-              locale={locale}
-              onSelect={() => selectPin(pin)}
-            />
+              gated={gatedPinIds?.has(pin.id) ?? false}
+              locale={locale as Locale}
+            >
+              <ResultCard
+                pin={pin}
+                selected={pin.id === selectedPinId}
+                locale={locale}
+                onSelect={() => selectPin(pin)}
+              />
+            </GuestGate>
           ))
         )}
       </div>

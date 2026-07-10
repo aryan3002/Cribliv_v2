@@ -13,6 +13,7 @@ export type UserRole = "tenant" | "owner" | "pg_operator" | "admin";
 interface OtpVerifyResponse {
   access_token: string;
   refresh_token?: string;
+  is_new_user?: boolean;
   user: {
     id: string;
     phone_e164: string;
@@ -73,7 +74,8 @@ export const authConfig: NextAuthConfig = {
             preferredLanguage: data.user.preferred_language,
             accessToken: data.access_token,
             refreshToken: data.refresh_token ?? null,
-            tokenIssuedAt: Date.now()
+            tokenIssuedAt: Date.now(),
+            isNewUser: data.is_new_user ?? false
           };
         } catch {
           return null;
@@ -98,7 +100,8 @@ export const authConfig: NextAuthConfig = {
           preferredLanguage: user.preferredLanguage,
           accessToken: user.accessToken,
           refreshToken: user.refreshToken,
-          tokenIssuedAt: Date.now()
+          tokenIssuedAt: Date.now(),
+          isNewUser: user.isNewUser
         };
       }
 
@@ -145,6 +148,7 @@ export const authConfig: NextAuthConfig = {
         session.user.role = token.role;
         session.user.preferredLanguage = token.preferredLanguage as "en" | "hi";
         session.accessToken = token.accessToken;
+        session.isNewUser = Boolean(token.isNewUser);
       }
 
       // Sync role from backend to catch permission changes in real-time

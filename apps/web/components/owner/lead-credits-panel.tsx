@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { fetchApi } from "../../lib/api";
+import { t, type Locale } from "../../lib/i18n";
 
 interface LeadCreditsPanelProps {
   accessToken: string;
+  locale: Locale;
   onPurchased?: () => void;
 }
 
@@ -23,7 +25,7 @@ function createClientKey() {
  * Owner-side lead-credit purchase: same purchase-intent + UPI deep-link + poll
  * flow the tenant unlock panel uses, pinned to the leads_5 pack.
  */
-export function LeadCreditsPanel({ accessToken, onPurchased }: LeadCreditsPanelProps) {
+export function LeadCreditsPanel({ accessToken, locale, onPurchased }: LeadCreditsPanelProps) {
   const [idempotencyKey, setIdempotencyKey] = useState(() => createClientKey());
   const [intent, setIntent] = useState<PurchaseIntentResponse | null>(null);
   const [state, setState] = useState<
@@ -80,9 +82,9 @@ export function LeadCreditsPanel({ accessToken, onPurchased }: LeadCreditsPanelP
       data-testid="lead-credits-panel"
       style={{ marginTop: "var(--space-3)" }}
     >
-      <p style={{ fontWeight: 600 }}>Not enough lead credits</p>
+      <p style={{ fontWeight: 600 }}>{t(locale, "leadNoCredits")}</p>
       <p className="caption" style={{ color: "var(--text-secondary)" }}>
-        Buy 5 lead credits for ₹299 to unlock tenant contacts instantly.
+        {t(locale, "leadBuyPackSub")}
       </p>
       <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
         <button
@@ -90,14 +92,14 @@ export function LeadCreditsPanel({ accessToken, onPurchased }: LeadCreditsPanelP
           onClick={startPurchase}
           disabled={state === "creating" || state === "checking"}
         >
-          {state === "creating" ? "Creating…" : "Buy 5 credits — ₹299"}
+          {state === "creating" ? "Creating…" : t(locale, "leadBuyPackButton")}
         </button>
         <button
           className="btn btn--secondary btn--sm"
           onClick={checkStatus}
           disabled={state === "idle" || state === "creating" || state === "checking"}
         >
-          {state === "checking" ? "Checking…" : "I've paid — refresh"}
+          {state === "checking" ? "Checking…" : t(locale, "leadPaidRefresh")}
         </button>
       </div>
       {intent?.provider_payload?.deep_link ? (
@@ -108,12 +110,12 @@ export function LeadCreditsPanel({ accessToken, onPurchased }: LeadCreditsPanelP
           className="btn btn--secondary btn--sm"
           style={{ display: "inline-flex", marginTop: "var(--space-2)", textDecoration: "none" }}
         >
-          Open UPI App
+          {t(locale, "leadOpenUpi")}
         </a>
       ) : null}
       {state === "done" ? (
         <p className="caption" style={{ marginTop: "var(--space-2)" }}>
-          Credits added — unlock the lead now.
+          {t(locale, "leadCreditsAdded")}
         </p>
       ) : null}
       {error ? (
