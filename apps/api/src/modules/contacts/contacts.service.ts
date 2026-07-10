@@ -174,7 +174,7 @@ export class ContactsService {
       // Also get tenant name for a richer message
       const tenantInfo = await this.database.query<{ name: string }>(
         `
-        SELECT COALESCE(NULLIF(display_name, ''), 'एक किरायेदार') AS name
+        SELECT COALESCE(NULLIF(full_name, ''), 'एक किरायेदार') AS name
         FROM users
         WHERE id = $1::uuid
         LIMIT 1
