@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { t, type Locale } from "../lib/i18n";
@@ -19,11 +19,13 @@ export function WelcomeCreditsModal({ locale }: { locale: Locale }) {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
+  const firedRef = useRef(false);
 
   const role = session?.user?.role;
   const isOwnerSide = role === "owner" || role === "pg_operator";
 
   useEffect(() => {
+    if (firedRef.current) return;
     if (status !== "authenticated") return;
     if (typeof window === "undefined") return;
     const userId = session?.user?.id;
@@ -34,6 +36,7 @@ export function WelcomeCreditsModal({ locale }: { locale: Locale }) {
         storage: window.localStorage
       })
     ) {
+      firedRef.current = true;
       markWelcomeShown(userId!, window.localStorage);
       setOpen(true);
       trackEvent("welcome_credits_shown", { role: role ?? "tenant" });
