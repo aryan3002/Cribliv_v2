@@ -1,4 +1,5 @@
 import type { Metadata, Route } from "next";
+import { auth } from "../../../../auth";
 import { fetchApi } from "../../../../lib/api";
 import { toTitleCase } from "../../../../lib/utils";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
@@ -159,6 +160,8 @@ export default async function ListingDetailPage({
 }) {
   const locale: Locale = isValidLocale(params.locale) ? params.locale : "en";
   const sourceRef = blogRef(searchParams?.ref);
+  const session = await auth();
+  const isGuest = !session?.user?.id;
   const payload = await fetchListing(params.listingId, sourceRef);
 
   if (!payload) {
@@ -325,7 +328,7 @@ export default async function ListingDetailPage({
         </div>
 
         {/* Gallery */}
-        <ListingGallery photos={photos} title={listing.title} locale={locale} />
+        <ListingGallery photos={photos} title={listing.title} locale={locale} isGuest={isGuest} />
 
         {/* Highlight chips */}
         <ListingHighlights
