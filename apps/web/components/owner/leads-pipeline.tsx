@@ -239,6 +239,7 @@ export function LeadsPipeline({ accessToken }: Props) {
                 lead={lead}
                 onStatusChange={handleStatusChange}
                 updating={updatingLeadId === lead.id}
+                accessToken={accessToken}
               />
             ))}
           </div>

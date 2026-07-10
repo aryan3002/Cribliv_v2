@@ -12,6 +12,7 @@ import {
 import { fetchApi } from "../lib/api";
 import { ApiError } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
+import { useFlag } from "../lib/feature-flags";
 
 interface UnlockContactPanelProps {
   listingId: string;
@@ -22,9 +23,13 @@ interface UnlockContactPanelProps {
 
 interface UnlockResponse {
   unlock_id: string;
-  owner_contact: {
+  owner_contact?: {
     phone_e164: string;
     whatsapp_available: boolean;
+  };
+  callback?: {
+    status: "awaiting_call";
+    call_deadline_at: string;
   };
   credits_remaining: number;
   response_deadline_at: string;
@@ -81,6 +86,7 @@ function createClientKey() {
 export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProps) {
   // NextAuth session — used as auth source when localStorage token is absent
   const { data: nextAuthSession, status: sessionStatus } = useSession();
+  const callbackMode = useFlag("ff_callback_leads");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [phone, setPhone] = useState("+91");
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -233,6 +239,13 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
         listing_id: listingId,
         response_deadline: response.response_deadline_at
       });
+      if (response.callback) {
+        trackEvent("callback_requested", {
+          unlock_id: response.unlock_id,
+          listing_id: listingId,
+          call_deadline: response.callback.call_deadline_at
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to unlock contact";
       setError(message);
@@ -424,7 +437,9 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
         className="body-sm"
         style={{ color: "var(--text-secondary)", marginBottom: "var(--space-4)" }}
       >
-        Unlock contact for 1 credit. Auto-refund if no response in 12 hours.
+        {callbackMode
+          ? "Use 1 credit — you'll get a call for this property within 24 hours. If nobody calls, your credit comes back automatically. Guaranteed."
+          : "Unlock contact for 1 credit. Auto-refund if no response in 12 hours."}
       </p>
 
       {accessToken ? (
@@ -456,7 +471,13 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
           disabled={loading || sessionStatus === "loading"}
           style={{ width: "100%" }}
         >
-          {loading ? "Processing..." : sessionStatus === "loading" ? "Loading..." : "Unlock Number"}
+          {loading
+            ? "Processing..."
+            : sessionStatus === "loading"
+              ? "Loading..."
+              : callbackMode
+                ? "Request Callback"
+                : "Unlock Number"}
         </button>
         <button
           className="btn btn--secondary"
@@ -473,7 +494,9 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
           className="caption"
           style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
         >
-          Guest browsing is open. OTP is required only for unlock.
+          {callbackMode
+            ? "Guest browsing is open. Sign in with OTP to request a callback — new accounts get 2 free credits."
+            : "Guest browsing is open. OTP is required only for unlock."}
         </p>
       ) : null}
 
@@ -516,19 +539,38 @@ export function UnlockContactPanel({ listingId, source }: UnlockContactPanelProp
             disabled={loading}
             style={{ marginTop: "var(--space-2)", width: "100%" }}
           >
-            Verify & Unlock
+            {callbackMode ? "Verify & Request Callback" : "Verify & Unlock"}
           </button>
         </div>
       ) : null}
 
       {unlock ? (
-        <div className="alert alert--success" style={{ marginTop: "var(--space-4)" }}>
-          <p>
-            Owner Contact: <strong>{unlock.owner_contact.phone_e164}</strong>
-          </p>
-          <p>Credits remaining: {unlock.credits_remaining}</p>
-          <p>Refund auto-check at: {refundTimeLabel}</p>
-        </div>
+        callbackMode && unlock.callback ? (
+          <div
+            className="alert alert--success"
+            data-testid="callback-requested"
+            style={{ marginTop: "var(--space-4)" }}
+          >
+            <p style={{ fontWeight: 700 }}>Callback requested ✓</p>
+            <ol style={{ margin: "var(--space-2) 0", paddingLeft: "var(--space-4)" }}>
+              <li>Requested ✓</li>
+              <li>Owner notified ✓</li>
+              <li>Call on its way — by {refundTimeLabel}</li>
+            </ol>
+            <p className="caption" style={{ color: "var(--text-secondary)" }}>
+              No call by then? Your credit comes back automatically. Credits left:{" "}
+              {unlock.credits_remaining}
+            </p>
+          </div>
+        ) : (
+          <div className="alert alert--success" style={{ marginTop: "var(--space-4)" }}>
+            <p>
+              Owner Contact: <strong>{unlock.owner_contact?.phone_e164}</strong>
+            </p>
+            <p>Credits remaining: {unlock.credits_remaining}</p>
+            <p>Refund auto-check at: {refundTimeLabel}</p>
+          </div>
+        )
       ) : null}
 
       {canShowBuyCredits ? (

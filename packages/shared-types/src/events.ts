@@ -35,6 +35,13 @@ export const analyticsEvents = [
   "pg_sales_assist_requested",
   "property_management_requested",
   "admin_lead_status_updated",
+  // Lead monetization — owner-side unlock/call flow
+  "lead_unlocked",
+  "call_clicked",
+  // Lead monetization — tenant-side callback request flow
+  "callback_requested",
+  "callback_confirmed",
+  "callback_disputed",
   // Phase C – Voice search events
   "voice_search_started",
   "voice_search_recording_complete",

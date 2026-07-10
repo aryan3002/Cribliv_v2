@@ -717,6 +717,10 @@ export interface LeadVm {
   statusChangedAt: string;
   ownerNotes: string | null;
   createdAt: string;
+  accessState: "free" | "locked" | "unlocked" | "expired";
+  callDeadlineAt: string | null;
+  calledAt: string | null;
+  tenantPhone: string | null;
 }
 
 export interface LeadStats {
@@ -738,7 +742,11 @@ function mapLeadRow(row: Record<string, unknown>): LeadVm {
     status: (row.status as LeadStatus) ?? "new",
     statusChangedAt: String(row.status_changed_at ?? row.created_at ?? ""),
     ownerNotes: row.owner_notes ? String(row.owner_notes) : null,
-    createdAt: String(row.created_at ?? "")
+    createdAt: String(row.created_at ?? ""),
+    accessState: (row.access_state as "free" | "locked" | "unlocked" | "expired") ?? "locked",
+    callDeadlineAt: row.call_deadline_at ? String(row.call_deadline_at) : null,
+    calledAt: row.called_at ? String(row.called_at) : null,
+    tenantPhone: row.tenant_phone ? String(row.tenant_phone) : null
   };
 }
 
@@ -784,6 +792,47 @@ export async function updateLeadStatus(
     }
   );
   return { leadId: result.lead_id, status: result.status as LeadStatus };
+}
+
+export async function unlockLead(
+  accessToken: string,
+  leadId: string,
+  idempotencyKey: string
+): Promise<{
+  leadId: string;
+  accessState: string;
+  tenantPhone: string | null;
+  tenantName: string;
+  creditsRemaining: number;
+}> {
+  const result = await fetchApi<{
+    lead_id: string;
+    access_state: string;
+    tenant_phone: string | null;
+    tenant_name: string;
+    credits_remaining: number;
+  }>(`/owner/leads/${leadId}/unlock`, {
+    method: "POST",
+    headers: { ...authHeaders(accessToken), "Idempotency-Key": idempotencyKey }
+  });
+  return {
+    leadId: result.lead_id,
+    accessState: result.access_state,
+    tenantPhone: result.tenant_phone,
+    tenantName: result.tenant_name,
+    creditsRemaining: result.credits_remaining
+  };
+}
+
+export async function recordLeadCallClick(
+  accessToken: string,
+  leadId: string
+): Promise<{ leadId: string; calledAt: string; tel: string }> {
+  const result = await fetchApi<{ lead_id: string; called_at: string; tel: string }>(
+    `/owner/leads/${leadId}/call-click`,
+    { method: "POST", headers: authHeaders(accessToken) }
+  );
+  return { leadId: result.lead_id, calledAt: result.called_at, tel: result.tel };
 }
 
 // ── Boost ───────────────────────────────────────────────────────────────────

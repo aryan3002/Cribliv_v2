@@ -83,6 +83,8 @@ export interface FeatureFlags {
   /** Slice 2 - Indexing + Measurement (default OFF; flip at v1->v2 cutover) */
   ff_seo_indexing: boolean;
   ff_seo_gsc: boolean;
+  /** Slice 1 – Lead monetization: callback-guarantee model (24h call promise, owner lead unlock). */
+  ff_callback_leads: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -165,7 +167,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_programmatic_seo_cities_enabled: true,
   ff_seo_blog: false,
   ff_seo_indexing: false,
-  ff_seo_gsc: false
+  ff_seo_gsc: false,
+  ff_callback_leads: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -421,6 +424,7 @@ export function readFeatureFlags(): FeatureFlags {
     ),
     ff_seo_blog: parseBooleanEnv("FF_SEO_BLOG", defaultFeatureFlags.ff_seo_blog),
     ff_seo_indexing: parseBooleanEnv("FF_SEO_INDEXING", defaultFeatureFlags.ff_seo_indexing),
-    ff_seo_gsc: parseBooleanEnv("FF_SEO_GSC", defaultFeatureFlags.ff_seo_gsc)
+    ff_seo_gsc: parseBooleanEnv("FF_SEO_GSC", defaultFeatureFlags.ff_seo_gsc),
+    ff_callback_leads: parseBooleanEnv("FF_CALLBACK_LEADS", defaultFeatureFlags.ff_callback_leads)
   };
 }

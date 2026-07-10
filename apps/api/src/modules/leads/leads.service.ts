@@ -3,11 +3,15 @@ import {
   Injectable,
   Logger,
   BadRequestException,
+  ConflictException,
   HttpException,
-  HttpStatus
+  HttpStatus,
+  NotFoundException,
+  ForbiddenException
 } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { logTelemetry } from "../../common/telemetry";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ["contacted", "lost"],
@@ -29,6 +33,7 @@ export class LeadsService {
     tenant_user_id: string;
     contact_unlock_id?: string;
     tenant_phone_masked?: string;
+    call_deadline_at?: string;
   }): Promise<{ lead_id: string; created: boolean }> {
     const flags = readFeatureFlags();
     if (!flags.ff_lead_management_enabled || !this.database.isEnabled()) {
@@ -49,11 +54,22 @@ export class LeadsService {
         return { lead_id: existing.rows[0].id, created: false };
       }
 
+      // First 2 leads per owner (lifetime) arrive free/un-blurred — the owner's
+      // taste of lead quality. Racing concurrent leads can occasionally grant a
+      // 3rd freebie; acceptable at current scale.
+      const ownerLeadCount = await this.database.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM leads WHERE owner_user_id = $1::uuid`,
+        [params.owner_user_id]
+      );
+      const accessState = Number(ownerLeadCount.rows[0]?.n ?? 0) < 2 ? "free" : "locked";
+
       const result = await this.database.query<{ id: string }>(
-        `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, contact_unlock_id, tenant_phone_masked, status)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'new')
+        `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, contact_unlock_id,
+                            tenant_phone_masked, status, access_state, call_deadline_at)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'new', $6, $7::timestamptz)
          ON CONFLICT (listing_id, tenant_user_id) DO UPDATE SET
            contact_unlock_id = COALESCE(EXCLUDED.contact_unlock_id, leads.contact_unlock_id),
+           call_deadline_at = COALESCE(EXCLUDED.call_deadline_at, leads.call_deadline_at),
            updated_at = now()
          RETURNING id::text`,
         [
@@ -61,7 +77,9 @@ export class LeadsService {
           params.owner_user_id,
           params.tenant_user_id,
           params.contact_unlock_id ?? null,
-          params.tenant_phone_masked ?? null
+          params.tenant_phone_masked ?? null,
+          accessState,
+          params.call_deadline_at ?? null
         ]
       );
 
@@ -90,6 +108,8 @@ export class LeadsService {
       return { items: [], total: 0, page, page_size: pageSize };
     }
 
+    const flags = readFeatureFlags();
+
     const params: unknown[] = [ownerUserId];
     let statusClause = "";
     if (status) {
@@ -104,6 +124,11 @@ export class LeadsService {
       params
     );
 
+    // Full tenant number is exposed ONLY for free/unlocked leads with the flag on.
+    const tenantPhoneSelect = flags.ff_callback_leads
+      ? `CASE WHEN ld.access_state IN ('free','unlocked') THEN u.phone_e164 ELSE NULL END`
+      : `NULL`;
+
     const result = await this.database.query<{
       id: string;
       listing_id: string;
@@ -115,6 +140,11 @@ export class LeadsService {
       status_changed_at: string;
       owner_notes: string | null;
       created_at: string;
+      access_state: string;
+      call_deadline_at: string | null;
+      called_at: string | null;
+      called_by: string | null;
+      tenant_phone: string | null;
     }>(
       `SELECT
          ld.id::text,
@@ -126,7 +156,12 @@ export class LeadsService {
          ld.status::text,
          ld.status_changed_at::text,
          ld.owner_notes,
-         ld.created_at::text
+         ld.created_at::text,
+         ld.access_state,
+         ld.call_deadline_at::text,
+         ld.called_at::text,
+         ld.called_by,
+         ${tenantPhoneSelect} AS tenant_phone
        FROM leads ld
        JOIN listings l ON l.id = ld.listing_id
        LEFT JOIN users u ON u.id = ld.tenant_user_id
@@ -220,6 +255,357 @@ export class LeadsService {
       phone: row.rows[0].phone_e164 ?? null,
       tenant_name: row.rows[0].tenant_name
     };
+  }
+
+  /**
+   * Paid reveal of a lead's tenant contact (ff_callback_leads).
+   * Mirrors the tenant-side wallet debit in ContactsService.unlockContactDb:
+   * row lock → idempotent txn insert → balance decrement → state flip, all in
+   * one transaction. Free leads return the phone without touching the wallet.
+   */
+  async unlockLead(leadId: string, ownerUserId: string, idempotencyKey: string) {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Lead unlock is not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+
+      const leadResult = await client.query<{
+        id: string;
+        access_state: string;
+        call_deadline_at: string | null;
+        deadline_passed: boolean;
+        tenant_phone: string | null;
+        tenant_name: string;
+      }>(
+        `SELECT ld.id::text, ld.access_state, ld.call_deadline_at::text,
+                (ld.call_deadline_at IS NOT NULL AND ld.call_deadline_at <= now()) AS deadline_passed,
+                u.phone_e164 AS tenant_phone,
+                COALESCE(u.full_name, 'Tenant') AS tenant_name
+         FROM leads ld
+         LEFT JOIN users u ON u.id = ld.tenant_user_id
+         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
+         FOR UPDATE OF ld`,
+        [leadId, ownerUserId]
+      );
+
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      }
+
+      const balanceRow = async () => {
+        const r = await client.query<{ balance_credits: number }>(
+          `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid LIMIT 1`,
+          [ownerUserId]
+        );
+        return Number(r.rows[0]?.balance_credits ?? 0);
+      };
+
+      // Idempotent success paths: already visible → return without debiting.
+      if (lead.access_state === "free" || lead.access_state === "unlocked") {
+        const credits = await balanceRow();
+        await client.query("COMMIT");
+        return {
+          lead_id: lead.id,
+          access_state: lead.access_state === "free" ? "free" : "unlocked",
+          tenant_phone: lead.tenant_phone,
+          tenant_name: lead.tenant_name,
+          credits_remaining: credits
+        };
+      }
+
+      if (lead.access_state === "expired" || lead.deadline_passed) {
+        throw new HttpException(
+          { code: "lead_expired", message: "Lead expired — it can no longer be unlocked" },
+          HttpStatus.GONE
+        );
+      }
+
+      await client.query(
+        `INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
+         VALUES ($1::uuid, 0, 0) ON CONFLICT (user_id) DO NOTHING`,
+        [ownerUserId]
+      );
+      const walletResult = await client.query<{ balance_credits: number }>(
+        `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid FOR UPDATE`,
+        [ownerUserId]
+      );
+      if (Number(walletResult.rows[0]?.balance_credits ?? 0) < 1) {
+        throw new HttpException(
+          { code: "insufficient_credits", message: "Insufficient credits" },
+          HttpStatus.PAYMENT_REQUIRED
+        );
+      }
+
+      // reference_type is 'lead'; reference_id carries the lead id.
+      const debit = await client.query<{ id: string }>(
+        `INSERT INTO wallet_transactions(
+           wallet_user_id, txn_type, credits_delta, reference_type, reference_id, idempotency_key, metadata)
+         VALUES ($1::uuid, 'debit_lead_unlock', -1, 'lead', $2::uuid, $3, '{}'::jsonb)
+         ON CONFLICT (wallet_user_id, idempotency_key) DO NOTHING
+         RETURNING id::text`,
+        [ownerUserId, leadId, idempotencyKey]
+      );
+      const debitInserted = Boolean(debit.rows[0]?.id);
+      if (!debitInserted) {
+        // The key was already used. If it paid for THIS lead, the lead was
+        // flipped in that same transaction and the early idempotent-return
+        // path above would have caught it — reaching here means the key
+        // belongs to something else (another lead or another flow). Reject,
+        // mirroring the tenant-side duplicate_unlock guard.
+        const existingTxn = await client.query<{ id: string; reference_id: string | null }>(
+          `SELECT id::text, reference_id::text FROM wallet_transactions
+           WHERE wallet_user_id = $1::uuid AND idempotency_key = $2
+           LIMIT 1`,
+          [ownerUserId, idempotencyKey]
+        );
+        if (existingTxn.rows[0]?.reference_id !== leadId) {
+          throw new ConflictException({
+            code: "duplicate_unlock",
+            message: "Idempotency-Key already used for another unlock"
+          });
+        }
+        // Key matches this lead but the lead is still locked — heal by
+        // flipping it using the already-paid transaction.
+        await client.query(
+          `UPDATE leads SET access_state = 'unlocked', unlocked_at = COALESCE(unlocked_at, now()),
+                            unlock_txn_id = COALESCE(unlock_txn_id, $2::uuid), updated_at = now()
+           WHERE id = $1::uuid`,
+          [leadId, existingTxn.rows[0].id]
+        );
+      }
+      if (debitInserted) {
+        await client.query(
+          `UPDATE wallets SET balance_credits = balance_credits - 1, updated_at = now()
+           WHERE user_id = $1::uuid AND balance_credits >= 1`,
+          [ownerUserId]
+        );
+        await client.query(
+          `UPDATE leads SET access_state = 'unlocked', unlocked_at = now(),
+                            unlock_txn_id = $2::uuid, updated_at = now()
+           WHERE id = $1::uuid`,
+          [leadId, debit.rows[0].id]
+        );
+        await client.query(
+          `INSERT INTO lead_events (lead_id, to_status, actor_user_id, notes)
+           VALUES ($1::uuid, (SELECT status FROM leads WHERE id = $1::uuid), $2::uuid, 'lead_unlocked')`,
+          [leadId, ownerUserId]
+        );
+      }
+
+      const credits = await balanceRow();
+      await client.query("COMMIT");
+      logTelemetry("lead.unlocked", {
+        lead_id: leadId,
+        owner_user_id: ownerUserId,
+        debited: debitInserted
+      });
+      return {
+        lead_id: leadId,
+        access_state: "unlocked",
+        tenant_phone: lead.tenant_phone,
+        tenant_name: lead.tenant_name,
+        credits_remaining: credits
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Shared claim-a-call helper: stamps the lead and flips the linked
+   * contact_unlock to 'responded' so the refund sweep skips it. First claim
+   * wins; later calls are no-ops. `client` must be inside a transaction.
+   */
+  private async markLeadCalled(
+    client: { query: (sql: string, params?: unknown[]) => Promise<{ rowCount: number | null }> },
+    leadId: string,
+    contactUnlockId: string | null,
+    calledBy: "owner" | "team"
+  ): Promise<boolean> {
+    const stamped = await client.query(
+      `UPDATE leads SET called_at = now(), called_by = $2, updated_at = now()
+       WHERE id = $1::uuid AND called_at IS NULL`,
+      [leadId, calledBy]
+    );
+    if (!stamped.rowCount) return false;
+
+    if (contactUnlockId) {
+      const responded = await client.query(
+        `UPDATE contact_unlocks
+         SET owner_response_status = 'responded', owner_responded_at = now(), updated_at = now()
+         WHERE id = $1::uuid AND owner_response_status = 'pending'`,
+        [contactUnlockId]
+      );
+      if (responded.rowCount) {
+        await client.query(
+          `INSERT INTO contact_events(contact_unlock_id, actor_role, event_type, metadata)
+           VALUES ($1::uuid, $2, 'owner_responded', $3::jsonb)`,
+          [
+            contactUnlockId,
+            calledBy === "team" ? "system" : "owner",
+            JSON.stringify({ channel: "call", called_by: calledBy })
+          ]
+        );
+      }
+    }
+    return true;
+  }
+
+  async recordCallClick(leadId: string, ownerUserId: string) {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Call tracking is not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+      const leadResult = await client.query<{
+        id: string;
+        access_state: string;
+        contact_unlock_id: string | null;
+        called_at: string | null;
+        tenant_phone: string | null;
+      }>(
+        `SELECT ld.id::text, ld.access_state, ld.contact_unlock_id::text,
+                ld.called_at::text, u.phone_e164 AS tenant_phone
+         FROM leads ld
+         LEFT JOIN users u ON u.id = ld.tenant_user_id
+         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
+         FOR UPDATE OF ld`,
+        [leadId, ownerUserId]
+      );
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      }
+      if (lead.access_state !== "free" && lead.access_state !== "unlocked") {
+        throw new ConflictException({
+          code: "lead_locked",
+          message: "Unlock the lead before calling"
+        });
+      }
+
+      await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "owner");
+      const stamped = await client.query<{ called_at: string }>(
+        `SELECT called_at::text FROM leads WHERE id = $1::uuid`,
+        [leadId]
+      );
+      await client.query("COMMIT");
+      logTelemetry("lead.call_clicked", { lead_id: leadId, owner_user_id: ownerUserId });
+      return {
+        lead_id: leadId,
+        called_at: stamped.rows[0].called_at,
+        tel: `tel:${lead.tenant_phone ?? ""}`
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /** Leads at risk of breaking the 24h promise: uncalled, < 6h to deadline. */
+  async getRescueQueue() {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Callbacks are not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      return { items: [] };
+    }
+    const result = await this.database.query(
+      `SELECT ld.id::text AS lead_id, ld.listing_id::text,
+              COALESCE(NULLIF(l.title_en, ''), 'Listing') AS listing_title,
+              ld.owner_user_id::text,
+              COALESCE(o.full_name, 'Owner') AS owner_name, o.phone_e164 AS owner_phone,
+              COALESCE(t.full_name, 'Tenant') AS tenant_name, t.phone_e164 AS tenant_phone,
+              ld.access_state, ld.call_deadline_at::text, ld.created_at::text
+       FROM leads ld
+       JOIN listings l ON l.id = ld.listing_id
+       JOIN users o ON o.id = ld.owner_user_id
+       JOIN users t ON t.id = ld.tenant_user_id
+       WHERE ld.called_at IS NULL
+         AND ld.call_deadline_at IS NOT NULL
+         AND ld.call_deadline_at > now()
+         AND ld.call_deadline_at <= now() + interval '6 hours'
+         AND ld.access_state <> 'expired'
+       ORDER BY ld.call_deadline_at ASC
+       LIMIT 100`
+    );
+    return { items: result.rows };
+  }
+
+  async teamMarkCalled(leadId: string) {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Callbacks are not enabled"
+      });
+    }
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+      const leadResult = await client.query<{
+        id: string;
+        contact_unlock_id: string | null;
+        called_at: string | null;
+        status: string;
+      }>(
+        `SELECT id::text, contact_unlock_id::text, called_at::text, status::text
+         FROM leads WHERE id = $1::uuid FOR UPDATE`,
+        [leadId]
+      );
+      const lead = leadResult.rows[0];
+      if (!lead) {
+        throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      }
+      if (lead.called_at) {
+        throw new ConflictException({ code: "already_called", message: "Call already claimed" });
+      }
+      await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "team");
+      await client.query(
+        `INSERT INTO lead_events (lead_id, to_status, notes)
+         VALUES ($1::uuid, $2::lead_status, 'team_called')`,
+        [leadId, lead.status]
+      );
+      const stamped = await client.query<{ called_at: string }>(
+        `SELECT called_at::text FROM leads WHERE id = $1::uuid`,
+        [leadId]
+      );
+      await client.query("COMMIT");
+      logTelemetry("lead.team_called", { lead_id: leadId });
+      return { lead_id: leadId, called_at: stamped.rows[0].called_at, called_by: "team" as const };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getLeadStats(ownerUserId: string): Promise<Record<string, number>> {

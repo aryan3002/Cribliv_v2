@@ -13,6 +13,9 @@ import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
 import { NotificationService } from "../notifications/notification.service";
 import { LeadsService } from "../leads/leads.service";
+import { readFeatureFlags } from "../../config/feature-flags";
+
+const DISPUTE_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 @Injectable()
 export class ContactsService {
@@ -22,6 +25,37 @@ export class ContactsService {
     @Inject(NotificationService) private readonly notifications: NotificationService,
     @Inject(LeadsService) private readonly leadsService: LeadsService
   ) {}
+
+  // Flag ON: the credit buys a guaranteed callback — the owner phone is never
+  // returned to the tenant. Flag OFF: legacy reveal behavior, unchanged.
+  private buildUnlockResponse(input: {
+    unlockId: string;
+    ownerPhone: string | null;
+    whatsappAvailable: boolean;
+    creditsRemaining: number;
+    responseDeadlineAt: string;
+  }) {
+    if (readFeatureFlags().ff_callback_leads) {
+      return {
+        unlock_id: input.unlockId,
+        callback: {
+          status: "awaiting_call" as const,
+          call_deadline_at: input.responseDeadlineAt
+        },
+        credits_remaining: input.creditsRemaining,
+        response_deadline_at: input.responseDeadlineAt
+      };
+    }
+    return {
+      unlock_id: input.unlockId,
+      owner_contact: {
+        phone_e164: input.ownerPhone ?? "+919888888888",
+        whatsapp_available: input.whatsappAvailable
+      },
+      credits_remaining: input.creditsRemaining,
+      response_deadline_at: input.responseDeadlineAt
+    };
+  }
 
   async unlockContact(
     userId: string,
@@ -46,7 +80,12 @@ export class ContactsService {
     });
 
     // Fire-and-forget: create lead for owner's inbox
-    this.createLeadFromUnlock(listingId, userId, result.unlock_id).catch((err) => {
+    this.createLeadFromUnlock(
+      listingId,
+      userId,
+      result.unlock_id,
+      (result as { response_deadline_at?: string }).response_deadline_at ?? null
+    ).catch((err) => {
       logTelemetry("lead.creation_error", {
         listing_id: listingId,
         tenant_user_id: userId,
@@ -78,7 +117,12 @@ export class ContactsService {
   /**
    * Notify the listing owner that a tenant unlocked their contact info.
    */
-  private async createLeadFromUnlock(listingId: string, tenantUserId: string, unlockId: string) {
+  private async createLeadFromUnlock(
+    listingId: string,
+    tenantUserId: string,
+    unlockId: string,
+    callDeadlineAt: string | null
+  ) {
     if (!this.database.isEnabled()) return;
 
     // Get owner_user_id and tenant phone for the lead
@@ -102,7 +146,8 @@ export class ContactsService {
       owner_user_id: ownerUserId,
       tenant_user_id: tenantUserId,
       contact_unlock_id: unlockId,
-      tenant_phone_masked: masked ?? undefined
+      tenant_phone_masked: masked ?? undefined,
+      call_deadline_at: callDeadlineAt ?? undefined
     });
   }
 
@@ -129,7 +174,7 @@ export class ContactsService {
       // Also get tenant name for a richer message
       const tenantInfo = await this.database.query<{ name: string }>(
         `
-        SELECT COALESCE(NULLIF(display_name, ''), 'एक किरायेदार') AS name
+        SELECT COALESCE(NULLIF(full_name, ''), 'एक किरायेदार') AS name
         FROM users
         WHERE id = $1::uuid
         LIMIT 1
@@ -144,7 +189,7 @@ export class ContactsService {
           listing_title: owner.title,
           listing_id: listingId,
           tenant_name: tenantInfo.rows[0]?.name ?? "एक किरायेदार",
-          response_deadline: "12 घंटे"
+          response_deadline: readFeatureFlags().ff_callback_leads ? "24 घंटे" : "12 घंटे"
         },
         mode: "immediate"
       });
@@ -169,6 +214,7 @@ export class ContactsService {
     idempotencyKey: string,
     source: string | null = null
   ) {
+    const deadlineInterval = readFeatureFlags().ff_callback_leads ? "24 hours" : "12 hours";
     const client = await this.database.getClient();
     try {
       await client.query("BEGIN");
@@ -214,15 +260,13 @@ export class ContactsService {
           unlock_id: row.id,
           listing_id: row.listing_id
         });
-        return {
-          unlock_id: row.id,
-          owner_contact: {
-            phone_e164: row.owner_phone ?? "+919888888888",
-            whatsapp_available: row.whatsapp_available
-          },
-          credits_remaining: Number(row.balance_credits),
-          response_deadline_at: row.response_deadline_at
-        };
+        return this.buildUnlockResponse({
+          unlockId: row.id,
+          ownerPhone: row.owner_phone,
+          whatsappAvailable: row.whatsapp_available,
+          creditsRemaining: Number(row.balance_credits),
+          responseDeadlineAt: row.response_deadline_at
+        });
       }
 
       const listingResult = await client.query<{
@@ -348,7 +392,7 @@ export class ContactsService {
           idempotency_key,
           response_deadline_at${sourceCol}
         )
-        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now() + interval '12 hours'${sourceVal})
+        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now() + interval '${deadlineInterval}'${sourceVal})
         ON CONFLICT (tenant_user_id, listing_id, idempotency_key) DO NOTHING
         RETURNING id::text, response_deadline_at::text
         `,
@@ -411,15 +455,13 @@ export class ContactsService {
         unlock_id: unlockId,
         listing_id: listingId
       });
-      return {
-        unlock_id: unlockId,
-        owner_contact: {
-          phone_e164: listing.owner_phone ?? "+919888888888",
-          whatsapp_available: listing.whatsapp_available
-        },
-        credits_remaining: Number(balanceAfterResult.rows[0]?.balance_credits ?? 0),
-        response_deadline_at: responseDeadlineAt
-      };
+      return this.buildUnlockResponse({
+        unlockId: unlockId,
+        ownerPhone: listing.owner_phone,
+        whatsappAvailable: listing.whatsapp_available,
+        creditsRemaining: Number(balanceAfterResult.rows[0]?.balance_credits ?? 0),
+        responseDeadlineAt: responseDeadlineAt
+      });
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -438,15 +480,13 @@ export class ContactsService {
         unlock_id: existing.id,
         listing_id: existing.listingId
       });
-      return {
-        unlock_id: existing.id,
-        owner_contact: {
-          phone_e164: "+919888888888",
-          whatsapp_available: true
-        },
-        credits_remaining: this.appState.getWalletBalance(userId),
-        response_deadline_at: new Date(existing.responseDeadlineAt).toISOString()
-      };
+      return this.buildUnlockResponse({
+        unlockId: existing.id,
+        ownerPhone: "+919888888888",
+        whatsappAvailable: true,
+        creditsRemaining: this.appState.getWalletBalance(userId),
+        responseDeadlineAt: new Date(existing.responseDeadlineAt).toISOString()
+      });
     }
 
     const listing = this.appState.listings.get(listingId);
@@ -487,7 +527,8 @@ export class ContactsService {
       idempotencyKey,
       ownerResponseStatus: "pending" as const,
       unlockStatus: "active" as const,
-      responseDeadlineAt: Date.now() + 12 * 60 * 60 * 1000
+      responseDeadlineAt:
+        Date.now() + (readFeatureFlags().ff_callback_leads ? 24 : 12) * 60 * 60 * 1000
     };
 
     this.appState.unlocks.set(unlock.id, unlock);
@@ -499,15 +540,13 @@ export class ContactsService {
       listing_id: listingId
     });
 
-    return {
-      unlock_id: unlock.id,
-      owner_contact: {
-        phone_e164: "+919888888888",
-        whatsapp_available: true
-      },
-      credits_remaining: this.appState.getWalletBalance(userId),
-      response_deadline_at: new Date(unlock.responseDeadlineAt).toISOString()
-    };
+    return this.buildUnlockResponse({
+      unlockId: unlock.id,
+      ownerPhone: "+919888888888",
+      whatsappAvailable: true,
+      creditsRemaining: this.appState.getWalletBalance(userId),
+      responseDeadlineAt: new Date(unlock.responseDeadlineAt).toISOString()
+    });
   }
 
   private async markOwnerRespondedDb(
@@ -586,6 +625,16 @@ export class ContactsService {
         [unlockId, JSON.stringify({ channel })]
       );
 
+      if (readFeatureFlags().ff_callback_leads) {
+        // Callback model: a responded unlock IS a claimed call — stamp the
+        // linked lead so dispute fraud-accounting and the owner card agree.
+        await client.query(
+          `UPDATE leads SET called_at = now(), called_by = 'owner', updated_at = now()
+           WHERE contact_unlock_id = $1::uuid AND called_at IS NULL`,
+          [unlockId]
+        );
+      }
+
       await client.query("COMMIT");
       const updated = updateResult.rows[0];
       logTelemetry("contact.owner_responded", {
@@ -641,5 +690,294 @@ export class ContactsService {
       owner_responded_at: new Date(unlock.ownerRespondedAt).toISOString(),
       channel
     };
+  }
+
+  private ensureCallbackMode() {
+    if (!readFeatureFlags().ff_callback_leads) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Callbacks are not enabled"
+      });
+    }
+  }
+
+  private deriveCallbackStatus(input: {
+    unlockStatus: string;
+    ownerRespondedAt: string | number | null | undefined;
+  }): "awaiting_call" | "call_claimed" | "refunded" {
+    if (input.unlockStatus === "refunded") return "refunded";
+    if (input.ownerRespondedAt) return "call_claimed";
+    return "awaiting_call";
+  }
+
+  async listCallbacks(tenantUserId: string) {
+    this.ensureCallbackMode();
+    if (!this.database.isEnabled()) {
+      const items = [...this.appState.unlocks.values()]
+        .filter((u) => u.tenantUserId === tenantUserId)
+        .sort((a, b) => b.responseDeadlineAt - a.responseDeadlineAt)
+        .map((u) => ({
+          callback_id: u.id,
+          listing_id: u.listingId,
+          listing_title: "Listing",
+          status: this.deriveCallbackStatus({
+            unlockStatus: u.unlockStatus,
+            ownerRespondedAt: u.ownerRespondedAt
+          }),
+          requested_at: null,
+          call_deadline_at: new Date(u.responseDeadlineAt).toISOString(),
+          call_claimed_at: u.ownerRespondedAt ? new Date(u.ownerRespondedAt).toISOString() : null,
+          tenant_confirmed_at: u.tenantConfirmedAt
+            ? new Date(u.tenantConfirmedAt).toISOString()
+            : null,
+          disputed_at: u.disputedAt ? new Date(u.disputedAt).toISOString() : null
+        }));
+      return { items };
+    }
+
+    const result = await this.database.query<{
+      callback_id: string;
+      listing_id: string;
+      listing_title: string;
+      unlock_status: string;
+      requested_at: string;
+      call_deadline_at: string;
+      call_claimed_at: string | null;
+      tenant_confirmed_at: string | null;
+      disputed_at: string | null;
+    }>(
+      `SELECT cu.id::text AS callback_id, cu.listing_id::text,
+              COALESCE(NULLIF(l.title_en, ''), 'Listing') AS listing_title,
+              cu.unlock_status::text AS unlock_status,
+              cu.created_at::text AS requested_at,
+              cu.response_deadline_at::text AS call_deadline_at,
+              cu.owner_responded_at::text AS call_claimed_at,
+              ld.tenant_confirmed_at::text, ld.disputed_at::text
+       FROM contact_unlocks cu
+       JOIN listings l ON l.id = cu.listing_id
+       LEFT JOIN leads ld ON ld.contact_unlock_id = cu.id
+       WHERE cu.tenant_user_id = $1::uuid
+       ORDER BY cu.created_at DESC
+       LIMIT 50`,
+      [tenantUserId]
+    );
+    return {
+      items: result.rows.map((r) => ({
+        callback_id: r.callback_id,
+        listing_id: r.listing_id,
+        listing_title: r.listing_title,
+        status: this.deriveCallbackStatus({
+          unlockStatus: r.unlock_status,
+          ownerRespondedAt: r.call_claimed_at
+        }),
+        requested_at: r.requested_at,
+        call_deadline_at: r.call_deadline_at,
+        call_claimed_at: r.call_claimed_at,
+        tenant_confirmed_at: r.tenant_confirmed_at,
+        disputed_at: r.disputed_at
+      }))
+    };
+  }
+
+  async confirmCallback(tenantUserId: string, callbackId: string) {
+    this.ensureCallbackMode();
+    if (!this.database.isEnabled()) {
+      const unlock = this.appState.unlocks.get(callbackId);
+      if (!unlock || unlock.tenantUserId !== tenantUserId) {
+        throw new NotFoundException({ code: "not_found", message: "Callback not found" });
+      }
+      if (!unlock.ownerRespondedAt) {
+        throw new ConflictException({
+          code: "no_call_claimed",
+          message: "No call has been claimed yet"
+        });
+      }
+      unlock.tenantConfirmedAt = unlock.tenantConfirmedAt ?? Date.now();
+      return {
+        callback_id: callbackId,
+        tenant_confirmed_at: new Date(unlock.tenantConfirmedAt).toISOString()
+      };
+    }
+
+    const unlock = await this.database.query<{ id: string; owner_responded_at: string | null }>(
+      `SELECT id::text, owner_responded_at::text FROM contact_unlocks
+       WHERE id = $1::uuid AND tenant_user_id = $2::uuid LIMIT 1`,
+      [callbackId, tenantUserId]
+    );
+    if (!unlock.rows.length) {
+      throw new NotFoundException({ code: "not_found", message: "Callback not found" });
+    }
+    if (!unlock.rows[0].owner_responded_at) {
+      throw new ConflictException({
+        code: "no_call_claimed",
+        message: "No call has been claimed yet"
+      });
+    }
+    await this.database.query(
+      `UPDATE leads SET tenant_confirmed_at = COALESCE(tenant_confirmed_at, now()), updated_at = now()
+       WHERE contact_unlock_id = $1::uuid`,
+      [callbackId]
+    );
+    await this.database.query(
+      `INSERT INTO contact_events(contact_unlock_id, actor_role, event_type, metadata)
+       VALUES ($1::uuid, 'tenant', 'tenant_confirmed', '{}'::jsonb)`,
+      [callbackId]
+    );
+    const stamped = await this.database.query<{ tenant_confirmed_at: string }>(
+      `SELECT tenant_confirmed_at::text FROM leads WHERE contact_unlock_id = $1::uuid LIMIT 1`,
+      [callbackId]
+    );
+    return {
+      callback_id: callbackId,
+      tenant_confirmed_at: stamped.rows[0]?.tenant_confirmed_at ?? new Date().toISOString()
+    };
+  }
+
+  async disputeCallback(tenantUserId: string, callbackId: string) {
+    this.ensureCallbackMode();
+    if (!this.database.isEnabled()) {
+      return this.disputeCallbackInMemory(tenantUserId, callbackId);
+    }
+    return this.disputeCallbackDb(tenantUserId, callbackId);
+  }
+
+  private disputeCallbackInMemory(tenantUserId: string, callbackId: string) {
+    const unlock = this.appState.unlocks.get(callbackId);
+    if (!unlock || unlock.tenantUserId !== tenantUserId) {
+      throw new NotFoundException({ code: "not_found", message: "Callback not found" });
+    }
+    if (!unlock.ownerRespondedAt) {
+      throw new ConflictException({
+        code: "no_call_claimed",
+        message: "No call has been claimed yet"
+      });
+    }
+    if (Date.now() - unlock.ownerRespondedAt > DISPUTE_WINDOW_MS) {
+      throw new ConflictException({
+        code: "dispute_window_closed",
+        message: "Dispute window has closed"
+      });
+    }
+    if (unlock.unlockStatus !== "active") {
+      throw new ConflictException({
+        code: "already_refunded",
+        message: "Callback already refunded"
+      });
+    }
+    this.appState.addWalletTxn({
+      userId: tenantUserId,
+      type: "refund_lead_dispute",
+      creditsDelta: 1,
+      referenceId: unlock.id
+    });
+    unlock.unlockStatus = "refunded";
+    unlock.disputedAt = Date.now();
+    logTelemetry("callback.disputed", { mode: "in_memory", unlock_id: unlock.id });
+    return {
+      callback_id: callbackId,
+      refunded: true,
+      credits_remaining: this.appState.getWalletBalance(tenantUserId)
+    };
+  }
+
+  private async disputeCallbackDb(tenantUserId: string, callbackId: string) {
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+      const unlockResult = await client.query<{
+        id: string;
+        listing_id: string;
+        unlock_status: string;
+        owner_responded_at: string | null;
+        window_closed: boolean;
+      }>(
+        `SELECT id::text, listing_id::text, unlock_status::text, owner_responded_at::text,
+                (owner_responded_at IS NOT NULL AND owner_responded_at < now() - interval '72 hours') AS window_closed
+         FROM contact_unlocks
+         WHERE id = $1::uuid AND tenant_user_id = $2::uuid
+         FOR UPDATE`,
+        [callbackId, tenantUserId]
+      );
+      const unlock = unlockResult.rows[0];
+      if (!unlock) {
+        throw new NotFoundException({ code: "not_found", message: "Callback not found" });
+      }
+      if (!unlock.owner_responded_at) {
+        throw new ConflictException({
+          code: "no_call_claimed",
+          message: "No call has been claimed yet"
+        });
+      }
+      if (unlock.window_closed) {
+        throw new ConflictException({
+          code: "dispute_window_closed",
+          message: "Dispute window has closed"
+        });
+      }
+      if (unlock.unlock_status !== "active") {
+        throw new ConflictException({
+          code: "already_refunded",
+          message: "Callback already refunded"
+        });
+      }
+
+      const refundTxn = await client.query<{ id: string }>(
+        `INSERT INTO wallet_transactions(
+           wallet_user_id, txn_type, credits_delta, reference_type, reference_id, metadata)
+         VALUES ($1::uuid, 'refund_lead_dispute', 1, 'contact_unlock', $2::uuid, '{}'::jsonb)
+         RETURNING id::text`,
+        [tenantUserId, callbackId]
+      );
+      await client.query(
+        `UPDATE wallets SET balance_credits = balance_credits + 1, updated_at = now()
+         WHERE user_id = $1::uuid`,
+        [tenantUserId]
+      );
+      await client.query(
+        `UPDATE contact_unlocks
+         SET unlock_status = 'refunded', refund_txn_id = $2::uuid, updated_at = now()
+         WHERE id = $1::uuid`,
+        [callbackId, refundTxn.rows[0].id]
+      );
+      const lead = await client.query<{ id: string; called_by: string | null }>(
+        `UPDATE leads SET disputed_at = now(), updated_at = now()
+         WHERE contact_unlock_id = $1::uuid
+         RETURNING id::text, called_by`,
+        [callbackId]
+      );
+      if (lead.rows[0]?.called_by === "owner") {
+        // Serial disputers are handled manually via admin at current scale.
+        await client.query(
+          `INSERT INTO fraud_flags (listing_id, flag_type, severity, reporter_user_id, details)
+           VALUES ($1::uuid, 'callback_dispute', 'medium', $2::uuid, $3::jsonb)`,
+          [
+            unlock.listing_id,
+            tenantUserId,
+            JSON.stringify({ lead_id: lead.rows[0].id, callback_id: callbackId })
+          ]
+        );
+      }
+      await client.query(
+        `INSERT INTO contact_events(contact_unlock_id, actor_role, event_type, metadata)
+         VALUES ($1::uuid, 'tenant', 'dispute_refund', '{}'::jsonb)`,
+        [callbackId]
+      );
+      const balance = await client.query<{ balance_credits: number }>(
+        `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid LIMIT 1`,
+        [tenantUserId]
+      );
+      await client.query("COMMIT");
+      logTelemetry("callback.disputed", { mode: "db", unlock_id: callbackId });
+      return {
+        callback_id: callbackId,
+        refunded: true,
+        credits_remaining: Number(balance.rows[0]?.balance_credits ?? 0)
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
