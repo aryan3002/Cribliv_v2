@@ -10,6 +10,12 @@
 //   - modal CTA text is "Start exploring" (lib/i18n.ts welcomeCta)
 import { test, expect } from "@playwright/test";
 
+// Retry the flake characterized in task-s2-9-report.md: a pre-existing
+// NextAuth v5 MissingCSRF race where getSession() can lose to the cookie
+// write right after signIn(), surfacing as "Something went wrong" on the
+// login page before this spec's own assertions ever run.
+test.describe.configure({ retries: 2 });
+
 function randomPhone() {
   return `+9196${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
 }
