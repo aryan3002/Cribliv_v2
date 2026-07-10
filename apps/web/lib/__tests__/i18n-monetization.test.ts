@@ -9,6 +9,7 @@ const KEYS = [
   "cbStepRequested",
   "cbStepOwnerNotified",
   "cbStepCallOnWay",
+  "cbStepRefunded",
   "cbRefundReassure",
   "cbGuestHint",
   "cbMyCallbacks",

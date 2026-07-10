@@ -110,7 +110,7 @@ export function CallbacksClient({ locale }: { locale: Locale }) {
         {items.map((item) => {
           const steps =
             item.status === "refunded"
-              ? [t(locale, "cbStepRequested"), "Credit refunded ✓"]
+              ? [t(locale, "cbStepRequested"), t(locale, "cbStepRefunded")]
               : item.status === "call_claimed"
                 ? [
                     t(locale, "cbStepRequested"),

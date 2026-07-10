@@ -364,6 +364,7 @@ const dictionary: Dictionary = {
   cbStepRequested: { en: "Requested ✓", hi: "अनुरोध हो गया ✓" },
   cbStepOwnerNotified: { en: "Owner notified ✓", hi: "मालिक को सूचित किया गया ✓" },
   cbStepCallOnWay: { en: "Call on its way — by {time}", hi: "कॉल आने वाली है — {time} तक" },
+  cbStepRefunded: { en: "Credit refunded ✓", hi: "क्रेडिट वापस हो गया ✓" },
   cbRefundReassure: {
     en: "No call by then? Your credit comes back automatically. Credits left: {n}",
     hi: "तब तक कॉल नहीं? आपका क्रेडिट अपने आप वापस आ जाएगा। बचे क्रेडिट: {n}"
