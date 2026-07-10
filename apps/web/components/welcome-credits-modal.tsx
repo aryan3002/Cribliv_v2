@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { motion } from "framer-motion";
 import { t, type Locale } from "../lib/i18n";
@@ -8,6 +9,17 @@ import { shouldShowWelcome, markWelcomeShown } from "../lib/welcome-credits";
 import { trackEvent } from "../lib/analytics";
 
 const CONFETTI_PIECES = 24;
+
+// The login page (/auth/login) redirects with a hard `window.location.href`
+// navigation after signIn() succeeds, but NextAuth's client session can flip
+// to "authenticated" a tick *before* that redirect fires — while the user is
+// still looking at the login form. Since this modal is mounted globally in
+// the locale layout, without this guard it would open (and mark itself
+// "shown" in localStorage) on the login page itself, then get torn down by
+// the redirect before the user ever sees it — burning the one-time flag for
+// nothing. Suppress the effect while on /auth/* so it only ever fires once
+// the user actually lands on their destination page.
+const SUPPRESSED_PATHS = [/\/auth\//];
 
 /**
  * One-time celebration on a new user's first landing after signup.
@@ -17,15 +29,18 @@ const CONFETTI_PIECES = 24;
  */
 export function WelcomeCreditsModal({ locale }: { locale: Locale }) {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const firedRef = useRef(false);
 
   const role = session?.user?.role;
   const isOwnerSide = role === "owner" || role === "pg_operator";
+  const suppressed = pathname ? SUPPRESSED_PATHS.some((re) => re.test(pathname)) : false;
 
   useEffect(() => {
     if (firedRef.current) return;
+    if (suppressed) return;
     if (status !== "authenticated") return;
     if (typeof window === "undefined") return;
     const userId = session?.user?.id;
@@ -42,7 +57,7 @@ export function WelcomeCreditsModal({ locale }: { locale: Locale }) {
       trackEvent("welcome_credits_shown", { role: role ?? "tenant" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, session, role]);
+  }, [status, session, role, suppressed]);
 
   useEffect(() => {
     if (!open) return;
