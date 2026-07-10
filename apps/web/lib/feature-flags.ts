@@ -11,7 +11,8 @@ const ENV_FLAG_MAP: Record<string, string | undefined> = {
   ff_voice_realtime: process.env.NEXT_PUBLIC_FF_VOICE_REALTIME,
   ff_lead_management_enabled: process.env.NEXT_PUBLIC_FF_LEAD_MANAGEMENT_ENABLED,
   ff_listing_analytics_enabled: process.env.NEXT_PUBLIC_FF_LISTING_ANALYTICS_ENABLED,
-  ff_listening_hero: process.env.NEXT_PUBLIC_FF_LISTENING_HERO
+  ff_listening_hero: process.env.NEXT_PUBLIC_FF_LISTENING_HERO,
+  ff_callback_leads: process.env.NEXT_PUBLIC_FF_CALLBACK_LEADS
 };
 
 function readEnv(flag: string): boolean {
