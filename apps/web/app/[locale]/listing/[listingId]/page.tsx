@@ -618,7 +618,11 @@ export default async function ListingDetailPage({
               {summaryLine && <div className="detail-rail__summary">{summaryLine}</div>}
 
               <div className="detail-rail__panel">
-                <UnlockContactPanel listingId={params.listingId} source={sourceRef ?? undefined} />
+                <UnlockContactPanel
+                  listingId={params.listingId}
+                  locale={locale}
+                  source={sourceRef ?? undefined}
+                />
               </div>
 
               <div className="detail-rail__reassure">

@@ -9,9 +9,11 @@ import {
   type LeadStatus
 } from "../../lib/owner-api";
 import { LeadCard } from "./lead-card";
+import { type Locale } from "../../lib/i18n";
 
 interface Props {
   accessToken: string;
+  locale: Locale;
 }
 
 const TABS: Array<{ value: LeadStatus | "all"; label: string; color?: string }> = [
@@ -23,7 +25,7 @@ const TABS: Array<{ value: LeadStatus | "all"; label: string; color?: string }> 
   { value: "lost", label: "Lost", color: "#9ca3af" }
 ];
 
-export function LeadsPipeline({ accessToken }: Props) {
+export function LeadsPipeline({ accessToken, locale }: Props) {
   const [leads, setLeads] = useState<LeadVm[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -237,6 +239,7 @@ export function LeadsPipeline({ accessToken }: Props) {
               <LeadCard
                 key={lead.id}
                 lead={lead}
+                locale={locale}
                 onStatusChange={handleStatusChange}
                 updating={updatingLeadId === lead.id}
                 accessToken={accessToken}

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { readAuthSession } from "../../lib/client-auth";
 import { fetchApi } from "../../lib/api";
 import { trackEvent } from "../../lib/analytics";
+import { t, type Locale } from "../../lib/i18n";
 
 interface CallbackItem {
   callback_id: string;
@@ -27,7 +28,7 @@ function formatDeadline(iso: string) {
   });
 }
 
-export function CallbacksClient() {
+export function CallbacksClient({ locale }: { locale: Locale }) {
   const { data: session, status: sessionStatus } = useSession();
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [items, setItems] = useState<CallbackItem[]>([]);
@@ -84,24 +85,24 @@ export function CallbacksClient() {
     return <p style={{ padding: "var(--space-6)" }}>Loading…</p>;
   }
   if (token === null) {
-    return <p style={{ padding: "var(--space-6)" }}>Please log in to see your callbacks.</p>;
+    return <p style={{ padding: "var(--space-6)" }}>{t(locale, "cbLoginPrompt")}</p>;
   }
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "var(--space-6) var(--space-4)" }}>
-      <h1 style={{ marginBottom: "var(--space-2)" }}>My Callbacks</h1>
+      <h1 style={{ marginBottom: "var(--space-2)" }}>{t(locale, "cbMyCallbacks")}</h1>
       <p
         className="body-sm"
         style={{ color: "var(--text-secondary)", marginBottom: "var(--space-5)" }}
       >
-        Every request is guaranteed: a call within 24 hours or your credit back.
+        {t(locale, "cbGuaranteeLine")}
       </p>
 
       {loading ? <p>Loading…</p> : null}
       {error ? <p className="alert alert--error">{error}</p> : null}
       {!loading && items.length === 0 ? (
         <p className="caption" style={{ color: "var(--text-tertiary)" }}>
-          No callback requests yet. Find a property and request a callback.
+          {t(locale, "cbEmptyState")}
         </p>
       ) : null}
 
@@ -109,13 +110,20 @@ export function CallbacksClient() {
         {items.map((item) => {
           const steps =
             item.status === "refunded"
-              ? ["Requested ✓", "Credit refunded ✓"]
+              ? [t(locale, "cbStepRequested"), "Credit refunded ✓"]
               : item.status === "call_claimed"
-                ? ["Requested ✓", "Owner notified ✓", "Call made — did you get it?"]
+                ? [
+                    t(locale, "cbStepRequested"),
+                    t(locale, "cbStepOwnerNotified"),
+                    t(locale, "cbCallMadePrompt")
+                  ]
                 : [
-                    "Requested ✓",
-                    "Owner notified ✓",
-                    `Call on its way — by ${formatDeadline(item.call_deadline_at)}`
+                    t(locale, "cbStepRequested"),
+                    t(locale, "cbStepOwnerNotified"),
+                    t(locale, "cbStepCallOnWay").replace(
+                      "{time}",
+                      formatDeadline(item.call_deadline_at)
+                    )
                   ];
           const showPrompt =
             item.status === "call_claimed" && !item.tenant_confirmed_at && !item.disputed_at;
@@ -140,17 +148,17 @@ export function CallbacksClient() {
               </ol>
               {item.status === "refunded" ? (
                 <p className="caption" style={{ color: "var(--text-secondary)" }}>
-                  Nobody called in time, so your credit came back automatically.
+                  {t(locale, "cbRefundedCaption")}
                 </p>
               ) : null}
               {item.tenant_confirmed_at ? (
                 <p className="caption" style={{ color: "var(--text-secondary)" }}>
-                  Confirmed — glad the call happened.
+                  {t(locale, "cbConfirmedCaption")}
                 </p>
               ) : null}
               {item.disputed_at ? (
                 <p className="caption" style={{ color: "var(--text-secondary)" }}>
-                  Dispute recorded — your credit was refunded.
+                  {t(locale, "cbDisputedCaption")}
                 </p>
               ) : null}
               {showPrompt ? (
@@ -162,14 +170,14 @@ export function CallbacksClient() {
                     disabled={busyId === item.callback_id}
                     onClick={() => act(item.callback_id, "confirm")}
                   >
-                    Yes, I got the call
+                    {t(locale, "cbGotCall")}
                   </button>
                   <button
                     className="btn btn--secondary btn--sm"
                     disabled={busyId === item.callback_id}
                     onClick={() => act(item.callback_id, "dispute")}
                   >
-                    No call — refund my credit
+                    {t(locale, "cbNoCall")}
                   </button>
                 </div>
               ) : null}
