@@ -13,6 +13,7 @@ import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
 import { NotificationService } from "../notifications/notification.service";
 import { LeadsService } from "../leads/leads.service";
+import { readFeatureFlags } from "../../config/feature-flags";
 
 @Injectable()
 export class ContactsService {
@@ -22,6 +23,37 @@ export class ContactsService {
     @Inject(NotificationService) private readonly notifications: NotificationService,
     @Inject(LeadsService) private readonly leadsService: LeadsService
   ) {}
+
+  // Flag ON: the credit buys a guaranteed callback — the owner phone is never
+  // returned to the tenant. Flag OFF: legacy reveal behavior, unchanged.
+  private buildUnlockResponse(input: {
+    unlockId: string;
+    ownerPhone: string | null;
+    whatsappAvailable: boolean;
+    creditsRemaining: number;
+    responseDeadlineAt: string;
+  }) {
+    if (readFeatureFlags().ff_callback_leads) {
+      return {
+        unlock_id: input.unlockId,
+        callback: {
+          status: "awaiting_call" as const,
+          call_deadline_at: input.responseDeadlineAt
+        },
+        credits_remaining: input.creditsRemaining,
+        response_deadline_at: input.responseDeadlineAt
+      };
+    }
+    return {
+      unlock_id: input.unlockId,
+      owner_contact: {
+        phone_e164: input.ownerPhone ?? "+919888888888",
+        whatsapp_available: input.whatsappAvailable
+      },
+      credits_remaining: input.creditsRemaining,
+      response_deadline_at: input.responseDeadlineAt
+    };
+  }
 
   async unlockContact(
     userId: string,
@@ -144,7 +176,7 @@ export class ContactsService {
           listing_title: owner.title,
           listing_id: listingId,
           tenant_name: tenantInfo.rows[0]?.name ?? "एक किरायेदार",
-          response_deadline: "12 घंटे"
+          response_deadline: readFeatureFlags().ff_callback_leads ? "24 घंटे" : "12 घंटे"
         },
         mode: "immediate"
       });
@@ -169,6 +201,7 @@ export class ContactsService {
     idempotencyKey: string,
     source: string | null = null
   ) {
+    const deadlineInterval = readFeatureFlags().ff_callback_leads ? "24 hours" : "12 hours";
     const client = await this.database.getClient();
     try {
       await client.query("BEGIN");
@@ -214,15 +247,13 @@ export class ContactsService {
           unlock_id: row.id,
           listing_id: row.listing_id
         });
-        return {
-          unlock_id: row.id,
-          owner_contact: {
-            phone_e164: row.owner_phone ?? "+919888888888",
-            whatsapp_available: row.whatsapp_available
-          },
-          credits_remaining: Number(row.balance_credits),
-          response_deadline_at: row.response_deadline_at
-        };
+        return this.buildUnlockResponse({
+          unlockId: row.id,
+          ownerPhone: row.owner_phone,
+          whatsappAvailable: row.whatsapp_available,
+          creditsRemaining: Number(row.balance_credits),
+          responseDeadlineAt: row.response_deadline_at
+        });
       }
 
       const listingResult = await client.query<{
@@ -348,7 +379,7 @@ export class ContactsService {
           idempotency_key,
           response_deadline_at${sourceCol}
         )
-        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now() + interval '12 hours'${sourceVal})
+        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, now() + interval '${deadlineInterval}'${sourceVal})
         ON CONFLICT (tenant_user_id, listing_id, idempotency_key) DO NOTHING
         RETURNING id::text, response_deadline_at::text
         `,
@@ -411,15 +442,13 @@ export class ContactsService {
         unlock_id: unlockId,
         listing_id: listingId
       });
-      return {
-        unlock_id: unlockId,
-        owner_contact: {
-          phone_e164: listing.owner_phone ?? "+919888888888",
-          whatsapp_available: listing.whatsapp_available
-        },
-        credits_remaining: Number(balanceAfterResult.rows[0]?.balance_credits ?? 0),
-        response_deadline_at: responseDeadlineAt
-      };
+      return this.buildUnlockResponse({
+        unlockId: unlockId,
+        ownerPhone: listing.owner_phone,
+        whatsappAvailable: listing.whatsapp_available,
+        creditsRemaining: Number(balanceAfterResult.rows[0]?.balance_credits ?? 0),
+        responseDeadlineAt: responseDeadlineAt
+      });
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -438,15 +467,13 @@ export class ContactsService {
         unlock_id: existing.id,
         listing_id: existing.listingId
       });
-      return {
-        unlock_id: existing.id,
-        owner_contact: {
-          phone_e164: "+919888888888",
-          whatsapp_available: true
-        },
-        credits_remaining: this.appState.getWalletBalance(userId),
-        response_deadline_at: new Date(existing.responseDeadlineAt).toISOString()
-      };
+      return this.buildUnlockResponse({
+        unlockId: existing.id,
+        ownerPhone: "+919888888888",
+        whatsappAvailable: true,
+        creditsRemaining: this.appState.getWalletBalance(userId),
+        responseDeadlineAt: new Date(existing.responseDeadlineAt).toISOString()
+      });
     }
 
     const listing = this.appState.listings.get(listingId);
@@ -487,7 +514,8 @@ export class ContactsService {
       idempotencyKey,
       ownerResponseStatus: "pending" as const,
       unlockStatus: "active" as const,
-      responseDeadlineAt: Date.now() + 12 * 60 * 60 * 1000
+      responseDeadlineAt:
+        Date.now() + (readFeatureFlags().ff_callback_leads ? 24 : 12) * 60 * 60 * 1000
     };
 
     this.appState.unlocks.set(unlock.id, unlock);
@@ -499,15 +527,13 @@ export class ContactsService {
       listing_id: listingId
     });
 
-    return {
-      unlock_id: unlock.id,
-      owner_contact: {
-        phone_e164: "+919888888888",
-        whatsapp_available: true
-      },
-      credits_remaining: this.appState.getWalletBalance(userId),
-      response_deadline_at: new Date(unlock.responseDeadlineAt).toISOString()
-    };
+    return this.buildUnlockResponse({
+      unlockId: unlock.id,
+      ownerPhone: "+919888888888",
+      whatsappAvailable: true,
+      creditsRemaining: this.appState.getWalletBalance(userId),
+      responseDeadlineAt: new Date(unlock.responseDeadlineAt).toISOString()
+    });
   }
 
   private async markOwnerRespondedDb(
