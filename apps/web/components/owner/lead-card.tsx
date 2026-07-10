@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import type { LeadVm, LeadStatus } from "../../lib/owner-api";
+import { useEffect, useState } from "react";
+import { unlockLead, recordLeadCallClick, type LeadVm, type LeadStatus } from "../../lib/owner-api";
 import { Clock, StickyNote } from "lucide-react";
+import { LeadCreditsPanel } from "./lead-credits-panel";
+import { useFlag } from "../../lib/feature-flags";
+import { trackEvent } from "../../lib/analytics";
+import { ApiError } from "../../lib/api";
 
 interface LeadCardProps {
   lead: LeadVm;
   onStatusChange: (leadId: string, newStatus: LeadStatus, notes?: string) => Promise<void>;
   updating?: boolean;
+  accessToken?: string | null;
 }
 
 const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: string; dot: string }> =
@@ -51,12 +56,72 @@ function formatDate(iso: string) {
   }
 }
 
-export function LeadCard({ lead, onStatusChange, updating }: LeadCardProps) {
+export function LeadCard({ lead, onStatusChange, updating, accessToken }: LeadCardProps) {
   const [showNotes, setShowNotes] = useState(false);
   const [noteText, setNoteText] = useState(lead.ownerNotes ?? "");
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | null>(null);
 
   const cfg = STATUS_CONFIG[lead.status];
+
+  const callbackMode = useFlag("ff_callback_leads");
+  const [phone, setPhone] = useState<string | null>(lead.tenantPhone);
+  const [accessState, setAccessState] = useState(lead.accessState);
+  const [unlockKey] = useState(() =>
+    typeof crypto !== "undefined" ? crypto.randomUUID() : `${lead.id}-unlock`
+  );
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [needsCredits, setNeedsCredits] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!callbackMode || !lead.callDeadlineAt || lead.calledAt) {
+      setRemainingMs(null);
+      return;
+    }
+    const tick = () => setRemainingMs(new Date(lead.callDeadlineAt!).getTime() - Date.now());
+    tick();
+    const timer = setInterval(tick, 60_000);
+    return () => clearInterval(timer);
+  }, [callbackMode, lead.callDeadlineAt, lead.calledAt]);
+
+  async function handleUnlock() {
+    if (!accessToken) return;
+    setUnlockBusy(true);
+    setCardError(null);
+    try {
+      const res = await unlockLead(accessToken, lead.id, unlockKey);
+      setPhone(res.tenantPhone);
+      setAccessState("unlocked");
+      setNeedsCredits(false);
+      trackEvent("lead_unlocked", { lead_id: lead.id });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to unlock lead";
+      if (err instanceof ApiError && err.code === "insufficient_credits") setNeedsCredits(true);
+      else if (message.toLowerCase().includes("insufficient")) setNeedsCredits(true);
+      else setCardError(message);
+    } finally {
+      setUnlockBusy(false);
+    }
+  }
+
+  async function handleCall() {
+    if (!accessToken) return;
+    try {
+      const res = await recordLeadCallClick(accessToken, lead.id);
+      trackEvent("call_clicked", { lead_id: lead.id });
+      window.location.href = res.tel;
+    } catch (err) {
+      setCardError(err instanceof Error ? err.message : "Unable to start call");
+    }
+  }
+
+  function formatRemaining(ms: number) {
+    if (ms <= 0) return "expired";
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    return `${h}h ${m}m left`;
+  }
 
   async function handleAction(next: LeadStatus) {
     setPendingStatus(next);
@@ -92,6 +157,85 @@ export function LeadCard({ lead, onStatusChange, updating }: LeadCardProps) {
             )}
           </div>
         </div>
+
+        {/* Lead monetization strip: countdown, blur/unlock, call-now, buy credits */}
+        {callbackMode ? (
+          <div style={{ marginTop: "var(--space-2)" }} data-testid="lead-monetization">
+            {accessState === "free" ? (
+              <span className="caption" style={{ fontWeight: 700, color: "#166534" }}>
+                FREE LEAD
+              </span>
+            ) : null}
+            {remainingMs !== null && accessState !== "expired" ? (
+              <span
+                style={{
+                  marginLeft: "var(--space-2)",
+                  color: remainingMs < 6 * 3_600_000 ? "#b91c1c" : "var(--text-secondary)"
+                }}
+                className="caption"
+              >
+                ⏱ {formatRemaining(remainingMs)}
+              </span>
+            ) : null}
+
+            {accessState === "locked" ? (
+              <div style={{ marginTop: "var(--space-2)" }}>
+                <div style={{ filter: "blur(6px)", userSelect: "none" }} aria-hidden="true">
+                  <p>
+                    {lead.tenantName} · {lead.tenantPhoneMasked ?? "XXXXXXXX"}
+                  </p>
+                </div>
+                <button
+                  className="btn btn--primary btn--sm"
+                  onClick={() => void handleUnlock()}
+                  disabled={unlockBusy || !accessToken}
+                  style={{ marginTop: "var(--space-1)" }}
+                >
+                  {unlockBusy ? "Unlocking…" : "Unlock for 1 credit"}
+                </button>
+              </div>
+            ) : null}
+
+            {accessState === "free" || accessState === "unlocked" ? (
+              <div style={{ marginTop: "var(--space-2)" }}>
+                {phone ? <p style={{ fontWeight: 700 }}>{phone}</p> : null}
+                <button
+                  className="btn btn--primary btn--sm"
+                  onClick={() => void handleCall()}
+                  disabled={!accessToken}
+                >
+                  {lead.calledAt ? "Call again" : "Call now"}
+                </button>
+                {!lead.calledAt ? (
+                  <p
+                    className="caption"
+                    style={{ color: "var(--text-tertiary)", marginTop: "var(--space-1)" }}
+                  >
+                    Call before the timer ends or the tenant is refunded.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {accessState === "expired" ? (
+              <p
+                className="caption"
+                style={{ color: "var(--text-tertiary)", marginTop: "var(--space-2)" }}
+              >
+                Expired — respond faster next time.
+              </p>
+            ) : null}
+
+            {needsCredits && accessToken ? (
+              <LeadCreditsPanel accessToken={accessToken} onPurchased={() => void handleUnlock()} />
+            ) : null}
+            {cardError ? (
+              <p className="alert alert--error" style={{ marginTop: "var(--space-2)" }}>
+                {cardError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {/* Dates */}
         <div className="lead-card__dates">
