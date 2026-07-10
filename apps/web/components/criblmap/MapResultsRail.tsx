@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { useSession } from "next-auth/react";
@@ -8,7 +9,7 @@ import { listingHref } from "../../lib/listing-href";
 import { readAuthSession } from "../../lib/client-auth";
 import { useFlag } from "../../lib/feature-flags";
 import type { Locale } from "../../lib/i18n";
-import { GuestGate, isCardGated } from "../guest-gate";
+import { GuestGate, GUEST_FREE_CARDS } from "../guest-gate";
 import { useMapDispatch, useMapState, type MapPin } from "./hooks/useMapState";
 
 interface MapResultsRailProps {
@@ -131,6 +132,15 @@ export function MapResultsRail({ locale, map }: MapResultsRailProps) {
   const orderedPins = selectedPin
     ? [selectedPin, ...pins.filter((pin) => pin.id !== selectedPin.id)]
     : pins;
+  // Gate by identity from the STABLE (un-reordered) `pins` list, not from
+  // `orderedPins` — orderedPins moves the selected pin to index 0, so
+  // index-based gating let a guest un-blur any card by clicking its map
+  // marker, and re-gated already-free cards once selection pushed them
+  // past the threshold. Membership in this set is immune to reordering.
+  const gatedPinIds = useMemo(() => {
+    if (!gatingOn || !isGuest) return null;
+    return new Set(pins.slice(GUEST_FREE_CARDS).map((p) => p.id));
+  }, [pins, gatingOn, isGuest]);
   const verifiedCount = pins.filter((pin) => pin.verification_status === "verified").length;
   const headingCount = verifiedCount > 0 ? verifiedCount : pins.length;
   const headingNoun = verifiedCount > 0 ? "verified home" : "home";
@@ -172,10 +182,10 @@ export function MapResultsRail({ locale, map }: MapResultsRailProps) {
             <p>Try zooming out or adjusting filters to find verified rentals nearby.</p>
           </div>
         ) : (
-          orderedPins.slice(0, 12).map((pin, index) => (
+          orderedPins.slice(0, 12).map((pin) => (
             <GuestGate
               key={pin.id}
-              gated={isCardGated({ index, isGuest, flagOn: gatingOn })}
+              gated={gatedPinIds?.has(pin.id) ?? false}
               locale={locale as Locale}
             >
               <ResultCard
