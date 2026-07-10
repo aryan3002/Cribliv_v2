@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import type { PgPublicDetail } from "../../../lib/pg-public-api";
 
 const detailView = vi.fn();
@@ -91,6 +91,25 @@ describe("PgDetailClient", () => {
     render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
     expect(screen.queryByText(/only 1 bed/i)).toBeNull();
     expect(screen.queryByText(/beds left/i)).toBeNull();
+  });
+
+  it("emphasizes starting rent and keeps total monthly cost secondary", () => {
+    render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+    const pricing = screen.getByRole("region", { name: /pg pricing and trust summary/i });
+    expect(within(pricing).getByText(/starting rent/i)).toBeTruthy();
+    expect(within(pricing).getByText("from ₹7,000")).toBeTruthy();
+    expect(within(pricing).getByText("Total monthly cost ₹8,364/mo all-in")).toBeTruthy();
+    expect(within(pricing).queryByText(/^total monthly cost$/i)).toBeNull();
+  });
+
+  it("uses rent first in the sticky rail and mobile cta", () => {
+    render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+    expect(screen.getAllByText("from ₹7,000")).toHaveLength(3);
+    expect(screen.getAllByText("/mo rent")).toHaveLength(2);
+    expect(screen.getAllByText("Total monthly cost ₹8,364/mo all-in")).toHaveLength(3);
+    expect(screen.queryByText("/mo all-in")).toBeNull();
   });
 
   it("hides vacancy urgency when plenty available", () => {

@@ -577,12 +577,20 @@ export function PgDetailClient({
     detail.room_types.length > 0
       ? Math.min(...detail.room_types.map((r) => r.monthly_rent_paise))
       : null;
-  const monthlyAllInPaise =
+  const primaryRentPaise =
     lowestPrice != null
-      ? lowestPrice + Math.round((pd.security_deposit_paise ?? 0) / 11)
+      ? lowestPrice
       : detail.monthly_rent != null
-        ? detail.monthly_rent * 100 + Math.round((pd.security_deposit_paise ?? 0) / 11)
+        ? detail.monthly_rent * 100
         : null;
+  const monthlyAllInPaise =
+    primaryRentPaise != null
+      ? primaryRentPaise + Math.round((pd.security_deposit_paise ?? 0) / 11)
+      : null;
+  const primaryRentLabel =
+    primaryRentPaise != null ? `from ${rupees(primaryRentPaise)}` : "Request price";
+  const monthlyAllInLabel =
+    monthlyAllInPaise != null ? `Total monthly cost ${rupees(monthlyAllInPaise)}/mo all-in` : null;
 
   return (
     <>
@@ -657,18 +665,17 @@ export function PgDetailClient({
             <span className="tenant-cost-card__icon" aria-hidden="true">
               <Wallet size={18} />
             </span>
-            <span className="tenant-cost-card__label">Total monthly cost</span>
-            <strong>
-              {monthlyAllInPaise != null
-                ? rupees(monthlyAllInPaise)
-                  : "Request price"}
-            </strong>
+            <span className="tenant-cost-card__label">Starting rent</span>
+            <strong>{primaryRentLabel}</strong>
             <span className="tenant-cost-card__note">
-              Per person, with deposit spread across 11 months
+              {monthlyAllInLabel ?? "Per person rent before move-in terms"}
             </span>
           </div>
           <div className="tenant-cost-card">
-            <span className="tenant-cost-card__icon tenant-cost-card__icon--amber" aria-hidden="true">
+            <span
+              className="tenant-cost-card__icon tenant-cost-card__icon--amber"
+              aria-hidden="true"
+            >
               <Shield size={18} />
             </span>
             <span className="tenant-cost-card__label">
@@ -688,7 +695,10 @@ export function PgDetailClient({
             </span>
           </div>
           <div className="tenant-cost-card">
-            <span className="tenant-cost-card__icon tenant-cost-card__icon--trust" aria-hidden="true">
+            <span
+              className="tenant-cost-card__icon tenant-cost-card__icon--trust"
+              aria-hidden="true"
+            >
               <ShieldCheck size={18} />
             </span>
             <span className="tenant-cost-card__label">PG trust</span>
@@ -839,20 +849,12 @@ export function PgDetailClient({
               <div>
                 <div className="detail-rail__price">
                   <strong>
-                    {monthlyAllInPaise != null
-                      ? `from ${rupees(monthlyAllInPaise)}`
-                        : "Price on request"}
+                    {primaryRentPaise != null ? primaryRentLabel : "Price on request"}
                   </strong>
-                  {monthlyAllInPaise != null && (
-                    <span>/mo all-in</span>
-                  )}
+                  {primaryRentPaise != null && <span>/mo rent</span>}
                 </div>
-                {(lowestPrice != null || detail.monthly_rent != null) && (
-                  <div className="detail-rail__secondary">
-                    {lowestPrice != null
-                      ? `${rupees(lowestPrice)} rent`
-                      : `₹${detail.monthly_rent?.toLocaleString("en-IN")} rent`}
-                  </div>
+                {monthlyAllInLabel && (
+                  <div className="detail-rail__secondary">{monthlyAllInLabel}</div>
                 )}
                 {pd.security_deposit_paise != null && (
                   <div className="pg-rail-deposit">
@@ -978,18 +980,18 @@ export function PgDetailClient({
       <div className="cta-bar">
         <div>
           <div className="card__price">
-            {monthlyAllInPaise != null
-              ? `${rupees(monthlyAllInPaise)}`
-                : "Price on request"}
-            {monthlyAllInPaise != null && (
-              <span className="card__price-period">/mo all-in</span>
-            )}
+            {primaryRentPaise != null ? primaryRentLabel : "Price on request"}
+            {primaryRentPaise != null && <span className="card__price-period">/mo rent</span>}
           </div>
-          {pd.security_deposit_paise != null && (
+          {monthlyAllInLabel ? (
+            <div className="body-sm text-secondary" style={{ fontSize: 12 }}>
+              {monthlyAllInLabel}
+            </div>
+          ) : pd.security_deposit_paise != null ? (
             <div className="body-sm text-secondary" style={{ fontSize: 12 }}>
               {rupees(pd.security_deposit_paise)} {t(locale as Locale, "depositShort")}
             </div>
-          )}
+          ) : null}
         </div>
         <a
           href="#main-content"

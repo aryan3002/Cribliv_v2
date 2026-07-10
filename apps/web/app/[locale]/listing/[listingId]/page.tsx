@@ -343,10 +343,10 @@ export default async function ListingDetailPage({
             <span className="tenant-cost-card__icon" aria-hidden="true">
               <BadgeIndianRupee size={18} />
             </span>
-            <span className="tenant-cost-card__label">Total monthly cost</span>
-            <strong>₹{monthlyAllIn.toLocaleString("en-IN")}</strong>
+            <span className="tenant-cost-card__label">Rent</span>
+            <strong>₹{listing.monthly_rent.toLocaleString("en-IN")}</strong>
             <span className="tenant-cost-card__note">
-              Rent plus deposit spread across 11 months
+              Total monthly cost ₹{monthlyAllIn.toLocaleString("en-IN")}/mo all-in
             </span>
           </div>
           <div className="tenant-cost-card">
@@ -585,31 +585,25 @@ export default async function ListingDetailPage({
             <div className="detail-rail">
               <div>
                 <div className="detail-rail__price">
-                  <strong>₹{monthlyAllIn.toLocaleString("en-IN")}</strong>
-                  <span>/mo all-in</span>
+                  <strong>₹{listing.monthly_rent.toLocaleString("en-IN")}</strong>
+                  <span>/mo rent</span>
                 </div>
-                {(listing.security_deposit || availableShort) && (
-                  <div className="detail-rail__secondary">
-                    <span>₹{listing.monthly_rent.toLocaleString("en-IN")} rent</span>
-                    {(listing.security_deposit || availableShort) && (
-                      <span aria-hidden="true">·</span>
-                    )}
-                    {listing.security_deposit && (
-                      <span>
-                        ₹{listing.security_deposit.toLocaleString("en-IN")}{" "}
-                        {t(locale, "depositShort")}
-                      </span>
-                    )}
-                    {listing.security_deposit && availableShort && (
-                      <span aria-hidden="true">·</span>
-                    )}
-                    {availableShort && (
-                      <span>
-                        {t(locale, "availableFrom")} {availableShort}
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="detail-rail__secondary">
+                  <span>Total monthly cost ₹{monthlyAllIn.toLocaleString("en-IN")}/mo all-in</span>
+                  {listing.security_deposit && <span aria-hidden="true">·</span>}
+                  {listing.security_deposit && (
+                    <span>
+                      ₹{listing.security_deposit.toLocaleString("en-IN")}{" "}
+                      {t(locale, "depositShort")}
+                    </span>
+                  )}
+                  {availableShort && <span aria-hidden="true">·</span>}
+                  {availableShort && (
+                    <span>
+                      {t(locale, "availableFrom")} {availableShort}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {summaryLine && <div className="detail-rail__summary">{summaryLine}</div>}
