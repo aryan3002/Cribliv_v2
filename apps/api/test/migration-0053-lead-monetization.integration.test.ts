@@ -41,8 +41,17 @@ describe.runIf(!!TEST_DB)("migration 0053_lead_monetization", () => {
 
   it("rejects invalid access_state and called_by values", async () => {
     await expect(
-      client.query(`SELECT 'bogus'::text = ANY(ARRAY['free','locked','unlocked','expired'])`)
-    ).resolves.toBeTruthy();
+      client.query(
+        `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, access_state)
+         VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'bogus')`
+      )
+    ).rejects.toThrow(/leads_access_state_check/);
+    await expect(
+      client.query(
+        `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, called_by)
+         VALUES (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'stranger')`
+      )
+    ).rejects.toThrow(/leads_called_by_check/);
     const c = await client.query(`
       SELECT conname FROM pg_constraint
       WHERE conrelid = 'leads'::regclass AND conname IN ('leads_access_state_check','leads_called_by_check')`);
