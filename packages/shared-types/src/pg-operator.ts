@@ -183,6 +183,16 @@ export interface PgDashboardLead {
   status: string;
   created_at: string;
   contact: { phone_masked: string };
+  // Lead monetization (Slice 3) — mirrors the owner-side LeadVm access
+  // lifecycle so PgLeadsBoard can reuse the shared owner unlock/call-click
+  // controls instead of the legacy dev-reveal seam. Populated from the SAME
+  // getOwnerLeads row LeadsSliceAdapter already fetches — no new query.
+  access_state: "free" | "locked" | "unlocked" | "expired";
+  call_deadline_at: string | null;
+  called_at: string | null;
+  called_by: string | null;
+  tenant_name: string;
+  tenant_phone?: string | null;
 }
 
 export interface PgPortfolioSummary {

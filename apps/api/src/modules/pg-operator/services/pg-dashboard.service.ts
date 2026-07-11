@@ -62,6 +62,12 @@ export interface LeadsSlice {
       status: string;
       created_at: string;
       contact: { phone_masked: string };
+      access_state: "free" | "locked" | "unlocked" | "expired";
+      call_deadline_at: string | null;
+      called_at: string | null;
+      called_by: string | null;
+      tenant_name: string;
+      tenant_phone?: string | null;
     }>
   >;
 }

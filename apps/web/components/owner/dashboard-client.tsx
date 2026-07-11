@@ -559,6 +559,7 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
                       onLeadsChange={setLeads}
                       searchQuery={leadSearch}
                       enableDrag={canDrag}
+                      locale={loc}
                     />
                   ) : (
                     <LeadsPipeline accessToken={accessToken} locale={loc} />

@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { updateLeadStatus, type LeadVm, type LeadStatus } from "../../lib/owner-api";
 import { track } from "../../lib/track";
+import { LeadMonetizationControls } from "./lead-monetization-controls";
+import { type Locale } from "../../lib/i18n";
 import "./lead-kanban.css";
 
 // Mirror of VALID_TRANSITIONS in apps/api/src/modules/leads/leads.service.ts.
@@ -94,6 +96,7 @@ interface KanbanProps {
   onLeadsChange: (next: LeadVm[]) => void;
   searchQuery: string;
   enableDrag: boolean;
+  locale: Locale;
 }
 
 export function LeadKanban({
@@ -101,7 +104,8 @@ export function LeadKanban({
   leads,
   onLeadsChange,
   searchQuery,
-  enableDrag
+  enableDrag,
+  locale
 }: KanbanProps) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; isError?: boolean } | null>(null);
@@ -173,6 +177,10 @@ export function LeadKanban({
     } finally {
       setUpdating(null);
     }
+  }
+
+  function handleLeadPatch(leadId: string, patch: Partial<LeadVm>) {
+    onLeadsChange(leads.map((l) => (l.id === leadId ? { ...l, ...patch } : l)));
   }
 
   function handleDragEnd(result: DropResult) {
@@ -282,6 +290,14 @@ export function LeadKanban({
                                   )}
                                 </div>
                               </div>
+
+                              <LeadMonetizationControls
+                                lead={lead}
+                                accessToken={accessToken}
+                                locale={locale}
+                                compact
+                                onLeadPatch={(patch) => handleLeadPatch(lead.id, patch)}
+                              />
 
                               <div className="lk-card__meta">
                                 <Clock size={11} aria-hidden="true" />
