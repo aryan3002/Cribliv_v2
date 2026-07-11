@@ -13,7 +13,8 @@ const ENV_FLAG_MAP: Record<string, string | undefined> = {
   ff_listing_analytics_enabled: process.env.NEXT_PUBLIC_FF_LISTING_ANALYTICS_ENABLED,
   ff_listening_hero: process.env.NEXT_PUBLIC_FF_LISTENING_HERO,
   ff_callback_leads: process.env.NEXT_PUBLIC_FF_CALLBACK_LEADS,
-  ff_guest_gating: process.env.NEXT_PUBLIC_FF_GUEST_GATING
+  ff_guest_gating: process.env.NEXT_PUBLIC_FF_GUEST_GATING,
+  ff_credit_purchase_enabled: process.env.NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED
 };
 
 function readEnv(flag: string): boolean {

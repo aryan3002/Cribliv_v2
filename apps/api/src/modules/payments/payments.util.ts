@@ -1,14 +1,40 @@
-import { BadRequestException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { createHmac, createHash, timingSafeEqual } from "crypto";
 
 export type PaymentProvider = "razorpay" | "upi";
 
+export type CreditPlanAudience = "tenant" | "owner";
+
 export const CREDIT_PLANS = {
-  starter_10: { amountPaise: 9900, credits: 10 },
-  growth_20: { amountPaise: 19900, credits: 20 },
+  starter_10: {
+    audience: "tenant",
+    amountPaise: 9900,
+    credits: 10,
+    label: "10 callback credits",
+    recommended: false
+  },
+  growth_20: {
+    audience: "tenant",
+    amountPaise: 19900,
+    credits: 20,
+    label: "20 callback credits",
+    recommended: true
+  },
   // Owner lead-unlock packs (placeholder pricing per 2026-07-10 spec §4 — tune before launch)
-  leads_5: { amountPaise: 29900, credits: 5 },
-  leads_15: { amountPaise: 69900, credits: 15 }
+  leads_5: {
+    audience: "owner",
+    amountPaise: 29900,
+    credits: 5,
+    label: "5 lead credits",
+    recommended: false
+  },
+  leads_15: {
+    audience: "owner",
+    amountPaise: 69900,
+    credits: 15,
+    label: "15 lead credits",
+    recommended: true
+  }
 } as const;
 
 export type CreditPlanId = keyof typeof CREDIT_PLANS;
@@ -22,6 +48,40 @@ export function parseCreditPlan(planId: string) {
     });
   }
   return { planId: planId as CreditPlanId, ...plan };
+}
+
+export function planAudienceForRole(role: string): CreditPlanAudience | null {
+  if (role === "tenant") return "tenant";
+  if (role === "owner" || role === "pg_operator") return "owner";
+  return null;
+}
+
+export function parseCreditPlanForRole(planId: string, role: string) {
+  const plan = parseCreditPlan(planId);
+  const audience = planAudienceForRole(role);
+  if (!audience || plan.audience !== audience) {
+    throw new ForbiddenException({
+      code: "plan_not_available_for_role",
+      message: "This credit plan is not available for the current role"
+    });
+  }
+  return plan;
+}
+
+export function listCreditPlansForRole(role: string) {
+  const audience = planAudienceForRole(role);
+  if (!audience) return [];
+  return Object.entries(CREDIT_PLANS)
+    .filter(([, plan]) => plan.audience === audience)
+    .map(([planId, plan]) => ({
+      plan_id: planId,
+      audience: plan.audience,
+      amount_paise: plan.amountPaise,
+      credits: plan.credits,
+      label: plan.label,
+      unit_price_paise: Math.round(plan.amountPaise / plan.credits),
+      recommended: plan.recommended
+    }));
 }
 
 export function parsePaymentProvider(provider: string): PaymentProvider {

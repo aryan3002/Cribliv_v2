@@ -1,14 +1,26 @@
-import { Body, Controller, Get, Inject, Post, Req, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Inject,
+  Post,
+  Req,
+  UseGuards
+} from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
 import { ok } from "../../common/response";
 import { AppStateService } from "../../common/app-state.service";
 import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
+import { readFeatureFlags } from "../../config/feature-flags";
 import { randomUUID } from "crypto";
 import {
   buildProviderPayload,
+  listCreditPlansForRole,
   parseCreditPlan,
+  parseCreditPlanForRole,
   parsePaymentProvider
 } from "../payments/payments.util";
 
@@ -19,6 +31,21 @@ export class WalletController {
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService
   ) {}
+
+  private assertPurchaseEnabled() {
+    if (!readFeatureFlags().ff_credit_purchase_enabled) {
+      throw new ForbiddenException({
+        code: "feature_disabled",
+        message: "Credit purchase is not enabled"
+      });
+    }
+  }
+
+  @Get("plans")
+  async plans(@Req() req: { user: { id: string; role: string } }) {
+    this.assertPurchaseEnabled();
+    return ok({ items: listCreditPlansForRole(req.user.role) });
+  }
 
   @Get()
   async balance(@Req() req: { user: { id: string } }) {
@@ -93,14 +120,15 @@ export class WalletController {
   async purchaseIntent(
     @Req()
     req: {
-      user: { id: string };
+      user: { id: string; role: string };
       headers: Record<string, string | string[] | undefined>;
     },
     @Body() body: { plan_id: string; provider: string }
   ) {
+    this.assertPurchaseEnabled();
     const idemHeader = req.headers["idempotency-key"];
     const idem = requireIdempotencyKey(Array.isArray(idemHeader) ? idemHeader[0] : idemHeader);
-    const plan = parseCreditPlan(body.plan_id);
+    const plan = parseCreditPlanForRole(body.plan_id, req.user.role);
     const provider = parsePaymentProvider(body.provider);
 
     if (this.database.isEnabled()) {

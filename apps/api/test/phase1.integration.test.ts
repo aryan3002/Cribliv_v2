@@ -125,6 +125,7 @@ describe("Phase 1 integration flows", () => {
       await app.close();
       app = null;
     }
+    delete process.env.FF_CREDIT_PURCHASE_ENABLED;
   });
 
   it("locks OTP challenge after 5 failed attempts", async () => {
@@ -296,6 +297,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const idem = "purchase-idem-1";
 
@@ -329,6 +331,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -376,6 +379,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -423,6 +427,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -462,6 +467,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -507,6 +513,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,

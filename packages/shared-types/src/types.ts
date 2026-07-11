@@ -29,6 +29,18 @@ export type WalletTxnType =
 
 export type UnlockStatus = "active" | "refunded" | "cancelled";
 
+export type CreditPlanAudience = "tenant" | "owner";
+
+export interface CreditPlanDto {
+  plan_id: string;
+  audience: CreditPlanAudience;
+  amount_paise: number;
+  credits: number;
+  label: string;
+  unit_price_paise: number;
+  recommended: boolean;
+}
+
 export type OwnerResponseStatus = "pending" | "responded" | "timeout_refunded";
 
 export type PgOnboardingPath = "self_serve" | "sales_assist";
