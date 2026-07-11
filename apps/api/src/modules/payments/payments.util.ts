@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { createHmac, createHash, timingSafeEqual } from "crypto";
+import { readFeatureFlags } from "../../config/feature-flags";
 
 export type PaymentProvider = "razorpay" | "upi";
 
@@ -56,6 +57,15 @@ export function planAudienceForRole(role: string): CreditPlanAudience | null {
   return null;
 }
 
+export function assertCreditPurchaseEnabled() {
+  if (!readFeatureFlags().ff_credit_purchase_enabled) {
+    throw new ForbiddenException({
+      code: "feature_disabled",
+      message: "Credit purchase is not enabled"
+    });
+  }
+}
+
 export function parseCreditPlanForRole(planId: string, role: string) {
   const plan = parseCreditPlan(planId);
   const audience = planAudienceForRole(role);
@@ -101,6 +111,7 @@ export function buildProviderPayload(input: {
   amountPaise: number;
   planId: CreditPlanId;
   creditsToGrant: number;
+  keyId?: string;
 }) {
   const base = {
     provider: input.provider,
@@ -112,7 +123,7 @@ export function buildProviderPayload(input: {
   if (input.provider === "razorpay") {
     return {
       ...base,
-      key_id: process.env.PAYMENT_PROVIDER_KEY ?? "rzp_test_placeholder",
+      key_id: input.keyId ?? process.env.PAYMENT_PROVIDER_KEY ?? "rzp_test_placeholder",
       notes: {
         plan_id: input.planId,
         credits_to_grant: input.creditsToGrant

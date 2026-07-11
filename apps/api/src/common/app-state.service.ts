@@ -67,11 +67,12 @@ interface UnlockRecord {
   disputedAt?: number;
 }
 
-interface PaymentOrderRecord {
+export interface PaymentOrderRecord {
   id: string;
   userId: string;
   provider: "razorpay" | "upi";
-  providerOrderId: string;
+  /** Unset while the order is reserved but the provider call hasn't completed yet. */
+  providerOrderId?: string;
   amountPaise: number;
   creditsToGrant: number;
   planId: "starter_10" | "growth_20" | "leads_5" | "leads_15";
