@@ -22,6 +22,8 @@ const KEYS = [
   "cbCallMadePrompt",
   "cbEmptyState",
   "cbLoginPrompt",
+  "cbNoCredits",
+  "cbBuyCreditsSub",
   "leadFreeBadge",
   "leadUnlockButton",
   "leadCallNow",
@@ -30,10 +32,8 @@ const KEYS = [
   "leadExpired",
   "leadNoCredits",
   "leadBuyPackSub",
-  "leadBuyPackButton",
-  "leadPaidRefresh",
-  "leadOpenUpi",
-  "leadCreditsAdded",
+  "leadBalanceLabel",
+  "leadLockedWaiting",
   "gateHeadline",
   "gateSub",
   "gateButton",
@@ -78,5 +78,7 @@ describe("monetization i18n keys", () => {
     expect(t("hi", "cbRefundReassure")).toContain("{n}");
     expect(t("en", "cpUnitPrice")).toContain("{price}");
     expect(t("hi", "cpUnitPrice")).toContain("{price}");
+    expect(t("en", "leadLockedWaiting")).toContain("{n}");
+    expect(t("hi", "leadLockedWaiting")).toContain("{n}");
   });
 });
