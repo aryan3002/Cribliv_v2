@@ -1,4 +1,10 @@
-import { ConflictException, Inject, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { AppStateService, PaymentOrderRecord } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
@@ -9,10 +15,13 @@ import {
   PaymentProvider,
   assertCreditPurchaseEnabled,
   buildProviderPayload,
+  ensureRazorpayCheckoutSignature,
   parseCreditPlan,
   parseCreditPlanForRole,
   parsePaymentProvider
 } from "../payments/payments.util";
+
+export type PaymentOrderStatus = "created" | "authorized" | "captured" | "failed" | "refunded";
 
 export interface CreatePurchaseIntentInput {
   userId: string;
@@ -27,6 +36,48 @@ export interface PurchaseIntentResult {
   amount_paise: number;
   credits_to_grant: number;
   provider_payload: ReturnType<typeof buildProviderPayload>;
+}
+
+export interface ConfirmPurchaseIntentInput {
+  userId: string;
+  orderId: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string | undefined;
+}
+
+export interface ConfirmPurchaseIntentResult {
+  order_id: string;
+  status: PaymentOrderStatus;
+  credits_to_grant: number;
+}
+
+export interface PurchaseIntentStatusInput {
+  userId: string;
+  orderId: string;
+}
+
+export interface PurchaseIntentStatusResult {
+  order_id: string;
+  status: PaymentOrderStatus;
+  plan_id: CreditPlanId;
+  amount_paise: number;
+  credits_to_grant: number;
+  provider: PaymentProvider;
+}
+
+function orderNotFoundException() {
+  return new NotFoundException({
+    code: "order_not_found",
+    message: "Purchase order not found"
+  });
+}
+
+function orderMismatchException() {
+  return new BadRequestException({
+    code: "order_mismatch",
+    message: "razorpay_order_id in the request body does not match the order in the path"
+  });
 }
 
 /** Fully-resolved order — a provider order id has already been assigned. */
@@ -78,6 +129,190 @@ export class WalletPurchaseService {
       : await this.createIntentInMemory(input, plan, provider);
 
     return this.toResult(order);
+  }
+
+  /**
+   * Verifies the Razorpay Checkout.js success-handler signature and marks
+   * the order `authorized`. Never touches wallet balance — crediting stays
+   * webhook-only (see PaymentsController) so the source of truth for "money
+   * actually arrived" is always the provider's server-to-server callback,
+   * not a client-supplied confirmation. `captured` is terminal: a confirm
+   * arriving after the webhook already captured the order must not
+   * downgrade it back to `authorized`.
+   */
+  async confirmIntent(input: ConfirmPurchaseIntentInput): Promise<ConfirmPurchaseIntentResult> {
+    assertCreditPurchaseEnabled();
+
+    return this.database.isEnabled()
+      ? this.confirmIntentDb(input)
+      : this.confirmIntentInMemory(input);
+  }
+
+  async getIntentStatus(input: PurchaseIntentStatusInput): Promise<PurchaseIntentStatusResult> {
+    assertCreditPurchaseEnabled();
+
+    return this.database.isEnabled()
+      ? this.getIntentStatusDb(input)
+      : this.getIntentStatusInMemory(input);
+  }
+
+  // ── Confirmation + status: in-memory mode ───────────────────────────────
+
+  private confirmIntentInMemory(input: ConfirmPurchaseIntentInput): ConfirmPurchaseIntentResult {
+    const record = this.appState.paymentOrderByProviderOrderId.get(input.orderId);
+    if (!record || record.userId !== input.userId) {
+      // Same 404 whether the order doesn't exist or belongs to someone else
+      // — existence must not be leakable to a non-owner.
+      throw orderNotFoundException();
+    }
+
+    if (input.razorpayOrderId !== input.orderId) {
+      throw orderMismatchException();
+    }
+
+    ensureRazorpayCheckoutSignature({
+      orderId: input.orderId,
+      paymentId: input.razorpayPaymentId,
+      signature: input.razorpaySignature
+    });
+
+    if (record.status === "created") {
+      record.status = "authorized";
+      record.providerPaymentId = input.razorpayPaymentId;
+    }
+
+    return {
+      order_id: input.orderId,
+      status: record.status,
+      credits_to_grant: record.creditsToGrant
+    };
+  }
+
+  private getIntentStatusInMemory(input: PurchaseIntentStatusInput): PurchaseIntentStatusResult {
+    const record = this.appState.paymentOrderByProviderOrderId.get(input.orderId);
+    if (!record || record.userId !== input.userId) {
+      throw orderNotFoundException();
+    }
+
+    return {
+      order_id: input.orderId,
+      status: record.status,
+      plan_id: record.planId,
+      amount_paise: record.amountPaise,
+      credits_to_grant: record.creditsToGrant,
+      provider: record.provider
+    };
+  }
+
+  // ── Confirmation + status: DB mode ──────────────────────────────────────
+
+  private async confirmIntentDb(
+    input: ConfirmPurchaseIntentInput
+  ): Promise<ConfirmPurchaseIntentResult> {
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+
+      const locked = await client.query<{
+        id: string;
+        provider_order_id: string;
+        status: PaymentOrderStatus;
+        credits_to_grant: number;
+      }>(
+        `
+        SELECT id::text, provider_order_id, status::text, credits_to_grant
+        FROM payment_orders
+        WHERE provider_order_id = $1
+          AND user_id = $2::uuid
+        LIMIT 1
+        FOR UPDATE
+        `,
+        [input.orderId, input.userId]
+      );
+
+      const row = locked.rows[0];
+      if (!row) {
+        throw orderNotFoundException();
+      }
+
+      if (input.razorpayOrderId !== input.orderId) {
+        throw orderMismatchException();
+      }
+
+      ensureRazorpayCheckoutSignature({
+        orderId: row.provider_order_id,
+        paymentId: input.razorpayPaymentId,
+        signature: input.razorpaySignature
+      });
+
+      let finalStatus = row.status;
+      if (row.status === "created") {
+        await client.query(
+          `
+          UPDATE payment_orders
+          SET status = 'authorized', provider_payment_id = $2, updated_at = now()
+          WHERE id = $1::uuid
+          `,
+          [row.id, input.razorpayPaymentId]
+        );
+        finalStatus = "authorized";
+      }
+
+      await client.query("COMMIT");
+
+      return {
+        order_id: row.provider_order_id,
+        status: finalStatus,
+        credits_to_grant: Number(row.credits_to_grant)
+      };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async getIntentStatusDb(
+    input: PurchaseIntentStatusInput
+  ): Promise<PurchaseIntentStatusResult> {
+    const result = await this.database.query<{
+      provider_order_id: string;
+      status: PaymentOrderStatus;
+      amount_paise: number;
+      credits_to_grant: number;
+      provider: string;
+      metadata: Record<string, unknown>;
+    }>(
+      `
+      SELECT provider_order_id, status::text, amount_paise, credits_to_grant, provider::text, metadata
+      FROM payment_orders
+      WHERE provider_order_id = $1
+        AND user_id = $2::uuid
+      LIMIT 1
+      `,
+      [input.orderId, input.userId]
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      throw orderNotFoundException();
+    }
+
+    const storedPlanIdRaw =
+      typeof row.metadata?.plan_id === "string" ? row.metadata.plan_id : undefined;
+    if (!storedPlanIdRaw) {
+      throw new Error("payment_orders row missing plan_id metadata");
+    }
+
+    return {
+      order_id: row.provider_order_id,
+      status: row.status,
+      plan_id: parseCreditPlan(storedPlanIdRaw).planId,
+      amount_paise: Number(row.amount_paise),
+      credits_to_grant: Number(row.credits_to_grant),
+      provider: parsePaymentProvider(row.provider)
+    };
   }
 
   private assertNoConflict(

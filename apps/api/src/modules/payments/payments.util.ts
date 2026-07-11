@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, UnauthorizedException } from "@nestjs/common";
-import { createHmac, createHash, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import { readFeatureFlags } from "../../config/feature-flags";
 
 export type PaymentProvider = "razorpay" | "upi";
@@ -212,6 +212,86 @@ export function ensureWebhookSignature(input: {
   }
 }
 
+/**
+ * Verifies a Razorpay Checkout.js success-handler signature:
+ * HMAC-SHA256 of `${orderId}|${paymentId}` under the account's key secret.
+ * This is distinct from `ensureWebhookSignature` above, which verifies the
+ * server-to-server webhook payload signature — checkout and webhook
+ * signatures use different inputs and (in live mode) different secrets.
+ */
+export function verifyRazorpayCheckoutSignature(input: {
+  orderId: string;
+  paymentId: string;
+  signature: string;
+  secret: string;
+}): boolean {
+  const expected = createHmac("sha256", input.secret)
+    .update(`${input.orderId}|${input.paymentId}`)
+    .digest("hex");
+  const provided = input.signature.trim();
+  if (!provided || provided.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+}
+
+/**
+ * Mode resolution kept in sync with RazorpayOrdersService.mode() — mock vs
+ * live must agree so the checkout signature secret and the order-creation
+ * secret follow the same rule.
+ */
+function razorpayCheckoutMode(): "mock" | "live" {
+  const configured = process.env.RAZORPAY_ORDERS_MODE?.trim().toLowerCase();
+  if (configured === "mock" || configured === "live") {
+    return configured;
+  }
+  return process.env.NODE_ENV === "production" ? "live" : "mock";
+}
+
+export function ensureRazorpayCheckoutSignature(input: {
+  orderId: string;
+  paymentId: string;
+  signature: string | undefined;
+}) {
+  const signature = input.signature?.trim();
+  if (!signature) {
+    throw new UnauthorizedException({
+      code: "invalid_payment_signature",
+      message: "Missing checkout signature"
+    });
+  }
+
+  const liveSecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  const mockSecret = process.env.RAZORPAY_CHECKOUT_SECRET?.trim();
+  const secrets =
+    razorpayCheckoutMode() === "live"
+      ? [liveSecret].filter((secret): secret is string => Boolean(secret))
+      : [mockSecret, liveSecret].filter((secret): secret is string => Boolean(secret));
+
+  if (secrets.length === 0) {
+    throw new UnauthorizedException({
+      code: "invalid_payment_signature",
+      message: "Checkout secret is not configured"
+    });
+  }
+
+  const matched = secrets.some((secret) =>
+    verifyRazorpayCheckoutSignature({
+      orderId: input.orderId,
+      paymentId: input.paymentId,
+      signature,
+      secret
+    })
+  );
+
+  if (!matched) {
+    throw new UnauthorizedException({
+      code: "invalid_payment_signature",
+      message: "Checkout signature verification failed"
+    });
+  }
+}
+
 function firstString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
@@ -228,6 +308,9 @@ export interface ParsedWebhookEvent {
   providerPaymentId?: string;
   isCaptureSuccess: boolean;
   isFailure: boolean;
+  /** Undefined when the payload doesn't carry payment.entity.amount/.currency — older/other payload shapes still work. */
+  amountPaise?: number;
+  currency?: string;
 }
 
 export function parseWebhookEvent(
@@ -281,12 +364,17 @@ export function parseWebhookEvent(
   const isFailure =
     failureEventTokens.includes(eventTypeLower) || failureEventTokens.includes(status);
 
+  const amountPaise = typeof paymentData?.amount === "number" ? paymentData.amount : undefined;
+  const currency = typeof paymentData?.currency === "string" ? paymentData.currency : undefined;
+
   return {
     providerEventId,
     eventType,
     providerOrderId,
     providerPaymentId,
     isCaptureSuccess,
-    isFailure
+    isFailure,
+    amountPaise,
+    currency
   };
 }

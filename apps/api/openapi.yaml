@@ -49,12 +49,21 @@ paths:
   /wallet:
     get:
       summary: Wallet balance
+  /wallet/plans:
+    get:
+      summary: Role-aware credit plan catalog (tenant callback packs / owner lead packs)
   /wallet/transactions:
     get:
       summary: Wallet transaction history
   /wallet/purchase-intents:
     post:
-      summary: Create idempotent credit purchase intent
+      summary: Create idempotent credit purchase intent (reserves a provider order; grants no credits)
+  /wallet/purchase-intents/{orderId}/confirm:
+    post:
+      summary: Verify the Razorpay checkout signature and mark the order authorized (credits are posted asynchronously by the captured webhook, never here)
+  /wallet/purchase-intents/{orderId}:
+    get:
+      summary: Read purchase order status, plan, and amount
   /owner/listings:
     get:
       summary: Owner listings
