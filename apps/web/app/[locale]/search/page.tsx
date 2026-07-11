@@ -7,7 +7,7 @@ import { buildSearchQuery, fetchApi } from "../../../lib/api";
 import { PG_CITY_CONTENT } from "../../../lib/pg-city-content";
 import { SearchFilters } from "./search-filters";
 import { SearchResultsMap } from "./SearchResultsMap";
-import { SegmentedSearchBar } from "../../../components/search/SegmentedSearchBar";
+import { IntentSearchBar } from "../../../components/search/IntentSearchBar";
 import { ListingCardItem } from "../../../components/listing-card";
 import { GuestGate } from "../../../components/guest-gate";
 // NOTE: must come from the plain lib module, NOT components/guest-gate — a
@@ -302,7 +302,7 @@ export default async function SearchResultsPage({
             </div>
 
             <div className="tenant-results-toolbar">
-              <SegmentedSearchBar locale={params.locale} segment="homes" params={filters} />
+              <IntentSearchBar locale={params.locale} segment="homes" params={filters} />
               <div className="tenant-results-filter-card">
                 <span className="tenant-results-filter-card__label">
                   <SlidersHorizontal size={14} aria-hidden="true" />
