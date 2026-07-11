@@ -31,6 +31,7 @@ function makeDetail(over: Partial<PgPublicDetail> = {}): PgPublicDetail {
     created_at: null,
     city_slug: "pune",
     locality_slug: "kothrud",
+    location_point: null,
     pg_details: {
       total_beds: 10,
       gender_policy: "girls",
@@ -133,6 +134,51 @@ describe("PgDetailClient", () => {
       />
     );
     expect(screen.queryByText(/beds left/i)).toBeNull();
+  });
+
+  it("renders CriblMap link from detail location point", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          location_point: {
+            lat: 26.8551,
+            lng: 80.941,
+            source: "exact",
+            label: "Gomti Nagar, Lucknow",
+            city_slug: "lucknow",
+            locality_slug: "gomti-nagar"
+          }
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+
+    const href = screen.getByRole("link", { name: /criblmap/i }).getAttribute("href")!;
+    expect(href).toContain("listing_type=pg");
+    expect(href).toContain("city=lucknow");
+    expect(href).toContain("lat=26.8551");
+    expect(href).toContain("lng=80.941");
+    expect(href).toContain("zoom=15");
+    expect(href).toContain("listing=L1");
+  });
+
+  it("keeps text fallback without link when location point and city are missing", () => {
+    const { container } = render(
+      <PgDetailClient
+        detail={makeDetail({
+          city_slug: null,
+          locality_slug: null,
+          location_point: null
+        })}
+        city="nowhere"
+        locale="en"
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: /where you'll be/i })).toBeTruthy();
+    expect(screen.getAllByText("Location").length).toBeGreaterThan(0);
+    expect(container.querySelector('a[href*="/en/map"]')).toBeNull();
   });
 
   it("renders only present facts (null deposit → no deposit card)", () => {
