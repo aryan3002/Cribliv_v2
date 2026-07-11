@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PgDashboardService } from "../services/pg-dashboard.service";
+import { LeadsSliceAdapter } from "../services/dashboard-adapters";
 
 function makeDeps() {
   const listings = {
@@ -39,7 +40,15 @@ function makeDeps() {
         source: "contact_unlock",
         status: "new",
         created_at: "2026-01-01T00:00:00Z",
-        contact: { phone_masked: "+9198***234" }
+        contact: { phone_masked: "+9198***234" },
+        // Lead monetization (Slice 3) — mirrors the exact fields
+        // LeadsSliceAdapter.inboxForOperator now preserves from getOwnerLeads.
+        access_state: "locked" as const,
+        call_deadline_at: "2026-01-01T12:00:00Z",
+        called_at: null,
+        called_by: null,
+        tenant_name: "Asha",
+        tenant_phone: null
       }
     ])
   };
@@ -74,6 +83,17 @@ describe("PgDashboardService", () => {
     expect(r.listing_health[0].contact_unlocks_7d).toBe(3);
     expect(r.leads_inbox.length).toBe(1);
     expect(d.leads.listingLeadCounts7d).toHaveBeenCalledWith("op-1", ["L1"]);
+    // Lead monetization (Slice 3): the service passes the adapter's
+    // access/call fields straight through into leads_inbox — PgLeadsBoard
+    // needs these to reuse the shared owner unlock/call-click controls.
+    expect(r.leads_inbox[0]).toMatchObject({
+      access_state: "locked",
+      call_deadline_at: "2026-01-01T12:00:00Z",
+      called_at: null,
+      called_by: null,
+      tenant_name: "Asha",
+      tenant_phone: null
+    });
   });
 
   it("returns cached payload within 60s for the same operator", async () => {
@@ -391,5 +411,94 @@ describe("PgDashboardService portfolio + trends", () => {
     expect(r.search_insights.top_queries).toEqual([]);
     expect(d.analytics.funnelTimeseries).not.toHaveBeenCalled();
     expect(d.analytics.searchInsights).not.toHaveBeenCalled();
+  });
+});
+
+describe("LeadsSliceAdapter.inboxForOperator", () => {
+  // Lead monetization (Slice 3): getOwnerLeads rows carry access/call fields
+  // (and tenant_phone_masked) as TOP-LEVEL columns, not nested under
+  // `.contact` — this adapter must map them straight through instead of
+  // discarding them, which is what lets PgLeadsBoard reuse the shared owner
+  // unlock/call-click controls without a second query.
+  function makeLeadsService(rows: Record<string, unknown>[]) {
+    return {
+      getOwnerLeads: vi.fn(async () => ({
+        items: rows,
+        total: rows.length,
+        page: 1,
+        page_size: 20
+      }))
+    };
+  }
+
+  it("maps access_state, call_deadline_at, called_at, called_by, tenant_name, tenant_phone from getOwnerLeads", async () => {
+    const leads = makeLeadsService([
+      {
+        id: "lead-1",
+        listing_id: "L1",
+        listing_title: "Cosy 2BHK",
+        tenant_user_id: "u1",
+        tenant_name: "Asha",
+        tenant_phone_masked: "+9198***234",
+        status: "new",
+        status_changed_at: "2026-01-01T00:00:00Z",
+        owner_notes: null,
+        created_at: "2026-01-01T00:00:00Z",
+        access_state: "locked",
+        call_deadline_at: "2026-01-02T00:00:00Z",
+        called_at: null,
+        called_by: null,
+        tenant_phone: null
+      }
+    ]);
+    const adapter = new LeadsSliceAdapter(leads as any);
+    const result = await adapter.inboxForOperator("op-1");
+    expect(result).toEqual([
+      {
+        lead_id: "lead-1",
+        source: "unknown",
+        status: "new",
+        created_at: "2026-01-01T00:00:00Z",
+        contact: { phone_masked: "+9198***234" },
+        access_state: "locked",
+        call_deadline_at: "2026-01-02T00:00:00Z",
+        called_at: null,
+        called_by: null,
+        tenant_name: "Asha",
+        tenant_phone: null
+      }
+    ]);
+  });
+
+  it("carries a real tenant_phone and called_at/called_by through for a called, unlocked lead", async () => {
+    const leads = makeLeadsService([
+      {
+        id: "lead-2",
+        tenant_name: "Rahul",
+        tenant_phone_masked: "+9198***999",
+        status: "contacted",
+        created_at: "2026-01-01T00:00:00Z",
+        access_state: "unlocked",
+        call_deadline_at: "2026-01-02T00:00:00Z",
+        called_at: "2026-01-01T05:00:00Z",
+        called_by: "owner",
+        tenant_phone: "+919812345678"
+      }
+    ]);
+    const adapter = new LeadsSliceAdapter(leads as any);
+    const [row] = await adapter.inboxForOperator("op-1");
+    expect(row.access_state).toBe("unlocked");
+    expect(row.called_at).toBe("2026-01-01T05:00:00Z");
+    expect(row.called_by).toBe("owner");
+    expect(row.tenant_phone).toBe("+919812345678");
+  });
+
+  it("defaults access_state to locked and phone_masked to *** when getOwnerLeads omits them", async () => {
+    const leads = makeLeadsService([{ id: "lead-3", created_at: "2026-01-01T00:00:00Z" }]);
+    const adapter = new LeadsSliceAdapter(leads as any);
+    const [row] = await adapter.inboxForOperator("op-1");
+    expect(row.access_state).toBe("locked");
+    expect(row.contact.phone_masked).toBe("***");
+    expect(row.tenant_name).toBe("Tenant");
   });
 });

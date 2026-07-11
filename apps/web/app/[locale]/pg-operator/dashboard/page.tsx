@@ -182,7 +182,11 @@ export default async function Page({ params }: { params: { locale: string } }) {
           className={`${styles.anchorSection} pgo-animate-fade-up`}
         >
           <h2 className={styles.sectionTitle}>Leads pipeline</h2>
-          <PgLeadsBoard leads={data.leads_inbox} token={(s as any)?.accessToken ?? undefined} />
+          <PgLeadsBoard
+            leads={data.leads_inbox}
+            token={(s as any)?.accessToken ?? undefined}
+            locale={params.locale}
+          />
         </section>
       </div>
     </main>
