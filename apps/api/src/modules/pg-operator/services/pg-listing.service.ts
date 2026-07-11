@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { PgPropertiesService } from "./pg-properties.service";
 import { PgScoreService } from "./pg-score.service";
 import { isMaterialChange } from "./pg-listing-material";
+import { resolvePgMapPoint, type PgMapPoint } from "./pg-geo.util";
 import type {
   PgAmenities,
   PgElectricityMode,
@@ -53,6 +54,7 @@ export interface PgListingDetail {
   created_at: string | null;
   city_slug: string | null;
   locality_slug: string | null;
+  location_point: PgMapPoint | null;
   /** Committed admin-verification state — for the edit-wizard score meter. */
   verification_status: string | null;
   /** True when the listing has a real pin in listing_locations (score signal). */
@@ -775,6 +777,12 @@ export class PgListingService {
         -- has_exact_geo from listing_locations (the authoritative pin).
         lst.verification_status::text AS verification_status,
         (ll.lat IS NOT NULL)          AS has_exact_geo,
+        ll.lat::float8                AS ll_lat,
+        ll.lng::float8                AS ll_lng,
+        loc.lat::float8               AS loc_lat,
+        loc.lng::float8               AS loc_lng,
+        c.name_en                     AS city_name,
+        loc.name_en                   AS locality_name,
         -- Persisted quality score — same column the dashboard reads (listing_scores)
         -- so detail page and dashboard always show the identical number.
         COALESCE(ls.composite_score, 0)::float AS composite_score
@@ -831,6 +839,16 @@ export class PgListingService {
       created_at: (h.created_at as string) ?? null,
       city_slug: (h.city_slug as string) ?? null,
       locality_slug: (h.locality_slug as string) ?? null,
+      location_point: resolvePgMapPoint({
+        ll_lat: h.ll_lat as number | null,
+        ll_lng: h.ll_lng as number | null,
+        loc_lat: h.loc_lat as number | null,
+        loc_lng: h.loc_lng as number | null,
+        city_slug: h.city_slug as string,
+        locality_slug: (h.locality_slug as string) ?? null,
+        city_name: (h.city_name as string) ?? null,
+        locality_name: (h.locality_name as string) ?? null
+      }),
       verification_status: (h.verification_status as string) ?? null,
       has_exact_geo: Boolean(h.has_exact_geo),
       composite_score: Math.round(Number(h.composite_score ?? 0) * 100),
