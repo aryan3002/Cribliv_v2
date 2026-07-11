@@ -14,6 +14,7 @@ import { BottomBar } from "../../../components/criblmap/BottomBar";
 import { AreaSelectOverlay } from "../../../components/criblmap/AreaSelectOverlay";
 import { MetroOverlayLayer } from "../../../components/criblmap/MetroOverlayLayer";
 import { SeekerPinLayer } from "../../../components/criblmap/SeekerPinLayer";
+import { SeekerDraftLayer } from "../../../components/criblmap/SeekerDraftLayer";
 import { AlertZoneLayer } from "../../../components/criblmap/AlertZoneLayer";
 import { CommuteOverlay } from "../../../components/criblmap/CommuteOverlay";
 import { CommuteReachabilityLayer } from "../../../components/criblmap/CommuteReachabilityLayer";
@@ -102,11 +103,23 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
 
   useEffect(() => {
     if (!mapInstance) return;
-    const listener = mapInstance.addListener("click", () => {
+    const listener = mapInstance.addListener("click", (e: google.maps.MapMouseEvent) => {
+      // While placing a search pin, a map tap repositions the draft — the whole
+      // point of the fix (the pin follows where you click, not the map centre).
+      if (panelContent.type === "seeker-form" && drawMode === "idle") {
+        if (e.latLng) {
+          dispatch({
+            type: "SET_SEEKER_DRAFT_POSITION",
+            lat: e.latLng.lat(),
+            lng: e.latLng.lng()
+          });
+        }
+        return;
+      }
       if (selectedPinId) dispatch({ type: "DESELECT_PIN" });
     });
     return () => listener.remove();
-  }, [mapInstance, selectedPinId, dispatch]);
+  }, [mapInstance, selectedPinId, panelContent.type, drawMode, dispatch]);
 
   // Alert zone modal trigger from AreaStatsPanel
   useEffect(() => {
@@ -129,6 +142,7 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
       <AreaSelectOverlay map={mapInstance} />
       <MetroOverlayLayer map={mapInstance} />
       <SeekerPinLayer map={mapInstance} />
+      <SeekerDraftLayer map={mapInstance} />
       <AlertZoneLayer map={mapInstance} />
       <CommuteOverlay
         map={mapInstance}
@@ -142,6 +156,13 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
       {drawMode === "first-corner" && (
         <div className="cmap-draw-instruction">
           <span>Tap two corners to define your area</span>
+        </div>
+      )}
+
+      {/* Seeker pin placement hint */}
+      {panelContent.type === "seeker-form" && drawMode === "idle" && (
+        <div className="cmap-draw-instruction">
+          <span>Drag the pin or tap the map to set your search spot</span>
         </div>
       )}
 

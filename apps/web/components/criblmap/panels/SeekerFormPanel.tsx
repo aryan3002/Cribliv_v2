@@ -77,9 +77,22 @@ function radiusToBboxDelta(lat: number, radiusM: number): { dLat: number; dLng: 
 }
 
 export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
-  const { center } = useMapState();
+  const { center, seekerDraft, seekerRadiusM } = useMapState();
   const dispatch = useMapDispatch();
   const { token, status: authStatus } = useAccessToken();
+
+  // The pin's actual position — the dragged draft when placed, else the map
+  // centre (covers the panel opening from a path that didn't seed a draft).
+  const pin = seekerDraft ?? center;
+
+  // Ensure a draft exists whenever the form is open, so the on-map draggable
+  // marker has something to render even if the panel was opened directly.
+  // ENSURE_SEEKER_DRAFT is idempotent — it won't overwrite a dragged position.
+  useEffect(() => {
+    dispatch({ type: "ENSURE_SEEKER_DRAFT", center });
+    // Only seed on mount; later center changes must not yank the pin around.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [budgetMin, setBudgetMin] = useState(5000);
   const [budgetMax, setBudgetMax] = useState(25000);
@@ -87,7 +100,11 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
   const [moveIn, setMoveIn] = useState("flexible");
   const [listingType, setListingType] = useState("flat_house");
   const [note, setNote] = useState("");
-  const [radiusM, setRadiusM] = useState(1000);
+  const radiusM = seekerRadiusM;
+  const setRadiusM = useCallback(
+    (value: number) => dispatch({ type: "SET_SEEKER_RADIUS", radiusM: value }),
+    [dispatch]
+  );
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [extractedTags, setExtractedTags] = useState<string[]>([]);
@@ -102,14 +119,14 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
   const matchKey = useMemo(
     () =>
       JSON.stringify({
-        lat: center.lat.toFixed(4),
-        lng: center.lng.toFixed(4),
+        lat: pin.lat.toFixed(4),
+        lng: pin.lng.toFixed(4),
         radiusM,
         budgetMax,
         bhkPreference: [...bhkPreference].sort(),
         listingType
       }),
-    [center.lat, center.lng, radiusM, budgetMax, bhkPreference, listingType]
+    [pin.lat, pin.lng, radiusM, budgetMax, bhkPreference, listingType]
   );
 
   useEffect(() => {
@@ -121,12 +138,12 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
       matchAbortRef.current = controller;
       setMatchLoading(true);
 
-      const { dLat, dLng } = radiusToBboxDelta(center.lat, radiusM);
+      const { dLat, dLng } = radiusToBboxDelta(pin.lat, radiusM);
       const params: Record<string, string | number | boolean | undefined> = {
-        sw_lat: center.lat - dLat,
-        sw_lng: center.lng - dLng,
-        ne_lat: center.lat + dLat,
-        ne_lng: center.lng + dLng,
+        sw_lat: pin.lat - dLat,
+        sw_lng: pin.lng - dLng,
+        ne_lat: pin.lat + dLat,
+        ne_lng: pin.lng + dLng,
         limit: 50,
         ...(budgetMax > 0 && { max_rent: budgetMax }),
         ...(listingType === "pg" || listingType === "flat_house"
@@ -148,7 +165,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
             if (budgetMin > 0 && p.monthly_rent < budgetMin) return false;
             if (bhkPreference.length > 0 && p.bhk != null && !bhkPreference.includes(p.bhk))
               return false;
-            const km = haversineKm({ lat: center.lat, lng: center.lng }, p);
+            const km = haversineKm({ lat: pin.lat, lng: pin.lng }, p);
             return km * 1000 <= radiusM;
           });
           setMatches(filtered);
@@ -163,7 +180,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
     return () => {
       if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
     };
-  }, [matchKey, center.lat, center.lng, radiusM, budgetMax, budgetMin, bhkPreference, listingType]);
+  }, [matchKey, pin.lat, pin.lng, radiusM, budgetMax, budgetMin, bhkPreference, listingType]);
 
   const toggleBhk = useCallback((bhk: number) => {
     setBhkPreference((prev) =>
@@ -185,8 +202,8 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          lat: center.lat,
-          lng: center.lng,
+          lat: pin.lat,
+          lng: pin.lng,
           budget_min: budgetMin,
           budget_max: budgetMax,
           bhk_preference: bhkPreference,
@@ -216,7 +233,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
   }, [
     submitting,
     token,
-    center,
+    pin,
     budgetMin,
     budgetMax,
     bhkPreference,
@@ -229,8 +246,8 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
   /* ─── Success state ────────────────────────────────────────────── */
   if (submitted) {
     const listFilter = buildSearchQuery({
-      lat: center.lat,
-      lng: center.lng,
+      lat: pin.lat,
+      lng: pin.lng,
       radius_m: radiusM,
       ...(budgetMax > 0 && { max_rent: budgetMax }),
       ...(bhkPreference.length === 1 && { bhk: bhkPreference[0] }),
