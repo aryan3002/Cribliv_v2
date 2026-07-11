@@ -98,6 +98,27 @@ describe("PgSearchService.search", () => {
     });
   });
 
+  it("maps ll.lat/ll.lng onto the card", async () => {
+    const row = {
+      id: "1".repeat(32),
+      title: "PG",
+      city: "lucknow",
+      city_name: "Lucknow",
+      locality: "Gomti Nagar",
+      starting_rent: 9000,
+      verification_status: "verified",
+      gender_policy: "coed",
+      food_included: true,
+      sharing_options: ["double"],
+      cover_photo: null,
+      lat: 26.8551,
+      lng: 80.9410
+    };
+    const { svc } = makeService([row]);
+    const res = await svc.search({ city: "lucknow" });
+    expect(res.items[0]).toMatchObject({ lat: 26.8551, lng: 80.9410 });
+  });
+
   it("suggest is scoped to PG and returns city + listing rows with city_slug", async () => {
     const calls: string[] = [];
     const database = {

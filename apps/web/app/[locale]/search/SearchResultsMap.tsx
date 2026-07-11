@@ -8,7 +8,7 @@ import { ensureMapsLoaded, API_KEY } from "../../../lib/google-maps";
 import { CITY_BBOXES, cityCentroid } from "../../../lib/city-bboxes";
 import { listingHref } from "../../../lib/listing-href";
 
-interface SearchMapListing {
+export interface SearchMapListing {
   id: string;
   title: string;
   city: string;

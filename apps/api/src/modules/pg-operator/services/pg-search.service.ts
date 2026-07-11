@@ -16,6 +16,8 @@ export interface PgCard {
   food_included: boolean;
   verified: boolean;
   cover_photo: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface PgSearchResult {
@@ -67,6 +69,8 @@ interface PgSearchRow {
   food_included: boolean | null;
   sharing_options: string[] | null;
   cover_photo: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 /**
@@ -218,6 +222,8 @@ export class PgSearchService {
          pgd.gender_policy::text AS gender_policy,
          pgd.food_included AS food_included,
          (SELECT array_agg(DISTINCT rt.sharing::text) FROM pg_room_types rt WHERE rt.listing_id = l.id) AS sharing_options,
+         ll.lat::float8 AS lat,
+         ll.lng::float8 AS lng,
          (SELECT lp.blob_path FROM listing_photos lp WHERE lp.listing_id = l.id AND lp.is_cover = true LIMIT 1) AS cover_photo
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
@@ -244,7 +250,9 @@ export class PgSearchService {
         gender_policy: r.gender_policy,
         food_included: Boolean(r.food_included),
         verified: r.verification_status === "verified",
-        cover_photo: this.toPhotoUrl(r.cover_photo)
+        cover_photo: this.toPhotoUrl(r.cover_photo),
+        lat: r.lat ?? null,
+        lng: r.lng ?? null
       })),
       total: Number(countResult.rows[0]?.total ?? 0),
       page,

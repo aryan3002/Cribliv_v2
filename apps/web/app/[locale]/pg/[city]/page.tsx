@@ -4,8 +4,11 @@ import { notFound } from "next/navigation";
 import { ChevronRight, MapPin, Building, Search } from "lucide-react";
 import { PG_CITY_CONTENT } from "../../../../lib/pg-city-content";
 import { searchPgListings, type PgSearchResponse } from "../../../../lib/pg-public-api";
+import { buildSearchQuery } from "../../../../lib/api";
 import { PgListingCard } from "../../../../components/pg/PgListingCard";
 import { jsonLdSafe } from "../../../../lib/jsonld";
+import { pgCardToSearchMapListing } from "../../../../lib/pg-map-adapter";
+import { SearchResultsMap } from "../../search/SearchResultsMap";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -169,6 +172,19 @@ export default async function PgCityPage({ params }: { params: { locale: string;
                 />
               ))}
             </div>
+            <aside className="tenant-results-map-panel" aria-label="PG map preview">
+              <SearchResultsMap
+                locale={params.locale}
+                city={c.slug}
+                listings={listings.items.map(pgCardToSearchMapListing)}
+                mapHref={
+                  `/${params.locale}/map?${buildSearchQuery({
+                    city: c.slug,
+                    listing_type: "pg"
+                  })}` as Route
+                }
+              />
+            </aside>
           </section>
         )}
 

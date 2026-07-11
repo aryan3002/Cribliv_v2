@@ -15,6 +15,8 @@ import { SegmentedSearchBar } from "../../../components/search/SegmentedSearchBa
 import { PgFilters } from "../../../components/pg/PgFilters";
 import { PgListingCard } from "../../../components/pg/PgListingCard";
 import { PgSearchTracker } from "../../../components/pg/PgSearchTracker";
+import { pgCardToSearchMapListing } from "../../../lib/pg-map-adapter";
+import { SearchResultsMap } from "../search/SearchResultsMap";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -178,29 +180,17 @@ export default async function PgSearchPage({
           )}
         </div>
         <aside className="tenant-results-map-panel" aria-label="PG map preview">
-          <div className="tenant-map-card tenant-map-card--results">
-            <div className="tenant-map-card__street" aria-hidden="true" />
-            <div className="tenant-map-card__road" aria-hidden="true" />
-            <div className="tenant-map-card__wash" aria-hidden="true" />
-            <div className="tenant-map-card__river" aria-hidden="true" />
-            <div className="tenant-map-card__park tenant-map-card__park--top" aria-hidden="true" />
-            <span className="tenant-map-card__label tenant-map-card__label--top">
-              {filters.city
-                ? filters.city.charAt(0).toUpperCase() + filters.city.slice(1)
-                : "PG clusters"}
-            </span>
-            <span className="tenant-price-pin tenant-price-pin--brand tenant-map-card__pin tenant-map-card__pin--one">
-              <span /> PG · ₹9.5k
-            </span>
-            <span className="tenant-price-pin tenant-price-pin--brand tenant-map-card__pin tenant-map-card__pin--two">
-              <span /> Food
-            </span>
-            <div className="tenant-map-card__selected">
-              <span className="tenant-price-pin tenant-price-pin--accent">
-                <span /> Verified PG
-              </span>
-            </div>
-          </div>
+          <SearchResultsMap
+            locale={params.locale}
+            city={filters.city || response.items[0]?.city || "lucknow"}
+            listings={response.items.map(pgCardToSearchMapListing)}
+            mapHref={
+              `/${params.locale}/map?${buildSearchQuery({
+                ...(filters.city ? { city: filters.city } : {}),
+                listing_type: "pg"
+              })}` as Route
+            }
+          />
         </aside>
       </section>
     </div>

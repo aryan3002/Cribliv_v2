@@ -43,6 +43,7 @@ import type { PgPublicDetail, PgCard } from "../../lib/pg-public-api";
 import { searchPgListings } from "../../lib/pg-public-api";
 import { PgInterestButton } from "./PgInterestButton";
 import { PgListingCard } from "./PgListingCard";
+import { PgDetailLocationMap } from "./PgDetailLocationMap";
 import { ListingGallery } from "../listing/listing-gallery";
 import { ListingHighlights } from "../listing/listing-highlights";
 import { toTitleCase } from "../../lib/utils";
@@ -823,22 +824,12 @@ export function PgDetailClient({
                   <h2>{t(locale as Locale, "whereYoullBe")}</h2>
                 </div>
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  color: "var(--text-secondary)"
-                }}
-              >
-                <MapPin size={18} aria-hidden="true" />
-                <span>
-                  {[detail.locality_slug, detail.city_slug]
-                    .filter((s): s is string => Boolean(s))
-                    .map(toTitleCase)
-                    .join(", ") || "Location"}
-                </span>
-              </div>
+              <PgDetailLocationMap
+                point={detail.location_point}
+                citySlug={detail.city_slug}
+                listingId={detail.id}
+                locale={locale}
+              />
             </section>
           </div>
 
