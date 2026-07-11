@@ -105,7 +105,9 @@ export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
         if (panelContent.type === "seeker-form") {
           dispatch({ type: "DESELECT_PIN" });
         } else {
-          dispatch({ type: "SET_PANEL", panelContent: { type: "seeker-form" } });
+          // Opening Seek drops the draft pin at the current map centre; the
+          // seeker then drags it or taps the map to choose the real spot.
+          dispatch({ type: "START_SEEKER_DRAFT", center });
         }
       }
     },

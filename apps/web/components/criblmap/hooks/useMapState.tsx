@@ -141,6 +141,15 @@ export interface MapState {
   demandViewActive: boolean;
   demandLoading: boolean;
   demandError: string | null;
+  /** The pin the seeker is currently placing (drag-to-position). `null`
+   *  whenever the Seek panel is closed. Drives the draggable draft marker and
+   *  is the coordinate actually submitted — replacing the old behaviour of
+   *  always dropping at the map centre (which made every pin land in the same
+   *  spot). */
+  seekerDraft: { lat: number; lng: number } | null;
+  /** Search radius (m) shared between the Seek panel's radius chips and the
+   *  on-map draft circle, so the circle resizes live as the seeker changes it. */
+  seekerRadiusM: number;
   // Phase 5
   alertZones: AlertZone[];
   commuteOrigin: { lat: number; lng: number; address: string } | null;
@@ -193,6 +202,10 @@ export type MapAction =
   | { type: "SET_DEMAND_LOADING"; isLoading: boolean }
   | { type: "SET_DEMAND_ERROR"; error: string | null }
   | { type: "TOGGLE_DEMAND_VIEW" }
+  | { type: "START_SEEKER_DRAFT"; center: { lat: number; lng: number } }
+  | { type: "ENSURE_SEEKER_DRAFT"; center: { lat: number; lng: number } }
+  | { type: "SET_SEEKER_DRAFT_POSITION"; lat: number; lng: number }
+  | { type: "SET_SEEKER_RADIUS"; radiusM: number }
   // Phase 5: Alerts & Commute
   | { type: "SET_ALERT_ZONES"; zones: AlertZone[] }
   | { type: "SET_COMMUTE_ORIGIN"; origin: { lat: number; lng: number; address: string } | null }
@@ -220,6 +233,8 @@ export const initialMapState: MapState = {
   demandViewActive: false,
   demandLoading: false,
   demandError: null,
+  seekerDraft: null,
+  seekerRadiusM: 1000,
   alertZones: [],
   commuteOrigin: null,
   city: "delhi",
@@ -258,13 +273,20 @@ export function mapReducer(state: MapState, action: MapAction): MapState {
       };
 
     case "DESELECT_PIN":
-      return { ...state, selectedPinId: null, panelContent: { type: "none" } };
+      // Closing the panel (incl. the Seek toolbar toggle) discards the draft
+      // so the next Seek starts fresh at the map centre.
+      return { ...state, selectedPinId: null, panelContent: { type: "none" }, seekerDraft: null };
 
     case "SET_FILTERS":
       return { ...state, filters: action.filters };
 
     case "SET_PANEL":
-      return { ...state, panelContent: action.panelContent };
+      // Any panel other than the seeker form abandons an in-progress draft pin.
+      return {
+        ...state,
+        panelContent: action.panelContent,
+        seekerDraft: action.panelContent.type === "seeker-form" ? state.seekerDraft : null
+      };
 
     case "SET_LOADING":
       return { ...state, isLoading: action.isLoading };
@@ -340,6 +362,29 @@ export function mapReducer(state: MapState, action: MapAction): MapState {
             demandError: null
           }
         : { ...state, demandViewActive: true, demandError: null };
+
+    case "START_SEEKER_DRAFT":
+      return {
+        ...state,
+        seekerDraft: { lat: action.center.lat, lng: action.center.lng },
+        panelContent: { type: "seeker-form" },
+        selectedPinId: null
+      };
+
+    case "ENSURE_SEEKER_DRAFT":
+      // Idempotent seed used by the panel on mount: only drops a draft if one
+      // isn't already placed, so it can never clobber a position the seeker
+      // has already dragged to (the reducer checks live state, dodging the
+      // stale-closure race a mount effect would otherwise hit).
+      return state.seekerDraft
+        ? state
+        : { ...state, seekerDraft: { lat: action.center.lat, lng: action.center.lng } };
+
+    case "SET_SEEKER_DRAFT_POSITION":
+      return { ...state, seekerDraft: { lat: action.lat, lng: action.lng } };
+
+    case "SET_SEEKER_RADIUS":
+      return { ...state, seekerRadiusM: action.radiusM };
 
     // Phase 5
     case "SET_ALERT_ZONES":
