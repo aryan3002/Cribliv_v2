@@ -401,6 +401,11 @@ const dictionary: Dictionary = {
     en: "Please log in to see your callbacks.",
     hi: "अपनी कॉलबैक देखने के लिए कृपया लॉग इन करें।"
   },
+  cbNoCredits: { en: "Not enough credits", hi: "पर्याप्त क्रेडिट नहीं हैं" },
+  cbBuyCreditsSub: {
+    en: "Buy credits to unlock this listing.",
+    hi: "इस लिस्टिंग को अनलॉक करने के लिए क्रेडिट खरीदें।"
+  },
   // ── Lead monetization: owner lead cards ────────────────────────────────────
   leadFreeBadge: { en: "FREE LEAD", hi: "मुफ़्त लीड" },
   leadUnlockButton: { en: "Unlock for 1 credit", hi: "1 क्रेडिट में अनलॉक करें" },
@@ -416,15 +421,13 @@ const dictionary: Dictionary = {
   },
   leadNoCredits: { en: "Not enough lead credits", hi: "लीड क्रेडिट कम हैं" },
   leadBuyPackSub: {
-    en: "Buy 5 lead credits for ₹299 to unlock tenant contacts instantly.",
-    hi: "किरायेदार का नंबर तुरंत अनलॉक करने के लिए ₹299 में 5 लीड क्रेडिट खरीदें।"
+    en: "Buy lead credits to unlock tenant contacts instantly.",
+    hi: "किरायेदार का नंबर तुरंत अनलॉक करने के लिए लीड क्रेडिट खरीदें।"
   },
-  leadBuyPackButton: { en: "Buy 5 credits — ₹299", hi: "5 क्रेडिट खरीदें — ₹299" },
-  leadPaidRefresh: { en: "I've paid — refresh", hi: "भुगतान कर दिया — रीफ्रेश करें" },
-  leadOpenUpi: { en: "Open UPI App", hi: "UPI ऐप खोलें" },
-  leadCreditsAdded: {
-    en: "Credits added — unlock the lead now.",
-    hi: "क्रेडिट जुड़ गए — अब लीड अनलॉक करें।"
+  leadBalanceLabel: { en: "Lead credits", hi: "लीड क्रेडिट" },
+  leadLockedWaiting: {
+    en: "{n} locked leads waiting",
+    hi: "{n} लॉक्ड लीड इंतज़ार में हैं"
   },
   // ── Guest gating ────────────────────────────────────────────────────────────
   gateHeadline: { en: "Sign up free — get 2 credits", hi: "मुफ़्त साइन अप करें — 2 क्रेडिट पाएं" },

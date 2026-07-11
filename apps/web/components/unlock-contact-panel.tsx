@@ -14,6 +14,7 @@ import { ApiError } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
 import { useFlag } from "../lib/feature-flags";
 import { t, type Locale } from "../lib/i18n";
+import { CreditPurchaseDialog, type CreditPurchaseCapturedResult } from "./credit-purchase-dialog";
 
 interface UnlockContactPanelProps {
   listingId: string;
@@ -62,25 +63,6 @@ interface WalletSnapshot {
   total_transactions: number;
 }
 
-interface PurchaseIntentResponse {
-  order_id: string;
-  amount_paise: number;
-  credits_to_grant: number;
-  provider_payload?: {
-    provider?: string;
-    deep_link?: string;
-    key_id?: string;
-  };
-}
-
-type PurchaseState =
-  | "idle"
-  | "creating_intent"
-  | "pending_payment"
-  | "checking_status"
-  | "success"
-  | "failed";
-
 function createClientKey() {
   return typeof crypto !== "undefined" ? crypto.randomUUID() : `${Date.now()}_${Math.random()}`;
 }
@@ -100,14 +82,9 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
   const [shortlisted, setShortlisted] = useState(false);
   const [authStep, setAuthStep] = useState<"none" | "otp_send" | "otp_verify">("none");
   const [idempotencyKey] = useState(() => createClientKey());
-  const [purchaseIdempotencyKey, setPurchaseIdempotencyKey] = useState(() => createClientKey());
   const [walletSnapshot, setWalletSnapshot] = useState<WalletSnapshot | null>(null);
   const [walletRefreshing, setWalletRefreshing] = useState(false);
-  const [purchaseState, setPurchaseState] = useState<PurchaseState>("idle");
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
-  const [purchaseIntent, setPurchaseIntent] = useState<PurchaseIntentResponse | null>(null);
-  const [purchaseBaselineBalance, setPurchaseBaselineBalance] = useState<number>(0);
-  const [purchaseStartedAt, setPurchaseStartedAt] = useState<number>(0);
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
 
   useEffect(() => {
     // Prefer localStorage (legacy in-panel OTP login), fall back to NextAuth session token
@@ -356,82 +333,24 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
     }
   }
 
-  function hasNewPurchasePackTxns(snapshot: {
-    balance_credits: number;
-    transactions: WalletTransaction[];
-  }) {
-    return snapshot.transactions.some((txn) => {
-      if (txn.txn_type !== "purchase_pack") {
-        return false;
-      }
-      return new Date(txn.created_at).getTime() >= purchaseStartedAt - 1_000;
-    });
-  }
-
-  async function startBuyCredits() {
-    if (!accessToken) {
-      setError("Please login first to purchase credits.");
-      return;
+  // Purchase mechanics (catalog, Razorpay/UPI, confirmation, polling) are
+  // fully owned by CreditPurchaseDialog. Once it reports a real `captured`
+  // order, retry the original contact-unlock exactly once, reusing the same
+  // `idempotencyKey` from the attempt that failed with insufficient_credits
+  // — the API heals/replays same-key same-listing requests, so this is a
+  // safe, single retry rather than a fresh unlock attempt.
+  function handleCreditsCaptured(result: CreditPurchaseCapturedResult) {
+    setPurchaseDialogOpen(false);
+    if (typeof result.balanceCredits === "number") {
+      const nextBalance = result.balanceCredits;
+      setWalletSnapshot((prev) => (prev ? { ...prev, balance_credits: nextBalance } : prev));
     }
-
-    setPurchaseState("creating_intent");
-    setPurchaseError(null);
-    setError(null);
-
-    try {
-      const baseline = walletSnapshot?.balance_credits ?? 0;
-      setPurchaseBaselineBalance(baseline);
-      const startedAt = Date.now();
-      setPurchaseStartedAt(startedAt);
-
-      const intent = await fetchApi<PurchaseIntentResponse>("/wallet/purchase-intents", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Idempotency-Key": purchaseIdempotencyKey
-        },
-        body: JSON.stringify({
-          plan_id: "starter_10",
-          provider: "upi"
-        })
-      });
-
-      setPurchaseIntent(intent);
-      setPurchaseState("pending_payment");
-    } catch (err) {
-      setPurchaseState("failed");
-      setPurchaseError(err instanceof Error ? err.message : "Unable to start credit purchase");
-    }
-  }
-
-  async function refreshPurchaseStatus() {
-    if (!accessToken) {
-      return;
-    }
-    setPurchaseState("checking_status");
-    setPurchaseError(null);
-    try {
-      const latest = await refreshWalletSnapshot(accessToken);
-      const gotCredits =
-        latest.balance_credits > purchaseBaselineBalance || hasNewPurchasePackTxns(latest);
-
-      if (gotCredits) {
-        setPurchaseState("success");
-        setUnlockErrorCode(null);
-        setPurchaseIdempotencyKey(createClientKey());
-      } else {
-        setPurchaseState("pending_payment");
-      }
-    } catch (err) {
-      setPurchaseState("failed");
-      setPurchaseError(err instanceof Error ? err.message : "Unable to refresh wallet status");
+    if (accessToken) {
+      void unlockContact(accessToken);
     }
   }
 
   const canShowBuyCredits = Boolean(accessToken && unlockErrorCode === "insufficient_credits");
-  const recentWalletTxns = walletSnapshot?.transactions.slice(0, 3) ?? [];
-  const purchaseInProgress =
-    purchaseState === "creating_intent" || purchaseState === "checking_status";
 
   return (
     <div>
@@ -446,6 +365,7 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
 
       {accessToken ? (
         <div
+          data-testid="tenant-wallet-balance"
           style={{
             display: "flex",
             alignItems: "center",
@@ -457,7 +377,7 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
           }}
         >
           <span className="caption" style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
-            Wallet balance
+            {t(locale, "cpWalletBalance")}
           </span>
           <span className="caption" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
             {walletSnapshot?.balance_credits ?? "—"} credit
@@ -580,102 +500,33 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
           data-testid="buy-credits-panel"
           style={{ marginTop: "var(--space-4)" }}
         >
-          <p style={{ fontWeight: 600, marginBottom: "var(--space-1)" }}>Not enough credits</p>
-          <p className="caption" style={{ color: "var(--text-secondary)" }}>
-            Buy credits to unlock this listing.
+          <p style={{ fontWeight: 600, marginBottom: "var(--space-1)" }}>
+            {t(locale, "cbNoCredits")}
           </p>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-2)",
-              marginTop: "var(--space-3)"
-            }}
+          <p className="caption" style={{ color: "var(--text-secondary)" }}>
+            {t(locale, "cbBuyCreditsSub")}
+          </p>
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-testid="tenant-buy-credits-button"
+            style={{ marginTop: "var(--space-3)", width: "100%" }}
+            onClick={() => setPurchaseDialogOpen(true)}
           >
-            <button
-              className="btn btn--primary"
-              onClick={startBuyCredits}
-              disabled={purchaseInProgress}
-              style={{ width: "100%" }}
-            >
-              {purchaseState === "creating_intent" ? "Creating Purchase..." : "Buy Credits"}
-            </button>
-            <button
-              className="btn btn--secondary"
-              onClick={refreshPurchaseStatus}
-              disabled={purchaseInProgress || purchaseState === "idle"}
-              style={{ width: "100%" }}
-            >
-              {purchaseState === "checking_status" ? "Refreshing..." : "Refresh Balance"}
-            </button>
-          </div>
-          {purchaseIntent ? (
-            <div
-              className="caption"
-              style={{ marginTop: "var(--space-3)", color: "var(--text-tertiary)" }}
-            >
-              <p>
-                Order: <strong>{purchaseIntent.order_id}</strong>
-              </p>
-              <p>
-                Amount: <strong>₹{(purchaseIntent.amount_paise / 100).toFixed(2)}</strong> for{" "}
-                <strong>{purchaseIntent.credits_to_grant}</strong> credits
-              </p>
-              {purchaseIntent.provider_payload?.deep_link ? (
-                <a
-                  href={purchaseIntent.provider_payload.deep_link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn--secondary btn--sm"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    textDecoration: "none",
-                    marginTop: "var(--space-2)"
-                  }}
-                >
-                  Open UPI App
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-          {purchaseState === "pending_payment" ? (
-            <p
-              className="caption"
-              style={{ color: "var(--text-tertiary)", marginTop: "var(--space-2)" }}
-            >
-              Waiting for payment confirmation. Tap Refresh Balance after paying.
-            </p>
-          ) : null}
-          {purchaseState === "success" ? (
-            <div className="alert alert--success" style={{ marginTop: "var(--space-3)" }}>
-              <p>
-                Credits updated. New balance:{" "}
-                <strong>{walletSnapshot?.balance_credits ?? 0}</strong>
-              </p>
-              {recentWalletTxns.length > 0 ? (
-                <div>
-                  <p className="caption" style={{ color: "var(--text-tertiary)" }}>
-                    Recent wallet activity:
-                  </p>
-                  <ul>
-                    {recentWalletTxns.map((txn) => (
-                      <li key={txn.id}>
-                        {txn.txn_type}: {txn.credits_delta > 0 ? "+" : ""}
-                        {txn.credits_delta}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          {purchaseError ? (
-            <p className="alert alert--error" style={{ marginTop: "var(--space-2)" }}>
-              {purchaseError}
-            </p>
-          ) : null}
+            {t(locale, "cpTitle")}
+          </button>
         </div>
+      ) : null}
+
+      {accessToken ? (
+        <CreditPurchaseDialog
+          open={purchaseDialogOpen}
+          accessToken={accessToken}
+          locale={locale}
+          audience="tenant"
+          onClose={() => setPurchaseDialogOpen(false)}
+          onCaptured={handleCreditsCaptured}
+        />
       ) : null}
 
       {accessToken && walletSnapshot ? (
