@@ -66,7 +66,7 @@ export default function PgListingControls({
               type="button"
               className={`${styles.segBtn} ${cur === "paused" ? styles.segActivePaused : ""}`}
               disabled={busy != null}
-              onClick={() => apply("paused", "Listing paused — hidden from search")}
+              onClick={() => apply("paused", "Listing paused, hidden from search")}
             >
               {busy === "paused" ? (
                 <Loader2 size={14} className="pgo-spin" />

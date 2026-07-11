@@ -425,7 +425,7 @@ function PgHouseRulesSection({ rules }: { rules: Record<string, unknown> }) {
           </div>
           <span className="pg-quiet-hours">
             <Clock size={16} aria-hidden="true" />
-            {quietHours.from} — {quietHours.to}
+            {quietHours.from} to {quietHours.to}
           </span>
         </div>
       )}

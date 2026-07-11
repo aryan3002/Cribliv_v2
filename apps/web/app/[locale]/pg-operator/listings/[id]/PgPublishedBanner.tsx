@@ -34,7 +34,7 @@ export default function PgPublishedBanner({ title }: { title: string }) {
           {title} is submitted 🎉
         </h2>
         <p className="pgo-desc" style={{ margin: "2px 0 0" }}>
-          Submitted for admin review. It goes live once our team approves it — you&apos;ll get
+          Submitted for admin review. It goes live once our team approves it. You&apos;ll get
           notified.
         </p>
       </div>

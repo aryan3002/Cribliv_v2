@@ -156,7 +156,7 @@ export function PgPropertiesTab({ accessToken }: Props) {
       render: (r) => (
         <div>
           <div style={{ fontWeight: 500, fontSize: 13, color: "#111827" }}>
-            {r.owner_name ?? "—"}
+            {r.owner_name ?? "-"}
           </div>
           {r.owner_phone_masked && (
             <div
@@ -179,7 +179,7 @@ export function PgPropertiesTab({ accessToken }: Props) {
       header: "Location",
       render: (r) => (
         <span style={{ fontSize: 13, color: "#374151" }}>
-          {[r.locality_slug, r.city_slug].filter(Boolean).join(", ") || "—"}
+          {[r.locality_slug, r.city_slug].filter(Boolean).join(", ") || "-"}
         </span>
       ),
       sortValue: (r) => r.city_slug ?? ""
@@ -245,12 +245,12 @@ export function PgPropertiesTab({ accessToken }: Props) {
           marginBottom: 20
         }}
       >
-        <StatCard label="Total Listings" value={loading ? "—" : stats.total} />
-        <StatCard label="Active Rate" value={loading ? "—" : `${stats.activePct}%`} tone="trust" />
-        <StatCard label="Leads / 7d" value={loading ? "—" : stats.totalLeads} tone="brand" />
+        <StatCard label="Total Listings" value={loading ? "-" : stats.total} />
+        <StatCard label="Active Rate" value={loading ? "-" : `${stats.activePct}%`} tone="trust" />
+        <StatCard label="Leads / 7d" value={loading ? "-" : stats.totalLeads} tone="brand" />
         <StatCard
           label="Analytics Cut"
-          value={loading ? "—" : stats.cut}
+          value={loading ? "-" : stats.cut}
           tone={stats.cut > 0 ? "warn" : "default"}
         />
       </div>

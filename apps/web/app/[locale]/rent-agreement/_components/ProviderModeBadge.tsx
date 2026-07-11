@@ -11,5 +11,5 @@ export function ProviderModeBadge() {
   }, []);
 
   if (!mounted || !mock) return null;
-  return <div className="ra-dev-banner">DEV — Mock payment + e-stamp + e-sign. No real money.</div>;
+  return <div className="ra-dev-banner">DEV: Mock payment + e-stamp + e-sign. No real money.</div>;
 }

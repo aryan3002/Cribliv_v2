@@ -39,10 +39,10 @@ export default function PgPropertyBasicsStep({ state, dispatch }: Props) {
             aria-label="listing title"
             value={d.title ?? ""}
             onChange={(e) => setF("title", e.target.value)}
-            placeholder="e.g. Sunrise Residency — Boys PG near XYZ College"
+            placeholder="e.g. Sunrise Residency: Boys PG near XYZ College"
           />
           <span className={styles.fieldHint}>
-            Shown on cards and search. Make it specific — each listing gets its own title.
+            Shown on cards and search. Make it specific. Each listing gets its own title.
           </span>
         </div>
 

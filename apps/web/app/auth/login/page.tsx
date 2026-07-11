@@ -292,7 +292,7 @@ function LoginPageInner() {
               >
                 <div>
                   <div className="overline" style={{ marginBottom: "var(--space-1)" }}>
-                    🔧 Dev Mode — Mock OTP (auto-filled)
+                    🔧 Dev Mode: Mock OTP (auto-filled)
                   </div>
                   <div
                     style={{
@@ -309,7 +309,7 @@ function LoginPageInner() {
                     className="caption"
                     style={{ marginTop: "var(--space-1)", color: "#92400e" }}
                   >
-                    Just click Verify — no SMS sent
+                    Just click Verify, no SMS sent
                   </div>
                 </div>
               </div>

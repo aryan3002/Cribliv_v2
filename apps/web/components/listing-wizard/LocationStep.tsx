@@ -284,7 +284,7 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
             onFocus={() => {
               if (predictions.length > 0) setShowDropdown(true);
             }}
-            placeholder="Search — Indiranagar, DLF Phase 3 …"
+            placeholder="Search: Indiranagar, DLF Phase 3 …"
             autoComplete="off"
           />
 
@@ -421,7 +421,7 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
           className={`cz-textarea${fillCls("address")}`}
           value={form.address}
           onChange={(e) => updateField("address", e.target.value)}
-          placeholder="House number, street, sector — anything that helps a verifier reach the door."
+          placeholder="House number, street, sector: anything that helps a verifier reach the door."
           rows={2}
         />
         <p className="cz-help">Kept private. Tenants only see locality + landmark.</p>

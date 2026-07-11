@@ -112,7 +112,7 @@ export async function generateMetadata({
 
   const listing = payload.listing_detail;
   const typeLabel = listing.listing_type === "flat_house" ? "Flat/House" : "PG";
-  const title = `${listing.title} — ${typeLabel} for Rent in ${toTitleCase(listing.city)}`;
+  const title = `${listing.title}: ${typeLabel} for Rent in ${toTitleCase(listing.city)}`;
   const description = listing.description
     ? listing.description.slice(0, 160)
     : `${typeLabel} for rent in ${listing.city}${listing.locality ? `, ${listing.locality}` : ""} at ₹${listing.monthly_rent.toLocaleString("en-IN")}/month. Verified on Cribliv.`;

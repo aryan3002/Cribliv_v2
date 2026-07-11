@@ -11,7 +11,7 @@ interface Props {
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 function fmtDuration(sec: number | null): string {
-  if (sec == null) return "—";
+  if (sec == null) return "-";
   if (sec < 60) return `${Math.round(sec)}s`;
   if (sec < 3600) return `${Math.round(sec / 60)}m`;
   return `${(sec / 3600).toFixed(1)}h`;
@@ -89,7 +89,7 @@ export function PgListingFunnel({ data }: Props) {
       </ul>
 
       <div style={{ marginTop: 14, fontSize: 12, color: "var(--ad-text-3)" }}>
-        Source split — manual <strong>{data.by_source.manual}</strong> · voice{" "}
+        Source split: manual <strong>{data.by_source.manual}</strong> · voice{" "}
         <strong>{data.by_source.voice}</strong>
       </div>
     </SectionCard>

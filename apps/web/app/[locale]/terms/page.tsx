@@ -10,8 +10,8 @@ export async function generateMetadata({
   const isHindi = params.locale === "hi";
   const title = isHindi ? "सेवा की शर्तें" : "Terms of Service";
   const description = isHindi
-    ? "Cribliv की सेवा की शर्तें — प्लेटफॉर्म उपयोग, भुगतान, रिफंड नीति और उपयोगकर्ता जिम्मेदारियाँ।"
-    : "Cribliv Terms of Service — platform usage, payments, 12-hour refund policy, user responsibilities, and property listing guidelines.";
+    ? "Cribliv की सेवा की शर्तें: प्लेटफॉर्म उपयोग, भुगतान, रिफंड नीति और उपयोगकर्ता जिम्मेदारियाँ।"
+    : "Cribliv Terms of Service: platform usage, payments, 12-hour refund policy, user responsibilities, and property listing guidelines.";
   return {
     title,
     description,
@@ -148,8 +148,8 @@ export default function TermsPage({ params }: { params: { locale: string } }) {
         <section>
           <h2>7. Intellectual Property</h2>
           <p className="text-secondary" style={{ lineHeight: 1.8 }}>
-            All content, features, and functionality of the Service — including the Cribliv name,
-            logo, AI search algorithms, and design — are owned by Cribliv Ventures Private Limited
+            All content, features, and functionality of the Service, including the Cribliv name,
+            logo, AI search algorithms, and design, are owned by Cribliv Ventures Private Limited
             and are protected by intellectual property laws. You may not copy, modify, distribute,
             or create derivative works without prior written consent.
           </p>

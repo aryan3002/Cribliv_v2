@@ -24,11 +24,11 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi ? "PG और हॉस्टल खोजें — सत्यापित" : "Find Verified PGs & Hostels";
+  const title = isHindi ? "PG और हॉस्टल खोजें: सत्यापित" : "Find Verified PGs & Hostels";
   return {
     title,
     description: isHindi
-      ? "सत्यापित PG और हॉस्टल खोजें — शेयरिंग, खाना, AC और बजट के अनुसार फ़िल्टर करें।"
+      ? "सत्यापित PG और हॉस्टल खोजें। शेयरिंग, खाना, AC और बजट के अनुसार फ़िल्टर करें।"
       : "Search verified PGs and hostels. Filter by sharing, food, AC, gender and budget.",
     alternates: { canonical: `${BASE_URL}/${params.locale}/pg` }
   };
@@ -102,80 +102,80 @@ export default async function PgSearchPage({
       {error && (
         <div className="container">
           <div className="error-state" style={{ marginTop: "var(--space-6)" }}>
-          <div className="error-state__icon">
-            <AlertTriangle size={36} />
-          </div>
-          <h3>We couldn&apos;t reach our servers</h3>
-          <Link href={`/${params.locale}/pg` as Route} className="btn btn--secondary">
-            Clear filters
-          </Link>
+            <div className="error-state__icon">
+              <AlertTriangle size={36} />
+            </div>
+            <h3>We couldn&apos;t reach our servers</h3>
+            <Link href={`/${params.locale}/pg` as Route} className="btn btn--secondary">
+              Clear filters
+            </Link>
           </div>
         </div>
       )}
 
       <section className="container tenant-results-content tenant-results-map-shell">
         <div className="tenant-results-list-panel">
-        {!error && response.items.length === 0 ? (
-          <div className="empty-state" style={{ marginTop: "var(--space-8)" }}>
-          <span className="empty-state__icon" aria-hidden="true">
-            <SearchIcon size={48} style={{ margin: "0 auto", color: "var(--text-tertiary)" }} />
-          </span>
-          <h3>No PGs match your filters</h3>
-          <p>Try widening your filters or a different city.</p>
-          <Link href={`/${params.locale}/pg` as Route} className="btn btn--primary">
-            Clear filters
-          </Link>
-        </div>
-      ) : (
-        <div className="listing-grid">
-          <PgSearchTracker
-            city={filters.city}
-            query={filters.q}
-            filters={filters}
-            resultCount={response.total}
-            shownListingIds={response.items.map((i) => i.id)}
-          />
-          {response.items.map((item, idx) => (
-            <PgListingCard
-              key={item.id}
-              listing={item}
-              locale={params.locale}
-              position={idx}
-              surface="pg_search"
-              filters={filters}
-            />
-          ))}
-        </div>
-      )}
+          {!error && response.items.length === 0 ? (
+            <div className="empty-state" style={{ marginTop: "var(--space-8)" }}>
+              <span className="empty-state__icon" aria-hidden="true">
+                <SearchIcon size={48} style={{ margin: "0 auto", color: "var(--text-tertiary)" }} />
+              </span>
+              <h3>No PGs match your filters</h3>
+              <p>Try widening your filters or a different city.</p>
+              <Link href={`/${params.locale}/pg` as Route} className="btn btn--primary">
+                Clear filters
+              </Link>
+            </div>
+          ) : (
+            <div className="listing-grid">
+              <PgSearchTracker
+                city={filters.city}
+                query={filters.q}
+                filters={filters}
+                resultCount={response.total}
+                shownListingIds={response.items.map((i) => i.id)}
+              />
+              {response.items.map((item, idx) => (
+                <PgListingCard
+                  key={item.id}
+                  listing={item}
+                  locale={params.locale}
+                  position={idx}
+                  surface="pg_search"
+                  filters={filters}
+                />
+              ))}
+            </div>
+          )}
 
-      {totalPages > 1 && (
-        <nav
-          className="pagination"
-          aria-label="PG results pages"
-          style={{ marginTop: "var(--space-8)" }}
-        >
-          {currentPage > 1 && (
-            <Link
-              className="pagination__btn"
-              href={
-                `/${params.locale}/pg?${buildSearchQuery({ ...filters, page: String(currentPage - 1) })}` as Route
-              }
+          {totalPages > 1 && (
+            <nav
+              className="pagination"
+              aria-label="PG results pages"
+              style={{ marginTop: "var(--space-8)" }}
             >
-              <ChevronLeft size={16} /> Prev
-            </Link>
+              {currentPage > 1 && (
+                <Link
+                  className="pagination__btn"
+                  href={
+                    `/${params.locale}/pg?${buildSearchQuery({ ...filters, page: String(currentPage - 1) })}` as Route
+                  }
+                >
+                  <ChevronLeft size={16} /> Prev
+                </Link>
+              )}
+              {currentPage < totalPages && (
+                <Link
+                  className="pagination__btn"
+                  href={
+                    `/${params.locale}/pg?${buildSearchQuery({ ...filters, page: String(currentPage + 1) })}` as Route
+                  }
+                >
+                  Next <ChevronRight size={16} />
+                </Link>
+              )}
+            </nav>
           )}
-          {currentPage < totalPages && (
-            <Link
-              className="pagination__btn"
-              href={
-                `/${params.locale}/pg?${buildSearchQuery({ ...filters, page: String(currentPage + 1) })}` as Route
-              }
-            >
-              Next <ChevronRight size={16} />
-            </Link>
-          )}
-        </nav>
-      )}
         </div>
         <aside className="tenant-results-map-panel" aria-label="PG map preview">
           <div className="tenant-map-card tenant-map-card--results">
@@ -185,7 +185,9 @@ export default async function PgSearchPage({
             <div className="tenant-map-card__river" aria-hidden="true" />
             <div className="tenant-map-card__park tenant-map-card__park--top" aria-hidden="true" />
             <span className="tenant-map-card__label tenant-map-card__label--top">
-              {filters.city ? filters.city.charAt(0).toUpperCase() + filters.city.slice(1) : "PG clusters"}
+              {filters.city
+                ? filters.city.charAt(0).toUpperCase() + filters.city.slice(1)
+                : "PG clusters"}
             </span>
             <span className="tenant-price-pin tenant-price-pin--brand tenant-map-card__pin tenant-map-card__pin--one">
               <span /> PG · ₹9.5k

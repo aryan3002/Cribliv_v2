@@ -20,7 +20,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const c = PG_CITY_CONTENT[params.city];
   if (!c) return { title: "City not found" };
-  const title = `PGs in ${c.name} — Verified, Zero Brokerage | Cribliv`;
+  const title = `PGs in ${c.name}: Verified, Zero Brokerage | Cribliv`;
   return {
     title,
     description: c.intro,

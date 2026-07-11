@@ -40,7 +40,7 @@ export default function PgSubmitForReview({
       className="pgo-glass"
       style={{ padding: 16, marginBottom: 20, borderLeft: "3px solid var(--pgo-brand)" }}
     >
-      <strong>Draft — not yet submitted.</strong>{" "}
+      <strong>Draft, not yet submitted.</strong>{" "}
       <span className="pgo-desc">
         Submit {title ? `“${title}”` : "this listing"} for admin review. It goes live once approved.
       </span>

@@ -24,7 +24,7 @@ export async function generateMetadata({
   const citySlug = detail.city_slug ?? params.city;
   const cityTitle = citySlug.charAt(0).toUpperCase() + citySlug.slice(1);
   return {
-    title: `${detail.title ?? "PG"} — PG in ${cityTitle}`,
+    title: `${detail.title ?? "PG"}: PG in ${cityTitle}`,
     description: `Verified PG${detail.monthly_rent ? ` from ₹${detail.monthly_rent.toLocaleString("en-IN")}/mo` : ""}. Sharing, food and amenities on Cribliv.`,
     alternates: {
       canonical: `${BASE_URL}/${params.locale}/pg/${citySlug}/${params.id}`,

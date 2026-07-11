@@ -357,7 +357,7 @@ export function LeadKanbanSkeleton() {
             <header className="lk-col__header">
               <span className="lk-col__rail" style={{ background: col.rail }} aria-hidden="true" />
               <h3 className="lk-col__title">{col.label}</h3>
-              <span className="lk-col__count">—</span>
+              <span className="lk-col__count">-</span>
             </header>
             <div className="lk-col__list">
               <div className="lk-skeleton" />

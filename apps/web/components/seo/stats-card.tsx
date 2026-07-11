@@ -12,7 +12,7 @@ export function StatsCard({
   aggregates: PageAggregates;
   locale: "en" | "hi";
 }) {
-  const fmt = (n: number | null) => (n == null || n === 0 ? "—" : `₹${n.toLocaleString("en-IN")}`);
+  const fmt = (n: number | null) => (n == null || n === 0 ? "-" : `₹${n.toLocaleString("en-IN")}`);
   const pills = [
     {
       label: locale === "hi" ? "लिस्टिंग" : "Listings",

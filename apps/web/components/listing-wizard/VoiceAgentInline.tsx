@@ -397,7 +397,7 @@ export function VoiceAgentInline({
       {/* Mic denied notice */}
       {micDenied && (
         <p className="vai-mic-denied">
-          🎤 Mic permission denied — type karein ya browser settings mein mic allow karein.
+          🎤 Mic permission denied. Type karein ya browser settings mein mic allow karein.
         </p>
       )}
     </div>

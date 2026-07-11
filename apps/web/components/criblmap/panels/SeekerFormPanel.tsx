@@ -334,7 +334,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
         </div>
         <div className="cmap-seeker-form__auth-required">
           <LogIn size={16} />
-          <span>You need an account to drop a pin — keeps the demand signal honest.</span>
+          <span>You need an account to drop a pin, keeps the demand signal honest.</span>
         </div>
         <Link
           href={`/auth/login?from=${encodeURIComponent("/" + locale + "/map")}`}
@@ -364,7 +364,7 @@ export function SeekerFormPanel({ locale }: SeekerFormPanelProps) {
         {matchLoading && matches.length === 0 ? (
           <span>Searching nearby listings…</span>
         ) : matches.length === 0 ? (
-          <span>No listings match yet — your pin tells owners to post.</span>
+          <span>No listings match yet. Your pin tells owners to post.</span>
         ) : (
           <span>
             <strong>{matches.length}</strong>{" "}

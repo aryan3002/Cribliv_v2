@@ -370,7 +370,7 @@ export function setCaptureValue(
 }
 
 export function formatCaptureValue(path: string, value: unknown): string {
-  if (value == null || value === "") return "—";
+  if (value == null || value === "") return "-";
   if ((path === "rent" || path === "deposit") && typeof value === "number")
     return `₹${value.toLocaleString("en-IN")}`;
   if (path === "listing_type" && typeof value === "string")

@@ -21,12 +21,12 @@ export const FURNISHING_OPTIONS = ["fully_furnished", "semi_furnished", "unfurni
 export const PAYMENT_MODE_OPTIONS = ["upi", "bank_transfer", "cash"] as const;
 
 export function rupeesFromPaise(paise?: number | null): string {
-  if (paise == null || paise <= 0) return "—";
+  if (paise == null || paise <= 0) return "-";
   return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 }
 
 export function titleCase(s?: string | null): string {
-  if (!s) return "—";
+  if (!s) return "-";
   return s
     .split(/[\s_-]+/)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -83,7 +83,7 @@ export function ReadRow({ label, children }: { label: string; children: ReactNod
 
 /** Chips for amenity / house-rule / payment-mode lists. */
 export function Chips({ items }: { items: string[] }) {
-  if (items.length === 0) return <span style={{ color: "var(--ad-text-3)", fontSize: 13 }}>—</span>;
+  if (items.length === 0) return <span style={{ color: "var(--ad-text-3)", fontSize: 13 }}>-</span>;
   return (
     <span style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
       {items.map((it) => (

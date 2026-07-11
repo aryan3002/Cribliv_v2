@@ -78,7 +78,7 @@ export function AreaStatsPanel() {
               <span>{row.count}</span>
               <span className="cmap-area-stats__rent">₹{formatRentINR(row.avg_rent)}</span>
               <span className="cmap-area-stats__range">
-                ₹{formatRentINR(row.min_rent)} — ₹{formatRentINR(row.max_rent)}
+                ₹{formatRentINR(row.min_rent)}-₹{formatRentINR(row.max_rent)}
               </span>
             </div>
           ))}

@@ -48,7 +48,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com"),
   title: {
-    default: "Cribliv — Verified Rentals in North India",
+    default: "Cribliv: Verified Rentals in North India",
     template: "%s | Cribliv"
   },
   description:

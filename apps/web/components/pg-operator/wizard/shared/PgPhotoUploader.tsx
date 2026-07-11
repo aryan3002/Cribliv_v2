@@ -125,7 +125,7 @@ export default function PgPhotoUploader({ state, dispatch }: Props) {
           }}
         >
           <Upload size={14} />
-          <span className="pgo-caption">JPG, PNG, WebP — max 10 MB each — up to {MAX_PHOTOS}</span>
+          <span className="pgo-caption">JPG, PNG, WebP · max 10 MB each · up to {MAX_PHOTOS}</span>
         </div>
         <p
           className="pgo-caption"

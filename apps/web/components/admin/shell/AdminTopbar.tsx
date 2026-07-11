@@ -40,7 +40,7 @@ export function AdminTopbar({ title, lastRefreshed, onRefresh, onOpenCommand, re
       <span className="admin-topbar__refresh-meta">
         {lastRefreshed
           ? `updated ${formatRelativeTime(new Date(lastRefreshed).toISOString())}`
-          : "—"}
+          : "-"}
       </span>
       <button
         type="button"

@@ -144,7 +144,7 @@ export default function ListingHealthCard({
           </div>
           <div className={styles.lmetric}>
             <div className={styles.lmetricVal}>
-              {data.search_appearances_7d > 0 ? pct(data.ctr_7d) : "—"}
+              {data.search_appearances_7d > 0 ? pct(data.ctr_7d) : "-"}
             </div>
             <div className={styles.lmetricLabel}>
               <MousePointerClick size={11} /> CTR

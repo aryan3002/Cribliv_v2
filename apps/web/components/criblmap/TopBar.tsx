@@ -195,7 +195,7 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
         <Link
           href={`/${locale}` as Route}
           className="cmap-brand"
-          aria-label="Cribliv Map — back to home"
+          aria-label="Cribliv Map, back to home"
         >
           <Image
             src="/cribliv-logo-new.svg"

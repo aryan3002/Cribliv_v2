@@ -21,12 +21,12 @@ export function formatINRPrecise(paise: number): string {
 }
 
 export function formatNumber(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "—";
+  if (n == null || !Number.isFinite(n)) return "-";
   return n.toLocaleString("en-IN");
 }
 
 export function formatPct(ratio: number | null | undefined, decimals = 0): string {
-  if (ratio == null || !Number.isFinite(ratio)) return "—";
+  if (ratio == null || !Number.isFinite(ratio)) return "-";
   return `${(ratio * 100).toFixed(decimals)}%`;
 }
 
@@ -49,19 +49,19 @@ export function formatRelativeTime(iso: string | null | undefined): string {
 }
 
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function formatTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function formatPhone(phone: string | null | undefined): string {
-  if (!phone) return "—";
+  if (!phone) return "-";
   // +919876543210 → +91 98765 43210
   if (phone.startsWith("+91") && phone.length === 13) {
     return `+91 ${phone.slice(3, 8)} ${phone.slice(8)}`;
@@ -75,7 +75,7 @@ export function formatHourBucket(iso: string): string {
 }
 
 export function formatMinutes(m: number | null | undefined): string {
-  if (m == null) return "—";
+  if (m == null) return "-";
   if (m < 1) return "<1m";
   if (m < 60) return `${Math.round(m)}m`;
   if (m < 60 * 24) return `${Math.round(m / 60)}h`;

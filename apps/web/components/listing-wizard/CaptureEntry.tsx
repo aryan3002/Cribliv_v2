@@ -44,7 +44,7 @@ export function CaptureEntry({ onDescribe, onManual, error }: Props) {
               <span className="capture-entry__badge">AI-Powered</span>
             </div>
             <span className="capture-entry__option-desc">
-              Speak naturally for 60 seconds — our AI extracts all details and fills the form for
+              Speak naturally for 60 seconds. Our AI extracts all details and fills the form for
               you.
             </span>
           </div>
@@ -83,7 +83,7 @@ export function CaptureEntry({ onDescribe, onManual, error }: Props) {
           <div className="capture-entry__option-content">
             <strong>Fill manually</strong>
             <span className="capture-entry__option-desc">
-              Step-by-step form — type, location, rent, photos. Full control over every field.
+              Step-by-step form: type, location, rent, photos. Full control over every field.
             </span>
           </div>
           <svg

@@ -439,7 +439,7 @@ function LoginPageInner() {
                 <div className="auth-dev-chip" role="note">
                   <div className="auth-dev-chip__row">
                     <Sparkles size={13} aria-hidden="true" />
-                    <span>Dev mode — mock OTP auto-filled</span>
+                    <span>Dev mode, mock OTP auto-filled</span>
                   </div>
                   <div className="auth-dev-chip__digits">{devOtp}</div>
                   <div className="auth-dev-chip__hint">No SMS sent. Just hit Verify.</div>

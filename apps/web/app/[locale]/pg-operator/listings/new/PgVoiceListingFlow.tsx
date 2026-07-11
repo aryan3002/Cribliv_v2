@@ -245,7 +245,7 @@ export default function PgVoiceListingFlow({ userId, accessToken, locale }: Prop
               className="pgo-glass"
               style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}
             >
-              <p style={{ fontWeight: 600 }}>All set — review your listing</p>
+              <p style={{ fontWeight: 600 }}>All set. Review your listing</p>
               <p style={{ fontSize: 13, opacity: 0.7 }}>
                 Confirm the details and add photos (4 minimum) before submitting.
               </p>

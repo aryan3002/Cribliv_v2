@@ -54,10 +54,10 @@ export async function generateMetadata({
   const placeName = locale === "hi" ? data.locality.name_hi : data.locality.name_en;
   const h1 = renderIntentH1(intent, placeName, locale);
   return buildPageMetadata({
-    title: `${h1} — Cribliv`,
+    title: `${h1} · Cribliv`,
     description:
       locale === "hi"
-        ? `${placeName} में ${locale === "hi" ? intent.label_hi : intent.label_en} — Cribliv पर सत्यापित लिस्टिंग।`
+        ? `${placeName} में ${locale === "hi" ? intent.label_hi : intent.label_en}, Cribliv पर सत्यापित लिस्टिंग।`
         : `Verified ${intent.label_en.toLowerCase()} in ${placeName}. Direct-owner contact, zero brokerage.`,
     pathname: `/city/${params.citySlug}/${params.locality}/${params.intent}`,
     locale,
@@ -131,15 +131,15 @@ export default async function LocalityIntentPage({
           : `What's the typical budget for ${intent.label_en.toLowerCase()}?`,
       a:
         locale === "hi"
-          ? `बजट लिस्टिंग में अलग-अलग है — सभी कीमतें ग्रिड में दिखाई गई हैं।`
-          : `Prices vary listing-to-listing — sort by rent (low → high) to see the most affordable options first.`
+          ? `बजट लिस्टिंग में अलग-अलग है। सभी कीमतें ग्रिड में दिखाई गई हैं।`
+          : `Prices vary listing-to-listing. Sort by rent (low → high) to see the most affordable options first.`
     },
     {
       q: locale === "hi" ? "क्या लिस्टिंग वास्तविक हैं?" : "Are these listings genuine?",
       a:
         locale === "hi"
-          ? "हाँ — Cribliv पर हर मालिक की Aadhaar और संपत्ति दस्तावेजों से पहचान सत्यापित की जाती है।"
-          : "Yes — every Cribliv owner's identity is verified via Aadhaar and property documents before listing goes live."
+          ? "हाँ, Cribliv पर हर मालिक की Aadhaar और संपत्ति दस्तावेजों से पहचान सत्यापित की जाती है।"
+          : "Yes, every Cribliv owner's identity is verified via Aadhaar and property documents before listing goes live."
     }
   ];
   const merged = coalesceCopy(copy, { h1, intro, faqs: faqDefaults });

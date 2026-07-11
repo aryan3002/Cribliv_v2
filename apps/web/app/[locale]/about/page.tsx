@@ -23,8 +23,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
   const title = isHindi
-    ? "हमारे बारे में — भारत का भरोसेमंद रेंटल प्लेटफॉर्म"
-    : "About — India's Most Trusted Rental Platform";
+    ? "हमारे बारे में: भारत का भरोसेमंद रेंटल प्लेटफॉर्म"
+    : "About: India's Most Trusted Rental Platform";
   const description = isHindi
     ? "Cribliv AI-संचालित सत्यापित किराये का प्लेटफॉर्म है। हमारे मिशन, टीम और विजन के बारे में जानें।"
     : "Cribliv is an AI-powered verified rental platform. Learn about our mission to eliminate broker fraud and make renting trustworthy in India.";
@@ -62,7 +62,7 @@ const VALUES = [
   {
     icon: Zap,
     title: "AI-Native",
-    desc: "Natural language search, voice input, and intelligent matching. Our AI understands context — not just keywords — to find your perfect home.",
+    desc: "Natural language search, voice input, and intelligent matching. Our AI understands context, not just keywords, to find your perfect home.",
     color: "brand" as const
   },
   {
@@ -202,8 +202,8 @@ export default function AboutPage({ params }: { params: { locale: string } }) {
           </h2>
           <p className="text-secondary" style={{ fontSize: 17, lineHeight: 1.7 }}>
             {isHindi
-              ? "भारत में 11 करोड़ से अधिक परिवार किराये पर रहते हैं, फिर भी अधिकांश को ब्रोकर धोखाधड़ी, नकली लिस्टिंग और छिपे शुल्कों का सामना करना पड़ता है। Cribliv इसे बदलने के लिए बनाया गया है — AI-सत्यापन, शून्य ब्रोकरेज और 12-घंटे रिफंड गारंटी के साथ।"
-              : "Over 110 million Indian households rent their homes, yet most face broker fraud, fake listings, and hidden charges. Cribliv was built to change that — with AI-powered verification, zero brokerage, and a 12-hour refund guarantee that puts tenants first."}
+              ? "भारत में 11 करोड़ से अधिक परिवार किराये पर रहते हैं, फिर भी अधिकांश को ब्रोकर धोखाधड़ी, नकली लिस्टिंग और छिपे शुल्कों का सामना करना पड़ता है। Cribliv इसे बदलने के लिए बनाया गया है, AI-सत्यापन, शून्य ब्रोकरेज और 12-घंटे रिफंड गारंटी के साथ।"
+              : "Over 110 million Indian households rent their homes, yet most face broker fraud, fake listings, and hidden charges. Cribliv was built to change that, with AI-powered verification, zero brokerage, and a 12-hour refund guarantee that puts tenants first."}
           </p>
         </div>
       </section>
@@ -276,7 +276,7 @@ export default function AboutPage({ params }: { params: { locale: string } }) {
                 title: isHindi ? "Aadhaar सत्यापन" : "Aadhaar Verification",
                 desc: isHindi
                   ? "मालिक की पहचान Aadhaar OTP के माध्यम से सत्यापित की जाती है।"
-                  : "Owner identity is verified through Aadhaar OTP — ensuring the person is who they claim to be."
+                  : "Owner identity is verified through Aadhaar OTP, ensuring the person is who they claim to be."
               },
               {
                 step: 2,
@@ -297,7 +297,7 @@ export default function AboutPage({ params }: { params: { locale: string } }) {
                 title: isHindi ? "12-घंटे गारंटी" : "12-Hour Guarantee",
                 desc: isHindi
                   ? "अगर मालिक 12 घंटे में जवाब नहीं देता, तो आपका पैसा स्वतः वापस हो जाता है।"
-                  : "If an owner doesn't respond within 12 hours, your unlock fee is automatically refunded — no questions asked."
+                  : "If an owner doesn't respond within 12 hours, your unlock fee is automatically refunded, no questions asked."
               }
             ].map((item) => (
               <div

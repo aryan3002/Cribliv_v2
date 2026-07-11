@@ -90,7 +90,7 @@ export function VisibilityControls({ accessToken, detail, onChanged, onToast }: 
       onChanged(next);
       onToast?.("Visibility updated", "success");
     } catch {
-      onToast?.("Update failed — please try again", "error");
+      onToast?.("Update failed. Please try again", "error");
     } finally {
       setBusy(false);
       setPending(null);

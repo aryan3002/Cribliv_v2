@@ -474,8 +474,8 @@ export default function PgWizardClient({
             <span className={wiz.heroEyebrow}>Cribliv · New listing</span>
             <h1 className={wiz.heroTitle}>Create your PG listing</h1>
             <p className={wiz.heroSub}>
-              Fill the essentials below, or tap the orb to talk it through — most operators finish
-              in under 5 minutes.
+              Fill the essentials below, or tap the orb to talk it through. Most operators finish in
+              under 5 minutes.
             </p>
           </header>
 
@@ -490,7 +490,7 @@ export default function PgWizardClient({
             >
               <span aria-hidden="true">✓</span>
               <span>
-                Voice filled <strong>{pgFieldLabel(highlightedField)}</strong> — jump to step{" "}
+                Voice filled <strong>{pgFieldLabel(highlightedField)}</strong>, jump to step{" "}
                 {pgFieldToStep(highlightedField)}
               </span>
             </button>

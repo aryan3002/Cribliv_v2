@@ -146,41 +146,41 @@ export function OverviewSection({
       <div className="pgd-kpis">
         <StatCard
           label="Appearances"
-          value={a ? nf(a.appearances) : "—"}
+          value={a ? nf(a.appearances) : "-"}
           spark={series.appearances}
           delta={a ? halfDelta(series.appearances) : null}
         />
         <StatCard
           label="Clicks"
-          value={a ? nf(a.clicks) : "—"}
+          value={a ? nf(a.clicks) : "-"}
           spark={series.clicks}
           delta={a ? halfDelta(series.clicks) : null}
           tone="warn"
         />
         <StatCard
           label="Views"
-          value={a ? nf(a.views) : "—"}
+          value={a ? nf(a.views) : "-"}
           spark={series.views}
           delta={a ? halfDelta(series.views) : null}
           tone="brand"
         />
         <StatCard
           label="Leads"
-          value={a ? nf(a.leads) : "—"}
+          value={a ? nf(a.leads) : "-"}
           spark={series.leads}
           delta={a ? halfDelta(series.leads) : null}
           tone="trust"
         />
         <StatCard
           label="CTR"
-          value={a ? pct(a.ctr) : "—"}
+          value={a ? pct(a.ctr) : "-"}
           tone={a && a.ctr >= 0.05 ? "trust" : "warn"}
         />
-        <StatCard label="Interest rate" value={a ? pct(a.interest_rate) : "—"} />
-        <StatCard label="Conversion" value={a ? pct(a.conversion) : "—"} tone="brand" />
+        <StatCard label="Interest rate" value={a ? pct(a.interest_rate) : "-"} />
+        <StatCard label="Conversion" value={a ? pct(a.conversion) : "-"} tone="brand" />
         <StatCard
           label="Listing score"
-          value={a?.composite_score != null ? Math.round(a.composite_score) : "—"}
+          value={a?.composite_score != null ? Math.round(a.composite_score) : "-"}
         />
       </div>
 
@@ -233,13 +233,13 @@ export function OverviewSection({
         {a ? (
           <ConversionFunnel a={a} />
         ) : (
-          <div style={{ color: "var(--ad-text-3)", fontSize: 13 }}>—</div>
+          <div style={{ color: "var(--ad-text-3)", fontSize: 13 }}>-</div>
         )}
       </SectionCard>
 
       <SectionCard
         title="Analytics visibility"
-        subtitle="Non-destructive — data keeps collecting; restoring shows full history instantly."
+        subtitle="Non-destructive, data keeps collecting; restoring shows full history instantly."
       >
         <VisibilityControls
           accessToken={accessToken}

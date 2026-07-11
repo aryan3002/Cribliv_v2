@@ -130,7 +130,7 @@ export function BlogPreviewModal({ accessToken, id, onClose, onSaved }: Props) {
       else if (reviseTarget === "title") setTitle(revised);
       else setExcerpt(revised);
       setInstruction("");
-      setStatus("AI revision applied — review it, then Save.");
+      setStatus("AI revision applied. Review it, then Save.");
     } catch (e) {
       setStatus(e instanceof Error ? e.message : "Revision failed.");
     } finally {
@@ -217,7 +217,7 @@ export function BlogPreviewModal({ accessToken, id, onClose, onSaved }: Props) {
             {post ? (
               <span style={{ color: "#64748b" }}>
                 {post.status.replace(/_/g, " ")} · quality{" "}
-                {post.qualityScore != null ? post.qualityScore.toFixed(2) : "—"}
+                {post.qualityScore != null ? post.qualityScore.toFixed(2) : "-"}
               </span>
             ) : null}
           </div>
@@ -436,7 +436,7 @@ export function BlogPreviewModal({ accessToken, id, onClose, onSaved }: Props) {
                   }}
                 >
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6, color: "#92400e" }}>
-                    Flagged “needs attention” — {failedChecks.length} check
+                    Flagged “needs attention”, {failedChecks.length} check
                     {failedChecks.length === 1 ? "" : "s"} to fix (Edit to fix, or Approve anyway)
                   </div>
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "#7c5b13" }}>
@@ -456,7 +456,7 @@ export function BlogPreviewModal({ accessToken, id, onClose, onSaved }: Props) {
                 <p className="kicker">{DESK_LABEL[post.categorySlug ?? ""] ?? "Cribliv Times"}</p>
                 <h1>{post.title}</h1>
                 <p className="byline">
-                  {post.citySlug ? `${cityLabel(post.citySlug)} — ` : ""}By {post.author}
+                  {post.citySlug ? `${cityLabel(post.citySlug)} · ` : ""}By {post.author}
                 </p>
                 {post.excerpt ? <p className="dek">{post.excerpt}</p> : null}
                 <div dangerouslySetInnerHTML={{ __html: post.bodyEn }} />

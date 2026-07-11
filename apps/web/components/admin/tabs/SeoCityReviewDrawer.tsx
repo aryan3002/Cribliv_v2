@@ -44,7 +44,7 @@ function metroSlug(name: string): string {
 }
 
 function coords(lat: number | null, lng: number | null): string {
-  if (lat == null || lng == null) return "—";
+  if (lat == null || lng == null) return "-";
   return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 }
 

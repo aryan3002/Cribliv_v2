@@ -111,7 +111,7 @@ export function Header({ locale }: { locale: Locale }) {
               <Link
                 href={`/${locale}/map`}
                 className={`nav-cribmap${isActive(`/${locale}/map`) ? " nav-cribmap--active" : ""}`}
-                aria-label="CriblMap — live rent map"
+                aria-label="CriblMap: live rent map"
               >
                 <Map size={15} aria-hidden="true" />
                 <span>CriblMap</span>

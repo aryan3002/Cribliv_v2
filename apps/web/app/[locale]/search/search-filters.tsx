@@ -140,7 +140,7 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
           {saveState === "idle" && "Save Search"}
           {saveState === "saving" && "Saving…"}
           {saveState === "saved" && "✓ Saved!"}
-          {saveState === "error" && "Failed — retry?"}
+          {saveState === "error" && "Failed, retry?"}
         </button>
       </div>
 
@@ -200,7 +200,7 @@ export function SearchFilters({ locale, filters, cities, sortOptions }: SearchFi
             min={0}
             step={1000}
           />
-          <span className="search-filters__rent-sep">–</span>
+          <span className="search-filters__rent-sep">to</span>
           <input
             type="number"
             className="search-filters__rent-input"

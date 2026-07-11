@@ -39,7 +39,7 @@ export function OwnerSection({ detail }: { detail: PgAdminListingDetail }) {
                 fontVariantNumeric: "tabular-nums"
               }}
             >
-              {value ?? "—"}
+              {value ?? "-"}
             </span>
           </div>
         ))}

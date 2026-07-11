@@ -185,7 +185,7 @@ export async function ListeningHomePage({ locale }: { locale: Locale }) {
                 <Mic size={26} />
               </div>
               <div className="maya-band__bubble maya-band__bubble--maya">
-                नमस्ते! मैं Maya हूँ — boliye…
+                नमस्ते! मैं Maya हूँ, boliye…
               </div>
               <div className="maya-band__bubble maya-band__bubble--user">
                 &ldquo;2BHK, Gomti Nagar, semi-furnished&rdquo;

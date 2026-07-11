@@ -136,7 +136,7 @@ export default function HomeListeningHero({
         // rather than a blank/stale number. The re-resolve effect below
         // re-announces with the real count once it lands.
         setLiveMessage(
-          `${chip.label} — ${fill(t(locale, "listenHeroCountMatching"), {
+          `${chip.label}, ${fill(t(locale, "listenHeroCountMatching"), {
             n: "…"
           })}`
         );
@@ -155,7 +155,7 @@ export default function HomeListeningHero({
     const label = lastChipLabelRef.current;
     if (!label) return;
     setLiveMessage(
-      `${label} — ${fill(t(locale, "listenHeroCountReady"), { n: String(matchCount) })}`
+      `${label}, ${fill(t(locale, "listenHeroCountReady"), { n: String(matchCount) })}`
     );
   }, [matchCount, locale, chips.length]);
 

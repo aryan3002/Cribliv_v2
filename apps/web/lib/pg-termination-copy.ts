@@ -22,7 +22,7 @@ export interface TerminationCopy {
 const COPY: Record<TerminationReason, TerminationCopy> = {
   duration_cap: {
     title: "Session timed out",
-    body: "You reached the 5-minute cap. We saved everything Chaya filled in — finish up in the form below.",
+    body: "You reached the 5-minute cap. We saved everything Chaya filled in. Finish up in the form below.",
     tone: "warn"
   },
   idle_timeout: {
@@ -32,7 +32,7 @@ const COPY: Record<TerminationReason, TerminationCopy> = {
   },
   tool_call_cap: {
     title: "That's a lot of details",
-    body: "Chaya filled in plenty — review and finish the listing in the form.",
+    body: "Chaya filled in plenty. Review and finish the listing in the form.",
     tone: "info"
   },
   concurrent_cap: {

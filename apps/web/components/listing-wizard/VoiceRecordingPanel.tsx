@@ -20,7 +20,7 @@ export function VoiceRecordingPanel({ seconds, isProcessing, error, onStop, onMa
           className={`capture-recorder__status-dot ${isProcessing ? "capture-recorder__status-dot--processing" : ""}`}
         />
         <span className="capture-recorder__status-label">
-          {isProcessing ? "Processing your recording…" : "Listening — speak now"}
+          {isProcessing ? "Processing your recording…" : "Listening, speak now"}
         </span>
       </div>
 
@@ -69,7 +69,7 @@ export function VoiceRecordingPanel({ seconds, isProcessing, error, onStop, onMa
 
       {/* Hint */}
       <p className="capture-recorder__hint">
-        Describe type, location, rent, rooms &amp; amenities — the AI fills the rest.
+        Describe type, location, rent, rooms &amp; amenities. The AI fills the rest.
       </p>
 
       {/* Progress bar (subtle) */}

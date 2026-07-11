@@ -20,7 +20,7 @@ export function ValidationErrors({ error }: { error: unknown }) {
   }
   return (
     <p className="ra-error-box" role="alert">
-      {e.code} — {e.message}
+      {e.code} · {e.message}
     </p>
   );
 }

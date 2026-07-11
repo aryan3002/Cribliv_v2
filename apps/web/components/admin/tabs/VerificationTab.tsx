@@ -88,7 +88,7 @@ export function VerificationTab({ accessToken, onCountChange, onToast }: Props) 
     {
       key: "machine",
       header: "Machine result",
-      render: (r) => (r.machineResult ? <StatusPill status={r.machineResult} /> : "—"),
+      render: (r) => (r.machineResult ? <StatusPill status={r.machineResult} /> : "-"),
       sortValue: (r) => r.machineResult ?? ""
     },
     {
@@ -106,7 +106,7 @@ export function VerificationTab({ accessToken, onCountChange, onToast }: Props) 
           {r.livenessScore != null && `live ${Math.round(r.livenessScore)}`}
           {r.livenessScore != null && r.addressMatchScore != null && " · "}
           {r.addressMatchScore != null && `addr ${Math.round(r.addressMatchScore)}`}
-          {r.livenessScore == null && r.addressMatchScore == null && "—"}
+          {r.livenessScore == null && r.addressMatchScore == null && "-"}
         </span>
       )
     },
@@ -115,7 +115,7 @@ export function VerificationTab({ accessToken, onCountChange, onToast }: Props) 
       header: "Review reason",
       render: (r) => (
         <span style={{ color: "var(--ad-text-3)", fontSize: 12 }}>
-          {r.reviewReason ? r.reviewReason.replace(/_/g, " ") : "—"}
+          {r.reviewReason ? r.reviewReason.replace(/_/g, " ") : "-"}
         </span>
       )
     },
@@ -205,26 +205,26 @@ export function VerificationTab({ accessToken, onCountChange, onToast }: Props) 
             <Row label="Type" value={active.verificationType} />
             <Row label="User" value={active.userId} mono />
             {active.listingId && <Row label="Listing" value={active.listingId} mono />}
-            <Row label="Provider" value={active.provider ?? "—"} />
-            <Row label="Provider ref" value={active.providerReference ?? "—"} mono />
-            <Row label="Provider code" value={active.providerResultCode ?? "—"} mono />
+            <Row label="Provider" value={active.provider ?? "-"} />
+            <Row label="Provider ref" value={active.providerReference ?? "-"} mono />
+            <Row label="Provider code" value={active.providerResultCode ?? "-"} mono />
             <Row label="Threshold" value={String(active.threshold)} />
             <Row
               label="Liveness score"
-              value={active.livenessScore != null ? String(Math.round(active.livenessScore)) : "—"}
+              value={active.livenessScore != null ? String(Math.round(active.livenessScore)) : "-"}
             />
             <Row
               label="Address match"
               value={
                 active.addressMatchScore != null
                   ? String(Math.round(active.addressMatchScore))
-                  : "—"
+                  : "-"
               }
             />
-            <Row label="Review reason" value={active.reviewReason?.replace(/_/g, " ") ?? "—"} />
+            <Row label="Review reason" value={active.reviewReason?.replace(/_/g, " ") ?? "-"} />
             <Row
               label="Retryable"
-              value={active.retryable == null ? "—" : active.retryable ? "yes" : "no"}
+              value={active.retryable == null ? "-" : active.retryable ? "yes" : "no"}
             />
             <Row label="Submitted" value={formatDate(active.createdAt)} />
             <div>

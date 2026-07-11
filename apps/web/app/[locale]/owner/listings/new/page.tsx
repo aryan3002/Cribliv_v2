@@ -57,7 +57,7 @@ function friendlyApiMessage(err: unknown): string {
   if (err instanceof ApiError) {
     switch (err.status) {
       case 400:
-        return "Couldn't save your draft right now — your progress is still here. Try submitting again at the end.";
+        return "Couldn't save your draft right now. Your progress is still here. Try submitting again at the end.";
       case 401:
         return "Your session has expired. Please log in again.";
       case 409:
@@ -65,7 +65,7 @@ function friendlyApiMessage(err: unknown): string {
       case 422:
         return "Some details look off. Please review your entries and try again.";
       default:
-        return "Something went wrong saving your draft. Your progress is preserved — please try again.";
+        return "Something went wrong saving your draft. Your progress is preserved. Please try again.";
     }
   }
   if (err instanceof Error) return err.message;
@@ -786,7 +786,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             <h1 className="cz-title">{editId ? "Refining your listing" : "Create your listing"}</h1>
             <p className="cz-subtitle">
               {voiceActive
-                ? "Maya is listening — describe your property and she'll fill in the details."
+                ? "Maya is listening. Describe your property and she'll fill in the details."
                 : "Fill in the details below, or tap Maya to use voice input."}
             </p>
             <p style={{ marginTop: 4, fontSize: 13, color: "var(--c-text-tertiary)" }}>

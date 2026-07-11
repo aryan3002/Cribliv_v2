@@ -55,10 +55,10 @@ export async function generateMetadata({
   }
   const h1 = renderIntentH1(intent, `${data.station.station_name} Metro`, locale);
   return buildPageMetadata({
-    title: `${h1} — Cribliv`,
+    title: `${h1} · Cribliv`,
     description:
       locale === "hi"
-        ? `${data.station.station_name} मेट्रो के पास ${intent.label_hi} — Cribliv पर सत्यापित लिस्टिंग।`
+        ? `${data.station.station_name} मेट्रो के पास ${intent.label_hi}, Cribliv पर सत्यापित लिस्टिंग।`
         : `Verified ${intent.label_en.toLowerCase()} near ${data.station.station_name} Metro. Zero brokerage.`,
     pathname: `/city/${params.citySlug}/metro/${params.station}/${params.intent}`,
     locale,

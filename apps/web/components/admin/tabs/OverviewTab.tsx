@@ -134,12 +134,10 @@ export function OverviewTab({ accessToken }: Props) {
           <EmptyState title="No city data yet" />
         ) : (
           <BarChart
-            data={cities
-              .slice(0, 12)
-              .map((c) => ({
-                key: `${c.city}${c.locality ? ` · ${c.locality}` : ""}`,
-                count: c.count
-              }))}
+            data={cities.slice(0, 12).map((c) => ({
+              key: `${c.city}${c.locality ? ` · ${c.locality}` : ""}`,
+              count: c.count
+            }))}
             xKey="key"
             yKey="count"
             layout="vertical"
@@ -217,7 +215,7 @@ function FunnelView({ funnel }: { funnel: AdminFunnelMetrics }) {
                 textAlign: "right"
               }}
             >
-              {conv == null ? "—" : formatPct(conv, 1)}
+              {conv == null ? "-" : formatPct(conv, 1)}
             </span>
           </div>
         );

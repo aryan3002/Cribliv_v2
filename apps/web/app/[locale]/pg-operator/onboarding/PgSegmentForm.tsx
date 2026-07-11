@@ -18,7 +18,7 @@ export default function PgSegmentForm({
   const handleSubmit = async () => {
     const n = parseInt(beds, 10);
     if (!Number.isInteger(n) || n < 1 || n > 500) {
-      setErr("Enter 1–500");
+      setErr("Enter 1 to 500");
       return;
     }
     setBusy(true);
