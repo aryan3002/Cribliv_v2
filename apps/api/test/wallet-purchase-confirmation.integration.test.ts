@@ -196,6 +196,31 @@ describe("wallet purchase-intent confirmation + status (in-memory)", () => {
     expect(status.body.data.status).toBe("created");
   });
 
+  it("rejects a signature with multi-byte UTF-8 that matches string length but not byte length (401 invalid_payment_signature)", async () => {
+    const tenant = await loginWithOtp(app, "+919999999902");
+    const purchase = await createPurchaseIntent(app, tenant.access_token, "confirm-multibyte-sig");
+
+    // 63 valid hex chars + "é" (2-byte UTF-8 char) = 64 string length, 65 byte length
+    // This should not bypass the signature guard
+    const response = await http(app)
+      .post(`/v1/wallet/purchase-intents/${purchase.order_id}/confirm`)
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .send({
+        razorpay_order_id: purchase.order_id,
+        razorpay_payment_id: "pay_multibyte",
+        razorpay_signature: "0".repeat(63) + "é"
+      })
+      .expect(401);
+
+    expect(getErrorCode(response.body)).toBe("invalid_payment_signature");
+
+    const status = await http(app)
+      .get(`/v1/wallet/purchase-intents/${purchase.order_id}`)
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .expect(200);
+    expect(status.body.data.status).toBe("created");
+  });
+
   it("rejects a body/path order id mismatch with 400 order_mismatch", async () => {
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(app, tenant.access_token, "confirm-mismatch");
