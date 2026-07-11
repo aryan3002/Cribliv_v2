@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
 import { ok } from "../../common/response";
 import { AppStateService } from "../../common/app-state.service";
@@ -109,6 +109,41 @@ export class WalletController {
       planId: body.plan_id,
       provider: body.provider,
       idempotencyKey: idem
+    });
+
+    return ok(result);
+  }
+
+  @Post("purchase-intents/:orderId/confirm")
+  async confirmPurchaseIntent(
+    @Req() req: { user: { id: string } },
+    @Param("orderId") orderId: string,
+    @Body()
+    body: {
+      razorpay_order_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+    }
+  ) {
+    const result = await this.walletPurchase.confirmIntent({
+      userId: req.user.id,
+      orderId,
+      razorpayOrderId: body.razorpay_order_id,
+      razorpayPaymentId: body.razorpay_payment_id,
+      razorpaySignature: body.razorpay_signature
+    });
+
+    return ok(result);
+  }
+
+  @Get("purchase-intents/:orderId")
+  async purchaseIntentStatus(
+    @Req() req: { user: { id: string } },
+    @Param("orderId") orderId: string
+  ) {
+    const result = await this.walletPurchase.getIntentStatus({
+      userId: req.user.id,
+      orderId
     });
 
     return ok(result);
