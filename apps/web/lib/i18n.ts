@@ -455,7 +455,33 @@ const dictionary: Dictionary = {
     en: "Guaranteed callback in 24 hours, or your credit back",
     hi: "24 घंटे में कॉलबैक की गारंटी, वरना क्रेडिट वापस"
   },
-  loginBenefit3: { en: "Verified listings, no brokers", hi: "सत्यापित लिस्टिंग, कोई ब्रोकर नहीं" }
+  loginBenefit3: { en: "Verified listings, no brokers", hi: "सत्यापित लिस्टिंग, कोई ब्रोकर नहीं" },
+  // ── Shared credit purchase dialog (Razorpay + UPI) ─────────────────────────
+  cpTitle: { en: "Buy Credits", hi: "क्रेडिट खरीदें" },
+  cpWalletBalance: { en: "Wallet balance", hi: "वॉलेट बैलेंस" },
+  cpUnitPrice: { en: "₹{price} / credit", hi: "₹{price} / क्रेडिट" },
+  cpBestValue: { en: "Best value", hi: "सबसे बेहतर" },
+  cpPaySecurely: { en: "Pay securely", hi: "सुरक्षित भुगतान करें" },
+  cpPayWithUpi: { en: "Pay with UPI", hi: "UPI से भुगतान करें" },
+  cpLoading: { en: "Creating your order…", hi: "आपका ऑर्डर बनाया जा रहा है…" },
+  cpCancelled: {
+    en: "Payment cancelled — you can try again.",
+    hi: "भुगतान रद्द — आप फिर से कोशिश कर सकते हैं।"
+  },
+  cpPendingWebhook: {
+    en: "Payment received — waiting for confirmation…",
+    hi: "भुगतान मिल गया — पुष्टि का इंतज़ार है…"
+  },
+  cpCaptured: {
+    en: "Payment successful! Credits added to your wallet.",
+    hi: "भुगतान सफल! क्रेडिट आपके वॉलेट में जुड़ गए।"
+  },
+  cpFailed: {
+    en: "Payment failed. Please try again.",
+    hi: "भुगतान विफल रहा। कृपया फिर कोशिश करें।"
+  },
+  cpRetry: { en: "Retry", hi: "फिर कोशिश करें" },
+  cpClose: { en: "Close", hi: "बंद करें" }
 };
 
 export function t(locale: Locale, key: string): string {
