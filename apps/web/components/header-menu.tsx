@@ -72,10 +72,10 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
   const portalMenuToBody = useMatchMedia(MOBILE_MENU_PORTAL_MQ);
   const isPgOperatorRoute = pathname?.startsWith(`/${locale}/pg-operator`) ?? false;
   const pgSectionIcons = [
-    <Home size={16} aria-hidden="true" />,
-    <BarChart3 size={16} aria-hidden="true" />,
-    <Building2 size={16} aria-hidden="true" />,
-    <UsersRound size={16} aria-hidden="true" />
+    <Home key="home" size={16} aria-hidden="true" />,
+    <BarChart3 key="insights" size={16} aria-hidden="true" />,
+    <Building2 key="listings" size={16} aria-hidden="true" />,
+    <UsersRound key="leads" size={16} aria-hidden="true" />
   ];
 
   // Close on outside pointerdown (portal menu is outside triggerRef subtree)
