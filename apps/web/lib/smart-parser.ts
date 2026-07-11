@@ -18,6 +18,7 @@ export interface ParsedChip {
   kind: ChipKind;
   value: string | number;
   label: string;
+  sourceRange?: { start: number; end: number };
 }
 
 export interface ParseResult {
@@ -50,13 +51,13 @@ const CITY_ALIASES: Record<string, string> = {
 
 const PG_KEYWORDS = ["pg", "hostel", "पीजी", "हॉस्टल"];
 const FLAT_KEYWORDS = ["flat", "house", "apartment", "home", "घर", "फ्लैट", "मकान"];
-const FURNISHING_KEYWORDS: Record<string, "furnished" | "unfurnished" | "semi_furnished"> = {
-  furnished: "furnished",
-  unfurnished: "unfurnished",
-  "semi furnished": "semi_furnished",
-  "semi-furnished": "semi_furnished",
-  semifurnished: "semi_furnished"
-};
+const FURNISHING_KEYWORDS: Array<[string, "furnished" | "unfurnished" | "semi_furnished"]> = [
+  ["semi furnished", "semi_furnished"],
+  ["semi-furnished", "semi_furnished"],
+  ["semifurnished", "semi_furnished"],
+  ["unfurnished", "unfurnished"],
+  ["furnished", "furnished"]
+];
 const AMENITY_KEYWORDS = ["parking", "balcony", "lift", "wifi", "ac", "geyser", "gym", "garden"];
 
 const RENT_UNIT_K = /(k|thousand|हजार|hazar|hazaar|jar|yaar)/i;
@@ -258,7 +259,7 @@ export function parseQuery(
   }
 
   // -- Furnishing --
-  for (const [keyword, slug] of Object.entries(FURNISHING_KEYWORDS)) {
+  for (const [keyword, slug] of FURNISHING_KEYWORDS) {
     const idx = lower.indexOf(keyword);
     if (idx >= 0) {
       const label =
@@ -323,7 +324,10 @@ export function parseQuery(
   }
 
   const dedupedMatches = dedupeChipsByKind(matches);
-  const chips = dedupedMatches.map((m) => m.chip);
+  const chips = dedupedMatches.map((m) => ({
+    ...m.chip,
+    sourceRange: { start: m.start, end: m.end }
+  }));
 
   // Build the residual string: original input minus all matched ranges.
   const residual = stripRanges(
