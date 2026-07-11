@@ -401,6 +401,11 @@ const dictionary: Dictionary = {
     en: "Please log in to see your callbacks.",
     hi: "अपनी कॉलबैक देखने के लिए कृपया लॉग इन करें।"
   },
+  cbNoCredits: { en: "Not enough credits", hi: "पर्याप्त क्रेडिट नहीं हैं" },
+  cbBuyCreditsSub: {
+    en: "Buy credits to unlock this listing.",
+    hi: "इस लिस्टिंग को अनलॉक करने के लिए क्रेडिट खरीदें।"
+  },
   // ── Lead monetization: owner lead cards ────────────────────────────────────
   leadFreeBadge: { en: "FREE LEAD", hi: "मुफ़्त लीड" },
   leadUnlockButton: { en: "Unlock for 1 credit", hi: "1 क्रेडिट में अनलॉक करें" },
@@ -416,15 +421,13 @@ const dictionary: Dictionary = {
   },
   leadNoCredits: { en: "Not enough lead credits", hi: "लीड क्रेडिट कम हैं" },
   leadBuyPackSub: {
-    en: "Buy 5 lead credits for ₹299 to unlock tenant contacts instantly.",
-    hi: "किरायेदार का नंबर तुरंत अनलॉक करने के लिए ₹299 में 5 लीड क्रेडिट खरीदें।"
+    en: "Buy lead credits to unlock tenant contacts instantly.",
+    hi: "किरायेदार का नंबर तुरंत अनलॉक करने के लिए लीड क्रेडिट खरीदें।"
   },
-  leadBuyPackButton: { en: "Buy 5 credits for ₹299", hi: "5 क्रेडिट खरीदें, ₹299" },
-  leadPaidRefresh: { en: "I've paid, refresh", hi: "भुगतान कर दिया, रीफ्रेश करें" },
-  leadOpenUpi: { en: "Open UPI App", hi: "UPI ऐप खोलें" },
-  leadCreditsAdded: {
-    en: "Credits added. Unlock the lead now.",
-    hi: "क्रेडिट जुड़ गए। अब लीड अनलॉक करें।"
+  leadBalanceLabel: { en: "Lead credits", hi: "लीड क्रेडिट" },
+  leadLockedWaiting: {
+    en: "{n} locked leads waiting",
+    hi: "{n} लॉक्ड लीड इंतज़ार में हैं"
   },
   // ── Guest gating ────────────────────────────────────────────────────────────
   gateHeadline: { en: "Sign up free, get 2 credits", hi: "मुफ़्त साइन अप करें, 2 क्रेडिट पाएं" },
@@ -455,7 +458,37 @@ const dictionary: Dictionary = {
     en: "Guaranteed callback in 24 hours, or your credit back",
     hi: "24 घंटे में कॉलबैक की गारंटी, वरना क्रेडिट वापस"
   },
-  loginBenefit3: { en: "Verified listings, no brokers", hi: "सत्यापित लिस्टिंग, कोई ब्रोकर नहीं" }
+  loginBenefit3: { en: "Verified listings, no brokers", hi: "सत्यापित लिस्टिंग, कोई ब्रोकर नहीं" },
+  // ── Shared credit purchase dialog (Razorpay + UPI) ─────────────────────────
+  cpTitle: { en: "Buy Credits", hi: "क्रेडिट खरीदें" },
+  cpWalletBalance: { en: "Wallet balance", hi: "वॉलेट बैलेंस" },
+  cpUnitPrice: { en: "₹{price} / credit", hi: "₹{price} / क्रेडिट" },
+  cpBestValue: { en: "Best value", hi: "सबसे बेहतर" },
+  cpPaySecurely: { en: "Pay securely", hi: "सुरक्षित भुगतान करें" },
+  cpPayWithUpi: { en: "Pay with UPI", hi: "UPI से भुगतान करें" },
+  cpLoading: { en: "Creating your order…", hi: "आपका ऑर्डर बनाया जा रहा है…" },
+  cpCancelled: {
+    en: "Payment cancelled — you can try again.",
+    hi: "भुगतान रद्द — आप फिर से कोशिश कर सकते हैं।"
+  },
+  cpPendingWebhook: {
+    en: "Payment received — waiting for confirmation…",
+    hi: "भुगतान मिल गया — पुष्टि का इंतज़ार है…"
+  },
+  cpCaptured: {
+    en: "Payment successful! Credits added to your wallet.",
+    hi: "भुगतान सफल! क्रेडिट आपके वॉलेट में जुड़ गए।"
+  },
+  cpFailed: {
+    en: "Payment failed. Please try again.",
+    hi: "भुगतान विफल रहा। कृपया फिर कोशिश करें।"
+  },
+  cpRetry: { en: "Retry", hi: "फिर कोशिश करें" },
+  cpClose: { en: "Close", hi: "बंद करें" },
+  cpGatewayUnavailable: {
+    en: "Couldn't load the payment gateway. Please use UPI instead.",
+    hi: "भुगतान गेटवे लोड नहीं हो सका। कृपया UPI से भुगतान करें।"
+  }
 };
 
 export function t(locale: Locale, key: string): string {

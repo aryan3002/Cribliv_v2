@@ -203,6 +203,7 @@ export function LeadsClient({ locale }: { locale: string }) {
             onLeadsChange={setLeads}
             searchQuery={search}
             enableDrag={canDrag}
+            locale={loc}
           />
         ) : (
           <LeadsPipeline accessToken={accessToken} locale={loc} />

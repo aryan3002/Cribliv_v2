@@ -80,6 +80,10 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
     setLoadingMore(false);
   }
 
+  function handleLeadPatch(leadId: string, patch: Partial<LeadVm>) {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...patch } : l)));
+  }
+
   async function handleStatusChange(leadId: string, newStatus: LeadStatus, notes?: string) {
     const prevLeads = leads;
     // Optimistic update
@@ -243,6 +247,7 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
                 onStatusChange={handleStatusChange}
                 updating={updatingLeadId === lead.id}
                 accessToken={accessToken}
+                onLeadPatch={handleLeadPatch}
               />
             ))}
           </div>

@@ -1,14 +1,41 @@
-import { BadRequestException, UnauthorizedException } from "@nestjs/common";
-import { createHmac, createHash, timingSafeEqual } from "crypto";
+import { BadRequestException, ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
+import { readFeatureFlags } from "../../config/feature-flags";
 
 export type PaymentProvider = "razorpay" | "upi";
 
+export type CreditPlanAudience = "tenant" | "owner";
+
 export const CREDIT_PLANS = {
-  starter_10: { amountPaise: 9900, credits: 10 },
-  growth_20: { amountPaise: 19900, credits: 20 },
+  starter_10: {
+    audience: "tenant",
+    amountPaise: 9900,
+    credits: 10,
+    label: "10 callback credits",
+    recommended: false
+  },
+  growth_20: {
+    audience: "tenant",
+    amountPaise: 19900,
+    credits: 20,
+    label: "20 callback credits",
+    recommended: true
+  },
   // Owner lead-unlock packs (placeholder pricing per 2026-07-10 spec §4 — tune before launch)
-  leads_5: { amountPaise: 29900, credits: 5 },
-  leads_15: { amountPaise: 69900, credits: 15 }
+  leads_5: {
+    audience: "owner",
+    amountPaise: 29900,
+    credits: 5,
+    label: "5 lead credits",
+    recommended: false
+  },
+  leads_15: {
+    audience: "owner",
+    amountPaise: 69900,
+    credits: 15,
+    label: "15 lead credits",
+    recommended: true
+  }
 } as const;
 
 export type CreditPlanId = keyof typeof CREDIT_PLANS;
@@ -22,6 +49,49 @@ export function parseCreditPlan(planId: string) {
     });
   }
   return { planId: planId as CreditPlanId, ...plan };
+}
+
+export function planAudienceForRole(role: string): CreditPlanAudience | null {
+  if (role === "tenant") return "tenant";
+  if (role === "owner" || role === "pg_operator") return "owner";
+  return null;
+}
+
+export function assertCreditPurchaseEnabled() {
+  if (!readFeatureFlags().ff_credit_purchase_enabled) {
+    throw new ForbiddenException({
+      code: "feature_disabled",
+      message: "Credit purchase is not enabled"
+    });
+  }
+}
+
+export function parseCreditPlanForRole(planId: string, role: string) {
+  const plan = parseCreditPlan(planId);
+  const audience = planAudienceForRole(role);
+  if (!audience || plan.audience !== audience) {
+    throw new ForbiddenException({
+      code: "plan_not_available_for_role",
+      message: "This credit plan is not available for the current role"
+    });
+  }
+  return plan;
+}
+
+export function listCreditPlansForRole(role: string) {
+  const audience = planAudienceForRole(role);
+  if (!audience) return [];
+  return Object.entries(CREDIT_PLANS)
+    .filter(([, plan]) => plan.audience === audience)
+    .map(([planId, plan]) => ({
+      plan_id: planId,
+      audience: plan.audience,
+      amount_paise: plan.amountPaise,
+      credits: plan.credits,
+      label: plan.label,
+      unit_price_paise: Math.round(plan.amountPaise / plan.credits),
+      recommended: plan.recommended
+    }));
 }
 
 export function parsePaymentProvider(provider: string): PaymentProvider {
@@ -41,6 +111,7 @@ export function buildProviderPayload(input: {
   amountPaise: number;
   planId: CreditPlanId;
   creditsToGrant: number;
+  keyId?: string;
 }) {
   const base = {
     provider: input.provider,
@@ -52,7 +123,7 @@ export function buildProviderPayload(input: {
   if (input.provider === "razorpay") {
     return {
       ...base,
-      key_id: process.env.PAYMENT_PROVIDER_KEY ?? "rzp_test_placeholder",
+      key_id: input.keyId ?? process.env.PAYMENT_PROVIDER_KEY ?? "rzp_test_placeholder",
       notes: {
         plan_id: input.planId,
         credits_to_grant: input.creditsToGrant
@@ -94,10 +165,17 @@ export function canonicalPayload(input: unknown): string {
 function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
   const expected = createHmac("sha256", secret).update(payload).digest("hex");
   const provided = signature.trim();
-  if (!provided || provided.length !== expected.length) {
+  if (!provided) {
     return false;
   }
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  // timingSafeEqual throws on unequal BYTE lengths; multibyte UTF-8 input can
+  // pass a string-length check while differing in bytes.
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 export function ensureWebhookSignature(input: {
@@ -141,6 +219,93 @@ export function ensureWebhookSignature(input: {
   }
 }
 
+/**
+ * Verifies a Razorpay Checkout.js success-handler signature:
+ * HMAC-SHA256 of `${orderId}|${paymentId}` under the account's key secret.
+ * This is distinct from `ensureWebhookSignature` above, which verifies the
+ * server-to-server webhook payload signature — checkout and webhook
+ * signatures use different inputs and (in live mode) different secrets.
+ */
+export function verifyRazorpayCheckoutSignature(input: {
+  orderId: string;
+  paymentId: string;
+  signature: string;
+  secret: string;
+}): boolean {
+  const expected = createHmac("sha256", input.secret)
+    .update(`${input.orderId}|${input.paymentId}`)
+    .digest("hex");
+  const provided = input.signature.trim();
+  if (!provided) {
+    return false;
+  }
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  // timingSafeEqual throws on unequal BYTE lengths; multibyte UTF-8 input can
+  // pass a string-length check while differing in bytes.
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+/**
+ * Mode resolution kept in sync with RazorpayOrdersService.mode() — mock vs
+ * live must agree so the checkout signature secret and the order-creation
+ * secret follow the same rule.
+ */
+function razorpayCheckoutMode(): "mock" | "live" {
+  const configured = process.env.RAZORPAY_ORDERS_MODE?.trim().toLowerCase();
+  if (configured === "mock" || configured === "live") {
+    return configured;
+  }
+  return process.env.NODE_ENV === "production" ? "live" : "mock";
+}
+
+export function ensureRazorpayCheckoutSignature(input: {
+  orderId: string;
+  paymentId: string;
+  signature: string | undefined;
+}) {
+  const signature = input.signature?.trim();
+  if (!signature) {
+    throw new UnauthorizedException({
+      code: "invalid_payment_signature",
+      message: "Missing checkout signature"
+    });
+  }
+
+  const liveSecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+  const mockSecret = process.env.RAZORPAY_CHECKOUT_SECRET?.trim();
+  const secrets =
+    razorpayCheckoutMode() === "live"
+      ? [liveSecret].filter((secret): secret is string => Boolean(secret))
+      : [mockSecret, liveSecret].filter((secret): secret is string => Boolean(secret));
+
+  if (secrets.length === 0) {
+    throw new UnauthorizedException({
+      code: "invalid_payment_signature",
+      message: "Checkout secret is not configured"
+    });
+  }
+
+  const matched = secrets.some((secret) =>
+    verifyRazorpayCheckoutSignature({
+      orderId: input.orderId,
+      paymentId: input.paymentId,
+      signature,
+      secret
+    })
+  );
+
+  if (!matched) {
+    throw new UnauthorizedException({
+      code: "invalid_payment_signature",
+      message: "Checkout signature verification failed"
+    });
+  }
+}
+
 function firstString(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) {
@@ -157,6 +322,9 @@ export interface ParsedWebhookEvent {
   providerPaymentId?: string;
   isCaptureSuccess: boolean;
   isFailure: boolean;
+  /** Undefined when the payload doesn't carry payment.entity.amount/.currency — older/other payload shapes still work. */
+  amountPaise?: number;
+  currency?: string;
 }
 
 export function parseWebhookEvent(
@@ -210,12 +378,17 @@ export function parseWebhookEvent(
   const isFailure =
     failureEventTokens.includes(eventTypeLower) || failureEventTokens.includes(status);
 
+  const amountPaise = typeof paymentData?.amount === "number" ? paymentData.amount : undefined;
+  const currency = typeof paymentData?.currency === "string" ? paymentData.currency : undefined;
+
   return {
     providerEventId,
     eventType,
     providerOrderId,
     providerPaymentId,
     isCaptureSuccess,
-    isFailure
+    isFailure,
+    amountPaise,
+    currency
   };
 }

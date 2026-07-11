@@ -47,6 +47,8 @@ export const analyticsEvents = [
   // Lead monetization — SEO-safe guest gating (blurred cards + signup CTA)
   "guest_gate_signup_clicked",
   "guest_gate_viewed",
+  // Lead monetization — Slice 3: shared Razorpay/UPI credit purchase dialog
+  "lead_pack_purchased",
   // Phase C – Voice search events
   "voice_search_started",
   "voice_search_recording_complete",

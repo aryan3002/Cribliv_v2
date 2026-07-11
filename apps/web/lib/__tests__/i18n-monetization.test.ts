@@ -22,6 +22,8 @@ const KEYS = [
   "cbCallMadePrompt",
   "cbEmptyState",
   "cbLoginPrompt",
+  "cbNoCredits",
+  "cbBuyCreditsSub",
   "leadFreeBadge",
   "leadUnlockButton",
   "leadCallNow",
@@ -30,10 +32,8 @@ const KEYS = [
   "leadExpired",
   "leadNoCredits",
   "leadBuyPackSub",
-  "leadBuyPackButton",
-  "leadPaidRefresh",
-  "leadOpenUpi",
-  "leadCreditsAdded",
+  "leadBalanceLabel",
+  "leadLockedWaiting",
   "gateHeadline",
   "gateSub",
   "gateButton",
@@ -45,7 +45,21 @@ const KEYS = [
   "loginBenefitsTitle",
   "loginBenefit1",
   "loginBenefit2",
-  "loginBenefit3"
+  "loginBenefit3",
+  "cpTitle",
+  "cpWalletBalance",
+  "cpUnitPrice",
+  "cpBestValue",
+  "cpPaySecurely",
+  "cpPayWithUpi",
+  "cpLoading",
+  "cpCancelled",
+  "cpPendingWebhook",
+  "cpCaptured",
+  "cpFailed",
+  "cpRetry",
+  "cpClose",
+  "cpGatewayUnavailable"
 ] as const;
 
 describe("monetization i18n keys", () => {
@@ -62,5 +76,9 @@ describe("monetization i18n keys", () => {
     expect(t("hi", "cbStepCallOnWay")).toContain("{time}");
     expect(t("en", "cbRefundReassure")).toContain("{n}");
     expect(t("hi", "cbRefundReassure")).toContain("{n}");
+    expect(t("en", "cpUnitPrice")).toContain("{price}");
+    expect(t("hi", "cpUnitPrice")).toContain("{price}");
+    expect(t("en", "leadLockedWaiting")).toContain("{n}");
+    expect(t("hi", "leadLockedWaiting")).toContain("{n}");
   });
 });

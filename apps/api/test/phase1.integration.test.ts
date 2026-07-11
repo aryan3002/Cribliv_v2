@@ -125,6 +125,7 @@ describe("Phase 1 integration flows", () => {
       await app.close();
       app = null;
     }
+    delete process.env.FF_CREDIT_PURCHASE_ENABLED;
   });
 
   it("locks OTP challenge after 5 failed attempts", async () => {
@@ -296,6 +297,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const idem = "purchase-idem-1";
 
@@ -329,6 +331,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -376,6 +379,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -423,6 +427,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -462,6 +467,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -507,6 +513,7 @@ describe("Phase 1 integration flows", () => {
     if (!app) {
       throw new Error("App not initialized");
     }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
     const tenant = await loginWithOtp(app, "+919999999902");
     const purchase = await createPurchaseIntent(
       app,
@@ -540,6 +547,139 @@ describe("Phase 1 integration flows", () => {
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
     expect(wallet.body.data.balance_credits).toBe(2);
+  });
+
+  it("ignores a captured webhook whose amount does not match the order and does not credit wallet", async () => {
+    if (!app) {
+      throw new Error("App not initialized");
+    }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
+    const tenant = await loginWithOtp(app, "+919999999902");
+    const purchase = await createPurchaseIntent(
+      app,
+      tenant.access_token,
+      "purchase-idem-amount-mismatch",
+      "starter_10",
+      "razorpay"
+    );
+
+    const payload = {
+      id: "evt_amount_mismatch",
+      event: "payment.captured",
+      payload: {
+        payment: {
+          entity: {
+            id: "pay_amount_mismatch",
+            order_id: purchase.order_id,
+            amount: purchase.amount_paise + 100,
+            currency: "INR"
+          }
+        }
+      }
+    };
+
+    const response = await http(app)
+      .post("/v1/webhooks/razorpay")
+      .set("x-razorpay-signature", signWebhook(payload))
+      .send(payload)
+      .expect(201);
+
+    expect(response.body.data.ignored).toBe(true);
+    expect(response.body.data.reason).toBe("amount_currency_mismatch");
+
+    const wallet = await http(app)
+      .get("/v1/wallet")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .expect(200);
+    expect(wallet.body.data.balance_credits).toBe(2);
+  });
+
+  it("ignores a captured webhook whose currency is not INR and does not credit wallet", async () => {
+    if (!app) {
+      throw new Error("App not initialized");
+    }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
+    const tenant = await loginWithOtp(app, "+919999999902");
+    const purchase = await createPurchaseIntent(
+      app,
+      tenant.access_token,
+      "purchase-idem-currency-mismatch",
+      "starter_10",
+      "razorpay"
+    );
+
+    const payload = {
+      id: "evt_currency_mismatch",
+      event: "payment.captured",
+      payload: {
+        payment: {
+          entity: {
+            id: "pay_currency_mismatch",
+            order_id: purchase.order_id,
+            amount: purchase.amount_paise,
+            currency: "USD"
+          }
+        }
+      }
+    };
+
+    const response = await http(app)
+      .post("/v1/webhooks/razorpay")
+      .set("x-razorpay-signature", signWebhook(payload))
+      .send(payload)
+      .expect(201);
+
+    expect(response.body.data.ignored).toBe(true);
+    expect(response.body.data.reason).toBe("amount_currency_mismatch");
+
+    const wallet = await http(app)
+      .get("/v1/wallet")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .expect(200);
+    expect(wallet.body.data.balance_credits).toBe(2);
+  });
+
+  it("still credits wallet for a captured webhook payload without amount/currency fields", async () => {
+    if (!app) {
+      throw new Error("App not initialized");
+    }
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
+    const tenant = await loginWithOtp(app, "+919999999902");
+    const purchase = await createPurchaseIntent(
+      app,
+      tenant.access_token,
+      "purchase-idem-no-amount-field",
+      "starter_10",
+      "razorpay"
+    );
+
+    // Mirrors the pre-existing payload shape used by other tests in this
+    // file: no payment.entity.amount/.currency — must keep working exactly
+    // as before this change.
+    const payload = {
+      id: "evt_no_amount_field",
+      event: "payment.captured",
+      payload: {
+        payment: {
+          entity: {
+            id: "pay_no_amount_field",
+            order_id: purchase.order_id
+          }
+        }
+      }
+    };
+
+    await http(app)
+      .post("/v1/webhooks/razorpay")
+      .set("x-razorpay-signature", signWebhook(payload))
+      .send(payload)
+      .expect(201);
+
+    const wallet = await http(app)
+      .get("/v1/wallet")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .expect(200);
+    expect(wallet.body.data.balance_credits).toBe(12);
   });
 
   it("creates sales lead once per idempotency key and supports admin status updates", async () => {

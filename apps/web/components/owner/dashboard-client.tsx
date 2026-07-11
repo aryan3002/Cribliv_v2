@@ -17,9 +17,11 @@ import {
 import { trackEvent } from "../../lib/analytics";
 import { track } from "../../lib/track";
 import { t, type Locale } from "../../lib/i18n";
+import { useFlag } from "../../lib/feature-flags";
 import { LeadStatsWidget } from "./lead-stats-widget";
 import { LeadsPipeline } from "./leads-pipeline";
 import { LeadKanban, LeadKanbanSkeleton } from "./lead-kanban";
+import { LeadCreditBalanceBar } from "./lead-credit-balance-bar";
 import { BoostModal } from "./boost-modal";
 import { ListingCardLuxe } from "./listing-card-luxe";
 import {
@@ -132,6 +134,12 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
   const [leadSearch, setLeadSearch] = useState("");
   const [view, setView] = useViewMode();
   const canDrag = useCanDrag();
+  const callbackLeadsEnabled = useFlag("ff_callback_leads");
+  const creditPurchaseEnabled = useFlag("ff_credit_purchase_enabled");
+  const lockedLeadCount = useMemo(
+    () => leads.filter((l) => l.accessState === "locked").length,
+    [leads]
+  );
 
   // Sync activeTab → URL
   useEffect(() => {
@@ -469,6 +477,15 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
               <div className="alert alert--error">Please log in to view leads.</div>
             ) : (
               <>
+                {callbackLeadsEnabled && creditPurchaseEnabled ? (
+                  <LeadCreditBalanceBar
+                    accessToken={accessToken}
+                    locale={loc}
+                    lockedLeadCount={lockedLeadCount}
+                    onCreditsChanged={() => {}}
+                  />
+                ) : null}
+
                 <div className="dlx-leads__toolbar">
                   <div>
                     <h2 className="dlx-leads__title">Your leads</h2>
@@ -542,6 +559,7 @@ export function DashboardClient({ locale, initialTab = "listings" }: Props) {
                       onLeadsChange={setLeads}
                       searchQuery={leadSearch}
                       enableDrag={canDrag}
+                      locale={loc}
                     />
                   ) : (
                     <LeadsPipeline accessToken={accessToken} locale={loc} />

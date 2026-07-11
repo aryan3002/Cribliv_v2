@@ -1,7 +1,7 @@
 # Lead Monetization — Design Spec
 
 - **Date:** 2026-07-10
-- **Status:** Approved in brainstorming (Aryan + Claude), pending implementation planning
+- **Status:** **Slices 1, 2, and 3 implemented** on `feat/lead-monetization` (see §14). Not yet dark-deployed or flag-flipped in production — see §17.
 - **Branch:** `feat/lead-monetization`
 
 ## 1. Summary
@@ -69,14 +69,14 @@ Never say "the owner will call" — the caller may be the Cribliv team.
 
 ### 3.5 Outcome matrix
 
-| Scenario | Tenant credit | Lead (owner side) |
-| --- | --- | --- |
-| Owner unlocks (or free) and calls within 24h | Consumed | `unlocked`/`free`, `called_by='owner'` |
-| Team calls (any lead state) | Consumed | Unchanged; locked leads still expire at 24h |
-| No call by 24h, lead still locked | **Refunded** (`refund_no_response`) | `expired`, never unlockable |
-| Owner unlocked but never called by 24h | **Refunded** | Stays `unlocked` (owner keeps number; credit spent) |
-| Tenant disputes a claimed call (≤72h) | **Refunded** (`refund_lead_dispute`) | Unchanged + fraud flag (owner claims only) |
-| Owner calls after refund already processed | Refund stands | Owner keeps number; no reversal |
+| Scenario                                     | Tenant credit                        | Lead (owner side)                                   |
+| -------------------------------------------- | ------------------------------------ | --------------------------------------------------- |
+| Owner unlocks (or free) and calls within 24h | Consumed                             | `unlocked`/`free`, `called_by='owner'`              |
+| Team calls (any lead state)                  | Consumed                             | Unchanged; locked leads still expire at 24h         |
+| No call by 24h, lead still locked            | **Refunded** (`refund_no_response`)  | `expired`, never unlockable                         |
+| Owner unlocked but never called by 24h       | **Refunded**                         | Stays `unlocked` (owner keeps number; credit spent) |
+| Tenant disputes a claimed call (≤72h)        | **Refunded** (`refund_lead_dispute`) | Unchanged + fraud flag (owner claims only)          |
+| Owner calls after refund already processed   | Refund stands                        | Owner keeps number; no reversal                     |
 
 ## 4. Economics
 
@@ -90,7 +90,7 @@ Never say "the owner will call" — the caller may be the Cribliv team.
 
 ## 5. Guest gating (SEO-safe)
 
-- **Search & map:** the first **6** listing cards render normally; all further cards render **fully in the HTML but CSS-blurred**, with an overlay CTA: *"Sign up free — get 2 credits. Owners call you back within 24 hours."* Clicking goes to the login/signup page.
+- **Search & map:** the first **6** listing cards render normally; all further cards render **fully in the HTML but CSS-blurred**, with an overlay CTA: _"Sign up free — get 2 credits. Owners call you back within 24 hours."_ Clicking goes to the login/signup page.
 - **Listing detail:** stays fully open (it is the SEO money page). For guests, the photo gallery blurs beyond the first photo; the callback CTA already OTP-gates.
 - **No bot special-casing.** Content in the DOM + CSS blur is consistent for humans and crawlers (matches Google's flexible-sampling guidance; no cloaking risk). The blur is friction, not security — that is accepted.
 - `N = 6` is a web-side constant; the whole behavior sits behind `NEXT_PUBLIC_FF_GUEST_GATING` (default **off**, PostHog-controllable) so it can be tuned or killed without a deploy.
@@ -100,8 +100,8 @@ Never say "the owner will call" — the caller may be the Cribliv team.
 
 - The API already returns `is_new_user` from `POST /auth/otp/verify`; the web discards it. Thread it through NextAuth: `authorize` → JWT → session.
 - On a new user's first landing, show a one-time **WelcomeCreditsModal**: confetti + a credit counter animating 0 → 2.
-  - Tenant copy: *"You've got 2 free credits — request callbacks and get a call within 24 hours."*
-  - Owner/pg_operator copy: *"Welcome! Your first 2 tenant leads are free."*
+  - Tenant copy: _"You've got 2 free credits — request callbacks and get a call within 24 hours."_
+  - Owner/pg*operator copy: *"Welcome! Your first 2 tenant leads are free."\_
 - Shown exactly once: consumed session flag + `localStorage` guard. No feature flag (it only fires on `is_new_user`).
 - Pre-signup, the same benefit appears on the login page tabs and on every blurred-card overlay.
 - Role changes after signup (tenant → owner) do not re-trigger the celebration.
@@ -110,16 +110,16 @@ Never say "the owner will call" — the caller may be the Cribliv team.
 
 `leads` — add columns:
 
-| Column | Type | Notes |
-| --- | --- | --- |
-| `access_state` | text CHECK (`free`,`locked`,`unlocked`,`expired`) | default `locked`; set `free` at creation for first-2 |
-| `unlocked_at` | timestamptz NULL | |
-| `unlock_txn_id` | uuid NULL FK → `wallet_transactions` | |
-| `called_at` | timestamptz NULL | first claim wins |
-| `called_by` | text CHECK (`owner`,`team`) NULL | |
-| `call_deadline_at` | timestamptz | mirrors the unlock's `response_deadline_at` for dashboard queries |
-| `tenant_confirmed_at` | timestamptz NULL | |
-| `disputed_at` | timestamptz NULL | |
+| Column                | Type                                              | Notes                                                             |
+| --------------------- | ------------------------------------------------- | ----------------------------------------------------------------- |
+| `access_state`        | text CHECK (`free`,`locked`,`unlocked`,`expired`) | default `locked`; set `free` at creation for first-2              |
+| `unlocked_at`         | timestamptz NULL                                  |                                                                   |
+| `unlock_txn_id`       | uuid NULL FK → `wallet_transactions`              |                                                                   |
+| `called_at`           | timestamptz NULL                                  | first claim wins                                                  |
+| `called_by`           | text CHECK (`owner`,`team`) NULL                  |                                                                   |
+| `call_deadline_at`    | timestamptz                                       | mirrors the unlock's `response_deadline_at` for dashboard queries |
+| `tenant_confirmed_at` | timestamptz NULL                                  |                                                                   |
+| `disputed_at`         | timestamptz NULL                                  |                                                                   |
 
 - `wallet_transactions.txn_type`: add `debit_lead_unlock`, `refund_lead_dispute` to the enum/CHECK.
 - `contact_unlocks`: no schema change; deadline constant moves 12h → 24h in code. Status values gain callback semantics (`awaiting_call` → claimed/refunded) — extend the existing status set only if the current values cannot express this; prefer reusing existing transitions.
@@ -130,17 +130,17 @@ Never say "the owner will call" — the caller may be the Cribliv team.
 
 All under `/v1`; internal API, no external consumers — response-shape changes are acceptable behind the flag.
 
-| Endpoint | Change |
-| --- | --- |
-| `POST tenant/contact-unlocks` | **Semantics change** (flag-gated): response drops `owner_contact.phone_e164`; returns `{ callback: { id, status, call_deadline_at, credits_remaining } }`. Flag off → old reveal behavior (kill switch). |
-| `GET tenant/callbacks` | **New.** Tenant's callback requests with status timeline data. |
-| `POST tenant/callbacks/:id/confirm` | **New.** Sets `tenant_confirmed_at`. |
-| `POST tenant/callbacks/:id/dispute` | **New.** 72h window; refund + flag per §3.4. |
-| `POST owner/leads/:id/unlock` | **New** (roles `owner`,`pg_operator`; `Idempotency-Key` required). Wires the existing `402` seam (`openLeadForOperator`) to a real wallet debit. Mirrors `unlockContactDb`'s debit pattern. Errors: `402 insufficient_credits`, `410 lead_expired`. |
-| `POST owner/leads/:id/call-click` | **New.** Requires `access_state` in (`free`,`unlocked`). Sets `called_at`/`called_by='owner'`; returns `tel:` URI. Idempotent (first tap wins). |
-| `GET owner/leads` | Extended: include `access_state`, `call_deadline_at`, `called_at`; full tenant phone **only** when `free`/`unlocked`. |
-| `GET admin/leads/rescue-queue` | **New.** `called_at IS NULL AND call_deadline_at BETWEEN now() AND now() + 6h`. Full tenant phone (admin). |
-| `POST admin/leads/:id/team-called` | **New.** Sets `called_at`/`called_by='team'`. |
+| Endpoint                            | Change                                                                                                                                                                                                                                              |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST tenant/contact-unlocks`       | **Semantics change** (flag-gated): response drops `owner_contact.phone_e164`; returns `{ callback: { id, status, call_deadline_at, credits_remaining } }`. Flag off → old reveal behavior (kill switch).                                            |
+| `GET tenant/callbacks`              | **New.** Tenant's callback requests with status timeline data.                                                                                                                                                                                      |
+| `POST tenant/callbacks/:id/confirm` | **New.** Sets `tenant_confirmed_at`.                                                                                                                                                                                                                |
+| `POST tenant/callbacks/:id/dispute` | **New.** 72h window; refund + flag per §3.4.                                                                                                                                                                                                        |
+| `POST owner/leads/:id/unlock`       | **New** (roles `owner`,`pg_operator`; `Idempotency-Key` required). Wires the existing `402` seam (`openLeadForOperator`) to a real wallet debit. Mirrors `unlockContactDb`'s debit pattern. Errors: `402 insufficient_credits`, `410 lead_expired`. |
+| `POST owner/leads/:id/call-click`   | **New.** Requires `access_state` in (`free`,`unlocked`). Sets `called_at`/`called_by='owner'`; returns `tel:` URI. Idempotent (first tap wins).                                                                                                     |
+| `GET owner/leads`                   | Extended: include `access_state`, `call_deadline_at`, `called_at`; full tenant phone **only** when `free`/`unlocked`.                                                                                                                               |
+| `GET admin/leads/rescue-queue`      | **New.** `called_at IS NULL AND call_deadline_at BETWEEN now() AND now() + 6h`. Full tenant phone (admin).                                                                                                                                          |
+| `POST admin/leads/:id/team-called`  | **New.** Sets `called_at`/`called_by='team'`.                                                                                                                                                                                                       |
 
 - `LeadsService` stays **DB-only** (its existing shape — returns empty without a DB). `ContactsService` keeps full dual-mode (`DatabaseService.isEnabled()` vs `AppStateService`); its in-memory path mirrors the new response shape.
 - New shared DTOs in `packages/shared-types` (snake_case fields, string-literal unions, per existing convention): `LeadAccessState`, `CallbackStatus`, callback/lead response interfaces, extended `WalletTxnType`.
@@ -162,12 +162,12 @@ All under `/v1`; internal API, no external consumers — response-shape changes 
 
 ## 11. Feature flags & rollout
 
-| Flag | Side | Default | Purpose |
-| --- | --- | --- | --- |
-| `ff_callback_leads` | API + web (`NEXT_PUBLIC_FF_CALLBACK_LEADS`) | off | The whole model pivot: response shape, 24h deadline, owner unlock, blur. Single kill switch. |
-| `ff_guest_gating` | web (`NEXT_PUBLIC_FF_GUEST_GATING`) | off | Blur-after-6 for anonymous visitors. |
-| `ff_lead_management_enabled` | API (existing) | off → **on at launch** | Owner leads tab. |
-| `ff_credit_purchase_enabled` | API (existing) | off → **on at launch** | Credit pack purchases. |
+| Flag                         | Side                                        | Default                | Purpose                                                                                      |
+| ---------------------------- | ------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------- |
+| `ff_callback_leads`          | API + web (`NEXT_PUBLIC_FF_CALLBACK_LEADS`) | off                    | The whole model pivot: response shape, 24h deadline, owner unlock, blur. Single kill switch. |
+| `ff_guest_gating`            | web (`NEXT_PUBLIC_FF_GUEST_GATING`)         | off                    | Blur-after-6 for anonymous visitors.                                                         |
+| `ff_lead_management_enabled` | API (existing)                              | off → **on at launch** | Owner leads tab.                                                                             |
+| `ff_credit_purchase_enabled` | API (existing)                              | off → **on at launch** | Credit pack purchases.                                                                       |
 
 Rollout: deploy dark → enable `ff_callback_leads` + `ff_lead_management_enabled` + `ff_credit_purchase_enabled` together → enable `ff_guest_gating` separately after a Search Console baseline. Monitor: refund rate, owner unlock conversion, dispute rate, rescue-queue depth, signup conversion from blurred cards.
 
@@ -183,9 +183,13 @@ Rollout: deploy dark → enable `ff_callback_leads` + `ff_lead_management_enable
 
 ## 14. Build slices (each gets its own implementation plan)
 
-1. **Revenue core:** migration 0053, callback pivot (API + shared types), owner unlock + call-click, owner packs, worker sweeps + notifications, owner dashboard UI, tenant panel + callbacks list, admin rescue queue, flags, tests.
-2. **Funnel:** guest gating (search/map/detail), welcome celebration, login-page + overlay benefit messaging, full Hindi copy.
-3. **Purchase polish:** Razorpay checkout widget (`lib/razorpay.ts` is built but unused; UPI deep-link carries v1), pricing tuning, owner pack upsell surfaces.
+1. **Revenue core — Implemented.** Migration 0053, callback pivot (API + shared types), owner unlock + call-click, owner packs, worker sweeps + notifications, owner dashboard UI, tenant panel + callbacks list, admin rescue queue, flags, tests.
+2. **Funnel — Implemented.** Guest gating (search/map/detail), welcome celebration, login-page + overlay benefit messaging, full Hindi copy.
+3. **Purchase polish — Implemented.** Razorpay Checkout widget wired end-to-end (order creation → checkout signature confirm → webhook-only credit grant → status poll), UPI deep-link fallback when Checkout.js fails to load, role-aware pricing (`leads_5`/`leads_15` for owner+pg_operator, `starter_10`/`growth_20` for tenant), and owner pack upsell surfaces on every lead-monetization surface:
+   - `LeadCreditBalanceBar` — persistent balance strip on the owner leads tab (visible when `ff_callback_leads && ff_credit_purchase_enabled`).
+   - `LeadMonetizationControls` (`apps/web/components/owner/lead-monetization-controls.tsx`) — the single shared state machine (FREE badge, countdown, blur/unlock, Call now, expired message, inline buy-credits recovery on `402 insufficient_credits`) extracted out of `LeadCard` and reused by every lead-bearing surface: the owner list card (`LeadCard`), every owner Kanban card (`LeadKanban`), and the PG operator board (`PgLeadsBoard`, via a `PgDashboardLead → LeadVm` adapter). One component, one behavior, everywhere a lead can appear — the default owner board (Kanban) is not a lesser path than the secondary list view.
+   - `PgDashboardLead` (packages/shared-types) gained `access_state`, `call_deadline_at`, `called_at`, `called_by`, `tenant_name`, `tenant_phone` — mapped straight through by `LeadsSliceAdapter.inboxForOperator` from fields `getOwnerLeads` already fetches (no new query). With `ff_callback_leads` on, the PG board uses the paid `owner/leads/:id/unlock` and `owner/leads/:id/call-click` endpoints (already `@Roles("owner","pg_operator")`) instead of the legacy `pg-operator/leads/:id/open` dev-reveal seam; with the flag off, `openPgLead()` behavior is unchanged.
+   - E2E: `apps/web/tests/lead-credit-purchase.spec.ts` — locked lead → `402` → purchase dialog → mocked Razorpay Checkout → simulated `payment.captured` webhook → original unlock auto-retries with no second click; checkout dismissal leaves the balance untouched; UPI fallback produces a `upi://` link; flag off preserves legacy behavior with zero purchase UI.
 
 ## 15. Risks & accepted trade-offs
 
@@ -204,3 +208,37 @@ Rollout: deploy dark → enable `ff_callback_leads` + `ff_lead_management_enable
 - Listing-level "responds fast" badges from callback stats.
 - Automated delisting of unresponsive owners.
 - Tenant credit expiry / breakage rules.
+
+## 17. Rollout — Razorpay Checkout (Slice 3)
+
+**No deployment was performed by this implementation.** This section is the runbook for whoever flips the flags.
+
+### Required credentials (Razorpay dashboard → API keys / webhooks)
+
+| Env var                   | Where | Purpose                                                                                                                                                                                                            |
+| ------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RAZORPAY_KEY_ID`         | API   | Live Orders API key ID (also the Checkout widget's public `key`).                                                                                                                                                  |
+| `RAZORPAY_KEY_SECRET`     | API   | Live Orders API key secret. Signs order creation, checkout-signature verification, and (as a webhook-secret fallback) webhook verification.                                                                        |
+| `RAZORPAY_WEBHOOK_SECRET` | API   | The **webhook-specific** secret configured in the Razorpay dashboard's webhook settings (recommended over reusing the account key secret).                                                                         |
+| `PAYMENT_WEBHOOK_SECRET`  | API   | Provider-agnostic fallback webhook secret; either this or `RAZORPAY_WEBHOOK_SECRET` must be set for the razorpay webhook route to accept requests (`payments.util.ts: ensureWebhookSignature`).                    |
+| `RAZORPAY_ORDERS_MODE`    | API   | `live` in production; `mock` for local/CI (generates `order_mock_*` IDs, no outbound call to Razorpay, and accepts `RAZORPAY_CHECKOUT_SECRET` for checkout-signature verification instead of the live key secret). |
+
+### Razorpay dashboard configuration
+
+- **Orders API mode:** `live` (`RAZORPAY_ORDERS_MODE=live`) — orders must be created server-side via `POST wallet/purchase-intents`, never client-side, so the amount can never be tampered with (closes the invalid-order-ID gap).
+- **Automatic capture must be enabled** on the Razorpay account (Settings → Payment Capture → Automatic). This implementation never calls a separate capture API — it relies on `payment.captured` firing without a manual capture step.
+- **Webhook URL:** `https://<api-host>/v1/webhooks/razorpay`.
+- **Subscribed events:** `payment.captured` (grants credits, idempotent via `wallet_transactions(wallet_user_id, idempotency_key)` unique constraint) and `payment.failed` (marks the order `failed`; no credits, no side effects beyond status).
+- Crediting is **webhook-only** — the Checkout success handler only confirms the checkout signature and moves the order to `authorized`; the wallet balance never changes until the webhook lands, and the same webhook event is deduplicated server-side (`payment_webhook_events(provider, provider_event_id)` unique constraint) so retried webhook deliveries can't double-credit.
+
+### Dark-deployment order
+
+1. **Credentials + webhook first:** set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (or `PAYMENT_WEBHOOK_SECRET`), `RAZORPAY_ORDERS_MODE=live` on the API, and register the webhook URL + events in the Razorpay dashboard, **before** flipping any feature flag. This lets you verify the webhook is reachable (Razorpay's dashboard has a "test webhook" send) with zero user-facing effect, since `ff_credit_purchase_enabled` is still off.
+2. **Then the API flags**, together: `FF_CALLBACK_LEADS=true` + `FF_LEAD_MANAGEMENT_ENABLED=true` + `FF_CREDIT_PURCHASE_ENABLED=true`. **`FF_CREDIT_PURCHASE_ENABLED` must flip in the same step as `FF_CALLBACK_LEADS`** — purchase-intent creation 403s while it's off (`readFeatureFlags().ff_credit_purchase_enabled` gate in the wallet module), so enabling callback leads without it stands up locked leads with no way to buy unlock credits.
+3. **Then the web flags**, together: `NEXT_PUBLIC_FF_CALLBACK_LEADS=true` + `NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED=true`. Same pairing rule applies client-side — `NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED` gates only `LeadCreditBalanceBar` (the persistent upsell strip). The buy-credits recovery panels (`LeadMonetizationControls` → `LeadCreditsPanel`, and the tenant panel's dialog) render on any `402 insufficient_credits` regardless of the web flag — they depend on the API's `FF_CREDIT_PURCHASE_ENABLED`, and error if it is off. This is why the web flag must never be flipped ahead of (or via PostHog without) the API flag.
+4. `NEXT_PUBLIC_FF_GUEST_GATING` (Slice 2) is an independent flag — its rollout timing (after a Search Console baseline) is unaffected by this sequence.
+
+### Verification before flip
+
+- Send a test `payment.captured` webhook from the Razorpay dashboard and confirm a `200` + `payment_webhook_events` row with `signature_valid = true`.
+- Purchase one credit pack end-to-end in staging with a real (small) payment before enabling for all owners.

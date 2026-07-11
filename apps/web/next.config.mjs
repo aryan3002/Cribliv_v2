@@ -158,13 +158,15 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              // Google Maps JS API + PostHog SDK
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.gstatic.com https://*.posthog.com https://cdn.redoc.ly https://cdn.jsdelivr.net",
+              // Google Maps JS API + PostHog SDK + Razorpay Checkout
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://*.gstatic.com https://*.posthog.com https://cdn.redoc.ly https://cdn.jsdelivr.net https://checkout.razorpay.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https: blob:",
               "font-src 'self' https://fonts.gstatic.com",
-              // Allow API calls, Azure services, Google Maps, PostHog ingestion + replay
-              `connect-src ${connectSrc} data: https://maps.googleapis.com https://*.gstatic.com https://*.googleapis.com https://*.posthog.com https://*.i.posthog.com`,
+              // Allow API calls, Azure services, Google Maps, PostHog ingestion + replay, Razorpay Checkout
+              `connect-src ${connectSrc} data: https://maps.googleapis.com https://*.gstatic.com https://*.googleapis.com https://*.posthog.com https://*.i.posthog.com https://*.razorpay.com`,
+              // Razorpay Checkout opens its payment UI in an iframe
+              "frame-src https://*.razorpay.com",
               "worker-src 'self' blob:",
               "media-src 'self' blob:",
               "frame-ancestors 'none'",

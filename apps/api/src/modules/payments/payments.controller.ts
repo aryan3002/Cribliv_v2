@@ -155,6 +155,28 @@ export class PaymentsController {
     }
 
     if (parsedEvent.isCaptureSuccess) {
+      const amountMismatch =
+        parsedEvent.amountPaise !== undefined && parsedEvent.amountPaise !== order.amountPaise;
+      const currencyMismatch = parsedEvent.currency !== undefined && parsedEvent.currency !== "INR";
+
+      if (amountMismatch || currencyMismatch) {
+        logTelemetry("payments.webhook_ignored", {
+          mode: "in_memory",
+          provider,
+          event_type: parsedEvent.eventType,
+          provider_event_id: parsedEvent.providerEventId,
+          order_id: order.providerOrderId,
+          reason: "amount_currency_mismatch"
+        });
+        return {
+          received: true,
+          provider,
+          event: parsedEvent.eventType,
+          ignored: true,
+          reason: "amount_currency_mismatch"
+        };
+      }
+
       if (order.status !== "captured") {
         this.appState.ensureWallet(order.userId);
         this.appState.addWalletTxn({
@@ -292,10 +314,11 @@ export class PaymentsController {
         provider_order_id: string;
         status: "created" | "authorized" | "captured" | "failed" | "refunded";
         credits_to_grant: number;
+        amount_paise: number;
         metadata: Record<string, unknown>;
       }>(
         `
-        SELECT id::text, user_id::text, provider_order_id, status::text, credits_to_grant, metadata
+        SELECT id::text, user_id::text, provider_order_id, status::text, credits_to_grant, amount_paise, metadata
         FROM payment_orders
         WHERE provider = $1::payment_provider
           AND provider_order_id = $2
@@ -335,6 +358,42 @@ export class PaymentsController {
       let walletTxnId: string | null = null;
 
       if (parsedEvent.isCaptureSuccess) {
+        const amountMismatch =
+          parsedEvent.amountPaise !== undefined &&
+          parsedEvent.amountPaise !== Number(order.amount_paise);
+        const currencyMismatch =
+          parsedEvent.currency !== undefined && parsedEvent.currency !== "INR";
+
+        if (amountMismatch || currencyMismatch) {
+          await client.query(
+            `
+            UPDATE payment_webhook_events
+            SET
+              processed_at = now(),
+              payment_order_id = $2::uuid,
+              processing_note = 'amount_currency_mismatch'
+            WHERE id = $1
+            `,
+            [eventDbId, order.id]
+          );
+          await client.query("COMMIT");
+          logTelemetry("payments.webhook_ignored", {
+            mode: "db",
+            provider,
+            event_type: parsedEvent.eventType,
+            provider_event_id: parsedEvent.providerEventId,
+            order_id: order.provider_order_id,
+            reason: "amount_currency_mismatch"
+          });
+          return {
+            received: true,
+            provider,
+            event: parsedEvent.eventType,
+            ignored: true,
+            reason: "amount_currency_mismatch"
+          };
+        }
+
         await client.query(
           `
           UPDATE payment_orders

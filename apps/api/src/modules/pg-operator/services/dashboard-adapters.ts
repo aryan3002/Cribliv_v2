@@ -88,17 +88,37 @@ export class LeadsSliceAdapter {
       status: string;
       created_at: string;
       contact: { phone_masked: string };
+      access_state: "free" | "locked" | "unlocked" | "expired";
+      call_deadline_at: string | null;
+      called_at: string | null;
+      called_by: string | null;
+      tenant_name: string;
+      tenant_phone?: string | null;
     }>
   > {
     const { items } = await this.leads.getOwnerLeads(operatorId);
+    // Map fields getOwnerLeads already fetches (access_state, call_deadline_at,
+    // called_at, called_by, tenant_name, tenant_phone) instead of discarding
+    // them — this is what lets PgLeadsBoard reuse the owner unlock/call-click
+    // controls without a second query.
     return items.map((r: Record<string, unknown>) => ({
       lead_id: String(r.id ?? r.lead_id ?? ""),
       source: String(r.source ?? "unknown"),
       status: String(r.status ?? "new"),
       created_at: String(r.created_at ?? new Date().toISOString()),
+      // getOwnerLeads rows carry tenant_phone_masked directly (not nested under
+      // `.contact`) — the previous `r.contact` accessor always fell through to
+      // the "***" fallback. Read the real column instead of discarding it.
       contact: {
-        phone_masked: String((r.contact as { phone_masked?: string })?.phone_masked ?? "***")
-      }
+        phone_masked: String(r.tenant_phone_masked ?? "***")
+      },
+      access_state:
+        (r.access_state as "free" | "locked" | "unlocked" | "expired" | undefined) ?? "locked",
+      call_deadline_at: r.call_deadline_at ? String(r.call_deadline_at) : null,
+      called_at: r.called_at ? String(r.called_at) : null,
+      called_by: r.called_by ? String(r.called_by) : null,
+      tenant_name: String(r.tenant_name ?? "Tenant"),
+      tenant_phone: r.tenant_phone ? String(r.tenant_phone) : null
     }));
   }
 }

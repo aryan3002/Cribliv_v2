@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 import type { PgDashboardLead } from "@cribliv/shared-types";
 import { openPgLead, updatePgLeadStatus, type PgLeadStatus } from "@/lib/pg-operator-api";
+import type { LeadVm } from "@/lib/owner-api";
+import { useFlag } from "@/lib/feature-flags";
+import { type Locale } from "@/lib/i18n";
+import { LeadMonetizationControls } from "@/components/owner/lead-monetization-controls";
 import styles from "@/app/[locale]/pg-operator/dashboard/pg-dashboard.module.css";
 
 const VALID: Record<PgLeadStatus, PgLeadStatus[]> = {
@@ -72,13 +76,38 @@ function fmtDate(iso: string) {
 type Local = PgDashboardLead & { _status: PgLeadStatus };
 type Revealed = { phone: string | null; tenant_name: string };
 
+// Adapts the narrower PgDashboardLead shape into the LeadVm contract
+// LeadMonetizationControls expects, reusing the exact access/call fields
+// LeadsSliceAdapter now preserves from getOwnerLeads (no new query).
+function toLeadVm(lead: PgDashboardLead): LeadVm {
+  return {
+    id: lead.lead_id,
+    listingId: "",
+    listingTitle: lead.source,
+    tenantName: lead.tenant_name,
+    tenantPhoneMasked: lead.contact.phone_masked,
+    status: "new",
+    statusChangedAt: lead.created_at,
+    ownerNotes: null,
+    createdAt: lead.created_at,
+    accessState: lead.access_state,
+    callDeadlineAt: lead.call_deadline_at,
+    calledAt: lead.called_at,
+    tenantPhone: lead.tenant_phone ?? null
+  };
+}
+
 export default function PgLeadsBoard({
   leads,
-  token
+  token,
+  locale
 }: {
   leads: PgDashboardLead[];
   token?: string;
+  locale?: string;
 }) {
+  const loc = (locale ?? "en") as Locale;
+  const callbackMode = useFlag("ff_callback_leads");
   const [items, setItems] = useState<Local[]>(() =>
     leads.map((l) => ({ ...l, _status: normStatus(l.status) }))
   );
@@ -106,6 +135,22 @@ export default function PgLeadsBoard({
     for (const l of items) b[l._status].push(l);
     return b;
   }, [items]);
+
+  // Reflects an unlock/call-click patch from LeadMonetizationControls back
+  // onto the board's local lead state, keyed by the LeadVm patch shape.
+  function handleLeadPatch(leadId: string, patch: Partial<LeadVm>) {
+    setItems((cur) =>
+      cur.map((l) => {
+        if (l.lead_id !== leadId) return l;
+        return {
+          ...l,
+          access_state: patch.accessState ?? l.access_state,
+          tenant_phone: patch.tenantPhone !== undefined ? patch.tenantPhone : l.tenant_phone,
+          called_at: patch.calledAt !== undefined ? patch.calledAt : l.called_at
+        };
+      })
+    );
+  }
 
   async function reveal(leadId: string) {
     if (revealed[leadId] || busy) return;
@@ -226,13 +271,21 @@ export default function PgLeadsBoard({
                                     </span>
                                     <div style={{ minWidth: 0, flex: 1 }}>
                                       <div className={styles.kbPhone}>
-                                        {open
-                                          ? (open.phone ?? "No phone")
-                                          : lead.contact.phone_masked}
+                                        {callbackMode
+                                          ? lead.tenant_name
+                                          : open
+                                            ? (open.phone ?? "No phone")
+                                            : lead.contact.phone_masked}
                                       </div>
-                                      {open && (
-                                        <div className={styles.kbName}>{open.tenant_name}</div>
-                                      )}
+                                      {callbackMode
+                                        ? lead.contact.phone_masked && (
+                                            <div className={styles.kbName}>
+                                              {lead.contact.phone_masked}
+                                            </div>
+                                          )
+                                        : open && (
+                                            <div className={styles.kbName}>{open.tenant_name}</div>
+                                          )}
                                     </div>
                                     <GripVertical
                                       size={15}
@@ -249,23 +302,37 @@ export default function PgLeadsBoard({
                                     </span>
                                   </div>
 
-                                  {err && <span className={styles.kbErr}>{err}</span>}
+                                  {callbackMode ? (
+                                    // Callback mode: paid unlock/call-click via the shared owner
+                                    // controls (opens the purchase dialog on insufficient_credits).
+                                    <LeadMonetizationControls
+                                      lead={toLeadVm(lead)}
+                                      accessToken={token ?? ""}
+                                      locale={loc}
+                                      compact
+                                      onLeadPatch={(patch) => handleLeadPatch(lead.lead_id, patch)}
+                                    />
+                                  ) : (
+                                    <>
+                                      {err && <span className={styles.kbErr}>{err}</span>}
 
-                                  {!open && (
-                                    <button
-                                      type="button"
-                                      className={styles.kbReveal}
-                                      disabled={busy === lead.lead_id}
-                                      onClick={() => reveal(lead.lead_id)}
-                                    >
-                                      {busy === lead.lead_id ? (
-                                        <Loader2 size={13} className="pgo-spin" />
-                                      ) : (
-                                        <>
-                                          <Eye size={13} /> Reveal contact
-                                        </>
+                                      {!open && (
+                                        <button
+                                          type="button"
+                                          className={styles.kbReveal}
+                                          disabled={busy === lead.lead_id}
+                                          onClick={() => reveal(lead.lead_id)}
+                                        >
+                                          {busy === lead.lead_id ? (
+                                            <Loader2 size={13} className="pgo-spin" />
+                                          ) : (
+                                            <>
+                                              <Eye size={13} /> Reveal contact
+                                            </>
+                                          )}
+                                        </button>
                                       )}
-                                    </button>
+                                    </>
                                   )}
                                 </article>
                               )}
