@@ -20,7 +20,9 @@ const base: PgCard = {
   gender_policy: "girls",
   food_included: true,
   verified: true,
-  cover_photo: null
+  cover_photo: null,
+  lat: null,
+  lng: null
 };
 
 describe("PgListingCard", () => {
