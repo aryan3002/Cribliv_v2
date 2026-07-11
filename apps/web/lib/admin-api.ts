@@ -322,7 +322,7 @@ export async function fetchAdminAnalyticsOverview(
   });
 
   if (!raw)
-    throw new Error("Analytics endpoint returned no data — check API server or feature flags");
+    throw new Error("Analytics endpoint returned no data. Check API server or feature flags");
 
   return {
     totalListings: raw.total_listings ?? 0,

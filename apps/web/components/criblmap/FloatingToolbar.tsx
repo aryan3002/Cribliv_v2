@@ -74,7 +74,7 @@ export function FloatingToolbar({ onCommuteClick }: FloatingToolbarProps) {
       label: "Stats",
       icon: RectangleHorizontal,
       active: drawMode !== "idle",
-      tooltip: "Area Stats — Draw to analyze",
+      tooltip: "Area Stats: Draw to analyze",
       onClick: () => {
         if (drawMode !== "idle") {
           dispatch({ type: "CLEAR_DRAW" });

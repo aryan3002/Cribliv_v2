@@ -39,7 +39,7 @@ export const STEP_META: Record<
   6: {
     label: "Photos",
     title: "Photos",
-    desc: "Show tenants around — photos build trust.",
+    desc: "Show tenants around. Photos build trust.",
     minutes: 1
   },
   7: {

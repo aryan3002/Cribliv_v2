@@ -250,7 +250,7 @@ export function BoostModal({
                       marginBottom: "var(--space-2)"
                     }}
                   >
-                    ⭐ Featured — appears at top of search
+                    ⭐ Featured: appears at top of search
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                     {featuredPlans.map((plan) => (
@@ -278,7 +278,7 @@ export function BoostModal({
                       marginBottom: "var(--space-2)"
                     }}
                   >
-                    🚀 Boost — increased visibility in feed
+                    🚀 Boost: increased visibility in feed
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
                     {boostPlans.map((plan) => (

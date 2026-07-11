@@ -152,8 +152,8 @@ const HOW_IT_WORKS = [
     icon: Search,
     title: "Search Naturally",
     titleHi: "स्वाभाविक रूप से खोजें",
-    desc: "Type or speak what you need — our AI understands context, budget, and preferences.",
-    descHi: "अपनी जरूरत टाइप करें या बोलें — हमारा AI संदर्भ, बजट और प्राथमिकताएं समझता है।",
+    desc: "Type or speak what you need. Our AI understands context, budget, and preferences.",
+    descHi: "अपनी जरूरत टाइप करें या बोलें। हमारा AI संदर्भ, बजट और प्राथमिकताएं समझता है।",
     color: "brand" as const
   },
   {
@@ -406,7 +406,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             </h1>
             <p className="home-hero__subtitle animate-in animate-in-delay-2">
               {isHindi
-                ? "AI आपको दिल्ली NCR और उत्तर भारत की लाइव किराये की लिस्टिंग से मिलाता है — फोटो, किराया, लोकेलिटी और वेरिफिकेशन स्टेटस के साथ।"
+                ? "AI आपको दिल्ली NCR और उत्तर भारत की लाइव किराये की लिस्टिंग से मिलाता है, फोटो, किराया, लोकेलिटी और वेरिफिकेशन स्टेटस के साथ।"
                 : "AI matches you with live rental listings across Delhi NCR and North India, with photos, rent, locality, and verification status up front."}
             </p>
 
@@ -631,7 +631,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
               {furnishedHomes.length > 0 && (
                 <ListingCarousel
                   locale={params.locale}
-                  title={isHindi ? "फर्निश्ड घर — लखनऊ" : "Furnished homes in Lucknow"}
+                  title={isHindi ? "फर्निश्ड घर, लखनऊ" : "Furnished homes in Lucknow"}
                   subtitle={
                     isHindi ? "सब कुछ तैयार, बस आइए" : "Move-in ready with furniture and appliances"
                   }
@@ -691,8 +691,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 <span className="edi-eyebrow">{isHindi ? "AI से संचालित" : "Powered by AI"}</span>
                 <h2 className="edi-title">
                   {isHindi
-                    ? "खोजें, लिस्ट करें, एक्सप्लोर करें — AI के साथ"
-                    : "Find, list, and explore — with AI"}
+                    ? "खोजें, लिस्ट करें, एक्सप्लोर करें, AI के साथ"
+                    : "Find, list, and explore, with AI"}
                 </h2>
               </div>
               <p className="edi-lede">
@@ -727,8 +727,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 <h3 className="ai-feature__title">CriblMap</h3>
                 <p className="ai-feature__desc">
                   {isHindi
-                    ? "लाइव मैप पर किराये के परिणाम देखें — किराये के रुझान, मेट्रो की दूरी और इलाके की जानकारी।"
-                    : "See rental results on a live map — rent trends, metro distance, and area insights at a glance."}
+                    ? "लाइव मैप पर किराये के परिणाम देखें: किराये के रुझान, मेट्रो की दूरी और इलाके की जानकारी।"
+                    : "See rental results on a live map: rent trends, metro distance, and area insights at a glance."}
                 </p>
                 <span className="ai-feature__cta">
                   {isHindi ? "CriblMap खोलें" : "Open CriblMap"} <ArrowRight size={14} />
@@ -742,7 +742,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 </div>
                 <span className="ai-pill">{isHindi ? "AI वॉइस" : "AI Voice"}</span>
                 <h3 className="ai-feature__title">
-                  {isHindi ? "Maya — आपकी वॉइस लिस्टिंग एजेंट" : "Maya, your voice listing agent"}
+                  {isHindi ? "Maya, आपकी वॉइस लिस्टिंग एजेंट" : "Maya, your voice listing agent"}
                 </h3>
                 <p className="ai-feature__desc">
                   {isHindi
@@ -772,8 +772,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 </h3>
                 <p className="ai-feature__desc">
                   {isHindi
-                    ? "अंग्रेज़ी या हिंदी में लिखें या बोलें — हमारा AI इसे सही फ़िल्टर में बदल देता है।"
-                    : "Type or speak in English or Hindi — our AI turns it into the right filters."}
+                    ? "अंग्रेज़ी या हिंदी में लिखें या बोलें। हमारा AI इसे सही फ़िल्टर में बदल देता है।"
+                    : "Type or speak in English or Hindi. Our AI turns it into the right filters."}
                 </p>
                 <span className="ai-feature__cta">
                   {isHindi ? "अभी खोजें" : "Start searching"} <ArrowRight size={14} />
@@ -808,7 +808,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   featured: true,
                   title: isHindi ? "फ्लैट और मकान" : "Flats & Houses",
                   desc: isHindi
-                    ? "1BHK से 4BHK तक — फोटो, किराया और वेरिफिकेशन स्टेटस के साथ।"
+                    ? "1BHK से 4BHK तक, फोटो, किराया और वेरिफिकेशन स्टेटस के साथ।"
                     : "1BHK to 4BHK apartments and independent houses with photos, rent, and verification status.",
                   bg: "var(--brand-light)"
                 },
@@ -924,7 +924,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 </div>
                 <p className="edi-lede">
                   {isHindi
-                    ? "यह सेक्शन टेस्टिमोनियल नहीं है — ये वास्तविक लिस्टिंग डेटा है।"
+                    ? "यह सेक्शन टेस्टिमोनियल नहीं है। ये वास्तविक लिस्टिंग डेटा है।"
                     : "This is not a testimonial section. These are real listings from the backend response."}
                 </p>
               </div>

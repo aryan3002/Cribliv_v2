@@ -86,7 +86,7 @@ export function ListingReviewTab({ accessToken, onCountChange, onToast }: Props)
     {
       key: "city",
       header: "City",
-      render: (r) => r.city ?? "—",
+      render: (r) => r.city ?? "-",
       sortValue: (r) => r.city ?? ""
     },
     {
@@ -95,7 +95,7 @@ export function ListingReviewTab({ accessToken, onCountChange, onToast }: Props)
       align: "right",
       render: (r) => (
         <span className="admin-table__amount">
-          {r.monthlyRent ? formatINRPrecise(r.monthlyRent * 100) : "—"}
+          {r.monthlyRent ? formatINRPrecise(r.monthlyRent * 100) : "-"}
         </span>
       ),
       sortValue: (r) => r.monthlyRent ?? 0
@@ -199,10 +199,10 @@ export function ListingReviewTab({ accessToken, onCountChange, onToast }: Props)
         {active && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <DetailRow label="Type" value={active.listingType} />
-            <DetailRow label="City" value={active.city ?? "—"} />
+            <DetailRow label="City" value={active.city ?? "-"} />
             <DetailRow
               label="Rent"
-              value={active.monthlyRent ? formatINRPrecise(active.monthlyRent * 100) : "—"}
+              value={active.monthlyRent ? formatINRPrecise(active.monthlyRent * 100) : "-"}
             />
             <DetailRow label="Status" value={<StatusPill status={active.status} />} />
             <DetailRow

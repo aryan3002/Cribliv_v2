@@ -39,7 +39,7 @@ export function ReviewStep({ form, uploads, pgPath }: Props) {
                 fontFamily: "var(--c-heading)"
               }}
             >
-              No photos yet — your cover image will appear here.
+              No photos yet. Your cover image will appear here.
             </div>
           )}
         </div>
@@ -50,7 +50,7 @@ export function ReviewStep({ form, uploads, pgPath }: Props) {
           <p className="cz-review__loc">
             {[form.locality, capitalize(form.city)].filter(Boolean).join(", ") ||
               "Location to be confirmed"}
-            {form.landmark ? ` — near ${form.landmark}` : ""}
+            {form.landmark ? `, near ${form.landmark}` : ""}
           </p>
 
           <div className="cz-review__rule" />

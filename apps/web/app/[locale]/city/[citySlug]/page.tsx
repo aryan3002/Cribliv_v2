@@ -70,7 +70,7 @@ export async function generateMetadata({
 
   const title = isHindi
     ? `${cityCapitalized} में किराये के मकान और PG`
-    : `Verified Rentals in ${cityCapitalized} — Flats, PGs & Houses`;
+    : `Verified Rentals in ${cityCapitalized}: Flats, PGs & Houses`;
   const description = isHindi
     ? `${cityCapitalized} में सत्यापित किराये के मकान, PG और फ्लैट खोजें। AI-संचालित खोज, मालिक सत्यापन और 12-घंटे रिफंड गारंटी।`
     : `Find verified flats, PGs, and houses for rent in ${cityCapitalized}. AI-powered search with owner verification and 12-hour refund guarantee.`;
@@ -220,7 +220,7 @@ export default async function CityPage({
   }
 
   const cityMeta = CITY_META[params.citySlug] ?? null;
-  const budgetChips = ["Under ₹8,000", "₹8k–₹15k", "₹15k–₹25k", "₹25k+"];
+  const budgetChips = ["Under ₹8,000", "₹8k-₹15k", "₹15k-₹25k", "₹25k+"];
   const typeChips = ["Flat/House", "PG", "1 BHK", "2 BHK", "Furnished"];
   const localities = CITY_LOCALITIES[params.citySlug] ?? ["Sector 1", "Sector 2", "Central"];
 
@@ -265,8 +265,8 @@ export default async function CityPage({
     {
       q: isHindi ? "क्या मकान मालिक सत्यापित हैं?" : "Are owners verified?",
       a: isHindi
-        ? "हाँ — हम Aadhaar और संपत्ति दस्तावेजों के माध्यम से प्रत्येक मालिक की पहचान सत्यापित करते हैं।"
-        : "Yes — we verify each owner's identity via Aadhaar and property documents before their listing goes live."
+        ? "हाँ, हम Aadhaar और संपत्ति दस्तावेजों के माध्यम से प्रत्येक मालिक की पहचान सत्यापित करते हैं।"
+        : "Yes, we verify each owner's identity via Aadhaar and property documents before their listing goes live."
     },
     {
       q: isHindi ? "12 घंटे की रिफंड गारंटी क्या है?" : "What's the 12-hour refund guarantee?",
@@ -277,8 +277,8 @@ export default async function CityPage({
     {
       q: isHindi ? "Cribliv ब्रोकर्स से कैसे अलग है?" : "How is Cribliv different from brokers?",
       a: isHindi
-        ? "कोई ब्रोकर नहीं — सीधे सत्यापित मालिकों से बात करें। AI-संचालित खोज आपके बजट और जरूरतों से मैच करता है।"
-        : "No brokers — connect directly with verified owners. AI-powered search matches your budget, location, and requirements."
+        ? "कोई ब्रोकर नहीं। सीधे सत्यापित मालिकों से बात करें। AI-संचालित खोज आपके बजट और जरूरतों से मैच करता है।"
+        : "No brokers. Connect directly with verified owners. AI-powered search matches your budget, location, and requirements."
     }
   ];
 

@@ -63,7 +63,7 @@ const STEPS = [
     icon: Users,
     title: "Receive Tenant Leads",
     titleHi: "किरायेदार लीड पाएं",
-    desc: "AI matches your property with serious tenants. Get direct enquiries — no brokers in between.",
+    desc: "AI matches your property with serious tenants. Get direct enquiries, no brokers in between.",
     descHi: "AI आपकी प्रॉपर्टी को सही किरायेदारों से जोड़ता है। बिना ब्रोकर के सीधी पूछताछ।"
   }
 ];
@@ -110,8 +110,8 @@ export default async function BecomeOwnerPage({ params }: { params: { locale: st
             style={{ maxWidth: 520, margin: "0 auto var(--space-8)" }}
           >
             {isHindi
-              ? "शून्य कमीशन। सत्यापित किरायेदार। AI-मैच्ड लीड — सब कुछ फ्री।"
-              : "Zero commission. Verified tenants. AI-matched leads — all for free. Join hundreds of owners across North India."}
+              ? "शून्य कमीशन। सत्यापित किरायेदार। AI-मैच्ड लीड, सब कुछ फ्री।"
+              : "Zero commission. Verified tenants. AI-matched leads, all for free. Join hundreds of owners across North India."}
           </p>
           <div
             style={{

@@ -45,7 +45,7 @@ export function SessionBanner({ locale }: { locale: Locale }) {
         }}
       >
         <span className="text-secondary" style={{ flex: 1, fontSize: 14 }}>
-          Find verified rentals — no brokerage, no hidden fees.
+          Find verified rentals, no brokerage, no hidden fees.
         </span>
         <Link href="/auth/login" className="btn btn--primary btn--sm">
           Login / Sign up

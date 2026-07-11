@@ -59,10 +59,10 @@ export async function generateMetadata({
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
   const h1 = renderIntentH1(intent, name, locale);
   return buildPageMetadata({
-    title: `${h1} — Cribliv`,
+    title: `${h1} · Cribliv`,
     description:
       locale === "hi"
-        ? `${name} के पास ${intent.label_hi} — Cribliv पर सत्यापित लिस्टिंग।`
+        ? `${name} के पास ${intent.label_hi}, Cribliv पर सत्यापित लिस्टिंग।`
         : `${intent.label_en} near ${name}. Verified Cribliv listings, no broker fees.`,
     pathname: `/city/${params.citySlug}/near/${params.landmark}/${params.intent}`,
     locale,

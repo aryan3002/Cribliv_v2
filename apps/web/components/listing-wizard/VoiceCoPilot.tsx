@@ -414,7 +414,7 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
       case "connecting":
         return "connecting to Maya…";
       case "listening":
-        return "I'm listening — speak naturally";
+        return "I'm listening, speak naturally";
       case "thinking":
         return "thinking it through…";
       case "speaking":
@@ -462,7 +462,7 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
       {!supported ? (
         <div className="cz-error-banner">
           Voice concierge needs Chrome, Safari, or Edge with mic permission. The form still works
-          manually — Maya will join when supported.
+          manually. Maya will join when supported.
         </div>
       ) : null}
       {errorBanner ? <div className="cz-error-banner">{errorBanner}</div> : null}
@@ -589,7 +589,7 @@ function CaptureFeed({
 
       {isEmpty ? (
         <div className="cz-feed__empty">
-          Tap the orb and start talking. As Maya catches each detail it lands here — no typos, even
+          Tap the orb and start talking. As Maya catches each detail it lands here, no typos, even
           if she mishears the words.
         </div>
       ) : (

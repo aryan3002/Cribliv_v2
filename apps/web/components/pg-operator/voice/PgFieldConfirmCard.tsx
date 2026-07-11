@@ -38,7 +38,7 @@ function formatValue(field: string, value: unknown): string {
     return `₹${Math.round(value / 100).toLocaleString("en-IN")}`;
   }
   if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (value == null) return "—";
+  if (value == null) return "-";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
@@ -67,7 +67,7 @@ export function PgFieldConfirmCard({ field, value, confidence, onUndo, onEdit }:
       <div style={{ fontSize: 15, fontWeight: 600 }}>{formatValue(field, value)}</div>
       {low && (
         <div style={{ fontSize: 12, color: "var(--pgo-warning, #f59e0b)" }}>
-          Please confirm — I wasn&apos;t sure.
+          Please confirm. I wasn&apos;t sure.
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 2 }}>

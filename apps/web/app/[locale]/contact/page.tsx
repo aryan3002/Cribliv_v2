@@ -38,7 +38,7 @@ const FAQS = [
   },
   {
     q: "Is there any brokerage or hidden fees?",
-    a: "No. Cribliv charges zero brokerage. The only cost is a small unlock fee to reveal the owner's contact details — refundable if they don't respond."
+    a: "No. Cribliv charges zero brokerage. The only cost is a small unlock fee to reveal the owner's contact details, refundable if they don't respond."
   },
   {
     q: "How can I list my property?",
@@ -56,7 +56,7 @@ const CHANNELS = [
     title: "Email",
     value: "info@cribliv.com",
     href: "mailto:info@cribliv.com",
-    desc: "Best for detailed queries — we respond within 4 hours."
+    desc: "Best for detailed queries. We respond within 4 hours."
   },
   {
     icon: MessageCircle,
@@ -70,7 +70,7 @@ const CHANNELS = [
     title: "Phone",
     value: "+91 80621 79562",
     href: "tel:+918062179562",
-    desc: "Mon–Sat, 9 AM – 7 PM IST. Hindi & English."
+    desc: "Mon-Sat, 9 AM to 7 PM IST. Hindi & English."
   }
 ];
 
@@ -161,8 +161,8 @@ export default function ContactPage({ params }: { params: { locale: string } }) 
             style={{ maxWidth: 480, margin: "0 auto" }}
           >
             {isHindi
-              ? "किराये के सवाल, रिफंड, या मालिक सहायता — हमसे संपर्क करें।"
-              : "Whether it's a rental query, refund, or owner assistance — our team responds fast."}
+              ? "किराये के सवाल, रिफंड, या मालिक सहायता। हमसे संपर्क करें।"
+              : "Whether it's a rental query, refund, or owner assistance, our team responds fast."}
           </p>
         </div>
       </section>
@@ -222,8 +222,8 @@ export default function ContactPage({ params }: { params: { locale: string } }) 
               </div>
               <div className="text-secondary" style={{ lineHeight: 2 }}>
                 <p style={{ margin: 0 }}>
-                  <strong>{isHindi ? "सोमवार – शनिवार:" : "Monday – Saturday:"}</strong> 9:00 AM –
-                  7:00 PM IST
+                  <strong>{isHindi ? "सोमवार से शनिवार:" : "Monday to Saturday:"}</strong> 9:00 AM
+                  to 7:00 PM IST
                 </p>
                 <p style={{ margin: 0 }}>
                   <strong>{isHindi ? "रविवार:" : "Sunday:"}</strong>{" "}

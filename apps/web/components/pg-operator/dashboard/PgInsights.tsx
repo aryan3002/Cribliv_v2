@@ -23,7 +23,7 @@ export default function PgInsights({ data }: { data: PgDashboardData }) {
     (best, l) => (best == null || l.views_7d > best.views_7d ? l : best),
     null
   );
-  const topName = top?.title?.trim() || (top ? `PG #${top.listing_id.slice(0, 8)}` : "—");
+  const topName = top?.title?.trim() || (top ? `PG #${top.listing_id.slice(0, 8)}` : "-");
 
   const scoreColor =
     avgScore == null
@@ -47,7 +47,7 @@ export default function PgInsights({ data }: { data: PgDashboardData }) {
       icon: <Gauge size={18} />,
       tint: scoreColor,
       bg: "var(--d-success-soft)",
-      val: avgScore != null ? `${avgScore}` : "—",
+      val: avgScore != null ? `${avgScore}` : "-",
       label: "Avg listing quality",
       sub:
         avgScore != null && avgScore < 70 ? "Improve listings to rank higher" : "Strong portfolio"
@@ -80,7 +80,7 @@ export default function PgInsights({ data }: { data: PgDashboardData }) {
       icon: <TrendingUp size={18} />,
       tint: "var(--d-brand)",
       bg: "var(--d-surface-raised)",
-      val: top ? `${top.views_7d}` : "—",
+      val: top ? `${top.views_7d}` : "-",
       label: "Top performer (views)",
       sub: topName
     }

@@ -234,7 +234,7 @@ export function PgListingDetail({ accessToken, listingId, onBack, onToast }: Pro
             <span>
               {[detail.property?.display_name, detail.locality_slug, detail.city_slug]
                 .filter(Boolean)
-                .join(" · ") || "—"}
+                .join(" · ") || "-"}
             </span>
             <button
               type="button"

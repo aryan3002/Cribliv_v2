@@ -28,7 +28,7 @@ export async function generateMetadata({
   params: { locale: string; slug: string };
 }): Promise<Metadata> {
   const data = await fetchBlogPost(params.slug);
-  if (!data) return { title: "Not found — Cribliv Times" };
+  if (!data) return { title: "Not found · Cribliv Times" };
   const { post } = data;
   const title = post.meta_title || post.title;
   const description = post.meta_description || post.excerpt || undefined;
@@ -133,7 +133,7 @@ export default async function BlogDetailPage({
         </p>
         <h1 className={styles.articleTitle}>{post.title}</h1>
         <div className={styles.articleByline}>
-          {post.city_slug ? <>{cityLabel(post.city_slug)} — </> : null}
+          {post.city_slug ? <>{cityLabel(post.city_slug)} · </> : null}
           {hi ? "द्वारा " : "By "}
           {authorIsPersona ? (
             <Link href={authorPath(hi ? "hi" : "en")}>{post.author}</Link>
@@ -238,7 +238,7 @@ export default async function BlogDetailPage({
       ) : null}
 
       <div className={styles.colophon}>
-        <b>Cribliv Times</b> —{" "}
+        <b>Cribliv Times</b>,{" "}
         {hi
           ? "Cribliv के डेटा डेस्क का एक उत्पाद"
           : "a data-desk product of Cribliv · Every figure sourced from live listings"}

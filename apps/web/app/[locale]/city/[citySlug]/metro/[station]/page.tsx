@@ -43,8 +43,8 @@ export async function generateMetadata({
   }
   const title =
     locale === "hi"
-      ? `${data.station.station_name} मेट्रो के पास किराये — Cribliv`
-      : `Rentals near ${data.station.station_name} Metro — Cribliv`;
+      ? `${data.station.station_name} मेट्रो के पास किराये · Cribliv`
+      : `Rentals near ${data.station.station_name} Metro · Cribliv`;
   const desc =
     locale === "hi"
       ? `${data.station.station_name} मेट्रो (${data.station.line_name}) के 1.5 किमी के दायरे में ${data.aggregates.listing_count}+ सत्यापित लिस्टिंग।`

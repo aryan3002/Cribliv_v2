@@ -81,8 +81,8 @@ export default function PgCaptureEntry({ onManual, onVoice }: Props) {
             </h3>
             <p className="pgo-desc" style={{ fontSize: 13 }}>
               {FF_VOICE
-                ? "Describe your PG by voice — AI fills the form."
-                : "Voice listing — enabling soon"}
+                ? "Describe your PG by voice. AI fills the form."
+                : "Voice listing, enabling soon"}
             </p>
           </motion.button>
         </div>

@@ -195,7 +195,7 @@ export function ListingGallery({
               <img
                 key={url}
                 src={url}
-                alt={`${title} — photo ${i + 1}`}
+                alt={`${title}, photo ${i + 1}`}
                 className="lightbox__img"
                 loading={i < 2 ? "eager" : "lazy"}
               />

@@ -291,7 +291,7 @@ export function Step3Form(props: StepFormProps) {
               </label>
             </div>
             <p className="ra-hint">
-              Required for tenures over 11 months — agreements longer than 11 months must be
+              Required for tenures over 11 months. Agreements longer than 11 months must be
               registered.
             </p>
           </div>

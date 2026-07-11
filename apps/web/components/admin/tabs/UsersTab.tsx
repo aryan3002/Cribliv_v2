@@ -98,7 +98,7 @@ export function UsersTab({ accessToken, onToast }: Props) {
     {
       key: "name",
       header: "Name",
-      render: (u) => u.fullName ?? <span style={{ color: "var(--ad-text-3)" }}>—</span>,
+      render: (u) => u.fullName ?? <span style={{ color: "var(--ad-text-3)" }}>-</span>,
       sortValue: (u) => u.fullName ?? ""
     },
     {
@@ -114,7 +114,7 @@ export function UsersTab({ accessToken, onToast }: Props) {
         const h = health.get(u.id);
         if (!h) {
           if (u.role === "owner" || u.role === "pg_operator") {
-            return <span style={{ color: "var(--ad-text-3)", fontSize: 12 }}>—</span>;
+            return <span style={{ color: "var(--ad-text-3)", fontSize: 12 }}>-</span>;
           }
           return <span style={{ color: "var(--ad-text-3)", fontSize: 12 }}>n/a</span>;
         }

@@ -94,11 +94,11 @@ export function RoomsSection({
     const rent = Number(r.rent);
     if (!Number.isFinite(rent) || rent < MIN_RENT || rent > MAX_RENT)
       errors.push(
-        `Row ${i + 1}: rent must be ₹${MIN_RENT.toLocaleString("en-IN")}–₹${MAX_RENT.toLocaleString("en-IN")}.`
+        `Row ${i + 1}: rent must be ₹${MIN_RENT.toLocaleString("en-IN")} to ₹${MAX_RENT.toLocaleString("en-IN")}.`
       );
     const vac = Number(r.vacancy);
     if (!Number.isInteger(vac) || vac < 0 || vac > 500)
-      errors.push(`Row ${i + 1}: vacancy must be 0–500.`);
+      errors.push(`Row ${i + 1}: vacancy must be 0 to 500.`);
   });
   const canSave = dirty && errors.length === 0;
 

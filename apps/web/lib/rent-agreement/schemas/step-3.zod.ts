@@ -23,7 +23,7 @@ export const step3Schema = z
   })
   // D6: an agreement longer than 11 months legally requires registration.
   .refine((v) => v.tenure_months <= 11 || v.acknowledge_registration_required === true, {
-    message: "Agreements longer than 11 months must be registered — please acknowledge.",
+    message: "Agreements longer than 11 months must be registered. Please acknowledge.",
     path: ["acknowledge_registration_required"]
   });
 

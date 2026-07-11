@@ -71,14 +71,14 @@ const ELEC: Record<string, string> = {
 };
 
 function titleCase(s?: string | null) {
-  if (!s) return "—";
+  if (!s) return "-";
   return s
     .split(/[\s_-]+/)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 }
 function rupees(paise?: number | null) {
-  return paise && paise > 0 ? `₹${Math.round(paise / 100).toLocaleString("en-IN")}` : "—";
+  return paise && paise > 0 ? `₹${Math.round(paise / 100).toLocaleString("en-IN")}` : "-";
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -321,11 +321,11 @@ export default function PgReviewStep({
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <SectionCard title="Basics" icon={<Building2 size={20} />} action={<Edit step={1} />}>
         <div className={styles.reviewRows}>
-          <Row label="Listing title">{payload.title || "—"}</Row>
-          <Row label="Property name">{p.display_name || "—"}</Row>
-          <Row label="For">{GENDER[d.gender_policy] ?? "—"}</Row>
-          <Row label="Tenant type">{TENANT[d.tenant_type] ?? "—"}</Row>
-          <Row label="Total beds">{d.total_beds ?? "—"}</Row>
+          <Row label="Listing title">{payload.title || "-"}</Row>
+          <Row label="Property name">{p.display_name || "-"}</Row>
+          <Row label="For">{GENDER[d.gender_policy] ?? "-"}</Row>
+          <Row label="Tenant type">{TENANT[d.tenant_type] ?? "-"}</Row>
+          <Row label="Total beds">{d.total_beds ?? "-"}</Row>
         </div>
       </SectionCard>
 
@@ -361,7 +361,7 @@ export default function PgReviewStep({
           <Row label="Food">
             {d.meals?.provided ? (d.meals?.veg_only ? "Veg only" : "Provided") : "Not provided"}
           </Row>
-          <Row label="Amenities">{amenityCount > 0 ? `${amenityCount} selected` : "—"}</Row>
+          <Row label="Amenities">{amenityCount > 0 ? `${amenityCount} selected` : "-"}</Row>
         </div>
       </SectionCard>
 
@@ -386,9 +386,9 @@ export default function PgReviewStep({
           </Row>
           <Row label="Security deposit">{rupees(d.security_deposit_paise)}</Row>
           <Row label="Notice period">
-            {d.notice_period_days != null ? `${d.notice_period_days} days` : "—"}
+            {d.notice_period_days != null ? `${d.notice_period_days} days` : "-"}
           </Row>
-          <Row label="Electricity">{ELEC[d.electricity_mode] ?? "—"}</Row>
+          <Row label="Electricity">{ELEC[d.electricity_mode] ?? "-"}</Row>
         </div>
       </SectionCard>
 

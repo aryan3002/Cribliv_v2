@@ -98,7 +98,7 @@ export function DetailsStep({
 
           {pgPath === "self_serve" ? (
             <div className="cz-banner cz-banner--gold" style={{ marginTop: 18 }}>
-              With {form.beds} beds, you can manage this listing yourself — fully self-serve.
+              With {form.beds} beds, you can manage this listing yourself, fully self-serve.
             </div>
           ) : null}
           {pgPath === "sales_assist" ? (

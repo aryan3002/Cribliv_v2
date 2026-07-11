@@ -49,8 +49,8 @@ export async function generateMetadata({
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
   const title =
     locale === "hi"
-      ? `${cityName} के ${placeName} में किराये — Cribliv`
-      : `Rentals in ${placeName}, ${cityName} — Cribliv`;
+      ? `${cityName} के ${placeName} में किराये · Cribliv`
+      : `Rentals in ${placeName}, ${cityName} · Cribliv`;
   const desc =
     locale === "hi"
       ? `${placeName}, ${cityName} में ${data.aggregates.listing_count}+ सत्यापित PG और फ्लैट। मासिक किराये और लोकप्रिय इलाके।`
@@ -145,8 +145,8 @@ export default async function LocalityHubPage({
         : `Verified Rentals in ${placeName}, ${cityName}`,
     intro:
       locale === "hi"
-        ? `${placeName} में ${data.aggregates.listing_count} सक्रिय लिस्टिंग — PG, 1BHK, 2BHK, 3BHK फ्लैट। सीधे मालिकों से संपर्क करें, कोई दलाली नहीं।`
-        : `${placeName} has ${data.aggregates.listing_count} active rentals on Cribliv — PGs, 1/2/3 BHK flats, and houses. Contact verified owners directly, no broker fees.`,
+        ? `${placeName} में ${data.aggregates.listing_count} सक्रिय लिस्टिंग: PG, 1BHK, 2BHK, 3BHK फ्लैट। सीधे मालिकों से संपर्क करें, कोई दलाली नहीं।`
+        : `${placeName} has ${data.aggregates.listing_count} active rentals on Cribliv: PGs, 1/2/3 BHK flats, and houses. Contact verified owners directly, no broker fees.`,
     faqs: [
       {
         q:
@@ -159,7 +159,7 @@ export default async function LocalityHubPage({
             : `The median rent for a 1BHK in ${placeName} is around ₹${data.aggregates.median_rent_1bhk.toLocaleString("en-IN")} per month.`
           : locale === "hi"
             ? `${placeName} में अभी 1BHK डेटा उपलब्ध नहीं है।`
-            : `Not enough 1BHK data for ${placeName} yet — check the listings tab.`
+            : `Not enough 1BHK data for ${placeName} yet. Check the listings tab.`
       },
       {
         q:
@@ -181,7 +181,7 @@ export default async function LocalityHubPage({
             : `What's the nearest metro station to ${placeName}?`,
         a: nearbyMetros[0]
           ? locale === "hi"
-            ? `सबसे नजदीकी मेट्रो ${nearbyMetros[0].station_name} है (${nearbyMetros[0].line_name}) — लगभग ${nearbyMetros[0].dist.toFixed(1)} किमी की दूरी पर।`
+            ? `सबसे नजदीकी मेट्रो ${nearbyMetros[0].station_name} है (${nearbyMetros[0].line_name}), लगभग ${nearbyMetros[0].dist.toFixed(1)} किमी की दूरी पर।`
             : `The nearest metro is ${nearbyMetros[0].station_name} on the ${nearbyMetros[0].line_name}, about ${nearbyMetros[0].dist.toFixed(1)} km away.`
           : locale === "hi"
             ? `${placeName} के पास अभी कोई मेट्रो डेटा उपलब्ध नहीं है।`
@@ -191,8 +191,8 @@ export default async function LocalityHubPage({
         q: locale === "hi" ? "क्या ब्रोकर फीस है?" : "Are there any broker fees?",
         a:
           locale === "hi"
-            ? `नहीं। Cribliv पर सभी लिस्टिंग सीधे मालिक की होती हैं — कोई ब्रोकरेज नहीं।`
-            : `No — every Cribliv listing connects you directly to a verified owner with zero brokerage.`
+            ? `नहीं। Cribliv पर सभी लिस्टिंग सीधे मालिक की होती हैं, कोई ब्रोकरेज नहीं।`
+            : `No, every Cribliv listing connects you directly to a verified owner with zero brokerage.`
       }
     ]
   };

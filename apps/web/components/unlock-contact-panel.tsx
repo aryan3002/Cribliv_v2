@@ -460,7 +460,7 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
             Wallet balance
           </span>
           <span className="caption" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
-            {walletSnapshot?.balance_credits ?? "—"} credit
+            {walletSnapshot?.balance_credits ?? "-"} credit
             {walletSnapshot?.balance_credits !== 1 ? "s" : ""}
           </span>
         </div>

@@ -381,7 +381,7 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
 
       <SectionCard
         title="What's nearby?"
-        subtitle="Landmarks help tenants find you — optional but recommended."
+        subtitle="Landmarks help tenants find you, optional but recommended."
         icon={<Navigation size={20} />}
       >
         <NearbyTags

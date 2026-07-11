@@ -77,7 +77,7 @@ export async function generateMetadata({
   const listingCount = bundle?.items.length ?? 0;
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
   const title =
-    locale === "hi" ? `${name} के पास किराये के घर — Cribliv` : `Rentals near ${name} — Cribliv`;
+    locale === "hi" ? `${name} के पास किराये के घर · Cribliv` : `Rentals near ${name} · Cribliv`;
   return buildPageMetadata({
     title,
     description:
@@ -162,8 +162,8 @@ export default async function LandmarkHubPage({
             : `Are there budget options near ${name}?`,
         a:
           locale === "hi"
-            ? "हाँ — किराये के अनुसार छाँटने के लिए नीचे लिस्टिंग को सॉर्ट करें।"
-            : "Yes — sort the listings by rent (low → high) to surface the most affordable PGs and rooms."
+            ? "हाँ, किराये के अनुसार छाँटने के लिए नीचे लिस्टिंग को सॉर्ट करें।"
+            : "Yes, sort the listings by rent (low → high) to surface the most affordable PGs and rooms."
       }
     ]
   };

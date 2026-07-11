@@ -259,7 +259,7 @@ export function VoiceAgentPanel({ userId, locale, listingTypeHint, onComplete, o
     } catch (err) {
       console.error("[VoiceAgent] Mic access failed:", err);
       setMicPermission("denied");
-      setError("Microphone ki permission chahiye — browser settings mein allow karein.");
+      setError("Microphone ki permission chahiye. Browser settings mein allow karein.");
       setAgentState("error");
       // Still connect socket so text input works
       if (!socket.connected) socket.connect();
@@ -577,12 +577,12 @@ export function VoiceAgentPanel({ userId, locale, listingTypeHint, onComplete, o
                     <span className="va-draft__item-label">
                       {icon} {label}
                     </span>
-                    <span className="va-draft__item-value">{value || "—"}</span>
+                    <span className="va-draft__item-value">{value || "-"}</span>
                   </div>
                 );
               })}
               {filledCount === 0 && (
-                <p className="va-draft__empty">Agent se baat karein — details yahan dikhenge</p>
+                <p className="va-draft__empty">Agent se baat karein. Details yahan dikhenge</p>
               )}
             </div>
           </div>
@@ -639,7 +639,7 @@ export function VoiceAgentPanel({ userId, locale, listingTypeHint, onComplete, o
           )}
           {isActive && (
             <button type="button" className="va-btn va-btn--end" onClick={handleEndSession}>
-              ✅ Done — Review karein
+              ✅ Done. Review karein
             </button>
           )}
           <button type="button" className="va-btn va-btn--ghost" onClick={onManual}>

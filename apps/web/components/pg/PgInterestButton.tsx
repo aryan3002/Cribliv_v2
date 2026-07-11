@@ -49,7 +49,7 @@ export function PgInterestButton({
     return (
       <div className="pg-interest pg-interest--done" role="status">
         <Check size={18} aria-hidden="true" />
-        <span>The PG owner has your interest — they&apos;ll reach out.</span>
+        <span>The PG owner has your interest. They&apos;ll reach out.</span>
       </div>
     );
   }

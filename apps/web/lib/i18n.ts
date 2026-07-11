@@ -13,8 +13,8 @@ const dictionary: Dictionary = {
     hi: "उदा. साइबर सिटी के पास 2BHK, 35k तक"
   },
   heroSearchPlaceholder: {
-    en: "Describe what you need — 2BHK near Cyber City under 35k",
-    hi: "अपनी जरूरत लिखें — साइबर सिटी के पास 2BHK, 35k तक"
+    en: "Describe what you need, like 2BHK near Cyber City under 35k",
+    hi: "अपनी जरूरत लिखें, जैसे साइबर सिटी के पास 2BHK, 35k तक"
   },
   navSearch: { en: "Search", hi: "खोजें" },
   navSaved: { en: "Saved", hi: "सेव किए" },
@@ -53,7 +53,7 @@ const dictionary: Dictionary = {
   },
   rowFurnishedLucknow: {
     en: "Furnished homes in Lucknow",
-    hi: "फर्निश्ड घर — लखनऊ"
+    hi: "लखनऊ में फर्निश्ड घर"
   },
   rowFurnishedLucknowSub: {
     en: "Move-in ready with furniture and appliances",
@@ -146,8 +146,8 @@ const dictionary: Dictionary = {
   },
   // CriblMap keys
   cmapTitle: {
-    en: "CriblMap — Verified Rent Intelligence",
-    hi: "CriblMap — सत्यापित किराया मानचित्र"
+    en: "CriblMap: Verified Rent Intelligence",
+    hi: "CriblMap: सत्यापित किराया मानचित्र"
   },
   cmapAreaStats: { en: "Area Statistics", hi: "क्षेत्र आँकड़े" },
   cmapListingsInArea: { en: "listings in area", hi: "इस क्षेत्र में लिस्टिंग" },
@@ -193,7 +193,7 @@ const dictionary: Dictionary = {
   },
   listedBy: {
     en: "Listed by",
-    hi: "लिस्टिंग — "
+    hi: "लिस्टिंग: "
   },
   memberSince: {
     en: "On Cribliv since",
@@ -236,8 +236,8 @@ const dictionary: Dictionary = {
     hi: "सभी फोटो देखें"
   },
   noChargeUntilUnlock: {
-    en: "You won't be charged unless the owner picks up — auto-refund in 12h.",
-    hi: "ओनर के जवाब देने तक कोई शुल्क नहीं — 12 घंटे में ऑटो-रिफंड।"
+    en: "You won't be charged unless the owner picks up. Auto-refund in 12h.",
+    hi: "ओनर के जवाब देने तक कोई शुल्क नहीं, 12 घंटे में ऑटो-रिफंड।"
   },
   keyHighlights: {
     en: "Key highlights",
@@ -259,7 +259,7 @@ const dictionary: Dictionary = {
   curfew: { en: "Curfew", hi: "कर्फ्यू" },
   attachedBath: { en: "Attached bathroom", hi: "अटैच्ड बाथरूम" },
   leaseTerm: { en: "11-month rent agreement", hi: "11-महीने का किराया अनुबंध" },
-  noBrokerSpam: { en: "No broker spam — direct from owner", hi: "कोई दलाल नहीं — सीधे ओनर से" },
+  noBrokerSpam: { en: "No broker spam, direct from owner", hi: "कोई दलाल नहीं, सीधे ओनर से" },
   verifiedOwner: { en: "Verified owner", hi: "वेरिफाइड ओनर" },
   autoRefund12h: {
     en: "Auto-refund credit if no response in 12h",
@@ -300,14 +300,14 @@ const dictionary: Dictionary = {
   pgWizardStep5: { en: "Amenities & Food", hi: "Amenities & Food" },
   pgWizardStep6: { en: "Photos & Review", hi: "Photos & Review" },
   pgVoiceOpenCta: {
-    en: "Or speak it — Chaya can fill this in",
-    hi: "Or speak it — Chaya can fill this in"
+    en: "Or speak it, Chaya can fill this in",
+    hi: "Or speak it, Chaya can fill this in"
   },
   pgVoiceTapToTalk: { en: "Tap to talk", hi: "Tap to talk" },
   pgVoiceTimerAria: { en: "Session time remaining", hi: "Session time remaining" },
   pgVoiceWarnOneMin: {
-    en: "Almost out of time — wrap up your listing",
-    hi: "Almost out of time — wrap up your listing"
+    en: "Almost out of time. Wrap up your listing",
+    hi: "Almost out of time. Wrap up your listing"
   },
   pgDashboardTitle: { en: "Your PG dashboard", hi: "Your PG dashboard" },
   pgDashboardEmpty: {
@@ -316,8 +316,8 @@ const dictionary: Dictionary = {
   },
   listenHeroTitle: { en: "Tell me what you're looking for", hi: "बताइए, कैसा घर चाहिए?" },
   listenHeroSub: {
-    en: "Type or speak — Hindi or English. Live homes across {city}.",
-    hi: "टाइप करें या बोलें — हिंदी या अंग्रेज़ी में। {city} के लाइव घर।"
+    en: "Type or speak, Hindi or English. Live homes across {city}.",
+    hi: "टाइप करें या बोलें, हिंदी या अंग्रेज़ी में। {city} के लाइव घर।"
   },
   listenHeroCountIdle: {
     en: "{n} homes live in {city} right now",
@@ -325,17 +325,17 @@ const dictionary: Dictionary = {
   },
   listenHeroCountMatching: { en: "{n} homes match so far…", hi: "{n} घर अब तक मैच हुए…" },
   listenHeroCountReady: {
-    en: "{n} homes match — press enter or keep talking",
-    hi: "{n} घर मैच — एंटर दबाएँ या बोलते रहें"
+    en: "{n} homes match, press enter or keep talking",
+    hi: "{n} घर मैच, एंटर दबाएँ या बोलते रहें"
   },
   listenHeroCountZero: {
-    en: "No exact matches yet — try widening, or press enter to explore",
-    hi: "अभी कोई सटीक मैच नहीं — थोड़ा बदलें या एंटर दबाकर देखें"
+    en: "No exact matches yet. Try widening, or press enter to explore",
+    hi: "अभी कोई सटीक मैच नहीं, थोड़ा बदलें या एंटर दबाकर देखें"
   },
   listenHeroListening: { en: "Listening…", hi: "सुन रहे हैं…" },
   listenHeroGrowing: {
-    en: "Cribliv is growing in {city} — tell us what you need",
-    hi: "Cribliv {city} में बढ़ रहा है — बताइए आपको क्या चाहिए"
+    en: "Cribliv is growing in {city}. Tell us what you need",
+    hi: "Cribliv {city} में बढ़ रहा है, बताइए आपको क्या चाहिए"
   },
   listenHeroExample1: { en: "2BHK Gomti Nagar under 15k", hi: "गोमती नगर में 2BHK, 15 हज़ार तक" },
   listenHeroExample2: {
@@ -349,29 +349,29 @@ const dictionary: Dictionary = {
     hi: "Maya से बात करके अपनी प्रॉपर्टी लिस्ट करें"
   },
   mayaSectionSub: {
-    en: "Speak in Hindi or English — Maya fills in the listing as you talk.",
-    hi: "हिंदी या अंग्रेज़ी में बोलें — Maya आपकी लिस्टिंग खुद भर देती है।"
+    en: "Speak in Hindi or English. Maya fills in the listing as you talk.",
+    hi: "हिंदी या अंग्रेज़ी में बोलें, Maya आपकी लिस्टिंग खुद भर देती है।"
   },
   mayaSectionCta: { en: "Try voice listing", hi: "वॉइस लिस्टिंग आज़माएं" },
   // ── Lead monetization: tenant callback flow ────────────────────────────────
   cbGuaranteeIntro: {
-    en: "Use 1 credit — you'll get a call for this property within 24 hours. If nobody calls, your credit comes back automatically. Guaranteed.",
-    hi: "1 क्रेडिट में — इस प्रॉपर्टी के लिए 24 घंटे के भीतर आपको कॉल आएगी। कॉल न आए तो आपका क्रेडिट अपने आप वापस। गारंटीड।"
+    en: "Use 1 credit and you'll get a call for this property within 24 hours. If nobody calls, your credit comes back automatically. Guaranteed.",
+    hi: "1 क्रेडिट में इस प्रॉपर्टी के लिए 24 घंटे के भीतर आपको कॉल आएगी। कॉल न आए तो आपका क्रेडिट अपने आप वापस। गारंटीड।"
   },
   cbRequestButton: { en: "Request Callback", hi: "कॉलबैक का अनुरोध करें" },
   cbVerifyButton: { en: "Verify & Request Callback", hi: "सत्यापित करें और कॉलबैक पाएं" },
   cbRequestedTitle: { en: "Callback requested ✓", hi: "कॉलबैक अनुरोध हो गया ✓" },
   cbStepRequested: { en: "Requested ✓", hi: "अनुरोध हो गया ✓" },
   cbStepOwnerNotified: { en: "Owner notified ✓", hi: "मालिक को सूचित किया गया ✓" },
-  cbStepCallOnWay: { en: "Call on its way — by {time}", hi: "कॉल आने वाली है — {time} तक" },
+  cbStepCallOnWay: { en: "Call on its way by {time}", hi: "कॉल आने वाली है, {time} तक" },
   cbStepRefunded: { en: "Credit refunded ✓", hi: "क्रेडिट वापस हो गया ✓" },
   cbRefundReassure: {
     en: "No call by then? Your credit comes back automatically. Credits left: {n}",
     hi: "तब तक कॉल नहीं? आपका क्रेडिट अपने आप वापस आ जाएगा। बचे क्रेडिट: {n}"
   },
   cbGuestHint: {
-    en: "Guest browsing is open. Sign in with OTP to request a callback — new accounts get 2 free credits.",
-    hi: "मेहमान के तौर पर ब्राउज़िंग खुली है। कॉलबैक के लिए OTP से साइन इन करें — नए खातों को 2 मुफ़्त क्रेडिट मिलते हैं।"
+    en: "Guest browsing is open. Sign in with OTP to request a callback. New accounts get 2 free credits.",
+    hi: "मेहमान के तौर पर ब्राउज़िंग खुली है। कॉलबैक के लिए OTP से साइन इन करें। नए खातों को 2 मुफ़्त क्रेडिट मिलते हैं।"
   },
   cbMyCallbacks: { en: "My Callbacks", hi: "मेरी कॉलबैक" },
   cbGuaranteeLine: {
@@ -379,20 +379,20 @@ const dictionary: Dictionary = {
     hi: "हर अनुरोध की गारंटी: 24 घंटे में कॉल या आपका क्रेडिट वापस।"
   },
   cbGotCall: { en: "Yes, I got the call", hi: "हाँ, मुझे कॉल आई" },
-  cbNoCall: { en: "No call — refund my credit", hi: "कॉल नहीं आई — मेरा क्रेडिट वापस करें" },
+  cbNoCall: { en: "No call, refund my credit", hi: "कॉल नहीं आई, मेरा क्रेडिट वापस करें" },
   cbRefundedCaption: {
     en: "Nobody called in time, so your credit came back automatically.",
     hi: "समय पर किसी ने कॉल नहीं की, इसलिए आपका क्रेडिट अपने आप वापस आ गया।"
   },
   cbConfirmedCaption: {
-    en: "Confirmed — glad the call happened.",
-    hi: "पुष्टि हो गई — अच्छा लगा कि कॉल हुई।"
+    en: "Confirmed. Glad the call happened.",
+    hi: "पुष्टि हो गई। अच्छा लगा कि कॉल हुई।"
   },
   cbDisputedCaption: {
-    en: "Dispute recorded — your credit was refunded.",
-    hi: "शिकायत दर्ज — आपका क्रेडिट वापस कर दिया गया।"
+    en: "Dispute recorded. Your credit was refunded.",
+    hi: "शिकायत दर्ज। आपका क्रेडिट वापस कर दिया गया।"
   },
-  cbCallMadePrompt: { en: "Call made — did you get it?", hi: "कॉल की गई — क्या आपको मिली?" },
+  cbCallMadePrompt: { en: "Call made. Did you get it?", hi: "कॉल की गई। क्या आपको मिली?" },
   cbEmptyState: {
     en: "No callback requests yet. Find a property and request a callback.",
     hi: "अभी कोई कॉलबैक अनुरोध नहीं। कोई प्रॉपर्टी चुनें और कॉलबैक मांगें।"
@@ -411,23 +411,23 @@ const dictionary: Dictionary = {
     hi: "टाइमर खत्म होने से पहले कॉल करें वरना किरायेदार को रिफंड हो जाएगा।"
   },
   leadExpired: {
-    en: "Expired — respond faster next time.",
-    hi: "समय समाप्त — अगली बार जल्दी जवाब दें।"
+    en: "Expired. Respond faster next time.",
+    hi: "समय समाप्त। अगली बार जल्दी जवाब दें।"
   },
   leadNoCredits: { en: "Not enough lead credits", hi: "लीड क्रेडिट कम हैं" },
   leadBuyPackSub: {
     en: "Buy 5 lead credits for ₹299 to unlock tenant contacts instantly.",
     hi: "किरायेदार का नंबर तुरंत अनलॉक करने के लिए ₹299 में 5 लीड क्रेडिट खरीदें।"
   },
-  leadBuyPackButton: { en: "Buy 5 credits — ₹299", hi: "5 क्रेडिट खरीदें — ₹299" },
-  leadPaidRefresh: { en: "I've paid — refresh", hi: "भुगतान कर दिया — रीफ्रेश करें" },
+  leadBuyPackButton: { en: "Buy 5 credits for ₹299", hi: "5 क्रेडिट खरीदें, ₹299" },
+  leadPaidRefresh: { en: "I've paid, refresh", hi: "भुगतान कर दिया, रीफ्रेश करें" },
   leadOpenUpi: { en: "Open UPI App", hi: "UPI ऐप खोलें" },
   leadCreditsAdded: {
-    en: "Credits added — unlock the lead now.",
-    hi: "क्रेडिट जुड़ गए — अब लीड अनलॉक करें।"
+    en: "Credits added. Unlock the lead now.",
+    hi: "क्रेडिट जुड़ गए। अब लीड अनलॉक करें।"
   },
   // ── Guest gating ────────────────────────────────────────────────────────────
-  gateHeadline: { en: "Sign up free — get 2 credits", hi: "मुफ़्त साइन अप करें — 2 क्रेडिट पाएं" },
+  gateHeadline: { en: "Sign up free, get 2 credits", hi: "मुफ़्त साइन अप करें, 2 क्रेडिट पाएं" },
   gateSub: {
     en: "Owners call you back within 24 hours.",
     hi: "मालिक 24 घंटे के भीतर आपको कॉल करते हैं।"
@@ -440,8 +440,8 @@ const dictionary: Dictionary = {
   // ── Welcome credits celebration ────────────────────────────────────────────
   welcomeTitle: { en: "Welcome to Cribliv! 🎉", hi: "Cribliv में आपका स्वागत है! 🎉" },
   welcomeTenantBody: {
-    en: "You've got 2 free credits — request callbacks and get a call within 24 hours.",
-    hi: "आपको 2 मुफ़्त क्रेडिट मिले हैं — कॉलबैक मांगें और 24 घंटे के भीतर कॉल पाएं।"
+    en: "You've got 2 free credits. Request callbacks and get a call within 24 hours.",
+    hi: "आपको 2 मुफ़्त क्रेडिट मिले हैं। कॉलबैक मांगें और 24 घंटे के भीतर कॉल पाएं।"
   },
   welcomeOwnerBody: {
     en: "Welcome! Your first 2 tenant leads are free.",
@@ -452,8 +452,8 @@ const dictionary: Dictionary = {
   loginBenefitsTitle: { en: "Why sign up?", hi: "साइन अप क्यों करें?" },
   loginBenefit1: { en: "2 free credits on signup", hi: "साइन अप पर 2 मुफ़्त क्रेडिट" },
   loginBenefit2: {
-    en: "Guaranteed callback in 24 hours — or your credit back",
-    hi: "24 घंटे में कॉलबैक की गारंटी — वरना क्रेडिट वापस"
+    en: "Guaranteed callback in 24 hours, or your credit back",
+    hi: "24 घंटे में कॉलबैक की गारंटी, वरना क्रेडिट वापस"
   },
   loginBenefit3: { en: "Verified listings, no brokers", hi: "सत्यापित लिस्टिंग, कोई ब्रोकर नहीं" }
 };

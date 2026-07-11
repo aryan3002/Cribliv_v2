@@ -209,11 +209,11 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
               </>
             ) : hasError ? (
               <span className="cmap-commute-panel__result--warn">
-                Commute service is unavailable right now — try again in a moment.
+                Commute service is unavailable right now. Try again in a moment.
               </span>
             ) : unsupportedCity ? (
               <span className="cmap-commute-panel__result--warn">
-                Reverse search needs a city with metro data — pick Delhi, Lucknow, Noida, Gurugram,
+                Reverse search needs a city with metro data. Pick Delhi, Lucknow, Noida, Gurugram,
                 or Jaipur.
               </span>
             ) : (

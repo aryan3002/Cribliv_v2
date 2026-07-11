@@ -6,8 +6,8 @@ const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 export function ListingFunnel({ data }: { data: PgDashboardListingHealth }) {
   // Distinguish "no data" (denominator 0) from a true 0% rate.
-  const ctrLabel = data.search_appearances_7d > 0 ? pct(data.ctr_7d) : "—";
-  const interestLabel = data.views_7d > 0 ? pct(data.interest_rate_7d) : "—";
+  const ctrLabel = data.search_appearances_7d > 0 ? pct(data.ctr_7d) : "-";
+  const interestLabel = data.views_7d > 0 ? pct(data.interest_rate_7d) : "-";
 
   const cells: Array<{ label: string; value: string }> = [
     { label: "Appearances", value: data.search_appearances_7d.toLocaleString() },

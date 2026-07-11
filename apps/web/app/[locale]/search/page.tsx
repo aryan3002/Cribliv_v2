@@ -110,10 +110,10 @@ export async function generateMetadata({
   const titleParts = [displayQuery, displayCity].filter(Boolean);
   const title = titleParts.length
     ? isHindi
-      ? `${titleParts.join(", ")} — किराये पर खोज`
-      : `${displayQuery ? displayQuery + " in " : ""}${displayCity || ""} — Rentals`.replace(
-          / in  —/,
-          " —"
+      ? `${titleParts.join(", ")}: किराये पर खोज`
+      : `${displayQuery ? displayQuery + " in " : ""}${displayCity || ""}: Rentals`.replace(
+          / in :/,
+          ":"
         )
     : isHindi
       ? "किराये पर मकान खोजें"
@@ -281,7 +281,7 @@ export default async function SearchResultsPage({
               </span>
               <h1>
                 {queryStr || cityStr
-                  ? `Rentals ${cityStr ? `in ${toDisplayCity(cityStr)}` : ""}${queryStr ? ` — "${normalizeQuery(queryStr)}"` : ""}`
+                  ? `Rentals ${cityStr ? `in ${toDisplayCity(cityStr)}` : ""}${queryStr ? `: "${normalizeQuery(queryStr)}"` : ""}`
                   : "Search Verified Rentals"}
               </h1>
               <p>

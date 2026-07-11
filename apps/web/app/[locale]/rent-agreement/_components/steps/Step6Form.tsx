@@ -272,7 +272,7 @@ export function Step6Form(props: StepFormProps) {
       <section className="ra-form-section">
         <h2 className="ra-form-section-title">Signatures</h2>
         <p className="ra-hint">
-          Both parties must sign — draw with a mouse/touch, or upload a photo of a signature.
+          Both parties must sign. Draw with a mouse/touch, or upload a photo of a signature.
         </p>
         <div className="ra-upload-grid">
           <SignatureCapture

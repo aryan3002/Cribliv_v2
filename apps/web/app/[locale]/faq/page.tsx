@@ -8,15 +8,15 @@ const FAQ_DATA = [
     items: [
       {
         q: "What is Cribliv?",
-        a: "Cribliv is North India's first AI-driven rental platform that connects tenants directly with verified property owners — with zero brokerage. We list flats, houses, and PGs across Delhi NCR, Lucknow, Jaipur, and Chandigarh."
+        a: "Cribliv is North India's first AI-driven rental platform that connects tenants directly with verified property owners, with zero brokerage. We list flats, houses, and PGs across Delhi NCR, Lucknow, Jaipur, and Chandigarh."
       },
       {
         q: "How does Cribliv work?",
-        a: "Search for rentals using our AI-powered search (including voice commands in Hindi and English). Browse verified listings for free. When you find a property you like, pay a small contact unlock fee to get the owner's direct phone number. No middlemen, no brokers — just direct owner-tenant connections."
+        a: "Search for rentals using our AI-powered search (including voice commands in Hindi and English). Browse verified listings for free. When you find a property you like, pay a small contact unlock fee to get the owner's direct phone number. No middlemen, no brokers, just direct owner-tenant connections."
       },
       {
         q: "Is Cribliv free to use?",
-        a: "Browsing and searching listings is completely free. To unlock a property owner's contact details, you pay a small fee using wallet credits. There is zero brokerage — you deal directly with the owner."
+        a: "Browsing and searching listings is completely free. To unlock a property owner's contact details, you pay a small fee using wallet credits. There is zero brokerage. You deal directly with the owner."
       },
       {
         q: "Which cities does Cribliv cover?",
@@ -29,7 +29,7 @@ const FAQ_DATA = [
     items: [
       {
         q: "How much does it cost to unlock a contact?",
-        a: "The contact unlock fee is a small, transparent amount clearly displayed before you unlock. Exact pricing varies — check the current rate on any listing page. There are no hidden charges."
+        a: "The contact unlock fee is a small, transparent amount clearly displayed before you unlock. Exact pricing varies. Check the current rate on any listing page. There are no hidden charges."
       },
       {
         q: "What are wallet credits?",
@@ -97,7 +97,7 @@ const FAQ_DATA = [
     items: [
       {
         q: "Does Cribliv support voice search?",
-        a: "Yes! Cribliv supports AI-powered voice search in both Hindi and English. Just tap the microphone icon and speak naturally — e.g., 'Noida mein 2BHK chahiye 15 hazaar tak' or 'Show me PGs in Gurugram under 10000'."
+        a: "Yes! Cribliv supports AI-powered voice search in both Hindi and English. Just tap the microphone icon and speak naturally, e.g., 'Noida mein 2BHK chahiye 15 hazaar tak' or 'Show me PGs in Gurugram under 10000'."
       },
       {
         q: "Can I save properties?",
@@ -119,8 +119,8 @@ export async function generateMetadata({
   const isHindi = params.locale === "hi";
   const title = isHindi ? "अक्सर पूछे जाने वाले प्रश्न" : "Frequently Asked Questions";
   const description = isHindi
-    ? "Cribliv के FAQ — किराये की खोज, भुगतान, रिफंड, मालिक सत्यापन और बहुत कुछ।"
-    : "Find answers to common questions about Cribliv — rental search, pricing, 12-hour refund guarantee, owner verification, voice search, and more.";
+    ? "Cribliv के FAQ: किराये की खोज, भुगतान, रिफंड, मालिक सत्यापन और बहुत कुछ।"
+    : "Find answers to common questions about Cribliv: rental search, pricing, 12-hour refund guarantee, owner verification, voice search, and more.";
 
   return {
     title,
@@ -204,7 +204,7 @@ export default function FAQPage({ params }: { params: { locale: string } }) {
           className="text-secondary body-lg"
           style={{ marginBottom: "var(--space-10)", maxWidth: 640 }}
         >
-          Everything you need to know about using Cribliv to find your perfect rental home — from
+          Everything you need to know about using Cribliv to find your perfect rental home, from
           searching and payments to owner verification and refunds.
         </p>
 

@@ -277,7 +277,7 @@ export function LeadCard({ lead, locale, onStatusChange, updating, accessToken }
         {lead.status === "deal_done" && (
           <div className="lead-card__deal-done">
             <span aria-hidden="true">🎉</span>
-            Deal completed — great work!
+            Deal completed. Great work!
           </div>
         )}
 

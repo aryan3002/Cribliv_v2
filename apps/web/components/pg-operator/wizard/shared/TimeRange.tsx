@@ -24,7 +24,7 @@ export default function TimeRange({
           onChange={(e) => onChange({ from: e.target.value, to })}
         />
         <span className={styles.timeSep} aria-hidden>
-          –
+          -
         </span>
         <input
           aria-label={`${label ?? ""} to`}

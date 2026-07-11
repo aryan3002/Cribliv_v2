@@ -179,7 +179,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
       });
       onToastRef.current(
         row.status === "needs_attention"
-          ? "Draft generated — flagged 'needs attention' (below the quality bar). Review before publishing."
+          ? "Draft generated, flagged 'needs attention' (below the quality bar). Review before publishing."
           : "Draft generated and ready for review.",
         row.status === "needs_attention" ? "warn" : "trust"
       );
@@ -189,7 +189,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
       setReloadKey((k) => k + 1);
     } catch (err) {
       onToastRef.current(
-        err instanceof Error ? err.message : "Generation failed — check the AI config on the API.",
+        err instanceof Error ? err.message : "Generation failed. Check the AI config on the API.",
         "danger"
       );
     } finally {
@@ -210,10 +210,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
         .map(([k, n]) => `${n} ${k.replace(/_/g, "-")}`)
         .join(", ");
       if (res.created === 0) {
-        onToastRef.current(
-          "No new topics to plan — everything current is already covered.",
-          "warn"
-        );
+        onToastRef.current("No new topics to plan. Everything current is already covered.", "warn");
         return;
       }
       onToastRef.current(
@@ -235,7 +232,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
       onToastRef.current(
         `Drafted ${drafted} post${drafted === 1 ? "" : "s"} into the queue.` +
           (leftover > 0
-            ? ` ${leftover} more brief${leftover === 1 ? "" : "s"} queued — click again to draft more.`
+            ? ` ${leftover} more brief${leftover === 1 ? "" : "s"} queued. Click again to draft more.`
             : ""),
         "trust"
       );
@@ -255,7 +252,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
         <div>
           <div style={{ fontWeight: 600 }}>{r.title}</div>
           <div style={{ fontSize: 12, color: "var(--ad-text-muted, #64748b)" }}>
-            {DESK_LABEL[r.categorySlug ?? ""] ?? "—"}
+            {DESK_LABEL[r.categorySlug ?? ""] ?? "-"}
             {r.citySlug ? ` · ${r.citySlug}` : ""}
             {r.author ? ` · ${r.author}` : ""}
           </div>
@@ -267,7 +264,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
       key: "quality",
       header: "Quality",
       align: "right",
-      render: (r) => (r.qualityScore != null ? r.qualityScore.toFixed(2) : "—")
+      render: (r) => (r.qualityScore != null ? r.qualityScore.toFixed(2) : "-")
     },
     { key: "updated", header: "Updated", render: (r) => formatDate(r.updatedAt) },
     {
@@ -343,7 +340,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
 
       <SectionCard
         title="Generate a draft"
-        subtitle="Runs a data-grounded generation pass (Azure OpenAI) and drops the result into the queue below. Nothing goes live until you publish it. Generation takes ~15–25s."
+        subtitle="Runs a data-grounded generation pass (Azure OpenAI) and drops the result into the queue below. Nothing goes live until you publish it. Generation takes ~15 to 25s."
       >
         <div
           style={{
@@ -455,7 +452,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
 
       <SectionCard
         title="Blog review queue"
-        subtitle="Human-approve AI drafts before they go live — publishing is the only path to a public post."
+        subtitle="Human-approve AI drafts before they go live. Publishing is the only path to a public post."
         action={
           <select
             style={fieldStyle}
@@ -481,7 +478,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
 
       <SectionCard
         title="Top converting posts"
-        subtitle="Which published posts send readers to listings — and drive real contact-unlocks."
+        subtitle="Which published posts send readers to listings, and drive real contact-unlocks."
       >
         {conversion.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -517,7 +514,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
                       color: "var(--ad-text-muted, #64748b)"
                     }}
                   >
-                    {r.clicks > 0 ? `${Math.round((r.unlocks / r.clicks) * 100)}%` : "—"}
+                    {r.clicks > 0 ? `${Math.round((r.unlocks / r.clicks) * 100)}%` : "-"}
                   </td>
                 </tr>
               ))}
@@ -527,7 +524,7 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
           <p style={{ margin: 0, fontSize: 13, color: "var(--ad-text-muted, #64748b)" }}>
             No conversions tracked yet. When a reader opens a published post and clicks through to a
             listing (each link is tagged to the post), it shows up here with clicks, unlocks, and
-            conversion rate — so you can see which stories actually drive contact reveals.
+            conversion rate, so you can see which stories actually drive contact reveals.
           </p>
         )}
       </SectionCard>

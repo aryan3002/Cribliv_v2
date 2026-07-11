@@ -33,7 +33,7 @@ const PURPOSE_OPTIONS: { value: Purpose; label: string }[] = [
 ];
 
 const PARKING_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "— Not specified —" },
+  { value: "", label: "Not specified" },
   { value: "none", label: "None" },
   { value: "two_wheeler", label: "Two-wheeler" },
   { value: "four_wheeler", label: "Four-wheeler" },

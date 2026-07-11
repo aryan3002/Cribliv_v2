@@ -23,10 +23,10 @@ export async function generateMetadata({
 }: {
   params: { locale: string; categorySlug: string };
 }): Promise<Metadata> {
-  if (!DESK_SLUGS.includes(params.categorySlug)) return { title: "Not found — Cribliv Times" };
+  if (!DESK_SLUGS.includes(params.categorySlug)) return { title: "Not found · Cribliv Times" };
   const hi = params.locale === "hi";
   const desk = deskLabel(params.categorySlug, hi);
-  const title = `${desk} — Cribliv Times`;
+  const title = `${desk} · Cribliv Times`;
   const description = hi
     ? `Cribliv Times के ${desk} डेस्क से किराया रिपोर्ट और गाइड।`
     : `Reporting and guides from the ${desk} desk of Cribliv Times.`;
@@ -85,7 +85,7 @@ export default async function DeskPage({
       )}
 
       <div className={styles.colophon}>
-        <b>Cribliv Times</b> — {hi ? "Cribliv का डेटा डेस्क" : "the Cribliv data desk"}
+        <b>Cribliv Times</b>, {hi ? "Cribliv का डेटा डेस्क" : "the Cribliv data desk"}
       </div>
     </div>
   );

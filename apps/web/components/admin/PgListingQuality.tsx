@@ -31,7 +31,7 @@ export function PgListingQuality({ data }: Props) {
         <StatCard
           label="Avg score"
           value={
-            score_health.avg_composite != null ? Math.round(score_health.avg_composite * 100) : "—"
+            score_health.avg_composite != null ? Math.round(score_health.avg_composite * 100) : "-"
           }
           tone="brand"
         />

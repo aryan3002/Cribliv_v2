@@ -178,7 +178,7 @@ export class RealtimeClient {
         }
       });
     } catch (err) {
-      this.fail("Microphone permission denied. You can still type — the form works without voice.");
+      this.fail("Microphone permission denied. You can still type. The form works without voice.");
       throw err;
     }
     this.mic = mic;

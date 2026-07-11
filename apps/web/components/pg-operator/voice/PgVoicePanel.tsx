@@ -164,9 +164,9 @@ export default function PgVoicePanel({
       if (!ev?.name) return;
       const label =
         ev.name === "request_photo_upload"
-          ? "📷 Ready for photo upload — head to the photos step"
+          ? "📷 Ready for photo upload, head to the photos step"
           : ev.name === "summarize_for_confirm"
-            ? "✅ Looks complete — go ahead and review"
+            ? "✅ Looks complete. Go ahead and review"
             : `tool: ${ev.name}`;
       setChatMessages((p) => [
         ...p,
@@ -373,7 +373,7 @@ export default function PgVoicePanel({
                             <div key={i} className="pgo-waveform__bar" />
                           ))}
                         </div>
-                        <p style={{ marginTop: 16 }}>Listening — speak to Chaya…</p>
+                        <p style={{ marginTop: 16 }}>Listening, speak to Chaya…</p>
                       </>
                     ) : (
                       <p>Connecting to Chaya…</p>

@@ -40,7 +40,7 @@ const STEPS: OnboardingStep[] = [
     target: ".cmap-bottombar__link",
     title: "Is My Rent Fair?",
     description:
-      "Free tool — enter your rent and get an instant comparison against verified listings in your area.",
+      "Free tool: enter your rent and get an instant comparison against verified listings in your area.",
     position: "top"
   }
 ];

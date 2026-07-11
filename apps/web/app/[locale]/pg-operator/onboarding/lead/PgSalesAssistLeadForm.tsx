@@ -22,7 +22,7 @@ export default function PgSalesAssistLeadForm() {
     }
   };
 
-  if (done) return <p>Thanks — we&apos;ll reach out within a business day.</p>;
+  if (done) return <p>Thanks. We&apos;ll reach out within a business day.</p>;
   return (
     <section>
       <h1>Let&apos;s help you onboard</h1>

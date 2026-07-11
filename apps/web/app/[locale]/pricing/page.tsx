@@ -8,10 +8,10 @@ export async function generateMetadata({
   params: { locale: string };
 }): Promise<Metadata> {
   const isHindi = params.locale === "hi";
-  const title = isHindi ? "किफायती मूल्य निर्धारण" : "Transparent Pricing — Zero Brokerage Rentals";
+  const title = isHindi ? "किफायती मूल्य निर्धारण" : "Transparent Pricing: Zero Brokerage Rentals";
   const description = isHindi
-    ? "Cribliv पर पारदर्शी मूल्य — शून्य ब्रोकरेज, सस्ता कॉन्टैक्ट अनलॉक, 12 घंटे की रिफंड गारंटी।"
-    : "Cribliv pricing explained — zero brokerage, affordable contact unlock fees, wallet credits, and 12-hour refund guarantee. No hidden charges.";
+    ? "Cribliv पर पारदर्शी मूल्य: शून्य ब्रोकरेज, सस्ता कॉन्टैक्ट अनलॉक, 12 घंटे की रिफंड गारंटी।"
+    : "Cribliv pricing explained: zero brokerage, affordable contact unlock fees, wallet credits, and 12-hour refund guarantee. No hidden charges.";
 
   return {
     title,
@@ -45,7 +45,7 @@ const HOW_IT_WORKS_STEPS = [
   {
     icon: "🔍",
     title: "Search for Free",
-    desc: "Browse thousands of verified rental listings across 8 cities — completely free. Use AI-powered search or voice commands in Hindi and English."
+    desc: "Browse thousands of verified rental listings across 8 cities, completely free. Use AI-powered search or voice commands in Hindi and English."
   },
   {
     icon: "💳",
@@ -60,12 +60,12 @@ const HOW_IT_WORKS_STEPS = [
   {
     icon: "🏠",
     title: "Connect & Move In",
-    desc: "Call the owner directly, schedule a visit, and finalize your rental agreement. Cribliv is not involved in the rental deal — you save 100% on brokerage."
+    desc: "Call the owner directly, schedule a visit, and finalize your rental agreement. Cribliv is not involved in the rental deal. You save 100% on brokerage."
   }
 ];
 
 const COMPARISON = [
-  { feature: "Brokerage", cribliv: "₹0", broker: "1–2 months rent" },
+  { feature: "Brokerage", cribliv: "₹0", broker: "1-2 months rent" },
   { feature: "Verified Owners", cribliv: "✓ Aadhaar verified", broker: "✗ No verification" },
   { feature: "Direct Owner Contact", cribliv: "✓ Instant", broker: "✗ Via broker" },
   { feature: "Refund Guarantee", cribliv: "✓ 12-hour auto-refund", broker: "✗ None" },
@@ -110,7 +110,7 @@ export default function PricingPage({ params }: { params: { locale: string } }) 
             style={{ maxWidth: 600, margin: "0 auto var(--space-6)" }}
           >
             Zero brokerage. Zero hidden charges. Pay only a small fee to unlock an owner&apos;s
-            direct contact — and get an automatic refund if they don&apos;t respond.
+            direct contact, and get an automatic refund if they don&apos;t respond.
           </p>
 
           {/* Price card */}
@@ -350,7 +350,7 @@ export default function PricingPage({ params }: { params: { locale: string } }) 
                 {
                   icon: "🚫",
                   title: "Zero Brokerage",
-                  desc: "We never charge brokerage — not 1 month, not half month, nothing. The rental deal is 100% between you and the owner."
+                  desc: "We never charge brokerage, not 1 month, not half month, nothing. The rental deal is 100% between you and the owner."
                 }
               ].map((g) => (
                 <div key={g.title} className="feature-card" style={{ textAlign: "center" }}>

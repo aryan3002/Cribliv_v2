@@ -15,13 +15,13 @@ export async function generateMetadata({
 
   return {
     title: isHindi
-      ? "CriblMap — सत्यापित किराये का नक्शा"
-      : "CriblMap — Verified Rent Intelligence Map",
+      ? "CriblMap: सत्यापित किराये का नक्शा"
+      : "CriblMap: Verified Rent Intelligence Map",
     description: isHindi
       ? "दिल्ली NCR में सत्यापित किराये की लिस्टिंग का मानचित्र। क्षेत्र के हिसाब से किराया, मेट्रो, और बाजार अंतर्दृष्टि देखें।"
       : "Explore verified rental listings on a live map. See area-level rent data, metro proximity, and market insights across Delhi NCR.",
     openGraph: {
-      title: "CriblMap — Verified Rent Intelligence",
+      title: "CriblMap: Verified Rent Intelligence",
       description:
         "Every pin is a verified listing. Explore rents, demand, and market trends on an interactive map.",
       url: `${BASE_URL}/${params.locale}/map`,

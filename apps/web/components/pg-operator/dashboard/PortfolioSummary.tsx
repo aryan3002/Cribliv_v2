@@ -4,7 +4,7 @@ import { ArrowUp, ArrowDown, Eye, Search, Heart, MousePointerClick, Target } fro
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 function Delta({ value }: { value: number | null }) {
-  if (value === null) return <span className="pgo-kpi__delta pgo-kpi__delta--flat">—</span>;
+  if (value === null) return <span className="pgo-kpi__delta pgo-kpi__delta--flat">-</span>;
   const up = value >= 0;
   return (
     <span className={`pgo-kpi__delta ${up ? "pgo-kpi__delta--up" : "pgo-kpi__delta--down"}`}>

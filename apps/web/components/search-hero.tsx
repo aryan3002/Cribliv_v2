@@ -549,7 +549,7 @@ function VoiceBadge() {
 }
 
 function formatRentBand(min: number, max: number): string {
-  return `${formatRent(min)}–${formatRent(max)}`;
+  return `${formatRent(min)}-${formatRent(max)}`;
 }
 
 function formatRent(value: number): string {
@@ -667,7 +667,7 @@ function SectionedDropdown({
   }, [
     cities.length > 0 ? cities[0].data.value : null,
     localities.length > 0 ? localities[0].data.value : null,
-    localities.length > 0 ? localities[0].data.city_slug ?? null : null
+    localities.length > 0 ? (localities[0].data.city_slug ?? null) : null
   ]);
 
   useEffect(() => {
@@ -897,14 +897,14 @@ function PreviewPane({
           <div className="search-preview__stat-label">₹ band</div>
           <div className="search-preview__stat-value">
             {preview.rent_band
-              ? `${formatRent(preview.rent_band.min)}–${formatRent(preview.rent_band.max)}`
-              : "—"}
+              ? `${formatRent(preview.rent_band.min)}-${formatRent(preview.rent_band.max)}`
+              : "-"}
           </div>
         </div>
         <div className="search-preview__stat">
           <div className="search-preview__stat-label">Verified</div>
           <div className="search-preview__stat-value search-preview__stat-value--good">
-            {preview.verified_pct != null ? `${preview.verified_pct}%` : "—"}
+            {preview.verified_pct != null ? `${preview.verified_pct}%` : "-"}
           </div>
         </div>
         {segment === "pg" ? (
@@ -913,14 +913,14 @@ function PreviewPane({
             <div className="search-preview__stat-value">
               {preview.sharing && preview.sharing.length > 0
                 ? preview.sharing.map((s) => prettifySlug(s)).join(", ")
-                : "—"}
+                : "-"}
             </div>
           </div>
         ) : (
           <div className="search-preview__stat">
             <div className="search-preview__stat-label">Avg BHK</div>
             <div className="search-preview__stat-value">
-              {preview.avg_bhk != null ? preview.avg_bhk : "—"}
+              {preview.avg_bhk != null ? preview.avg_bhk : "-"}
             </div>
           </div>
         )}

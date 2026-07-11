@@ -26,11 +26,11 @@ const photoUrl = (b: string) =>
   /^https?:\/\//i.test(b) ? b : PHOTO_BASE ? `${PHOTO_BASE}/${b.replace(/^\/+/, "")}` : b;
 
 function rupees(paise: number | null | undefined): string {
-  if (paise == null) return "—";
+  if (paise == null) return "-";
   return `₹${Math.round(paise / 100).toLocaleString("en-IN")}`;
 }
 function titleCase(s: string | null | undefined): string {
-  if (!s) return "—";
+  if (!s) return "-";
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function flattenAmenities(a: Record<string, unknown> | undefined): string[] {
@@ -147,7 +147,7 @@ export default async function Page({
             <span className={styles.heroLoc}>
               <MapPin size={14} />
               {[titleCase(detail.locality_slug), titleCase(detail.city_slug)]
-                .filter((x) => x !== "—")
+                .filter((x) => x !== "-")
                 .join(", ") || "Location not set"}
             </span>
           </div>
@@ -162,7 +162,7 @@ export default async function Page({
         )}
         {detail.status === "pending_review" && (
           <div className={`${styles.banner} ${styles.bannerInfo}`}>
-            Submitted for review — it goes live once our team approves it.
+            Submitted for review. It goes live once our team approves it.
           </div>
         )}
 
@@ -252,12 +252,12 @@ export default async function Page({
           <div className={styles.stat}>
             <div className={styles.statLabel}>Starting rent</div>
             <div className={styles.statVal}>
-              {startingRent != null ? `${rupees(startingRent)}/mo` : "—"}
+              {startingRent != null ? `${rupees(startingRent)}/mo` : "-"}
             </div>
           </div>
           <div className={styles.stat}>
             <div className={styles.statLabel}>Total beds</div>
-            <div className={styles.statVal}>{d.total_beds ?? "—"}</div>
+            <div className={styles.statVal}>{d.total_beds ?? "-"}</div>
           </div>
           <div className={styles.stat}>
             <div className={styles.statLabel}>Vacancies</div>
@@ -356,7 +356,7 @@ export default async function Page({
             <div className={styles.kv}>
               <span className={styles.kvLabel}>Notice / Lock-in</span>
               <span className={styles.kvVal}>
-                {d.notice_period_days ?? "—"}d / {d.lock_in_months ?? "—"}mo
+                {d.notice_period_days ?? "-"}d / {d.lock_in_months ?? "-"}mo
               </span>
             </div>
             <div className={styles.kv}>
@@ -366,7 +366,7 @@ export default async function Page({
             <div className={styles.kv}>
               <span className={styles.kvLabel}>Payment modes</span>
               <span className={styles.kvVal}>
-                {d.payment_modes.length ? d.payment_modes.map(titleCase).join(", ") : "—"}
+                {d.payment_modes.length ? d.payment_modes.map(titleCase).join(", ") : "-"}
               </span>
             </div>
             <div className={styles.kv}>

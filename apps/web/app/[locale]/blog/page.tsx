@@ -23,11 +23,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const hi = params.locale === "hi";
   const title = hi
-    ? "Cribliv Times — शहरी भारत के लिए किराया इंटेलिजेंस"
-    : "Cribliv Times — Rental Intelligence for Urban India";
+    ? "Cribliv Times: शहरी भारत के लिए किराया इंटेलिजेंस"
+    : "Cribliv Times: Rental Intelligence for Urban India";
   const description = hi
     ? "Cribliv का डेटा डेस्क: लाइव लिस्टिंग से किराया रुझान, इलाके की गाइड और किरायेदार अधिकार।"
-    : "Cribliv's data desk: rent trends from live listings, neighbourhood guides, and tenant rights — reported for renters across India.";
+    : "Cribliv's data desk: rent trends from live listings, neighbourhood guides, and tenant rights, reported for renters across India.";
   return {
     title,
     description,
@@ -95,7 +95,7 @@ export default async function BlogHubPage({ params }: { params: { locale: string
         <p className={styles.empty}>
           {hi
             ? "आज कोई प्रकाशित रिपोर्ट नहीं है। जल्द ही लौटें।"
-            : "No published reports yet. The presses are warming up — check back soon."}
+            : "No published reports yet. The presses are warming up. Check back soon."}
         </p>
       ) : (
         <div className={styles.front}>
@@ -107,7 +107,7 @@ export default async function BlogHubPage({ params }: { params: { locale: string
             {lead.excerpt ? <p className={styles.dek}>{lead.excerpt}</p> : null}
             <div className={styles.byline}>
               {lead.city_slug ? (
-                <span className={styles.dateline}>{cityLabel(lead.city_slug)} — </span>
+                <span className={styles.dateline}>{cityLabel(lead.city_slug)} · </span>
               ) : null}
               {hi ? "द्वारा " : "By "}
               <Link href={authorPath(locale === "hi" ? "hi" : "en")}>{lead.author}</Link>
@@ -198,7 +198,7 @@ export default async function BlogHubPage({ params }: { params: { locale: string
       ) : null}
 
       <div className={styles.colophon}>
-        <b>Cribliv Times</b> —{" "}
+        <b>Cribliv Times</b>,{" "}
         {hi
           ? "Cribliv के डेटा डेस्क का एक उत्पाद · हर आँकड़ा लाइव लिस्टिंग से"
           : "a data-desk product of Cribliv · Every figure sourced from live listings"}

@@ -104,7 +104,7 @@ export function CriblMapCanvas({
     <div
       ref={containerRef}
       className="criblmap-canvas"
-      aria-label="CriblMap — Verified rental listings map"
+      aria-label="CriblMap: Verified rental listings map"
     />
   );
 }

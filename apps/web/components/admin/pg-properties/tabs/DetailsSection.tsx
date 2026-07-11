@@ -195,7 +195,7 @@ export function DetailsSection({
           style={inputStyle}
           value={draft.title}
           onChange={(e) => set("title", e.target.value)}
-          placeholder="e.g. Sunrise Residency — Boys PG near XYZ College"
+          placeholder="e.g. Sunrise Residency, Boys PG near XYZ College"
           aria-label="listing title"
         />
         {draft.title.trim().length > 0 && draft.title.trim().length < 2 && (
@@ -229,7 +229,7 @@ export function DetailsSection({
                 value={draft.gender_policy}
                 onChange={(e) => set("gender_policy", e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">-</option>
                 <option value="boys">Boys</option>
                 <option value="girls">Girls</option>
                 <option value="coed">Co-ed</option>
@@ -243,7 +243,7 @@ export function DetailsSection({
                 value={draft.tenant_type}
                 onChange={(e) => set("tenant_type", e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">-</option>
                 <option value="students">Students</option>
                 <option value="working">Working</option>
                 <option value="any">Any</option>
@@ -318,7 +318,7 @@ export function DetailsSection({
               </div>
             </div>
             <div style={{ maxWidth: 160 }}>
-              <FieldLabel>Rent due day (1–28)</FieldLabel>
+              <FieldLabel>Rent due day (1-28)</FieldLabel>
               <input
                 className="admin-input"
                 type="number"
@@ -384,7 +384,7 @@ export function DetailsSection({
                 value={draft.electricity_mode}
                 onChange={(e) => set("electricity_mode", e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">-</option>
                 <option value="flat">Flat</option>
                 <option value="submetered">Sub-metered</option>
                 <option value="split_equally">Split equally</option>
@@ -452,7 +452,7 @@ export function DetailsSection({
           </div>
         </SectionCard>
 
-        <SectionCard title="Amenities" subtitle="Read-only here — edit from the operator wizard.">
+        <SectionCard title="Amenities" subtitle="Read-only here. Edit from the operator wizard.">
           <Chips items={amenityList} />
         </SectionCard>
       </div>

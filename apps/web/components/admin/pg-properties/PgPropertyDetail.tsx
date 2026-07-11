@@ -327,8 +327,8 @@ export function PgPropertyDetail({ accessToken, listingId, onBack, onToast }: Pr
   const hasProperty = detail.property != null;
   const a = analytics;
   const activeMetric = METRICS.find((m) => m.key === metric)!;
-  const currentState = `${detail.property?.display_name ?? "—"} · ${form.status} · lat:${detail.property?.lat ?? "—"} lng:${detail.property?.lng ?? "—"}`;
-  const proposedState = `${form.display_name || "—"} · ${form.status} · lat:${form.lat || "—"} lng:${form.lng || "—"}`;
+  const currentState = `${detail.property?.display_name ?? "-"} · ${form.status} · lat:${detail.property?.lat ?? "-"} lng:${detail.property?.lng ?? "-"}`;
+  const proposedState = `${form.display_name || "-"} · ${form.status} · lat:${form.lat || "-"} lng:${form.lng || "-"}`;
 
   return (
     <div
@@ -394,7 +394,7 @@ export function PgPropertyDetail({ accessToken, listingId, onBack, onToast }: Pr
             <span>
               {[detail.property?.display_name, detail.locality_slug, detail.city_slug]
                 .filter(Boolean)
-                .join(" · ") || "—"}
+                .join(" · ") || "-"}
             </span>
             <button
               type="button"
@@ -429,41 +429,41 @@ export function PgPropertyDetail({ accessToken, listingId, onBack, onToast }: Pr
           <div className="pgd-kpis">
             <StatCard
               label="Appearances"
-              value={a ? nf(a.appearances) : "—"}
+              value={a ? nf(a.appearances) : "-"}
               spark={series.appearances}
               delta={a ? halfDelta(series.appearances) : null}
             />
             <StatCard
               label="Clicks"
-              value={a ? nf(a.clicks) : "—"}
+              value={a ? nf(a.clicks) : "-"}
               spark={series.clicks}
               delta={a ? halfDelta(series.clicks) : null}
               tone="warn"
             />
             <StatCard
               label="Views"
-              value={a ? nf(a.views) : "—"}
+              value={a ? nf(a.views) : "-"}
               spark={series.views}
               delta={a ? halfDelta(series.views) : null}
               tone="brand"
             />
             <StatCard
               label="Leads"
-              value={a ? nf(a.leads) : "—"}
+              value={a ? nf(a.leads) : "-"}
               spark={series.leads}
               delta={a ? halfDelta(series.leads) : null}
               tone="trust"
             />
             <StatCard
               label="CTR"
-              value={a ? pct(a.ctr) : "—"}
+              value={a ? pct(a.ctr) : "-"}
               tone={a && a.ctr >= 0.05 ? "trust" : "warn"}
             />
-            <StatCard label="Interest rate" value={a ? pct(a.interest_rate) : "—"} />
-            <StatCard label="Conversion" value={a ? pct(a.conversion) : "—"} tone="brand" />
+            <StatCard label="Interest rate" value={a ? pct(a.interest_rate) : "-"} />
+            <StatCard label="Conversion" value={a ? pct(a.conversion) : "-"} tone="brand" />
             <StatCard
               label="Listing score"
-              value={a?.composite_score != null ? Math.round(a.composite_score) : "—"}
+              value={a?.composite_score != null ? Math.round(a.composite_score) : "-"}
             />
           </div>
 
@@ -518,7 +518,7 @@ export function PgPropertyDetail({ accessToken, listingId, onBack, onToast }: Pr
             {a ? (
               <ConversionFunnel a={a} />
             ) : (
-              <div style={{ color: "var(--ad-text-3)", fontSize: 13 }}>—</div>
+              <div style={{ color: "var(--ad-text-3)", fontSize: 13 }}>-</div>
             )}
           </SectionCard>
         </div>
@@ -586,7 +586,7 @@ export function PgPropertyDetail({ accessToken, listingId, onBack, onToast }: Pr
                     min={1}
                     value={form.total_floors}
                     onChange={(e) => setForm({ ...form, total_floors: e.target.value })}
-                    placeholder="—"
+                    placeholder="-"
                     style={{ width: "100%" }}
                   />
                 </div>
@@ -636,7 +636,7 @@ export function PgPropertyDetail({ accessToken, listingId, onBack, onToast }: Pr
                       fontVariantNumeric: "tabular-nums"
                     }}
                   >
-                    {value ?? "—"}
+                    {value ?? "-"}
                   </span>
                 </div>
               ))}
@@ -646,7 +646,7 @@ export function PgPropertyDetail({ accessToken, listingId, onBack, onToast }: Pr
           {/* Analytics visibility */}
           <SectionCard
             title="Analytics visibility"
-            subtitle="Non-destructive — data keeps collecting; restoring shows full history instantly."
+            subtitle="Non-destructive, data keeps collecting; restoring shows full history instantly."
           >
             <VisibilityControls
               accessToken={accessToken}

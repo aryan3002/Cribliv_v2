@@ -35,7 +35,7 @@ const PLAN_OPTIONS = ["", "basic", "standard", "premium"];
 const PAGE_SIZE = 20;
 
 function formatDuration(ms: number | null): string {
-  if (ms == null || !Number.isFinite(ms)) return "—";
+  if (ms == null || !Number.isFinite(ms)) return "-";
   const mins = ms / 60000;
   if (mins >= 60) return `${(mins / 60).toFixed(1)}h`;
   if (mins >= 1) return `${mins.toFixed(1)}m`;
@@ -152,9 +152,9 @@ export function RentAgreementsTab({ accessToken }: Props) {
         header: "Owner → Tenant",
         render: (r) => (
           <div>
-            <div>{r.ownerFullName ?? "—"}</div>
+            <div>{r.ownerFullName ?? "-"}</div>
             <div style={{ color: "var(--ad-text-3)", fontSize: 12 }}>
-              → {r.tenantFullName ?? "—"}
+              → {r.tenantFullName ?? "-"}
             </div>
           </div>
         )
@@ -176,7 +176,7 @@ export function RentAgreementsTab({ accessToken }: Props) {
       {
         key: "state",
         header: "State",
-        render: (r) => r.stateCode ?? "—",
+        render: (r) => r.stateCode ?? "-",
         sortValue: (r) => r.stateCode ?? ""
       },
       {
@@ -185,7 +185,7 @@ export function RentAgreementsTab({ accessToken }: Props) {
         align: "right",
         render: (r) =>
           r.rentAmountPaise == null ? (
-            "—"
+            "-"
           ) : (
             <span className="admin-table__amount">{formatINR(r.rentAmountPaise)}</span>
           ),
@@ -194,13 +194,13 @@ export function RentAgreementsTab({ accessToken }: Props) {
       {
         key: "payment",
         header: "Payment",
-        render: (r) => r.paymentStatus ?? "—",
+        render: (r) => r.paymentStatus ?? "-",
         sortValue: (r) => r.paymentStatus ?? ""
       },
       {
         key: "pdf",
         header: "PDF",
-        render: (r) => (r.pdfReady ? "✓ ready" : "—"),
+        render: (r) => (r.pdfReady ? "✓ ready" : "-"),
         sortValue: (r) => (r.pdfReady ? 1 : 0)
       },
       {
@@ -290,7 +290,7 @@ export function RentAgreementsTab({ accessToken }: Props) {
                     {s.topErrors.length > 0 && (
                       <span style={{ color: "var(--ad-text-3)" }}>
                         {" "}
-                        — {s.topErrors.map((e) => `${e.code}(${e.count})`).join(", ")}
+                        · {s.topErrors.map((e) => `${e.code}(${e.count})`).join(", ")}
                       </span>
                     )}
                   </span>
@@ -528,32 +528,32 @@ export function RentAgreementsTab({ accessToken }: Props) {
           <div style={{ display: "grid", gap: 16 }}>
             <DetailGroup title="Parties">
               <Row label="Owner">
-                {detail.ownerFullName ?? "—"} · {detail.ownerPhone ?? "—"}
+                {detail.ownerFullName ?? "-"} · {detail.ownerPhone ?? "-"}
               </Row>
               <Row label="Tenant">
-                {detail.tenantFullName ?? "—"} · {detail.tenantPhone ?? "—"}
+                {detail.tenantFullName ?? "-"} · {detail.tenantPhone ?? "-"}
               </Row>
             </DetailGroup>
             <DetailGroup title="Property & terms">
-              <Row label="Address">{detail.propertyFullAddress ?? "—"}</Row>
+              <Row label="Address">{detail.propertyFullAddress ?? "-"}</Row>
               <Row label="State / City">
-                {detail.stateCode ?? "—"} / {detail.city ?? "—"}
+                {detail.stateCode ?? "-"} / {detail.city ?? "-"}
               </Row>
               <Row label="Rent">
-                {detail.rentAmountPaise == null ? "—" : formatINR(detail.rentAmountPaise)}
+                {detail.rentAmountPaise == null ? "-" : formatINR(detail.rentAmountPaise)}
               </Row>
               <Row label="Stamp duty">{formatINR(detail.stampDutyPaise)}</Row>
             </DetailGroup>
             <DetailGroup title="Payment">
-              <Row label="Status">{detail.paymentStatus ?? "—"}</Row>
+              <Row label="Status">{detail.paymentStatus ?? "-"}</Row>
               <Row label="Amount">
-                {detail.paymentAmountPaise == null ? "—" : formatINR(detail.paymentAmountPaise)}
+                {detail.paymentAmountPaise == null ? "-" : formatINR(detail.paymentAmountPaise)}
               </Row>
-              <Row label="Provider">{detail.paymentProvider ?? "—"}</Row>
+              <Row label="Provider">{detail.paymentProvider ?? "-"}</Row>
             </DetailGroup>
             <DetailGroup title="e-Stamp / e-Sign">
-              <Row label="e-Stamp ref">{detail.eStampReference ?? "—"}</Row>
-              <Row label="e-Sign session">{detail.eSignSessionId ?? "—"}</Row>
+              <Row label="e-Stamp ref">{detail.eStampReference ?? "-"}</Row>
+              <Row label="e-Sign session">{detail.eSignSessionId ?? "-"}</Row>
               <Row label="e-Sign completed">{formatDate(detail.eSignCompletedAt)}</Row>
             </DetailGroup>
             <DetailGroup title="Step audit timeline">
@@ -566,7 +566,7 @@ export function RentAgreementsTab({ accessToken }: Props) {
                     {a.errorCodes.length > 0 && (
                       <span style={{ color: "var(--ad-text-3)" }}>
                         {" "}
-                        — {a.errorCodes.join(", ")}
+                        · {a.errorCodes.join(", ")}
                       </span>
                     )}
                   </div>
