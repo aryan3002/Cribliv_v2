@@ -1,5 +1,16 @@
 import { fetchApi, buildSearchQuery } from "./api";
 
+export type PgLocationSource = "exact" | "locality" | "city";
+
+export interface PgMapPoint {
+  lat: number;
+  lng: number;
+  source: PgLocationSource;
+  label: string;
+  city_slug: string;
+  locality_slug: string | null;
+}
+
 export interface PgCard {
   id: string;
   title: string;
@@ -13,6 +24,8 @@ export interface PgCard {
   food_included: boolean;
   verified: boolean;
   cover_photo: string | null;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface PgSearchResponse {
@@ -30,6 +43,7 @@ export interface PgPublicDetail {
   created_at: string | null;
   city_slug: string | null;
   locality_slug: string | null;
+  location_point: PgMapPoint | null;
   pg_details: {
     total_beds: number | null;
     gender_policy: string | null;
