@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { t, type Locale } from "../lib/i18n";
 import { fetchApi } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
@@ -90,10 +90,21 @@ export function CreditPurchaseDialog({
   const [upiRevealed, setUpiRevealed] = useState(false);
   const [upiIntent, setUpiIntent] = useState<CreditPurchaseIntent | null>(null);
 
+  // Attempt-generation guard: incremented on every open-transition reset and
+  // on every new pay attempt (Razorpay or UPI). The detached async chains
+  // (Checkout handler → confirm → poll, plus their setState calls) capture the
+  // generation they started under and bail silently once it goes stale — so a
+  // previous attempt's poll resolving `captured` after the dialog was closed
+  // and reopened can never stomp a live attempt's state or fire onCaptured
+  // for the wrong plan/order.
+  const attemptGenerationRef = useRef(0);
+  const isStale = (generation: number) => attemptGenerationRef.current !== generation;
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
 
+    attemptGenerationRef.current += 1;
     setStatus("idle");
     setErrorMessage(null);
     setUpiIntent(null);
@@ -144,14 +155,18 @@ export function CreditPurchaseDialog({
   async function handleRazorpaySuccess(
     plan: CreditPlanDto,
     orderId: string,
-    response: RazorpayCheckoutHandlerResponse
+    response: RazorpayCheckoutHandlerResponse,
+    generation: number
   ) {
+    if (isStale(generation)) return;
     setStatus("confirming");
     setErrorMessage(null);
     try {
       await confirmRazorpayPurchase(accessToken, orderId, response);
+      if (isStale(generation)) return;
       setStatus("polling");
       const result = await pollCreditPurchaseStatus({ accessToken, orderId });
+      if (isStale(generation)) return;
 
       if (result.status === "captured") {
         setStatus("captured");
@@ -161,10 +176,11 @@ export function CreditPurchaseDialog({
             headers: { Authorization: `Bearer ${accessToken}` }
           });
           balanceCredits = wallet.balance_credits;
-          setBalance(wallet.balance_credits);
+          if (!isStale(generation)) setBalance(wallet.balance_credits);
         } catch {
           // Best-effort balance refresh — the purchase itself already succeeded.
         }
+        if (isStale(generation)) return;
         if (audience === "owner") {
           trackEvent("lead_pack_purchased", {
             plan_id: plan.plan_id,
@@ -185,6 +201,7 @@ export function CreditPurchaseDialog({
         setStatus("pending_webhook");
       }
     } catch (err) {
+      if (isStale(generation)) return;
       setStatus("failed");
       setErrorMessage(err instanceof Error ? err.message : "Unable to confirm payment");
     }
@@ -194,6 +211,7 @@ export function CreditPurchaseDialog({
     const plan = selectedPlan;
     if (!plan || busy) return;
 
+    const generation = ++attemptGenerationRef.current;
     setErrorMessage(null);
     setStatus("creating_intent");
     try {
@@ -210,6 +228,7 @@ export function CreditPurchaseDialog({
       }
 
       const loaded = await loadRazorpayScript();
+      if (isStale(generation)) return;
       if (!loaded) {
         setUpiRevealed(true);
         setStatus("razorpay_unavailable");
@@ -224,15 +243,16 @@ export function CreditPurchaseDialog({
         description: plan.label,
         order_id: payload.order_id,
         handler: (response) => {
-          void handleRazorpaySuccess(plan, intent.order_id, response);
+          void handleRazorpaySuccess(plan, intent.order_id, response, generation);
         },
         modal: {
           ondismiss: () => {
-            setStatus("cancelled");
+            if (!isStale(generation)) setStatus("cancelled");
           }
         }
       });
     } catch (err) {
+      if (isStale(generation)) return;
       setStatus("failed");
       setErrorMessage(err instanceof Error ? err.message : "Unable to start payment");
     }
@@ -242,6 +262,7 @@ export function CreditPurchaseDialog({
     const plan = selectedPlan;
     if (!plan || busy) return;
 
+    const generation = ++attemptGenerationRef.current;
     setErrorMessage(null);
     setStatus("creating_upi_intent");
     try {
@@ -252,9 +273,11 @@ export function CreditPurchaseDialog({
         "upi",
         idempotencyKey
       );
+      if (isStale(generation)) return;
       setUpiIntent(intent);
       setStatus("upi_ready");
     } catch (err) {
+      if (isStale(generation)) return;
       setStatus("failed");
       setErrorMessage(err instanceof Error ? err.message : "Unable to start UPI payment");
     }
@@ -277,7 +300,7 @@ export function CreditPurchaseDialog({
         : t(locale, "cpFailed");
       break;
     case "razorpay_unavailable":
-      statusMessage = "Couldn't load the payment gateway. Please use UPI instead.";
+      statusMessage = t(locale, "cpGatewayUnavailable");
       break;
     case "creating_intent":
     case "confirming":

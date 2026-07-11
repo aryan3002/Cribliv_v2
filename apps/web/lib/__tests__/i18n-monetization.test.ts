@@ -58,7 +58,8 @@ const KEYS = [
   "cpCaptured",
   "cpFailed",
   "cpRetry",
-  "cpClose"
+  "cpClose",
+  "cpGatewayUnavailable"
 ] as const;
 
 describe("monetization i18n keys", () => {

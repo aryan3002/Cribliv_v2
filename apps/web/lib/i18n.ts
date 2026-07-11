@@ -481,7 +481,11 @@ const dictionary: Dictionary = {
     hi: "भुगतान विफल रहा। कृपया फिर कोशिश करें।"
   },
   cpRetry: { en: "Retry", hi: "फिर कोशिश करें" },
-  cpClose: { en: "Close", hi: "बंद करें" }
+  cpClose: { en: "Close", hi: "बंद करें" },
+  cpGatewayUnavailable: {
+    en: "Couldn't load the payment gateway. Please use UPI instead.",
+    hi: "भुगतान गेटवे लोड नहीं हो सका। कृपया UPI से भुगतान करें।"
+  }
 };
 
 export function t(locale: Locale, key: string): string {

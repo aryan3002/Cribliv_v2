@@ -671,4 +671,108 @@ describe("CreditPurchaseDialog", () => {
     expect(onCaptured).not.toHaveBeenCalled();
     expect(screen.getByTestId("cp-status")).toHaveTextContent(/waiting for confirmation/i);
   });
+
+  it("ignores a stale poll from a previous attempt after the dialog is closed and reopened", async () => {
+    (window as unknown as { Razorpay: unknown }).Razorpay = FakeRazorpay;
+    let statusCalls = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      routeFetch([
+        plansRoute(TENANT_PLANS),
+        walletRoute(1),
+        {
+          match: (url, init) => url.includes("/wallet/purchase-intents") && init?.method === "POST",
+          respond: () =>
+            jsonOk({
+              order_id: "order_stale",
+              amount_paise: 9900,
+              credits_to_grant: 10,
+              provider_payload: {
+                provider: "razorpay",
+                order_id: "order_stale",
+                amount_paise: 9900,
+                currency: "INR",
+                key_id: "rzp_test_xyz"
+              }
+            })
+        },
+        {
+          match: (url, init) => url.includes("/confirm") && init?.method === "POST",
+          respond: () =>
+            jsonOk({ order_id: "order_stale", status: "authorized", credits_to_grant: 10 })
+        },
+        {
+          match: (url, init) =>
+            url.includes("/wallet/purchase-intents/order_stale") &&
+            !url.includes("/confirm") &&
+            (!init?.method || init.method === "GET"),
+          respond: () => {
+            statusCalls += 1;
+            return jsonOk({
+              order_id: "order_stale",
+              // First poll attempt: non-terminal, parking the poll on its
+              // 1000ms delay. Any later attempt: captured — but by then the
+              // dialog has been closed and reopened, so the chain is stale.
+              status: statusCalls === 1 ? "created" : "captured",
+              plan_id: "starter_10",
+              amount_paise: 9900,
+              credits_to_grant: 10,
+              provider: "razorpay"
+            });
+          }
+        }
+      ])
+    );
+
+    const onCaptured = vi.fn();
+    const sharedProps = {
+      accessToken: "tok",
+      locale: "en" as const,
+      audience: "tenant" as const,
+      onClose: vi.fn(),
+      onCaptured
+    };
+    const { rerender } = render(<CreditPurchaseDialog open {...sharedProps} />);
+
+    await screen.findByTestId("cp-plan-starter_10");
+    fireEvent.click(screen.getByTestId("cp-plan-starter_10"));
+    fireEvent.click(screen.getByTestId("cp-pay-razorpay"));
+    await waitFor(() => expect(FakeRazorpay.instances).toHaveLength(1));
+
+    vi.useFakeTimers();
+    try {
+      // Handler fires; confirm resolves; poll attempt 1 sees "created" and
+      // parks on its 1000ms inter-attempt delay.
+      await act(async () => {
+        FakeRazorpay.instances[0].options.handler({
+          razorpay_payment_id: "pay_stale",
+          razorpay_order_id: "order_stale",
+          razorpay_signature: "sig_stale"
+        });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(statusCalls).toBe(1);
+
+      // Close and reopen while the first attempt's poll is still pending.
+      rerender(<CreditPurchaseDialog open={false} {...sharedProps} />);
+      rerender(<CreditPurchaseDialog open {...sharedProps} />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0); // let the reopen plans/wallet fetch settle
+      });
+
+      // The stale poll wakes up and now sees "captured".
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(statusCalls).toBeGreaterThanOrEqual(2);
+    expect(onCaptured).not.toHaveBeenCalled();
+    // The reopened dialog must be back at its idle state, not stomped to
+    // the stale attempt's "captured" status.
+    expect(screen.queryByTestId("cp-status")).not.toBeInTheDocument();
+  });
 });
