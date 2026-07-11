@@ -6,6 +6,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/pg-operator-api", () => ({ segment: mocks.segment }));
+// The component now always calls useRouter() (React hooks must run
+// unconditionally); tests still inject a `router` prop that takes precedence,
+// so this mock just keeps the unconditional call from throwing in jsdom.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import PgSegmentForm from "../PgSegmentForm";
 

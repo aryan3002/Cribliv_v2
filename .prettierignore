@@ -1,0 +1,4 @@
+# Generated/managed files that Prettier must never rewrite.
+# pnpm manages its own lockfile format; letting Prettier touch it corrupts
+# the format and breaks `pnpm install --frozen-lockfile`.
+pnpm-lock.yaml

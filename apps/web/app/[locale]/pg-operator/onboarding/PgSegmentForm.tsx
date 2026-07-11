@@ -10,7 +10,8 @@ export default function PgSegmentForm({
   locale: string;
   router?: ReturnType<typeof useRouter>;
 }) {
-  const router = routerOverride ?? useRouter();
+  const defaultRouter = useRouter();
+  const router = routerOverride ?? defaultRouter;
   const [beds, setBeds] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

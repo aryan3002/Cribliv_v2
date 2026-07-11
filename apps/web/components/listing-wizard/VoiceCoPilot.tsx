@@ -580,7 +580,7 @@ function CaptureFeed({
   return (
     <section className="cz-feed" aria-label="Captured listing details">
       <div className="cz-feed__head">
-        <span className="cz-feed__eyebrow">What we've captured</span>
+        <span className="cz-feed__eyebrow">What we&apos;ve captured</span>
         <span className="cz-feed__count">
           <strong>{filledCount}</strong>
           <span> / {totalCount}</span>
@@ -631,7 +631,7 @@ function CaptureFeed({
           </span>
         </button>
       ) : (
-        <div className="cz-feed__done">Everything's in. Time to review.</div>
+        <div className="cz-feed__done">Everything&apos;s in. Time to review.</div>
       )}
     </section>
   );

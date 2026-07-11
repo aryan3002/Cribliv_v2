@@ -20,12 +20,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      # Lint is currently crash-broken (eslint-config-next@16 / ESLint-9 flat
-      # config vs the legacy apps/web/.eslintrc.json + Next 14). Non-blocking
-      # until the eslint setup is realigned. Tracked follow-up.
-      - name: Lint (non-blocking)
+      - name: Lint
         run: pnpm lint
-        continue-on-error: true
       - run: pnpm test
 
   build:

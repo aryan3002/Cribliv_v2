@@ -518,7 +518,7 @@ function LoginPageInner() {
           initial="hidden"
           animate="show"
         >
-          By continuing, you agree to Cribliv's <a href="/en/terms">Terms</a> and{" "}
+          By continuing, you agree to Cribliv&apos;s <a href="/en/terms">Terms</a> and{" "}
           <a href="/en/privacy">Privacy Policy</a>.
         </motion.p>
       </div>

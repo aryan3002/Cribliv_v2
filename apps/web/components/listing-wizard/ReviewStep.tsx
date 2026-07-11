@@ -20,7 +20,7 @@ export function ReviewStep({ form, uploads, pgPath }: Props) {
       <div className="cz-card__eyebrow">Step 6</div>
       <h2 className="cz-card__title">Review your listing</h2>
       <p className="cz-card__intent">
-        Here's how your listing will appear to tenants. Go back to any step to make changes.
+        Here&apos;s how your listing will appear to tenants. Go back to any step to make changes.
       </p>
 
       <article className="cz-review">
