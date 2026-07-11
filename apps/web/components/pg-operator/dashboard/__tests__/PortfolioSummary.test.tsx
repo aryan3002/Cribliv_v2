@@ -45,12 +45,12 @@ describe("PortfolioSummary", () => {
     expect(screen.getByText("-50%")).toBeTruthy();
   });
 
-  it("shows — when a delta has no baseline (null)", () => {
+  it("shows - when a delta has no baseline (null)", () => {
     render(
       <PortfolioSummary
         portfolio={make({ deltas: { appearances: null, views: null, leads: null } })}
       />
     );
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 });
