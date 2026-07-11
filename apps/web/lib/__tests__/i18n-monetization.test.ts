@@ -45,7 +45,20 @@ const KEYS = [
   "loginBenefitsTitle",
   "loginBenefit1",
   "loginBenefit2",
-  "loginBenefit3"
+  "loginBenefit3",
+  "cpTitle",
+  "cpWalletBalance",
+  "cpUnitPrice",
+  "cpBestValue",
+  "cpPaySecurely",
+  "cpPayWithUpi",
+  "cpLoading",
+  "cpCancelled",
+  "cpPendingWebhook",
+  "cpCaptured",
+  "cpFailed",
+  "cpRetry",
+  "cpClose"
 ] as const;
 
 describe("monetization i18n keys", () => {
@@ -62,5 +75,7 @@ describe("monetization i18n keys", () => {
     expect(t("hi", "cbStepCallOnWay")).toContain("{time}");
     expect(t("en", "cbRefundReassure")).toContain("{n}");
     expect(t("hi", "cbRefundReassure")).toContain("{n}");
+    expect(t("en", "cpUnitPrice")).toContain("{price}");
+    expect(t("hi", "cpUnitPrice")).toContain("{price}");
   });
 });
