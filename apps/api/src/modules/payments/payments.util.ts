@@ -165,10 +165,17 @@ export function canonicalPayload(input: unknown): string {
 function verifyHmacSignature(payload: string, signature: string, secret: string): boolean {
   const expected = createHmac("sha256", secret).update(payload).digest("hex");
   const provided = signature.trim();
-  if (!provided || provided.length !== expected.length) {
+  if (!provided) {
     return false;
   }
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  // timingSafeEqual throws on unequal BYTE lengths; multibyte UTF-8 input can
+  // pass a string-length check while differing in bytes.
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 export function ensureWebhookSignature(input: {
@@ -229,10 +236,17 @@ export function verifyRazorpayCheckoutSignature(input: {
     .update(`${input.orderId}|${input.paymentId}`)
     .digest("hex");
   const provided = input.signature.trim();
-  if (!provided || provided.length !== expected.length) {
+  if (!provided) {
     return false;
   }
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  // timingSafeEqual throws on unequal BYTE lengths; multibyte UTF-8 input can
+  // pass a string-length check while differing in bytes.
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 /**
