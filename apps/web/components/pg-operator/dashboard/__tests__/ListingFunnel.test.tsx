@@ -44,14 +44,14 @@ describe("ListingFunnel", () => {
     expect(screen.getByText("2")).toBeTruthy();
   });
 
-  it("shows — for CTR when there are no appearances (no-data vs true 0%)", () => {
+  it("shows - for CTR when there are no appearances (no-data vs true 0%)", () => {
     render(<ListingFunnel data={make({ search_appearances_7d: 0, ctr_7d: 0 })} />);
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
-  it("shows — for interest rate when there are no views", () => {
+  it("shows - for interest rate when there are no views", () => {
     render(<ListingFunnel data={make({ views_7d: 0, interest_rate_7d: 0 })} />);
-    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
   });
 
   it("renders the trend sparkline without crashing on all-zero data", () => {
