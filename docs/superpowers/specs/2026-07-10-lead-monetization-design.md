@@ -101,7 +101,7 @@ Never say "the owner will call" — the caller may be the Cribliv team.
 - The API already returns `is_new_user` from `POST /auth/otp/verify`; the web discards it. Thread it through NextAuth: `authorize` → JWT → session.
 - On a new user's first landing, show a one-time **WelcomeCreditsModal**: confetti + a credit counter animating 0 → 2.
   - Tenant copy: _"You've got 2 free credits — request callbacks and get a call within 24 hours."_
-  - Owner/pg_operator copy: _"Welcome! Your first 2 tenant leads are free."_
+  - Owner/pg*operator copy: *"Welcome! Your first 2 tenant leads are free."\_
 - Shown exactly once: consumed session flag + `localStorage` guard. No feature flag (it only fires on `is_new_user`).
 - Pre-signup, the same benefit appears on the login page tabs and on every blurred-card overlay.
 - Role changes after signup (tenant → owner) do not re-trigger the celebration.
@@ -235,7 +235,7 @@ Rollout: deploy dark → enable `ff_callback_leads` + `ff_lead_management_enable
 
 1. **Credentials + webhook first:** set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` (or `PAYMENT_WEBHOOK_SECRET`), `RAZORPAY_ORDERS_MODE=live` on the API, and register the webhook URL + events in the Razorpay dashboard, **before** flipping any feature flag. This lets you verify the webhook is reachable (Razorpay's dashboard has a "test webhook" send) with zero user-facing effect, since `ff_credit_purchase_enabled` is still off.
 2. **Then the API flags**, together: `FF_CALLBACK_LEADS=true` + `FF_LEAD_MANAGEMENT_ENABLED=true` + `FF_CREDIT_PURCHASE_ENABLED=true`. **`FF_CREDIT_PURCHASE_ENABLED` must flip in the same step as `FF_CALLBACK_LEADS`** — purchase-intent creation 403s while it's off (`readFeatureFlags().ff_credit_purchase_enabled` gate in the wallet module), so enabling callback leads without it stands up locked leads with no way to buy unlock credits.
-3. **Then the web flags**, together: `NEXT_PUBLIC_FF_CALLBACK_LEADS=true` + `NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED=true`. Same pairing rule applies client-side — `NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED` gates `LeadCreditBalanceBar` and the buy-credits recovery panel inside `LeadMonetizationControls`; without it, a locked lead's `402 insufficient_credits` has no purchase surface to recover through.
+3. **Then the web flags**, together: `NEXT_PUBLIC_FF_CALLBACK_LEADS=true` + `NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED=true`. Same pairing rule applies client-side — `NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED` gates only `LeadCreditBalanceBar` (the persistent upsell strip). The buy-credits recovery panels (`LeadMonetizationControls` → `LeadCreditsPanel`, and the tenant panel's dialog) render on any `402 insufficient_credits` regardless of the web flag — they depend on the API's `FF_CREDIT_PURCHASE_ENABLED`, and error if it is off. This is why the web flag must never be flipped ahead of (or via PostHog without) the API flag.
 4. `NEXT_PUBLIC_FF_GUEST_GATING` (Slice 2) is an independent flag — its rollout timing (after a Search Console baseline) is unaffected by this sequence.
 
 ### Verification before flip
