@@ -19,6 +19,8 @@ import type {
   AdminLeadCounters,
   AdminLeadEngagementFunnel,
   AdminLeadFunnel,
+  AdminLeadOwnerDetail,
+  AdminLeadOwnerFunnel,
   AdminLeadOwnerRollupRow,
   AdminLeadRates,
   AdminLeadTimelineEvent,
@@ -98,6 +100,25 @@ interface OwnerRefundSqlRow {
   refunded: number;
 }
 
+/** Row shape of the owner header lookup in {@link AdminLeadOpsService.getOwnerDetail}. */
+interface OwnerHeaderSqlRow {
+  full_name: string | null;
+  phone_e164: string | null;
+  role: "owner" | "pg_operator";
+}
+
+/** Row shape of the per-owner status-count funnel query (same grouping as LeadsService.getLeadStats). */
+interface OwnerFunnelSqlRow {
+  status: string;
+  count: number | string;
+}
+
+/** Row shape of getOwnerDetail's single-owner refund-rate companion query (same join as OwnerRefundSqlRow, pre-filtered to one owner so no owner_user_id column is selected). */
+interface OwnerRefundTotalsSqlRow {
+  unlocks: number | string;
+  refunded: number | string;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const ANALYTICS_RANGES = ["7 days", "30 days", "90 days"];
@@ -134,6 +155,15 @@ const EMPTY_RATES: AdminLeadRates = {
   team_rescue_rate: 0,
   refund_rate: 0,
   dispute_rate: 0
+};
+
+const EMPTY_OWNER_FUNNEL: AdminLeadOwnerFunnel = {
+  new: 0,
+  contacted: 0,
+  visit_scheduled: 0,
+  deal_done: 0,
+  lost: 0,
+  total: 0
 };
 
 function maskPhone(phone: string | null): string {
@@ -745,6 +775,118 @@ export class AdminLeadOpsService {
       rates,
       trend: trendResult.rows,
       by_owner
+    };
+  }
+
+  /**
+   * Admin per-owner lead drill-down: owner header (name/role/masked phone +
+   * health via ownerHealthByIds), a per-owner status funnel (the same
+   * grouped-count shape as LeadsService.getLeadStats), owner-scoped rates
+   * (getAnalytics's rates query plus its refund-rate companion query, both
+   * with an owner_user_id filter added), and up to 100 in-flight
+   * (needs_call) leads for this owner via getBoard, which already attaches
+   * per-row health. 404s when the owner id doesn't resolve to a user row —
+   * including when the DB is disabled, since there's no in-memory owner
+   * store to confirm existence against (same "no AppStateService fallback"
+   * convention getAnalytics already established for this file).
+   */
+  async getOwnerDetail(ownerId: string, range: string): Promise<AdminLeadOwnerDetail> {
+    this.ensureEnabled();
+    const safeRange = ANALYTICS_RANGES.includes(range) ? range : "30 days";
+
+    if (!this.database.isEnabled()) {
+      throw new NotFoundException({ code: "not_found", message: "Owner not found" });
+    }
+
+    const ownerResult = await this.database.query<OwnerHeaderSqlRow>(
+      `SELECT full_name, phone_e164, role::text AS role FROM users WHERE id = $1::uuid`,
+      [ownerId]
+    );
+    const ownerRow = ownerResult.rows[0];
+    if (!ownerRow) {
+      throw new NotFoundException({ code: "not_found", message: "Owner not found" });
+    }
+
+    const [funnelResult, ratesResult, refundResult, health, board] = await Promise.all([
+      this.database.query<OwnerFunnelSqlRow>(
+        `SELECT status::text, count(*)::int AS count
+         FROM leads WHERE owner_user_id = $1::uuid GROUP BY status`,
+        [ownerId]
+      ),
+      this.database.query<RatesSqlRow>(
+        `SELECT
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (called_at - created_at))/60)
+             FILTER (WHERE called_at IS NOT NULL) AS median_response_minutes,
+           COALESCE(avg(CASE WHEN called_at IS NOT NULL THEN 1 ELSE 0 END)
+             FILTER (WHERE call_deadline_at IS NOT NULL), 0)::float AS called_within_24h_rate,
+           COALESCE(avg(CASE WHEN called_by='team' THEN 1 ELSE 0 END) FILTER (WHERE called_at IS NOT NULL), 0)::float AS team_rescue_rate,
+           COALESCE(avg(CASE WHEN disputed_at IS NOT NULL THEN 1 ELSE 0 END) FILTER (WHERE called_at IS NOT NULL), 0)::float AS dispute_rate
+         FROM leads WHERE created_at >= now() - $1::interval AND owner_user_id = $2::uuid`,
+        [safeRange, ownerId]
+      ),
+      // Owner-scoped refund-rate companion — same join as getAnalytics's
+      // by_owner rollup (contact_unlocks has no owner_user_id of its own,
+      // only leads does), just pre-filtered to this one owner.
+      this.database.query<OwnerRefundTotalsSqlRow>(
+        `SELECT count(cu.id)::int AS unlocks,
+                count(*) FILTER (WHERE cu.unlock_status='refunded')::int AS refunded
+         FROM leads ld
+         JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id
+         WHERE ld.created_at >= now() - $1::interval AND ld.owner_user_id = $2::uuid`,
+        [safeRange, ownerId]
+      ),
+      this.ownerHealthByIds([ownerId]),
+      this.getBoard({ filter: "needs_call", ownerId, pageSize: 100 })
+    ]);
+
+    const funnel: AdminLeadOwnerFunnel = { ...EMPTY_OWNER_FUNNEL };
+    for (const row of funnelResult.rows) {
+      const count = Number(row.count ?? 0);
+      switch (row.status) {
+        case "new":
+          funnel.new = count;
+          break;
+        case "contacted":
+          funnel.contacted = count;
+          break;
+        case "visit_scheduled":
+          funnel.visit_scheduled = count;
+          break;
+        case "deal_done":
+          funnel.deal_done = count;
+          break;
+        case "lost":
+          funnel.lost = count;
+          break;
+      }
+      funnel.total += count;
+    }
+
+    const ratesRow = ratesResult.rows[0];
+    const refundRow = refundResult.rows[0];
+    const unlocks = Number(refundRow?.unlocks ?? 0);
+    const refunded = Number(refundRow?.refunded ?? 0);
+    const rates: AdminLeadRates = {
+      median_response_minutes:
+        ratesRow?.median_response_minutes == null ? null : Number(ratesRow.median_response_minutes),
+      called_within_24h_rate: Number(ratesRow?.called_within_24h_rate ?? 0),
+      team_rescue_rate: Number(ratesRow?.team_rescue_rate ?? 0),
+      refund_rate: unlocks > 0 ? refunded / unlocks : 0,
+      dispute_rate: Number(ratesRow?.dispute_rate ?? 0)
+    };
+
+    const h = health.get(ownerId);
+
+    return {
+      owner_user_id: ownerId,
+      name: ownerRow.full_name ?? "Owner",
+      role: ownerRow.role,
+      phone_masked: maskPhone(ownerRow.phone_e164),
+      health_score: h?.score ?? null,
+      health_grade: h?.grade ?? null,
+      funnel,
+      rates,
+      in_flight: board.rows
     };
   }
 }

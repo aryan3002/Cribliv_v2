@@ -53,6 +53,11 @@ export class AdminLeadsController {
     return ok(await this.ops.getAnalytics(range ?? "30 days"));
   }
 
+  @Get("by-owner/:id")
+  async byOwner(@Param("id") ownerId: string, @Query("range") range?: string) {
+    return ok(await this.ops.getOwnerDetail(ownerId, range ?? "30 days"));
+  }
+
   @Get(":id/timeline")
   async timeline(@Param("id") leadId: string) {
     return ok(await this.ops.getTimeline(leadId));

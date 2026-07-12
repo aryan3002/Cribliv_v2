@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { NotFoundException } from "@nestjs/common";
 import { Pool } from "pg";
 import { DatabaseService } from "../src/common/database.service";
 import { AdminLeadOpsService } from "../src/modules/leads/admin-lead-ops.service";
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 
-describe.runIf(!!TEST_DB)("AdminLeadOpsService.getAnalytics (DB)", () => {
+describe.runIf(!!TEST_DB)("AdminLeadOpsService.getAnalytics + getOwnerDetail (DB)", () => {
   let pool: Pool;
   let db: DatabaseService;
   let svc: AdminLeadOpsService;
   let ownerId: string;
+  let ownerPhone: string;
   let tenant1Id: string;
   let tenant2Id: string;
   let listingId: string;
@@ -24,10 +26,11 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getAnalytics (DB)", () => {
 
     const suffix = String(Math.floor(Math.random() * 1e8)).padStart(8, "0");
     sessionId = `analytics-test-${suffix}`;
+    ownerPhone = `+9197${suffix}`;
 
     const owner = await pool.query<{ id: string }>(
       `INSERT INTO users (phone_e164, role, full_name) VALUES ($1, 'owner', 'Analytics Owner') RETURNING id::text`,
-      [`+9197${suffix}`]
+      [ownerPhone]
     );
     ownerId = owner.rows[0].id;
 
@@ -149,5 +152,38 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getAnalytics (DB)", () => {
   it("defaults an out-of-allowlist range to 30 days", async () => {
     const res = await svc.getAnalytics("garbage");
     expect(res.range).toBe("30 days");
+  });
+
+  it("returns the owner header, funnel, rates, and in-flight leads for getOwnerDetail", async () => {
+    const res = await svc.getOwnerDetail(ownerId, "30 days");
+
+    expect(res.owner_user_id).toBe(ownerId);
+    expect(res.name).toBe("Analytics Owner");
+    expect(res.role).toBe("owner");
+    expect(res.phone_masked).not.toBe(ownerPhone);
+    expect(res.phone_masked.endsWith(ownerPhone.slice(-4))).toBe(true);
+
+    expect(res.funnel.total).toBeGreaterThanOrEqual(1);
+    expect(
+      res.funnel.new +
+        res.funnel.contacted +
+        res.funnel.visit_scheduled +
+        res.funnel.deal_done +
+        res.funnel.lost
+    ).toBe(res.funnel.total);
+
+    expect(res.rates).toBeTruthy();
+    expect(typeof res.rates.called_within_24h_rate).toBe("number");
+    expect(typeof res.rates.team_rescue_rate).toBe("number");
+    expect(typeof res.rates.refund_rate).toBe("number");
+    expect(typeof res.rates.dispute_rate).toBe("number");
+
+    expect(Array.isArray(res.in_flight)).toBe(true);
+  });
+
+  it("404s getOwnerDetail for an owner id that doesn't exist", async () => {
+    await expect(
+      svc.getOwnerDetail("00000000-0000-0000-0000-000000000000", "30 days")
+    ).rejects.toThrow(NotFoundException);
   });
 });
