@@ -11,9 +11,41 @@ const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? "DEMO_MAP_ID";
 
 let mapsReady: Promise<void> | null = null;
 
+// Google signals an auth/authorization failure (e.g. RefererNotAllowedMapError,
+// InvalidKeyMapError, billing/quota) NOT by rejecting the loader promise but by
+// invoking the global `window.gm_authFailure` and painting its own raw
+// "Sorry! Something went wrong" overlay into the map div. Without a handler the
+// app can't detect this, so on origins missing from the key's referrer allowlist
+// (notably real mobile devices hitting the deployed domain) users see Google's
+// ugly overlay instead of our styled fallback. Track the failure so map
+// components can fall back gracefully.
+let mapsAuthFailed = false;
+const authFailureSubscribers = new Set<() => void>();
+
+function markMapsAuthFailed() {
+  if (mapsAuthFailed) return;
+  mapsAuthFailed = true;
+  for (const cb of authFailureSubscribers) cb();
+}
+
+export function mapsAuthHasFailed(): boolean {
+  return mapsAuthFailed;
+}
+
+export function subscribeMapsAuthFailure(cb: () => void): () => void {
+  authFailureSubscribers.add(cb);
+  return () => {
+    authFailureSubscribers.delete(cb);
+  };
+}
+
 function ensureMapsLoaded(): Promise<void> {
   if (!API_KEY) return Promise.resolve();
   if (!mapsReady) {
+    // Must be registered before the Maps script executes so Google can call it.
+    if (typeof window !== "undefined") {
+      (window as unknown as { gm_authFailure?: () => void }).gm_authFailure = markMapsAuthFailed;
+    }
     setOptions({ key: API_KEY, v: "weekly" });
     mapsReady = Promise.all([
       importLibrary("maps"),

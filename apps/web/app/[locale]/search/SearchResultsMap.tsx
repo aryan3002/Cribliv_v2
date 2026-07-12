@@ -4,7 +4,12 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, MapPin, Navigation, ShieldCheck } from "lucide-react";
-import { ensureMapsLoaded, API_KEY } from "../../../lib/google-maps";
+import {
+  ensureMapsLoaded,
+  API_KEY,
+  mapsAuthHasFailed,
+  subscribeMapsAuthFailure
+} from "../../../lib/google-maps";
 import { CITY_BBOXES, cityCentroid } from "../../../lib/city-bboxes";
 import { listingHref } from "../../../lib/listing-href";
 
@@ -88,6 +93,17 @@ export function SearchResultsMap({ locale, city, listings, mapHref }: SearchResu
   const markersRef = useRef<google.maps.Marker[]>([]);
   const [activeId, setActiveId] = useState<string | null>(listings[0]?.id ?? null);
   const [mapFailed, setMapFailed] = useState(false);
+
+  // Google paints its own "Sorry! Something went wrong" overlay on an auth /
+  // referrer failure without rejecting the loader promise. Treat that as a map
+  // failure so we render the styled fallback instead of Google's raw error.
+  useEffect(() => {
+    if (mapsAuthHasFailed()) {
+      setMapFailed(true);
+      return;
+    }
+    return subscribeMapsAuthFailure(() => setMapFailed(true));
+  }, []);
 
   const mappedListings = useMemo(
     () =>

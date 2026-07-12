@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { IntentClassifierService } from "../ai/intent-classifier.service";
@@ -203,6 +203,7 @@ type SearchPreview = {
 
 @Injectable()
 export class SearchService {
+  private readonly logger = new Logger(SearchService.name);
   private readonly photoPublicBaseUrl = this.resolvePhotoPublicBaseUrl();
 
   // Tiny LRU-ish cache for typeahead. Hot prefixes ("delhi", "lucknow",
@@ -599,36 +600,37 @@ export class SearchService {
         ${query.locality ? "LEFT JOIN localities loc ON loc.id = ll.locality_id" : ""}
         ${pgJoinSql}`;
 
-      const countResult = await this.database.query<{ total: number }>(
-        `
+      try {
+        const countResult = await this.database.query<{ total: number }>(
+          `
         SELECT count(*)::int AS total
         ${countFromSql}
         WHERE ${where}
         `,
-        params
-      );
+          params
+        );
 
-      const resultParams = [...params, pageSize, offset];
-      const rows = await this.database.query<{
-        id: string;
-        title: string;
-        city: string;
-        city_name: string;
-        locality: string | null;
-        lat: number | null;
-        lng: number | null;
-        listing_type: "flat_house" | "pg";
-        monthly_rent: number;
-        bhk: number | null;
-        furnishing: string | null;
-        area_sqft: number | null;
-        verification_status: "unverified" | "pending" | "verified" | "failed";
-        created_at: string;
-        photo_count: number;
-        cover_photo: string | null;
-        composite_score: number | null;
-      }>(
-        `
+        const resultParams = [...params, pageSize, offset];
+        const rows = await this.database.query<{
+          id: string;
+          title: string;
+          city: string;
+          city_name: string;
+          locality: string | null;
+          lat: number | null;
+          lng: number | null;
+          listing_type: "flat_house" | "pg";
+          monthly_rent: number;
+          bhk: number | null;
+          furnishing: string | null;
+          area_sqft: number | null;
+          verification_status: "unverified" | "pending" | "verified" | "failed";
+          created_at: string;
+          photo_count: number;
+          cover_photo: string | null;
+          composite_score: number | null;
+        }>(
+          `
         SELECT
           l.id::text,
           COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'Listing') AS title,
@@ -658,60 +660,70 @@ export class SearchService {
         LIMIT $${resultParams.length - 1}
         OFFSET $${resultParams.length}
         `,
-        resultParams
-      );
+          resultParams
+        );
 
-      const now = Date.now();
+        const now = Date.now();
 
-      const items = rows.rows.map((row) => {
-        let score: number;
+        const items = rows.rows.map((row) => {
+          let score: number;
 
-        if (row.composite_score != null) {
-          score = row.composite_score;
-        } else {
-          const createdAt = new Date(row.created_at).getTime();
-          const freshness = Math.max(0, 1 - (now - createdAt) / (1000 * 60 * 60 * 24 * 30));
-          const verification =
-            row.verification_status === "verified"
-              ? 1
-              : row.verification_status === "pending"
-                ? 0.5
-                : 0;
-          const photoQuality = Math.min((row.photo_count ?? 0) / 6, 1);
-          score =
-            0.3 * verification +
-            0.2 * freshness +
-            0.2 * photoQuality +
-            0.15 * 0.7 +
-            0.1 * 0.8 +
-            0.05 * 0.5;
-        }
+          if (row.composite_score != null) {
+            score = row.composite_score;
+          } else {
+            const createdAt = new Date(row.created_at).getTime();
+            const freshness = Math.max(0, 1 - (now - createdAt) / (1000 * 60 * 60 * 24 * 30));
+            const verification =
+              row.verification_status === "verified"
+                ? 1
+                : row.verification_status === "pending"
+                  ? 0.5
+                  : 0;
+            const photoQuality = Math.min((row.photo_count ?? 0) / 6, 1);
+            score =
+              0.3 * verification +
+              0.2 * freshness +
+              0.2 * photoQuality +
+              0.15 * 0.7 +
+              0.1 * 0.8 +
+              0.05 * 0.5;
+          }
+
+          return {
+            id: row.id,
+            title: row.title,
+            city: row.city,
+            city_name: row.city_name,
+            locality: row.locality,
+            lat: row.lat,
+            lng: row.lng,
+            listing_type: row.listing_type,
+            monthly_rent: row.monthly_rent,
+            bhk: row.bhk,
+            furnishing: row.furnishing,
+            area_sqft: row.area_sqft,
+            verification_status: row.verification_status,
+            cover_photo: this.toPhotoUrl(row.cover_photo),
+            score: Number(score.toFixed(4))
+          };
+        });
 
         return {
-          id: row.id,
-          title: row.title,
-          city: row.city,
-          city_name: row.city_name,
-          locality: row.locality,
-          lat: row.lat,
-          lng: row.lng,
-          listing_type: row.listing_type,
-          monthly_rent: row.monthly_rent,
-          bhk: row.bhk,
-          furnishing: row.furnishing,
-          area_sqft: row.area_sqft,
-          verification_status: row.verification_status,
-          cover_photo: this.toPhotoUrl(row.cover_photo),
-          score: Number(score.toFixed(4))
+          items,
+          total: Number(countResult.rows[0]?.total ?? 0),
+          page,
+          page_size: pageSize
         };
-      });
-
-      return {
-        items,
-        total: Number(countResult.rows[0]?.total ?? 0),
-        page,
-        page_size: pageSize
-      };
+      } catch (err) {
+        // A failed query (bad param, pool exhaustion, schema drift) must degrade
+        // to an empty result set — never bubble up as an HTTP 500 that the web
+        // surfaces as a raw error page or the client error boundary (mobile QA
+        // bug report, issues 2 & 3).
+        this.logger.error(
+          `searchListings query failed: ${err instanceof Error ? err.message : err}`
+        );
+        return { items: [], total: 0, page, page_size: pageSize };
+      }
     }
 
     // In-memory fallback when DB is not available (used by integration tests/local fallback mode).

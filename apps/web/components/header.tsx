@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   BarChart3,
   Building2,
@@ -27,8 +28,22 @@ const pgIcons = [LayoutDashboard, BarChart3, Building2, UsersRound];
 export function Header({ locale }: { locale: Locale }) {
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const role = session?.user?.role;
   const isPgOperatorRoute = pathname?.startsWith(`/${locale}/pg-operator`) ?? false;
   const pgLinks = getPgDashboardLinks(locale);
+
+  // Role-aware "Post Property" target. Only owners / pg-operators can reach the
+  // listing flow; sending anyone else (tenants, admins, guests) to an owner-only
+  // route just dead-ends them at /403. Route non-hosts to the become-owner funnel
+  // instead so the "+" always leads somewhere actionable.
+  const isPgOperatorHost = role === "pg_operator" || isPgOperatorRoute;
+  const hostLinkHref = isPgOperatorHost
+    ? `/${locale}/pg-operator/listings/new`
+    : role === "owner"
+      ? `/${locale}/owner/dashboard`
+      : `/${locale}/become-owner`;
+  const hostLinkLabel = isPgOperatorHost ? "New listing" : t(locale, "navPostProperty");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -123,17 +138,9 @@ export function Header({ locale }: { locale: Locale }) {
 
         {/* ── Right: Actions ──────────────────────────────────────── */}
         <div className="nav-actions">
-          <Link
-            href={
-              isPgOperatorRoute
-                ? `/${locale}/pg-operator/listings/new`
-                : `/${locale}/owner/dashboard`
-            }
-            className="nav-host-link"
-            title={isPgOperatorRoute ? "New listing" : t(locale, "navPostProperty")}
-          >
+          <Link href={hostLinkHref} className="nav-host-link" title={hostLinkLabel}>
             <Plus size={14} aria-hidden="true" />
-            <span>{isPgOperatorRoute ? "New listing" : t(locale, "navPostProperty")}</span>
+            <span>{hostLinkLabel}</span>
           </Link>
 
           <Link

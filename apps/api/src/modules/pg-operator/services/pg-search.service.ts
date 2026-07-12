@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { DatabaseService } from "../../../common/database.service";
 import { readFeatureFlags } from "../../../config/feature-flags";
 import { BoundedTtlCache } from "./bounded-ttl-cache";
@@ -81,6 +81,7 @@ interface PgSearchRow {
  */
 @Injectable()
 export class PgSearchService {
+  private readonly logger = new Logger(PgSearchService.name);
   private readonly photoBase = (process.env.PHOTO_PUBLIC_BASE_URL ?? "").trim().replace(/\/+$/, "");
 
   // PERF-H6: short-TTL, bounded cache for the public read surface (typeahead/
@@ -197,21 +198,22 @@ export class PgSearchService {
           ? "l.monthly_rent ASC NULLS LAST, l.created_at DESC"
           : relevance;
 
-    const countResult = await this.db.query<{ total: number }>(
-      `SELECT count(*)::int AS total
+    try {
+      const countResult = await this.db.query<{ total: number }>(
+        `SELECT count(*)::int AS total
        FROM listings l
        JOIN listing_locations ll ON ll.listing_id = l.id
        JOIN cities c ON c.id = ll.city_id
        LEFT JOIN localities loc ON loc.id = ll.locality_id
        JOIN pg_details pgd ON pgd.listing_id = l.id
        WHERE ${where}`,
-      params
-    );
+        params
+      );
 
-    const offset = (page - 1) * pageSize;
-    const rowParams = [...params, pageSize, offset];
-    const rows = await this.db.query<PgSearchRow>(
-      `SELECT
+      const offset = (page - 1) * pageSize;
+      const rowParams = [...params, pageSize, offset];
+      const rows = await this.db.query<PgSearchRow>(
+        `SELECT
          l.id::text AS id,
          COALESCE(NULLIF(l.title_en,''), NULLIF(l.title_hi,''), 'PG') AS title,
          c.slug AS city,
@@ -234,30 +236,37 @@ export class PgSearchService {
        WHERE ${where}
        ORDER BY ${orderBy}
        LIMIT $${rowParams.length - 1} OFFSET $${rowParams.length}`,
-      rowParams
-    );
+        rowParams
+      );
 
-    return {
-      items: rows.rows.map((r) => ({
-        id: r.id,
-        title: r.title,
-        city: r.city,
-        city_name: r.city_name,
-        locality: r.locality,
-        listing_type: "pg" as const,
-        starting_rent: r.starting_rent == null ? null : Number(r.starting_rent),
-        sharing_options: r.sharing_options ?? [],
-        gender_policy: r.gender_policy,
-        food_included: Boolean(r.food_included),
-        verified: r.verification_status === "verified",
-        cover_photo: this.toPhotoUrl(r.cover_photo),
-        lat: r.lat ?? null,
-        lng: r.lng ?? null
-      })),
-      total: Number(countResult.rows[0]?.total ?? 0),
-      page,
-      page_size: pageSize
-    };
+      return {
+        items: rows.rows.map((r) => ({
+          id: r.id,
+          title: r.title,
+          city: r.city,
+          city_name: r.city_name,
+          locality: r.locality,
+          listing_type: "pg" as const,
+          starting_rent: r.starting_rent == null ? null : Number(r.starting_rent),
+          sharing_options: r.sharing_options ?? [],
+          gender_policy: r.gender_policy,
+          food_included: Boolean(r.food_included),
+          verified: r.verification_status === "verified",
+          cover_photo: this.toPhotoUrl(r.cover_photo),
+          lat: r.lat ?? null,
+          lng: r.lng ?? null
+        })),
+        total: Number(countResult.rows[0]?.total ?? 0),
+        page,
+        page_size: pageSize
+      };
+    } catch (err) {
+      // Degrade a failed PG search query to an empty page instead of a 500 that
+      // the web would surface as a raw error / error boundary (mobile QA report,
+      // issues 2 & 3).
+      this.logger.error(`PG runSearch query failed: ${err instanceof Error ? err.message : err}`);
+      return { items: [], total: 0, page, page_size: pageSize };
+    }
   }
 
   /**

@@ -2,6 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
 let pathname = "/en";
+// Header now reads the session to gate the "+" CTA by role (owner/pg-operator
+// vs. everyone-else → become-owner). Default to a logged-out session; the CTA on
+// pg-operator routes is driven by the pathname, so these assertions hold.
+const sessionState: { status: string; data: unknown } = {
+  status: "unauthenticated",
+  data: null
+};
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => sessionState
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname

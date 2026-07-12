@@ -160,7 +160,8 @@ export default async function ListingDetailPage({
 }) {
   const locale: Locale = isValidLocale(params.locale) ? params.locale : "en";
   const sourceRef = blogRef(searchParams?.ref);
-  const session = await auth();
+  // Never let a session-decode failure 500 the public listing page.
+  const session = await auth().catch(() => null);
   const isGuest = !session?.user?.id;
   const payload = await fetchListing(params.listingId, sourceRef);
 
@@ -611,7 +612,7 @@ export default async function ListingDetailPage({
 
               {summaryLine && <div className="detail-rail__summary">{summaryLine}</div>}
 
-              <div className="detail-rail__panel">
+              <div className="detail-rail__panel" id="unlock-panel">
                 <UnlockContactPanel
                   listingId={params.listingId}
                   locale={locale}
@@ -651,7 +652,7 @@ export default async function ListingDetailPage({
             </div>
           )}
         </div>
-        <a href="#main-content" className="btn btn--primary btn--sm">
+        <a href="#unlock-panel" className="btn btn--primary btn--sm">
           View Contact
         </a>
       </div>
