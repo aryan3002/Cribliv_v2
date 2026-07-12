@@ -35,6 +35,7 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
   let operatorId: string;
   let otherOperatorId: string;
   let adminId: string;
+  let manageRequests: PgManageRequestService;
 
   const testRunId = randomUUID();
   const userIds: string[] = [];
@@ -65,6 +66,37 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
       [listingId, operatorUserId, propertyId, title]
     );
     return { listingId, propertyId };
+  }
+
+  async function waitForOperationToBlockOnListingLock(operation: Promise<unknown>): Promise<void> {
+    let settled = false;
+    void operation.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      }
+    );
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const waiting = await db.query<{ is_waiting: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1
+             FROM pg_stat_activity
+            WHERE pid <> pg_backend_pid()
+              AND wait_event_type = 'Lock'
+              AND query LIKE '%pg_listings%'
+         ) AS is_waiting`
+      );
+      if (waiting.rows[0].is_waiting) return;
+      if (settled) {
+        throw new Error("operation completed without waiting for the listing lock");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    throw new Error("operation did not wait for the listing lock");
   }
 
   beforeAll(async () => {
@@ -115,6 +147,7 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix("v1");
     await app.init();
+    manageRequests = app.get(PgManageRequestService);
   }, 30_000);
 
   afterAll(async () => {
@@ -201,6 +234,37 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
       .send({ reason: "Retry" })
       .expect(409);
     expect(duplicate.body.code).toBe("manage_request_exists");
+  });
+
+  it("serializes approval and later creation on the listing row", async () => {
+    const { listingId } = await createListing(operatorId, "Serialized approval listing");
+    const pending = await manageRequests.create(operatorId, listingId, "Please manage this PG");
+    const lockClient = await db.getClient();
+
+    try {
+      await lockClient.query("BEGIN");
+      await lockClient.query(`SELECT id FROM pg_listings WHERE id = $1::uuid FOR UPDATE`, [
+        listingId
+      ]);
+
+      const approval = manageRequests.approve(adminId, pending.id, "Approved for operations");
+      await waitForOperationToBlockOnListingLock(approval);
+      await lockClient.query("COMMIT");
+      await expect(approval).resolves.toMatchObject({ id: pending.id, status: "approved" });
+
+      await lockClient.query("BEGIN");
+      await lockClient.query(`SELECT id FROM pg_listings WHERE id = $1::uuid FOR UPDATE`, [
+        listingId
+      ]);
+
+      const creation = manageRequests.create(operatorId, listingId, "Retry after approval");
+      await waitForOperationToBlockOnListingLock(creation);
+      await lockClient.query("COMMIT");
+      await expect(creation).rejects.toMatchObject({ response: { code: "manage_request_exists" } });
+    } finally {
+      await lockClient.query("ROLLBACK").catch(() => undefined);
+      lockClient.release();
+    }
   });
 
   it("approves atomically and keeps the approved request authoritative", async () => {

@@ -62,50 +62,57 @@ export class PgManageRequestService {
   async create(operatorId: string, listingId: string, reason?: string): Promise<PgManageRequest> {
     this.requireDatabase();
 
-    const listing = await this.db.query<{
-      operator_user_id: string;
-      pg_property_id: string | null;
-    }>(
-      `SELECT operator_user_id::text, pg_property_id::text
-         FROM pg_listings
-        WHERE id = $1::uuid
-        LIMIT 1`,
-      [listingId]
-    );
-    const listingRow = listing.rows[0];
-    if (!listingRow || listingRow.operator_user_id !== operatorId) {
-      throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
-    }
-    if (!listingRow.pg_property_id) {
-      throw new ConflictException({ code: "manage_request_property_required" });
-    }
-
-    const approved = await this.db.query<{ id: string }>(
-      `SELECT id::text
-         FROM pg_manage_requests
-        WHERE listing_id = $1::uuid
-          AND status = 'approved'
-        LIMIT 1`,
-      [listingId]
-    );
-    if (approved.rows[0]) {
-      throw new ConflictException({ code: "manage_request_exists" });
-    }
-
+    const client = await this.db.getClient();
     try {
-      const inserted = await this.db.query<RequestRow>(
+      await client.query("BEGIN");
+      const listing = await client.query<{
+        operator_user_id: string;
+        pg_property_id: string | null;
+      }>(
+        `SELECT operator_user_id::text, pg_property_id::text
+           FROM pg_listings
+          WHERE id = $1::uuid
+          LIMIT 1
+          FOR UPDATE`,
+        [listingId]
+      );
+      const listingRow = listing.rows[0];
+      if (!listingRow || listingRow.operator_user_id !== operatorId) {
+        throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+      }
+      if (!listingRow.pg_property_id) {
+        throw new ConflictException({ code: "manage_request_property_required" });
+      }
+
+      const approved = await client.query<{ id: string }>(
+        `SELECT id::text
+           FROM pg_manage_requests
+          WHERE listing_id = $1::uuid
+            AND status = 'approved'
+          LIMIT 1`,
+        [listingId]
+      );
+      if (approved.rows[0]) {
+        throw new ConflictException({ code: "manage_request_exists" });
+      }
+
+      const inserted = await client.query<RequestRow>(
         `INSERT INTO pg_manage_requests
            (listing_id, pg_property_id, operator_user_id, status, requested_reason)
          VALUES ($1::uuid, $2::uuid, $3::uuid, 'pending', $4)
          RETURNING *`,
         [listingId, listingRow.pg_property_id, operatorId, reason?.trim() || null]
       );
+      await client.query("COMMIT");
       return toManageRequest(inserted.rows[0]);
     } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
       if ((error as { code?: string }).code === "23505") {
         throw new ConflictException({ code: "manage_request_exists" });
       }
       throw error;
+    } finally {
+      client.release();
     }
   }
 
@@ -169,7 +176,11 @@ export class PgManageRequestService {
     try {
       await client.query("BEGIN");
       const existing = await client.query<RequestRow>(
-        `SELECT * FROM pg_manage_requests WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT r.*
+           FROM pg_manage_requests r
+           JOIN pg_listings l ON l.id = r.listing_id
+          WHERE r.id = $1::uuid
+          FOR UPDATE OF r, l`,
         [requestId]
       );
       const request = existing.rows[0];
