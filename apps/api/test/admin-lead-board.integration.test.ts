@@ -18,7 +18,7 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getBoard (DB)", () => {
     process.env.FF_ADMIN_LEAD_CENTER = "true";
     pool = new Pool({ connectionString: TEST_DB! });
     db = new DatabaseService();
-    svc = new AdminLeadOpsService(db);
+    svc = new AdminLeadOpsService(db, { send: async () => true } as any);
 
     const suffix = String(Math.floor(Math.random() * 1e8)).padStart(8, "0");
     const owner = await pool.query<{ id: string }>(

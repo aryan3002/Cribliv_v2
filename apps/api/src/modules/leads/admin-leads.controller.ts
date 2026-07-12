@@ -68,4 +68,9 @@ export class AdminLeadsController {
       await this.ops.refundLead(leadId, req.user.id, body?.reason ?? "admin manual refund")
     );
   }
+
+  @Post(":id/nudge-owner")
+  async nudge(@Param("id") leadId: string, @Req() req: { user: { id: string } }) {
+    return ok(await this.ops.nudgeOwner(leadId, req.user.id));
+  }
 }

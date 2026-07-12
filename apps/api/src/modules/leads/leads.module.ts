@@ -3,8 +3,10 @@ import { LeadsController } from "./leads.controller";
 import { AdminLeadsController } from "./admin-leads.controller";
 import { LeadsService } from "./leads.service";
 import { AdminLeadOpsService } from "./admin-lead-ops.service";
+import { NotificationsModule } from "../notifications/notifications.module";
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [LeadsController, AdminLeadsController],
   providers: [LeadsService, AdminLeadOpsService],
   exports: [LeadsService, AdminLeadOpsService]

@@ -18,6 +18,7 @@ export type NotificationType =
   | "owner.listing_rejected"
   | "owner.listing_paused"
   | "owner.listing_submitted"
+  | "owner.lead_nudge"
   | "tenant.contact_unlocked"
   | "tenant.alert_zone_match";
 
@@ -115,6 +116,19 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
       String(payload.bhk_text ?? ""),
       String(payload.rent ?? ""),
       String(payload.zone_label ?? "आपका अलर्ट ज़ोन")
+    ]
+  },
+
+  "owner.lead_nudge": {
+    type: "owner.lead_nudge",
+    templateName: "owner_lead_nudge_hi",
+    languageCode: "hi",
+    description:
+      "Admin nudge to an owner with an uncalled lead. Params: tenant_name, listing_title, hours_left",
+    buildBodyParams: (payload) => [
+      String(payload.tenant_name ?? "एक किरायेदार"),
+      String(payload.listing_title ?? "आपकी प्रॉपर्टी"),
+      String(payload.hours_left ?? "24 घंटे")
     ]
   }
 };

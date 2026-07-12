@@ -18,7 +18,7 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.refundLead (DB)", () => {
     process.env.DATABASE_URL = TEST_DB;
     pool = new Pool({ connectionString: TEST_DB! });
     db = new DatabaseService();
-    svc = new AdminLeadOpsService(db);
+    svc = new AdminLeadOpsService(db, { send: async () => true } as any);
     const s = String(Math.floor(Math.random() * 1e8)).padStart(8, "0");
     adminId = (
       await pool.query<{ id: string }>(
