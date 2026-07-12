@@ -20823,3 +20823,26 @@ a.feature-card:hover .icon-circle {
   color: var(--brand);
   transform: translateY(-1px);
 }
+
+/* ── iOS Safari input auto-zoom guard ─────────────────────────────────────
+   Mobile WebKit (iPhone/iPad Safari) zooms the whole viewport IN whenever a
+   focused form control has a computed font-size below 16px — and the zoom
+   persists after the field blurs. Because our base body type is 15px and the
+   search box / filter selects sit at 13–14px, every search or filter tap on
+   an iPhone leaves the page zoomed in, so the user has to pinch-zoom back out
+   "every time". 16px is exactly WebKit's threshold, so bumping mobile
+   controls to 16px stops the zoom while leaving the compact desktop type
+   untouched. Excludes controls that never take a text caret (they don't
+   trigger the zoom and some rely on their own sizing). */
+@media (max-width: 768px) {
+  /* The :not() qualifiers are also specificity boosters: the bare element
+     selectors (0,0,1) would otherwise lose to single-class overrides like
+     .search-filters__select / .lead-card__textarea (0,1,0), leaving those
+     controls below 16px. The negations both raise specificity to (0,1,1)
+     and harmlessly skip controls that never take a text caret. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select:not([multiple]),
+  textarea:not([hidden]) {
+    font-size: 16px;
+  }
+}
