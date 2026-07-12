@@ -18,6 +18,7 @@
 import { auth } from "./auth";
 import { NextResponse } from "next/server";
 import type { UserRole } from "./auth.config";
+import { resolveV1Redirect } from "./lib/v1-redirect";
 
 // ---------------------------------------------------------------------------
 // Route-role map
@@ -174,6 +175,14 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 
+  // v1 → v2 cutover: old /properties/* and /pgs/* URLs 301 to the migrated v2
+  // page (matched by trailing Mongo ObjectId). Runs before everything else —
+  // these paths need no session and must never fall into auth/locale logic.
+  const v1Target = resolveV1Redirect(pathname);
+  if (v1Target) {
+    return NextResponse.redirect(new URL(v1Target, req.url), 301);
+  }
+
   // 0. Markdown content negotiation. If the agent prefers text/markdown over
   // text/html and the path has a markdown variant, rewrite to /md/... so the
   // markdown route handler can render. We do this BEFORE the locale redirect
@@ -279,6 +288,9 @@ export const config = {
      */
     "/",
     "/auth/login",
+    // v1 → v2 cutover redirects (un-prefixed legacy paths).
+    "/properties/:path*",
+    "/pgs/:path*",
     "/en/tenant/:path*",
     "/en/owner/:path*",
     "/en/pg-operator/:path*",
