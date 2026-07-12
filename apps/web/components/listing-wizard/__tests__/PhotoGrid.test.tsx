@@ -67,6 +67,24 @@ describe("PhotoGrid", () => {
     expect(progressBars).toHaveLength(1);
   });
 
+  it("shows a preparing state while an iPhone photo is being converted", () => {
+    const items = [
+      {
+        id: "a",
+        previewUrl: "x",
+        status: "preparing" as const,
+        progress: 8,
+        caption: "IMG_0001.HEIC"
+      }
+    ];
+    const { container } = render(
+      <PhotoGrid items={items} onReorder={() => {}} onRemove={() => {}} />
+    );
+
+    expect(screen.getByText(/preparing photo/i)).toBeVisible();
+    expect(container.querySelectorAll(".cz-photo-tile__progress")).toHaveLength(1);
+  });
+
   it("renders the error message in the caption when a tile failed to upload", () => {
     const items: PhotoGridItem[] = [
       {
@@ -82,6 +100,26 @@ describe("PhotoGrid", () => {
     render(<PhotoGrid items={items} onReorder={() => {}} onRemove={() => {}} />);
 
     expect(screen.getByText(/network timeout/i)).toBeTruthy();
+  });
+
+  it("keeps a failed tile and calls onRetry from its Retry upload action", () => {
+    const onRetry = vi.fn();
+    const items: PhotoGridItem[] = [
+      {
+        id: "failed-photo",
+        previewUrl: "x",
+        status: "error",
+        progress: 47,
+        caption: "Room photo",
+        errorMessage: "The upload was interrupted. Check your connection, then retry."
+      }
+    ];
+
+    render(<PhotoGrid items={items} onReorder={() => {}} onRemove={() => {}} onRetry={onRetry} />);
+
+    expect(screen.getByRole("img", { name: /room photo/i })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /retry upload/i }));
+    expect(onRetry).toHaveBeenCalledWith("failed-photo");
   });
 
   it("calls onRemove with the tile's id when the × button is clicked", () => {

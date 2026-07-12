@@ -177,6 +177,7 @@ interface VoiceCoPilotProps {
   onNavigate: (step: number, reason?: string) => void;
   onUiAction: (action: NonNullable<ToolDispatchResult["uiAction"]>) => void;
   onChipJump: (step: number) => void;
+  onAgentStateChange?: (state: RealtimeAgentState) => void;
   showFallbackBanner?: boolean;
 }
 
@@ -192,7 +193,8 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
     onFormApply,
     onNavigate,
     onUiAction,
-    onChipJump
+    onChipJump,
+    onAgentStateChange
   } = props;
 
   const [agentState, setAgentState] = useState<RealtimeAgentState>("idle");
@@ -201,7 +203,6 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [showTextFallback, setShowTextFallback] = useState(false);
-  const [drawerCollapsed, setDrawerCollapsed] = useState(false);
   const [supported, setSupported] = useState(true);
   const [captureLog, setCaptureLog] = useState<CaptureEntry[]>([]);
   const [pulseField, setPulseField] = useState<string | null>(null);
@@ -209,6 +210,10 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
   useEffect(() => {
     setSupported(isRealtimeSupported());
   }, []);
+
+  useEffect(() => {
+    onAgentStateChange?.(agentState);
+  }, [agentState, onAgentStateChange]);
 
   const clientRef = useRef<RealtimeClient | null>(null);
   // Always read the freshest form/step + parent callbacks from inside the
@@ -435,18 +440,7 @@ export function VoiceCoPilot(props: VoiceCoPilotProps) {
   }, [form]);
 
   return (
-    <aside
-      className="cz-copilot cz-fade cz-fade--3"
-      data-collapsed={drawerCollapsed ? "true" : "false"}
-      aria-label="Voice concierge"
-    >
-      <button
-        type="button"
-        className="cz-copilot__handle"
-        aria-label="Toggle drawer"
-        onClick={() => setDrawerCollapsed((v) => !v)}
-      />
-
+    <aside className="cz-copilot cz-fade cz-fade--3" aria-label="Voice concierge">
       {/* ── Crest: Maya + status pill ─────────────────────────────── */}
       <header className="cz-crest">
         <div className="cz-crest__title">

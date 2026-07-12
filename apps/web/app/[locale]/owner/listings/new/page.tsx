@@ -18,6 +18,12 @@ import {
   updateOwnerListing
 } from "../../../../../lib/owner-api";
 import { ApiError } from "../../../../../lib/api";
+import type { RealtimeAgentState } from "../../../../../lib/realtime-client";
+import {
+  friendlyPhotoUploadError,
+  prepareListingPhoto,
+  uploadBlobWithProgress
+} from "../../../../../lib/listing-photo";
 import type { OwnerListingDraftInput } from "../../../../../lib/owner-api";
 
 import {
@@ -28,6 +34,7 @@ import {
   STEPS,
   EMPTY_FORM,
   generateClientUploadId,
+  getUploadSourceFingerprint,
   validateStep,
   WizardStepIndicator,
   BasicsStep,
@@ -36,7 +43,8 @@ import {
   TitleDescriptionStep,
   PhotosStep,
   ReviewStep,
-  VoiceCoPilot
+  VoiceCoPilot,
+  MobileMayaShell
 } from "../../../../../components/listing-wizard";
 
 const STORAGE_KEY = "cribliv:wizard-draft";
@@ -96,6 +104,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
   /* ── Voice + animation state ───────────────────────────────────── */
   const [voiceActive, setVoiceActive] = useState(false);
+  const [mayaExpanded, setMayaExpanded] = useState(false);
+  const [mayaAgentState, setMayaAgentState] = useState<RealtimeAgentState>("idle");
   const [aiFillingFields, setAiFillingFields] = useState<Set<string>>(new Set());
   const fillTimers = useRef(new Map<string, number>());
   const seenSteps = useRef<Set<number>>(new Set());
@@ -198,7 +208,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               file: new File([], "existing-photo"),
               status: "complete" as const,
               progress: 100,
-              previewUrl: item.url
+              previewUrl: item.url,
+              prepared: true,
+              retryable: false
             })
           );
           setUploads(existingUploads);
@@ -208,7 +220,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             file: new File([], "existing-photo"),
             status: "complete" as const,
             progress: 100,
-            previewUrl: url
+            previewUrl: url,
+            prepared: true,
+            retryable: false
           }));
           setUploads(existingUploads);
         }
@@ -547,24 +561,81 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   /* ─────────────────────────────────────────────────────────────────
      Photo upload logic (preserved from previous wizard)
      ───────────────────────────────────────────────────────────────── */
+  async function prepareQueuedUpload(upload: UploadFile): Promise<UploadFile | null> {
+    try {
+      const preparedFile = await prepareListingPhoto(upload.originalFile ?? upload.file);
+      const preparedPreviewUrl = URL.createObjectURL(preparedFile);
+      const next: UploadFile = {
+        ...upload,
+        file: preparedFile,
+        status: "pending",
+        progress: 12,
+        previewUrl: preparedPreviewUrl,
+        errorMessage: undefined,
+        prepared: true,
+        retryable: true
+      };
+      setUploads((current) =>
+        current.map((item) => (item.clientUploadId === upload.clientUploadId ? next : item))
+      );
+      if (upload.previewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(upload.previewUrl);
+      }
+      return next;
+    } catch (error) {
+      const message = friendlyPhotoUploadError(error);
+      setUploads((current) =>
+        current.map((item) =>
+          item.clientUploadId === upload.clientUploadId
+            ? {
+                ...item,
+                status: "error",
+                progress: 0,
+                errorMessage: message,
+                prepared: false,
+                retryable: true
+              }
+            : item
+        )
+      );
+      return null;
+    }
+  }
+
   function onFilesSelected(files: FileList | null) {
     if (!files) return;
+    const additions: UploadFile[] = [];
     setUploads((current) => {
-      const existingIds = new Set(current.map((i) => i.clientUploadId));
+      const existingFingerprints = new Set(
+        current.map((item) => item.sourceFingerprint ?? getUploadSourceFingerprint(item.file))
+      );
       const next: UploadFile[] = Array.from(files).map((file) => {
         const id = generateClientUploadId(file);
-        const dup = existingIds.has(id);
-        return {
+        const sourceFingerprint = getUploadSourceFingerprint(file);
+        const duplicate = existingFingerprints.has(sourceFingerprint);
+        existingFingerprints.add(sourceFingerprint);
+        const upload: UploadFile = {
           file,
+          originalFile: file,
           clientUploadId: id,
-          status: dup ? ("error" as const) : ("pending" as const),
+          sourceFingerprint,
+          status: duplicate ? ("error" as const) : ("preparing" as const),
           progress: 0,
           previewUrl: URL.createObjectURL(file),
-          errorMessage: dup ? "This photo was already uploaded." : undefined
+          errorMessage: duplicate ? "This photo was already selected." : undefined,
+          prepared: false,
+          retryable: !duplicate
         };
+        additions.push(upload);
+        return upload;
       });
       return [...current, ...next];
     });
+    for (const upload of additions) {
+      if (upload.status === "preparing") {
+        void prepareQueuedUpload(upload);
+      }
+    }
   }
 
   async function uploadFile(
@@ -600,38 +671,29 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       );
       const first = presignResult.uploads[0];
       if (!first) throw new Error("Failed to get upload URL");
+      // Keep progress monotonic: presign lands at 20, then byte-transfer maps
+      // into 20-85 (see onProgress below), so the bar never jumps backward.
       setUploads((c) =>
-        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 45 } : i))
+        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 20 } : i))
       );
 
-      let uploaded = false;
       const contentType = upload.file.type || "image/jpeg";
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
-        try {
-          const putResponse = await fetch(first.uploadUrl, {
-            method: "PUT",
-            headers: { "x-ms-blob-type": "BlockBlob", "Content-Type": contentType },
-            body: upload.file
-          });
-          if (putResponse.ok) {
-            uploaded = true;
-            break;
-          }
-          const retriable = [408, 429, 500, 502, 503, 504].includes(putResponse.status);
-          if (!retriable || attempt === 3) {
-            throw new Error(`Photo upload failed (HTTP ${putResponse.status})`);
-          }
-        } catch (e) {
-          if (attempt === 3) {
-            if (e instanceof Error) throw e;
-            throw new Error("Photo upload failed due to a network error");
-          }
+      await uploadBlobWithProgress({
+        url: first.uploadUrl,
+        file: upload.file,
+        contentType,
+        onProgress: (transferPercent) => {
+          const progress = Math.round(20 + transferPercent * 0.65);
+          setUploads((current) =>
+            current.map((item) =>
+              item.clientUploadId === upload.clientUploadId ? { ...item, progress } : item
+            )
+          );
         }
-      }
-      if (!uploaded) throw new Error("Photo upload failed");
+      });
 
       setUploads((c) =>
-        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 80 } : i))
+        c.map((i) => (i.clientUploadId === upload.clientUploadId ? { ...i, progress: 90 } : i))
       );
       const completion = await completeListingPhotos(
         accessToken,
@@ -648,6 +710,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
                 status: "complete" as const,
                 progress: 100,
                 errorMessage: undefined,
+                retryable: false,
                 photoId: persistedPhotoId ?? i.photoId,
                 blobPath: first.blobPath
               }
@@ -655,7 +718,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         )
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload failed";
+      const message = friendlyPhotoUploadError(err);
       const duplicate =
         message.toLowerCase().includes("duplicate") || message.toLowerCase().includes("already");
       setUploads((c) =>
@@ -664,7 +727,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
             ? {
                 ...i,
                 status: "error" as const,
-                errorMessage: duplicate ? "This photo was already uploaded." : message
+                errorMessage: duplicate ? "This photo was already uploaded." : message,
+                retryable: !duplicate
               }
             : i
         )
@@ -700,6 +764,36 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
       }
     });
     await Promise.all(workers);
+  }
+
+  async function retryUpload(clientUploadId: string) {
+    const index = uploads.findIndex((item) => item.clientUploadId === clientUploadId);
+    const failed = uploads[index];
+    // Mirror PhotoGrid's retry gate: retryable is opt-out (only explicit
+    // `false`, e.g. duplicates, suppresses retry) so the button and handler agree.
+    if (!failed || failed.status !== "error" || failed.retryable === false) return;
+
+    let activeListingId = listingId;
+    if (!activeListingId && accessToken) {
+      activeListingId = await saveDraft();
+    }
+    if (!activeListingId) return;
+
+    let upload = failed;
+    if (!failed.prepared) {
+      setUploads((current) =>
+        current.map((item) =>
+          item.clientUploadId === clientUploadId
+            ? { ...item, status: "preparing", progress: 0, errorMessage: undefined }
+            : item
+        )
+      );
+      const prepared = await prepareQueuedUpload(failed);
+      if (!prepared) return;
+      upload = prepared;
+    }
+
+    await uploadFile(upload, activeListingId, index, index === 0);
   }
 
   /**
@@ -778,7 +872,11 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const headline = editId ? t(locale, "editListing") : t(locale, "createListing");
 
   return (
-    <section className="wizard-concierge" data-voice-active={voiceActive ? "true" : "false"}>
+    <section
+      className="wizard-concierge"
+      data-voice-active={voiceActive ? "true" : "false"}
+      data-maya-expanded={mayaExpanded ? "true" : "false"}
+    >
       <div className="cz-shell">
         <header className="cz-topbar cz-fade cz-fade--1">
           <div>
@@ -799,7 +897,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               className="cz-voice-toggle"
               data-active={voiceActive ? "true" : "false"}
               onClick={() => {
-                setVoiceActive((v) => !v);
+                const nextVoiceActive = !voiceActive;
+                setVoiceActive(nextVoiceActive);
+                setMayaExpanded(nextVoiceActive);
                 trackEvent(voiceActive ? "voice_realtime_stopped" : "voice_realtime_started");
               }}
             >
@@ -851,7 +951,15 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </div>
         ) : null}
 
-        <div className="cz-formcol">
+        <div
+          className="cz-formcol"
+          onPointerDownCapture={() => {
+            if (mayaExpanded) setMayaExpanded(false);
+          }}
+          onFocusCapture={() => {
+            if (mayaExpanded) setMayaExpanded(false);
+          }}
+        >
           <WizardStepIndicator
             currentStep={step}
             onStepClick={jumpStep}
@@ -900,6 +1008,7 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               onFilesSelected={onFilesSelected}
               onUploadAll={uploadAllPending}
               onRemove={removeUpload}
+              onRetry={retryUpload}
               onReorder={onPhotosReorder}
             />
           ) : null}
@@ -939,19 +1048,30 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </div>
 
         {REALTIME_FLAG_ENABLED ? (
-          <VoiceCoPilot
-            form={form}
-            step={step}
-            accessToken={accessToken}
-            locale={locale}
-            ownerFirstName={ownerFirstName}
+          <MobileMayaShell
+            agentState={mayaAgentState}
             voiceActive={voiceActive}
-            onToggleVoice={(next) => setVoiceActive(next)}
-            onFormApply={handleVoiceFormApply}
-            onNavigate={handleVoiceNavigate}
-            onUiAction={handleVoiceUiAction}
-            onChipJump={jumpStep}
-          />
+            expanded={mayaExpanded}
+            onExpandedChange={setMayaExpanded}
+          >
+            <VoiceCoPilot
+              form={form}
+              step={step}
+              accessToken={accessToken}
+              locale={locale}
+              ownerFirstName={ownerFirstName}
+              voiceActive={voiceActive}
+              onToggleVoice={(next) => {
+                setVoiceActive(next);
+                if (next) setMayaExpanded(true);
+              }}
+              onFormApply={handleVoiceFormApply}
+              onNavigate={handleVoiceNavigate}
+              onUiAction={handleVoiceUiAction}
+              onChipJump={jumpStep}
+              onAgentStateChange={setMayaAgentState}
+            />
+          </MobileMayaShell>
         ) : null}
       </div>
     </section>

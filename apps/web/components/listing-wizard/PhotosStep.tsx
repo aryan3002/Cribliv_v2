@@ -10,6 +10,7 @@ interface Props {
   onFilesSelected: (files: FileList | null) => void;
   onUploadAll: () => void;
   onRemove: (clientUploadId: string) => void;
+  onRetry: (clientUploadId: string) => void;
   /** New order of uploads, after a drag. The first item is the cover. */
   onReorder: (next: UploadFile[]) => void;
 }
@@ -20,6 +21,7 @@ export function PhotosStep({
   onFilesSelected,
   onUploadAll,
   onRemove,
+  onRetry,
   onReorder
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +37,8 @@ export function PhotosStep({
         caption: upload.file?.name,
         status: upload.status,
         progress: upload.progress,
-        errorMessage: upload.errorMessage
+        errorMessage: upload.errorMessage,
+        retryable: upload.retryable
       })),
     [uploads]
   );
@@ -59,6 +62,7 @@ export function PhotosStep({
   };
 
   const hasPending = uploads.some((u) => u.status === "pending");
+  const isPreparing = uploads.some((u) => u.status === "preparing");
 
   return (
     <div className="cz-card cz-fade cz-fade--2">
@@ -102,11 +106,11 @@ export function PhotosStep({
           <polyline points="21 15 16 10 5 21" />
         </svg>
         <div className="cz-dropzone__title">Click or drop photos here</div>
-        <div className="cz-dropzone__hint">JPG / PNG · up to 10 MB each</div>
+        <div className="cz-dropzone__hint">JPG, PNG, HEIC, HEIF, WebP · up to 10 MB each</div>
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
           multiple
           hidden
           onChange={(e) => onFilesSelected(e.target.files)}
@@ -115,16 +119,21 @@ export function PhotosStep({
 
       {uploads.length > 0 ? (
         <>
-          <PhotoGrid items={gridItems} onReorder={handleReorder} onRemove={onRemove} />
+          <PhotoGrid
+            items={gridItems}
+            onReorder={handleReorder}
+            onRemove={onRemove}
+            onRetry={onRetry}
+          />
 
           <div style={{ marginTop: 18 }}>
             <button
               type="button"
               className="cz-btn cz-btn--primary"
               onClick={onUploadAll}
-              disabled={saving || !hasPending}
+              disabled={saving || isPreparing || !hasPending}
             >
-              Upload all
+              {isPreparing ? "Preparing photos…" : "Upload all"}
             </button>
           </div>
         </>
