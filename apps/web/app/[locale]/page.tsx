@@ -17,7 +17,8 @@ import {
   MapPin,
   TreePine,
   Castle,
-  Tent,
+  Star,
+  Sunrise,
   Sofa,
   ArrowRight,
   Sparkles,
@@ -98,6 +99,12 @@ export async function generateMetadata({
 
 const CITIES = [
   {
+    name: "Lucknow",
+    photo: "lucknow",
+    icon: Landmark,
+    gradient: "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)"
+  },
+  {
     name: "Delhi",
     photo: "delhi",
     icon: Landmark,
@@ -140,10 +147,10 @@ const CITIES = [
     gradient: "linear-gradient(135deg, #fccb90 0%, #d57eeb 100%)"
   },
   {
-    name: "Lucknow",
-    photo: "lucknow",
-    icon: Tent,
-    gradient: "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)"
+    name: "Varanasi",
+    photo: "varanasi",
+    icon: Sunrise,
+    gradient: "linear-gradient(135deg, #dfe6ee 0%, #c6d1de 100%)"
   }
 ];
 
@@ -500,6 +507,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             <div className="home-city-grid">
               {CITIES.map((city) => {
                 const Icon = city.icon;
+                const isFeatured = city.name === "Lucknow";
                 const total = cityTotals.get(city.name.toLowerCase()) ?? 0;
                 const hasLiveInventory = total > 0;
                 const countLabel = hasLiveInventory
@@ -511,7 +519,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                     href={`/${params.locale}/city/${city.name.toLowerCase()}` as Route}
                     className={`home-city-card ${
                       hasLiveInventory ? "home-city-card--live" : "home-city-card--empty"
-                    }`}
+                    }${isFeatured ? " home-city-card--featured" : ""}`}
                   >
                     <div className="home-city-card__art">
                       <span
@@ -539,8 +547,27 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                       <span className="home-city-card__map-label">Cribliv</span>
                     </div>
                     <div className="home-city-card__body">
+                      {isFeatured && (
+                        <span className="home-city-card__flag">
+                          <Star size={13} aria-hidden="true" />
+                          {isHindi ? "प्रमुख शहर" : "Flagship city"}
+                        </span>
+                      )}
                       <span className="home-city-card__name">{city.name}</span>
                       <span className="home-city-card__count">{countLabel}</span>
+                      {isFeatured && (
+                        <>
+                          <span className="home-city-card__tagline">
+                            {isHindi
+                              ? "हमारा सबसे बड़ा बाज़ार — Cribliv पर सबसे ज़्यादा लाइव घर।"
+                              : "Our biggest market — the most live homes on Cribliv."}
+                          </span>
+                          <span className="home-city-card__cta">
+                            {isHindi ? "लखनऊ देखें" : "Explore Lucknow"}
+                            <ArrowRight size={15} aria-hidden="true" />
+                          </span>
+                        </>
+                      )}
                     </div>
                   </Link>
                 );
