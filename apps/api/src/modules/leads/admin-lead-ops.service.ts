@@ -795,11 +795,12 @@ export class AdminLeadOpsService {
     const safeRange = ANALYTICS_RANGES.includes(range) ? range : "30 days";
 
     if (!this.database.isEnabled()) {
-      throw new NotFoundException({ code: "not_found", message: "Owner not found" });
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
     }
 
     const ownerResult = await this.database.query<OwnerHeaderSqlRow>(
-      `SELECT full_name, phone_e164, role::text AS role FROM users WHERE id = $1::uuid`,
+      `SELECT full_name, phone_e164, role::text AS role FROM users
+       WHERE id = $1::uuid AND role IN ('owner', 'pg_operator')`,
       [ownerId]
     );
     const ownerRow = ownerResult.rows[0];
