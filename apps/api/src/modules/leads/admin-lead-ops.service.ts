@@ -109,9 +109,13 @@ export class AdminLeadOpsService {
     }
 
     const filter = p.filter ?? "needs_call";
-    const range = p.range ?? "30 days";
-    const page = Math.max(1, p.page ?? 1);
-    const pageSize = Math.min(100, Math.max(1, p.pageSize ?? 50));
+    const range = ["7 days", "30 days", "90 days"].includes(p.range ?? "")
+      ? (p.range as string)
+      : "30 days";
+    const page = Number.isFinite(p.page) ? Math.max(1, Math.floor(p.page as number)) : 1;
+    const pageSize = Number.isFinite(p.pageSize)
+      ? Math.min(100, Math.max(1, Math.floor(p.pageSize as number)))
+      : 50;
     const params: unknown[] = [];
     const where: string[] = [this.filterClause(filter, params, range)];
 
@@ -123,7 +127,10 @@ export class AdminLeadOpsService {
       params.push(p.state);
       where.push(`ld.access_state = $${params.length}`);
     }
-    if (p.status) {
+    if (
+      p.status &&
+      ["new", "contacted", "visit_scheduled", "deal_done", "lost"].includes(p.status)
+    ) {
       params.push(p.status);
       where.push(`ld.status = $${params.length}::lead_status`);
     }
