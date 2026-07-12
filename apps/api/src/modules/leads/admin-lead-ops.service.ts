@@ -12,12 +12,18 @@ import { computeOwnerHealth } from "../admin/owner-health.calculator";
 import { refundUnlock } from "../contacts/refund-unlock";
 import { NotificationService } from "../notifications/notification.service";
 import type {
+  AdminLeadAnalytics,
   AdminLeadBoardFilter,
   AdminLeadBoardResponse,
   AdminLeadBoardRow,
   AdminLeadCounters,
+  AdminLeadEngagementFunnel,
+  AdminLeadFunnel,
+  AdminLeadOwnerRollupRow,
+  AdminLeadRates,
   AdminLeadTimelineEvent,
-  AdminLeadTimelineResponse
+  AdminLeadTimelineResponse,
+  AdminLeadTrendPoint
 } from "@cribliv/shared-types";
 
 export interface BoardParams {
@@ -67,7 +73,34 @@ interface OwnerHealthCteRow {
   report_count: number;
 }
 
+/** Row shape of the analytics `rates` query — `median_response_minutes` is nullable when no lead was ever called in range. */
+interface RatesSqlRow {
+  median_response_minutes: number | string | null;
+  called_within_24h_rate: number | string;
+  team_rescue_rate: number | string;
+  dispute_rate: number | string;
+}
+
+/** Row shape of the analytics per-owner rollup query (before the refund-rate + health merge). */
+interface OwnerRollupSqlRow {
+  owner_user_id: string;
+  name: string;
+  role: "owner" | "pg_operator";
+  leads: number;
+  called: number;
+  median_response_minutes: number | string | null;
+}
+
+/** Row shape of the per-owner refunded-unlocks companion query. */
+interface OwnerRefundSqlRow {
+  owner_user_id: string;
+  unlocks: number;
+  refunded: number;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const ANALYTICS_RANGES = ["7 days", "30 days", "90 days"];
 
 const EMPTY_COUNTERS: AdminLeadCounters = {
   in_flight: 0,
@@ -75,6 +108,32 @@ const EMPTY_COUNTERS: AdminLeadCounters = {
   expiring_6h: 0,
   expired_today: 0,
   refunded_today: 0
+};
+
+const EMPTY_FUNNEL: AdminLeadFunnel = {
+  callbacks_requested: 0,
+  leads_created: 0,
+  leads_unlocked: 0,
+  leads_called: 0,
+  deals_done: 0,
+  leads_refunded: 0,
+  leads_disputed: 0
+};
+
+const EMPTY_ENGAGEMENT: AdminLeadEngagementFunnel = {
+  searches: 0,
+  listing_views: 0,
+  signups: 0,
+  callbacks_requested: 0,
+  calls_made: 0
+};
+
+const EMPTY_RATES: AdminLeadRates = {
+  median_response_minutes: null,
+  called_within_24h_rate: 0,
+  team_rescue_rate: 0,
+  refund_rate: 0,
+  dispute_rate: 0
 };
 
 function maskPhone(phone: string | null): string {
@@ -530,5 +589,162 @@ export class AdminLeadOpsService {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Admin analytics: lead funnel, seeker-engagement funnel, response/refund/
+   * dispute rates, a daily trend, and a per-owner rollup. The five range-
+   * scoped queries run in parallel; the owner-health merge runs after, since
+   * it needs the distinct owner ids the rollup query returns (reuses
+   * {@link ownerHealthByIds}, same as getBoard's per-row health fields).
+   */
+  async getAnalytics(range: string): Promise<AdminLeadAnalytics> {
+    this.ensureEnabled();
+    const generatedAt = new Date().toISOString();
+    const safeRange = ANALYTICS_RANGES.includes(range) ? range : "30 days";
+
+    if (!this.database.isEnabled()) {
+      return {
+        range: safeRange,
+        generated_at: generatedAt,
+        funnel: { ...EMPTY_FUNNEL },
+        engagement: { ...EMPTY_ENGAGEMENT },
+        rates: { ...EMPTY_RATES },
+        trend: [],
+        by_owner: []
+      };
+    }
+
+    const [
+      funnelResult,
+      engagementResult,
+      ratesResult,
+      refundRateResult,
+      trendResult,
+      byOwnerResult,
+      ownerRefundResult
+    ] = await Promise.all([
+      this.database.query<AdminLeadFunnel>(
+        `SELECT
+           (SELECT count(*) FROM contact_unlocks WHERE created_at >= now() - $1::interval)::int AS callbacks_requested,
+           (SELECT count(*) FROM leads WHERE created_at >= now() - $1::interval)::int AS leads_created,
+           (SELECT count(*) FROM leads WHERE unlocked_at IS NOT NULL AND unlocked_at >= now() - $1::interval)::int AS leads_unlocked,
+           (SELECT count(*) FROM leads WHERE called_at IS NOT NULL AND called_at >= now() - $1::interval)::int AS leads_called,
+           (SELECT count(*) FROM leads WHERE status='deal_done' AND status_changed_at >= now() - $1::interval)::int AS deals_done,
+           (SELECT count(*) FROM contact_unlocks WHERE unlock_status='refunded' AND updated_at >= now() - $1::interval)::int AS leads_refunded,
+           (SELECT count(*) FROM leads WHERE disputed_at IS NOT NULL AND disputed_at >= now() - $1::interval)::int AS leads_disputed`,
+        [safeRange]
+      ),
+      this.database.query<AdminLeadEngagementFunnel>(
+        `SELECT
+           (SELECT count(*) FROM pg_search_events WHERE created_at >= now() - $1::interval)::int AS searches,
+           (SELECT count(*) FROM listing_events WHERE event_type='view' AND created_at >= now() - $1::interval)::int AS listing_views,
+           (SELECT count(*) FROM users WHERE created_at >= now() - $1::interval)::int AS signups,
+           (SELECT count(*) FROM contact_unlocks WHERE created_at >= now() - $1::interval)::int AS callbacks_requested,
+           (SELECT count(*) FROM leads WHERE called_at IS NOT NULL AND called_at >= now() - $1::interval)::int AS calls_made`,
+        [safeRange]
+      ),
+      this.database.query<RatesSqlRow>(
+        `SELECT
+           percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (called_at - created_at))/60)
+             FILTER (WHERE called_at IS NOT NULL) AS median_response_minutes,
+           COALESCE(avg(CASE WHEN called_at IS NOT NULL THEN 1 ELSE 0 END)
+             FILTER (WHERE call_deadline_at IS NOT NULL), 0)::float AS called_within_24h_rate,
+           COALESCE(avg(CASE WHEN called_by='team' THEN 1 ELSE 0 END) FILTER (WHERE called_at IS NOT NULL), 0)::float AS team_rescue_rate,
+           COALESCE(avg(CASE WHEN disputed_at IS NOT NULL THEN 1 ELSE 0 END) FILTER (WHERE called_at IS NOT NULL), 0)::float AS dispute_rate
+         FROM leads WHERE created_at >= now() - $1::interval`,
+        [safeRange]
+      ),
+      this.database.query<{ refund_rate: number | string }>(
+        `SELECT COALESCE(avg(CASE WHEN unlock_status='refunded' THEN 1 ELSE 0 END),0)::float AS refund_rate
+         FROM contact_unlocks WHERE created_at >= now() - $1::interval`,
+        [safeRange]
+      ),
+      this.database.query<AdminLeadTrendPoint>(
+        `SELECT to_char(d::date,'YYYY-MM-DD') AS day,
+           (SELECT count(*) FROM contact_unlocks c WHERE c.created_at::date = d::date)::int AS callbacks,
+           (SELECT count(*) FROM leads l WHERE l.unlocked_at::date = d::date)::int AS unlocked,
+           (SELECT count(*) FROM leads l WHERE l.called_at::date = d::date)::int AS called,
+           (SELECT count(*) FROM contact_unlocks c WHERE c.unlock_status='refunded' AND c.updated_at::date = d::date)::int AS refunded
+         FROM generate_series(now() - $1::interval, now(), interval '1 day') d
+         ORDER BY day ASC`,
+        [safeRange]
+      ),
+      this.database.query<OwnerRollupSqlRow>(
+        `SELECT ld.owner_user_id::text AS owner_user_id,
+                COALESCE(o.full_name,'Owner') AS name, o.role::text AS role,
+                count(*)::int AS leads,
+                count(*) FILTER (WHERE ld.called_at IS NOT NULL)::int AS called,
+                percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ld.called_at - ld.created_at))/60)
+                  FILTER (WHERE ld.called_at IS NOT NULL) AS median_response_minutes
+         FROM leads ld JOIN users o ON o.id = ld.owner_user_id
+         WHERE ld.created_at >= now() - $1::interval
+         GROUP BY ld.owner_user_id, o.full_name, o.role
+         ORDER BY leads DESC LIMIT 100`,
+        [safeRange]
+      ),
+      // Companion query for by_owner refund_rate: refunded unlocks / unlocks,
+      // scoped through the same in-range leads as the rollup above (a contact
+      // unlock has no owner_user_id of its own — only leads do).
+      this.database.query<OwnerRefundSqlRow>(
+        `SELECT ld.owner_user_id::text AS owner_user_id,
+                count(cu.id)::int AS unlocks,
+                count(*) FILTER (WHERE cu.unlock_status='refunded')::int AS refunded
+         FROM leads ld
+         JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id
+         WHERE ld.created_at >= now() - $1::interval
+         GROUP BY ld.owner_user_id`,
+        [safeRange]
+      )
+    ]);
+
+    const ratesRow = ratesResult.rows[0];
+    const rates: AdminLeadRates = {
+      median_response_minutes:
+        ratesRow?.median_response_minutes == null ? null : Number(ratesRow.median_response_minutes),
+      called_within_24h_rate: Number(ratesRow?.called_within_24h_rate ?? 0),
+      team_rescue_rate: Number(ratesRow?.team_rescue_rate ?? 0),
+      refund_rate: Number(refundRateResult.rows[0]?.refund_rate ?? 0),
+      dispute_rate: Number(ratesRow?.dispute_rate ?? 0)
+    };
+
+    const ownerRefundRate = new Map<string, number>();
+    for (const r of ownerRefundResult.rows) {
+      const unlocks = Number(r.unlocks ?? 0);
+      const refunded = Number(r.refunded ?? 0);
+      ownerRefundRate.set(r.owner_user_id, unlocks > 0 ? refunded / unlocks : 0);
+    }
+
+    const ownerIds = byOwnerResult.rows.map((r) => r.owner_user_id);
+    const health = await this.ownerHealthByIds(ownerIds);
+
+    const by_owner: AdminLeadOwnerRollupRow[] = byOwnerResult.rows.map((r) => {
+      const leads = Number(r.leads ?? 0);
+      const called = Number(r.called ?? 0);
+      const h = health.get(r.owner_user_id);
+      return {
+        owner_user_id: r.owner_user_id,
+        name: r.name,
+        role: r.role,
+        leads,
+        called,
+        called_rate: leads > 0 ? called / leads : 0,
+        median_response_minutes:
+          r.median_response_minutes == null ? null : Number(r.median_response_minutes),
+        refund_rate: ownerRefundRate.get(r.owner_user_id) ?? 0,
+        health_score: h?.score ?? null,
+        health_grade: h?.grade ?? null
+      };
+    });
+
+    return {
+      range: safeRange,
+      generated_at: generatedAt,
+      funnel: funnelResult.rows[0] ?? { ...EMPTY_FUNNEL },
+      engagement: engagementResult.rows[0] ?? { ...EMPTY_ENGAGEMENT },
+      rates,
+      trend: trendResult.rows,
+      by_owner
+    };
   }
 }

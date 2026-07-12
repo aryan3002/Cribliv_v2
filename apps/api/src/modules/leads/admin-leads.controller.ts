@@ -48,6 +48,11 @@ export class AdminLeadsController {
     return ok(await this.leadsService.getRescueQueue());
   }
 
+  @Get("analytics")
+  async analytics(@Query("range") range?: string) {
+    return ok(await this.ops.getAnalytics(range ?? "30 days"));
+  }
+
   @Get(":id/timeline")
   async timeline(@Param("id") leadId: string) {
     return ok(await this.ops.getTimeline(leadId));
