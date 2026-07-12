@@ -119,7 +119,7 @@ export class RankingService {
            -- Engagement signals
            COALESCE((SELECT count(*)::int FROM contact_unlocks cu WHERE cu.listing_id = l.id), 0) AS unlock_count,
            COALESCE((SELECT count(*)::int FROM contact_unlocks cu WHERE cu.listing_id = l.id AND cu.owner_response_status = 'responded'), 0) AS response_count,
-           COALESCE((SELECT count(*)::int FROM shortlist_items si WHERE si.listing_id = l.id), 0) AS save_count,
+           COALESCE((SELECT count(*)::int FROM shortlists si WHERE si.listing_id = l.id), 0) AS save_count,
            -- Featured/boost signals
            EXISTS(SELECT 1 FROM listing_boosts lb WHERE lb.listing_id = l.id AND lb.is_active = true AND lb.expires_at > now() AND lb.boost_type = 'featured') AS has_featured,
            EXISTS(SELECT 1 FROM listing_boosts lb WHERE lb.listing_id = l.id AND lb.is_active = true AND lb.expires_at > now() AND lb.boost_type = 'boost') AS has_boost

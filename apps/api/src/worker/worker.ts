@@ -681,7 +681,7 @@ async function runRankingRecompute(pool: Pool): Promise<number> {
 
     LEFT JOIN (
       SELECT listing_id, count(*)::int AS cnt
-      FROM shortlist_items
+      FROM shortlists
       GROUP BY listing_id
     ) sc ON sc.listing_id = l.id
 
