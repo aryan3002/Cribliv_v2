@@ -62,7 +62,10 @@ export class PgManageRequestService {
   async create(operatorId: string, listingId: string, reason?: string): Promise<PgManageRequest> {
     this.requireDatabase();
 
-    const listing = await this.db.query<{ operator_user_id: string; pg_property_id: string }>(
+    const listing = await this.db.query<{
+      operator_user_id: string;
+      pg_property_id: string | null;
+    }>(
       `SELECT operator_user_id::text, pg_property_id::text
          FROM pg_listings
         WHERE id = $1::uuid
@@ -72,6 +75,21 @@ export class PgManageRequestService {
     const listingRow = listing.rows[0];
     if (!listingRow || listingRow.operator_user_id !== operatorId) {
       throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+    }
+    if (!listingRow.pg_property_id) {
+      throw new ConflictException({ code: "manage_request_property_required" });
+    }
+
+    const approved = await this.db.query<{ id: string }>(
+      `SELECT id::text
+         FROM pg_manage_requests
+        WHERE listing_id = $1::uuid
+          AND status = 'approved'
+        LIMIT 1`,
+      [listingId]
+    );
+    if (approved.rows[0]) {
+      throw new ConflictException({ code: "manage_request_exists" });
     }
 
     try {
@@ -101,7 +119,7 @@ export class PgManageRequestService {
          LEFT JOIN pg_properties p ON p.id = r.pg_property_id
         WHERE r.listing_id = $1::uuid
           AND l.operator_user_id = $2::uuid
-        ORDER BY r.created_at DESC
+        ORDER BY (r.status = 'approved') DESC, r.created_at DESC
         LIMIT 1`,
       [listingId, operatorId]
     );
@@ -173,12 +191,16 @@ export class PgManageRequestService {
           RETURNING *`,
         [requestId, adminId, notes?.trim() || null]
       );
-      await client.query(
+      const propertyUpdated = await client.query(
         `UPDATE pg_properties
             SET manage_enabled = true, layout_status = 'needs_setup', managed_activated_at = now()
-          WHERE id = $1::uuid`,
+          WHERE id = $1::uuid
+          RETURNING id`,
         [request.pg_property_id]
       );
+      if (propertyUpdated.rowCount !== 1) {
+        throw new ConflictException({ code: "manage_request_property_not_found" });
+      }
       await client.query("COMMIT");
       return toManageRequest(approved.rows[0]);
     } catch (error) {

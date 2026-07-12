@@ -9,8 +9,24 @@ import { AppModule } from "../../../app.module";
 import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
 import type { Role } from "../../../common/types";
+import { PgManageRequestService } from "../services/pg-manage-request.service";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
+
+describe("PG manage requests without a database", () => {
+  it("returns typed empty reads and rejects writes", async () => {
+    const service = new PgManageRequestService({ isEnabled: () => false } as DatabaseService);
+
+    await expect(service.getState(randomUUID(), randomUUID())).resolves.toEqual({ status: "none" });
+    await expect(service.listForAdmin()).resolves.toEqual([]);
+    await expect(service.create(randomUUID(), randomUUID())).rejects.toMatchObject({
+      response: {
+        code: "operations_requires_db",
+        message: "PG operations require a database"
+      }
+    });
+  });
+});
 
 describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
   let app: INestApplication;
@@ -29,21 +45,26 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
     admin: { id: adminId, role: "admin" }
   });
 
-  async function createListing(operatorUserId: string, title: string) {
-    const property = await db.query<{ id: string }>(
-      `INSERT INTO pg_properties (operator_id, display_name, city_id, is_primary)
-       VALUES ($1::uuid, $2, $3, true)
-       RETURNING id::text`,
-      [operatorUserId, `Property ${title}`, cityId]
-    );
+  async function createListing(operatorUserId: string, title: string, withProperty = true) {
+    let propertyId: string | null = null;
+    if (withProperty) {
+      const property = await db.query<{ id: string }>(
+        `INSERT INTO pg_properties (operator_id, display_name, city_id, is_primary)
+         VALUES ($1::uuid, $2, $3, true)
+         RETURNING id::text`,
+        [operatorUserId, `Property ${title}`, cityId]
+      );
+      propertyId = property.rows[0].id;
+    }
+
     const listingId = randomUUID();
     await db.query(
       `INSERT INTO pg_listings
          (id, operator_user_id, pg_property_id, title, starting_rent_paise, status, verification_status)
        VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 1200000, 'active', 'unverified')`,
-      [listingId, operatorUserId, property.rows[0].id, title]
+      [listingId, operatorUserId, propertyId, title]
     );
-    return { listingId, propertyId: property.rows[0].id };
+    return { listingId, propertyId };
   }
 
   beforeAll(async () => {
@@ -114,6 +135,29 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
       .set("idempotency-key", `unowned-${testRunId}`)
       .send({ reason: "Please manage this PG" })
       .expect(403);
+  });
+
+  it("requires an Idempotency-Key header to create a manage request", async () => {
+    const { listingId } = await createListing(operatorId, "Missing idempotency listing");
+
+    const response = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .send({ reason: "Please manage this PG" })
+      .expect(400);
+    expect(response.body.code).toBe("missing_idempotency_key");
+  });
+
+  it("rejects property-less listings before creating a manage request", async () => {
+    const { listingId } = await createListing(operatorId, "Property-less listing", false);
+
+    const response = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `property-less-${testRunId}`)
+      .send({ reason: "Please manage this PG" })
+      .expect(409);
+    expect(response.body.code).toBe("manage_request_property_required");
   });
 
   it("creates a pending request and rejects a second pending request", async () => {
@@ -208,12 +252,57 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
       .expect(201);
     expect(repeated.body.data).toMatchObject({ id: requestId, status: "approved" });
 
+    const afterApproval = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `approved-${testRunId}`)
+      .send({ reason: "Retry after approval" })
+      .expect(409);
+    expect(afterApproval.body.code).toBe("manage_request_exists");
+
+    const state = await request(app.getHttpServer())
+      .get(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .expect(200);
+    expect(state.body.data).toMatchObject({
+      status: "approved",
+      request: { id: requestId, status: "approved" }
+    });
+
     const rejectApproved = await request(app.getHttpServer())
       .post(`/v1/admin/pg/manage-requests/${requestId}/reject`)
       .set("x-test-identity", "admin")
       .send({ notes: "Must not undo approval" })
       .expect(409);
     expect(rejectApproved.body.code).toBe("manage_request_already_approved");
+  });
+
+  it("rolls back approval when the request property snapshot is missing", async () => {
+    const { listingId } = await createListing(operatorId, "Missing property during approval");
+    const created = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `missing-property-${testRunId}`)
+      .send({ reason: "Please review" })
+      .expect(201);
+    const requestId = created.body.data.id as string;
+
+    await db.query(`UPDATE pg_manage_requests SET pg_property_id = NULL WHERE id = $1::uuid`, [
+      requestId
+    ]);
+
+    const approval = await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${requestId}/approve`)
+      .set("x-test-identity", "admin")
+      .send({ notes: "Cannot approve without a property" })
+      .expect(409);
+    expect(approval.body.code).toBe("manage_request_property_not_found");
+
+    const persisted = await db.query<{ status: string; decided_by: string | null }>(
+      `SELECT status::text, decided_by::text FROM pg_manage_requests WHERE id = $1::uuid`,
+      [requestId]
+    );
+    expect(persisted.rows[0]).toEqual({ status: "pending", decided_by: null });
   });
 
   it("rejects without enabling management on the property", async () => {
@@ -257,6 +346,11 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
       .expect(403);
     await request(app.getHttpServer())
       .post(`/v1/admin/pg/manage-requests/${created.body.data.id}/approve`)
+      .set("x-test-identity", "operator")
+      .send({ notes: "Not allowed" })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${created.body.data.id}/reject`)
       .set("x-test-identity", "operator")
       .send({ notes: "Not allowed" })
       .expect(403);
