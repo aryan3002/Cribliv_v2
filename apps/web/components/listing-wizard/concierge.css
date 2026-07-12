@@ -723,7 +723,14 @@
   overflow: hidden;
 }
 .cz-copilot > * { position: relative; }
-.cz-copilot__handle { display: none; }
+
+.cz-maya-shell {
+  min-width: 0;
+}
+
+.cz-maya-desktop {
+  min-width: 0;
+}
 
 /* ── Crest: title + status pill ─────────────────────────────────────── */
 .cz-crest {
@@ -1028,23 +1035,123 @@
   padding: 8px 12px; font-size: 12px;
 }
 
-/* ── Mobile bottom drawer ───────────────────────────────────────────── */
+/* ── Mobile Maya bubble + compact tray ─────────────────────────────── */
 @media (max-width: 1100px) {
-  .cz-copilot {
-    position: fixed; inset: auto 12px 12px 12px; z-index: 50;
-    max-height: min(88vh, 640px);
-    padding: 12px 18px 16px;
+  .cz-maya-shell {
+    position: static;
+  }
+
+  .cz-maya-mobile__bubble {
+    position: fixed;
+    right: 16px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 52;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 132px;
+    min-height: 60px;
+    padding: 8px 14px 8px 8px;
+    border: 1px solid rgba(0, 102, 255, 0.22);
+    border-radius: 30px;
+    background: var(--c-surface);
+    color: var(--c-text);
+    box-shadow: 0 8px 28px rgba(17, 24, 39, 0.18);
+    cursor: pointer;
+  }
+
+  .cz-maya-mobile__bubble-icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--c-brand);
+  }
+
+  .cz-maya-mobile__bubble[data-active="true"] .cz-maya-mobile__bubble-icon {
+    box-shadow: 0 0 0 5px rgba(0, 102, 255, 0.12);
+  }
+
+  .cz-maya-mobile__bubble[data-state="listening"] .cz-maya-mobile__bubble-icon,
+  .cz-maya-mobile__bubble[data-state="speaking"] .cz-maya-mobile__bubble-icon {
+    animation: cz-pill-pulse 1.6s ease-in-out infinite;
+  }
+
+  .cz-maya-mobile__bubble[data-state="error"] .cz-maya-mobile__bubble-icon {
+    background: var(--c-danger);
+  }
+
+  .cz-maya-mobile__bubble-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    line-height: 1.15;
+  }
+
+  .cz-maya-mobile__bubble-copy strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--c-brand);
+  }
+
+  .cz-maya-mobile__bubble-copy span {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--c-text-secondary);
+  }
+
+  .cz-maya-mobile__tray {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 51;
+    max-height: min(62vh, 520px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--c-border);
     border-radius: var(--c-radius-lg);
-    box-shadow: var(--c-shadow-lg);
-    transition: transform 280ms ease;
+    background: var(--c-surface);
+    box-shadow: 0 14px 44px rgba(17, 24, 39, 0.22);
+  }
+
+  .cz-maya-mobile__tray[hidden] {
+    display: none;
+  }
+
+  .cz-maya-mobile__minimize {
+    position: sticky;
+    top: 8px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 30px;
+    margin: 8px 10px -38px auto;
+    padding: 0;
+    border: 1px solid var(--c-border);
+    border-radius: 50%;
+    background: var(--c-surface);
+    color: var(--c-text-secondary);
+    box-shadow: var(--c-shadow-sm);
+    cursor: pointer;
+  }
+
+  .cz-maya-mobile__tray .cz-copilot {
+    position: static;
+    max-height: none;
+    min-height: 0;
+    padding: 16px 18px 18px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
     gap: 10px;
   }
-  .cz-copilot[data-collapsed="true"] { transform: translateY(calc(100% - 80px)); }
-  .cz-copilot__handle {
-    width: 40px; height: 4px; background: var(--c-border-strong);
-    border-radius: 999px; margin: 0 auto 6px; cursor: grab;
-    border: 0; padding: 0; display: block;
-  }
+
   .cz-crest__name { font-size: 18px; }
   .cz-crest__role { font-size: 11px; }
   .cz-hero__stage { width: 92px; height: 92px; }
@@ -1054,8 +1161,15 @@
   .cz-feed__label { font-size: 12.5px; }
   .cz-feed__value { font-size: 12px; }
   .cz-mic-btn { padding: 10px 18px; font-size: 13px; }
+
+  .cz-formcol {
+    padding-bottom: 132px;
+  }
+
+  .wizard-concierge[data-maya-expanded="true"] .cz-formcol {
+    padding-bottom: min(66vh, 560px);
+  }
 }
-@media (max-width: 1100px) { .cz-formcol { padding-bottom: 100px; } }
 
 /* ── Page-load stagger ─────────────────────────────────────────────── */
 .cz-fade { animation: cz-fade-up 500ms cubic-bezier(0.22, 1, 0.36, 1) both; }

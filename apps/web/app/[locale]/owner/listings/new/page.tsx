@@ -18,6 +18,7 @@ import {
   updateOwnerListing
 } from "../../../../../lib/owner-api";
 import { ApiError } from "../../../../../lib/api";
+import type { RealtimeAgentState } from "../../../../../lib/realtime-client";
 import type { OwnerListingDraftInput } from "../../../../../lib/owner-api";
 
 import {
@@ -36,7 +37,8 @@ import {
   TitleDescriptionStep,
   PhotosStep,
   ReviewStep,
-  VoiceCoPilot
+  VoiceCoPilot,
+  MobileMayaShell
 } from "../../../../../components/listing-wizard";
 
 const STORAGE_KEY = "cribliv:wizard-draft";
@@ -96,6 +98,8 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
   /* ── Voice + animation state ───────────────────────────────────── */
   const [voiceActive, setVoiceActive] = useState(false);
+  const [mayaExpanded, setMayaExpanded] = useState(false);
+  const [mayaAgentState, setMayaAgentState] = useState<RealtimeAgentState>("idle");
   const [aiFillingFields, setAiFillingFields] = useState<Set<string>>(new Set());
   const fillTimers = useRef(new Map<string, number>());
   const seenSteps = useRef<Set<number>>(new Set());
@@ -778,7 +782,11 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
   const headline = editId ? t(locale, "editListing") : t(locale, "createListing");
 
   return (
-    <section className="wizard-concierge" data-voice-active={voiceActive ? "true" : "false"}>
+    <section
+      className="wizard-concierge"
+      data-voice-active={voiceActive ? "true" : "false"}
+      data-maya-expanded={mayaExpanded ? "true" : "false"}
+    >
       <div className="cz-shell">
         <header className="cz-topbar cz-fade cz-fade--1">
           <div>
@@ -799,7 +807,9 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
               className="cz-voice-toggle"
               data-active={voiceActive ? "true" : "false"}
               onClick={() => {
-                setVoiceActive((v) => !v);
+                const nextVoiceActive = !voiceActive;
+                setVoiceActive(nextVoiceActive);
+                setMayaExpanded(nextVoiceActive);
                 trackEvent(voiceActive ? "voice_realtime_stopped" : "voice_realtime_started");
               }}
             >
@@ -851,7 +861,15 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
           </div>
         ) : null}
 
-        <div className="cz-formcol">
+        <div
+          className="cz-formcol"
+          onPointerDownCapture={() => {
+            if (mayaExpanded) setMayaExpanded(false);
+          }}
+          onFocusCapture={() => {
+            if (mayaExpanded) setMayaExpanded(false);
+          }}
+        >
           <WizardStepIndicator
             currentStep={step}
             onStepClick={jumpStep}
@@ -939,19 +957,30 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
         </div>
 
         {REALTIME_FLAG_ENABLED ? (
-          <VoiceCoPilot
-            form={form}
-            step={step}
-            accessToken={accessToken}
-            locale={locale}
-            ownerFirstName={ownerFirstName}
+          <MobileMayaShell
+            agentState={mayaAgentState}
             voiceActive={voiceActive}
-            onToggleVoice={(next) => setVoiceActive(next)}
-            onFormApply={handleVoiceFormApply}
-            onNavigate={handleVoiceNavigate}
-            onUiAction={handleVoiceUiAction}
-            onChipJump={jumpStep}
-          />
+            expanded={mayaExpanded}
+            onExpandedChange={setMayaExpanded}
+          >
+            <VoiceCoPilot
+              form={form}
+              step={step}
+              accessToken={accessToken}
+              locale={locale}
+              ownerFirstName={ownerFirstName}
+              voiceActive={voiceActive}
+              onToggleVoice={(next) => {
+                setVoiceActive(next);
+                if (next) setMayaExpanded(true);
+              }}
+              onFormApply={handleVoiceFormApply}
+              onNavigate={handleVoiceNavigate}
+              onUiAction={handleVoiceUiAction}
+              onChipJump={jumpStep}
+              onAgentStateChange={setMayaAgentState}
+            />
+          </MobileMayaShell>
         ) : null}
       </div>
     </section>

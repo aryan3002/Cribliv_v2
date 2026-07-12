@@ -4,6 +4,7 @@ import "./concierge.css";
 // New concierge components
 export { VoiceCoPilot } from "./VoiceCoPilot";
 export { VoiceOrb } from "./VoiceOrb";
+export { MobileMayaShell } from "./MobileMayaShell";
 
 // Restyled core wizard pieces
 export { WizardStepIndicator } from "./WizardStepIndicator";
