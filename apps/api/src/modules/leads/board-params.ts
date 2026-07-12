@@ -28,8 +28,10 @@ const VALID_STATUS: ReadonlySet<LeadStatus> = new Set([
   "lost"
 ]);
 const VALID_RANGE = new Set(["7 days", "30 days", "90 days"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function toPositiveInt(raw: string | undefined, fallback: number, max?: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n)) return fallback;
   let v = Math.max(1, Math.floor(n));
@@ -51,7 +53,7 @@ export function sanitizeBoardParams(raw: RawBoardParams): BoardParams {
   const range = raw.range && VALID_RANGE.has(raw.range) ? raw.range : "30 days";
   return {
     filter,
-    ownerId: raw.owner_id || undefined,
+    ownerId: raw.owner_id && UUID_RE.test(raw.owner_id) ? raw.owner_id : undefined,
     state: raw.state || undefined, // access_state is a text column — a bad value just returns 0 rows
     status,
     q: raw.q || undefined,

@@ -45,6 +45,8 @@ interface BoardSqlRow {
   created_at: string;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const EMPTY_COUNTERS: AdminLeadCounters = {
   in_flight: 0,
   uncalled: 0,
@@ -119,7 +121,7 @@ export class AdminLeadOpsService {
     const params: unknown[] = [];
     const where: string[] = [this.filterClause(filter, params, range)];
 
-    if (p.ownerId) {
+    if (p.ownerId && UUID_RE.test(p.ownerId)) {
       params.push(p.ownerId);
       where.push(`ld.owner_user_id = $${params.length}::uuid`);
     }

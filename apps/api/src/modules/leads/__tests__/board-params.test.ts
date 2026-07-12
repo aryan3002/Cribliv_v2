@@ -32,6 +32,10 @@ describe("sanitizeBoardParams", () => {
     });
   });
 
+  it("falls back to the default page_size on an empty string, not 1", () => {
+    expect(sanitizeBoardParams({ page_size: "" }).pageSize).toBe(50);
+  });
+
   it("clamps page_size to 100 and page to >=1", () => {
     expect(sanitizeBoardParams({ page_size: "9999" }).pageSize).toBe(100);
     expect(sanitizeBoardParams({ page: "-5" }).page).toBe(1);
@@ -40,5 +44,11 @@ describe("sanitizeBoardParams", () => {
   it("passes an invalid filter through as needs_call default", () => {
     expect(sanitizeBoardParams({ filter: "nonsense" }).filter).toBe("needs_call");
     expect(sanitizeBoardParams({ filter: "expiring_6h" }).filter).toBe("expiring_6h");
+  });
+
+  it("validates owner_id as a UUID before it can reach the ::uuid cast", () => {
+    const validUuid = "11111111-1111-4111-8111-111111111111";
+    expect(sanitizeBoardParams({ owner_id: validUuid }).ownerId).toBe(validUuid);
+    expect(sanitizeBoardParams({ owner_id: "xyz" }).ownerId).toBeUndefined();
   });
 });
