@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import { readFeatureFlags } from "../config/feature-flags";
+import { refundUnlock } from "../modules/contacts/refund-unlock";
 
 const REFUND_BATCH_SIZE = 100;
 
@@ -32,73 +33,12 @@ export async function runRefundSweepDb(pool: Pool) {
       }
 
       for (const unlock of dueUnlocks.rows) {
-        await client.query(
-          `
-          INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
-          VALUES ($1::uuid, 0, 0)
-          ON CONFLICT (user_id) DO NOTHING
-          `,
-          [unlock.tenant_user_id]
-        );
-
-        await client.query(
-          `
-          UPDATE wallets
-          SET balance_credits = balance_credits + 1,
-              updated_at = now()
-          WHERE user_id = $1::uuid
-          `,
-          [unlock.tenant_user_id]
-        );
-
-        const refundTxn = await client.query<{ id: string }>(
-          `
-          INSERT INTO wallet_transactions(
-            wallet_user_id,
-            txn_type,
-            credits_delta,
-            reference_type,
-            reference_id,
-            metadata
-          )
-          VALUES ($1::uuid, 'refund_no_response', 1, 'contact_unlock', $2::uuid, '{}'::jsonb)
-          RETURNING id::text
-          `,
-          [unlock.tenant_user_id, unlock.id]
-        );
-
-        const markRefunded = await client.query(
-          `
-          UPDATE contact_unlocks
-          SET owner_response_status = 'timeout_refunded',
-              unlock_status = 'refunded',
-              refund_txn_id = $2::uuid,
-              updated_at = now()
-          WHERE id = $1::uuid
-            AND owner_response_status = 'pending'
-            AND unlock_status = 'active'
-          `,
-          [unlock.id, refundTxn.rows[0].id]
-        );
-
-        if (markRefunded.rowCount) {
-          refundedCount += 1;
-          await client.query(
-            `
-            INSERT INTO contact_events(contact_unlock_id, actor_role, event_type, metadata)
-            VALUES ($1::uuid, 'system', 'refund_issued', '{}'::jsonb)
-            `,
-            [unlock.id]
-          );
-
-          // A lead the owner never paid to see dies with the refund; free or
-          // already-unlocked leads keep their access (spec §3.5).
-          await client.query(
-            `UPDATE leads SET access_state = 'expired', updated_at = now()
-             WHERE contact_unlock_id = $1::uuid AND access_state = 'locked'`,
-            [unlock.id]
-          );
-        }
+        const res = await refundUnlock(client, unlock.id, {
+          txnType: "refund_no_response",
+          actorRole: "system",
+          expireLockedLead: true
+        });
+        if (res.refunded) refundedCount += 1;
       }
 
       await client.query("COMMIT");
