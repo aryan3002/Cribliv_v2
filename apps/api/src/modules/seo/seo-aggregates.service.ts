@@ -130,8 +130,9 @@ export class SeoAggregatesService {
 
   async localitiesForCity(citySlug: string): Promise<LocalityRow[]> {
     if (!this.database.isEnabled()) return [];
-    const { rows } = await this.database.query<LocalityRow>(
-      `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
+    try {
+      const { rows } = await this.database.query<LocalityRow>(
+        `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
               loc.lat::float8 AS lat, loc.lng::float8 AS lng,
               parent.slug AS parent_locality_slug,
               COALESCE(COUNT(l.id) FILTER (WHERE l.status = 'active'), 0)::int AS listing_count
@@ -143,15 +144,22 @@ export class SeoAggregatesService {
        WHERE c.slug = $1
        GROUP BY loc.id, parent.slug
        ORDER BY listing_count DESC, loc.name_en ASC`,
-      [citySlug]
-    );
-    return rows;
+        [citySlug]
+      );
+      return rows;
+    } catch (err) {
+      this.logger.debug(
+        `localitiesForCity query failed: ${err instanceof Error ? err.message : err}`
+      );
+      return [];
+    }
   }
 
   async findLocality(citySlug: string, localitySlug: string): Promise<LocalityRow | null> {
     if (!this.database.isEnabled()) return null;
-    const { rows } = await this.database.query<LocalityRow>(
-      `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
+    try {
+      const { rows } = await this.database.query<LocalityRow>(
+        `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
               loc.lat::float8 AS lat, loc.lng::float8 AS lng,
               parent.slug AS parent_locality_slug,
               0::int AS listing_count
@@ -160,9 +168,13 @@ export class SeoAggregatesService {
        LEFT JOIN localities parent ON parent.id = loc.parent_locality_id
        WHERE c.slug = $1 AND (loc.slug = $2 OR $2 = ANY(loc.seo_aliases))
        LIMIT 1`,
-      [citySlug, localitySlug]
-    );
-    return rows[0] ?? null;
+        [citySlug, localitySlug]
+      );
+      return rows[0] ?? null;
+    } catch (err) {
+      this.logger.debug(`findLocality query failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
   }
 
   async nearbyLocalities(localityId: number, limit = 5): Promise<LocalityRow[]> {
@@ -193,30 +205,44 @@ export class SeoAggregatesService {
 
   async metroStationsForCity(city: string): Promise<MetroStationRow[]> {
     if (!this.database.isEnabled()) return [];
-    const { rows } = await this.database.query<MetroStationRow>(
-      `SELECT id, station_name, line_name, line_color,
+    try {
+      const { rows } = await this.database.query<MetroStationRow>(
+        `SELECT id, station_name, line_name, line_color,
               lat::float8 AS lat, lng::float8 AS lng, sequence
        FROM metro_stations WHERE city = $1
        ORDER BY line_name, sequence`,
-      [city]
-    );
-    return rows;
+        [city]
+      );
+      return rows;
+    } catch (err) {
+      this.logger.debug(
+        `metroStationsForCity query failed: ${err instanceof Error ? err.message : err}`
+      );
+      return [];
+    }
   }
 
   async findMetroStation(city: string, stationSlug: string): Promise<MetroStationRow | null> {
     if (!this.database.isEnabled()) return null;
     // Stations seeded by name; slug is name lowercased + hyphenated.
     const normalised = stationSlug.toLowerCase();
-    const { rows } = await this.database.query<MetroStationRow>(
-      `SELECT id, station_name, line_name, line_color,
+    try {
+      const { rows } = await this.database.query<MetroStationRow>(
+        `SELECT id, station_name, line_name, line_color,
               lat::float8 AS lat, lng::float8 AS lng, sequence
        FROM metro_stations
        WHERE city = $1
          AND LOWER(REGEXP_REPLACE(station_name, '[^a-zA-Z0-9]+', '-', 'g')) = $2
        LIMIT 1`,
-      [city, normalised]
-    );
-    return rows[0] ?? null;
+        [city, normalised]
+      );
+      return rows[0] ?? null;
+    } catch (err) {
+      this.logger.debug(
+        `findMetroStation query failed: ${err instanceof Error ? err.message : err}`
+      );
+      return null;
+    }
   }
 }
 

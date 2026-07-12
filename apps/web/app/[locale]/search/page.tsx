@@ -195,7 +195,9 @@ export default async function SearchResultsPage({
     redirect(`/${params.locale}/pg${qs ? `?${qs}` : ""}`);
   }
 
-  const session = await auth();
+  // A session-decode failure must never take down the whole results page — treat
+  // it as "logged out" rather than letting it throw into the error boundary / a 500.
+  const session = await auth().catch(() => null);
   const isGuest = !session?.user?.id;
 
   const filters = normalizeSearchParams(searchParams);

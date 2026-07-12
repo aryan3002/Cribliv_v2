@@ -5,7 +5,6 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import {
   ShieldCheck,
-  Heart,
   Building,
   MapPin,
   BedDouble,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@cribliv/ui";
 import styles from "./listing-card.module.css";
+import { ListingCardHeart } from "./listing-card-heart";
 
 export interface ListingCardData {
   id: string;
@@ -118,16 +118,7 @@ export function ListingCardItem({
           ) : (
             <span />
           )}
-          {heartSlot ?? (
-            <button
-              type="button"
-              className={styles.heart}
-              aria-label="Save"
-              onClick={(e) => e.preventDefault()}
-            >
-              <Heart size={15} aria-hidden="true" />
-            </button>
-          )}
+          {heartSlot ?? <ListingCardHeart listingId={listing.id} />}
         </div>
 
         <span className={`${styles.typePill}${isPg ? ` ${styles.typePillPg}` : ""}`}>
