@@ -32,6 +32,10 @@ export interface NotificationTemplate {
   description: string;
   /** Build the positional body parameters from the event payload */
   buildBodyParams: (payload: Record<string, unknown>) => string[];
+  /** Channels this type dispatches on. Defaults to whatsapp-only. */
+  channels: ("whatsapp" | "sms")[];
+  /** Build the SMS body text (required when 'sms' is in channels). */
+  buildSmsBody?: (payload: Record<string, unknown>) => string;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,7 +53,12 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
       String(payload.listing_title ?? "आपकी प्रॉपर्टी"),
       String(payload.tenant_name ?? "एक किरायेदार"),
       String(payload.response_deadline ?? "12 घंटे")
-    ]
+    ],
+    channels: ["whatsapp", "sms"],
+    buildSmsBody: (payload) =>
+      `Cribliv: ${String(payload.tenant_name ?? "एक किरायेदार")} ने आपकी प्रॉपर्टी "${String(
+        payload.listing_title ?? "आपकी प्रॉपर्टी"
+      )}" में रुचि दिखाई है। कृपया ${String(payload.response_deadline ?? "12 घंटे")} में संपर्क करें।`
   },
 
   "owner.listing_approved": {
@@ -60,7 +69,8 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     buildBodyParams: (payload) => [
       String(payload.listing_title ?? "आपकी प्रॉपर्टी"),
       String(payload.city ?? "")
-    ]
+    ],
+    channels: ["whatsapp"]
   },
 
   "owner.listing_rejected": {
@@ -71,7 +81,8 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     buildBodyParams: (payload) => [
       String(payload.listing_title ?? "आपकी प्रॉपर्टी"),
       String(payload.reason ?? "गुणवत्ता मानक पूरे नहीं हुए")
-    ]
+    ],
+    channels: ["whatsapp"]
   },
 
   "owner.listing_paused": {
@@ -82,7 +93,8 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     buildBodyParams: (payload) => [
       String(payload.listing_title ?? "आपकी प्रॉपर्टी"),
       String(payload.reason ?? "समीक्षा के लिए रोकी गई")
-    ]
+    ],
+    channels: ["whatsapp"]
   },
 
   "owner.listing_submitted": {
@@ -90,7 +102,8 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     templateName: "listing_submitted_hi",
     languageCode: "hi",
     description: "Confirmation to owner after listing submission. Params: listing_title",
-    buildBodyParams: (payload) => [String(payload.listing_title ?? "आपकी प्रॉपर्टी")]
+    buildBodyParams: (payload) => [String(payload.listing_title ?? "आपकी प्रॉपर्टी")],
+    channels: ["whatsapp"]
   },
 
   "tenant.contact_unlocked": {
@@ -102,7 +115,8 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     buildBodyParams: (payload) => [
       String(payload.listing_title ?? "प्रॉपर्टी"),
       String(payload.owner_phone ?? "")
-    ]
+    ],
+    channels: ["whatsapp"]
   },
 
   "tenant.alert_zone_match": {
@@ -116,7 +130,8 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
       String(payload.bhk_text ?? ""),
       String(payload.rent ?? ""),
       String(payload.zone_label ?? "आपका अलर्ट ज़ोन")
-    ]
+    ],
+    channels: ["whatsapp"]
   },
 
   "owner.lead_nudge": {
@@ -129,6 +144,7 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
       String(payload.tenant_name ?? "एक किरायेदार"),
       String(payload.listing_title ?? "आपकी प्रॉपर्टी"),
       String(payload.hours_left ?? "24 घंटे")
-    ]
+    ],
+    channels: ["whatsapp"]
   }
 };
