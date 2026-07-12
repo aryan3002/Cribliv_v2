@@ -2238,7 +2238,11 @@ h4,
 }
 @media (max-width: 640px) {
   .listing-grid {
-    grid-template-columns: 1fr;
+    /* minmax(0,1fr), not bare 1fr: bare 1fr resolves to minmax(auto,1fr),
+       so a card whose min-content is wider than the viewport (real photos +
+       long titles) forces the single track past the container and gets
+       clipped on the right. min 0 lets the track shrink so the card reflows. */
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-5);
   }
 }
@@ -17958,7 +17962,7 @@ a.feature-card:hover .icon-circle {
     border-radius: 16px;
   }
   .tenant-results-page .listing-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .tenant-cost-card {
     padding: 14px;
@@ -18591,7 +18595,7 @@ a.feature-card:hover .icon-circle {
   }
 
   .tenant-results-page .listing-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .tenant-results-map-panel {
