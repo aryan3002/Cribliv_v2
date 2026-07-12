@@ -12,6 +12,7 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { isRateLimitingDisabled } from "../../common/rate-limit.util";
 import { D7OtpClient, D7OtpVerifyError } from "./d7-otp.client";
+import { signupFreeCredits } from "./signup-credits";
 import { readOtpProviderConfig } from "./otp-provider.config";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
@@ -236,14 +237,15 @@ export class AuthService {
           );
 
           const userId = userResult.rows[0].id;
+          const freeCredits = signupFreeCredits();
           await client.query(
             `
             INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
-            VALUES ($1::uuid, 2, 2)
+            VALUES ($1::uuid, $2, $2)
             ON CONFLICT (user_id)
             DO NOTHING
             `,
-            [userId]
+            [userId, freeCredits]
           );
 
           await client.query(
@@ -256,9 +258,9 @@ export class AuthService {
               reference_id,
               metadata
             )
-            VALUES ($1::uuid, 'grant_signup', 2, 'user', $1::uuid, '{}'::jsonb)
+            VALUES ($1::uuid, 'grant_signup', $2, 'user', $1::uuid, '{}'::jsonb)
             `,
-            [userId]
+            [userId, freeCredits]
           );
 
           isNewUser = true;
