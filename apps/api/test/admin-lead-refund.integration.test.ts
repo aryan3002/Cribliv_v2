@@ -16,6 +16,7 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.refundLead (DB)", () => {
 
   beforeAll(async () => {
     process.env.DATABASE_URL = TEST_DB;
+    process.env.FF_ADMIN_LEAD_CENTER = "true";
     pool = new Pool({ connectionString: TEST_DB! });
     db = new DatabaseService();
     svc = new AdminLeadOpsService(db, { send: async () => true } as any);
@@ -94,6 +95,7 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.refundLead (DB)", () => {
     ]);
     await db.onModuleDestroy();
     await pool.end();
+    delete process.env.FF_ADMIN_LEAD_CENTER;
   }, 60_000);
 
   it("refunds the seeker, expires the locked lead, writes refund_admin txn + audit", async () => {

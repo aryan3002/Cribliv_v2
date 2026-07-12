@@ -358,51 +358,71 @@ export class AdminLeadOpsService {
     if (!this.database.isEnabled()) {
       throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
     }
-    const info = await this.database.query<{
-      owner_user_id: string;
-      tenant_name: string;
-      listing_title: string;
-      called_at: string | null;
-      hours_left: number | null;
-      recently_nudged: boolean;
-    }>(
-      `SELECT ld.owner_user_id::text,
-              COALESCE(t.full_name,'एक किरायेदार') AS tenant_name,
-              COALESCE(NULLIF(l.title_en,''),'आपकी प्रॉपर्टी') AS listing_title,
-              ld.called_at::text,
-              GREATEST(0, ROUND(EXTRACT(EPOCH FROM (ld.call_deadline_at - now())) / 3600))::int AS hours_left,
-              EXISTS (SELECT 1 FROM lead_events le WHERE le.lead_id = ld.id
-                        AND le.notes = 'admin_nudged_owner' AND le.created_at > now() - interval '3 hours') AS recently_nudged
-       FROM leads ld
-       JOIN users t ON t.id = ld.tenant_user_id
-       JOIN listings l ON l.id = ld.listing_id
-       WHERE ld.id = $1::uuid`,
-      [leadId]
-    );
-    const row = info.rows[0];
-    if (!row) throw new NotFoundException({ code: "not_found", message: "Lead not found" });
-    if (row.recently_nudged) return { lead_id: leadId, nudged: false };
-
-    await this.notifications.send({
-      type: "owner.lead_nudge",
-      recipientUserId: row.owner_user_id,
-      payload: {
-        tenant_name: row.tenant_name,
-        listing_title: row.listing_title,
-        hours_left: `${row.hours_left ?? 24} घंटे`
-      },
-      mode: "immediate"
-    });
-    await this.database.query(
-      `INSERT INTO lead_events (lead_id, to_status, notes)
-       SELECT $1::uuid, status, 'admin_nudged_owner' FROM leads WHERE id = $1::uuid`,
-      [leadId]
-    );
-    await this.database.query(
-      `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action)
-       VALUES ($1::uuid, 'lead', $2::uuid, 'nudge_owner')`,
-      [adminUserId, leadId]
-    );
-    return { lead_id: leadId, nudged: true };
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+      const info = await client.query<{
+        owner_user_id: string;
+        tenant_name: string;
+        listing_title: string;
+        hours_left: number | null;
+        recently_nudged: boolean;
+      }>(
+        `SELECT ld.owner_user_id::text,
+                COALESCE(t.full_name, 'एक किरायेदार') AS tenant_name,
+                COALESCE(NULLIF(l.title_en, ''), 'आपकी प्रॉपर्टी') AS listing_title,
+                CASE WHEN ld.call_deadline_at IS NULL THEN NULL
+                     ELSE GREATEST(0, ROUND(EXTRACT(EPOCH FROM (ld.call_deadline_at - now())) / 3600))::int
+                END AS hours_left,
+                EXISTS (
+                  SELECT 1 FROM lead_events le
+                  WHERE le.lead_id = ld.id AND le.notes = 'admin_nudged_owner'
+                    AND le.created_at > now() - interval '3 hours'
+                ) AS recently_nudged
+         FROM leads ld
+         JOIN users t ON t.id = ld.tenant_user_id
+         JOIN listings l ON l.id = ld.listing_id
+         WHERE ld.id = $1::uuid
+         FOR UPDATE OF ld`,
+        [leadId]
+      );
+      const row = info.rows[0];
+      if (!row) throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      if (row.recently_nudged) {
+        await client.query("COMMIT");
+        return { lead_id: leadId, nudged: false };
+      }
+      const sent = await this.notifications.send({
+        type: "owner.lead_nudge",
+        recipientUserId: row.owner_user_id,
+        payload: {
+          tenant_name: row.tenant_name,
+          listing_title: row.listing_title,
+          hours_left: `${row.hours_left ?? 24} घंटे`
+        },
+        mode: "immediate"
+      });
+      if (!sent) {
+        await client.query("COMMIT"); // nothing written — no marker burned, so it can be retried
+        return { lead_id: leadId, nudged: false };
+      }
+      await client.query(
+        `INSERT INTO lead_events (lead_id, to_status, actor_user_id, notes)
+         SELECT $1::uuid, status, $2::uuid, 'admin_nudged_owner' FROM leads WHERE id = $1::uuid`,
+        [leadId, adminUserId]
+      );
+      await client.query(
+        `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action)
+         VALUES ($2::uuid, 'lead', $1::uuid, 'nudge_owner')`,
+        [leadId, adminUserId]
+      );
+      await client.query("COMMIT");
+      return { lead_id: leadId, nudged: true };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
