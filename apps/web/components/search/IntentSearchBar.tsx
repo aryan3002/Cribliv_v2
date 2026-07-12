@@ -13,6 +13,14 @@ import {
 } from "../../lib/intent-search";
 import { hrefForSegment, type SearchSegment } from "../../lib/search-segment";
 import type { ParsedChip } from "../../lib/smart-parser";
+import { useSearchSuggestions, type BlendedSuggestion } from "../../lib/use-search-suggestions";
+import { SearchSuggestionsDropdown } from "./SearchSuggestionsDropdown";
+import {
+  clearRecentSearches,
+  pushRecentSearch,
+  readRecentSearches,
+  type RecentSearch
+} from "../../lib/recent-searches";
 
 interface CountResponse {
   total: number;
@@ -48,6 +56,19 @@ export function IntentSearchBar({
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [countStatus, setCountStatus] = useState<CountStatus>("idle");
   const countAbortRef = useRef<AbortController | null>(null);
+  const [recent, setRecent] = useState<RecentSearch[]>([]);
+  const {
+    suggestions: suggestionItems,
+    isOpen: suggestionsOpen,
+    containerRef: suggestionsRef,
+    onQueryChange: onSuggestQuery,
+    open: openSuggestions,
+    close: closeSuggestions
+  } = useSearchSuggestions(segment);
+
+  useEffect(() => {
+    setRecent(readRecentSearches());
+  }, []);
 
   useEffect(() => {
     setText(params.city ?? params.q ?? "");
@@ -114,7 +135,72 @@ export function IntentSearchBar({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    closeSuggestions();
     router.push(buildIntentSearchHref(locale, segment, params, text, dictionary) as Route);
+  }
+
+  function rememberSearch(value: string) {
+    if (!value.trim()) return;
+    pushRecentSearch(value);
+    setRecent(readRecentSearches());
+  }
+
+  function handleSelectSuggestion(suggestion: BlendedSuggestion) {
+    closeSuggestions();
+
+    if (suggestion.source === "google") {
+      const name = suggestion.data.structured_formatting?.main_text ?? suggestion.data.description;
+      rememberSearch(name);
+      setText(name);
+      router.push(hrefForSegment(locale, segment, { q: name }) as Route);
+      return;
+    }
+
+    const { data } = suggestion;
+    rememberSearch(data.label);
+
+    if (data.type === "city") {
+      setText("");
+      router.push(hrefForSegment(locale, segment, { city: data.value }) as Route);
+    } else if (data.type === "listing") {
+      // A PG listing routes to its PG detail; a property listing to /listing.
+      const href =
+        segment === "pg" && data.city_slug
+          ? `/${locale}/pg/${data.city_slug}/${data.value}`
+          : `/${locale}/listing/${data.value}`;
+      router.push(href as Route);
+    } else if (segment === "pg") {
+      // PG locality → scope by city + locality slug (precise).
+      setText("");
+      router.push(
+        hrefForSegment(locale, segment, { city: data.city_slug, locality: data.value }) as Route
+      );
+    } else {
+      // Homes locality → carry the label as a free-text query.
+      setText(data.label);
+      router.push(hrefForSegment(locale, segment, { q: data.label }) as Route);
+    }
+  }
+
+  function handlePickRecent(value: string) {
+    closeSuggestions();
+    setText(value);
+    rememberSearch(value);
+    router.push(hrefForSegment(locale, segment, { q: value }) as Route);
+  }
+
+  function handleRemoveRecent(value: string) {
+    const next = recent.filter((entry) => entry.query !== value);
+    if (next.length === 0) {
+      clearRecentSearches();
+    } else {
+      try {
+        window.localStorage.setItem("cribliv:recent_searches", JSON.stringify(next));
+      } catch {
+        /* localStorage may be unavailable */
+      }
+    }
+    setRecent(next);
   }
 
   function switchSegment(next: SearchSegment) {
@@ -160,21 +246,37 @@ export function IntentSearchBar({
         </button>
       </div>
 
-      <form className="intent-search-bar__form" onSubmit={submit}>
-        <Search size={18} aria-hidden="true" className="segbar__icon" />
-        <input
-          className="intent-search-bar__input"
-          aria-label="Search"
-          autoComplete="off"
-          enterKeyHint="search"
-          placeholder="Try 2BHK Gomti Nagar under 20k"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button type="submit" className="btn btn--primary intent-search-bar__submit">
-          Search
-        </button>
-      </form>
+      <div className="intent-search-bar__field" ref={suggestionsRef}>
+        <form className="intent-search-bar__form" onSubmit={submit}>
+          <Search size={18} aria-hidden="true" className="segbar__icon" />
+          <input
+            className="intent-search-bar__input"
+            aria-label="Search"
+            autoComplete="off"
+            enterKeyHint="search"
+            placeholder="Try 2BHK Gomti Nagar under 20k"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              onSuggestQuery(e.target.value);
+            }}
+            onFocus={openSuggestions}
+          />
+          <button type="submit" className="btn btn--primary intent-search-bar__submit">
+            Search
+          </button>
+        </form>
+        {suggestionsOpen ? (
+          <SearchSuggestionsDropdown
+            suggestions={suggestionItems}
+            recent={recent}
+            query={text}
+            onSelect={handleSelectSuggestion}
+            onPickRecent={handlePickRecent}
+            onRemoveRecent={handleRemoveRecent}
+          />
+        ) : null}
+      </div>
 
       {parsed.chips.length > 0 && (
         <div className="intent-search-bar__interpretation">

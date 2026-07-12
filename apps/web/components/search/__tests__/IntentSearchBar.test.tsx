@@ -13,13 +13,31 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input);
-    return {
-      ok: true,
-      json: async () =>
-        url.includes("/dictionary")
-          ? { data: { cities: ["lucknow"], localities: ["gomti-nagar"] } }
-          : { data: { total: 12 } }
-    };
+    let data: unknown;
+    if (url.includes("/dictionary")) {
+      data = { cities: ["lucknow"], localities: ["gomti-nagar"] };
+    } else if (url.includes("/suggest")) {
+      data = [
+        { type: "city", label: "Lucknow", value: "lucknow", listing_count: 66 },
+        {
+          type: "locality",
+          label: "Gomti Nagar, Lucknow",
+          value: "gomti-nagar",
+          city_slug: "lucknow",
+          listing_count: 12
+        },
+        {
+          type: "listing",
+          label: "2BHK in Gomti Nagar",
+          value: "listing-123",
+          rent: 18000,
+          verified: true
+        }
+      ];
+    } else {
+      data = { total: 12 };
+    }
+    return { ok: true, json: async () => ({ data }) };
   });
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -77,5 +95,37 @@ describe("IntentSearchBar", () => {
     });
 
     expect(await screen.findByText("Match count unavailable")).toBeVisible();
+  });
+
+  it("shows API-backed suggestions while the user types", async () => {
+    render(<IntentSearchBar locale="en" segment="homes" params={{}} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), {
+      target: { value: "gomti" }
+    });
+
+    // A listing suggestion row proves the /suggest response rendered.
+    expect(await screen.findByText("2BHK in Gomti Nagar")).toBeVisible();
+  });
+
+  it("navigates to the city surface when a city suggestion is picked", async () => {
+    render(<IntentSearchBar locale="en" segment="homes" params={{}} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), {
+      target: { value: "gomti" }
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Lucknow/ }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/en/search?city=lucknow"));
+  });
+
+  it("navigates to the listing detail when a listing suggestion is picked", async () => {
+    render(<IntentSearchBar locale="en" segment="homes" params={{}} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), {
+      target: { value: "gomti" }
+    });
+
+    fireEvent.click(await screen.findByText("2BHK in Gomti Nagar"));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/en/listing/listing-123"));
   });
 });

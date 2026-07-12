@@ -11610,7 +11610,11 @@ a.feature-card:hover .icon-circle {
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  /* Cap the height and scroll internally so a long result list (localities +
+     Google predictions) doesn't run off the bottom of the viewport unscrollable. */
+  max-height: min(60vh, 380px);
+  overflow: hidden auto;
+  overscroll-behavior: contain;
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(0, 102, 255, 0.06);
@@ -17566,6 +17570,30 @@ a.feature-card:hover .icon-circle {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+/* Wraps the input form so the suggestions dropdown can anchor to it. Carries the
+   grow behaviour the form used to hold directly, so the bar layout is unchanged. */
+.intent-search-bar__field {
+  position: relative;
+  flex: 1 1 360px;
+  min-width: 0;
+}
+
+/* Results-page variant of the shared dropdown: anchor it just below the input. */
+.search-dropdown--results {
+  top: 100%;
+  margin-top: 8px;
+}
+
+/* The results toolbar's search bar and the filter card below it BOTH use
+   backdrop-filter, so each forms its own stacking context at z-index:auto. Since
+   the filter card comes later in the DOM, it would paint over the bar's
+   absolutely-positioned suggestions dropdown. Lift the bar's stacking context so
+   the dropdown overlays the filters. */
+.tenant-results-toolbar .intent-search-bar {
+  position: relative;
+  z-index: 20;
 }
 
 .intent-search-bar__input {
