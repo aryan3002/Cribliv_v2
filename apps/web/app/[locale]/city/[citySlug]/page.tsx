@@ -437,6 +437,66 @@ export default async function CityPage({
         className="container"
         style={{ paddingTop: "var(--space-8)", paddingBottom: "var(--space-16)" }}
       >
+        {/* Listings — surfaced first so visitors see real inventory before the
+            SEO/discovery blocks below. */}
+        {listings.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "var(--space-4)"
+              }}
+            >
+              <h3 style={{ margin: 0 }}>
+                {isHindi ? `${cityCapitalized} में लिस्टिंग` : `Listings in ${cityCapitalized}`}
+              </h3>
+              <Link
+                href={`/${params.locale}/search?city=${params.citySlug}`}
+                className="body-sm text-brand"
+                style={{
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4
+                }}
+              >
+                {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
+              </Link>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: "var(--space-6)"
+              }}
+            >
+              {listings.map((item) => (
+                <ListingCardItem
+                  key={item.id}
+                  locale={params.locale}
+                  listing={{
+                    id: item.id,
+                    title: item.title,
+                    city: item.city,
+                    city_name: cityCapitalized,
+                    locality: item.locality ?? null,
+                    listing_type: item.listing_type,
+                    monthly_rent: item.monthly_rent,
+                    bhk: item.bhk ?? null,
+                    furnishing: item.furnishing ?? null,
+                    area_sqft: item.area_sqft ?? null,
+                    verification_status: item.verification_status,
+                    cover_photo: item.cover_photo ?? null
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Budget Chips */}
         <section style={{ marginBottom: "var(--space-10)" }}>
           <h3 style={{ marginBottom: "var(--space-4)" }}>
@@ -647,65 +707,6 @@ export default async function CityPage({
             ))}
           </div>
         </section>
-
-        {/* Featured Listings */}
-        {listings.length > 0 && (
-          <section style={{ marginBottom: "var(--space-10)" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: "var(--space-4)"
-              }}
-            >
-              <h3 style={{ margin: 0 }}>
-                {isHindi ? `${cityCapitalized} में लिस्टिंग` : `Listings in ${cityCapitalized}`}
-              </h3>
-              <Link
-                href={`/${params.locale}/search?city=${params.citySlug}`}
-                className="body-sm text-brand"
-                style={{
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4
-                }}
-              >
-                {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
-              </Link>
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                gap: "var(--space-6)"
-              }}
-            >
-              {listings.map((item) => (
-                <ListingCardItem
-                  key={item.id}
-                  locale={params.locale}
-                  listing={{
-                    id: item.id,
-                    title: item.title,
-                    city: item.city,
-                    city_name: cityCapitalized,
-                    locality: item.locality ?? null,
-                    listing_type: item.listing_type,
-                    monthly_rent: item.monthly_rent,
-                    bhk: item.bhk ?? null,
-                    furnishing: item.furnishing ?? null,
-                    area_sqft: item.area_sqft ?? null,
-                    verification_status: item.verification_status,
-                    cover_photo: item.cover_photo ?? null
-                  }}
-                />
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* FAQ */}
         <section>
