@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { isCanonicalHost } from "../../lib/canonical-host";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -24,9 +26,24 @@ const DISALLOW = [
  * Hand-authored as a route handler (not Next's metadata `robots()`) because
  * the metadata API has no first-class support for the Content-Signal directive.
  */
-export const dynamic = "force-static";
+// Must read the request Host to decide canonical-vs-preview, so this cannot be
+// statically generated.
+export const dynamic = "force-dynamic";
 
 export function GET() {
+  // Keep non-production hosts (the *.vercel.app deploy, branch previews,
+  // anything that isn't cribliv.com) out of Google's index — otherwise they
+  // duplicate cribliv.com and split ranking signal across the cutover.
+  if (!isCanonicalHost(headers().get("host"))) {
+    return new NextResponse("User-Agent: *\nDisallow: /\n", {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Robots-Tag": "noindex",
+        "Cache-Control": "public, max-age=300"
+      }
+    });
+  }
+
   const lines: string[] = [
     "User-Agent: *",
     "Allow: /",
