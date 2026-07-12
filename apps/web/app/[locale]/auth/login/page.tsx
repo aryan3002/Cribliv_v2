@@ -1,13 +1,13 @@
 "use client";
 
-import { signIn, getSession } from "next-auth/react";
+import { signIn, getSession, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { useState, useCallback, Suspense } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Sparkles } from "lucide-react";
-import type { UserRole } from "../../../../auth.config";
 import { BrandLockup } from "../../../../components/brand/brand-lockup";
 import { t } from "../../../../lib/i18n";
+import { resolveAuthedDestination } from "../../../../lib/login-redirect";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -15,15 +15,6 @@ import { t } from "../../../../lib/i18n";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "http://localhost:4000/v1";
-
-function rolePath(role: UserRole | undefined, locale = "en"): string {
-  // Tenants land on the homepage — their "dashboard" is the search experience
-  if (!role || role === "tenant") return `/${locale}`;
-  if (role === "owner") return `/${locale}/owner/dashboard`;
-  if (role === "pg_operator") return `/${locale}/pg-operator/dashboard`;
-  if (role === "admin") return `/${locale}/admin`;
-  return `/${locale}`;
-}
 
 /**
  * Prefix `from=` with the active locale if the link target shipped without one.
@@ -36,30 +27,6 @@ function normalizeFromPath(path: string | null | undefined, locale: string): str
   if (path === "/" || /^\/(en|hi)(\/|$)/.test(path)) return path; // already locale-aware
   if (!path.startsWith("/")) return null; // refuse arbitrary off-site redirects
   return `/${locale}${path}`;
-}
-
-/**
- * Returns true if the given role is allowed to access the destination path.
- * Prevents a tenant from being redirected to /admin (→ 403) after login.
- */
-function canAccessPath(role: UserRole | undefined, path: string): boolean {
-  if (path.startsWith("/en/admin") || path.startsWith("/hi/admin")) {
-    return role === "admin";
-  }
-  if (path.startsWith("/en/owner") || path.startsWith("/hi/owner")) {
-    return role === "owner";
-  }
-  if (path.startsWith("/en/pg-operator") || path.startsWith("/hi/pg-operator")) {
-    // `/pg-operator/become` is the self-service upgrade gate — tenants must reach
-    // it (granting the role flips them to pg_operator). Other PG routes stay
-    // role-gated by middleware.
-    if (path.endsWith("/pg-operator/become")) return true;
-    return role === "pg_operator";
-  }
-  if (path.startsWith("/en/tenant") || path.startsWith("/hi/tenant")) {
-    return role === "tenant";
-  }
-  return true; // public path
 }
 
 function normalizePhone(phone: string): string {
@@ -109,6 +76,7 @@ function LoginPageInner() {
   const params = useSearchParams();
   const locale = "en"; // single supported locale today; hi when middleware ramps it
   const fromPath = normalizeFromPath(params.get("from"), locale);
+  const { data: session, status } = useSession();
 
   // UI state
   const initialTab = params.get("tab") === "signup" ? "signup" : "login";
@@ -223,14 +191,7 @@ function LoginPageInner() {
       // or /auth/me sync slow), trust the cookie and navigate to fromPath;
       // middleware will enforce role-based access. Avoid the silent "fall
       // back to homepage" path that made owners think login had failed.
-      let safeDest: string;
-      if (role) {
-        safeDest = fromPath && canAccessPath(role, fromPath) ? fromPath : rolePath(role, locale);
-      } else if (fromPath) {
-        safeDest = fromPath;
-      } else {
-        safeDest = `/${locale}`;
-      }
+      const safeDest = resolveAuthedDestination(role, fromPath, locale);
 
       // Force a full page navigation instead of router.push. router.push uses
       // the App Router's client-side cache; if middleware can't yet see the
@@ -246,6 +207,21 @@ function LoginPageInner() {
   }, [challengeId, otp, phone, fromPath]);
 
   // ------------------------------------------------------------------
+  // Guard — already authenticated
+  // ------------------------------------------------------------------
+  // If a session is already present (e.g. the middleware cookie race bounced a
+  // just-logged-in user back here, or they reached /auth/login via back button
+  // or a stale link), don't show the login form — send them onward. Fires only
+  // once the client session is hydrated, so the cookie is committed and the
+  // destination won't bounce back to login. window.location.replace: a full
+  // navigation (guarantees the cookie) that leaves no login entry in history.
+  useEffect(() => {
+    if (status === "authenticated") {
+      window.location.replace(resolveAuthedDestination(session?.user?.role, fromPath, locale));
+    }
+  }, [status, session, fromPath, locale]);
+
+  // ------------------------------------------------------------------
   // UI
   // ------------------------------------------------------------------
   const fadeUp = {
@@ -259,6 +235,12 @@ function LoginPageInner() {
 
   const subtitleCopy =
     tab === "signup" ? "Two minutes. No brokers. No passwords." : "Pick up where you left off.";
+
+  // Already authenticated → we're redirecting (effect above). Render nothing
+  // instead of a flash of the login form.
+  if (status === "authenticated") {
+    return <div className="auth-canvas" aria-hidden="true" />;
+  }
 
   return (
     <div className="auth-canvas">
