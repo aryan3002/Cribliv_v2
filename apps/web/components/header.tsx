@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -38,11 +39,13 @@ export function Header({ locale }: { locale: Locale }) {
   // route just dead-ends them at /403. Route non-hosts to the become-owner funnel
   // instead so the "+" always leads somewhere actionable.
   const isPgOperatorHost = role === "pg_operator" || isPgOperatorRoute;
-  const hostLinkHref = isPgOperatorHost
-    ? `/${locale}/pg-operator/listings/new`
-    : role === "owner"
-      ? `/${locale}/owner/dashboard`
-      : `/${locale}/become-owner`;
+  const hostLinkHref = (
+    isPgOperatorHost
+      ? `/${locale}/pg-operator/listings/new`
+      : role === "owner"
+        ? `/${locale}/owner/dashboard`
+        : `/${locale}/become-owner`
+  ) as Route;
   const hostLinkLabel = isPgOperatorHost ? "New listing" : t(locale, "navPostProperty");
 
   useEffect(() => {

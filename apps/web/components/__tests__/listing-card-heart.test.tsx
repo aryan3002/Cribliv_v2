@@ -6,7 +6,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 // to the same shortlist store the Saved Homes page reads. In guest mode that is
 // localStorage via toggleGuestShortlist; these tests pin the real write.
 
-const toggleGuestShortlist = vi.fn(() => ({ active: true }));
+const toggleGuestShortlist = vi.fn((_id: string) => ({ active: true }));
 let guestShortlist: string[] = [];
 
 vi.mock("next-auth/react", () => ({
