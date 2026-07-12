@@ -194,6 +194,9 @@ export class PgManageRequestService {
         await client.query("COMMIT");
         return toManageRequest(request);
       }
+      if (request.status !== "pending") {
+        throw new ConflictException({ code: "manage_request_not_pending" });
+      }
 
       const approved = await client.query<RequestRow>(
         `UPDATE pg_manage_requests

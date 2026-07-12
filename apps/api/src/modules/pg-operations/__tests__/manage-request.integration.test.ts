@@ -395,6 +395,48 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
     expect(property.rows[0].manage_enabled).toBe(false);
   });
 
+  it("does not approve a rejected request after a later request is pending", async () => {
+    const { listingId } = await createListing(operatorId, "Rejected request approval listing");
+    const first = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `rejected-first-${testRunId}`)
+      .send({ reason: "First request" })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${first.body.data.id}/reject`)
+      .set("x-test-identity", "admin")
+      .send({ notes: "Rejected first request" })
+      .expect(201);
+
+    const second = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `pending-second-${testRunId}`)
+      .send({ reason: "Second request" })
+      .expect(201);
+
+    const invalidApproval = await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${first.body.data.id}/approve`)
+      .set("x-test-identity", "admin")
+      .send({ notes: "Must not approve rejected request" })
+      .expect(409);
+    expect(invalidApproval.body.code).toBe("manage_request_not_pending");
+
+    const requests = await db.query<{ id: string; status: string }>(
+      `SELECT id::text, status::text
+         FROM pg_manage_requests
+        WHERE id = ANY($1::uuid[])
+        ORDER BY created_at ASC`,
+      [[first.body.data.id, second.body.data.id]]
+    );
+    expect(requests.rows).toEqual([
+      { id: first.body.data.id, status: "rejected" },
+      { id: second.body.data.id, status: "pending" }
+    ]);
+  });
+
   it("blocks non-admin users from the admin queue and decisions", async () => {
     const { listingId } = await createListing(operatorId, "Role listing");
     const created = await request(app.getHttpServer())
