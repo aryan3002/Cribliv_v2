@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "../components/auth/session-provider";
 import { PostHogProvider } from "../components/analytics/posthog-provider";
 import { WebMcpProvider } from "../components/agent/web-mcp-provider";
+import { Analytics } from "@vercel/analytics/next";
 import { Inter, Manrope, Space_Grotesk, Fraunces, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({
@@ -81,6 +82,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <PostHogProvider>{children}</PostHogProvider>
         </SessionProvider>
         <WebMcpProvider />
+        <Analytics />
       </body>
     </html>
   );
