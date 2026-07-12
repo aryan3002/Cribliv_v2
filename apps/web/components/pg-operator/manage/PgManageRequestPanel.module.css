@@ -1,0 +1,82 @@
+.panel {
+  align-items: center;
+  background: var(--m-card);
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius);
+  box-shadow: var(--m-sh1);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.copy {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+}
+
+.copy h2 {
+  color: var(--m-text-strong);
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.copy p,
+.error {
+  color: var(--m-text-soft);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 0;
+}
+
+.error {
+  color: var(--m-danger);
+  margin: 0;
+}
+
+.requestIcon { color: var(--m-primary-strong); }
+.pendingIcon { color: var(--m-amber); }
+.approvedIcon { color: var(--m-primary-strong); }
+.rejectedIcon { color: var(--m-danger); }
+
+.primaryButton,
+.secondaryButton,
+.primaryLink {
+  align-items: center;
+  border-radius: 8px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  text-decoration: none;
+}
+
+.primaryButton,
+.primaryLink {
+  background: var(--m-primary-strong);
+  border: 1px solid var(--m-primary-strong);
+  color: #fff;
+}
+
+.primaryButton:disabled { cursor: not-allowed; opacity: 0.65; }
+.primaryButton:not(:disabled):hover,
+.primaryLink:hover { background: var(--m-primary); border-color: var(--m-primary); }
+
+.secondaryButton {
+  background: var(--m-card);
+  border: 1px solid var(--m-border);
+  color: var(--m-text);
+  margin-left: auto;
+}
+
+@media (max-width: 620px) {
+  .panel { align-items: stretch; flex-direction: column; }
+  .primaryButton,
+  .primaryLink,
+  .secondaryButton { width: 100%; }
+}

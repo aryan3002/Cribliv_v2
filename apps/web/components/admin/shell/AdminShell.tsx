@@ -16,6 +16,7 @@ import { RevenueTab } from "../tabs/RevenueTab";
 import { RentAgreementsTab } from "../tabs/RentAgreementsTab";
 import { PgListingsTab } from "../tabs/PgListingsTab";
 import { PgPropertiesTab } from "../tabs/PgPropertiesTab";
+import { ManagePgRequestsTab } from "../tabs/ManagePgRequestsTab";
 import { FraudTab } from "../tabs/FraudTab";
 import { SeoProgrammaticPages } from "../tabs/SeoProgrammaticPages";
 import { SearchPerformanceTab } from "../tabs/SearchPerformanceTab";
@@ -37,6 +38,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   "rent-agreements": "Rent Agreements",
   "pg-listings": "PG Overview",
   "pg-properties": "PG Listings",
+  "manage-pg-requests": "Manage PG Requests",
   fraud: "Fraud Intelligence",
   seo: "Programmatic SEO",
   "search-performance": "Search Performance",
@@ -122,6 +124,8 @@ export function AdminShell({ accessToken }: Props) {
         return <PgListingsTab key={`pg-${k}`} accessToken={accessToken} />;
       case "pg-properties":
         return <PgPropertiesTab key={`pgp-${k}`} accessToken={accessToken} />;
+      case "manage-pg-requests":
+        return <ManagePgRequestsTab key={`pgm-${k}`} accessToken={accessToken} onToast={push} />;
       case "fraud":
         return <FraudTab key={`fr-${k}`} accessToken={accessToken} onToast={push} />;
       case "seo":

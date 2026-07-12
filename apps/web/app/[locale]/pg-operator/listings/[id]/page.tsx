@@ -17,6 +17,7 @@ import { computePgListingScore } from "@cribliv/shared-types";
 import PgPublishedBanner from "./PgPublishedBanner";
 import PgSubmitForReview from "./PgSubmitForReview";
 import PgListingControls from "./PgListingControls";
+import { PgManageRequestPanel } from "@/components/pg-operator/manage/PgManageRequestPanel";
 import styles from "./pg-listing-manage.module.css";
 
 export const dynamic = "force-dynamic";
@@ -165,6 +166,12 @@ export default async function Page({
             Submitted for review. It goes live once our team approves it.
           </div>
         )}
+
+        <PgManageRequestPanel
+          listingId={detail.id}
+          locale={params.locale}
+          accessToken={accessToken ?? undefined}
+        />
 
         {/* Gallery */}
         {photos.length > 0 ? (
