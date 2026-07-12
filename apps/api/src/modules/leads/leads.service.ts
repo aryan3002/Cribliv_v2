@@ -557,7 +557,7 @@ export class LeadsService {
     return { items: result.rows };
   }
 
-  async teamMarkCalled(leadId: string) {
+  async teamMarkCalled(leadId: string, adminUserId?: string) {
     if (!readFeatureFlags().ff_callback_leads) {
       throw new ForbiddenException({
         code: "feature_disabled",
@@ -593,6 +593,13 @@ export class LeadsService {
          VALUES ($1::uuid, $2::lead_status, 'team_called')`,
         [leadId, lead.status]
       );
+      if (adminUserId) {
+        await client.query(
+          `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action, after_state)
+           VALUES ($1::uuid, 'lead', $2::uuid, 'mark_team_called', $3::jsonb)`,
+          [adminUserId, leadId, JSON.stringify({ called_by: "team" })]
+        );
+      }
       const stamped = await client.query<{ called_at: string }>(
         `SELECT called_at::text FROM leads WHERE id = $1::uuid`,
         [leadId]
