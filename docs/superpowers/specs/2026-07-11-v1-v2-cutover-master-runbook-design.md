@@ -17,18 +17,18 @@ This is the single ordered plan that ties together the three existing workstream
 
 ## 0. Current state (grounded 2026-07-11)
 
-| Piece                                                                             | State                                                                  |
-| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| v2 data migration (**87** listings: 67 flats + 20 PGs, photos→Azure, PostGIS geo) | ✅ done on prod                                                        |
-| Migration `0052_v1_migration_map` (301 source)                                    | ✅ applied on prod                                                     |
-| SEO indexing/measurement code (slice 2)                                           | ✅ merged, dormant behind `FF_SEO_INDEXING` / `FF_SEO_GSC`             |
-| Contact-unlock monetization                                                       | ✅ merged, flag **ON** by default (callback model)                     |
-| Misspelling/alias 301s                                                            | ✅ live in `apps/web/next.config.mjs`                                  |
-| **v1 301 redirect map** (`/properties/…`, `/pgs/…` → v2)                          | ⛔ **not built** — this runbook §3                                     |
-| **Free-launch credit lever**                                                      | ⛔ **not built** — signup grant hardcoded to 2 (`auth.service.ts:242`) |
-| **`cribliv-worker`**                                                              | ⚠️ stale June image, 10-char OpenAI key, `FF_SEO_BLOG` off             |
-| **GCP service account** (GSC/Indexing API)                                        | ⚠️ not created                                                         |
-| **`OTP_PROVIDER=d7` on prod**                                                     | ❓ must verify (§1)                                                    |
+| Piece                                                                             | State                                                                     |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| v2 data migration (**87** listings: 67 flats + 20 PGs, photos→Azure, PostGIS geo) | ✅ done on prod                                                           |
+| Migration `0052_v1_migration_map` (301 source)                                    | ✅ applied on prod                                                        |
+| SEO indexing/measurement code (slice 2)                                           | ✅ merged, dormant behind `FF_SEO_INDEXING` / `FF_SEO_GSC`                |
+| Contact-unlock monetization                                                       | ✅ merged, flag **ON** by default (callback model)                        |
+| Misspelling/alias 301s                                                            | ✅ live in `apps/web/next.config.mjs`                                     |
+| **v1 301 redirect map** (`/properties/…`, `/pgs/…` → v2)                          | ✅ shipped — code PR #52 + data PR #54 (merged)                           |
+| **Free-launch credit lever**                                                      | ✅ shipped — PR #56, tenant signup grant = 10 (`SIGNUP_FREE_CREDITS`)     |
+| **`cribliv-worker`**                                                              | ⚠️ still stale June image → redeploy per §11 (GSC env already staged)     |
+| **GCP service account** (GSC/Indexing API)                                        | ✅ created + env staged on worker+api (§11); activates on worker redeploy |
+| **`OTP_PROVIDER=d7` on prod**                                                     | ❓ must verify (§1)                                                       |
 
 ---
 
@@ -87,9 +87,9 @@ G3 + G4 are code/deploy tasks (§3, §4). G1, G2, G5 are prod verification you r
 
 ## 4. Phase 2 — Infra readiness (parallel with §3)
 
-- [ ] **Free-credit lever (code, G2).** Env-ify the signup grant: `auth.service.ts:242` `VALUES ($1::uuid, 2, 2)` → read `SIGNUP_FREE_CREDITS` (default 2) for both columns. Set `SIGNUP_FREE_CREDITS` high in prod (e.g. 999) at launch; dial back to the intended value the day Razorpay goes live. Small PR alongside §3.
-- [ ] **Redeploy `cribliv-worker`** (G4): current image, real OpenAI `key1` (84-char, not the 10-char placeholder), `SEO_BLOG_TIMEOUT_MS=90000`, correct flags.
-- [ ] **GCP service account** (can trail cutover by ~1 day): create SA → enable Search Console API + Indexing API → add the SA email as a **user on the cribliv.com GSC Domain property** → stage prod env `GSC_SERVICE_ACCOUNT_JSON`, `GSC_SITE_URL=sc-domain:cribliv.com`, `GOOGLE_INDEXING_DAILY_QUOTA=200`.
+- [x] **Free-credit lever (code, G2).** ✅ Shipped as **PR #56**: env-configurable signup grant `signupFreeCredits()` (`SIGNUP_FREE_CREDITS`, default **10** — tenants get 10, owner copy stays 2), reversible when Razorpay goes live. Tenant-facing i18n synced to 10.
+- [x] **GCP service account** ✅ Done — project `cribliv-seo`, SA `cribliv-seo@cribliv-seo.iam.gserviceaccount.com`, added as **Owner** of the cribliv.com GSC Domain property; `gsc-sa-json` secret + `GSC_SITE_URL=sc-domain:cribliv.com` + `GOOGLE_INDEXING_DAILY_QUOTA=200` staged on **both** `cribliv-worker` and `cribliv-api`. **Concrete commands in §11.**
+- [ ] **Redeploy `cribliv-worker`** (G4) — **THIS is what makes the GSC env live** (the worker still runs a June-18 image that predates the SEO code). Point it at the API's current image + fix its OpenAI key + `SEO_BLOG_TIMEOUT_MS=90000`. **Command block in §11.**
 - [ ] **Pre-cutover indexability:** confirm the current vercel.app deploy is `noindex` / canonical'd to cribliv.com so it isn't indexed as a duplicate before the flip.
 
 ---
@@ -144,3 +144,58 @@ Brand traffic uninterrupted · real users log in via D7 OTP · no dead-end paywa
 - [ ] **Rotate the v1 Mongo password** — it was exposed in chat during the migration. v1's Mongo is decommissioned at cutover anyway, but rotate it now regardless.
 - [ ] **Add Varanasi to `seo_city_config`** before enabling programmatic SEO there (its listings' _detail_ pages already work; this is only for the `/city/varanasi` landing pages).
 - [ ] **Merge the migration tooling PR** (#38, if still open) so the migration code + `0052` live on master — not a data blocker (prod is already migrated), just repo hygiene.
+- [ ] **Rotate the GSC service-account key** — the `cribliv-seo` JSON key was read into a chat transcript. Delete the local `~/Downloads/cribliv-seo-*.json`; rotate the key (GCP → SA → Keys → delete + create new → re-run the `gsc-sa-json` secret set) if the transcript could be exposed.
+
+---
+
+## 11. Appendix — GCP service account + worker redeploy (concrete commands)
+
+All Azure Container Apps live in RG `Cribliv`, env `cribliv-env`, ACR `criblivacr`. The worker runs the **same image** as the API (repo `cribliv-api`) with command `node dist/worker/worker.js`. The GSC poller + Indexing submitter run in the **worker**.
+
+### 11.1 GCP setup (done 2026-07-12)
+
+- **GCP Console:** project `cribliv-seo`; enabled **Google Search Console API** + **Indexing API**; created service account `cribliv-seo@cribliv-seo.iam.gserviceaccount.com` with a JSON key.
+- **Search Console:** added that SA email as an **Owner** (Manage property owners → delegated owner) of the `cribliv.com` Domain property. Owner is required for the Indexing API — a "Full" user 403s.
+- **Azure env (staged on `cribliv-worker` AND `cribliv-api`):**
+  ```bash
+  az containerapp secret set -n <app> -g Cribliv \
+    --secrets gsc-sa-json="$(jq -c . ~/Downloads/<key>.json)"
+  az containerapp update -n <app> -g Cribliv --set-env-vars \
+    GSC_SERVICE_ACCOUNT_JSON=secretref:gsc-sa-json \
+    GSC_SITE_URL=sc-domain:cribliv.com \
+    GOOGLE_INDEXING_DAILY_QUOTA=200
+  ```
+
+### 11.2 Worker redeploy — run once, pre-cutover (this is what makes the GSC env live)
+
+The worker still runs the June-18 image, which predates the SEO code (slice 2, merged 2026-07-07). Setting env on it is inert until it runs current code.
+
+```bash
+# Copy the API's WORKING OpenAI key into the worker (fixes the 10-char placeholder)
+KEY=$(az containerapp secret show -n cribliv-api -g Cribliv \
+  --secret-name azure-openai-api-key --query value -o tsv)
+az containerapp secret set -n cribliv-worker -g Cribliv \
+  --secrets azure-openai-api-key="$KEY"
+
+# Point the worker at the API's current image (has the SEO/GSC code) + blog timeout
+API_IMAGE=$(az containerapp show -n cribliv-api -g Cribliv \
+  --query "properties.template.containers[0].image" -o tsv)
+az containerapp update -n cribliv-worker -g Cribliv \
+  --image "$API_IMAGE" --set-env-vars SEO_BLOG_TIMEOUT_MS=90000
+
+# Verify: new image + running, no 401s in logs
+az containerapp show -n cribliv-worker -g Cribliv \
+  --query "{image:properties.template.containers[0].image, status:properties.runningStatus}" -o table
+az containerapp logs show -n cribliv-worker -g Cribliv --tail 50
+```
+
+Safe pre-cutover: the SEO jobs stay dormant because `FF_SEO_GSC` / `FF_SEO_INDEXING` are unset (default off).
+
+### 11.3 At cutover ONLY — turn the SEO jobs on
+
+```bash
+az containerapp update -n cribliv-worker -g Cribliv --set-env-vars FF_SEO_GSC=true FF_SEO_INDEXING=true
+az containerapp update -n cribliv-api    -g Cribliv --set-env-vars FF_SEO_GSC=true FF_SEO_INDEXING=true
+```
+
+Then watch `cribliv-worker` logs: `403 PERMISSION_DENIED` → SA isn't an Owner (redo §11.1 Search Console step); clean 200s → `keyword_rankings` fills on the first weekly poll.
