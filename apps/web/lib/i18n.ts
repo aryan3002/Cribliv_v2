@@ -370,8 +370,8 @@ const dictionary: Dictionary = {
     hi: "तब तक कॉल नहीं? आपका क्रेडिट अपने आप वापस आ जाएगा। बचे क्रेडिट: {n}"
   },
   cbGuestHint: {
-    en: "Guest browsing is open. Sign in with OTP to request a callback. New accounts get 2 free credits.",
-    hi: "मेहमान के तौर पर ब्राउज़िंग खुली है। कॉलबैक के लिए OTP से साइन इन करें। नए खातों को 2 मुफ़्त क्रेडिट मिलते हैं।"
+    en: "Guest browsing is open. Sign in with OTP to request a callback. New accounts get 10 free credits.",
+    hi: "मेहमान के तौर पर ब्राउज़िंग खुली है। कॉलबैक के लिए OTP से साइन इन करें। नए खातों को 10 मुफ़्त क्रेडिट मिलते हैं।"
   },
   cbMyCallbacks: { en: "My Callbacks", hi: "मेरी कॉलबैक" },
   cbGuaranteeLine: {
@@ -430,7 +430,7 @@ const dictionary: Dictionary = {
     hi: "{n} लॉक्ड लीड इंतज़ार में हैं"
   },
   // ── Guest gating ────────────────────────────────────────────────────────────
-  gateHeadline: { en: "Sign up free, get 2 credits", hi: "मुफ़्त साइन अप करें, 2 क्रेडिट पाएं" },
+  gateHeadline: { en: "Sign up free, get 10 credits", hi: "मुफ़्त साइन अप करें, 10 क्रेडिट पाएं" },
   gateSub: {
     en: "Owners call you back within 24 hours.",
     hi: "मालिक 24 घंटे के भीतर आपको कॉल करते हैं।"
@@ -443,8 +443,8 @@ const dictionary: Dictionary = {
   // ── Welcome credits celebration ────────────────────────────────────────────
   welcomeTitle: { en: "Welcome to Cribliv! 🎉", hi: "Cribliv में आपका स्वागत है! 🎉" },
   welcomeTenantBody: {
-    en: "You've got 2 free credits. Request callbacks and get a call within 24 hours.",
-    hi: "आपको 2 मुफ़्त क्रेडिट मिले हैं। कॉलबैक मांगें और 24 घंटे के भीतर कॉल पाएं।"
+    en: "You've got 10 free credits. Request callbacks and get a call within 24 hours.",
+    hi: "आपको 10 मुफ़्त क्रेडिट मिले हैं। कॉलबैक मांगें और 24 घंटे के भीतर कॉल पाएं।"
   },
   welcomeOwnerBody: {
     en: "Welcome! Your first 2 tenant leads are free.",
@@ -453,7 +453,7 @@ const dictionary: Dictionary = {
   welcomeCta: { en: "Start exploring", hi: "खोजना शुरू करें" },
   // ── Login page benefits ─────────────────────────────────────────────────────
   loginBenefitsTitle: { en: "Why sign up?", hi: "साइन अप क्यों करें?" },
-  loginBenefit1: { en: "2 free credits on signup", hi: "साइन अप पर 2 मुफ़्त क्रेडिट" },
+  loginBenefit1: { en: "10 free credits on signup", hi: "साइन अप पर 10 मुफ़्त क्रेडिट" },
   loginBenefit2: {
     en: "Guaranteed callback in 24 hours, or your credit back",
     hi: "24 घंटे में कॉलबैक की गारंटी, वरना क्रेडिट वापस"
