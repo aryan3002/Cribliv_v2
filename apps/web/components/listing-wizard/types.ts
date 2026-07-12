@@ -45,11 +45,15 @@ export interface WizardForm {
 
 export interface UploadFile {
   file: File;
+  originalFile?: File;
   clientUploadId: string;
-  status: "pending" | "uploading" | "complete" | "error";
+  sourceFingerprint?: string;
+  status: "preparing" | "pending" | "uploading" | "complete" | "error";
   progress: number;
   previewUrl: string;
   errorMessage?: string;
+  prepared?: boolean;
+  retryable?: boolean;
   /** Server-side photo id, present once the upload has been persisted (or
    *  for photos hydrated from the API in edit mode). Required to call the
    *  reorder endpoint. */
@@ -502,6 +506,10 @@ export function generateClientUploadId(file: File): string {
       ? crypto.randomUUID().slice(0, 8)
       : `${Date.now()}`;
   return `${file.name}-${file.size}-${file.lastModified}-${randomPart}`;
+}
+
+export function getUploadSourceFingerprint(file: File): string {
+  return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
 export {

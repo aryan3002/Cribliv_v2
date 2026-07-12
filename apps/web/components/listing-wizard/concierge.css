@@ -486,6 +486,36 @@
 .cz-photo-tile__remove:hover { background: var(--c-danger); transform: scale(1.08); }
 .cz-photo-tile__remove:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.cz-photo-tile__retry {
+  position: absolute;
+  left: 10px;
+  bottom: 38px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--c-surface);
+  color: var(--c-danger);
+  font-family: var(--c-sans);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: var(--c-shadow-md);
+  cursor: pointer;
+}
+
+.cz-photo-tile__retry:hover {
+  background: #FEF2F2;
+}
+
+.cz-photo-tile__retry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .cz-photo-tile__progress {
   position: absolute;
   left: 10px;

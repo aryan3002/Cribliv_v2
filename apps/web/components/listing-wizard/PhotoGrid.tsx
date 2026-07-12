@@ -65,20 +65,23 @@ import {
   useSortable
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { RotateCcw } from "lucide-react";
 
 export interface PhotoGridItem {
   id: string;
   previewUrl: string;
   caption?: string;
-  status?: "pending" | "uploading" | "complete" | "error";
+  status?: "preparing" | "pending" | "uploading" | "complete" | "error";
   progress?: number;
   errorMessage?: string;
+  retryable?: boolean;
 }
 
 export interface PhotoGridProps {
   items: PhotoGridItem[];
   onReorder: (next: PhotoGridItem[]) => void;
   onRemove?: (id: string) => void;
+  onRetry?: (id: string) => void;
   /** Disables all interactions (drag + remove). */
   disabled?: boolean;
 }
@@ -124,7 +127,7 @@ const TileContent = memo(function TileContent({
         decoding="async"
       />
 
-      {item.status === "uploading" ? (
+      {item.status === "preparing" || item.status === "uploading" ? (
         <div className="cz-photo-tile__progress" aria-hidden="true">
           <span style={{ width: `${Math.max(0, Math.min(100, item.progress ?? 0))}%` }} />
         </div>
@@ -133,13 +136,15 @@ const TileContent = memo(function TileContent({
       <figcaption className="cz-photo-tile__caption">
         {item.status === "error"
           ? item.errorMessage || "Upload failed"
-          : item.status === "uploading"
-            ? "Uploading…"
-            : item.status === "complete"
-              ? isCoverSlot
-                ? "Cover photo"
-                : "Uploaded"
-              : (item.caption ?? `Photo ${index + 1}`)}
+          : item.status === "preparing"
+            ? "Preparing photo…"
+            : item.status === "uploading"
+              ? "Uploading…"
+              : item.status === "complete"
+                ? isCoverSlot
+                  ? "Cover photo"
+                  : "Uploaded"
+                : (item.caption ?? `Photo ${index + 1}`)}
       </figcaption>
     </>
   );
@@ -208,6 +213,7 @@ interface SortableTileProps {
   isCoverDropTarget: boolean;
   shift: -1 | 0 | 1;
   onRemove?: (id: string) => void;
+  onRetry?: (id: string) => void;
   disabled: boolean;
 }
 
@@ -217,6 +223,7 @@ function SortableTile({
   isCoverDropTarget,
   shift,
   onRemove,
+  onRetry,
   disabled
 }: SortableTileProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -294,6 +301,24 @@ function SortableTile({
           ×
         </button>
       ) : null}
+
+      {item.status === "error" && item.retryable !== false && onRetry ? (
+        <button
+          type="button"
+          className="cz-photo-tile__retry"
+          aria-label={`Retry upload for photo ${index + 1}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRetry(item.id);
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+          disabled={disabled}
+        >
+          <RotateCcw size={14} aria-hidden="true" />
+          Retry upload
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -312,7 +337,13 @@ const DROP_ANIMATION: DropAnimation = {
   })
 };
 
-export function PhotoGrid({ items, onReorder, onRemove, disabled = false }: PhotoGridProps) {
+export function PhotoGrid({
+  items,
+  onReorder,
+  onRemove,
+  onRetry,
+  disabled = false
+}: PhotoGridProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   // `overId` tracks which tile the cursor is currently hovering. Combined
   // with `activeId` it tells us where the drop would land — which is what
@@ -411,6 +442,7 @@ export function PhotoGrid({ items, onReorder, onRemove, disabled = false }: Phot
               isCoverDropTarget={index === 0 && activeId !== null && activeId !== item.id}
               shift={activeId === null ? 0 : computeShift(index, activeIndex, targetIndex)}
               onRemove={onRemove}
+              onRetry={onRetry}
               disabled={disabled}
             />
           ))}
