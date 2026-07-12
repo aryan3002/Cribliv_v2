@@ -90,6 +90,13 @@ const nextConfig = {
         });
       }
     }
+    // v1 top-level pages Google indexed that have no v2 route (would 404).
+    // Source paths are un-prefixed (v1 had no /[locale]); targets are /en.
+    redirects.push(
+      { source: "/about-us", destination: "/en/about", permanent: true },
+      { source: "/list", destination: "/en/search", permanent: true },
+      { source: "/privacy-policy", destination: "/en/privacy", permanent: true }
+    );
     return redirects;
   },
   async headers() {
