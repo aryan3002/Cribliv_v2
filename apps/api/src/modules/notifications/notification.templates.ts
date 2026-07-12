@@ -56,9 +56,7 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     ],
     channels: ["whatsapp", "sms"],
     buildSmsBody: (payload) =>
-      `Cribliv: ${String(payload.tenant_name ?? "एक किरायेदार")} ने आपकी प्रॉपर्टी "${String(
-        payload.listing_title ?? "आपकी प्रॉपर्टी"
-      )}" में रुचि दिखाई है। कृपया ${String(payload.response_deadline ?? "12 घंटे")} में संपर्क करें।`
+      `New Cribliv lead: ${String(payload.tenant_name ?? "a seeker")} wants a callback for ${String(payload.listing_title ?? "your listing")}. Call within ${String(payload.response_deadline ?? "24 hours")} or the lead expires. cribliv.com`
   },
 
   "owner.listing_approved": {
@@ -145,6 +143,8 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
       String(payload.listing_title ?? "आपकी प्रॉपर्टी"),
       String(payload.hours_left ?? "24 घंटे")
     ],
-    channels: ["whatsapp"]
+    channels: ["whatsapp", "sms"],
+    buildSmsBody: (payload) =>
+      `Reminder: your Cribliv lead ${String(payload.tenant_name ?? "a seeker")} for ${String(payload.listing_title ?? "your listing")} is still uncalled — ${String(payload.hours_left ?? "24 घंटे")} left before refund. Call now. cribliv.com`
   }
 };
