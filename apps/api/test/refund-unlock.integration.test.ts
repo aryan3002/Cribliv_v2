@@ -123,6 +123,18 @@ describe.runIf(!!TEST_DB)("refundUnlock (DB)", () => {
       [unlockId]
     );
     expect(ev.rows[0].n).toBe(1);
+
+    const cu = await pool.query<{ owner_response_status: string; refund_txn_id: string | null }>(
+      `SELECT owner_response_status, refund_txn_id::text FROM contact_unlocks WHERE id = $1::uuid`,
+      [unlockId]
+    );
+    expect(cu.rows[0].owner_response_status).toBe("timeout_refunded");
+    expect(cu.rows[0].refund_txn_id).not.toBeNull();
+    const ev2 = await pool.query<{ actor_role: string }>(
+      `SELECT actor_role FROM contact_events WHERE contact_unlock_id = $1::uuid AND event_type = 'refund_issued'`,
+      [unlockId]
+    );
+    expect(ev2.rows[0].actor_role).toBe("admin");
   });
 
   it("is idempotent: a second refund on an already-refunded unlock is a no-op", async () => {
@@ -149,11 +161,10 @@ describe.runIf(!!TEST_DB)("refundUnlock (DB)", () => {
     const second = await run();
     expect(first.refunded).toBe(true);
     expect(second.refunded).toBe(false);
-    const wallet = await pool.query<{ balance_credits: number }>(
-      `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid`,
-      [tenantId]
+    const credits = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM wallet_transactions WHERE reference_id = $1::uuid AND credits_delta = 1`,
+      [unlockId]
     );
-    // exactly one credit from the two seeded refunds' first-wins claims
-    expect(wallet.rows[0].balance_credits).toBeGreaterThanOrEqual(1);
+    expect(credits.rows[0].n).toBe(1); // exactly one refund credit, even after two refund calls
   });
 });
