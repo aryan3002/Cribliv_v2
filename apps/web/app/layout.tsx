@@ -5,6 +5,7 @@ import { SessionProvider } from "../components/auth/session-provider";
 import { PostHogProvider } from "../components/analytics/posthog-provider";
 import { WebMcpProvider } from "../components/agent/web-mcp-provider";
 import { Analytics } from "@vercel/analytics/next";
+import { ClarityAnalytics } from "../components/analytics/clarity";
 import { Inter, Manrope, Space_Grotesk, Fraunces, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({
@@ -83,6 +84,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         </SessionProvider>
         <WebMcpProvider />
         <Analytics />
+        <ClarityAnalytics />
       </body>
     </html>
   );
