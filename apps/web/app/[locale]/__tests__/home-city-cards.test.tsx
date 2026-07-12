@@ -33,7 +33,7 @@ describe("homepage city cards", () => {
     expect(delhiCard.querySelector(".home-city-card__arrow")).toBeTruthy();
     expect(delhiCard.querySelector(".home-city-card__status-dot--live")).toBeTruthy();
 
-    expect(container.querySelectorAll(".home-city-card__map")).toHaveLength(8);
-    expect(container.querySelectorAll(".home-city-card__arrow")).toHaveLength(8);
+    expect(container.querySelectorAll(".home-city-card__map")).toHaveLength(9);
+    expect(container.querySelectorAll(".home-city-card__arrow")).toHaveLength(9);
   });
 });
