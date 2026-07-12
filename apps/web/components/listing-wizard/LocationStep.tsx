@@ -48,14 +48,26 @@ function inferCityFromAddress(address: string): string | null {
 /* ── Component ──────────────────────────────────────────────────────── */
 
 export function LocationStep({ form, errors, updateField, aiFillingFields }: Props) {
-  const { predictions, fetchPredictions, getPlaceDetails, clearPredictions, enabled } =
-    useGooglePlaces({
-      types: ["locality", "sublocality", "neighborhood", "route", "street_address"],
-      debounce: 280
-    });
+  const {
+    predictions,
+    fetchPredictions,
+    getPlaceDetails,
+    clearPredictions,
+    enabled,
+    loading: placesLoading,
+    error: placesError,
+    noResults
+  } = useGooglePlaces({
+    types: ["locality", "sublocality", "neighborhood", "route", "street_address"],
+    debounce: 280
+  });
 
   const [showDropdown, setShowDropdown] = useState(false);
   const [localityInput, setLocalityInput] = useState(form.locality);
+  // True once a place-details lookup for a chosen suggestion fails — the
+  // locality text is kept, but the owner is told no pin was placed.
+  const [detailsError, setDetailsError] = useState(false);
+  const placesUnavailable = !enabled || placesError === "unavailable";
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -180,6 +192,7 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
   async function handlePlaceSelect(placeId: string, description: string) {
     setShowDropdown(false);
     clearPredictions();
+    setDetailsError(false);
 
     const details = await getPlaceDetails(placeId);
     const localityName = details?.name ?? description.split(",")[0] ?? description;
@@ -191,11 +204,16 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
       updateField("lat", details.geometry.lat);
       updateField("lng", details.geometry.lng);
 
-      // Smart city auto-fill
+      // Smart city auto-fill — a valid suggestion replaces a stale/inconsistent
+      // city so the pair never disagrees, not only when the city is empty.
       const inferred = inferCityFromAddress(details.formatted_address);
-      if (inferred && !form.city) updateField("city", inferred);
+      if (inferred && inferred !== form.city) updateField("city", inferred);
 
       placePin(details.geometry.lat, details.geometry.lng);
+    } else {
+      // Details lookup failed: keep the typed locality but make it explicit that
+      // no pin was placed rather than silently implying one was.
+      setDetailsError(true);
     }
   }
 
@@ -269,6 +287,7 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
               const val = e.target.value;
               setLocalityInput(val);
               updateField("locality", val);
+              setDetailsError(false);
               // Clear pin when user manually edits
               if (form.lat !== null) {
                 updateField("lat", null);
@@ -340,6 +359,25 @@ export function LocationStep({ form, errors, updateField, aiFillingFields }: Pro
               </div>
             </div>
           )}
+
+          {/* Field-level status: keep the owner informed instead of a dead field */}
+          {placesUnavailable ? (
+            <p className="cz-help cz-help--warn">
+              Locality search is unavailable right now. Type your locality and drop the pin on the
+              map below.
+            </p>
+          ) : detailsError ? (
+            <p className="cz-help cz-help--warn">
+              We couldn&apos;t place the pin automatically. Drop the pin on the map below to set the
+              location.
+            </p>
+          ) : placesLoading ? (
+            <p className="cz-help">Searching localities…</p>
+          ) : noResults && localityInput.trim().length >= 2 ? (
+            <p className="cz-help">
+              No matches found. Keep typing, or click the map to drop a pin.
+            </p>
+          ) : null}
         </div>
       </div>
 

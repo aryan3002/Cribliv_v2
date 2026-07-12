@@ -289,6 +289,7 @@
 }
 .cz-prefix .cz-input { padding-left: 32px; }
 .cz-help { font-size: 13px; color: var(--c-text-tertiary); margin: 0; line-height: 1.4; }
+.cz-help--warn { color: #B45309; font-weight: 500; margin-top: 6px; }
 .cz-error { color: var(--c-danger); font-size: 13px; font-weight: 500; }
 
 /* Field-fill animation — blue glow */
