@@ -72,3 +72,81 @@ export interface AdminLeadTimelineResponse {
   lead_id: string;
   events: AdminLeadTimelineEvent[];
 }
+
+export interface AdminLeadFunnel {
+  callbacks_requested: number;
+  leads_created: number;
+  leads_unlocked: number;
+  leads_called: number;
+  deals_done: number;
+  leads_refunded: number;
+  leads_disputed: number;
+}
+
+export interface AdminLeadEngagementFunnel {
+  searches: number;
+  listing_views: number;
+  signups: number;
+  callbacks_requested: number;
+  calls_made: number;
+}
+
+export interface AdminLeadRates {
+  median_response_minutes: number | null;
+  called_within_24h_rate: number;
+  team_rescue_rate: number;
+  refund_rate: number;
+  dispute_rate: number;
+}
+
+export interface AdminLeadTrendPoint {
+  day: string;
+  callbacks: number;
+  unlocked: number;
+  called: number;
+  refunded: number;
+}
+
+export interface AdminLeadOwnerRollupRow {
+  owner_user_id: string;
+  name: string;
+  role: "owner" | "pg_operator";
+  leads: number;
+  called: number;
+  called_rate: number;
+  median_response_minutes: number | null;
+  refund_rate: number;
+  health_score: number | null;
+  health_grade: "A" | "B" | "C" | "D" | "F" | null;
+}
+
+export interface AdminLeadAnalytics {
+  range: string;
+  generated_at: string;
+  funnel: AdminLeadFunnel;
+  engagement: AdminLeadEngagementFunnel;
+  rates: AdminLeadRates;
+  trend: AdminLeadTrendPoint[];
+  by_owner: AdminLeadOwnerRollupRow[];
+}
+
+export interface AdminLeadOwnerFunnel {
+  new: number;
+  contacted: number;
+  visit_scheduled: number;
+  deal_done: number;
+  lost: number;
+  total: number;
+}
+
+export interface AdminLeadOwnerDetail {
+  owner_user_id: string;
+  name: string;
+  role: "owner" | "pg_operator";
+  phone_masked: string;
+  health_score: number | null;
+  health_grade: "A" | "B" | "C" | "D" | "F" | null;
+  funnel: AdminLeadOwnerFunnel;
+  rates: AdminLeadRates;
+  in_flight: AdminLeadBoardRow[];
+}
