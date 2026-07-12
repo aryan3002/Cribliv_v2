@@ -152,6 +152,10 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
 
   afterAll(async () => {
     if (db) {
+      await db.query(`DELETE FROM admin_actions WHERE admin_user_id = ANY($1::uuid[])`, [userIds]);
+      await db.query(`DELETE FROM idempotency_keys WHERE actor_user_id = ANY($1::uuid[])`, [
+        userIds
+      ]);
       await db.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [userIds]);
       await db.query(`DELETE FROM cities WHERE id = $1`, [cityId]);
     }
@@ -236,6 +240,36 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
     expect(duplicate.body.code).toBe("manage_request_exists");
   });
 
+  it("replays a created manage request for the same Idempotency-Key", async () => {
+    const { listingId } = await createListing(operatorId, "Idempotent create listing");
+    const key = `replay-${testRunId}`;
+
+    const first = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", key)
+      .send({ reason: "Please manage this PG" })
+      .expect(201);
+
+    const replay = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", key)
+      .send({ reason: "Please manage this PG" })
+      .expect(201);
+
+    expect(replay.body.data).toMatchObject({
+      id: first.body.data.id,
+      listing_id: listingId,
+      status: "pending"
+    });
+    const persisted = await db.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM pg_manage_requests WHERE listing_id = $1::uuid`,
+      [listingId]
+    );
+    expect(persisted.rows[0].count).toBe("1");
+  });
+
   it("serializes approval and later creation on the listing row", async () => {
     const { listingId } = await createListing(operatorId, "Serialized approval listing");
     const pending = await manageRequests.create(operatorId, listingId, "Please manage this PG");
@@ -309,6 +343,41 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
     });
     expect(authoritative.rows[0].managed_activated_at).not.toBeNull();
 
+    const audit = await db.query<{
+      target_type: string;
+      action: string;
+      before_state: Record<string, unknown>;
+      after_state: Record<string, unknown>;
+    }>(
+      `SELECT target_type::text, action::text, before_state, after_state
+         FROM admin_actions
+        WHERE admin_user_id = $1::uuid
+          AND target_id = $2::uuid
+          AND action = 'approve'::admin_action_type
+        ORDER BY created_at DESC
+        LIMIT 1`,
+      [adminId, listingId]
+    );
+    expect(audit.rows[0]).toMatchObject({
+      target_type: "listing",
+      action: "approve",
+      before_state: {
+        request_id: requestId,
+        listing_id: listingId,
+        pg_property_id: propertyId,
+        status: "pending",
+        manage_enabled: false
+      },
+      after_state: {
+        request_id: requestId,
+        listing_id: listingId,
+        pg_property_id: propertyId,
+        status: "approved",
+        manage_enabled: true,
+        layout_status: "needs_setup"
+      }
+    });
+
     const repeated = await request(app.getHttpServer())
       .post(`/v1/admin/pg/manage-requests/${requestId}/approve`)
       .set("x-test-identity", "admin")
@@ -338,7 +407,7 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
       .set("x-test-identity", "admin")
       .send({ notes: "Must not undo approval" })
       .expect(409);
-    expect(rejectApproved.body.code).toBe("manage_request_already_approved");
+    expect(rejectApproved.body.code).toBe("manage_request_not_pending");
   });
 
   it("rolls back approval when the request property snapshot is missing", async () => {
@@ -393,6 +462,88 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
       [propertyId]
     );
     expect(property.rows[0].manage_enabled).toBe(false);
+  });
+
+  it("rejects terminal requests without rewriting the original decision", async () => {
+    const { listingId } = await createListing(operatorId, "Terminal rejection listing");
+    const created = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `terminal-reject-${testRunId}`)
+      .send({ reason: "Please review" })
+      .expect(201);
+    const requestId = created.body.data.id as string;
+
+    await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${requestId}/reject`)
+      .set("x-test-identity", "admin")
+      .send({ notes: "Missing documents" })
+      .expect(201);
+
+    const beforeReplay = await db.query<{
+      status: string;
+      decided_by: string;
+      decided_at: string;
+      decision_notes: string;
+    }>(
+      `SELECT status::text, decided_by::text, decided_at::text, decision_notes
+         FROM pg_manage_requests
+        WHERE id = $1::uuid`,
+      [requestId]
+    );
+
+    const replay = await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${requestId}/reject`)
+      .set("x-test-identity", "admin")
+      .send({ notes: "Overwritten decision" })
+      .expect(409);
+    expect(replay.body.code).toBe("manage_request_not_pending");
+
+    const afterReplay = await db.query<{
+      status: string;
+      decided_by: string;
+      decided_at: string;
+      decision_notes: string;
+    }>(
+      `SELECT status::text, decided_by::text, decided_at::text, decision_notes
+         FROM pg_manage_requests
+        WHERE id = $1::uuid`,
+      [requestId]
+    );
+    expect(afterReplay.rows[0]).toEqual(beforeReplay.rows[0]);
+  });
+
+  it("rejects non-string create and decision fields with invalid_payload", async () => {
+    const { listingId } = await createListing(operatorId, "Invalid decision payload listing");
+    const invalidCreate = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `invalid-create-${testRunId}`)
+      .send({ reason: 42 })
+      .expect(400);
+    expect(invalidCreate.body.code).toBe("invalid_payload");
+
+    const created = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/listings/${listingId}/manage-request`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `valid-create-${testRunId}`)
+      .send({})
+      .expect(201);
+    const requestId = created.body.data.id as string;
+
+    const invalidApprove = await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${requestId}/approve`)
+      .set("x-test-identity", "admin")
+      .send({ notes: { invalid: true } })
+      .expect(400);
+    expect(invalidApprove.body.code).toBe("invalid_payload");
+
+    const invalidReject = await request(app.getHttpServer())
+      .post(`/v1/admin/pg/manage-requests/${requestId}/reject`)
+      .set("x-test-identity", "admin")
+      .send({ notes: ["invalid"] })
+      .expect(400);
+    expect(invalidReject.body.code).toBe("invalid_payload");
   });
 
   it("does not approve a rejected request after a later request is pending", async () => {

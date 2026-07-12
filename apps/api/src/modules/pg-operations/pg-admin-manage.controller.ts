@@ -5,6 +5,7 @@ import { ok } from "../../common/response";
 import { Roles } from "../../common/roles.decorator";
 import { RolesGuard } from "../../common/roles.guard";
 import type { UserContext } from "../../common/types";
+import { optionalStringField } from "./manage-request-validation";
 import { PgManageRequestService } from "./services/pg-manage-request.service";
 
 @Controller("admin/pg/manage-requests")
@@ -22,17 +23,17 @@ export class PgAdminManageController {
   async approve(
     @AuthUser() user: UserContext,
     @Param("requestId") requestId: string,
-    @Body() body: { notes?: string }
+    @Body() body: unknown
   ) {
-    return ok(await this.requests.approve(user.id, requestId, body.notes));
+    return ok(await this.requests.approve(user.id, requestId, optionalStringField(body, "notes")));
   }
 
   @Post(":requestId/reject")
   async reject(
     @AuthUser() user: UserContext,
     @Param("requestId") requestId: string,
-    @Body() body: { notes?: string }
+    @Body() body: unknown
   ) {
-    return ok(await this.requests.reject(user.id, requestId, body.notes));
+    return ok(await this.requests.reject(user.id, requestId, optionalStringField(body, "notes")));
   }
 }

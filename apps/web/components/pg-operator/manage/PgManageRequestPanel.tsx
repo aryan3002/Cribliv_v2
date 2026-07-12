@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, CircleX, Clock3, ShieldCheck } from "lucide-react";
 import { getManageRequest, requestManage } from "@/lib/pg-operations-api";
 import type { PgManageRequestState } from "@cribliv/shared-types";
@@ -13,11 +13,20 @@ interface Props {
   accessToken?: string;
 }
 
+function createIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
 export function PgManageRequestPanel({ listingId, locale, accessToken }: Props) {
   const [state, setState] = useState<PgManageRequestState | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submissionIdempotencyKey = useRef<string>();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,7 +48,10 @@ export function PgManageRequestPanel({ listingId, locale, accessToken }: Props) 
     setSubmitting(true);
     setError(null);
     try {
-      await requestManage(listingId, {}, accessToken);
+      const idempotencyKey =
+        submissionIdempotencyKey.current ??
+        (submissionIdempotencyKey.current = createIdempotencyKey());
+      await requestManage(listingId, {}, accessToken, idempotencyKey);
       setState({ status: "pending" });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not submit the Manage PG request.");

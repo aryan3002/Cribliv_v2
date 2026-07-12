@@ -15,27 +15,24 @@ function authHeaders(token?: string): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-function idempotencyKey(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 10)}`;
-}
-
 export function getManageRequest(listingId: string, token?: string) {
   return fetchApi<PgManageRequestState>(`/pg-operator/listings/${listingId}/manage-request`, {
     headers: authHeaders(token)
   });
 }
 
-export function requestManage(listingId: string, body: { reason?: string }, token?: string) {
+export function requestManage(
+  listingId: string,
+  body: { reason?: string },
+  token: string | undefined,
+  idempotencyKey: string
+) {
   return fetchApi<PgManageRequest>(`/pg-operator/listings/${listingId}/manage-request`, {
     method: "POST",
     headers: {
       ...authHeaders(token),
       "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey()
+      "Idempotency-Key": idempotencyKey
     },
     body: JSON.stringify(body)
   });

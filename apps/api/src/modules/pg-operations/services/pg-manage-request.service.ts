@@ -18,6 +18,11 @@ type RequestRow = Omit<PgManageRequest, "created_at" | "updated_at"> & {
   updated_at: Date | string;
 };
 
+type PropertyState = {
+  manage_enabled: boolean;
+  layout_status: string | null;
+};
+
 export type PgManageRequestAdminItem = PgManageRequest & {
   listing_title: string;
   operator_name: string | null;
@@ -43,6 +48,17 @@ function toManageRequest(row: RequestRow): PgManageRequest {
     metadata: row.metadata ?? {},
     created_at: toIsoString(row.created_at),
     updated_at: toIsoString(row.updated_at)
+  };
+}
+
+function decisionAuditState(request: RequestRow, property?: PropertyState) {
+  return {
+    request_id: request.id,
+    listing_id: request.listing_id,
+    pg_property_id: request.pg_property_id,
+    status: request.status,
+    manage_enabled: property?.manage_enabled ?? null,
+    layout_status: property?.layout_status ?? null
   };
 }
 
@@ -167,6 +183,22 @@ export class PgManageRequestService {
     }));
   }
 
+  private async auditDecision(
+    client: { query: (text: string, params?: unknown[]) => Promise<unknown> },
+    adminId: string,
+    request: RequestRow,
+    action: "approve" | "reject",
+    reason: string | null,
+    before: unknown,
+    after: unknown
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+       VALUES ($1::uuid, 'listing'::admin_target_type, $2::uuid, $3::admin_action_type, $4, $5::jsonb, $6::jsonb)`,
+      [adminId, request.listing_id, action, reason, JSON.stringify(before), JSON.stringify(after)]
+    );
+  }
+
   // PAYMENT HOOK (Phase 6): create pg_manage_payment_orders row here and gate approval on webhook 'paid'
 
   async approve(adminId: string, requestId: string, notes?: string): Promise<PgManageRequest> {
@@ -198,6 +230,17 @@ export class PgManageRequestService {
         throw new ConflictException({ code: "manage_request_not_pending" });
       }
 
+      const propertyBefore = await client.query<PropertyState>(
+        `SELECT manage_enabled, layout_status
+           FROM pg_properties
+          WHERE id = $1::uuid
+          FOR UPDATE`,
+        [request.pg_property_id]
+      );
+      if (!propertyBefore.rows[0]) {
+        throw new ConflictException({ code: "manage_request_property_not_found" });
+      }
+
       const approved = await client.query<RequestRow>(
         `UPDATE pg_manage_requests
             SET status = 'approved', decided_by = $2::uuid, decided_at = now(), decision_notes = $3
@@ -205,16 +248,26 @@ export class PgManageRequestService {
           RETURNING *`,
         [requestId, adminId, notes?.trim() || null]
       );
-      const propertyUpdated = await client.query(
+      const propertyUpdated = await client.query<PropertyState>(
         `UPDATE pg_properties
             SET manage_enabled = true, layout_status = 'needs_setup', managed_activated_at = now()
           WHERE id = $1::uuid
-          RETURNING id`,
+          RETURNING manage_enabled, layout_status`,
         [request.pg_property_id]
       );
       if (propertyUpdated.rowCount !== 1) {
         throw new ConflictException({ code: "manage_request_property_not_found" });
       }
+      const decisionNotes = notes?.trim() || null;
+      await this.auditDecision(
+        client,
+        adminId,
+        request,
+        "approve",
+        decisionNotes,
+        decisionAuditState(request, propertyBefore.rows[0]),
+        decisionAuditState(approved.rows[0], propertyUpdated.rows[0])
+      );
       await client.query("COMMIT");
       return toManageRequest(approved.rows[0]);
     } catch (error) {
@@ -242,8 +295,8 @@ export class PgManageRequestService {
           message: "Manage request not found"
         });
       }
-      if (request.status === "approved") {
-        throw new ConflictException({ code: "manage_request_already_approved" });
+      if (request.status !== "pending") {
+        throw new ConflictException({ code: "manage_request_not_pending" });
       }
 
       const rejected = await client.query<RequestRow>(
@@ -252,6 +305,16 @@ export class PgManageRequestService {
           WHERE id = $1::uuid
           RETURNING *`,
         [requestId, adminId, notes?.trim() || null]
+      );
+      const decisionNotes = notes?.trim() || null;
+      await this.auditDecision(
+        client,
+        adminId,
+        request,
+        "reject",
+        decisionNotes,
+        decisionAuditState(request),
+        decisionAuditState(rejected.rows[0])
       );
       await client.query("COMMIT");
       return toManageRequest(rejected.rows[0]);
