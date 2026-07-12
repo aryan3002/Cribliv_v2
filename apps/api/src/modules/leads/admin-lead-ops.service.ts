@@ -5,7 +5,9 @@ import type {
   AdminLeadBoardFilter,
   AdminLeadBoardResponse,
   AdminLeadBoardRow,
-  AdminLeadCounters
+  AdminLeadCounters,
+  AdminLeadTimelineEvent,
+  AdminLeadTimelineResponse
 } from "@cribliv/shared-types";
 
 export interface BoardParams {
@@ -223,5 +225,34 @@ export class AdminLeadOpsService {
        LEFT JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id`
     );
     return result.rows[0] ?? { ...EMPTY_COUNTERS };
+  }
+
+  async getTimeline(leadId: string): Promise<AdminLeadTimelineResponse> {
+    this.ensureEnabled();
+    if (!this.database.isEnabled()) {
+      return { lead_id: leadId, events: [] };
+    }
+    const result = await this.database.query<AdminLeadTimelineEvent>(
+      `SELECT at, source, kind, actor, detail FROM (
+         SELECT le.created_at::text AS at, 'lead' AS source,
+                COALESCE(NULLIF(le.notes,''), le.to_status::text) AS kind,
+                le.actor_user_id::text AS actor, le.to_status::text AS detail
+         FROM lead_events le WHERE le.lead_id = $1::uuid
+         UNION ALL
+         SELECT ce.event_ts::text, 'contact', ce.event_type::text,
+                ce.actor_role::text, ce.metadata::text
+         FROM contact_events ce
+         JOIN leads ld ON ld.contact_unlock_id = ce.contact_unlock_id
+         WHERE ld.id = $1::uuid
+         UNION ALL
+         SELECT aa.created_at::text, 'admin', aa.action::text,
+                aa.admin_user_id::text, aa.reason
+         FROM admin_actions aa
+         WHERE aa.target_type = 'lead' AND aa.target_id = $1::uuid
+       ) t
+       ORDER BY at ASC`,
+      [leadId]
+    );
+    return { lead_id: leadId, events: result.rows };
   }
 }

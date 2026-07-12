@@ -48,6 +48,10 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getBoard (DB)", () => {
   }, 60_000);
 
   afterAll(async () => {
+    await pool.query(
+      `DELETE FROM lead_events WHERE lead_id IN (SELECT id FROM leads WHERE listing_id = $1::uuid)`,
+      [listingId]
+    );
     await pool.query(`DELETE FROM leads WHERE listing_id = $1::uuid`, [listingId]);
     await pool.query(`DELETE FROM listings WHERE id = $1::uuid`, [listingId]);
     await pool.query(`DELETE FROM users WHERE id IN ($1::uuid, $2::uuid)`, [ownerId, tenantId]);
@@ -73,5 +77,24 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getBoard (DB)", () => {
   it("the expiring_6h filter includes the ~4h lead", async () => {
     const res = await svc.getBoard({ filter: "expiring_6h", ownerId });
     expect(res.rows.some((r) => r.owner.user_id === ownerId)).toBe(true);
+  });
+
+  it("getTimeline returns the lead's events in time order", async () => {
+    const lead = await pool.query<{ id: string }>(
+      `SELECT id::text FROM leads WHERE owner_user_id = $1::uuid LIMIT 1`,
+      [ownerId]
+    );
+    const leadId = lead.rows[0].id;
+    // seed one lead_event so there is at least one row
+    await pool.query(
+      `INSERT INTO lead_events (lead_id, to_status, notes) VALUES ($1::uuid, 'new'::lead_status, 'seeded_event')`,
+      [leadId]
+    );
+    const timeline = await svc.getTimeline(leadId);
+    expect(timeline.lead_id).toBe(leadId);
+    expect(timeline.events.length).toBeGreaterThanOrEqual(1);
+    expect(timeline.events.some((e) => e.source === "lead" && e.kind === "seeded_event")).toBe(
+      true
+    );
   });
 });
