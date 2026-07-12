@@ -1,6 +1,14 @@
-import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { refundUnlock } from "../contacts/refund-unlock";
 import type {
   AdminLeadBoardFilter,
   AdminLeadBoardResponse,
@@ -263,5 +271,77 @@ export class AdminLeadOpsService {
       [leadId]
     );
     return { lead_id: leadId, events: result.rows };
+  }
+
+  /**
+   * Admin manual refund of a lead's linked contact unlock. Guards the unlock
+   * to 'active' + 'pending' before delegating to the shared refundUnlock
+   * routine (same routine the timeout sweep uses) — the 409 on an already-
+   * responded owner is what makes refundUnlock's hardcoded
+   * owner_response_status='timeout_refunded' correct here: this method never
+   * lets refundUnlock run on a lead the owner actually answered.
+   */
+  async refundLead(
+    leadId: string,
+    adminUserId: string,
+    reason: string
+  ): Promise<{ lead_id: string; refunded: boolean; refund_txn_id: string | null }> {
+    this.ensureEnabled();
+    if (!this.database.isEnabled()) {
+      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+    }
+    const client = await this.database.getClient();
+    try {
+      await client.query("BEGIN");
+      const leadRes = await client.query<{ id: string; contact_unlock_id: string | null }>(
+        `SELECT id::text, contact_unlock_id::text FROM leads WHERE id = $1::uuid FOR UPDATE`,
+        [leadId]
+      );
+      const lead = leadRes.rows[0];
+      if (!lead) throw new NotFoundException({ code: "not_found", message: "Lead not found" });
+      if (!lead.contact_unlock_id) {
+        throw new ConflictException({
+          code: "no_unlock",
+          message: "Lead has no linked callback to refund"
+        });
+      }
+      // Lock the unlock row and guard state before refunding.
+      const cu = await client.query<{ owner_response_status: string; unlock_status: string }>(
+        `SELECT owner_response_status, unlock_status FROM contact_unlocks WHERE id = $1::uuid FOR UPDATE`,
+        [lead.contact_unlock_id]
+      );
+      const row = cu.rows[0];
+      if (!row) throw new NotFoundException({ code: "not_found", message: "Callback not found" });
+      if (row.unlock_status !== "active") {
+        throw new ConflictException({
+          code: "already_refunded",
+          message: "Callback already resolved"
+        });
+      }
+      if (row.owner_response_status !== "pending") {
+        throw new ConflictException({
+          code: "already_responded",
+          message: "Owner already responded — not refundable"
+        });
+      }
+      const result = await refundUnlock(client, lead.contact_unlock_id, {
+        txnType: "refund_admin",
+        actorRole: "admin",
+        expireLockedLead: true,
+        metadata: { reason, admin_user_id: adminUserId }
+      });
+      await client.query(
+        `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action, reason, after_state)
+         VALUES ($1::uuid, 'lead', $2::uuid, 'lead_manual_refund', $3, $4::jsonb)`,
+        [adminUserId, leadId, reason, JSON.stringify({ refund_txn_id: result.refundTxnId })]
+      );
+      await client.query("COMMIT");
+      return { lead_id: leadId, refunded: result.refunded, refund_txn_id: result.refundTxnId };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
