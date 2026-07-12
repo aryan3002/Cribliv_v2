@@ -17590,11 +17590,19 @@ a.feature-card:hover .icon-circle {
   margin-top: 8px;
 }
 
-/* The results toolbar's search bar and the filter card below it BOTH use
-   backdrop-filter, so each forms its own stacking context at z-index:auto. Since
-   the filter card comes later in the DOM, it would paint over the bar's
-   absolutely-positioned suggestions dropdown. Lift the bar's stacking context so
-   the dropdown overlays the filters. */
+/* The toolbar itself uses backdrop-filter → its own stacking context. Because it
+   is non-positioned and sits BEFORE the results grid in the DOM, its trapped
+   suggestions dropdown paints *under* the (position:relative) listing cards below.
+   Lift the whole toolbar's stacking context above the grid. */
+.tenant-results-toolbar {
+  position: relative;
+  z-index: 30;
+}
+
+/* Within the toolbar, the search bar and the filter card ALSO each use
+   backdrop-filter (own stacking contexts at z-index:auto). Since the filter card
+   comes later in the DOM, it would paint over the bar's absolutely-positioned
+   dropdown — so lift the bar above the filter card. */
 .tenant-results-toolbar .intent-search-bar {
   position: relative;
   z-index: 20;
