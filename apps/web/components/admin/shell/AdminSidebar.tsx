@@ -9,6 +9,7 @@ import {
   Coins,
   FileText,
   Globe,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Newspaper,
@@ -37,7 +38,8 @@ export type AdminTab =
   | "seo"
   | "search-performance"
   | "blog"
-  | "system";
+  | "system"
+  | "security";
 
 interface NavItem {
   id: AdminTab;
@@ -74,7 +76,10 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "search-performance", label: "Search Performance", icon: TrendingUp },
     { id: "blog", label: "Blog Review", icon: Newspaper, count: counts.blog }
   ];
-  const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];
+  const ops: NavItem[] = [
+    { id: "system", label: "System", icon: Wrench },
+    { id: "security", label: "Security", icon: KeyRound }
+  ];
 
   return (
     <nav className="admin-sidebar" aria-label="Admin navigation">
