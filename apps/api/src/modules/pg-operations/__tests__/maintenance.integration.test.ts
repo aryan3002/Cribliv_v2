@@ -15,6 +15,40 @@ import { PgMaintenanceService } from "../services/pg-maintenance.service";
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 const testRunId = randomUUID().replace(/-/g, "");
 
+describe("PG maintenance without a database", () => {
+  it("returns typed empty reads and rejects writes", async () => {
+    const service = new PgMaintenanceService({ isEnabled: () => false } as DatabaseService);
+    const userId = randomUUID();
+    const propertyId = randomUUID();
+    const requestId = randomUUID();
+
+    await expect(service.listForProperty(userId, propertyId)).resolves.toEqual([]);
+    await expect(service.listForBed(userId, propertyId, randomUUID())).resolves.toEqual([]);
+    await expect(service.listForResidence(userId)).resolves.toEqual([]);
+    await expect(service.summaryForBed(userId, propertyId, randomUUID())).resolves.toEqual({
+      open_items: 0,
+      overdue_items: 0
+    });
+    await expect(
+      service.create(userId, "", "", {
+        category: "plumbing",
+        description: "The tap has been leaking since morning."
+      })
+    ).rejects.toMatchObject({
+      response: {
+        code: "operations_requires_db",
+        message: "PG operations require a database"
+      }
+    });
+    await expect(service.updateStatus(userId, requestId, "in_progress")).rejects.toMatchObject({
+      response: { code: "operations_requires_db" }
+    });
+    await expect(service.addComment(userId, requestId, "checking")).rejects.toMatchObject({
+      response: { code: "operations_requires_db" }
+    });
+  });
+});
+
 describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
   let app: INestApplication;
   let db: DatabaseService;
@@ -295,6 +329,59 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
     ).rejects.toMatchObject({ response: { code: "maintenance_photos_not_supported" } });
   });
 
+  it("replays maintenance create and comment idempotency keys", async () => {
+    const fixture = await createFixture();
+    const createKey = randomUUID();
+    const body = {
+      category: "plumbing",
+      description: "The bathroom tap has been leaking since morning."
+    };
+
+    const firstCreate = await request(app.getHttpServer())
+      .post("/v1/tenant/pg-residence/maintenance")
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", createKey)
+      .send(body)
+      .expect(201);
+    const secondCreate = await request(app.getHttpServer())
+      .post("/v1/tenant/pg-residence/maintenance")
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", createKey)
+      .send(body)
+      .expect(201);
+
+    expect(secondCreate.body.data.id).toBe(firstCreate.body.data.id);
+    await expect(maintenance.listForResidence(tenantId)).resolves.toEqual([
+      expect.objectContaining({ id: firstCreate.body.data.id })
+    ]);
+
+    const commentKey = randomUUID();
+    const firstComment = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${firstCreate.body.data.id}/comments`
+      )
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", commentKey)
+      .send({ body: "Plumber booked for noon" })
+      .expect(201);
+    const secondComment = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${firstCreate.body.data.id}/comments`
+      )
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", commentKey)
+      .send({ body: "Plumber booked for noon" })
+      .expect(201);
+
+    expect(secondComment.body.data.id).toBe(firstComment.body.data.id);
+    await expect(maintenance.listForProperty(operatorId, fixture.propertyId)).resolves.toEqual([
+      expect.objectContaining({
+        id: firstCreate.body.data.id,
+        comments: [expect.objectContaining({ id: firstComment.body.data.id })]
+      })
+    ]);
+  });
+
   it("lets the property operator triage, comment on, and close a ticket", async () => {
     const fixture = await createFixture();
     const ticket = await createTenantTicket(fixture);
@@ -372,6 +459,36 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
       .set("x-test-identity", "otherOperator")
       .send({ status: "resolved" })
       .expect(404);
+  });
+
+  it("rejects malformed maintenance payloads and statuses with 400s", async () => {
+    const fixture = await createFixture();
+    const ticket = await createTenantTicket(fixture);
+
+    await request(app.getHttpServer())
+      .post("/v1/tenant/pg-residence/maintenance")
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({ category: 42, description: "The tap has been leaking since morning." })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticket.id}/comments`)
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", randomUUID())
+      .send({ body: 42 })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticket.id}`)
+      .set("x-test-identity", "operator")
+      .send({ status: "done" })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance?status=done`)
+      .set("x-test-identity", "operator")
+      .expect(400);
   });
 
   it("returns live maintenance counts only for the requested bed", async () => {

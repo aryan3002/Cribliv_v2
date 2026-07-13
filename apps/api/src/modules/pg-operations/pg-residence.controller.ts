@@ -76,7 +76,7 @@ export class PgResidenceController {
   async createMaintenance(
     @AuthUser() user: UserContext,
     @Headers("idempotency-key") idempotencyKey: string | undefined,
-    @Body() body: PgMaintenanceCreateInput
+    @Body() body: Partial<PgMaintenanceCreateInput> | undefined
   ) {
     const key = requireIdempotencyKey(idempotencyKey);
     return ok(
@@ -94,7 +94,7 @@ export class PgResidenceController {
     @AuthUser() user: UserContext,
     @Param("id") requestId: string,
     @Headers("idempotency-key") idempotencyKey: string | undefined,
-    @Body() body: PgMaintenanceCommentInput
+    @Body() body: Partial<PgMaintenanceCommentInput> | undefined
   ) {
     const key = requireIdempotencyKey(idempotencyKey);
     return ok(
@@ -102,7 +102,7 @@ export class PgResidenceController {
         user.id,
         `tenant:pg-residence:maintenance:${requestId}:comments`,
         key,
-        () => this.maintenance.addComment(user.id, requestId, body.body, body.attachments)
+        () => this.maintenance.addComment(user.id, requestId, body?.body, body?.attachments)
       )
     );
   }

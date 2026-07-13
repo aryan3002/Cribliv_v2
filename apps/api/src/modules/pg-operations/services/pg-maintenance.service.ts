@@ -10,7 +10,6 @@ import {
 import type {
   PgMaintenanceComment,
   PgMaintenanceCreateInput,
-  PgMaintenanceListFilters,
   PgMaintenanceRequest,
   PgMaintenanceStatus,
   PgMaintenanceSummary
@@ -64,6 +63,16 @@ const STATUS_TRANSITIONS: Record<PgMaintenanceStatus, readonly PgMaintenanceStat
   cancelled: []
 };
 
+export const PG_MAINTENANCE_STATUSES = Object.keys(
+  STATUS_TRANSITIONS
+) as readonly PgMaintenanceStatus[];
+
+export function isPgMaintenanceStatus(value: unknown): value is PgMaintenanceStatus {
+  return (
+    typeof value === "string" && (PG_MAINTENANCE_STATUSES as readonly string[]).includes(value)
+  );
+}
+
 function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
 }
@@ -111,10 +120,18 @@ function toRequest(
   };
 }
 
-function cleanRequired(value: string | undefined, code: string): string {
-  const cleaned = (value ?? "").trim();
+function cleanRequired(value: unknown, code: string): string {
+  if (typeof value !== "string") throw new BadRequestException({ code });
+  const cleaned = value.trim();
   if (!cleaned) throw new BadRequestException({ code });
   return cleaned;
+}
+
+function cleanOptional(value: unknown, code: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new BadRequestException({ code });
+  const cleaned = value.trim();
+  return cleaned || null;
 }
 
 @Injectable()
@@ -270,16 +287,17 @@ export class PgMaintenanceService {
     callerUserId: string,
     _propertyId: string,
     _assignmentId: string,
-    input: PgMaintenanceCreateInput
+    input: Partial<PgMaintenanceCreateInput> | undefined
   ): Promise<PgMaintenanceRequest> {
     if (!this.db.isEnabled()) throw this.unavailable();
-    const category = cleanRequired(input.category, "maintenance_category_required");
-    const description = cleanRequired(input.description, "maintenance_description_required");
-    const photoPaths = this.validateStringArray(input.photo_paths, "invalid_maintenance_photos");
+    const payload = input ?? {};
+    const category = cleanRequired(payload.category, "maintenance_category_required");
+    const description = cleanRequired(payload.description, "maintenance_description_required");
+    const photoPaths = this.validateStringArray(payload.photo_paths, "invalid_maintenance_photos");
     if (photoPaths.length > 0) {
       throw new BadRequestException({ code: "maintenance_photos_not_supported" });
     }
-    const priority = input.priority?.trim() || null;
+    const priority = cleanOptional(payload.priority, "invalid_maintenance_priority");
     const residence = await this.currentResidenceAssignment(callerUserId);
 
     // TODO(phase-5-photo): add property-scoped maintenance photo presign under pg-maintenance/<propertyId>/.
@@ -306,9 +324,12 @@ export class PgMaintenanceService {
   async listForProperty(
     operatorId: string,
     propertyId: string,
-    filters: PgMaintenanceListFilters = {}
+    filters: { status?: unknown } = {}
   ): Promise<PgMaintenanceRequest[]> {
     if (!this.db.isEnabled()) return [];
+    if (filters.status !== undefined && !isPgMaintenanceStatus(filters.status)) {
+      throw new BadRequestException({ code: "invalid_maintenance_status" });
+    }
     await this.assertManagedOwnership(operatorId, propertyId);
     const result = await this.db.query<MaintenanceRow>(
       `SELECT id::text, pg_property_id::text, assignment_id::text, created_by_user_id::text,
@@ -382,10 +403,13 @@ export class PgMaintenanceService {
   async updateStatus(
     operatorId: string,
     requestId: string,
-    status: PgMaintenanceStatus,
+    status: unknown,
     expectedPropertyId?: string
   ): Promise<PgMaintenanceRequest> {
     if (!this.db.isEnabled()) throw this.unavailable();
+    if (!isPgMaintenanceStatus(status)) {
+      throw new BadRequestException({ code: "invalid_maintenance_status" });
+    }
     const client = await this.db.getClient();
     try {
       await client.query("BEGIN");
@@ -461,8 +485,8 @@ export class PgMaintenanceService {
   async addComment(
     callerUserId: string,
     requestId: string,
-    body: string,
-    attachmentsInput?: string[],
+    body: unknown,
+    attachmentsInput?: unknown,
     expectedPropertyId?: string
   ): Promise<PgMaintenanceComment> {
     if (!this.db.isEnabled()) throw this.unavailable();

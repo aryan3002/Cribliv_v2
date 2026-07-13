@@ -11,11 +11,7 @@ import {
   Query,
   UseGuards
 } from "@nestjs/common";
-import type {
-  PgMaintenanceCommentInput,
-  PgMaintenanceListFilters,
-  PgMaintenanceStatus
-} from "@cribliv/shared-types";
+import type { PgMaintenanceCommentInput } from "@cribliv/shared-types";
 
 import { AuthGuard } from "../../common/auth.guard";
 import { AuthUser } from "../../common/auth-user.decorator";
@@ -40,7 +36,7 @@ export class PgMaintenanceController {
   async listForProperty(
     @AuthUser() user: UserContext,
     @Param("propertyId") propertyId: string,
-    @Query("status") status?: PgMaintenanceListFilters["status"]
+    @Query("status") status?: string
   ) {
     return ok(await this.maintenance.listForProperty(user.id, propertyId, { status }));
   }
@@ -59,16 +55,9 @@ export class PgMaintenanceController {
     @AuthUser() user: UserContext,
     @Param("propertyId") propertyId: string,
     @Param("id") requestId: string,
-    @Body() body: { status?: PgMaintenanceStatus }
+    @Body() body: { status?: unknown } | undefined
   ) {
-    return ok(
-      await this.maintenance.updateStatus(
-        user.id,
-        requestId,
-        body.status as PgMaintenanceStatus,
-        propertyId
-      )
-    );
+    return ok(await this.maintenance.updateStatus(user.id, requestId, body?.status, propertyId));
   }
 
   @Post(":propertyId/maintenance/:id/comments")
@@ -77,7 +66,7 @@ export class PgMaintenanceController {
     @Param("propertyId") propertyId: string,
     @Param("id") requestId: string,
     @Headers("idempotency-key") idempotencyKey: string | undefined,
-    @Body() body: PgMaintenanceCommentInput
+    @Body() body: Partial<PgMaintenanceCommentInput> | undefined
   ) {
     const key = requireIdempotencyKey(idempotencyKey);
     return ok(
@@ -86,7 +75,7 @@ export class PgMaintenanceController {
         `pg-operator:properties:${propertyId}:maintenance:${requestId}:comments`,
         key,
         () =>
-          this.maintenance.addComment(user.id, requestId, body.body, body.attachments, propertyId)
+          this.maintenance.addComment(user.id, requestId, body?.body, body?.attachments, propertyId)
       )
     );
   }

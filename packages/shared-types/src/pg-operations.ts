@@ -275,7 +275,6 @@ export interface PgMaintenanceCommentInput {
 
 export interface PgMaintenanceListFilters {
   status?: PgMaintenanceStatus;
-  bed_id?: string;
 }
 
 export interface PgOccupancyFloorRollup {
