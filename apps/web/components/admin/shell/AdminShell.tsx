@@ -11,6 +11,7 @@ import { OverviewTab } from "../tabs/OverviewTab";
 import { ListingReviewTab } from "../tabs/ListingReviewTab";
 import { VerificationTab } from "../tabs/VerificationTab";
 import { CrmTab } from "../tabs/CrmTab";
+import { LeadCenterTab } from "../lead-center/LeadCenterTab";
 import { UsersTab } from "../tabs/UsersTab";
 import { RevenueTab } from "../tabs/RevenueTab";
 import { RentAgreementsTab } from "../tabs/RentAgreementsTab";
@@ -32,6 +33,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   listings: "Listing Review",
   verifications: "Verification Review",
   leads: "CRM",
+  "lead-center": "Lead Center",
   users: "Users",
   revenue: "Revenue",
   "rent-agreements": "Rent Agreements",
@@ -109,6 +111,15 @@ export function AdminShell({ accessToken }: Props) {
             key={`le-${k}`}
             accessToken={accessToken}
             onCountChange={handleCount("leads")}
+            onToast={push}
+          />
+        );
+      case "lead-center":
+        return (
+          <LeadCenterTab
+            key={`lc-${k}`}
+            accessToken={accessToken}
+            onCountChange={handleCount("lead-center")}
             onToast={push}
           />
         );
