@@ -191,7 +191,12 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(9);
+    expect(wallet.body.data).toMatchObject({
+      balance_credits: 9,
+      free_credits_granted: 10,
+      promotional_credits_remaining: 9,
+      promotional_credits_expires_at: expect.any(String)
+    });
   });
 
   it("returns insufficient_credits when promotional credits expire before contact unlock", async () => {

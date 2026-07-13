@@ -52,6 +52,7 @@ const KEYS = [
   "welcomeRewardFootnote",
   "welcomeRewardLive",
   "welcomeRewardClose",
+  "promotionalCreditExpiry",
   "loginBenefitsTitle",
   "loginBenefit1",
   "loginBenefit2",
@@ -98,6 +99,10 @@ describe("monetization i18n keys", () => {
     expect(t("hi", "welcomeRewardLive")).toContain("{credits}");
     expect(t("en", "welcomeRewardLive")).toContain("{date}");
     expect(t("hi", "welcomeRewardLive")).toContain("{date}");
+    expect(t("en", "promotionalCreditExpiry")).toContain("{credits}");
+    expect(t("hi", "promotionalCreditExpiry")).toContain("{credits}");
+    expect(t("en", "promotionalCreditExpiry")).toContain("{date}");
+    expect(t("hi", "promotionalCreditExpiry")).toContain("{date}");
   });
 
   it("keeps the reward heading professional and the legacy owner copy free of the stale grant", () => {

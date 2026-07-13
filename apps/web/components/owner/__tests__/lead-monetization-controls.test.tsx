@@ -106,7 +106,13 @@ function walletRoute(balance: number) {
       !url.includes("/wallet/plans") &&
       !url.includes("/wallet/purchase-intents") &&
       (!init?.method || init.method === "GET"),
-    respond: () => jsonOk({ balance_credits: balance, free_credits_granted: 2 })
+    respond: () =>
+      jsonOk({
+        balance_credits: balance,
+        free_credits_granted: 10,
+        promotional_credits_remaining: 0,
+        promotional_credits_expires_at: null
+      })
   };
 }
 

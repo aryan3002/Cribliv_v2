@@ -488,6 +488,10 @@ const dictionary: Dictionary = {
     hi: "आपके वॉलेट में {credits} मुफ़्त क्रेडिट जोड़े गए। {date} तक इस्तेमाल करें।"
   },
   welcomeRewardClose: { en: "Close reward", hi: "इनाम बंद करें" },
+  promotionalCreditExpiry: {
+    en: "{credits} promotional credits expire {date}",
+    hi: "{credits} प्रमोशनल क्रेडिट {date} को समाप्त होंगे"
+  },
   // ── Login page benefits ─────────────────────────────────────────────────────
   loginBenefitsTitle: { en: "Why sign up?", hi: "साइन अप क्यों करें?" },
   loginBenefit1: { en: "10 free credits on signup", hi: "साइन अप पर 10 मुफ़्त क्रेडिट" },

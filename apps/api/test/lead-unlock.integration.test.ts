@@ -136,7 +136,7 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
   }, 60_000);
 
   it("402s when the owner wallet is empty", async () => {
-    // New users get a 2-credit signup grant (auth.service.ts), so the owner's
+    // New users get a 10-credit signup grant, so the owner's
     // wallet isn't actually empty yet — zero it out to exercise this path.
     await db.query(
       `UPDATE wallets SET balance_credits = 0
