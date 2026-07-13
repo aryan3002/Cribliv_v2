@@ -32,16 +32,24 @@ type LoadState<T> =
 type ListingData = { items: OwnerListingVm[]; total: number };
 type LeadData = { items: LeadVm[]; total: number };
 type PmState = "idle" | "loading" | "success" | "error";
+type ErrorContext = "listings" | "leads" | "propertyManagement";
 
 const EMPTY_LISTINGS: ListingData = { items: [], total: 0 };
 const EMPTY_LEADS: LeadData = { items: [], total: 0 };
 const SEVEN_DAYS_MS = 604_800_000;
 
-function getGreeting(): string {
+function formatCopy(template: string, values: Record<string, string | number>): string {
+  return Object.entries(values).reduce(
+    (copy, [key, value]) => copy.replaceAll(`{${key}}`, String(value)),
+    template
+  );
+}
+
+function getGreeting(loc: Locale): string {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return t(loc, "ownerOverviewGreetingMorning");
+  if (h < 17) return t(loc, "ownerOverviewGreetingAfternoon");
+  return t(loc, "ownerOverviewGreetingEvening");
 }
 
 function dateValue(value?: string): number {
@@ -50,18 +58,27 @@ function dateValue(value?: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function statusLabel(status: OwnerListingVm["status"]): string {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function statusLabel(status: OwnerListingVm["status"], loc: Locale): string {
+  const keys: Record<OwnerListingVm["status"], string> = {
+    active: "active",
+    archived: "archived",
+    draft: "draft",
+    paused: "paused",
+    pending_review: "pendingReview",
+    rejected: "rejected"
+  };
+  return t(loc, keys[status]);
 }
 
-function leadStatusLabel(status: LeadVm["status"]): string {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function leadStatusLabel(status: LeadVm["status"], loc: Locale): string {
+  const keys: Record<LeadVm["status"], string> = {
+    contacted: "ownerOverviewLeadStatusContacted",
+    deal_done: "ownerOverviewLeadStatusDealDone",
+    lost: "ownerOverviewLeadStatusLost",
+    new: "ownerOverviewLeadStatusNew",
+    visit_scheduled: "ownerOverviewLeadStatusVisitScheduled"
+  };
+  return t(loc, keys[status]);
 }
 
 function formatRent(value?: number): string | null {
@@ -77,8 +94,35 @@ function sortByRecent<T extends { createdAt?: string }>(items: T[]) {
   return [...items].sort((a, b) => dateValue(b.createdAt) - dateValue(a.createdAt));
 }
 
-function errorMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
+function rawErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : typeof err === "string" ? err : "";
+}
+
+function isUnauthorizedError(err: unknown): boolean {
+  const message = rawErrorMessage(err).toLowerCase();
+  return message.includes("unauthorized") || message.includes("status 401");
+}
+
+function isNetworkError(err: unknown): boolean {
+  const message = rawErrorMessage(err).toLowerCase();
+  return (
+    message.includes("failed to fetch") ||
+    message.includes("network") ||
+    message.includes("offline") ||
+    message.includes("load failed")
+  );
+}
+
+function overviewErrorMessage(err: unknown, loc: Locale, context: ErrorContext): string {
+  if (isUnauthorizedError(err)) return t(loc, "ownerOverviewErrorUnauthorized");
+  if (isNetworkError(err)) return t(loc, "ownerOverviewErrorNetwork");
+
+  const keys: Record<ErrorContext, string> = {
+    listings: "ownerOverviewErrorListings",
+    leads: "ownerOverviewErrorLeads",
+    propertyManagement: "ownerOverviewErrorPm"
+  };
+  return t(loc, keys[context]);
 }
 
 export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element {
@@ -119,8 +163,8 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
         });
       })
       .catch((err) => {
-        const message = errorMessage(err, "Failed to load listings");
-        if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
+        const message = overviewErrorMessage(err, loc, "listings");
+        if (isUnauthorizedError(err)) void signOut({ redirect: false });
         setListingState((prev) => ({ status: "error", data: prev.data, message }));
       });
   }, [accessToken, loc]);
@@ -144,8 +188,8 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
         });
       })
       .catch((err) => {
-        const message = errorMessage(err, "Failed to load leads");
-        if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
+        const message = overviewErrorMessage(err, loc, "leads");
+        if (isUnauthorizedError(err)) void signOut({ redirect: false });
         setLeadState((prev) => ({ status: "error", data: prev.data, message }));
       });
   }, [accessToken, loc]);
@@ -188,11 +232,11 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
         idempotencyKey: makeIdempotencyKey("pm-assist")
       });
       setPmState("success");
-      setPmNotice("Request submitted. Our team will contact you shortly.");
+      setPmNotice(t(loc, "ownerOverviewRequestSubmitted"));
       trackEvent("property_management_requested", { listing_count: listings.length });
     } catch (err) {
-      const message = errorMessage(err, "Failed to submit request");
-      if (message.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
+      const message = overviewErrorMessage(err, loc, "propertyManagement");
+      if (isUnauthorizedError(err)) void signOut({ redirect: false });
       setPmState("error");
       setPmNotice(message);
     }
@@ -202,15 +246,18 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
     <div className="ovo">
       <header className="ovo-hero">
         <div className="ovo-hero__copy">
-          <p className="ovo-eyebrow">Owner overview</p>
+          <p className="ovo-eyebrow">{t(loc, "ownerOverviewEyebrow")}</p>
           <h1 className="ovo-title">
-            {getGreeting()}
+            {getGreeting(loc)}
             {firstName ? `, ${firstName}` : ""}
           </h1>
           <p className="ovo-subtitle">
             {listings.length === 0
-              ? "Start with one listing, then track every lead from here."
-              : `${listingState.data.total} listings in your portfolio, ${leadState.data.total} tenant leads tracked.`}
+              ? t(loc, "ownerOverviewEmptySubtitle")
+              : formatCopy(t(loc, "ownerOverviewPortfolioSubtitle"), {
+                  listings: listingState.data.total,
+                  leads: leadState.data.total
+                })}
           </p>
         </div>
         <Link href={`/${locale}/owner/listings/new`} className="ovo-add-listing">
@@ -219,41 +266,46 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
         </Link>
       </header>
 
-      <section className="ovo-headline" aria-label="Owner headline metrics">
+      <section className="ovo-headline" aria-label={t(loc, "ownerOverviewHeadlineMetrics")}>
         <MetricCard
           testId="overview-metric-active"
           icon={<Home size={18} aria-hidden="true" />}
-          label="Active listings"
+          label={t(loc, "ownerOverviewActiveListings")}
           value={active}
-          help="Visible to tenants"
+          help={t(loc, "ownerOverviewVisibleTenants")}
         />
         <MetricCard
           testId="overview-metric-leads-7d"
           icon={<Users size={18} aria-hidden="true" />}
-          label="New leads (7d)"
+          label={t(loc, "ownerOverviewNewLeads7d")}
           value={newLeads7d}
-          help={leadState.status === "error" ? "Lead refresh failed" : "Fresh tenant interest"}
+          help={
+            leadState.status === "error"
+              ? t(loc, "ownerOverviewLeadRefreshFailed")
+              : t(loc, "ownerOverviewFreshInterest")
+          }
         />
       </section>
 
-      <section className="ovo-secondary" aria-label="Portfolio summary">
-        <CompactMetric label="Pending" value={pending} />
-        <CompactMetric label="Drafts" value={drafts} />
-        <CompactMetric label="Total" value={listingState.data.total} />
+      <section className="ovo-secondary" aria-label={t(loc, "ownerOverviewPortfolioSummary")}>
+        <CompactMetric label={t(loc, "ownerOverviewPending")} value={pending} />
+        <CompactMetric label={t(loc, "ownerOverviewDrafts")} value={drafts} />
+        <CompactMetric label={t(loc, "ownerOverviewTotal")} value={listingState.data.total} />
       </section>
 
-      <section className="ovo-actions" aria-label="Priority work">
+      <section className="ovo-actions" aria-label={t(loc, "ownerOverviewPriorityWork")}>
         {hasUnverifiedActive ? (
           <div className="ovo-task ovo-task--urgent">
             <span className="ovo-task__icon" aria-hidden="true">
               <AlertTriangle size={17} />
             </span>
             <div className="ovo-task__body">
-              <h2>Verification needs attention</h2>
-              <p>Complete verification for active listings to improve tenant trust.</p>
+              <h2>{t(loc, "ownerOverviewVerificationAttention")}</h2>
+              <p>{t(loc, "ownerOverviewVerificationAttentionBody")}</p>
             </div>
             <Link href={`/${locale}/owner/verification`} className="ovo-link-action">
-              Complete verification <ArrowRight size={14} aria-hidden="true" />
+              {t(loc, "ownerOverviewCompleteVerification")}{" "}
+              <ArrowRight size={14} aria-hidden="true" />
             </Link>
           </div>
         ) : (
@@ -262,11 +314,11 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
               <CheckCircle2 size={17} />
             </span>
             <div className="ovo-task__body">
-              <h2>No urgent verification work</h2>
-              <p>Your active portfolio has no verification blockers.</p>
+              <h2>{t(loc, "ownerOverviewNoUrgentVerification")}</h2>
+              <p>{t(loc, "ownerOverviewNoUrgentVerificationBody")}</p>
             </div>
             <Link href={`/${locale}/owner/verification`} className="ovo-link-action">
-              View verification <ArrowRight size={14} aria-hidden="true" />
+              {t(loc, "ownerOverviewViewVerification")} <ArrowRight size={14} aria-hidden="true" />
             </Link>
           </div>
         )}
@@ -276,15 +328,15 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
             <Building2 size={17} />
           </span>
           <div className="ovo-task__body">
-            <h2>Portfolio management</h2>
-            <p>Jump into focused pages for listing updates and tenant follow-up.</p>
+            <h2>{t(loc, "ownerOverviewPortfolioManagement")}</h2>
+            <p>{t(loc, "ownerOverviewPortfolioManagementBody")}</p>
           </div>
           <div className="ovo-task__links">
             <Link href={`/${locale}/owner/listings`} className="ovo-link-action">
-              Manage listings <ArrowRight size={14} aria-hidden="true" />
+              {t(loc, "ownerOverviewManageListings")} <ArrowRight size={14} aria-hidden="true" />
             </Link>
             <Link href={`/${locale}/owner/leads`} className="ovo-link-action">
-              Review leads <ArrowRight size={14} aria-hidden="true" />
+              {t(loc, "ownerOverviewReviewLeads")} <ArrowRight size={14} aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -294,22 +346,22 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
         <section className="ovo-section" aria-labelledby="recent-listings-title">
           <div className="ovo-section__header">
             <div>
-              <p className="ovo-section__eyebrow">Portfolio</p>
-              <h2 id="recent-listings-title">Recent listings</h2>
+              <p className="ovo-section__eyebrow">{t(loc, "ownerOverviewPortfolio")}</p>
+              <h2 id="recent-listings-title">{t(loc, "ownerOverviewRecentListings")}</h2>
             </div>
             <Link href={`/${locale}/owner/listings`} className="ovo-text-link">
-              Manage listings
+              {t(loc, "ownerOverviewManageListings")}
             </Link>
           </div>
 
           {listingState.status === "error" ? (
-            <ErrorBlock message={listingState.message} onRetry={loadListings} />
+            <ErrorBlock message={listingState.message} onRetry={loadListings} locale={loc} />
           ) : listingState.status === "loading" && listings.length === 0 ? (
-            <LoadingRows label="Loading listings" />
+            <LoadingRows label={t(loc, "ownerOverviewLoadingListings")} />
           ) : recentListings.length === 0 ? (
             <EmptyBlock
-              title="No listings yet"
-              body="Create your first listing to start receiving tenant interest."
+              title={t(loc, "ownerOverviewNoListingsYet")}
+              body={t(loc, "ownerOverviewNoListingsYetBody")}
             />
           ) : (
             <div className="ovo-row-list">
@@ -326,11 +378,11 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
                       </Link>
                       <p>
                         {[listing.locality, listing.city, rent].filter(Boolean).join(" · ") ||
-                          "Location details pending"}
+                          t(loc, "ownerOverviewLocationPending")}
                       </p>
                     </div>
                     <span className={`ovo-pill ovo-pill--${listing.status}`}>
-                      {statusLabel(listing.status)}
+                      {statusLabel(listing.status, loc)}
                     </span>
                   </article>
                 );
@@ -342,20 +394,23 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
         <section className="ovo-section" aria-labelledby="recent-leads-title">
           <div className="ovo-section__header">
             <div>
-              <p className="ovo-section__eyebrow">Tenant interest</p>
-              <h2 id="recent-leads-title">Recent leads</h2>
+              <p className="ovo-section__eyebrow">{t(loc, "ownerOverviewTenantInterest")}</p>
+              <h2 id="recent-leads-title">{t(loc, "ownerOverviewRecentLeads")}</h2>
             </div>
             <Link href={`/${locale}/owner/leads`} className="ovo-text-link">
-              Review leads
+              {t(loc, "ownerOverviewReviewLeads")}
             </Link>
           </div>
 
           {leadState.status === "error" ? (
-            <ErrorBlock message={leadState.message} onRetry={loadLeads} />
+            <ErrorBlock message={leadState.message} onRetry={loadLeads} locale={loc} />
           ) : leadState.status === "loading" && leads.length === 0 ? (
-            <LoadingRows label="Loading leads" />
+            <LoadingRows label={t(loc, "ownerOverviewLoadingLeads")} />
           ) : recentLeads.length === 0 ? (
-            <EmptyBlock title="No leads yet" body="New tenant enquiries will appear here." />
+            <EmptyBlock
+              title={t(loc, "ownerOverviewNoLeadsYet")}
+              body={t(loc, "ownerOverviewNoLeadsYetBody")}
+            />
           ) : (
             <div className="ovo-row-list">
               {recentLeads.map((lead) => (
@@ -367,7 +422,7 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
                     <p>{lead.listingTitle}</p>
                   </div>
                   <span className={`ovo-pill ovo-pill--lead-${lead.status}`}>
-                    {leadStatusLabel(lead.status)}
+                    {leadStatusLabel(lead.status, loc)}
                   </span>
                 </article>
               ))}
@@ -376,11 +431,14 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
         </section>
       </div>
 
-      <section className="ovo-management" aria-label="Property management assistance">
+      <section
+        className="ovo-management"
+        aria-label={t(loc, "ownerOverviewPropertyManagementAssistance")}
+      >
         <div>
-          <p className="ovo-section__eyebrow">Secondary action</p>
-          <h2>Need help managing properties?</h2>
-          <p>Ask the Cribliv team for hands-off onboarding and operations support.</p>
+          <p className="ovo-section__eyebrow">{t(loc, "ownerOverviewSecondaryAction")}</p>
+          <h2>{t(loc, "ownerOverviewManagementTitle")}</h2>
+          <p>{t(loc, "ownerOverviewManagementBody")}</p>
         </div>
         <button
           type="button"
@@ -389,10 +447,10 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
           disabled={pmState === "loading"}
         >
           {pmState === "loading"
-            ? "Sending request..."
+            ? t(loc, "ownerOverviewSendingRequest")
             : pmState === "error"
-              ? "Retry management help"
-              : "Request management help"}
+              ? t(loc, "ownerOverviewRetryHelp")
+              : t(loc, "ownerOverviewRequestHelp")}
           <ArrowRight size={14} aria-hidden="true" />
         </button>
         {pmNotice && (
@@ -442,13 +500,21 @@ function CompactMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ErrorBlock({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorBlock({
+  message,
+  onRetry,
+  locale
+}: {
+  message: string;
+  onRetry: () => void;
+  locale: Locale;
+}) {
   return (
     <div className="ovo-error" role="alert">
       <p>{message}</p>
       <button type="button" onClick={onRetry}>
         <RefreshCw size={14} aria-hidden="true" />
-        Retry
+        {t(locale, "ownerOverviewRetry")}
       </button>
     </div>
   );

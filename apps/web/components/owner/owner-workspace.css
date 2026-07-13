@@ -372,7 +372,6 @@
 }
 
 .ovo-text-link {
-  min-height: 36px;
   color: #0057d8;
   font-size: 0.88rem;
 }
@@ -421,6 +420,8 @@
 }
 
 .ovo-row__title {
+  display: inline-flex;
+  align-items: center;
   color: #14213d;
   font-weight: 800;
   text-decoration: none;
@@ -624,12 +625,8 @@
   }
 
   .ovo-subtitle {
-    display: -webkit-box;
     max-width: 100%;
-    overflow: hidden;
     font-size: 0.88rem;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
   }
 
   .ovo-add-listing {
@@ -704,8 +701,20 @@
   }
 
   .ovo-secondary-action,
-  .ovo-error button {
+  .ovo-error button,
+  .ovo-text-link,
+  .ovo-row__title {
     width: 100%;
     min-height: 44px;
+  }
+
+  .ovo-text-link {
+    min-height: 44px;
+  }
+
+  .ovo-row__title {
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: flex-start;
   }
 }

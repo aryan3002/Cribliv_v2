@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { OwnerOverviewClient } from "../owner-overview-client";
 import type { LeadVm, OwnerListingVm } from "../../../lib/owner-api";
 import {
@@ -42,6 +44,10 @@ const listOwnerListingsMock = vi.mocked(listOwnerListings);
 const fetchOwnerLeadsMock = vi.mocked(fetchOwnerLeads);
 const createSalesLeadMock = vi.mocked(createSalesLead);
 const makeIdempotencyKeyMock = vi.mocked(makeIdempotencyKey);
+const ownerWorkspaceCss = readFileSync(
+  resolve(process.cwd(), "components/owner/owner-workspace.css"),
+  "utf8"
+);
 
 function listing(overrides: Partial<OwnerListingVm>): OwnerListingVm {
   return {
@@ -122,6 +128,23 @@ async function renderOverview() {
   await screen.findAllByTestId("overview-listing-row");
 }
 
+function cssBlocks(selector: string) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Array.from(ownerWorkspaceCss.matchAll(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "g"))).map(
+    (match) => match[1]
+  );
+}
+
+function maxPxValue(selector: string, property: string) {
+  const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Math.max(
+    0,
+    ...cssBlocks(selector).map((block) =>
+      Number(block.match(new RegExp(`${escaped}\\s*:\\s*(\\d+)px`))?.[1] ?? 0)
+    )
+  );
+}
+
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(Date, "now").mockReturnValue(new Date("2026-07-13T12:00:00.000Z").getTime());
@@ -171,16 +194,31 @@ describe("OwnerOverviewClient", () => {
   });
 
   it("keeps listings usable when lead loading fails", async () => {
-    fetchOwnerLeadsMock.mockRejectedValueOnce(new Error("Lead service unavailable"));
+    fetchOwnerLeadsMock.mockRejectedValueOnce(new Error("Request failed with status 500"));
 
     render(<OwnerOverviewClient locale="en" />);
 
     expect(await screen.findByText("Verified 2BHK")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("Lead service unavailable");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "We couldn't refresh your leads. Please try again."
+    );
+    expect(screen.queryByText(/Request failed with status 500/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /manage listings/i })[0]).toHaveAttribute(
       "href",
       "/en/owner/listings"
     );
+  });
+
+  it("maps raw listing failures to owner-friendly retry copy", async () => {
+    listOwnerListingsMock.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    render(<OwnerOverviewClient locale="en" />);
+
+    expect(await screen.findByText("Riya Shah")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "You're offline or the connection dropped. Check your internet and retry."
+    );
+    expect(screen.queryByText(/Failed to fetch/i)).not.toBeInTheDocument();
   });
 
   it("links urgent verification work to /owner/verification", async () => {
@@ -218,5 +256,40 @@ describe("OwnerOverviewClient", () => {
       idempotencyKey: "pm-assist-test-key"
     });
     expect(await screen.findByText(/request submitted/i)).toBeInTheDocument();
+  });
+
+  it("maps property-management failures to owner-friendly retry copy", async () => {
+    createSalesLeadMock.mockRejectedValueOnce(new Error("Request failed with status 500"));
+    await renderOverview();
+
+    fireEvent.click(screen.getByRole("button", { name: /request management help/i }));
+
+    expect(
+      await screen.findByText("We couldn't send your request. Please try again.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Request failed with status 500/i)).not.toBeInTheDocument();
+  });
+
+  it("renders meaningful Hindi overview copy", async () => {
+    render(<OwnerOverviewClient locale="hi" />);
+
+    expect(await screen.findByText("ओनर ओवरव्यू")).toBeInTheDocument();
+    expect(screen.getByText(/आपके पोर्टफोलियो में 5 लिस्टिंग/)).toBeInTheDocument();
+    expect(screen.getByText("सक्रिय लिस्टिंग")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /लिस्टिंग संभालें/i })[0]).toHaveAttribute(
+      "href",
+      "/hi/owner/listings"
+    );
+    expect(screen.getByRole("button", { name: /मैनेजमेंट मदद मांगें/i })).toBeInTheDocument();
+  });
+
+  it("keeps mobile overview controls at least 44 by 44 CSS pixels without clipping subtitles", () => {
+    expect(maxPxValue(".ovo-text-link", "min-height")).toBeGreaterThanOrEqual(44);
+    expect(maxPxValue(".ovo-row__title", "min-height")).toBeGreaterThanOrEqual(44);
+    expect(maxPxValue(".ovo-row__title", "min-width")).toBeGreaterThanOrEqual(44);
+
+    const subtitleBlocks = cssBlocks(".ovo-subtitle").join("\n");
+    expect(subtitleBlocks).not.toMatch(/-webkit-line-clamp/);
+    expect(subtitleBlocks).not.toMatch(/overflow\s*:\s*hidden/);
   });
 });
