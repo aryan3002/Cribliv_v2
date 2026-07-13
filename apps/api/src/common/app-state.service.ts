@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
-import type { SignupReward } from "../modules/auth/signup-credits";
+import { signupReward, type SignupReward } from "../modules/auth/signup-credits";
 
 interface UserRecord {
   id: string;
@@ -188,9 +188,10 @@ export class AppStateService {
     [owner, tenant, admin, pgOperator].forEach((u) => {
       this.users.set(u.id, u);
       this.usersByPhone.set(u.phone, u);
-      this.wallets.set(u.id, u.role === "tenant" ? 2 : 0);
+      this.wallets.set(u.id, 0);
       this.walletTxns.set(u.id, []);
     });
+    this.grantSignupReward(tenant.id, signupReward());
 
     const seedListings: ListingRecord[] = [
       {
@@ -286,6 +287,20 @@ export class AppStateService {
   }
 
   addWalletTxn(input: Omit<WalletTxn, "id" | "createdAt">) {
+    if (input.creditsDelta < 0) {
+      return this.debitWalletCredits({
+        userId: input.userId,
+        credits: -input.creditsDelta,
+        type: input.type,
+        referenceId: input.referenceId,
+        idempotencyKey: input.idempotencyKey,
+        metadata: input.metadata
+      });
+    }
+    return this.appendWalletTxn(input);
+  }
+
+  private appendWalletTxn(input: Omit<WalletTxn, "id" | "createdAt">) {
     const txn: WalletTxn = {
       ...input,
       id: randomUUID(),
@@ -330,7 +345,7 @@ export class AppStateService {
       const expiredCredits = promotional.remaining;
       promotional.remaining = 0;
       this.promotionalWallets.set(userId, promotional);
-      this.addWalletTxn({
+      this.appendWalletTxn({
         userId,
         type: "expire_signup",
         creditsDelta: -expiredCredits,
@@ -357,6 +372,7 @@ export class AppStateService {
       type: string;
       referenceId?: string;
       idempotencyKey?: string;
+      metadata?: Record<string, unknown>;
     },
     now = Date.now()
   ): WalletTxn {
@@ -364,17 +380,25 @@ export class AppStateService {
     if (!Number.isInteger(input.credits) || input.credits <= 0) {
       throw new Error("Wallet debit credits must be a positive integer");
     }
-    if (wallet.balanceCredits < input.credits) {
-      throw new Error("Insufficient wallet credits");
-    }
 
     if (input.idempotencyKey) {
       const existing = (this.walletTxns.get(input.userId) ?? []).find(
         (txn) => txn.idempotencyKey === input.idempotencyKey
       );
       if (existing) {
-        return existing;
+        if (
+          existing.type === input.type &&
+          existing.referenceId === input.referenceId &&
+          existing.creditsDelta === -input.credits
+        ) {
+          return existing;
+        }
+        throw new Error("Wallet idempotency key conflicts with a different transaction");
       }
+    }
+
+    if (wallet.balanceCredits < input.credits) {
+      throw new Error("Insufficient wallet credits");
     }
 
     const promotional = this.promotionalWallets.get(input.userId);
@@ -383,13 +407,16 @@ export class AppStateService {
       promotional.remaining -= promotionalCreditsUsed;
     }
 
-    return this.addWalletTxn({
+    return this.appendWalletTxn({
       userId: input.userId,
       type: input.type,
       creditsDelta: -input.credits,
       referenceId: input.referenceId,
       idempotencyKey: input.idempotencyKey,
-      metadata: { promotionalCreditsUsed }
+      metadata: {
+        ...input.metadata,
+        promotionalCreditsUsed
+      }
     });
   }
 

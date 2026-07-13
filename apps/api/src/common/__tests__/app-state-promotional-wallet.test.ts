@@ -76,6 +76,125 @@ describe("AppStateService promotional wallet", () => {
     });
   });
 
+  it("routes legacy negative addWalletTxn calls through promotional-first debit", () => {
+    const state = new AppStateService();
+    const userId = "legacy-debit-user";
+    grantSignupReward(state, userId);
+
+    const txn = state.addWalletTxn({
+      userId,
+      type: "debit_contact_unlock",
+      creditsDelta: -1,
+      referenceId: "listing-legacy",
+      idempotencyKey: "legacy-unlock"
+    });
+
+    expect(txn).toMatchObject({
+      creditsDelta: -1,
+      metadata: { promotionalCreditsUsed: 1 }
+    });
+    expect(state.getWalletDetails(userId, GRANTED_AT)).toMatchObject({
+      balanceCredits: 9,
+      promotionalCreditsRemaining: 9
+    });
+    expect(state.getWalletDetails(userId, EXPIRES_AT)).toMatchObject({
+      balanceCredits: 0,
+      promotionalCreditsRemaining: 0
+    });
+  });
+
+  it("returns an exact idempotent replay after spending the full balance", () => {
+    const state = new AppStateService();
+    const userId = "full-balance-replay-user";
+    grantSignupReward(state, userId);
+    const input = {
+      userId,
+      credits: 10,
+      type: "debit_contact_unlock",
+      referenceId: "listing-full-balance",
+      idempotencyKey: "full-balance-unlock"
+    };
+
+    const first = state.debitWalletCredits(input, GRANTED_AT);
+    const replay = state.debitWalletCredits(input, GRANTED_AT);
+
+    expect(replay.id).toBe(first.id);
+    expect(state.getWalletDetails(userId, GRANTED_AT)).toMatchObject({
+      balanceCredits: 0,
+      promotionalCreditsRemaining: 0
+    });
+    expect(
+      state
+        .listWalletTransactions(userId)
+        .filter((txn) => txn.idempotencyKey === input.idempotencyKey)
+    ).toHaveLength(1);
+  });
+
+  it("rejects a debit key already used by a different wallet transaction", () => {
+    const state = new AppStateService();
+    const userId = "purchase-key-collision-user";
+    grantSignupReward(state, userId);
+    state.addWalletTxn({
+      userId,
+      type: "purchase_pack",
+      creditsDelta: 5,
+      referenceId: "purchase-1",
+      idempotencyKey: "shared-wallet-key"
+    });
+
+    expect(() =>
+      state.debitWalletCredits(
+        {
+          userId,
+          credits: 1,
+          type: "debit_contact_unlock",
+          referenceId: "listing-collision",
+          idempotencyKey: "shared-wallet-key"
+        },
+        GRANTED_AT
+      )
+    ).toThrow(/idempotency/i);
+    expect(state.getWalletDetails(userId, GRANTED_AT).balanceCredits).toBe(15);
+  });
+
+  it.each([
+    {
+      label: "type",
+      override: { type: "admin_adjustment" }
+    },
+    {
+      label: "reference",
+      override: { referenceId: "listing-other" }
+    },
+    {
+      label: "amount",
+      override: { credits: 2 }
+    }
+  ])("rejects an idempotency replay with a different $label", ({ override }) => {
+    const state = new AppStateService();
+    const userId = `debit-key-collision-${override.type ?? override.referenceId ?? override.credits}`;
+    const input = {
+      userId,
+      credits: 1,
+      type: "debit_contact_unlock",
+      referenceId: "listing-original",
+      idempotencyKey: "debit-collision"
+    };
+    grantSignupReward(state, userId);
+    state.debitWalletCredits(input, GRANTED_AT);
+
+    expect(() =>
+      state.debitWalletCredits(
+        {
+          ...input,
+          ...override
+        },
+        GRANTED_AT
+      )
+    ).toThrow(/idempotency/i);
+    expect(state.getWalletDetails(userId, GRANTED_AT).balanceCredits).toBe(9);
+  });
+
   it("expires only the unused promotional remainder", () => {
     const state = new AppStateService();
     const userId = "promo-expiry-user";
@@ -172,5 +291,24 @@ describe("AppStateService promotional wallet", () => {
       )
     ).toThrow();
     expect(state.getWalletDetails(userId, GRANTED_AT).balanceCredits).toBe(10);
+  });
+
+  it("seeds the tenant wallet from the canonical signup reward instead of a hardcoded 2", () => {
+    const original = process.env.SIGNUP_FREE_CREDITS;
+    process.env.SIGNUP_FREE_CREDITS = "7";
+
+    try {
+      const state = new AppStateService();
+      const tenant = state.usersByPhone.get("+919999999902");
+      expect(tenant).toBeDefined();
+      expect(state.getWalletDetails(tenant!.id)).toMatchObject({
+        balanceCredits: 7,
+        freeCreditsGranted: 7,
+        promotionalCreditsRemaining: 7
+      });
+    } finally {
+      if (original === undefined) delete process.env.SIGNUP_FREE_CREDITS;
+      else process.env.SIGNUP_FREE_CREDITS = original;
+    }
   });
 });

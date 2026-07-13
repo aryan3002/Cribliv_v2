@@ -188,7 +188,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(1);
+    expect(wallet.body.data.balance_credits).toBe(9);
   });
 
   it("does not refund when owner responds before deadline", async () => {
@@ -225,7 +225,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(1);
+    expect(wallet.body.data.balance_credits).toBe(9);
   });
 
   it("refunds exactly once after 12h no-response timeout", async () => {
@@ -258,7 +258,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("enforces shortlist auth and supports CRUD for authenticated users", async () => {
@@ -372,7 +372,7 @@ describe("Phase 1 integration flows", () => {
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
 
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("handles concurrent webhook replay without double credit", async () => {
@@ -420,7 +420,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("rejects invalid webhook signature without credit posting", async () => {
@@ -460,7 +460,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("accepts a later valid webhook after an invalid signature attempt on same event id", async () => {
@@ -506,7 +506,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("does not credit wallet for failed payment webhook", async () => {
@@ -546,7 +546,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("ignores a captured webhook whose amount does not match the order and does not credit wallet", async () => {
@@ -591,7 +591,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("ignores a captured webhook whose currency is not INR and does not credit wallet", async () => {
@@ -636,7 +636,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("still credits wallet for a captured webhook payload without amount/currency fields", async () => {
@@ -679,7 +679,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("creates sales lead once per idempotency key and supports admin status updates", async () => {
