@@ -67,3 +67,85 @@ The migration runner does not reapply a filename recorded in `schema_migrations`
 ## Concern
 
 Docker Desktop/the Docker daemon was unavailable, preventing the only required live PostgreSQL verification. The migration content received static review only.
+
+## Controller follow-up verification
+
+Docker Desktop was launched and the local container was started:
+
+```sh
+rtk proxy docker start cribliv-pg-local
+rtk proxy sleep 5 && docker exec cribliv-pg-local pg_isready -U postgres
+```
+
+Result:
+
+```text
+/var/run/postgresql:5432 - accepting connections
+```
+
+Migrations were then applied with the required inline local URL:
+
+```sh
+rtk proxy env DATABASE_URL="postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" pnpm db:migrate
+```
+
+Result:
+
+```text
+Applied 0056_pg_bed_status_inactive.sql
+Applied 0057_pg_bed_operations.sql
+```
+
+Enum check:
+
+```sh
+rtk proxy psql "postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" -c "SELECT unnest(enum_range(NULL::pg_bed_status));"
+```
+
+Result:
+
+```text
+ vacant
+ reserved
+ occupied
+ blocked
+ inactive
+(5 rows)
+```
+
+`pg_rooms` column check:
+
+```sh
+rtk proxy psql "postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" -c "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'pg_rooms' AND column_name IN ('display_label', 'bed_count', 'status', 'updated_at') ORDER BY column_name;"
+```
+
+Result:
+
+```text
+ bed_count
+ display_label
+ status
+ updated_at
+(4 rows)
+```
+
+Assignment table check:
+
+```sh
+rtk proxy psql "postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" -c "SELECT to_regclass('public.pg_bed_assignments') AS assignments, to_regclass('public.pg_assignment_events') AS events;"
+```
+
+Result:
+
+```text
+ pg_bed_assignments | pg_assignment_events
+(1 row)
+```
+
+`0057` rollback and direct reapply round-trip:
+
+```sh
+rtk proxy psql "postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" -f infra/migrations/0057_pg_bed_operations.rollback.sql && psql "postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" -f infra/migrations/0057_pg_bed_operations.sql
+```
+
+Result: exited 0. The output showed dependent objects dropped, added columns dropped, then `0057` recreated the trigger, assignment enums, assignment tables, indexes, and event table. The only notices were expected `DROP TRIGGER IF EXISTS` notices for triggers absent immediately after rollback.
