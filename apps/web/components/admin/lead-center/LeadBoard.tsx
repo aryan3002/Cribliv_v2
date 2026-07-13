@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import type {
   AdminLeadBoardFilter,
   AdminLeadBoardResponse,
-  AdminLeadBoardRow
+  AdminLeadBoardRow,
+  LeadAccessState
 } from "@cribliv/shared-types";
 import { StatCard } from "../primitives/StatCard";
-import { StatusPill } from "../primitives/StatusPill";
+import { StatusPill, type PillTone } from "../primitives/StatusPill";
 import { SectionCard } from "../primitives/SectionCard";
 import { EmptyState } from "../primitives/EmptyState";
 import { DataTable, type Column } from "../primitives/DataTable";
@@ -32,6 +33,15 @@ const FILTERS: Array<{ id: AdminLeadBoardFilter; label: string }> = [
   { id: "called", label: "Called" },
   { id: "refunded_today", label: "Refunded today" }
 ];
+
+// StatusPill's default tone map has no entries for these lead access states,
+// so every pill would otherwise render flat grey ("muted").
+const ACCESS_TONE: Record<LeadAccessState, PillTone> = {
+  free: "brand",
+  unlocked: "trust",
+  locked: "warn",
+  expired: "danger"
+};
 
 export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
   const [data, setData] = useState<AdminLeadBoardResponse | null>(null);
@@ -141,7 +151,9 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
       {
         key: "state",
         header: "State",
-        render: (r) => <StatusPill status={r.access_state} />,
+        render: (r) => (
+          <StatusPill status={r.access_state} tone={ACCESS_TONE[r.access_state] ?? "muted"} />
+        ),
         sortValue: (r) => r.access_state
       },
       {

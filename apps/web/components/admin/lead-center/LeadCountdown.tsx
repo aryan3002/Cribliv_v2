@@ -28,7 +28,14 @@ function useCountdown(secondsRemaining: number | null, generatedAt: string): num
   }, [secondsRemaining, generatedAt]);
 
   if (secondsRemaining == null) return null;
-  return Math.max(0, secondsRemaining - (now - Date.parse(generatedAt)) / 1000);
+
+  // `generatedAt` should always be a valid ISO timestamp from the server, but
+  // guard against an unparseable value producing NaN — fall back to the
+  // server-reported value as-is (skip subtracting elapsed time) instead.
+  const generatedAtMs = Date.parse(generatedAt);
+  const elapsed = Number.isFinite(generatedAtMs) ? (now - generatedAtMs) / 1000 : 0;
+  const remaining = secondsRemaining - elapsed;
+  return Number.isFinite(remaining) ? Math.max(0, remaining) : secondsRemaining;
 }
 
 function formatRemaining(totalSeconds: number): string {
@@ -43,17 +50,23 @@ function formatRemaining(totalSeconds: number): string {
 export function LeadCountdown({ secondsRemaining, generatedAt, refundState }: Props) {
   const remaining = useCountdown(secondsRemaining, generatedAt);
 
-  if (remaining == null) {
+  // Terminal refund states win over the clock: a lead the owner/team already
+  // responded to (or one the sweep already refunded) is resolved regardless
+  // of whether `seconds_remaining` has ticked down to 0 — check these first
+  // so a late-but-handled lead never mislabels as "Expired".
+  if (refundState === "refunded") {
+    return <span className="admin-countdown">Refunded</span>;
+  }
+  if (refundState === "responded") {
+    return <span className="admin-countdown admin-countdown--ok">Responded</span>;
+  }
+
+  if (remaining == null || !Number.isFinite(remaining)) {
     return <span className="admin-countdown">—</span>;
   }
 
   if (remaining <= 0) {
-    const refunded = refundState === "refunded";
-    return (
-      <span className={`admin-countdown${refunded ? "" : " admin-countdown--danger"}`}>
-        {refunded ? "Refunded" : "Expired"}
-      </span>
-    );
+    return <span className="admin-countdown admin-countdown--danger">Expired</span>;
   }
 
   const tone = remaining < ONE_HOUR ? "danger" : remaining < SIX_HOURS ? "warn" : "ok";
