@@ -4880,6 +4880,16 @@ a.feature-card:hover .icon-circle {
   padding: var(--space-5);
 }
 
+.credit-purchase-sheet {
+  max-width: 460px;
+  width: min(460px, 94vw);
+}
+
+.credit-purchase-sheet .modal__close {
+  width: 44px;
+  height: 44px;
+}
+
 @media (max-width: 640px) {
   .owner-modal-overlay {
     align-items: flex-end;
@@ -4899,6 +4909,22 @@ a.feature-card:hover .icon-circle {
 
   .owner-sheet__subtitle {
     max-width: min(72vw, 300px);
+  }
+
+  .credit-purchase-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .credit-purchase-sheet {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(86dvh, 720px);
+    overflow: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-radius: 8px 8px 0 0;
   }
 }
 

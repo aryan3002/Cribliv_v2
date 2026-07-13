@@ -90,6 +90,10 @@ export function CreditPurchaseDialog({
   const [upiRevealed, setUpiRevealed] = useState(false);
   const [upiIntent, setUpiIntent] = useState<CreditPurchaseIntent | null>(null);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
   // Attempt-generation guard: incremented on every open-transition reset and
   // on every new pay attempt (Razorpay or UPI). The detached async chains
   // (Checkout handler → confirm → poll, plus their setState calls) capture the
@@ -99,6 +103,50 @@ export function CreditPurchaseDialog({
   // for the wrong plan/order.
   const attemptGenerationRef = useRef(0);
   const isStale = (generation: number) => attemptGenerationRef.current !== generation;
+
+  useEffect(() => {
+    if (!open) return;
+
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusTimer = window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      ).filter((element) => !element.hasAttribute("hidden"));
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocusRef.current?.focus();
+    };
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -314,7 +362,7 @@ export function CreditPurchaseDialog({
 
   return (
     <div
-      className="modal-overlay"
+      className="modal-overlay credit-purchase-overlay"
       role="dialog"
       aria-modal
       aria-label={t(locale, "cpTitle")}
@@ -324,13 +372,14 @@ export function CreditPurchaseDialog({
       }}
     >
       <div
-        className="modal"
-        style={{ maxWidth: 460, width: "min(460px, 94vw)" }}
+        ref={dialogRef}
+        className="modal credit-purchase-sheet"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal__header">
           <h2 className="modal__title">{t(locale, "cpTitle")}</h2>
           <button
+            ref={closeButtonRef}
             type="button"
             className="modal__close"
             data-testid="cp-close-button"
