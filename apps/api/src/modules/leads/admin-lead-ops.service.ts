@@ -492,8 +492,12 @@ export class AdminLeadOpsService {
     const client = await this.database.getClient();
     try {
       await client.query("BEGIN");
+      // No FOR UPDATE on the lead here: the contact_unlock is locked below
+      // (FOR UPDATE) before refundUnlock touches the lead, keeping the canonical
+      // contact_unlocks→leads order. Locking the lead first would invert it and
+      // can deadlock the timeout-refund sweep. contact_unlock_id is immutable.
       const leadRes = await client.query<{ id: string; contact_unlock_id: string | null }>(
-        `SELECT id::text, contact_unlock_id::text FROM leads WHERE id = $1::uuid FOR UPDATE`,
+        `SELECT id::text, contact_unlock_id::text FROM leads WHERE id = $1::uuid`,
         [leadId]
       );
       const lead = leadRes.rows[0];
