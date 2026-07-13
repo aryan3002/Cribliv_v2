@@ -81,6 +81,40 @@ export const authConfig: NextAuthConfig = {
           return null;
         }
       }
+    }),
+    Credentials({
+      id: "admin-totp",
+      name: "Admin TOTP",
+      credentials: {
+        phone: { label: "Phone", type: "text" },
+        totpCode: { label: "Authenticator code", type: "text" }
+      },
+      async authorize(credentials) {
+        const { phone, totpCode } = credentials as { phone: string; totpCode: string };
+        if (!phone || !totpCode) return null;
+        try {
+          const res = await fetch(`${API_BASE_URL}/auth/admin/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone_e164: phone, totp_code: totpCode })
+          });
+          if (!res.ok) return null;
+          const payload = (await res.json()) as { data: OtpVerifyResponse };
+          const data = payload.data;
+          return {
+            id: data.user.id,
+            phone: data.user.phone_e164,
+            role: data.user.role,
+            preferredLanguage: data.user.preferred_language,
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token ?? null,
+            tokenIssuedAt: Date.now(),
+            isNewUser: false
+          };
+        } catch {
+          return null;
+        }
+      }
     })
   ],
 
