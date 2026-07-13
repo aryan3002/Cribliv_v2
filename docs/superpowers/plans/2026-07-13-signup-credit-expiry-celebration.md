@@ -29,8 +29,8 @@
 
 **Files:**
 
-- Create: `infra/migrations/0056_signup_credit_expiry.sql`
-- Create: `infra/migrations/0056_signup_credit_expiry.rollback.sql`
+- Create: `infra/migrations/0057_signup_credit_expiry.sql`
+- Create: `infra/migrations/0057_signup_credit_expiry.rollback.sql`
 - Modify: `apps/api/src/modules/auth/signup-credits.ts`
 - Modify: `apps/api/src/modules/auth/__tests__/signup-credits.test.ts`
 - Modify: `packages/shared-types/src/types.ts`
@@ -143,7 +143,7 @@ Expected: reward tests PASS and API typecheck exits 0.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add infra/migrations/0056_signup_credit_expiry* \
+git add infra/migrations/0057_signup_credit_expiry* \
   apps/api/src/modules/auth/signup-credits.ts \
   apps/api/src/modules/auth/__tests__/signup-credits.test.ts \
   packages/shared-types/src/types.ts

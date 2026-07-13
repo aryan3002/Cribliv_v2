@@ -120,7 +120,7 @@ the canonical source for the celebration.
 
 ## 6. Data model
 
-Add migration `0056_signup_credit_expiry.sql` and a matching rollback:
+Add migration `0057_signup_credit_expiry.sql` and a matching rollback:
 
 ```sql
 ALTER TYPE wallet_txn_type ADD VALUE IF NOT EXISTS 'expire_signup';
