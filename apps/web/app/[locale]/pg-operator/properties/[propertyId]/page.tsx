@@ -7,7 +7,7 @@ import PgOccupancySummary from "@/components/pg-operator/ops/PgOccupancySummary"
 import {
   getManagedProperty,
   getOccupancySummary,
-  getPropertyLayout
+  getPropertyInventory
 } from "@/lib/pg-operations-api";
 import styles from "./pg-operations.module.css";
 
@@ -21,7 +21,7 @@ export default async function Page({ params }: { params: { locale: string; prope
   const data = await Promise.all([
     getManagedProperty(params.propertyId, token),
     getOccupancySummary(params.propertyId, token),
-    getPropertyLayout(params.propertyId, token)
+    getPropertyInventory(params.propertyId, token)
   ])
     .then(([property, summary, rooms]) => (property ? { property, summary, rooms } : null))
     .catch(() => null);

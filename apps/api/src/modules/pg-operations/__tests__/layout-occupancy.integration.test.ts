@@ -574,6 +574,43 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
     expect(retired.rows[0]).toEqual({ room_status: "inactive", bed_status: "inactive" });
   });
 
+  it("returns inactive beds for dashboard inventory without exposing them in the editable layout", async () => {
+    const fixture = await createFixture();
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant", "vacant"], fixture.roomTypes.double)]
+    });
+    const retiredBed = await getBed(fixture.propertyId, "101", "B");
+
+    await request(app.getHttpServer())
+      .patch(`/v1/pg-operator/properties/${fixture.propertyId}/beds/${retiredBed.id}/status`)
+      .set("x-test-identity", "operator")
+      .send({ status: "inactive" })
+      .expect(200);
+
+    const [editable, inventory] = await Promise.all([
+      request(app.getHttpServer())
+        .get(`/v1/pg-operator/properties/${fixture.propertyId}/layout`)
+        .set("x-test-identity", "operator")
+        .expect(200),
+      request(app.getHttpServer())
+        .get(`/v1/pg-operator/properties/${fixture.propertyId}/inventory`)
+        .set("x-test-identity", "operator")
+        .expect(200)
+    ]);
+
+    expect(editable.body.data[0]).toMatchObject({
+      bed_count: 1,
+      beds: [expect.objectContaining({ bed_label: "A", status: "vacant" })]
+    });
+    expect(inventory.body.data[0]).toMatchObject({
+      bed_count: 2,
+      beds: expect.arrayContaining([
+        expect.objectContaining({ bed_label: "A", status: "vacant" }),
+        expect.objectContaining({ bed_label: "B", status: "inactive" })
+      ])
+    });
+  });
+
   it("aggregates occupancy, floors, availability, and upcoming moves in SQL", async () => {
     const fixture = await createFixture();
     await layout.putLayout(operatorId, fixture.propertyId, {

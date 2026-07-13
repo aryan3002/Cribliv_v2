@@ -79,3 +79,39 @@ DONE
 ### Concerns
 
 No functional concerns. Vitest still prints the existing Vite CJS Node API deprecation warning in both focused suites.
+
+---
+
+## Remaining Frontend Review Finding Fix (2026-07-13): inactive dashboard inventory
+
+### Status
+
+DONE
+
+### Root cause
+
+The property dashboard consumed `getPropertyLayout()`. That API intentionally returns active rooms and non-inactive beds only, because its payload must remain safe to submit back through the editable layout PUT endpoint. The dashboard therefore had an `inactive` filter control, but no inactive inventory to display.
+
+### Fix
+
+- Added `GET /pg-operator/properties/:propertyId/inventory`, backed by `PgLayoutService.getInventory()`. It uses the existing managed-property ownership guard and returns complete room/bed inventory, including inactive records, for dashboard read-only rendering.
+- Left `GET /layout` on the editable projection: active rooms, non-inactive beds, and a `bed_count` matching its returned beds.
+- Added `getPropertyInventory()` and switched only the dashboard page to it. The layout builder continues to use `getPropertyLayout()`.
+- Expanded `PgBedGrid` coverage to select `Inactive` and render an inactive bed chip.
+
+### TDD evidence
+
+1. Backend RED: the new inventory integration test returned `404` for `/inventory` while the editable layout response continued to exclude the inactive bed.
+2. Frontend RED: the dashboard route test showed `getPropertyInventory` was called zero times. The initial grid assertion was corrected to target the inactive bed chip after the test runner correctly identified duplicate `Inactive` text from the filter and badge.
+3. Backend GREEN: the inventory route returns both vacant and inactive beds, while the editable layout retains only the vacant bed with `bed_count: 1`.
+4. Frontend GREEN: the dashboard calls the inventory helper, the layout helper is not called by the dashboard, and the selected inactive filter renders the inactive bed.
+
+### Final verification
+
+- `rtk proxy env DATABASE_URL="postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" pnpm --filter @cribliv/api test -- layout-occupancy.integration.test.ts`: PASS, 1 file and 18 tests.
+- `rtk proxy pnpm --filter @cribliv/web test -- components/pg-operator/ops/__tests__/PgBedGrid.test.tsx 'app/[locale]/pg-operator/properties/[propertyId]/__tests__/operations-pages.test.tsx'`: PASS, 2 files and 8 tests.
+- `rtk proxy pnpm --filter @cribliv/web typecheck`: PASS.
+
+### Concerns
+
+The existing Vite CJS Node API deprecation warning remains in both focused Vitest runs. It does not affect the passing results and is outside this fix's scope.

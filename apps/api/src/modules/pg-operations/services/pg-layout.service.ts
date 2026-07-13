@@ -206,6 +206,18 @@ export class PgLayoutService {
   }
 
   async getLayout(operatorId: string, propertyId: string): Promise<PgRoom[]> {
+    return this.getRooms(operatorId, propertyId, false);
+  }
+
+  async getInventory(operatorId: string, propertyId: string): Promise<PgRoom[]> {
+    return this.getRooms(operatorId, propertyId, true);
+  }
+
+  private async getRooms(
+    operatorId: string,
+    propertyId: string,
+    includeInactive: boolean
+  ): Promise<PgRoom[]> {
     if (!this.db.isEnabled()) return [];
     await this.assertManagedOwnership(operatorId, propertyId);
 
@@ -214,7 +226,7 @@ export class PgLayoutService {
               display_label, bed_count, status, created_at, updated_at
          FROM pg_rooms
         WHERE pg_property_id = $1::uuid
-          AND status = 'active'
+          ${includeInactive ? "" : "AND status = 'active'"}
         ORDER BY floor ASC NULLS LAST, room_number ASC`,
       [propertyId]
     );
@@ -226,8 +238,7 @@ export class PgLayoutService {
          FROM pg_beds b
          JOIN pg_rooms r ON r.id = b.room_id
         WHERE r.pg_property_id = $1::uuid
-          AND r.status = 'active'
-          AND b.status <> 'inactive'
+          ${includeInactive ? "" : "AND r.status = 'active' AND b.status <> 'inactive'"}
         ORDER BY r.floor ASC NULLS LAST, r.room_number ASC,
                  b.sort_order ASC NULLS LAST, b.bed_label ASC`,
       [propertyId]
@@ -240,7 +251,7 @@ export class PgLayoutService {
     }
 
     return rooms.rows.map((row) => {
-      const editableBeds = bedsByRoom.get(row.id) ?? [];
+      const visibleBeds = bedsByRoom.get(row.id) ?? [];
       return {
         id: row.id,
         pg_property_id: row.pg_property_id,
@@ -248,9 +259,9 @@ export class PgLayoutService {
         floor: row.floor,
         room_number: row.room_number,
         display_label: row.display_label,
-        bed_count: editableBeds.length,
+        bed_count: visibleBeds.length,
         status: row.status,
-        beds: editableBeds,
+        beds: visibleBeds,
         created_at: toIso(row.created_at),
         updated_at: toIso(row.updated_at)
       };

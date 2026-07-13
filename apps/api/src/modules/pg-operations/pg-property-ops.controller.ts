@@ -45,6 +45,11 @@ export class PgPropertyOpsController {
     return ok(await this.layouts.getLayout(user.id, propertyId));
   }
 
+  @Get(":propertyId/inventory")
+  async getInventory(@AuthUser() user: UserContext, @Param("propertyId") propertyId: string) {
+    return ok(await this.layouts.getInventory(user.id, propertyId));
+  }
+
   @Post(":propertyId/layout/generate")
   async generateLayout(
     @AuthUser() user: UserContext,

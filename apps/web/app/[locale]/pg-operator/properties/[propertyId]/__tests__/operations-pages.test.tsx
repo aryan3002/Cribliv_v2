@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   }),
   getManagedProperty: vi.fn(),
   getOccupancySummary: vi.fn(),
+  getPropertyInventory: vi.fn(),
   getPropertyLayout: vi.fn()
 }));
 
@@ -19,6 +20,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/pg-operations-api", () => ({
   getManagedProperty: mocks.getManagedProperty,
   getOccupancySummary: mocks.getOccupancySummary,
+  getPropertyInventory: mocks.getPropertyInventory,
   getPropertyLayout: mocks.getPropertyLayout
 }));
 
@@ -42,12 +44,37 @@ const property = {
   room_types: []
 };
 
+const summary = {
+  property_id: "property-1",
+  total_beds: 2,
+  vacant_beds: 1,
+  reserved_beds: 0,
+  occupied_beds: 0,
+  blocked_beds: 0,
+  inactive_beds: 1,
+  occupancy_percent: 0,
+  by_status: { vacant: 1, reserved: 0, occupied: 0, blocked: 0, inactive: 1 },
+  by_floor: [],
+  upcoming_move_ins: [],
+  upcoming_move_outs: [],
+  available_from: []
+};
+
 describe("PG operations route error states", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.auth.mockResolvedValue({ user: { role: "pg_operator" }, accessToken: "token-1" });
     mocks.getManagedProperty.mockResolvedValue(property);
+    mocks.getOccupancySummary.mockResolvedValue(summary);
+    mocks.getPropertyInventory.mockResolvedValue([]);
     mocks.getPropertyLayout.mockResolvedValue([]);
+  });
+
+  it("loads dashboard beds from the inventory read path", async () => {
+    await DashboardPage({ params: { locale: "en", propertyId: "property-1" } });
+
+    expect(mocks.getPropertyInventory).toHaveBeenCalledWith("property-1", "token-1");
+    expect(mocks.getPropertyLayout).not.toHaveBeenCalled();
   });
 
   it("renders a dashboard error instead of fabricated occupancy data", async () => {

@@ -101,8 +101,22 @@ describe("PgBedGrid", () => {
   });
 
   it("offers inactive as a status filter", () => {
-    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+    const inactiveRooms: PgRoom[] = [
+      {
+        ...rooms[0],
+        beds: [
+          {
+            ...rooms[0].beds[0],
+            status: "inactive"
+          }
+        ]
+      }
+    ];
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={inactiveRooms} />);
 
-    expect(screen.getByRole("button", { name: "Inactive" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Inactive" }));
+
+    expect(screen.getByText("Bed A")).toBeInTheDocument();
+    expect(screen.getByText("Bed A").closest('[data-status="inactive"]')).toBeInTheDocument();
   });
 });

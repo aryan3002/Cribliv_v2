@@ -57,6 +57,12 @@ export function getPropertyLayout(propertyId: string, token?: string) {
   });
 }
 
+export function getPropertyInventory(propertyId: string, token?: string) {
+  return fetchApi<PgRoom[]>(`/pg-operator/properties/${propertyId}/inventory`, {
+    headers: authHeaders(token)
+  });
+}
+
 export function generateLayoutDraft(
   propertyId: string,
   roomCounts: PgLayoutRoomCountInput[],
