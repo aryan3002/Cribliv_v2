@@ -282,7 +282,7 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
 
     expect(reserved).toMatchObject({
       status: "reserved",
-      tenant_user_id: null,
+      tenant_user_id: tenantId,
       expected_move_in_date: "2099-01-15"
     });
     expect(await bedStatus(fixture.bedIds[0])).toBe("reserved");

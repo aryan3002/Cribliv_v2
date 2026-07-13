@@ -312,18 +312,24 @@ export class PgBedAssignmentService {
         throw new ConflictException({ code: "bed_not_vacant" });
       }
 
+      const linkedUser = await client.query<{ id: string }>(
+        `SELECT id::text FROM users WHERE phone_e164 = $1 LIMIT 1`,
+        [occupant.occupant_phone_e164]
+      );
+      const tenantUserId = linkedUser.rows[0]?.id ?? null;
       const inserted = await client.query<AssignmentRow>(
         `INSERT INTO pg_bed_assignments
-           (pg_property_id, bed_id, occupant_name, occupant_phone_e164, occupant_gender,
+           (pg_property_id, bed_id, tenant_user_id, occupant_name, occupant_phone_e164, occupant_gender,
             emergency_contact, status, expected_move_in_date, monthly_rent_paise,
             security_deposit_paise, operator_notes, created_by)
          VALUES
-           ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, 'reserved', $7::date,
-            $8::bigint, $9::bigint, $10, $11::uuid)
+           ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::jsonb, 'reserved', $8::date,
+            $9::bigint, $10::bigint, $11, $12::uuid)
          RETURNING *`,
         [
           propertyId,
           bedId,
+          tenantUserId,
           occupant.occupant_name.trim(),
           occupant.occupant_phone_e164,
           occupant.occupant_gender?.trim() || null,
@@ -349,7 +355,11 @@ export class PgBedAssignmentService {
         operatorId,
         null,
         "reserved",
-        { bed_id: bedId, expected_move_in_date: occupant.expected_move_in_date ?? null }
+        {
+          bed_id: bedId,
+          expected_move_in_date: occupant.expected_move_in_date ?? null,
+          tenant_user_id: tenantUserId
+        }
       );
       return toAssignment(inserted.rows[0]);
     });
