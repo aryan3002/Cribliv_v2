@@ -1,0 +1,743 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException
+} from "@nestjs/common";
+import type {
+  PgAssignmentInitiator,
+  PgBedAssignment,
+  PgBedAssignmentListFilters,
+  PgBedAssignmentOccupantInput,
+  PgBedAssignmentStatus,
+  PgServeNoticeInput
+} from "@cribliv/shared-types";
+import type { PoolClient } from "pg";
+
+import { DatabaseService } from "../../../common/database.service";
+import { NotificationService } from "../../notifications/notification.service";
+
+type AssignmentRow = {
+  id: string;
+  pg_property_id: string;
+  bed_id: string;
+  tenant_user_id: string | null;
+  occupant_name: string;
+  occupant_phone_e164: string;
+  occupant_gender: string | null;
+  emergency_contact: Record<string, unknown> | null;
+  status: PgBedAssignmentStatus;
+  expected_move_in_date: Date | string | null;
+  move_in_date: Date | string | null;
+  notice_served_date: Date | string | null;
+  notice_end_date: Date | string | null;
+  move_out_date: Date | string | null;
+  monthly_rent_paise: number | string | null;
+  security_deposit_paise: number | string | null;
+  operator_notes: string | null;
+  created_by: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+type LockedAssignmentRow = AssignmentRow & {
+  bed_status: string;
+  operator_id: string;
+};
+
+type TransitionResult = {
+  assignment: PgBedAssignment;
+  operatorId: string;
+};
+
+const ACTIVE_ASSIGNMENT_STATUSES = [
+  "reserved",
+  "active",
+  "notice_served",
+  "move_out_requested",
+  "move_out_pending_confirmation"
+] as const;
+
+function toDate(value: Date | string | null): string | null {
+  if (value === null) return null;
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  return value.slice(0, 10);
+}
+
+function toIso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function toMoney(value: number | string | null): number | null {
+  return value === null ? null : Number(value);
+}
+
+function toAssignment(row: AssignmentRow): PgBedAssignment {
+  return {
+    id: row.id,
+    pg_property_id: row.pg_property_id,
+    bed_id: row.bed_id,
+    tenant_user_id: row.tenant_user_id,
+    occupant_name: row.occupant_name,
+    occupant_phone_e164: row.occupant_phone_e164,
+    occupant_gender: row.occupant_gender,
+    emergency_contact: row.emergency_contact,
+    status: row.status,
+    expected_move_in_date: toDate(row.expected_move_in_date),
+    move_in_date: toDate(row.move_in_date),
+    notice_served_date: toDate(row.notice_served_date),
+    notice_end_date: toDate(row.notice_end_date),
+    move_out_date: toDate(row.move_out_date),
+    monthly_rent_paise: toMoney(row.monthly_rent_paise),
+    security_deposit_paise: toMoney(row.security_deposit_paise),
+    operator_notes: row.operator_notes,
+    created_by: row.created_by,
+    created_at: toIso(row.created_at),
+    updated_at: toIso(row.updated_at)
+  };
+}
+
+@Injectable()
+export class PgBedAssignmentService {
+  constructor(
+    @Inject(DatabaseService) private readonly db: DatabaseService,
+    @Inject(NotificationService) private readonly notifications: NotificationService
+  ) {}
+
+  private unavailable(): ServiceUnavailableException {
+    return new ServiceUnavailableException({
+      code: "operations_requires_db",
+      message: "PG operations require a database"
+    });
+  }
+
+  private async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.db.getClient();
+    try {
+      await client.query("BEGIN");
+      const result = await work(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      if ((error as { code?: string }).code === "23505") {
+        throw new ConflictException({ code: "bed_or_tenant_occupied" });
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async assertManagedOwnership(
+    operatorId: string,
+    propertyId: string,
+    client?: PoolClient
+  ): Promise<void> {
+    const sql = `SELECT id
+                   FROM pg_properties
+                  WHERE id = $1::uuid
+                    AND operator_id = $2::uuid
+                    AND manage_enabled = true
+                  LIMIT 1${client ? " FOR UPDATE" : ""}`;
+    const result = client
+      ? await client.query<{ id: string }>(sql, [propertyId, operatorId])
+      : await this.db.query<{ id: string }>(sql, [propertyId, operatorId]);
+    if (!result.rows[0]) {
+      throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+    }
+  }
+
+  private validateOccupant(input: PgBedAssignmentOccupantInput): void {
+    if (!input.occupant_name?.trim()) {
+      throw new BadRequestException({ code: "occupant_name_required" });
+    }
+    if (!/^\+[1-9]\d{7,14}$/.test(input.occupant_phone_e164 ?? "")) {
+      throw new BadRequestException({ code: "invalid_occupant_phone" });
+    }
+  }
+
+  private assertTransition(
+    current: PgBedAssignmentStatus,
+    allowed: readonly PgBedAssignmentStatus[],
+    target: PgBedAssignmentStatus
+  ): void {
+    if (!allowed.includes(current)) {
+      throw new ConflictException({
+        code: "invalid_assignment_transition",
+        from_status: current,
+        to_status: target
+      });
+    }
+  }
+
+  private async writeEvent(
+    client: PoolClient,
+    assignmentId: string,
+    eventType: string,
+    initiator: PgAssignmentInitiator,
+    actorUserId: string,
+    fromStatus: PgBedAssignmentStatus | null,
+    toStatus: PgBedAssignmentStatus,
+    payload: Record<string, unknown>
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO pg_assignment_events
+         (assignment_id, event_type, initiator, actor_user_id, from_status, to_status, payload)
+       VALUES ($1::uuid, $2, $3::pg_assignment_initiator, $4::uuid, $5, $6, $7::jsonb)`,
+      [
+        assignmentId,
+        eventType,
+        initiator,
+        actorUserId,
+        fromStatus,
+        toStatus,
+        JSON.stringify(payload)
+      ]
+    );
+  }
+
+  private notify(input: Parameters<NotificationService["send"]>[0]): void {
+    try {
+      void this.notifications.send(input).catch(() => undefined);
+    } catch {
+      // Notifications are deliberately outside the state transaction and best-effort only.
+    }
+  }
+
+  private async lockBed(client: PoolClient, propertyId: string, bedId: string) {
+    const result = await client.query<{ id: string; status: string }>(
+      `SELECT b.id::text, b.status::text
+         FROM pg_beds b
+         JOIN pg_rooms r ON r.id = b.room_id
+        WHERE b.id = $2::uuid
+          AND r.pg_property_id = $1::uuid
+        FOR UPDATE OF b`,
+      [propertyId, bedId]
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundException({ code: "bed_not_found", message: "Bed not found" });
+    }
+    return result.rows[0];
+  }
+
+  private async lockOperatorAssignment(
+    client: PoolClient,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<LockedAssignmentRow> {
+    const result = await client.query<LockedAssignmentRow>(
+      `SELECT a.id::text, a.pg_property_id::text, a.bed_id::text,
+              a.tenant_user_id::text, a.occupant_name, a.occupant_phone_e164,
+              a.occupant_gender, a.emergency_contact, a.status::text,
+              a.expected_move_in_date, a.move_in_date, a.notice_served_date,
+              a.notice_end_date, a.move_out_date, a.monthly_rent_paise,
+              a.security_deposit_paise, a.operator_notes, a.created_by::text,
+              a.created_at, a.updated_at, b.status::text AS bed_status,
+              p.operator_id::text
+         FROM pg_bed_assignments a
+         JOIN pg_properties p ON p.id = a.pg_property_id
+         JOIN pg_beds b ON b.id = a.bed_id
+         JOIN pg_rooms r ON r.id = b.room_id
+        WHERE a.id = $2::uuid
+          AND a.pg_property_id = $1::uuid
+          AND r.pg_property_id = $1::uuid
+        FOR UPDATE OF a, b`,
+      [propertyId, assignmentId]
+    );
+    if (!result.rows[0]) {
+      throw new NotFoundException({
+        code: "assignment_not_found",
+        message: "Assignment not found"
+      });
+    }
+    return result.rows[0];
+  }
+
+  private async lockTenantAssignment(
+    client: PoolClient,
+    tenantId: string,
+    assignmentId: string
+  ): Promise<LockedAssignmentRow> {
+    const result = await client.query<LockedAssignmentRow>(
+      `SELECT a.id::text, a.pg_property_id::text, a.bed_id::text,
+              a.tenant_user_id::text, a.occupant_name, a.occupant_phone_e164,
+              a.occupant_gender, a.emergency_contact, a.status::text,
+              a.expected_move_in_date, a.move_in_date, a.notice_served_date,
+              a.notice_end_date, a.move_out_date, a.monthly_rent_paise,
+              a.security_deposit_paise, a.operator_notes, a.created_by::text,
+              a.created_at, a.updated_at, b.status::text AS bed_status,
+              p.operator_id::text
+         FROM pg_bed_assignments a
+         JOIN pg_properties p ON p.id = a.pg_property_id
+         JOIN pg_beds b ON b.id = a.bed_id
+         JOIN users caller ON caller.id = $1::uuid
+        WHERE a.id = $2::uuid
+          AND (
+            a.tenant_user_id = $1::uuid
+            OR (a.tenant_user_id IS NULL AND a.occupant_phone_e164 = caller.phone_e164)
+          )
+        FOR UPDATE OF a, b`,
+      [tenantId, assignmentId]
+    );
+    if (!result.rows[0]) {
+      throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+    }
+    return result.rows[0];
+  }
+
+  async reserve(
+    operatorId: string,
+    propertyId: string,
+    bedId: string,
+    occupant: PgBedAssignmentOccupantInput
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    this.validateOccupant(occupant);
+
+    return this.transaction(async (client) => {
+      await this.assertManagedOwnership(operatorId, propertyId, client);
+      const bed = await this.lockBed(client, propertyId, bedId);
+      if (bed.status !== "vacant") {
+        throw new ConflictException({ code: "bed_not_vacant" });
+      }
+
+      const inserted = await client.query<AssignmentRow>(
+        `INSERT INTO pg_bed_assignments
+           (pg_property_id, bed_id, occupant_name, occupant_phone_e164, occupant_gender,
+            emergency_contact, status, expected_move_in_date, monthly_rent_paise,
+            security_deposit_paise, operator_notes, created_by)
+         VALUES
+           ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, 'reserved', $7::date,
+            $8::bigint, $9::bigint, $10, $11::uuid)
+         RETURNING *`,
+        [
+          propertyId,
+          bedId,
+          occupant.occupant_name.trim(),
+          occupant.occupant_phone_e164,
+          occupant.occupant_gender?.trim() || null,
+          occupant.emergency_contact ? JSON.stringify(occupant.emergency_contact) : null,
+          occupant.expected_move_in_date ?? null,
+          occupant.monthly_rent_paise ?? null,
+          occupant.security_deposit_paise ?? null,
+          occupant.operator_notes?.trim() || null,
+          operatorId
+        ]
+      );
+      await client.query(
+        `UPDATE pg_beds
+            SET status = 'reserved'::pg_bed_status, available_from = NULL
+          WHERE id = $1::uuid`,
+        [bedId]
+      );
+      await this.writeEvent(
+        client,
+        inserted.rows[0].id,
+        "reserved",
+        "operator",
+        operatorId,
+        null,
+        "reserved",
+        { bed_id: bedId, expected_move_in_date: occupant.expected_move_in_date ?? null }
+      );
+      return toAssignment(inserted.rows[0]);
+    });
+  }
+
+  async moveIn(
+    operatorId: string,
+    propertyId: string,
+    bedId: string,
+    occupant: PgBedAssignmentOccupantInput
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    this.validateOccupant(occupant);
+
+    return this.transaction(async (client) => {
+      await this.assertManagedOwnership(operatorId, propertyId, client);
+      const bed = await this.lockBed(client, propertyId, bedId);
+      if (bed.status !== "vacant" && bed.status !== "reserved") {
+        throw new ConflictException({ code: "bed_not_vacant" });
+      }
+
+      const current = await client.query<AssignmentRow>(
+        `SELECT *
+           FROM pg_bed_assignments
+          WHERE bed_id = $1::uuid
+            AND status = ANY($2::pg_assignment_status[])
+          LIMIT 1
+          FOR UPDATE`,
+        [bedId, [...ACTIVE_ASSIGNMENT_STATUSES]]
+      );
+      const existing = current.rows[0];
+      if (bed.status === "reserved" && existing?.status !== "reserved") {
+        throw new ConflictException({ code: "invalid_assignment_transition" });
+      }
+      if (bed.status === "vacant" && existing) {
+        throw new ConflictException({ code: "bed_or_tenant_occupied" });
+      }
+
+      const linkedUser = await client.query<{ id: string }>(
+        `SELECT id::text FROM users WHERE phone_e164 = $1 LIMIT 1`,
+        [occupant.occupant_phone_e164]
+      );
+      const tenantUserId = linkedUser.rows[0]?.id ?? null;
+      let assignment: AssignmentRow;
+      if (existing) {
+        const updated = await client.query<AssignmentRow>(
+          `UPDATE pg_bed_assignments
+              SET tenant_user_id = $2::uuid,
+                  occupant_name = $3,
+                  occupant_phone_e164 = $4,
+                  occupant_gender = $5,
+                  emergency_contact = $6::jsonb,
+                  status = 'active',
+                  expected_move_in_date = COALESCE($7::date, expected_move_in_date),
+                  move_in_date = COALESCE($8::date, CURRENT_DATE),
+                  monthly_rent_paise = $9::bigint,
+                  security_deposit_paise = $10::bigint,
+                  operator_notes = $11
+            WHERE id = $1::uuid
+            RETURNING *`,
+          [
+            existing.id,
+            tenantUserId,
+            occupant.occupant_name.trim(),
+            occupant.occupant_phone_e164,
+            occupant.occupant_gender?.trim() || null,
+            occupant.emergency_contact ? JSON.stringify(occupant.emergency_contact) : null,
+            occupant.expected_move_in_date ?? null,
+            occupant.move_in_date ?? null,
+            occupant.monthly_rent_paise ?? null,
+            occupant.security_deposit_paise ?? null,
+            occupant.operator_notes?.trim() || null
+          ]
+        );
+        assignment = updated.rows[0];
+      } else {
+        const inserted = await client.query<AssignmentRow>(
+          `INSERT INTO pg_bed_assignments
+             (pg_property_id, bed_id, tenant_user_id, occupant_name, occupant_phone_e164,
+              occupant_gender, emergency_contact, status, expected_move_in_date, move_in_date,
+              monthly_rent_paise, security_deposit_paise, operator_notes, created_by)
+           VALUES
+             ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::jsonb, 'active', $8::date,
+              COALESCE($9::date, CURRENT_DATE), $10::bigint, $11::bigint, $12, $13::uuid)
+           RETURNING *`,
+          [
+            propertyId,
+            bedId,
+            tenantUserId,
+            occupant.occupant_name.trim(),
+            occupant.occupant_phone_e164,
+            occupant.occupant_gender?.trim() || null,
+            occupant.emergency_contact ? JSON.stringify(occupant.emergency_contact) : null,
+            occupant.expected_move_in_date ?? null,
+            occupant.move_in_date ?? null,
+            occupant.monthly_rent_paise ?? null,
+            occupant.security_deposit_paise ?? null,
+            occupant.operator_notes?.trim() || null,
+            operatorId
+          ]
+        );
+        assignment = inserted.rows[0];
+      }
+
+      await client.query(
+        `UPDATE pg_beds
+            SET status = 'occupied'::pg_bed_status, available_from = NULL
+          WHERE id = $1::uuid`,
+        [bedId]
+      );
+      await this.writeEvent(
+        client,
+        assignment.id,
+        "moved_in",
+        "operator",
+        operatorId,
+        existing?.status ?? null,
+        "active",
+        { bed_id: bedId, tenant_user_id: tenantUserId }
+      );
+      return toAssignment(assignment);
+    });
+  }
+
+  async list(
+    operatorId: string,
+    propertyId: string,
+    filters: PgBedAssignmentListFilters = {}
+  ): Promise<PgBedAssignment[]> {
+    if (!this.db.isEnabled()) return [];
+    await this.assertManagedOwnership(operatorId, propertyId);
+    const result = await this.db.query<AssignmentRow>(
+      `SELECT *
+         FROM pg_bed_assignments
+        WHERE pg_property_id = $1::uuid
+          AND ($2::text IS NULL OR status::text = $2)
+          AND ($3::uuid IS NULL OR bed_id = $3::uuid)
+          AND ($4::uuid IS NULL OR tenant_user_id = $4::uuid)
+        ORDER BY created_at DESC, id`,
+      [propertyId, filters.status ?? null, filters.bed_id ?? null, filters.tenant_user_id ?? null]
+    );
+    return result.rows.map(toAssignment);
+  }
+
+  private async operatorTransition(
+    operatorId: string,
+    propertyId: string,
+    assignmentId: string,
+    allowed: readonly PgBedAssignmentStatus[],
+    target: PgBedAssignmentStatus,
+    eventType: string,
+    bedStatus: "occupied" | "vacant"
+  ): Promise<TransitionResult> {
+    return this.transaction(async (client) => {
+      await this.assertManagedOwnership(operatorId, propertyId, client);
+      const current = await this.lockOperatorAssignment(client, propertyId, assignmentId);
+      this.assertTransition(current.status, allowed, target);
+
+      const updated = await client.query<AssignmentRow>(
+        `UPDATE pg_bed_assignments
+            SET status = $2::pg_assignment_status,
+                move_out_date = CASE WHEN $2 = 'moved_out' THEN CURRENT_DATE ELSE move_out_date END
+          WHERE id = $1::uuid
+          RETURNING *`,
+        [assignmentId, target]
+      );
+      await client.query(
+        `UPDATE pg_beds
+            SET status = $2::pg_bed_status,
+                available_from = CASE WHEN $2 = 'vacant' THEN CURRENT_DATE ELSE NULL END
+          WHERE id = $1::uuid`,
+        [current.bed_id, bedStatus]
+      );
+      await this.writeEvent(
+        client,
+        assignmentId,
+        eventType,
+        "operator",
+        operatorId,
+        current.status,
+        target,
+        { bed_id: current.bed_id }
+      );
+      return { assignment: toAssignment(updated.rows[0]), operatorId: current.operator_id };
+    });
+  }
+
+  async operatorMoveOutRequest(
+    operatorId: string,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.operatorTransition(
+      operatorId,
+      propertyId,
+      assignmentId,
+      ["active", "notice_served", "move_out_requested"],
+      "move_out_pending_confirmation",
+      "operator_move_out_requested",
+      "occupied"
+    );
+    if (result.assignment.tenant_user_id) {
+      this.notify({
+        type: "tenant.pg_move_out_requested",
+        recipientUserId: result.assignment.tenant_user_id,
+        payload: {
+          assignment_id: assignmentId,
+          occupant_name: result.assignment.occupant_name,
+          property_id: propertyId
+        }
+      });
+    }
+    return result.assignment;
+  }
+
+  async confirmMoveOut(
+    operatorId: string,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.operatorTransition(
+      operatorId,
+      propertyId,
+      assignmentId,
+      ["move_out_pending_confirmation"],
+      "moved_out",
+      "move_out_confirmed",
+      "vacant"
+    );
+    return result.assignment;
+  }
+
+  async cancelMoveOut(
+    operatorId: string,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.operatorTransition(
+      operatorId,
+      propertyId,
+      assignmentId,
+      ["move_out_pending_confirmation"],
+      "active",
+      "move_out_cancelled",
+      "occupied"
+    );
+    return result.assignment;
+  }
+
+  async serveNotice(
+    tenantId: string,
+    assignmentId: string,
+    input: PgServeNoticeInput
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.notice_end_date)) {
+      throw new BadRequestException({ code: "invalid_notice_end_date" });
+    }
+
+    const result = await this.transaction<TransitionResult>(async (client) => {
+      const current = await this.lockTenantAssignment(client, tenantId, assignmentId);
+      this.assertTransition(current.status, ["active"], "notice_served");
+      const updated = await client.query<AssignmentRow>(
+        `UPDATE pg_bed_assignments
+            SET status = 'notice_served',
+                notice_served_date = CURRENT_DATE,
+                notice_end_date = $2::date
+          WHERE id = $1::uuid
+          RETURNING *`,
+        [assignmentId, input.notice_end_date]
+      );
+      await client.query(
+        `UPDATE pg_beds
+            SET status = 'occupied'::pg_bed_status, available_from = NULL
+          WHERE id = $1::uuid`,
+        [current.bed_id]
+      );
+      await this.writeEvent(
+        client,
+        assignmentId,
+        "notice_served",
+        "tenant",
+        tenantId,
+        current.status,
+        "notice_served",
+        { bed_id: current.bed_id, notice_end_date: input.notice_end_date }
+      );
+      return { assignment: toAssignment(updated.rows[0]), operatorId: current.operator_id };
+    });
+    this.notify({
+      type: "operator.pg_notice_served",
+      recipientUserId: result.operatorId,
+      payload: {
+        assignment_id: assignmentId,
+        occupant_name: result.assignment.occupant_name,
+        notice_end_date: result.assignment.notice_end_date,
+        property_id: result.assignment.pg_property_id
+      }
+    });
+    return result.assignment;
+  }
+
+  private async tenantTransition(
+    tenantId: string,
+    assignmentId: string,
+    allowed: readonly PgBedAssignmentStatus[],
+    target: PgBedAssignmentStatus,
+    eventType: string,
+    bedStatus: "occupied" | "vacant"
+  ): Promise<TransitionResult> {
+    return this.transaction(async (client) => {
+      const current = await this.lockTenantAssignment(client, tenantId, assignmentId);
+      this.assertTransition(current.status, allowed, target);
+      const updated = await client.query<AssignmentRow>(
+        `UPDATE pg_bed_assignments
+            SET status = $2::pg_assignment_status,
+                move_out_date = CASE WHEN $2 = 'moved_out' THEN CURRENT_DATE ELSE move_out_date END
+          WHERE id = $1::uuid
+          RETURNING *`,
+        [assignmentId, target]
+      );
+      await client.query(
+        `UPDATE pg_beds
+            SET status = $2::pg_bed_status,
+                available_from = CASE WHEN $2 = 'vacant' THEN CURRENT_DATE ELSE NULL END
+          WHERE id = $1::uuid`,
+        [current.bed_id, bedStatus]
+      );
+      await this.writeEvent(
+        client,
+        assignmentId,
+        eventType,
+        "tenant",
+        tenantId,
+        current.status,
+        target,
+        { bed_id: current.bed_id }
+      );
+      return { assignment: toAssignment(updated.rows[0]), operatorId: current.operator_id };
+    });
+  }
+
+  async tenantMoveOutRequest(tenantId: string, assignmentId: string): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.tenantTransition(
+      tenantId,
+      assignmentId,
+      ["active"],
+      "move_out_requested",
+      "tenant_move_out_requested",
+      "occupied"
+    );
+    this.notify({
+      type: "operator.pg_move_out_requested",
+      recipientUserId: result.operatorId,
+      payload: {
+        assignment_id: assignmentId,
+        occupant_name: result.assignment.occupant_name,
+        property_id: result.assignment.pg_property_id
+      }
+    });
+    return result.assignment;
+  }
+
+  async acceptOperatorMoveOut(tenantId: string, assignmentId: string): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.tenantTransition(
+      tenantId,
+      assignmentId,
+      ["move_out_pending_confirmation"],
+      "moved_out",
+      "operator_move_out_accepted",
+      "vacant"
+    );
+    return result.assignment;
+  }
+
+  async rejectOperatorMoveOut(tenantId: string, assignmentId: string): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.tenantTransition(
+      tenantId,
+      assignmentId,
+      ["move_out_pending_confirmation"],
+      "active",
+      "operator_move_out_rejected",
+      "occupied"
+    );
+    return result.assignment;
+  }
+}

@@ -19,7 +19,10 @@ export type NotificationType =
   | "owner.listing_paused"
   | "owner.listing_submitted"
   | "tenant.contact_unlocked"
-  | "tenant.alert_zone_match";
+  | "tenant.alert_zone_match"
+  | "operator.pg_notice_served"
+  | "operator.pg_move_out_requested"
+  | "tenant.pg_move_out_requested";
 
 export interface NotificationTemplate {
   type: NotificationType;
@@ -116,5 +119,33 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
       String(payload.rent ?? ""),
       String(payload.zone_label ?? "आपका अलर्ट ज़ोन")
     ]
+  },
+
+  "operator.pg_notice_served": {
+    type: "operator.pg_notice_served",
+    templateName: "operator_pg_notice_served_hi",
+    languageCode: "hi",
+    description:
+      "Sent to a PG operator when an occupant serves notice. Params: occupant_name, notice_end_date",
+    buildBodyParams: (payload) => [
+      String(payload.occupant_name ?? "एक निवासी"),
+      String(payload.notice_end_date ?? "")
+    ]
+  },
+
+  "operator.pg_move_out_requested": {
+    type: "operator.pg_move_out_requested",
+    templateName: "operator_pg_move_out_requested_hi",
+    languageCode: "hi",
+    description: "Sent to a PG operator when an occupant requests move-out. Params: occupant_name",
+    buildBodyParams: (payload) => [String(payload.occupant_name ?? "एक निवासी")]
+  },
+
+  "tenant.pg_move_out_requested": {
+    type: "tenant.pg_move_out_requested",
+    templateName: "tenant_pg_move_out_requested_hi",
+    languageCode: "hi",
+    description: "Sent to a tenant when the PG operator requests move-out. Params: property_name",
+    buildBodyParams: (payload) => [String(payload.property_name ?? "आपकी PG प्रॉपर्टी")]
   }
 };

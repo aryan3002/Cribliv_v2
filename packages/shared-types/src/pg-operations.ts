@@ -121,6 +121,62 @@ export interface PgLayoutPutInput {
   rooms: PgLayoutRoomInput[];
 }
 
+export type PgBedAssignmentStatus =
+  | "reserved"
+  | "active"
+  | "notice_served"
+  | "move_out_requested"
+  | "move_out_pending_confirmation"
+  | "moved_out"
+  | "cancelled";
+
+export type PgAssignmentInitiator = "operator" | "tenant" | "system";
+
+export interface PgBedAssignmentOccupantInput {
+  occupant_name: string;
+  occupant_phone_e164: string;
+  occupant_gender?: string | null;
+  emergency_contact?: Record<string, unknown> | null;
+  expected_move_in_date?: string | null;
+  move_in_date?: string | null;
+  monthly_rent_paise?: number | null;
+  security_deposit_paise?: number | null;
+  operator_notes?: string | null;
+}
+
+export interface PgBedAssignmentListFilters {
+  status?: PgBedAssignmentStatus;
+  bed_id?: string;
+  tenant_user_id?: string;
+}
+
+export interface PgServeNoticeInput {
+  notice_end_date: string;
+}
+
+export interface PgBedAssignment {
+  id: string;
+  pg_property_id: string;
+  bed_id: string;
+  tenant_user_id: string | null;
+  occupant_name: string;
+  occupant_phone_e164: string;
+  occupant_gender: string | null;
+  emergency_contact: Record<string, unknown> | null;
+  status: PgBedAssignmentStatus;
+  expected_move_in_date: string | null;
+  move_in_date: string | null;
+  notice_served_date: string | null;
+  notice_end_date: string | null;
+  move_out_date: string | null;
+  monthly_rent_paise: number | null;
+  security_deposit_paise: number | null;
+  operator_notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PgOccupancyFloorRollup {
   floor: number | null;
   total_beds: number;
