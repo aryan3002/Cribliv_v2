@@ -122,6 +122,55 @@ const dictionary: Dictionary = {
     hi: "रिक्वेस्ट जमा हो गई। हमारी टीम जल्द संपर्क करेगी।"
   },
   ownerOverviewRetry: { en: "Retry", hi: "फिर कोशिश करें" },
+  ownerListingsEyebrow: { en: "Listings", hi: "लिस्टिंग" },
+  ownerListingsTitle: { en: "Manage listings", hi: "लिस्टिंग संभालें" },
+  ownerListingsSubtitle: {
+    en: "Review every property, adjust availability, boost active homes, and fix items that need attention.",
+    hi: "हर प्रॉपर्टी देखें, उपलब्धता बदलें, सक्रिय घरों को बूस्ट करें और जिन लिस्टिंग पर ध्यान चाहिए उन्हें ठीक करें।"
+  },
+  ownerListingsToolbar: { en: "Listing controls", hi: "लिस्टिंग कंट्रोल" },
+  ownerFilterGroup: { en: "Listing status filters", hi: "लिस्टिंग स्टेटस फिल्टर" },
+  ownerFilterAll: { en: "All", hi: "सभी" },
+  ownerFilterDrafts: { en: "Drafts", hi: "ड्राफ्ट" },
+  ownerFilterPending: { en: "Pending", hi: "समीक्षाधीन" },
+  ownerFilterActive: { en: "Active", hi: "सक्रिय" },
+  ownerFilterRejected: { en: "Rejected", hi: "अस्वीकृत" },
+  ownerFilterPaused: { en: "Paused", hi: "रोकी गई" },
+  ownerListingsLoading: { en: "Loading listings", hi: "लिस्टिंग लोड हो रही हैं" },
+  ownerListingsEmptyTitle: { en: "No listings yet", hi: "अभी कोई लिस्टिंग नहीं" },
+  ownerListingsEmptyBody: {
+    en: "Create your first listing to start receiving tenant enquiries.",
+    hi: "किरायेदार पूछताछ पाने के लिए अपनी पहली लिस्टिंग बनाएं।"
+  },
+  ownerListingsFilteredEmpty: {
+    en: "No listings in this status",
+    hi: "इस स्टेटस में कोई लिस्टिंग नहीं"
+  },
+  ownerListingsFilteredEmptyBody: {
+    en: "Try another status filter or view all listings.",
+    hi: "दूसरा स्टेटस फिल्टर चुनें या सभी लिस्टिंग देखें।"
+  },
+  ownerListingsShowAll: { en: "Show all listings", hi: "सभी लिस्टिंग दिखाएं" },
+  ownerListingsBoostSuccess: {
+    en: "Boost started. Your listing will get higher visibility.",
+    hi: "बूस्ट शुरू हो गया। आपकी लिस्टिंग को ज्यादा विजिबिलिटी मिलेगी।"
+  },
+  ownerListingsErrorUnauthorized: {
+    en: "Your session expired. Please log in again to continue.",
+    hi: "आपका सेशन समाप्त हो गया है। जारी रखने के लिए फिर से लॉग इन करें।"
+  },
+  ownerListingsErrorNetwork: {
+    en: "You're offline or the connection dropped. Check your internet and retry.",
+    hi: "आप ऑफलाइन हैं या कनेक्शन टूट गया है। इंटरनेट जांचें और फिर कोशिश करें।"
+  },
+  ownerListingsErrorListings: {
+    en: "We couldn't refresh your listings. Please try again.",
+    hi: "हम आपकी लिस्टिंग रिफ्रेश नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerListingsErrorAvailability: {
+    en: "We couldn't update availability. Please try again.",
+    hi: "हम उपलब्धता अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
   ownerOverviewErrorUnauthorized: {
     en: "Your session expired. Please log in again to continue.",
     hi: "आपका सेशन समाप्त हो गया है। जारी रखने के लिए फिर से लॉग इन करें।"

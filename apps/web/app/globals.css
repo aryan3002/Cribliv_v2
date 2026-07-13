@@ -4856,6 +4856,52 @@ a.feature-card:hover .icon-circle {
   animation: slideUp var(--transition-base);
 }
 
+.owner-sheet {
+  max-width: 500px;
+  width: min(500px, 94vw);
+  border-radius: 8px;
+}
+
+.owner-sheet__title {
+  font-size: 18px;
+}
+
+.owner-sheet__subtitle {
+  max-width: 300px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner-sheet__body {
+  padding: var(--space-5);
+}
+
+@media (max-width: 640px) {
+  .owner-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .owner-sheet {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: min(86dvh, 720px);
+    overflow: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-radius: 8px 8px 0 0;
+  }
+
+  .owner-sheet__subtitle {
+    max-width: min(72vw, 300px);
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -15780,7 +15826,7 @@ a.feature-card:hover .icon-circle {
   position: relative;
   background: #ffffff;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 8px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -16018,7 +16064,7 @@ a.feature-card:hover .icon-circle {
   align-items: center;
   gap: 5px;
   padding: 7px 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.005em;
