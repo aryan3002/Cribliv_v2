@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { signOut } from "next-auth/react";
 import { Download, LayoutGrid, List, MoreVertical, Search } from "lucide-react";
-import { fetchOwnerLeads, type LeadStatus, type LeadVm } from "../../lib/owner-api";
+import {
+  exportOwnerLeadsCsv,
+  fetchOwnerLeads,
+  type LeadStatus,
+  type LeadVm
+} from "../../lib/owner-api";
 import { LeadsPipeline } from "./leads-pipeline";
 import { LeadStatsWidget } from "./lead-stats-widget";
 import { LeadKanban, LeadKanbanSkeleton } from "./lead-kanban";
@@ -28,13 +33,13 @@ const LEAD_FILTERS: Array<LeadStatus | "all"> = [
   "lost"
 ];
 
-const FILTER_LABELS: Record<LeadStatus | "all", string> = {
-  all: "All",
-  new: "New",
-  contacted: "Contacted",
-  visit_scheduled: "Visit Scheduled",
-  deal_done: "Deal Done",
-  lost: "Lost"
+const FILTER_LABEL_KEYS: Record<LeadStatus | "all", string> = {
+  all: "ownerLeadStatusAll",
+  new: "ownerLeadStatusNew",
+  contacted: "ownerLeadStatusContacted",
+  visit_scheduled: "ownerLeadStatusVisitScheduled",
+  deal_done: "ownerLeadStatusDealDone",
+  lost: "ownerLeadStatusLost"
 };
 
 function useViewMode(): [ViewMode, (v: ViewMode) => void] {
@@ -99,6 +104,18 @@ export function LeadsClient({ locale }: { locale: string }) {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [mobileStatus, setMobileStatus] = useState<LeadStatus | "all">("all");
+  const [exporting, setExporting] = useState(false);
+  const [exportNotice, setExportNotice] = useState<{ message: string; isError?: boolean } | null>(
+    null
+  );
+  const exportNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (exportNoticeTimer.current) clearTimeout(exportNoticeTimer.current);
+    },
+    []
+  );
 
   const loadLeads = useCallback(async () => {
     if (!accessToken) return;
@@ -153,7 +170,7 @@ export function LeadsClient({ locale }: { locale: string }) {
   if (!accessToken) {
     return (
       <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
-        <div className="alert alert--error">Please log in to view leads.</div>
+        <div className="alert alert--error">{t(loc, "ownerLeadsLoginRequired")}</div>
       </section>
     );
   }
@@ -184,29 +201,59 @@ export function LeadsClient({ locale }: { locale: string }) {
     } satisfies Record<LeadStatus | "all", number>
   );
 
-  const exportHref = "/v1/owner/leads/export";
+  function showExportNotice(message: string, isError = false) {
+    setExportNotice({ message, isError });
+    if (exportNoticeTimer.current) clearTimeout(exportNoticeTimer.current);
+    exportNoticeTimer.current = setTimeout(() => setExportNotice(null), isError ? 5000 : 3000);
+  }
+
+  async function handleExportCsv() {
+    if (!accessToken || exporting) return;
+    setExporting(true);
+    setExportNotice(null);
+    try {
+      const blob = await exportOwnerLeadsCsv(accessToken);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = "cribliv-owner-leads.csv";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(objectUrl);
+      track("lead_csv_exported");
+      showExportNotice(t(loc, "ownerLeadsExportDownloaded"));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("unauthorized")) void signOut({ redirect: false });
+      showExportNotice(t(loc, "ownerLeadsExportFailed"), true);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const searchControl = (
     <div className="lk-search">
       <Search size={16} className="lk-search__icon" aria-hidden="true" />
       <input
         type="search"
-        placeholder="Search tenant, listing, phone..."
+        placeholder={t(loc, "ownerLeadsSearchPlaceholder")}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        aria-label="Search leads"
+        aria-label={t(loc, "ownerLeadsSearchLabel")}
       />
     </div>
   );
-  const exportLink = (
-    <a
-      href={exportHref}
+  const exportButton = (
+    <button
+      type="button"
       className="btn btn--secondary btn--sm"
-      download
-      onClick={() => track("lead_csv_exported")}
+      disabled={exporting}
+      onClick={() => void handleExportCsv()}
     >
       <Download size={14} aria-hidden="true" style={{ marginRight: 4 }} />
-      Export CSV
-    </a>
+      {exporting ? t(loc, "ownerLeadsExportingCsv") : t(loc, "ownerLeadsExportCsv")}
+    </button>
   );
 
   return (
@@ -226,11 +273,12 @@ export function LeadsClient({ locale }: { locale: string }) {
               marginBottom: 6
             }}
           >
-            ← Dashboard
+            ← {t(loc, "ownerLeadsBackDashboard")}
           </Link>
-          <h1 className="lk-toolbar__title">Your leads</h1>
+          <h1 className="lk-toolbar__title">{t(loc, "ownerLeadsTitle")}</h1>
           <p className="lk-toolbar__sub">
-            <b>{total}</b> total · <b>{thisWeek}</b> this week
+            <b>{total}</b> {t(loc, "ownerLeadsTotal")} · <b>{thisWeek}</b>{" "}
+            {t(loc, "ownerLeadsThisWeek")}
             {delta !== 0 && (
               <span
                 className={`lk-toolbar__delta ${
@@ -241,7 +289,7 @@ export function LeadsClient({ locale }: { locale: string }) {
                       : "lk-toolbar__delta--flat"
                 }`}
               >
-                {delta > 0 ? "▲" : "▼"} {Math.abs(delta)} vs last 7d
+                {delta > 0 ? "▲" : "▼"} {Math.abs(delta)} {t(loc, "ownerLeadsVsLast7d")}
               </span>
             )}
           </p>
@@ -251,14 +299,18 @@ export function LeadsClient({ locale }: { locale: string }) {
           {desktopBoardCapable ? (
             <>
               {searchControl}
-              <div className="lk-view-toggle" role="group" aria-label="View mode">
+              <div
+                className="lk-view-toggle"
+                role="group"
+                aria-label={t(loc, "ownerLeadsViewMode")}
+              >
                 <button
                   type="button"
                   aria-pressed={view === "board"}
                   onClick={() => setView("board")}
                 >
                   <LayoutGrid size={14} aria-hidden="true" />
-                  Board
+                  {t(loc, "ownerLeadsBoard")}
                 </button>
                 <button
                   type="button"
@@ -266,22 +318,31 @@ export function LeadsClient({ locale }: { locale: string }) {
                   onClick={() => setView("list")}
                 >
                   <List size={14} aria-hidden="true" />
-                  List
+                  {t(loc, "ownerLeadsList")}
                 </button>
               </div>
 
-              {exportLink}
+              {exportButton}
             </>
           ) : (
             <details className="lk-mobile-overflow">
-              <summary aria-label="Lead actions">
+              <summary aria-label={t(loc, "ownerLeadsActions")}>
                 <MoreVertical size={18} aria-hidden="true" />
               </summary>
-              <div className="lk-mobile-overflow__menu">{exportLink}</div>
+              <div className="lk-mobile-overflow__menu">{exportButton}</div>
             </details>
           )}
         </div>
       </div>
+
+      {exportNotice ? (
+        <div
+          className={`alert ${exportNotice.isError ? "alert--error" : "alert--success"} lk-export-notice`}
+          role="status"
+        >
+          {exportNotice.message}
+        </div>
+      ) : null}
 
       {callbackLeadsEnabled ? (
         <LeadCreditBalanceBar
@@ -292,12 +353,16 @@ export function LeadsClient({ locale }: { locale: string }) {
         />
       ) : null}
 
-      <LeadStatsWidget accessToken={accessToken} />
+      <LeadStatsWidget accessToken={accessToken} locale={loc} />
 
       {!desktopBoardCapable ? (
-        <div className="lk-mobile-controls" aria-label="Mobile lead controls">
+        <div className="lk-mobile-controls" aria-label={t(loc, "ownerLeadsMobileControls")}>
           {searchControl}
-          <div className="lk-mobile-filters" role="group" aria-label="Filter leads by status">
+          <div
+            className="lk-mobile-filters"
+            role="group"
+            aria-label={t(loc, "ownerLeadsFilterByStatus")}
+          >
             {LEAD_FILTERS.map((filter) => (
               <button
                 key={filter}
@@ -306,7 +371,7 @@ export function LeadsClient({ locale }: { locale: string }) {
                 aria-pressed={mobileStatus === filter}
                 onClick={() => setMobileStatus(filter)}
               >
-                {FILTER_LABELS[filter]}
+                {t(loc, FILTER_LABEL_KEYS[filter])}
                 <span>{statusCounts[filter]}</span>
               </button>
             ))}

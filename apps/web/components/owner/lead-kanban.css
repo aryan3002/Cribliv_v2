@@ -27,15 +27,17 @@
   font-family: var(--font-heading);
   font-size: clamp(24px, 3vw, 32px);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--text-primary);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .lk-toolbar__sub {
   font-size: 14px;
   color: var(--text-secondary);
   margin: 4px 0 0;
+  line-height: 1.45;
 }
 
 .lk-toolbar__sub b {
@@ -52,6 +54,8 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
+  line-height: 1.3;
+  white-space: normal;
 }
 
 .lk-toolbar__delta--up {
@@ -184,6 +188,11 @@
 .lk-mobile-overflow__menu .btn {
   width: 100%;
   min-height: 44px;
+  white-space: normal;
+}
+
+.lk-export-notice {
+  margin-bottom: var(--space-4);
 }
 
 .lk-mobile-controls {
@@ -234,6 +243,10 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .lk-mobile-filter span {
@@ -314,6 +327,36 @@
 .lml__list {
   display: grid;
   gap: 12px;
+}
+
+.lml .lead-card {
+  border-radius: 8px;
+}
+
+.lml .lead-card__tenant {
+  border-radius: 8px;
+}
+
+.lml .lead-card__listing-title,
+.lml .lead-card__tenant-name,
+.lml .lead-card__tenant-phone,
+.lml .lead-card__dates,
+.lml .lead-card__notes-preview,
+.lml .lead-card__deal-done,
+.lml .lead-card__action-btns .btn,
+.lml .lead-card__notes-toggle {
+  overflow-wrap: anywhere;
+}
+
+.lml .lead-card__tenant-name,
+.lml .lead-card__tenant-phone {
+  white-space: normal;
+}
+
+.lml .lead-card__action-btns .btn,
+.lml .lead-card__notes-toggle {
+  line-height: 1.2;
+  white-space: normal;
 }
 
 .lml__empty-icon {

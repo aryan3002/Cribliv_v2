@@ -604,6 +604,105 @@ const dictionary: Dictionary = {
     en: "{n} locked leads waiting",
     hi: "{n} लॉक्ड लीड इंतज़ार में हैं"
   },
+  ownerLeadsBackDashboard: { en: "Dashboard", hi: "डैशबोर्ड" },
+  ownerLeadsTitle: { en: "Your leads", hi: "आपकी लीड्स" },
+  ownerLeadsTotal: { en: "total", hi: "कुल" },
+  ownerLeadsThisWeek: { en: "this week", hi: "इस हफ्ते" },
+  ownerLeadsVsLast7d: { en: "vs last 7d", hi: "पिछले 7 दिन से तुलना" },
+  ownerLeadsSearchLabel: { en: "Search leads", hi: "लीड्स खोजें" },
+  ownerLeadsSearchPlaceholder: {
+    en: "Search tenant, listing, phone",
+    hi: "किरायेदार, लिस्टिंग, फोन खोजें"
+  },
+  ownerLeadsViewMode: { en: "View mode", hi: "व्यू मोड" },
+  ownerLeadsBoard: { en: "Board", hi: "बोर्ड" },
+  ownerLeadsList: { en: "List", hi: "लिस्ट" },
+  ownerLeadsExportCsv: { en: "Export CSV", hi: "CSV एक्सपोर्ट करें" },
+  ownerLeadsExportingCsv: { en: "Exporting...", hi: "एक्सपोर्ट हो रहा है..." },
+  ownerLeadsExportDownloaded: {
+    en: "Export downloaded.",
+    hi: "एक्सपोर्ट डाउनलोड हो गया।"
+  },
+  ownerLeadsExportFailed: {
+    en: "We couldn't export your leads. Please try again.",
+    hi: "हम आपकी लीड्स एक्सपोर्ट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerLeadsActions: { en: "Lead actions", hi: "लीड क्रियाएं" },
+  ownerLeadsMobileControls: { en: "Mobile lead controls", hi: "मोबाइल लीड कंट्रोल" },
+  ownerLeadsFilterByStatus: {
+    en: "Filter leads by status",
+    hi: "स्टेटस से लीड फिल्टर करें"
+  },
+  ownerLeadsFilterEmpty: {
+    en: "Try another search or status filter.",
+    hi: "दूसरी खोज या स्टेटस फिल्टर आज़माएं।"
+  },
+  ownerLeadsLoading: { en: "Loading leads", hi: "लीड्स लोड हो रही हैं" },
+  ownerLeadsLoginRequired: {
+    en: "Please log in to view leads.",
+    hi: "लीड्स देखने के लिए कृपया लॉग इन करें।"
+  },
+  ownerLeadsUpdateFailed: {
+    en: "We couldn't update this lead. Please try again.",
+    hi: "हम यह लीड अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerLeadsMovedTo: { en: "Moved to {status}", hi: "{status} में ले जाया गया" },
+  ownerLeadStatusAll: { en: "All", hi: "सभी" },
+  ownerLeadStatusNew: { en: "New", hi: "नई" },
+  ownerLeadStatusContacted: { en: "Contacted", hi: "संपर्क हुआ" },
+  ownerLeadStatusVisitScheduled: { en: "Visit Scheduled", hi: "विजिट तय" },
+  ownerLeadStatusDealDone: { en: "Deal Done", hi: "डील पूरी" },
+  ownerLeadStatusLost: { en: "Lost", hi: "छूटी" },
+  ownerLeadActionMarkContacted: { en: "Mark Contacted", hi: "संपर्क हुआ मार्क करें" },
+  ownerLeadActionMarkLost: { en: "Mark Lost", hi: "छूटी मार्क करें" },
+  ownerLeadActionScheduleVisit: { en: "Schedule Visit", hi: "विजिट तय करें" },
+  ownerLeadActionDealDone: { en: "Deal Done", hi: "डील पूरी" },
+  ownerLeadActionReopen: { en: "Re-open", hi: "फिर खोलें" },
+  ownerLeadSaving: { en: "Saving...", hi: "सेव हो रहा है..." },
+  ownerLeadEnquired: { en: "Enquired {date}", hi: "{date} को पूछताछ" },
+  ownerLeadUpdated: { en: "Updated {date}", hi: "{date} को अपडेट" },
+  ownerLeadNotesPlaceholder: {
+    en: "Add notes about this lead...",
+    hi: "इस लीड के बारे में नोट्स जोड़ें..."
+  },
+  ownerLeadAddNotes: { en: "Add notes", hi: "नोट्स जोड़ें" },
+  ownerLeadEditNotes: { en: "Edit notes", hi: "नोट्स संपादित करें" },
+  ownerLeadHideNotes: { en: "Hide notes", hi: "नोट्स छिपाएं" },
+  ownerLeadDealDoneMessage: {
+    en: "Deal completed. Great work!",
+    hi: "डील पूरी हो गई। अच्छा काम!"
+  },
+  ownerLeadsStatsEmptySub: {
+    en: "Share your listings to start receiving tenant enquiries.",
+    hi: "किरायेदार पूछताछ पाने के लिए अपनी लिस्टिंग शेयर करें।"
+  },
+  ownerLeadsTotalEnquiries: { en: "total enquiries", hi: "कुल पूछताछ" },
+  ownerLeadsListEmptyTitle: { en: "No leads", hi: "कोई लीड नहीं" },
+  ownerLeadsListEmptyStatusTitle: {
+    en: 'No leads with status "{status}"',
+    hi: '"{status}" स्टेटस में कोई लीड नहीं'
+  },
+  ownerLeadsListEmptyAllBody: {
+    en: "Once tenants enquire about your listings, they'll appear here.",
+    hi: "किरायेदार आपकी लिस्टिंग पर पूछताछ करेंगे तो वे यहां दिखेंगे।"
+  },
+  ownerLeadsListEmptySearchBody: {
+    en: "Try another search or clear the search field.",
+    hi: "दूसरी खोज करें या खोज फील्ड खाली करें।"
+  },
+  ownerLeadsListEmptyStatusBody: {
+    en: "Try selecting a different status filter above.",
+    hi: "ऊपर कोई दूसरा स्टेटस फिल्टर चुनें।"
+  },
+  ownerLeadsLoadMore: {
+    en: "Load more ({n} remaining)",
+    hi: "और लोड करें ({n} बाकी)"
+  },
+  ownerLeadsLoadingMore: { en: "Loading...", hi: "लोड हो रहा है..." },
+  ownerLeadsShowingCount: {
+    en: "Showing {shown} of {total} leads",
+    hi: "{total} में से {shown} लीड दिख रही हैं"
+  },
   // ── Guest gating ────────────────────────────────────────────────────────────
   gateHeadline: { en: "Sign up free, get 10 credits", hi: "मुफ़्त साइन अप करें, 10 क्रेडिट पाएं" },
   gateSub: {

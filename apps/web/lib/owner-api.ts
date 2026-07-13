@@ -1,4 +1,4 @@
-import { fetchApi } from "./api";
+import { ApiError, fetchApi, getApiBaseUrl } from "./api";
 import type { ListingStatus, VerificationStatus, ListingType } from "@cribliv/shared-types";
 
 export type { ListingStatus, VerificationStatus, ListingType };
@@ -775,6 +775,26 @@ export async function fetchOwnerLeads(
 
 export async function fetchLeadStats(accessToken: string): Promise<LeadStats> {
   return fetchApi<LeadStats>("/owner/leads/stats", { headers: authHeaders(accessToken) });
+}
+
+export async function exportOwnerLeadsCsv(accessToken: string): Promise<Blob> {
+  const response = await fetch(`${getApiBaseUrl()}/owner/leads/export`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const errorPayload = payload?.error ?? payload ?? {};
+    throw new ApiError(errorPayload?.message ?? `Request failed with status ${response.status}`, {
+      status: response.status,
+      code: errorPayload?.code,
+      details: errorPayload?.details
+    });
+  }
+
+  return response.blob();
 }
 
 export async function updateLeadStatus(

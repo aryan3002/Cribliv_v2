@@ -10,6 +10,7 @@ const { sessionState, ownerApiMocks, leadKanbanMock } = vi.hoisted(() => ({
   },
   ownerApiMocks: {
     fetchOwnerLeads: vi.fn(),
+    exportOwnerLeadsCsv: vi.fn(),
     updateLeadStatus: vi.fn()
   },
   leadKanbanMock: vi.fn()
@@ -24,6 +25,7 @@ vi.mock("../../../lib/owner-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../lib/owner-api")>();
   return {
     ...actual,
+    exportOwnerLeadsCsv: ownerApiMocks.exportOwnerLeadsCsv,
     fetchOwnerLeads: ownerApiMocks.fetchOwnerLeads,
     updateLeadStatus: ownerApiMocks.updateLeadStatus
   };
@@ -104,6 +106,7 @@ beforeEach(() => {
   sessionState.status = "authenticated";
   leadKanbanMock.mockClear();
   ownerApiMocks.fetchOwnerLeads.mockReset();
+  ownerApiMocks.exportOwnerLeadsCsv.mockReset();
   ownerApiMocks.updateLeadStatus.mockReset();
 });
 
@@ -133,6 +136,51 @@ describe("LeadsClient responsive route", () => {
     expect(screen.getByRole("button", { name: /board/i })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /list/i })).toBeInTheDocument();
     await waitFor(() => expect(leadKanbanMock).toHaveBeenCalled());
+  });
+
+  it("downloads the CSV through the authenticated owner API helper", async () => {
+    mockMatchMedia(true);
+    arrangeLeads([makeLead()]);
+    const blob = new Blob(["lead_id\nlead-1\n"], { type: "text/csv" });
+    ownerApiMocks.exportOwnerLeadsCsv.mockResolvedValue(blob);
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const createObjectURL = vi.fn(() => "blob:owner-leads");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL
+    });
+
+    render(<LeadsClient locale="en" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /export csv/i }));
+
+    await waitFor(() =>
+      expect(ownerApiMocks.exportOwnerLeadsCsv).toHaveBeenCalledWith("tok_owner")
+    );
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:owner-leads");
+    expect(await screen.findByRole("status")).toHaveTextContent(/export downloaded/i);
+    expect(screen.queryByRole("link", { name: /export csv/i })).not.toBeInTheDocument();
+  });
+
+  it("renders localized Hindi copy on the mobile leads route", async () => {
+    mockMatchMedia(false);
+    arrangeLeads([makeLead({ status: "contacted" })]);
+
+    render(<LeadsClient locale="hi" />);
+
+    expect(await screen.findByRole("heading", { name: "आपकी लीड्स" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "लीड्स खोजें" })).toHaveAttribute(
+      "placeholder",
+      "किरायेदार, लिस्टिंग, फोन खोजें"
+    );
+    expect(screen.getByRole("group", { name: "स्टेटस से लीड फिल्टर करें" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^संपर्क हुआ/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("लीड क्रियाएं")).toBeInTheDocument();
+    expect(screen.getByText(/कुल/i)).toBeInTheDocument();
   });
 
   it("filters the mobile list by search and lead status", async () => {
@@ -186,7 +234,9 @@ describe("LeadsClient responsive route", () => {
         undefined
       )
     );
-    expect(await screen.findByRole("status")).toHaveTextContent("Network down");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "We couldn't update this lead. Please try again."
+    );
     await waitFor(() => expect(within(list).getByText(/^new$/i)).toBeInTheDocument());
   });
 });

@@ -7,13 +7,13 @@ import { t, type Locale } from "../../lib/i18n";
 import { track } from "../../lib/track";
 import { LeadCard } from "./lead-card";
 
-const STATUS_LABELS: Record<LeadStatus | "all", string> = {
-  all: "All",
-  new: "New",
-  contacted: "Contacted",
-  visit_scheduled: "Visit Scheduled",
-  deal_done: "Deal Done",
-  lost: "Lost"
+const STATUS_LABEL_KEYS: Record<LeadStatus | "all", string> = {
+  all: "ownerLeadStatusAll",
+  new: "ownerLeadStatusNew",
+  contacted: "ownerLeadStatusContacted",
+  visit_scheduled: "ownerLeadStatusVisitScheduled",
+  deal_done: "ownerLeadStatusDealDone",
+  lost: "ownerLeadStatusLost"
 };
 
 function leadMatchesSearch(lead: LeadVm, query: string) {
@@ -93,11 +93,12 @@ export function LeadMobileList(props: {
         to_status: newStatus,
         surface: "mobile_list"
       });
-      showNotice(`Moved to ${STATUS_LABELS[newStatus]}`);
-    } catch (err) {
+      showNotice(
+        t(locale, "ownerLeadsMovedTo").replace("{status}", t(locale, STATUS_LABEL_KEYS[newStatus]))
+      );
+    } catch {
       onLeadsChange(previous);
-      const message = err instanceof Error ? err.message : t(locale, "ownerOverviewErrorLeads");
-      showNotice(message, true);
+      showNotice(t(locale, "ownerLeadsUpdateFailed"), true);
     } finally {
       setUpdatingLeadId(null);
     }
@@ -122,7 +123,7 @@ export function LeadMobileList(props: {
           <h2>{t(locale, "ownerOverviewNoLeadsYet")}</h2>
           <p>
             {searchQuery.trim() || status !== "all"
-              ? "Try another search or status filter."
+              ? t(locale, "ownerLeadsFilterEmpty")
               : t(locale, "ownerOverviewNoLeadsYetBody")}
           </p>
         </div>
