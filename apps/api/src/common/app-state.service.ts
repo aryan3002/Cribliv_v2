@@ -421,8 +421,7 @@ export class AppStateService {
   }
 
   getWalletBalance(userId: string) {
-    this.ensureWallet(userId);
-    return this.wallets.get(userId) ?? 0;
+    return this.getWalletDetails(userId).balanceCredits;
   }
 
   listWalletTransactions(userId: string) {

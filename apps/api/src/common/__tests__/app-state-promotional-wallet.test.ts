@@ -265,6 +265,24 @@ describe("AppStateService promotional wallet", () => {
     ).toHaveLength(1);
   });
 
+  it("applies lazy expiry when reading getWalletBalance", () => {
+    const state = new AppStateService();
+    const userId = "balance-read-expiry-user";
+    state.grantSignupReward(userId, {
+      credits: 10,
+      expiresAt: new Date(Date.now() - 1)
+    });
+
+    expect(state.getWalletBalance(userId)).toBe(0);
+    expect(state.getWalletDetails(userId)).toMatchObject({
+      balanceCredits: 0,
+      promotionalCreditsRemaining: 0
+    });
+    expect(
+      state.listWalletTransactions(userId).filter((txn) => txn.type === "expire_signup")
+    ).toHaveLength(1);
+  });
+
   it("rejects invalid and insufficient debits without changing balances", () => {
     const state = new AppStateService();
     const userId = "invalid-debit-user";

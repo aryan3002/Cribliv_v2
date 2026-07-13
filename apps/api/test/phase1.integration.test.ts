@@ -191,6 +191,31 @@ describe("Phase 1 integration flows", () => {
     expect(wallet.body.data.balance_credits).toBe(9);
   });
 
+  it("returns insufficient_credits when promotional credits expire before contact unlock", async () => {
+    if (!app) {
+      throw new Error("App not initialized");
+    }
+    const tenant = await loginWithOtp(app, "+919999999902");
+    const listingId = await getFirstListingId(app);
+    const appState = app.get(AppStateService);
+    const promotional = appState.promotionalWallets.get(tenant.user.id);
+    expect(promotional).toBeDefined();
+    promotional!.expiresAt = Date.now() - 1;
+
+    const response = await http(app)
+      .post("/v1/tenant/contact-unlocks")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .set("Idempotency-Key", "expired-promo-unlock")
+      .send({ listing_id: listingId })
+      .expect(402);
+
+    expect(getErrorCode(response.body)).toBe("insufficient_credits");
+    expect(appState.getWalletDetails(tenant.user.id)).toMatchObject({
+      balanceCredits: 0,
+      promotionalCreditsRemaining: 0
+    });
+  });
+
   it("does not refund when owner responds before deadline", async () => {
     if (!app) {
       throw new Error("App not initialized");
