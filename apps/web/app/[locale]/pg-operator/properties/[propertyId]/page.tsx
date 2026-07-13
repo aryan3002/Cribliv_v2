@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, LayoutGrid, Users } from "lucide-react";
+import { ArrowLeft, LayoutGrid, Users, Wrench } from "lucide-react";
 import { auth } from "@/auth";
 import PgBedGrid from "@/components/pg-operator/ops/PgBedGrid";
 import PgOccupancySummary from "@/components/pg-operator/ops/PgOccupancySummary";
@@ -63,6 +63,14 @@ export default async function Page({ params }: { params: { locale: string; prope
               className={styles.secondaryLink}
             >
               <Users size={16} aria-hidden="true" /> Tenants
+            </Link>
+            <Link
+              href={
+                `/${params.locale}/pg-operator/properties/${params.propertyId}/maintenance` as any
+              }
+              className={styles.secondaryLink}
+            >
+              <Wrench size={16} aria-hidden="true" /> Maintenance
             </Link>
             <Link
               href={`/${params.locale}/pg-operator/properties/${params.propertyId}/layout` as any}

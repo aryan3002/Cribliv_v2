@@ -7,6 +7,12 @@ import type {
   PgLayoutDraft,
   PgLayoutPutInput,
   PgLayoutRoomCountInput,
+  PgMaintenanceComment,
+  PgMaintenanceCommentInput,
+  PgMaintenanceCreateInput,
+  PgMaintenanceListFilters,
+  PgMaintenanceRequest,
+  PgMaintenanceStatus,
   PgManageRequest,
   PgManageRequestState,
   PgManageRequestStatus,
@@ -50,6 +56,13 @@ function assignmentQuery(filters: PgBedAssignmentListFilters = {}): string {
   if (filters.status) query.set("status", filters.status);
   if (filters.bed_id) query.set("bed_id", filters.bed_id);
   if (filters.tenant_user_id) query.set("tenant_user_id", filters.tenant_user_id);
+  const value = query.toString();
+  return value ? `?${value}` : "";
+}
+
+function maintenanceQuery(filters: Pick<PgMaintenanceListFilters, "status"> = {}): string {
+  const query = new URLSearchParams();
+  if (filters.status) query.set("status", filters.status);
   const value = query.toString();
   return value ? `?${value}` : "";
 }
@@ -144,6 +157,61 @@ export function getOperatorBedDetail(propertyId: string, bedId: string, token?: 
   return fetchApi<PgOperatorBedDetail>(`/pg-operator/properties/${propertyId}/beds/${bedId}`, {
     headers: authHeaders(token)
   });
+}
+
+export function listPropertyMaintenance(
+  propertyId: string,
+  token?: string,
+  filters: Pick<PgMaintenanceListFilters, "status"> = {}
+) {
+  return fetchApi<PgMaintenanceRequest[]>(
+    `/pg-operator/properties/${propertyId}/maintenance${maintenanceQuery(filters)}`,
+    { headers: authHeaders(token) }
+  );
+}
+
+export function listBedMaintenance(propertyId: string, bedId: string, token?: string) {
+  return fetchApi<PgMaintenanceRequest[]>(
+    `/pg-operator/properties/${propertyId}/beds/${bedId}/maintenance`,
+    { headers: authHeaders(token) }
+  );
+}
+
+export function updateMaintenanceStatus(
+  propertyId: string,
+  requestId: string,
+  status: PgMaintenanceStatus,
+  token?: string
+) {
+  return fetchApi<PgMaintenanceRequest>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}`,
+    {
+      method: "PATCH",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify({ status })
+    }
+  );
+}
+
+export function addMaintenanceComment(
+  propertyId: string,
+  requestId: string,
+  body: PgMaintenanceCommentInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceComment>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}/comments`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify(body)
+    }
+  );
 }
 
 export function reserveBed(
@@ -270,6 +338,45 @@ export function getTenantResidence(token?: string, opts: { server?: boolean } = 
     { headers: authHeaders(token) },
     opts
   );
+}
+
+export function listResidenceMaintenance(token?: string) {
+  return fetchApi<PgMaintenanceRequest[]>("/tenant/pg-residence/maintenance", {
+    headers: authHeaders(token)
+  });
+}
+
+export function createResidenceMaintenance(
+  body: PgMaintenanceCreateInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceRequest>("/tenant/pg-residence/maintenance", {
+    method: "POST",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+export function addResidenceMaintenanceComment(
+  requestId: string,
+  body: PgMaintenanceCommentInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceComment>(`/tenant/pg-residence/maintenance/${requestId}/comments`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey
+    },
+    body: JSON.stringify(body)
+  });
 }
 
 export function serveTenantNotice(token?: string, body: Partial<PgServeNoticeInput> = {}) {

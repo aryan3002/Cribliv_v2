@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, ClipboardList, Users } from "lucide-react";
+import { ArrowLeft, ClipboardList, Users, Wrench } from "lucide-react";
 import { Badge } from "@cribliv/ui";
 import { auth } from "@/auth";
-import { getOperatorBedDetail } from "@/lib/pg-operations-api";
+import MaintenanceWorkspace from "@/components/pg-operator/ops/MaintenanceWorkspace";
+import { getOperatorBedDetail, listBedMaintenance } from "@/lib/pg-operations-api";
 import styles from "./bed-detail.module.css";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +41,10 @@ export default async function Page({
   if (s?.user?.role !== "pg_operator") redirect(`/${params.locale}/pg-operator/become`);
   const token = (s as any)?.accessToken;
 
-  const detail = await getOperatorBedDetail(params.propertyId, params.bedId, token).catch(
-    () => null
-  );
+  const [detail, maintenance] = await Promise.all([
+    getOperatorBedDetail(params.propertyId, params.bedId, token).catch(() => null),
+    listBedMaintenance(params.propertyId, params.bedId, token).catch(() => null)
+  ]);
 
   if (!detail) {
     return (
@@ -146,21 +148,50 @@ export default async function Page({
           </article>
 
           <article className={styles.panel}>
-            <h2>Maintenance</h2>
+            <div className={styles.panelHeading}>
+              <h2>Maintenance</h2>
+              <Link
+                href={
+                  `/${params.locale}/pg-operator/properties/${params.propertyId}/maintenance?bedId=${encodeURIComponent(
+                    params.bedId
+                  )}` as any
+                }
+                className={styles.maintenanceLink}
+              >
+                <Wrench size={15} aria-hidden="true" /> Full queue
+              </Link>
+            </div>
             <dl className={styles.details}>
               <div>
                 <dt>Open tickets</dt>
                 <dd>{detail.maintenance_summary.open_items}</dd>
               </div>
               <div>
-                <dt>Overdue tickets</dt>
-                <dd>{detail.maintenance_summary.overdue_items}</dd>
+                <dt>All tickets</dt>
+                <dd>{maintenance?.length ?? "Unavailable"}</dd>
               </div>
             </dl>
-            <p className={styles.note}>
-              Maintenance data will appear here when the ticket service is enabled.
-            </p>
           </article>
+        </section>
+
+        <section className={styles.panel}>
+          <div className={styles.panelHeading}>
+            <h2>Latest maintenance tickets</h2>
+            <Wrench size={17} aria-hidden="true" />
+          </div>
+          {maintenance === null ? (
+            <p role="alert" className={styles.note}>
+              Could not load maintenance tickets for this bed. Refresh the page to try again.
+            </p>
+          ) : (
+            <MaintenanceWorkspace
+              compact
+              initialRequests={maintenance}
+              mode="operator"
+              propertyId={params.propertyId}
+              token={token}
+            />
+          )}
         </section>
 
         <section className={styles.panel}>

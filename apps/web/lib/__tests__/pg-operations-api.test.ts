@@ -5,12 +5,18 @@ const { fetchApi } = vi.hoisted(() => ({ fetchApi: vi.fn() }));
 vi.mock("../api", () => ({ fetchApi }));
 
 import {
+  addMaintenanceComment,
+  addResidenceMaintenanceComment,
   confirmAssignmentMoveOut,
+  createResidenceMaintenance,
   getOperatorBedDetail,
   getManagedProperty,
   getTenantResidence,
   getOccupancySummary,
   listAssignments,
+  listBedMaintenance,
+  listPropertyMaintenance,
+  listResidenceMaintenance,
   moveInBed,
   moveOutAssignmentNow,
   operatorMoveOutRequest,
@@ -20,6 +26,7 @@ import {
   acceptTenantOperatorMoveOut,
   rejectTenantOperatorMoveOut,
   requestTenantMoveOut,
+  updateMaintenanceStatus,
   updateBedStatus
 } from "../pg-operations-api";
 
@@ -169,6 +176,75 @@ describe("pg operations API client", () => {
       5,
       "/tenant/pg-residence/operator-move-out/assignment-1/reject",
       expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("sends maintenance reads and mutations to their scoped endpoints", () => {
+    listPropertyMaintenance("property-1", "token-1", { status: "open" });
+    listBedMaintenance("property-1", "bed-1", "token-1");
+    updateMaintenanceStatus("property-1", "ticket-1", "in_progress", "token-1");
+    addMaintenanceComment("property-1", "ticket-1", { body: "On the way" }, "token-1", "idem-1");
+    listResidenceMaintenance("token-1");
+    createResidenceMaintenance(
+      { category: "Plumbing", description: "The tap has been leaking since this morning." },
+      "token-1",
+      "idem-2"
+    );
+    addResidenceMaintenanceComment("ticket-1", { body: "Thank you" }, "token-1", "idem-3");
+
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      1,
+      "/pg-operator/properties/property-1/maintenance?status=open",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      2,
+      "/pg-operator/properties/property-1/beds/bed-1/maintenance",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      3,
+      "/pg-operator/properties/property-1/maintenance/ticket-1",
+      expect.objectContaining({
+        method: "PATCH",
+        headers: expect.objectContaining({ Authorization: "Bearer token-1" }),
+        body: JSON.stringify({ status: "in_progress" })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      4,
+      "/pg-operator/properties/property-1/maintenance/ticket-1/comments",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-1" }),
+        body: JSON.stringify({ body: "On the way" })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      5,
+      "/tenant/pg-residence/maintenance",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      6,
+      "/tenant/pg-residence/maintenance",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-2" }),
+        body: JSON.stringify({
+          category: "Plumbing",
+          description: "The tap has been leaking since this morning."
+        })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      7,
+      "/tenant/pg-residence/maintenance/ticket-1/comments",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-3" }),
+        body: JSON.stringify({ body: "Thank you" })
+      })
     );
   });
 });

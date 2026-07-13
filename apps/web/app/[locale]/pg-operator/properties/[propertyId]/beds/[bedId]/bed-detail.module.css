@@ -7,6 +7,8 @@
 .header p { color: var(--d-text-soft); font-size: 13px; margin: 4px 0 0; }
 .headerActions { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .primaryLink { align-items: center; background: var(--d-brand); border: 1px solid var(--d-brand); border-radius: 7px; color: #fff; display: inline-flex; font-size: 13px; font-weight: 700; gap: 7px; min-height: 36px; padding: 0 11px; text-decoration: none; }
+.maintenanceLink { align-items: center; color: var(--d-brand); display: inline-flex; font-size: 12px; font-weight: 700; gap: 5px; text-decoration: none; }
+.maintenanceLink:hover { text-decoration: underline; }
 .grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.45fr) minmax(280px, .75fr); }
 .panel, .loadError { background: var(--d-surface); border: 1px solid var(--d-border); border-radius: 8px; padding: 16px; }
 .loadError { border-color: color-mix(in srgb, var(--d-danger) 35%, var(--d-border)); }

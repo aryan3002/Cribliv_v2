@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { auth } from "@/auth";
-import { getTenantResidence } from "@/lib/pg-operations-api";
+import { getTenantResidence, listResidenceMaintenance } from "@/lib/pg-operations-api";
 import PgResidenceClient from "./PgResidenceClient";
 import styles from "./pg-residence.module.css";
 
@@ -16,6 +16,7 @@ export default async function Page({ params }: { params: { locale: string } }) {
 
   const token = session.accessToken;
   const residence = await getTenantResidence(token).catch(() => null);
+  const maintenance = residence ? await listResidenceMaintenance(token).catch(() => null) : [];
 
   return (
     <main className={styles.page}>
@@ -26,7 +27,12 @@ export default async function Page({ params }: { params: { locale: string } }) {
         <header className={styles.header}>
           <h1>PG residence</h1>
         </header>
-        <PgResidenceClient initialResidence={residence} token={token} locale={params.locale} />
+        <PgResidenceClient
+          initialResidence={residence}
+          initialMaintenance={maintenance ?? []}
+          maintenanceLoadError={maintenance === null ? "Could not load maintenance tickets." : null}
+          token={token}
+        />
       </div>
     </main>
   );

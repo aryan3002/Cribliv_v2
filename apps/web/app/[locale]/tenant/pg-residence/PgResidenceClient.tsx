@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, type BadgeTone } from "@cribliv/ui";
-import type { PgTenantResidence } from "@cribliv/shared-types";
-import { CalendarDays, Check, Home, IndianRupee, Utensils, X } from "lucide-react";
+import type { PgMaintenanceRequest, PgTenantResidence } from "@cribliv/shared-types";
+import { CalendarDays, Check, Home, IndianRupee, Utensils, Wrench, X } from "lucide-react";
 import SectionCard from "@/components/pg-operator/wizard/shared/SectionCard";
+import MaintenanceWorkspace from "@/components/pg-operator/ops/MaintenanceWorkspace";
 import {
   acceptTenantOperatorMoveOut,
   rejectTenantOperatorMoveOut,
@@ -69,11 +70,14 @@ function ruleRows(residence: PgTenantResidence): string[] {
 
 export default function PgResidenceClient({
   initialResidence,
+  initialMaintenance,
+  maintenanceLoadError,
   token
 }: {
   initialResidence: PgTenantResidence | null;
+  initialMaintenance: PgMaintenanceRequest[];
+  maintenanceLoadError: string | null;
   token: string;
-  locale: string;
 }) {
   const router = useRouter();
   const [residence, setResidence] = useState(initialResidence);
@@ -263,6 +267,20 @@ export default function PgResidenceClient({
           </div>
           {error && <p className={styles.error}>{error}</p>}
         </div>
+      </SectionCard>
+
+      <SectionCard title="Maintenance" icon={<Wrench size={18} aria-hidden="true" />}>
+        {maintenanceLoadError && (
+          <p role="alert" className={styles.error}>
+            {maintenanceLoadError}
+          </p>
+        )}
+        <MaintenanceWorkspace
+          compact
+          initialRequests={initialMaintenance}
+          mode="tenant"
+          token={token}
+        />
       </SectionCard>
     </div>
   );
