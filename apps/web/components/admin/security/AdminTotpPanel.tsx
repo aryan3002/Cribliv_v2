@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useFlag } from "../../../lib/feature-flags";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "http://localhost:4000/v1";
+import {
+  fetchAdminTotpStatus,
+  startAdminTotpEnroll,
+  verifyAdminTotpEnroll,
+  resetAdminTotp
+} from "../../../lib/admin-api";
 
 export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
   const enabled = useFlag("ff_admin_totp");
@@ -14,16 +17,12 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const authHeaders = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken}`
-  };
-
   const loadStatus = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/auth/admin/totp/status`, { headers: authHeaders });
-    if (res.ok) {
-      const payload = (await res.json()) as { data: { enrolled: boolean } };
-      setEnrolled(payload.data.enrolled);
+    try {
+      const { enrolled: isEnrolled } = await fetchAdminTotpStatus(accessToken);
+      setEnrolled(isEnrolled);
+    } catch {
+      // Leave `enrolled` as-is; the UI simply won't render a definitive state.
     }
   }, [accessToken]);
 
@@ -35,14 +34,8 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/admin/totp/enroll/start`, {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({})
-      });
-      if (!res.ok) throw new Error();
-      const payload = (await res.json()) as { data: { qr_data_url: string } };
-      setQr(payload.data.qr_data_url);
+      const { qr_data_url } = await startAdminTotpEnroll(accessToken);
+      setQr(qr_data_url);
     } catch {
       setError("Could not start enrollment.");
     } finally {
@@ -58,12 +51,7 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
     }
     setBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/admin/totp/enroll/verify`, {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ totp_code: code.trim() })
-      });
-      if (!res.ok) throw new Error();
+      await verifyAdminTotpEnroll(accessToken, code.trim());
       setQr(null);
       setCode("");
       await loadStatus();
@@ -75,11 +63,14 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
   }, [code, accessToken, loadStatus]);
 
   const resetDevice = useCallback(async () => {
+    setError(null);
     setBusy(true);
     try {
-      await fetch(`${API_BASE}/auth/admin/totp/reset`, { method: "POST", headers: authHeaders });
+      await resetAdminTotp(accessToken);
       setQr(null);
       await loadStatus();
+    } catch {
+      setError("Could not reset device.");
     } finally {
       setBusy(false);
     }

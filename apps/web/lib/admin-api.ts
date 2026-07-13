@@ -1972,3 +1972,38 @@ export async function refundAdminLead(accessToken: string, leadId: string, reaso
     { method: "POST", headers: authHeaders(accessToken), body: JSON.stringify({ reason }) }
   );
 }
+
+// ── Admin TOTP enrollment (Task 11) ─────────────────────────────────────────
+
+export async function fetchAdminTotpStatus(accessToken: string): Promise<{ enrolled: boolean }> {
+  return fetchApi<{ enrolled: boolean }>("/auth/admin/totp/status", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function startAdminTotpEnroll(
+  accessToken: string
+): Promise<{ otpauth_uri: string; qr_data_url: string }> {
+  return fetchApi<{ otpauth_uri: string; qr_data_url: string }>("/auth/admin/totp/enroll/start", {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function verifyAdminTotpEnroll(
+  accessToken: string,
+  totpCode: string
+): Promise<{ enabled: boolean }> {
+  return fetchApi<{ enabled: boolean }>("/auth/admin/totp/enroll/verify", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ totp_code: totpCode })
+  });
+}
+
+export async function resetAdminTotp(accessToken: string): Promise<{ reset: boolean }> {
+  return fetchApi<{ reset: boolean }>("/auth/admin/totp/reset", {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+}
