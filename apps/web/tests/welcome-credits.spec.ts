@@ -131,7 +131,9 @@ test("new signup receives 10 expiring credits and sees the celebration exactly o
   expect(expiryTime - verificationStartedAt).toBeGreaterThanOrEqual(NINETY_DAYS_MS);
   expect(expiryTime - verificationFinishedAt).toBeLessThanOrEqual(NINETY_DAYS_MS);
 
-  await expect(page.getByText(`Use by ${formatUtcDate(walletExpiry!)}`)).toBeVisible();
+  await expect(
+    page.getByText(`Use by ${formatUtcDate(walletExpiry!)}`, { exact: true })
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Start finding homes" }).click();
 

@@ -5045,6 +5045,10 @@ a.feature-card:hover .icon-circle {
   letter-spacing: 0;
 }
 
+.welcome-reward__heading:focus {
+  outline: none;
+}
+
 .welcome-reward__supporting {
   max-width: 390px;
   margin-top: 10px;
