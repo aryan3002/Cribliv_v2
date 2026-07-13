@@ -6,6 +6,11 @@ const OWNER_DESKTOP_VIEWPORT = { width: 1440, height: 1000 };
 
 test.use({ viewport: OWNER_MOBILE_VIEWPORT });
 
+function flagOn(name: string): boolean {
+  const value = process.env[name];
+  return value === "1" || value === "true";
+}
+
 async function signInAsOwner(page: Page, request: Parameters<typeof loginAsRole>[0]) {
   const session = await loginAsRole(request, "owner");
   await setSessionOnPage(page, session);
@@ -243,6 +248,29 @@ async function createOwnerLeadViaContactUnlock(
   throw new Error("Timed out waiting for owner lead created by authenticated contact unlock");
 }
 
+async function waitForOwnerLeadStatus(
+  request: Parameters<typeof loginAsRole>[0],
+  ownerSession: OwnerSession,
+  leadId: string,
+  expectedStatus: LeadApiRow["status"]
+): Promise<LeadApiRow> {
+  const apiBaseUrl = getApiBaseUrl();
+  const ownerHeaders = { Authorization: `Bearer ${ownerSession.access_token}` };
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const leadsResponse = await request.get(`${apiBaseUrl}/owner/leads?page_size=200`, {
+      headers: ownerHeaders
+    });
+    expect(leadsResponse.ok()).toBeTruthy();
+    const leadsJson = await leadsResponse.json();
+    const lead = (leadsJson?.data?.items as LeadApiRow[]).find((item) => item.id === leadId);
+    if (lead?.status === expectedStatus) return lead;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  throw new Error(`Timed out waiting for owner lead ${leadId} to persist as ${expectedStatus}`);
+}
+
 test.describe("Owner workspace mobile browser coverage", () => {
   test.beforeEach(async ({ page, request }) => {
     await signInAsOwner(page, request);
@@ -431,7 +459,12 @@ test.describe("Owner workspace mobile browser coverage", () => {
 });
 
 test.describe("Owner workspace populated lead browser coverage", () => {
-  test("mobile renders real lead cards and updates status without DnD", async ({
+  test.skip(
+    !flagOn("FF_LEAD_MANAGEMENT_ENABLED"),
+    "real lead persistence coverage requires FF_LEAD_MANAGEMENT_ENABLED=true"
+  );
+
+  test("mobile renders real lead cards and persists status without DnD", async ({
     page,
     request
   }, testInfo) => {
@@ -456,7 +489,13 @@ test.describe("Owner workspace populated lead browser coverage", () => {
     await expect(card.getByText(lead.tenant_phone_masked ?? "")).toBeVisible();
 
     await card.getByRole("button", { name: /mark contacted/i }).click();
-    await expect(card.getByText(/contacted/i)).toBeVisible();
+    await expect(card.locator(".lead-card__status")).toHaveText(/contacted/i);
+    await waitForOwnerLeadStatus(request, ownerSession, lead.id, "contacted");
+
+    await page.reload();
+    const persistedCard = page.locator(".lead-card", { hasText: lead.tenant_name }).first();
+    await expect(persistedCard.locator(".lead-card__status")).toHaveText(/contacted/i);
+    await expect(persistedCard.getByRole("button", { name: /schedule visit/i })).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
     expect(runtimeErrors).toEqual([]);
