@@ -1,5 +1,8 @@
 import type {
   PgBed,
+  PgBedAssignment,
+  PgBedAssignmentListFilters,
+  PgBedAssignmentOccupantInput,
   PgBedStatus,
   PgLayoutDraft,
   PgLayoutPutInput,
@@ -35,6 +38,15 @@ function occupancyQuery(filters: PgOccupancyFilters = {}): string {
   if (filters.floor !== undefined) query.set("floor", String(filters.floor));
   if (filters.status) query.set("status", filters.status);
   if (filters.available_from) query.set("available_from", filters.available_from);
+  const value = query.toString();
+  return value ? `?${value}` : "";
+}
+
+function assignmentQuery(filters: PgBedAssignmentListFilters = {}): string {
+  const query = new URLSearchParams();
+  if (filters.status) query.set("status", filters.status);
+  if (filters.bed_id) query.set("bed_id", filters.bed_id);
+  if (filters.tenant_user_id) query.set("tenant_user_id", filters.tenant_user_id);
   const value = query.toString();
   return value ? `?${value}` : "";
 }
@@ -112,6 +124,74 @@ export function relistBed(propertyId: string, bedId: string, token?: string) {
     method: "POST",
     headers: authHeaders(token)
   });
+}
+
+export function listAssignments(
+  propertyId: string,
+  token?: string,
+  filters: PgBedAssignmentListFilters = {}
+) {
+  return fetchApi<PgBedAssignment[]>(
+    `/pg-operator/properties/${propertyId}/assignments${assignmentQuery(filters)}`,
+    { headers: authHeaders(token) }
+  );
+}
+
+export function reserveBed(
+  propertyId: string,
+  bedId: string,
+  body: PgBedAssignmentOccupantInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgBedAssignment>(`/pg-operator/properties/${propertyId}/beds/${bedId}/reserve`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+export function moveInBed(
+  propertyId: string,
+  bedId: string,
+  body: PgBedAssignmentOccupantInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgBedAssignment>(`/pg-operator/properties/${propertyId}/beds/${bedId}/move-in`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+export function operatorMoveOutRequest(propertyId: string, assignmentId: string, token?: string) {
+  return fetchApi<PgBedAssignment>(
+    `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/operator-move-out-request`,
+    { method: "POST", headers: authHeaders(token) }
+  );
+}
+
+export function confirmAssignmentMoveOut(propertyId: string, assignmentId: string, token?: string) {
+  return fetchApi<PgBedAssignment>(
+    `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/confirm-move-out`,
+    { method: "POST", headers: authHeaders(token) }
+  );
+}
+
+export function cancelAssignmentMoveOut(propertyId: string, assignmentId: string, token?: string) {
+  return fetchApi<PgBedAssignment>(
+    `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/cancel-move-out`,
+    { method: "POST", headers: authHeaders(token) }
+  );
 }
 
 export function getManageRequest(listingId: string, token?: string) {

@@ -1,9 +1,15 @@
 import { randomUUID } from "node:crypto";
 
+import type { INestApplication } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
 import type { PgBedAssignmentOccupantInput } from "@cribliv/shared-types";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import request from "supertest";
 
+import { AppModule } from "../../../app.module";
+import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
+import type { Role } from "../../../common/types";
 import type { NotificationService } from "../../notifications/notification.service";
 import { PgBedAssignmentService } from "../services/pg-bed-assignment.service";
 
@@ -72,6 +78,7 @@ describe("PG bed assignments without a database", () => {
 
 describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () => {
   let db: DatabaseService;
+  let app: INestApplication;
   let service: PgBedAssignmentService;
   let operatorId: string;
   let tenantId: string;
@@ -201,6 +208,29 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
     service = new PgBedAssignmentService(db, {
       send: sendNotification
     } as unknown as NotificationService);
+
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideGuard(AuthGuard)
+      .useValue({
+        canActivate: (ctx: {
+          switchToHttp: () => {
+            getRequest: () => { headers: Record<string, string | undefined>; user?: unknown };
+          };
+        }) => {
+          const req = ctx.switchToHttp().getRequest();
+          const identities: Record<string, { id: string; role: Role }> = {
+            operator: { id: operatorId, role: "pg_operator" }
+          };
+          const identity = identities[req.headers["x-test-identity"] ?? ""];
+          if (!identity) return false;
+          req.user = identity;
+          return true;
+        }
+      })
+      .compile();
+    app = moduleRef.createNestApplication();
+    app.setGlobalPrefix("v1");
+    await app.init();
   }, 30_000);
 
   beforeEach(() => {
@@ -216,7 +246,13 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
   });
 
   afterAll(async () => {
+    if (app) await app.close();
     if (db) {
+      if (userIds.length > 0) {
+        await db.query(`DELETE FROM idempotency_keys WHERE actor_user_id = ANY($1::uuid[])`, [
+          userIds
+        ]);
+      }
       if (userIds.length > 0) {
         await db.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [userIds]);
       }
@@ -314,6 +350,78 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
         to_status: "active"
       }
     ]);
+  });
+
+  it("exposes reserve through a property-scoped idempotent controller endpoint", async () => {
+    const fixture = await createFixture();
+    const key = `reserve-${testRunId}`;
+
+    const missingKey = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/beds/${fixture.bedIds[0]}/reserve`)
+      .set("x-test-identity", "operator")
+      .send(occupant())
+      .expect(400);
+    expect(missingKey.body.code).toBe("missing_idempotency_key");
+
+    const first = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/beds/${fixture.bedIds[0]}/reserve`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", key)
+      .send(occupant({ occupant_phone_e164: "+919999999902" }))
+      .expect(201);
+
+    const replay = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/beds/${fixture.bedIds[0]}/reserve`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", key)
+      .send(occupant({ occupant_phone_e164: "+919999999902" }))
+      .expect(201);
+
+    expect(first.body.data).toMatchObject({
+      id: replay.body.data.id,
+      status: "reserved",
+      tenant_user_id: tenantId
+    });
+
+    const listed = await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/assignments?status=reserved`)
+      .set("x-test-identity", "operator")
+      .expect(200);
+    expect(listed.body.data).toEqual([
+      expect.objectContaining({ id: first.body.data.id, status: "reserved" })
+    ]);
+
+    const movedIn = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/beds/${fixture.bedIds[0]}/move-in`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `${key}-move-in`)
+      .send(occupant({ occupant_phone_e164: "+919999999902" }))
+      .expect(201);
+    expect(movedIn.body.data).toMatchObject({ id: first.body.data.id, status: "active" });
+
+    const unlinked = await createFixture();
+    const unlinkedMoveIn = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${unlinked.propertyId}/beds/${unlinked.bedIds[0]}/move-in`)
+      .set("x-test-identity", "operator")
+      .set("idempotency-key", `${key}-unlinked-move-in`)
+      .send(occupant({ occupant_phone_e164: "+919700000004" }))
+      .expect(201);
+
+    const pending = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${unlinked.propertyId}/assignments/${unlinkedMoveIn.body.data.id}/operator-move-out-request`
+      )
+      .set("x-test-identity", "operator")
+      .expect(201);
+    expect(pending.body.data.status).toBe("move_out_pending_confirmation");
+
+    const confirmed = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${unlinked.propertyId}/assignments/${unlinkedMoveIn.body.data.id}/confirm-move-out`
+      )
+      .set("x-test-identity", "operator")
+      .expect(201);
+    expect(confirmed.body.data.status).toBe("moved_out");
   });
 
   it("maps tenant double-occupancy unique violations to the clean 409 response", async () => {

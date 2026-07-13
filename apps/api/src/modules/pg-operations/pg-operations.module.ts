@@ -3,6 +3,7 @@ import { CoreModule } from "../../common/core.module";
 import { GuardsModule } from "../../common/guards.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { PgOperatorModule } from "../pg-operator/pg-operator.module";
+import { PgAssignmentController } from "./pg-assignment.controller";
 import { PgAdminManageController } from "./pg-admin-manage.controller";
 import { PgManageRequestController } from "./pg-manage-request.controller";
 import { PgPropertyOpsController } from "./pg-property-ops.controller";
@@ -13,7 +14,12 @@ import { PgOccupancyService } from "./services/pg-occupancy.service";
 
 @Module({
   imports: [CoreModule, GuardsModule, PgOperatorModule, NotificationsModule],
-  controllers: [PgManageRequestController, PgAdminManageController, PgPropertyOpsController],
+  controllers: [
+    PgManageRequestController,
+    PgAdminManageController,
+    PgPropertyOpsController,
+    PgAssignmentController
+  ],
   providers: [PgManageRequestService, PgLayoutService, PgOccupancyService, PgBedAssignmentService],
   exports: [PgManageRequestService, PgLayoutService, PgOccupancyService, PgBedAssignmentService]
 })
