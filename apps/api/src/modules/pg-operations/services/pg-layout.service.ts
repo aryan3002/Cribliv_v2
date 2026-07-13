@@ -239,19 +239,22 @@ export class PgLayoutService {
       bedsByRoom.set(row.room_id, roomBeds);
     }
 
-    return rooms.rows.map((row) => ({
-      id: row.id,
-      pg_property_id: row.pg_property_id,
-      room_type_id: row.room_type_id,
-      floor: row.floor,
-      room_number: row.room_number,
-      display_label: row.display_label,
-      bed_count: row.bed_count ?? 0,
-      status: row.status,
-      beds: bedsByRoom.get(row.id) ?? [],
-      created_at: toIso(row.created_at),
-      updated_at: toIso(row.updated_at)
-    }));
+    return rooms.rows.map((row) => {
+      const editableBeds = bedsByRoom.get(row.id) ?? [];
+      return {
+        id: row.id,
+        pg_property_id: row.pg_property_id,
+        room_type_id: row.room_type_id,
+        floor: row.floor,
+        room_number: row.room_number,
+        display_label: row.display_label,
+        bed_count: editableBeds.length,
+        status: row.status,
+        beds: editableBeds,
+        created_at: toIso(row.created_at),
+        updated_at: toIso(row.updated_at)
+      };
+    });
   }
 
   private validateDraft(draft: PgLayoutPutInput): void {
@@ -318,6 +321,7 @@ export class PgLayoutService {
     await client.query(
       `DELETE FROM pg_beds b
         WHERE b.id = ANY($1::uuid[])
+          AND b.status <> 'inactive'::pg_bed_status
           AND NOT EXISTS (SELECT 1 FROM pg_bed_assignments a WHERE a.bed_id = b.id)`,
       [bedIds]
     );

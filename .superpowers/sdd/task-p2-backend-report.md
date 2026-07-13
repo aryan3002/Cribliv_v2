@@ -153,3 +153,46 @@ Result: PASS (exit 0), 1 test file passed and 12/12 tests passed. Vitest duratio
 ### Concerns
 
 The test runner continues to emit the existing Vite CJS Node API deprecation warning. No new warnings or failures were observed.
+
+---
+
+## Important Review Finding Fix (2026-07-13): inactive status layout round-trip
+
+### Root cause
+
+`PgLayoutService.getLayout()` correctly excludes inactive beds from editable layouts, but returned each room's stored `bed_count`. After the status route marked one of two beds inactive, GET therefore returned one editable bed with `bed_count: 2`, and re-submitting that payload failed `bed_count_mismatch`. Once the count was corrected, reconciliation would also have hard-deleted the already-inactive, history-free bed because it was absent from the intentionally filtered editable payload.
+
+### Fix
+
+- Derive editable `bed_count` from the returned non-inactive bed array.
+- Leave already-inactive beds out of the removal delete path, so an unchanged GET layout can be PUT safely without resurrecting or deleting a bed retired through the status route.
+
+### RED proof
+
+Added route-based integration test: `round-trips an editable layout after a bed is marked inactive through the status route`.
+
+Command:
+
+```bash
+rtk proxy env DATABASE_URL="postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" pnpm --filter @cribliv/api test -- layout-occupancy.integration.test.ts
+```
+
+Result: expected FAIL (exit 1), 1 failed and 12 passed. The GET response contained `bed_count: 2` while exposing only the one remaining editable bed.
+
+### GREEN proof
+
+Command:
+
+```bash
+rtk proxy env DATABASE_URL="postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" pnpm --filter @cribliv/api test -- layout-occupancy.integration.test.ts
+```
+
+Result: PASS (exit 0), 1 test file and 13/13 tests passed. The route test creates a two-bed layout, PATCHes one bed to `inactive`, GETs the editable layout, PUTs that exact payload, and verifies the retired bed remains `inactive`.
+
+### Additional verification
+
+- `rtk proxy pnpm --filter @cribliv/api typecheck`: PASS (exit 0).
+
+### Concerns
+
+The existing Vite CJS Node API deprecation warning remains in test output. It does not affect the passing result and is outside this task's scope.

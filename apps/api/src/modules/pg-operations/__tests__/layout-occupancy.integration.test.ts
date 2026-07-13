@@ -592,6 +592,41 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
     expect(updated.body.data).toMatchObject({ id: bed.id, status: "blocked" });
   });
 
+  it("round-trips an editable layout after a bed is marked inactive through the status route", async () => {
+    const fixture = await createFixture();
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant", "vacant"], fixture.roomTypes.double)]
+    });
+    const retiredBed = await getBed(fixture.propertyId, "101", "B");
+
+    await request(app.getHttpServer())
+      .patch(`/v1/pg-operator/properties/${fixture.propertyId}/beds/${retiredBed.id}/status`)
+      .set("x-test-identity", "operator")
+      .send({ status: "inactive" })
+      .expect(200);
+
+    const editable = await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/layout`)
+      .set("x-test-identity", "operator")
+      .expect(200);
+    expect(editable.body.data).toMatchObject([
+      {
+        room_number: "101",
+        bed_count: 1,
+        beds: [expect.objectContaining({ bed_label: "A", status: "vacant" })]
+      }
+    ]);
+
+    await request(app.getHttpServer())
+      .put(`/v1/pg-operator/properties/${fixture.propertyId}/layout`)
+      .set("x-test-identity", "operator")
+      .send({ rooms: editable.body.data })
+      .expect(200);
+
+    const persisted = await getBed(fixture.propertyId, "101", "B");
+    expect(persisted).toMatchObject({ id: retiredBed.id, status: "inactive" });
+  });
+
   it("relists only private bed availability and leaves the public listing paused", async () => {
     const fixture = await createFixture({ listingStatus: "paused" });
     await layout.putLayout(operatorId, fixture.propertyId, {
