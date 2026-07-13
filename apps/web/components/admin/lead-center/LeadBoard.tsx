@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AdminLeadBoardFilter,
   AdminLeadBoardResponse,
@@ -14,6 +14,7 @@ import { EmptyState } from "../primitives/EmptyState";
 import { DataTable, type Column } from "../primitives/DataTable";
 import { HealthBadge } from "../owner-health/HealthBadge";
 import { LeadCountdown } from "./LeadCountdown";
+import { LeadDrawer, LeadRowActions } from "./LeadDrawer";
 import { ApiError } from "../../../lib/api";
 import { fetchAdminLeadBoard } from "../../../lib/admin-api";
 import { formatNumber, formatRelativeTime } from "../../../lib/admin/format";
@@ -50,6 +51,12 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
   const [filter, setFilter] = useState<AdminLeadBoardFilter>("all");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  // Bumped after a row/drawer action succeeds to force an immediate re-fetch
+  // (optimistic-refetch, not optimistic mutation) without duplicating the
+  // fetch effect below.
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const triggerRefetch = useCallback(() => setRefreshNonce((n) => n + 1), []);
 
   // Reset to page 1 whenever a filter/search changes.
   useEffect(() => {
@@ -102,7 +109,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
     // the same pattern) — depending on them would tear down/restart polling
     // on every unrelated AdminShell re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, filter, q, page]);
+  }, [accessToken, filter, q, page, refreshNonce]);
 
   const counters = data?.counters ?? null;
   const total = data?.total ?? 0;
@@ -120,6 +127,9 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
             <a
               href={`tel:${r.seeker.phone_e164}`}
               style={{ fontSize: 12, color: "var(--ad-brand)", textDecoration: "none" }}
+              // Dialling the seeker shouldn't also trigger the row click
+              // (which opens the detail drawer).
+              onClick={(e) => e.stopPropagation()}
             >
               {r.seeker.phone_e164}
             </a>
@@ -133,7 +143,12 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span>{r.owner.name}</span>
             {r.owner.health_score != null && r.owner.health_grade != null && (
-              <HealthBadge score={r.owner.health_score} grade={r.owner.health_grade} />
+              // Wrapped so the badge's own click doesn't bubble into the
+              // row's onRowClick (the badge has no action here — the
+              // per-owner drill-down lives on the Analytics rollup table).
+              <span onClick={(e) => e.stopPropagation()}>
+                <HealthBadge score={r.owner.health_score} grade={r.owner.health_grade} />
+              </span>
             )}
           </div>
         )
@@ -193,12 +208,21 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
       {
         key: "actions",
         header: "Actions",
-        // Row menu (call/mark-handled/nudge/refund) lands in Task 3.
-        render: () => <span style={{ color: "var(--ad-text-3)" }}>—</span>
+        render: (r) => (
+          <LeadRowActions
+            row={r}
+            accessToken={accessToken}
+            onToast={onToast}
+            onDone={triggerRefetch}
+            compact
+          />
+        )
       }
     ],
-    [generatedAt]
+    [generatedAt, accessToken, onToast, triggerRefetch]
   );
+
+  const selectedRow = data?.rows.find((r) => r.lead_id === selectedLeadId) ?? null;
 
   if (featureDisabled) {
     return (
@@ -261,9 +285,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
           columns={columns}
           rows={data?.rows ?? []}
           rowKey={(r) => r.lead_id}
-          onRowClick={() => {
-            // Detail drawer opens here starting Task 3.
-          }}
+          onRowClick={(r) => setSelectedLeadId(r.lead_id)}
           emptyState={loading ? "Loading…" : "No leads match the filters"}
         />
         <div
@@ -297,6 +319,14 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
           </div>
         </div>
       </SectionCard>
+
+      <LeadDrawer
+        row={selectedRow}
+        onClose={() => setSelectedLeadId(null)}
+        accessToken={accessToken}
+        onToast={onToast}
+        onActionDone={triggerRefetch}
+      />
     </>
   );
 }
