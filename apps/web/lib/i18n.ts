@@ -274,6 +274,158 @@ const dictionary: Dictionary = {
     en: "Complete verification to earn a Verified badge. This builds trust and helps you get more enquiries.",
     hi: "वेरिफाइड बैज पाने के लिए वेरिफिकेशन पूरा करें। इससे भरोसा बनता है और ज़्यादा पूछताछ मिलती है।"
   },
+  verificationListingLabel: { en: "Listing", hi: "लिस्टिंग" },
+  verificationSelectListing: { en: "Select listing...", hi: "लिस्टिंग चुनें..." },
+  verificationCreateListingFirst: {
+    en: "Create a listing first, then complete owner verification.",
+    hi: "पहले लिस्टिंग बनाएं, फिर ओनर वेरिफिकेशन पूरा करें।"
+  },
+  verificationSelectListingFirst: {
+    en: "Select a listing before uploading a verification file.",
+    hi: "वेरिफिकेशन फ़ाइल अपलोड करने से पहले लिस्टिंग चुनें।"
+  },
+  verificationCurrentStatus: { en: "Current status", hi: "मौजूदा स्थिति" },
+  verificationPassedTitle: { en: "Verification Passed", hi: "वेरिफिकेशन पास" },
+  verificationPassedBody: {
+    en: "Your identity is verified. Tenants will see a Verified badge on your listing.",
+    hi: "आपकी पहचान वेरिफाइड है। किरायेदारों को आपकी लिस्टिंग पर Verified बैज दिखेगा।"
+  },
+  verificationFailedTitle: { en: "Verification Failed", hi: "वेरिफिकेशन फेल" },
+  verificationFailedBody: {
+    en: "We could not verify this listing. Re-submit with clearer details.",
+    hi: "हम इस लिस्टिंग को वेरिफाई नहीं कर सके। कृपया स्पष्ट जानकारी के साथ दोबारा जमा करें।"
+  },
+  verificationPendingTitle: {
+    en: "Verification In Progress",
+    hi: "वेरिफिकेशन प्रक्रिया में"
+  },
+  verificationPendingBody: {
+    en: "Your submission is being reviewed.",
+    hi: "आपकी सबमिशन की समीक्षा चल रही है।"
+  },
+  verificationUnverifiedTitle: { en: "Get Verified", hi: "वेरिफाइड हों" },
+  verificationUnverifiedBody: {
+    en: "Complete verification to build trust and improve lead quality.",
+    hi: "भरोसा बढ़ाने और बेहतर लीड पाने के लिए वेरिफिकेशन पूरा करें।"
+  },
+  verificationAwaitingAdmin: {
+    en: "Awaiting admin review for final verification status.",
+    hi: "अंतिम वेरिफिकेशन स्थिति के लिए एडमिन समीक्षा बाकी है।"
+  },
+  verificationStatusFailed: { en: "Verification Failed", hi: "वेरिफिकेशन फेल" },
+  verificationResultPending: { en: "Verification Pending", hi: "वेरिफिकेशन लंबित" },
+  verificationProvider: { en: "Provider", hi: "प्रोवाइडर" },
+  verificationProviderReference: { en: "Provider reference", hi: "प्रोवाइडर रेफरेंस" },
+  verificationProviderResultCode: { en: "Provider result code", hi: "प्रोवाइडर रिजल्ट कोड" },
+  verificationReviewReason: { en: "Review reason", hi: "समीक्षा कारण" },
+  verificationMatchScore: { en: "Match score: {score}%", hi: "मैच स्कोर: {score}%" },
+  verificationThreshold: { en: "Threshold: {threshold}%", hi: "थ्रेशहोल्ड: {threshold}%" },
+  verificationNoScore: {
+    en: "Complete a verification step to see results.",
+    hi: "परिणाम देखने के लिए एक वेरिफिकेशन स्टेप पूरा करें।"
+  },
+  verificationMethodLabel: { en: "Verification method", hi: "वेरिफिकेशन तरीका" },
+  verificationChooseMethod: { en: "Choose one method", hi: "एक तरीका चुनें" },
+  verificationMethodVideo: { en: "Video selfie", hi: "वीडियो सेल्फी" },
+  verificationMethodElectricity: { en: "Electricity bill", hi: "बिजली बिल" },
+  verificationVideoTitle: { en: "Video verification", hi: "वीडियो वेरिफिकेशन" },
+  verificationVideoBody: {
+    en: "Upload a clear liveness video for this listing. We upload it first, then submit the completed artifact for review.",
+    hi: "इस लिस्टिंग के लिए साफ लिवनेस वीडियो अपलोड करें। हम पहले इसे अपलोड करेंगे, फिर पूरे आर्टिफैक्ट को समीक्षा के लिए जमा करेंगे।"
+  },
+  verificationVideoArtifactLabel: {
+    en: "Upload verification video",
+    hi: "वेरिफिकेशन वीडियो अपलोड करें"
+  },
+  verificationVideoReferenceLabel: { en: "Reference code (if any)", hi: "रेफरेंस कोड (यदि हो)" },
+  verificationVideoReferencePlaceholder: { en: "e.g. REF-12345", hi: "जैसे REF-12345" },
+  verificationSubmitVideo: {
+    en: "Submit Video Verification",
+    hi: "वीडियो वेरिफिकेशन जमा करें"
+  },
+  verificationVideoRequired: {
+    en: "Please select a listing and upload a verification video.",
+    hi: "कृपया लिस्टिंग चुनें और वेरिफिकेशन वीडियो अपलोड करें।"
+  },
+  verificationVideoSubmitted: {
+    en: "Video verification submitted.",
+    hi: "वीडियो वेरिफिकेशन जमा हो गया।"
+  },
+  verificationElectricityTitle: {
+    en: "Electricity verification",
+    hi: "बिजली बिल वेरिफिकेशन"
+  },
+  verificationElectricityBody: {
+    en: "Enter your consumer ID and the address printed on the bill. Uploading a bill is optional, but helps review.",
+    hi: "अपना कंज्यूमर ID और बिल पर छपा पता दर्ज करें। बिल अपलोड करना वैकल्पिक है, लेकिन समीक्षा में मदद करता है।"
+  },
+  verificationConsumerIdLabel: { en: "Consumer ID", hi: "कंज्यूमर ID" },
+  verificationConsumerIdPlaceholder: { en: "Consumer ID", hi: "कंज्यूमर ID" },
+  verificationBillArtifactLabel: {
+    en: "Upload electricity bill (optional)",
+    hi: "बिजली बिल अपलोड करें (वैकल्पिक)"
+  },
+  verificationAddressTextLabel: { en: "Address text", hi: "पते का टेक्स्ट" },
+  verificationAddressTextPlaceholder: {
+    en: "Enter bill address text for fuzzy match",
+    hi: "मैच के लिए बिल पर लिखा पता दर्ज करें"
+  },
+  verificationSubmitElectricity: {
+    en: "Submit Electricity Verification",
+    hi: "बिजली वेरिफिकेशन जमा करें"
+  },
+  verificationElectricityRequired: {
+    en: "Please select a listing and provide your consumer ID and address.",
+    hi: "कृपया लिस्टिंग चुनें और कंज्यूमर ID व पता दें।"
+  },
+  verificationBillUploadRequired: {
+    en: "Wait for the bill upload to finish, or remove it before submitting.",
+    hi: "सबमिट करने से पहले बिल अपलोड पूरा होने दें या उसे हटा दें।"
+  },
+  verificationElectricitySubmitted: {
+    en: "Electricity verification submitted successfully.",
+    hi: "बिजली वेरिफिकेशन सफलतापूर्वक जमा हो गया।"
+  },
+  verificationSubmitting: { en: "Submitting...", hi: "जमा हो रहा है..." },
+  verificationSelectFile: { en: "Select file", hi: "फ़ाइल चुनें" },
+  verificationRetryUpload: { en: "Retry", hi: "फिर कोशिश करें" },
+  verificationRemoveFile: { en: "Remove", hi: "हटाएं" },
+  verificationUploadReady: { en: "Ready", hi: "तैयार" },
+  verificationNoFileSelected: { en: "No file selected", hi: "कोई फ़ाइल नहीं चुनी गई" },
+  verificationUploaded: { en: "uploaded", hi: "अपलोड हुआ" },
+  verificationHistoryKicker: { en: "Audit trail", hi: "ऑडिट ट्रेल" },
+  verificationHistoryTitle: { en: "Submission history", hi: "सबमिशन इतिहास" },
+  verificationHistoryVideo: { en: "Video selfie", hi: "वीडियो सेल्फी" },
+  verificationHistoryElectricity: { en: "Electricity bill", hi: "बिजली बिल" },
+  verificationHistoryStatus: { en: "Status", hi: "स्थिति" },
+  verificationHistoryMachineResult: { en: "Machine result", hi: "मशीन परिणाम" },
+  verificationHistoryAddressScore: { en: "Address match score", hi: "पता मैच स्कोर" },
+  verificationHistoryLivenessScore: { en: "Liveness score", hi: "लिवनेस स्कोर" },
+  verificationRetryableProvider: {
+    en: "Provider signaled this attempt may be retried.",
+    hi: "प्रोवाइडर ने बताया कि इस कोशिश को दोबारा किया जा सकता है।"
+  },
+  verificationSubmittedAt: { en: "Submitted", hi: "जमा किया गया" },
+  verificationErrorNetwork: {
+    en: "You're offline or the connection dropped. Check your internet and retry.",
+    hi: "आप ऑफलाइन हैं या कनेक्शन टूट गया है। इंटरनेट जांचें और फिर कोशिश करें।"
+  },
+  verificationErrorLoadListings: {
+    en: "We couldn't load your listings. Please retry.",
+    hi: "हम आपकी लिस्टिंग लोड नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  verificationErrorLoadStatus: {
+    en: "We couldn't load verification status. Please retry.",
+    hi: "हम वेरिफिकेशन स्थिति लोड नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  verificationErrorSubmitVideo: {
+    en: "Video submission failed. Please retry.",
+    hi: "वीडियो सबमिशन विफल रहा। कृपया फिर कोशिश करें।"
+  },
+  verificationErrorSubmitElectricity: {
+    en: "Electricity submission failed. Please retry.",
+    hi: "बिजली वेरिफिकेशन सबमिशन विफल रहा। कृपया फिर कोशिश करें।"
+  },
   adminDashboard: {
     en: "Admin Dashboard",
     hi: "एडमिन डैशबोर्ड"

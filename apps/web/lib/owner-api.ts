@@ -129,6 +129,33 @@ export interface VerificationStatusVm {
   attempts: VerificationAttemptVm[];
 }
 
+export type VerificationArtifactKind = "video_liveness" | "electricity_bill";
+export type VerificationArtifactUploadErrorKind =
+  | "unsupported"
+  | "too_large"
+  | "network"
+  | "expired"
+  | "unauthorized"
+  | "complete_failed";
+
+export class VerificationArtifactUploadError extends Error {
+  readonly kind: VerificationArtifactUploadErrorKind;
+  readonly status?: number;
+  readonly code?: string;
+
+  constructor(
+    kind: VerificationArtifactUploadErrorKind,
+    message: string,
+    input: { status?: number; code?: string } = {}
+  ) {
+    super(message);
+    this.name = "VerificationArtifactUploadError";
+    this.kind = kind;
+    this.status = input.status;
+    this.code = input.code;
+  }
+}
+
 interface OwnerListingApiRow {
   id?: string;
   title?: string;
@@ -519,6 +546,177 @@ export async function completeListingPhotos(
     photoIds: response.photo_ids ?? [],
     acceptedCount: response.accepted_count ?? 0
   };
+}
+
+function verificationArtifactUploadUrl(uploadUrl: string) {
+  if (/^https?:\/\//i.test(uploadUrl)) return uploadUrl;
+  const base = getApiBaseUrl().replace(/\/+$/, "");
+  return `${base}/${uploadUrl.replace(/^\/+/, "")}`;
+}
+
+function verificationUploadErrorKind(status: number): VerificationArtifactUploadErrorKind {
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 413) return "too_large";
+  if (status === 400 || status === 409) return "expired";
+  if (status === 415) return "unsupported";
+  return "complete_failed";
+}
+
+function multipartVerificationUpload(input: {
+  accessToken: string;
+  uploadUrl: string;
+  uploadToken: string;
+  file: File;
+  onProgress?: (percent: number) => void;
+}) {
+  return new Promise<void>((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("upload_token", input.uploadToken);
+    formData.append("file", input.file, input.file.name);
+
+    const request = new XMLHttpRequest();
+    request.open("POST", verificationArtifactUploadUrl(input.uploadUrl));
+    request.setRequestHeader("Authorization", `Bearer ${input.accessToken}`);
+
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable || event.total <= 0) return;
+      const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      input.onProgress?.(percent);
+    };
+    request.onerror = () => {
+      reject(
+        new VerificationArtifactUploadError("network", "Verification artifact upload interrupted")
+      );
+    };
+    request.onabort = () => {
+      reject(
+        new VerificationArtifactUploadError("network", "Verification artifact upload interrupted")
+      );
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        input.onProgress?.(100);
+        resolve();
+        return;
+      }
+      reject(
+        new VerificationArtifactUploadError(
+          verificationUploadErrorKind(request.status),
+          "Verification artifact upload failed",
+          { status: request.status }
+        )
+      );
+    };
+    request.send(formData);
+  });
+}
+
+function verificationArtifactKindFromApiError(
+  error: ApiError
+): VerificationArtifactUploadErrorKind {
+  if (error.status === 401 || error.status === 403) return "unauthorized";
+  if (error.status === 413 || error.code === "invalid_file_size") return "too_large";
+  if (error.code === "invalid_content_type" || error.code === "invalid_artifact_kind") {
+    return "unsupported";
+  }
+  if (
+    error.code === "upload_token_expired" ||
+    error.code === "upload_token_consumed" ||
+    error.code === "upload_token_invalid"
+  ) {
+    return "expired";
+  }
+  return "complete_failed";
+}
+
+function verificationArtifactErrorKind(error: unknown): VerificationArtifactUploadErrorKind {
+  if (error instanceof VerificationArtifactUploadError) return error.kind;
+  if (error instanceof ApiError) return verificationArtifactKindFromApiError(error);
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : typeof error === "string" ? error : "";
+  if (message.includes("failed to fetch") || message.includes("network")) return "network";
+  return "complete_failed";
+}
+
+export function friendlyVerificationArtifactUploadError(
+  error: unknown,
+  locale: "en" | "hi" = "en"
+) {
+  const kind = verificationArtifactErrorKind(error);
+  const copy: Record<VerificationArtifactUploadErrorKind, { en: string; hi: string }> = {
+    unsupported: {
+      en: "Choose a supported verification file.",
+      hi: "समर्थित वेरिफिकेशन फ़ाइल चुनें।"
+    },
+    too_large: {
+      en: "This file is too large. Choose a smaller file.",
+      hi: "यह फ़ाइल बहुत बड़ी है। छोटी फ़ाइल चुनें।"
+    },
+    network: {
+      en: "The upload was interrupted. Check your connection, then retry.",
+      hi: "अपलोड रुक गया। अपना इंटरनेट जांचें, फिर दोबारा कोशिश करें।"
+    },
+    expired: {
+      en: "The upload expired. Select the file again, then retry.",
+      hi: "अपलोड की समय-सीमा खत्म हो गई। फ़ाइल फिर से चुनें, फिर कोशिश करें।"
+    },
+    unauthorized: {
+      en: "Your session expired. Sign in again, then retry.",
+      hi: "आपका सेशन खत्म हो गया है। फिर से साइन इन करें और कोशिश करें।"
+    },
+    complete_failed: {
+      en: "We couldn't complete the upload. The file is still selected, so you can retry.",
+      hi: "हम अपलोड पूरा नहीं कर सके। फ़ाइल चुनी हुई है, इसलिए आप दोबारा कोशिश कर सकते हैं।"
+    }
+  };
+  return copy[kind][locale];
+}
+
+export async function uploadVerificationArtifact(
+  accessToken: string,
+  input: {
+    listingId: string;
+    kind: VerificationArtifactKind;
+    file: File;
+    onProgress?: (percent: number) => void;
+  }
+): Promise<{ blobPath: string }> {
+  const presign = await fetchApi<{
+    upload_token: string;
+    upload_url: string;
+    blob_path: string;
+    expires_at: string;
+  }>("/owner/verification/artifacts/presign", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({
+      listing_id: input.listingId,
+      kind: input.kind,
+      content_type: input.file.type || "application/octet-stream",
+      size_bytes: input.file.size,
+      file_name: input.file.name || "verification-artifact"
+    })
+  });
+
+  await multipartVerificationUpload({
+    accessToken,
+    uploadUrl: presign.upload_url,
+    uploadToken: presign.upload_token,
+    file: input.file,
+    onProgress: input.onProgress
+  });
+
+  const complete = await fetchApi<{ blob_path: string }>("/owner/verification/artifacts/complete", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({
+      listing_id: input.listingId,
+      upload_token: presign.upload_token,
+      blob_path: presign.blob_path
+    })
+  });
+
+  return { blobPath: complete.blob_path ?? presign.blob_path };
 }
 
 export async function submitVideoVerification(
