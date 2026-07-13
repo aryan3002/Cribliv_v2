@@ -320,6 +320,27 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
     expect(property.rows[0].layout_status).toBe("ready");
   });
 
+  it("rejects room types that do not belong to the target property", async () => {
+    const target = await createFixture();
+    const other = await createFixture();
+
+    await expect(
+      layout.putLayout(operatorId, target.propertyId, {
+        rooms: [roomInput("101", 1, ["vacant"], other.roomTypes.single)]
+      })
+    ).rejects.toMatchObject({ response: { code: "invalid_room_type" } });
+
+    const persisted = await db.query<{ layout_status: string; room_count: string }>(
+      `SELECT p.layout_status, count(r.id)::text AS room_count
+         FROM pg_properties p
+         LEFT JOIN pg_rooms r ON r.pg_property_id = p.id
+        WHERE p.id = $1::uuid
+        GROUP BY p.id`,
+      [target.propertyId]
+    );
+    expect(persisted.rows[0]).toEqual({ layout_status: "needs_setup", room_count: "0" });
+  });
+
   it("hard-deletes a removed history-free bed", async () => {
     const fixture = await createFixture();
     await layout.putLayout(operatorId, fixture.propertyId, {
@@ -357,6 +378,60 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
 
     const persisted = await getBed(fixture.propertyId, "101", "B");
     expect(persisted).toMatchObject({ id: removedBed.id, status: "inactive" });
+  });
+
+  it("returns only editable inventory after historical beds and rooms are retired", async () => {
+    const fixture = await createFixture();
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [
+        roomInput("101", 1, ["vacant", "vacant"], fixture.roomTypes.double),
+        roomInput("102", 1, ["vacant"], fixture.roomTypes.single)
+      ]
+    });
+    const retiredBed = await getBed(fixture.propertyId, "101", "B");
+    const retiredRoomBed = await getBed(fixture.propertyId, "102", "A");
+    await db.query(
+      `INSERT INTO pg_bed_assignments
+         (pg_property_id, bed_id, occupant_name, occupant_phone_e164, status, move_out_date)
+       VALUES
+         ($1::uuid, $2::uuid, 'Past occupant', '+919999900004', 'moved_out', CURRENT_DATE),
+         ($1::uuid, $3::uuid, 'Past occupant', '+919999900005', 'moved_out', CURRENT_DATE)`,
+      [fixture.propertyId, retiredBed.id, retiredRoomBed.id]
+    );
+
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant"], fixture.roomTypes.double)]
+    });
+
+    const editable = await layout.getLayout(operatorId, fixture.propertyId);
+    expect(
+      editable.map((room) => ({
+        room_number: room.room_number,
+        bed_count: room.bed_count,
+        beds: room.beds.map((bed) => ({ bed_label: bed.bed_label, status: bed.status }))
+      }))
+    ).toEqual([
+      {
+        room_number: "101",
+        bed_count: 1,
+        beds: [{ bed_label: "A", status: "vacant" }]
+      }
+    ]);
+
+    await expect(
+      layout.putLayout(operatorId, fixture.propertyId, { rooms: editable })
+    ).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ room_number: "101", status: "active" })])
+    );
+    const retired = await db.query<{ room_status: string; bed_status: string }>(
+      `SELECT r.status AS room_status, b.status::text AS bed_status
+         FROM pg_rooms r
+         JOIN pg_beds b ON b.room_id = r.id
+        WHERE r.pg_property_id = $1::uuid
+          AND r.room_number = '102'`,
+      [fixture.propertyId]
+    );
+    expect(retired.rows[0]).toEqual({ room_status: "inactive", bed_status: "inactive" });
   });
 
   it("aggregates occupancy, floors, availability, and upcoming moves in SQL", async () => {
@@ -430,6 +505,32 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
         occupant_name: "Departing resident"
       })
     ]);
+  });
+
+  it("excludes upcoming moves when the assignment property does not match the bed room", async () => {
+    const target = await createFixture();
+    const other = await createFixture();
+    await layout.putLayout(operatorId, other.propertyId, {
+      rooms: [roomInput("101", 1, ["reserved", "occupied"], other.roomTypes.double)]
+    });
+    const reserved = await getBed(other.propertyId, "101", "A");
+    const occupied = await getBed(other.propertyId, "101", "B");
+    await db.query(
+      `INSERT INTO pg_bed_assignments
+         (pg_property_id, bed_id, occupant_name, occupant_phone_e164, status,
+          expected_move_in_date, notice_end_date)
+       VALUES
+         ($1::uuid, $2::uuid, 'Wrong property move in', '+919999900006', 'reserved',
+          '2099-03-01', NULL),
+         ($1::uuid, $3::uuid, 'Wrong property move out', '+919999900007', 'notice_served',
+          NULL, '2099-04-01')`,
+      [target.propertyId, reserved.id, occupied.id]
+    );
+
+    const summary = await occupancy.summary(operatorId, target.propertyId);
+
+    expect(summary.upcoming_move_ins).toEqual([]);
+    expect(summary.upcoming_move_outs).toEqual([]);
   });
 
   it("returns 403 from every property-scoped ops route when management is disabled", async () => {

@@ -214,6 +214,7 @@ export class PgLayoutService {
               display_label, bed_count, status, created_at, updated_at
          FROM pg_rooms
         WHERE pg_property_id = $1::uuid
+          AND status = 'active'
         ORDER BY floor ASC NULLS LAST, room_number ASC`,
       [propertyId]
     );
@@ -225,6 +226,8 @@ export class PgLayoutService {
          FROM pg_beds b
          JOIN pg_rooms r ON r.id = b.room_id
         WHERE r.pg_property_id = $1::uuid
+          AND r.status = 'active'
+          AND b.status <> 'inactive'
         ORDER BY r.floor ASC NULLS LAST, r.room_number ASC,
                  b.sort_order ASC NULLS LAST, b.bed_label ASC`,
       [propertyId]
@@ -276,6 +279,33 @@ export class PgLayoutService {
     }
   }
 
+  private async validateRoomTypes(
+    client: PoolClient,
+    propertyId: string,
+    draft: PgLayoutPutInput
+  ): Promise<void> {
+    const roomTypeIds = [
+      ...new Set(
+        draft.rooms
+          .map((room) => room.room_type_id)
+          .filter((roomTypeId): roomTypeId is string => roomTypeId !== null)
+      )
+    ];
+    if (roomTypeIds.length === 0) return;
+
+    const result = await client.query<{ id: string }>(
+      `SELECT rt.id::text
+         FROM pg_room_types rt
+         JOIN pg_listings l ON l.id = rt.listing_id
+        WHERE l.pg_property_id = $1::uuid
+          AND rt.id = ANY($2::uuid[])`,
+      [propertyId, roomTypeIds]
+    );
+    if (result.rows.length !== roomTypeIds.length) {
+      throw new BadRequestException({ code: "invalid_room_type" });
+    }
+  }
+
   private async retireOrDeleteBeds(client: PoolClient, bedIds: string[]): Promise<void> {
     if (bedIds.length === 0) return;
     await client.query(
@@ -305,6 +335,7 @@ export class PgLayoutService {
       await client.query("BEGIN");
       await this.assertManagedOwnership(operatorId, propertyId, client);
       this.validateDraft(draft);
+      await this.validateRoomTypes(client, propertyId, draft);
 
       const existingRooms = await client.query<{ id: string; room_number: string }>(
         `SELECT id::text, room_number

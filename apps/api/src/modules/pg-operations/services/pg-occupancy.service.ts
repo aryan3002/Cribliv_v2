@@ -269,6 +269,7 @@ export class PgOccupancyService {
          JOIN pg_beds b ON b.id = a.bed_id
          JOIN pg_rooms r ON r.id = b.room_id
         WHERE a.pg_property_id = $1::uuid
+          AND r.pg_property_id = $1::uuid
           AND ($2::smallint IS NULL OR r.floor = $2::smallint)
           AND a.status = 'reserved'
           AND a.expected_move_in_date >= CURRENT_DATE
@@ -289,6 +290,7 @@ export class PgOccupancyService {
          JOIN pg_beds b ON b.id = a.bed_id
          JOIN pg_rooms r ON r.id = b.room_id
         WHERE a.pg_property_id = $1::uuid
+          AND r.pg_property_id = $1::uuid
           AND ($2::smallint IS NULL OR r.floor = $2::smallint)
           AND a.status IN ('active','notice_served','move_out_requested','move_out_pending_confirmation')
           AND COALESCE(a.move_out_date, a.notice_end_date) >= CURRENT_DATE
