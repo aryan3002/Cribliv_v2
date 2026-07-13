@@ -51,7 +51,12 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
   const [filter, setFilter] = useState<AdminLeadBoardFilter>("all");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  // Held as its own snapshot (not derived from `data.rows`) so an action that
+  // moves the row out of the current filter/page (e.g. Mark-handled while
+  // viewing "Uncalled") doesn't yank the drawer closed out from under the
+  // admin — see the refetch success handler below, which refreshes this
+  // snapshot's fields when the row is still present but keeps it otherwise.
+  const [selectedRow, setSelectedRow] = useState<AdminLeadBoardRow | null>(null);
   // Bumped after a row/drawer action succeeds to force an immediate re-fetch
   // (optimistic-refetch, not optimistic mutation) without duplicating the
   // fetch effect below.
@@ -82,6 +87,13 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
         setData(res);
         setFeatureDisabled(false);
         onCountChange?.(res.counters.uncalled);
+        // Refresh the open drawer's snapshot with latest fields if the row is
+        // still present on this page; otherwise keep the stale snapshot so
+        // the drawer stays open (the action's toast already confirmed
+        // success — closing here would yank the drawer away mid-workflow).
+        setSelectedRow((prev) =>
+          prev ? (res.rows.find((r) => r.lead_id === prev.lead_id) ?? prev) : prev
+        );
       } catch (err) {
         if (cancelled) return;
         if (err instanceof ApiError && err.code === "feature_disabled") {
@@ -222,8 +234,6 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
     [generatedAt, accessToken, onToast, triggerRefetch]
   );
 
-  const selectedRow = data?.rows.find((r) => r.lead_id === selectedLeadId) ?? null;
-
   if (featureDisabled) {
     return (
       <EmptyState
@@ -285,7 +295,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
           columns={columns}
           rows={data?.rows ?? []}
           rowKey={(r) => r.lead_id}
-          onRowClick={(r) => setSelectedLeadId(r.lead_id)}
+          onRowClick={(r) => setSelectedRow(r)}
           emptyState={loading ? "Loading…" : "No leads match the filters"}
         />
         <div
@@ -322,7 +332,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
 
       <LeadDrawer
         row={selectedRow}
-        onClose={() => setSelectedLeadId(null)}
+        onClose={() => setSelectedRow(null)}
         accessToken={accessToken}
         onToast={onToast}
         onActionDone={triggerRefetch}

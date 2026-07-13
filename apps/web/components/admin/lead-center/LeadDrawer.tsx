@@ -40,10 +40,12 @@ export function LeadRowActions({ row, accessToken, onToast, onDone, compact }: L
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const alreadyCalled = row.called_at != null;
-  // A "free" lead has never been unlocked (no linked contact_unlock at all),
-  // so a refund would always 409 with no_unlock — keep the button disabled
-  // rather than let an admin fire an action that can never succeed.
-  const refundAvailable = row.refund_state === "pending" && row.access_state !== "free";
+  // access_state === "free" only means the owner's first-two-free-leads
+  // quota hasn't been used — it says nothing about whether a refundable
+  // contact_unlock exists, so it must NOT gate refund availability here.
+  // The real no-unlock case is caught at click time by the backend's
+  // `no_unlock` 409 handler below.
+  const refundAvailable = row.refund_state === "pending";
   const sizeClass = compact ? " admin-btn--icon admin-btn--sm" : "";
 
   async function handleMarkCalled(e: MouseEvent) {
@@ -156,9 +158,7 @@ export function LeadRowActions({ row, accessToken, onToast, onDone, compact }: L
         aria-label={compact ? "Refund" : undefined}
         title={
           !refundAvailable
-            ? row.access_state === "free"
-              ? "No unlock to refund yet"
-              : `Refund unavailable (${row.refund_state})`
+            ? `Refund unavailable (${row.refund_state})`
             : compact
               ? "Refund"
               : undefined
