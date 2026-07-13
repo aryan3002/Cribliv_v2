@@ -36,6 +36,14 @@ type PendingArtifact = {
   completedAtMs?: number;
 };
 
+type CompletedArtifact = {
+  ownerId: string;
+  listingId: string;
+  kind: VerificationArtifactKind;
+  blobPath: string;
+  expiresAtMs: number;
+};
+
 type StoredArtifactBytes = {
   buffer: Buffer;
   contentType: string;
@@ -111,7 +119,8 @@ export class VerificationArtifactStorageService {
   private readonly uploadUrl = "/owner/verification/artifacts/upload";
   private readonly targets = new Map<string, PendingArtifact>();
   private readonly localBytes = new Map<string, StoredArtifactBytes>();
-  private readonly completedKeys = new Set<string>();
+  private readonly completedArtifacts = new Map<string, CompletedArtifact>();
+  private readonly consumedTokens = new Map<string, number>();
   private readonly containerName =
     process.env.AZURE_STORAGE_CONTAINER_VERIFICATION_ARTIFACTS?.trim() || "verification-artifacts";
   private readonly blobServiceClient: BlobServiceClient | null;
@@ -154,6 +163,7 @@ export class VerificationArtifactStorageService {
     sizeBytes: number;
     fileName: string;
   }): Promise<VerificationArtifactTarget> {
+    this.sweepExpired();
     this.assertKind(input.kind);
     await this.assertListingOwner(input.ownerId, input.listingId);
     const contentType = this.validateContentType(input.kind, input.contentType);
@@ -185,7 +195,17 @@ export class VerificationArtifactStorageService {
     uploadToken: string;
     file: Express.Multer.File;
   }): Promise<{ blobPath: string }> {
+    this.sweepExpired(input.uploadToken);
     const target = this.getUsableTarget(input.uploadToken, input.ownerId);
+    await this.assertListingOwner(target.ownerId, target.listingId);
+
+    if (target.uploadedAtMs) {
+      throw new BadRequestException({
+        code: "artifact_already_uploaded",
+        message: "Artifact has already been uploaded for this token"
+      });
+    }
+
     if (!input.file) {
       throw new BadRequestException({ code: "file_required", message: "file is required" });
     }
@@ -214,6 +234,7 @@ export class VerificationArtifactStorageService {
       });
     }
 
+    this.validateFileSignature(target.contentType, buffer);
     await this.storeBytes(target, buffer);
     target.uploadedAtMs = Date.now();
     return { blobPath: target.blobPath };
@@ -225,7 +246,9 @@ export class VerificationArtifactStorageService {
     uploadToken: string;
     blobPath: string;
   }): Promise<{ blobPath: string }> {
+    this.sweepExpired(input.uploadToken);
     const target = this.getUsableTarget(input.uploadToken, input.ownerId);
+    await this.assertListingOwner(target.ownerId, target.listingId);
     const blobPath = normalizeBlobPath(input.blobPath);
     this.assertListingScopedBlobPath(input.listingId, target.kind, blobPath);
 
@@ -236,6 +259,13 @@ export class VerificationArtifactStorageService {
       });
     }
 
+    if (target.completedAtMs) {
+      throw new BadRequestException({
+        code: "artifact_already_completed",
+        message: "Artifact has already been completed"
+      });
+    }
+
     if (!target.uploadedAtMs) {
       throw new BadRequestException({
         code: "artifact_not_uploaded",
@@ -243,10 +273,25 @@ export class VerificationArtifactStorageService {
       });
     }
 
+    const completedKey = this.completedKey(input.ownerId, input.listingId, target.kind, blobPath);
+    if (this.completedArtifacts.has(completedKey)) {
+      throw new BadRequestException({
+        code: "artifact_already_completed",
+        message: "Artifact has already been completed"
+      });
+    }
+
     target.completedAtMs = Date.now();
-    this.completedKeys.add(
-      this.completedKey(input.ownerId, input.listingId, target.kind, blobPath)
-    );
+    this.completedArtifacts.set(completedKey, {
+      ownerId: input.ownerId,
+      listingId: input.listingId,
+      kind: target.kind,
+      blobPath,
+      expiresAtMs: target.expiresAtMs
+    });
+    this.localBytes.delete(target.blobPath);
+    this.targets.delete(input.uploadToken);
+    this.consumedTokens.set(input.uploadToken, target.expiresAtMs);
     return { blobPath };
   }
 
@@ -256,13 +301,14 @@ export class VerificationArtifactStorageService {
     kind: VerificationArtifactKind;
     blobPath: string;
   }): Promise<void> {
+    this.sweepExpired();
     this.assertKind(input.kind);
     await this.assertListingOwner(input.ownerId, input.listingId);
     const blobPath = normalizeBlobPath(input.blobPath);
     this.assertListingScopedBlobPath(input.listingId, input.kind, blobPath);
 
     if (
-      !this.completedKeys.has(
+      !this.completedArtifacts.has(
         this.completedKey(input.ownerId, input.listingId, input.kind, blobPath)
       )
     ) {
@@ -316,6 +362,16 @@ export class VerificationArtifactStorageService {
 
     const target = this.targets.get(token);
     if (!target) {
+      const consumedExpiresAtMs = this.consumedTokens.get(token);
+      if (consumedExpiresAtMs !== undefined && Date.now() <= consumedExpiresAtMs) {
+        throw new BadRequestException({
+          code: "upload_token_consumed",
+          message: "upload_token has already been consumed"
+        });
+      }
+      if (consumedExpiresAtMs !== undefined) {
+        this.consumedTokens.delete(token);
+      }
       throw new BadRequestException({
         code: "upload_token_invalid",
         message: "upload_token is invalid"
@@ -324,6 +380,7 @@ export class VerificationArtifactStorageService {
 
     if (Date.now() > target.expiresAtMs) {
       this.targets.delete(token);
+      this.localBytes.delete(target.blobPath);
       throw new BadRequestException({
         code: "upload_token_expired",
         message: "upload_token has expired"
@@ -364,6 +421,7 @@ export class VerificationArtifactStorageService {
   private async storeBytes(target: PendingArtifact, buffer: Buffer) {
     if (this.blobServiceClient) {
       const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+      await containerClient.createIfNotExists();
       const blobClient = containerClient.getBlockBlobClient(target.blobPath);
       await blobClient.uploadData(buffer, {
         blobHTTPHeaders: { blobContentType: target.contentType }
@@ -398,6 +456,68 @@ export class VerificationArtifactStorageService {
     blobPath: string
   ) {
     return JSON.stringify([ownerId, listingId, kind, blobPath]);
+  }
+
+  private sweepExpired(exceptUploadToken?: string) {
+    const now = Date.now();
+    for (const [uploadToken, target] of this.targets.entries()) {
+      if (uploadToken === exceptUploadToken) continue;
+      if (now > target.expiresAtMs) {
+        this.targets.delete(uploadToken);
+        this.localBytes.delete(target.blobPath);
+      }
+    }
+
+    for (const [uploadToken, expiresAtMs] of this.consumedTokens.entries()) {
+      if (uploadToken === exceptUploadToken) continue;
+      if (now > expiresAtMs) {
+        this.consumedTokens.delete(uploadToken);
+      }
+    }
+
+    for (const [key, artifact] of this.completedArtifacts.entries()) {
+      if (now > artifact.expiresAtMs) {
+        this.completedArtifacts.delete(key);
+      }
+    }
+  }
+
+  private validateFileSignature(contentType: string, buffer: Buffer) {
+    const signatureMatches =
+      contentType === "image/jpeg"
+        ? this.startsWithBytes(buffer, [0xff, 0xd8, 0xff])
+        : contentType === "image/png"
+          ? this.startsWithBytes(buffer, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+          : contentType === "image/webp"
+            ? buffer.length >= 12 &&
+              buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+              buffer.subarray(8, 12).toString("ascii") === "WEBP"
+            : contentType === "application/pdf"
+              ? buffer.length >= 5 && buffer.subarray(0, 5).toString("ascii") === "%PDF-"
+              : contentType === "video/mp4" || contentType === "video/quicktime"
+                ? this.hasFtypSignature(buffer)
+                : contentType === "video/webm"
+                  ? this.startsWithBytes(buffer, [0x1a, 0x45, 0xdf, 0xa3])
+                  : false;
+
+    if (!signatureMatches) {
+      throw new BadRequestException({
+        code: "invalid_file_signature",
+        message: "Uploaded artifact bytes do not match the declared content type"
+      });
+    }
+  }
+
+  private startsWithBytes(buffer: Buffer, bytes: number[]) {
+    if (buffer.length < bytes.length) return false;
+    return bytes.every((byte, index) => buffer[index] === byte);
+  }
+
+  private hasFtypSignature(buffer: Buffer) {
+    if (buffer.length < 12) return false;
+    if (buffer.subarray(4, 8).toString("ascii") !== "ftyp") return false;
+    const brand = buffer.subarray(8, 12);
+    return brand.some((byte) => byte !== 0) && brand.toString("ascii").trim().length > 0;
   }
 
   private buildBlobPath(

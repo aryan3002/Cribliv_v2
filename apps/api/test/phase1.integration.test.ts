@@ -88,6 +88,11 @@ async function getFirstListingId(app: INestApplication) {
   return searchRes.body.data.items[0].id as string;
 }
 
+const verificationFixtures = {
+  mp4: Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x14]), Buffer.from("ftypisom")]),
+  pdf: Buffer.from("%PDF-1.7\n")
+};
+
 async function uploadVerificationArtifact(
   app: INestApplication,
   accessToken: string,
@@ -796,7 +801,7 @@ describe("Phase 1 integration flows", () => {
       kind: "video_liveness",
       contentType: "video/mp4",
       fileName: "video-proof.mp4",
-      content: Buffer.from("data")
+      content: verificationFixtures.mp4
     });
 
     const video = await http(app)
@@ -834,7 +839,7 @@ describe("Phase 1 integration flows", () => {
       kind: "electricity_bill",
       contentType: "application/pdf",
       fileName: "bill.pdf",
-      content: Buffer.from("bill")
+      content: verificationFixtures.pdf
     });
 
     const submitted = await http(app)
@@ -893,7 +898,7 @@ describe("Phase 1 integration flows", () => {
       kind: "electricity_bill",
       contentType: "application/pdf",
       fileName: "bill-fail.pdf",
-      content: Buffer.from("bill")
+      content: verificationFixtures.pdf
     });
 
     const submitted = await http(app)
@@ -949,7 +954,7 @@ describe("Phase 1 integration flows", () => {
       kind: "video_liveness",
       contentType: "video/mp4",
       fileName: "video-proof.mp4",
-      content: Buffer.from("data")
+      content: verificationFixtures.mp4
     });
 
     const timeout = await http(app)
