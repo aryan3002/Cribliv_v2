@@ -14,6 +14,13 @@ interface PresignPhotoInput {
   contentType: string;
 }
 
+interface PresignMaintenancePhotoInput {
+  propertyId: string;
+  requestId: string;
+  clientUploadId: string;
+  contentType: string;
+}
+
 interface PresignPhotoOutput {
   uploadUrl: string;
   blobPath: string;
@@ -183,10 +190,55 @@ export class AzureBlobPhotoStorageService {
     };
   }
 
+  createMaintenanceUploadTarget(input: PresignMaintenancePhotoInput): PresignPhotoOutput {
+    const client = this.getBlobServiceClient();
+    const credential = this.getSharedKeyCredential();
+
+    const blobName = this.buildMaintenanceBlobName(
+      input.propertyId,
+      input.requestId,
+      input.clientUploadId,
+      input.contentType
+    );
+    const containerClient = client.getContainerClient(this.containerName);
+    const blobClient = containerClient.getBlockBlobClient(blobName);
+
+    const startsOn = new Date(Date.now() - 5 * 60 * 1000);
+    const expiresOn = new Date(Date.now() + this.sasTtlSeconds * 1000);
+
+    const sasToken = generateBlobSASQueryParameters(
+      {
+        containerName: this.containerName,
+        blobName,
+        permissions: BlobSASPermissions.parse("cw"),
+        protocol: SASProtocol.Https,
+        startsOn,
+        expiresOn,
+        contentType: normalizeMimeType(input.contentType)
+      },
+      credential
+    ).toString();
+
+    return {
+      uploadUrl: `${blobClient.url}?${sasToken}`,
+      blobPath: blobName,
+      expiresAt: expiresOn.toISOString()
+    };
+  }
+
   async validateUploadedBlob(listingId: string, blobPath: string) {
     const client = this.getBlobServiceClient();
     this.assertListingScopedBlobPath(listingId, blobPath);
+    await this.validateBlob(client, blobPath);
+  }
 
+  async validateMaintenanceUploadedBlob(propertyId: string, requestId: string, blobPath: string) {
+    const client = this.getBlobServiceClient();
+    this.assertMaintenanceScopedBlobPath(propertyId, requestId, blobPath);
+    await this.validateBlob(client, blobPath);
+  }
+
+  private async validateBlob(client: BlobServiceClient, blobPath: string) {
     const containerClient = client.getContainerClient(this.containerName);
     const blobClient = containerClient.getBlockBlobClient(blobPath.replace(/^\/+/, ""));
 
@@ -269,6 +321,17 @@ export class AzureBlobPhotoStorageService {
     }
   }
 
+  private assertMaintenanceScopedBlobPath(propertyId: string, requestId: string, blobPath: string) {
+    const normalized = blobPath.replace(/^\/+/, "");
+    const prefix = `pg-maintenance/${propertyId}/${requestId}/`;
+    if (!normalized.startsWith(prefix)) {
+      throw new BadRequestException({
+        code: "invalid_blob_path",
+        message: "blob_path does not belong to this maintenance request"
+      });
+    }
+  }
+
   private buildBlobName(listingId: string, clientUploadId: string, contentType: string) {
     const safeClientId = clientUploadId
       .trim()
@@ -280,5 +343,23 @@ export class AzureBlobPhotoStorageService {
     const extension = inferFileExtension(contentType);
 
     return `${listingId}/${canonicalClientId}-${Date.now()}-${fallbackId}.${extension}`;
+  }
+
+  private buildMaintenanceBlobName(
+    propertyId: string,
+    requestId: string,
+    clientUploadId: string,
+    contentType: string
+  ) {
+    const safeClientId = clientUploadId
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .slice(0, 120);
+
+    const fallbackId = randomUUID().slice(0, 8);
+    const canonicalClientId = safeClientId || `upload-${fallbackId}`;
+    const extension = inferFileExtension(contentType);
+
+    return `pg-maintenance/${propertyId}/${requestId}/${canonicalClientId}-${Date.now()}-${fallbackId}.${extension}`;
   }
 }

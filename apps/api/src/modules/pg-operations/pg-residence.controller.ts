@@ -11,7 +11,9 @@ import {
 } from "@nestjs/common";
 import type {
   PgMaintenanceCommentInput,
+  PgMaintenanceCompletePhotoInput,
   PgMaintenanceCreateInput,
+  PgMaintenancePresignFileInput,
   PgServeNoticeInput
 } from "@cribliv/shared-types";
 
@@ -103,6 +105,42 @@ export class PgResidenceController {
         `tenant:pg-residence:maintenance:${requestId}:comments`,
         key,
         () => this.maintenance.addComment(user.id, requestId, body?.body, body?.attachments)
+      )
+    );
+  }
+
+  @Post("maintenance/:id/photos/presign")
+  async presignMaintenancePhotos(
+    @AuthUser() user: UserContext,
+    @Param("id") requestId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: { files?: PgMaintenancePresignFileInput[] } | undefined
+  ) {
+    const key = requireIdempotencyKey(idempotencyKey);
+    return ok(
+      await (this.idem ?? PASSTHROUGH_IDEMPOTENCY).run(
+        user.id,
+        `tenant:pg-residence:maintenance:${requestId}:photos:presign`,
+        key,
+        () => this.maintenance.presignPhotos(user.id, requestId, body?.files)
+      )
+    );
+  }
+
+  @Post("maintenance/:id/photos/complete")
+  async completeMaintenancePhotos(
+    @AuthUser() user: UserContext,
+    @Param("id") requestId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: { photos?: PgMaintenanceCompletePhotoInput[] } | undefined
+  ) {
+    const key = requireIdempotencyKey(idempotencyKey);
+    return ok(
+      await (this.idem ?? PASSTHROUGH_IDEMPOTENCY).run(
+        user.id,
+        `tenant:pg-residence:maintenance:${requestId}:photos:complete`,
+        key,
+        () => this.maintenance.completeRequestPhotos(user.id, requestId, body?.photos)
       )
     );
   }

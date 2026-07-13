@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { CoreModule } from "../../common/core.module";
 import { GuardsModule } from "../../common/guards.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { AzureBlobPhotoStorageService } from "../owner/azure-blob-photo-storage.service";
 import { PgOperatorModule } from "../pg-operator/pg-operator.module";
 import { PgAssignmentController } from "./pg-assignment.controller";
 import { PgAdminManageController } from "./pg-admin-manage.controller";
@@ -32,7 +33,8 @@ import { PgResidenceService } from "./services/pg-residence.service";
     PgOccupancyService,
     PgBedAssignmentService,
     PgResidenceService,
-    PgMaintenanceService
+    PgMaintenanceService,
+    AzureBlobPhotoStorageService
   ],
   exports: [
     PgManageRequestService,

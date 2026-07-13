@@ -9,6 +9,7 @@ import { AppModule } from "../../../app.module";
 import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
 import type { Role } from "../../../common/types";
+import { AzureBlobPhotoStorageService } from "../../owner/azure-blob-photo-storage.service";
 import { PgBedAssignmentService } from "../services/pg-bed-assignment.service";
 import { PgMaintenanceService } from "../services/pg-maintenance.service";
 
@@ -54,6 +55,7 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
   let db: DatabaseService;
   let maintenance: PgMaintenanceService;
   let assignments: PgBedAssignmentService;
+  let presignCalls: Array<{ propertyId: string; requestId: string; clientUploadId: string }>;
   let cityId: number;
   let operatorId: string;
   let otherOperatorId: string;
@@ -190,6 +192,7 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
   }
 
   beforeAll(async () => {
+    presignCalls = [];
     db = new DatabaseService();
     const city = await db.query<{ id: number }>(
       `INSERT INTO cities (slug, name_en, name_hi, state_en, state_hi)
@@ -227,6 +230,31 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
           return true;
         }
       })
+      .overrideProvider(AzureBlobPhotoStorageService)
+      .useValue({
+        validatePresignRequest: () => undefined,
+        createMaintenanceUploadTarget: (input: {
+          propertyId: string;
+          requestId: string;
+          clientUploadId: string;
+          contentType: string;
+        }) => {
+          presignCalls.push({
+            propertyId: input.propertyId,
+            requestId: input.requestId,
+            clientUploadId: input.clientUploadId
+          });
+          const extension = input.contentType === "image/png" ? "png" : "jpg";
+          const blobPath = `pg-maintenance/${input.propertyId}/${input.requestId}/${input.clientUploadId}.${extension}`;
+          return {
+            uploadUrl: `https://upload.test/${blobPath}`,
+            blobPath,
+            expiresAt: "2099-01-01T00:00:00.000Z"
+          };
+        },
+        validateMaintenanceUploadedBlob: () => Promise.resolve(),
+        getPhotoPublicBaseUrl: () => "https://cdn.test"
+      })
       .compile();
     app = moduleRef.createNestApplication();
     app.setGlobalPrefix("v1");
@@ -236,6 +264,7 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
   }, 30_000);
 
   afterEach(async () => {
+    presignCalls = [];
     const ids = propertyIds.splice(0);
     if (ids.length > 0) {
       await db.query(`DELETE FROM pg_properties WHERE id = ANY($1::uuid[])`, [ids]);
@@ -327,6 +356,101 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
     await expect(
       createTenantTicket(fixture, tenantId, { photo_paths: ["pg-maintenance/property/file.jpg"] })
     ).rejects.toMatchObject({ response: { code: "maintenance_photos_not_supported" } });
+  });
+
+  it("returns room context and supports request and comment photos", async () => {
+    const fixture = await createFixture();
+    const createResponse = await request(app.getHttpServer())
+      .post("/v1/tenant/pg-residence/maintenance")
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({
+        category: "Plumbing",
+        description: "The tap has been leaking since this morning."
+      })
+      .expect(201);
+    const ticketId = createResponse.body.data.id as string;
+
+    expect(createResponse.body.data.location).toMatchObject({
+      property_id: fixture.propertyId,
+      property_name: expect.stringContaining("P5 property"),
+      room_number: expect.stringContaining("P5-"),
+      room_label: "Maintenance room",
+      floor: 1,
+      bed_id: fixture.bedIds[0],
+      bed_label: "A",
+      tenant_name: "P5 Tenant 1",
+      tenant_phone_e164: expect.stringMatching(/^\+918/)
+    });
+
+    const presignResponse = await request(app.getHttpServer())
+      .post(`/v1/tenant/pg-residence/maintenance/${ticketId}/photos/presign`)
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({
+        files: [{ client_upload_id: "tap-proof", content_type: "image/jpeg", size_bytes: 1200 }]
+      })
+      .expect(201);
+    const blobPath = presignResponse.body.data.uploads[0].blob_path as string;
+
+    expect(blobPath).toBe(`pg-maintenance/${fixture.propertyId}/${ticketId}/tap-proof.jpg`);
+    expect(presignCalls).toEqual([
+      { propertyId: fixture.propertyId, requestId: ticketId, clientUploadId: "tap-proof" }
+    ]);
+
+    const photoResponse = await request(app.getHttpServer())
+      .post(`/v1/tenant/pg-residence/maintenance/${ticketId}/photos/complete`)
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({ photos: [{ client_upload_id: "tap-proof", blob_path: blobPath }] })
+      .expect(201);
+
+    expect(photoResponse.body.data).toMatchObject({
+      id: ticketId,
+      photo_paths: [blobPath],
+      photo_urls: [`https://cdn.test/${blobPath}`]
+    });
+
+    const commentPresign = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticketId}/photos/presign`
+      )
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", randomUUID())
+      .send({
+        files: [{ client_upload_id: "repair-proof", content_type: "image/png", size_bytes: 900 }]
+      })
+      .expect(201);
+    const commentBlobPath = commentPresign.body.data.uploads[0].blob_path as string;
+
+    const commentResponse = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticketId}/comments`)
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", randomUUID())
+      .send({ body: "", attachments: [commentBlobPath] })
+      .expect(201);
+
+    expect(commentResponse.body.data).toMatchObject({
+      body: "",
+      attachments: [commentBlobPath],
+      attachment_urls: [`https://cdn.test/${commentBlobPath}`]
+    });
+
+    await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticketId}/comments`)
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", randomUUID())
+      .send({
+        body: "",
+        attachments: Array.from(
+          { length: 7 },
+          (_, index) => `pg-maintenance/${fixture.propertyId}/${ticketId}/overflow-${index}.jpg`
+        )
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ code: "too_many_maintenance_attachments" });
+      });
   });
 
   it("replays maintenance create and comment idempotency keys", async () => {

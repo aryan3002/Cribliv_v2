@@ -9,8 +9,11 @@ import type {
   PgLayoutRoomCountInput,
   PgMaintenanceComment,
   PgMaintenanceCommentInput,
+  PgMaintenanceCompletePhotoInput,
   PgMaintenanceCreateInput,
   PgMaintenanceListFilters,
+  PgMaintenancePresignFileInput,
+  PgMaintenancePresignResponse,
   PgMaintenanceRequest,
   PgMaintenanceStatus,
   PgManageRequest,
@@ -30,6 +33,28 @@ export type AdminPgManageRequest = PgManageRequest & {
   listing_title: string;
   operator_name: string | null;
   operator_phone: string | null;
+};
+
+export type MaintenancePhotoUploadFile = {
+  clientUploadId: string;
+  contentType: string;
+  sizeBytes: number;
+};
+
+export type MaintenancePhotoCompleteInput = {
+  clientUploadId: string;
+  blobPath: string;
+};
+
+export type MaintenancePhotoUploadTarget = {
+  clientUploadId: string;
+  uploadUrl: string;
+  blobPath: string;
+  expiresAt: string;
+};
+
+export type MaintenancePhotoPresignResult = {
+  uploads: MaintenancePhotoUploadTarget[];
 };
 
 function authHeaders(token?: string): Record<string, string> {
@@ -65,6 +90,36 @@ function maintenanceQuery(filters: Pick<PgMaintenanceListFilters, "status"> = {}
   if (filters.status) query.set("status", filters.status);
   const value = query.toString();
   return value ? `?${value}` : "";
+}
+
+function toPresignFiles(files: MaintenancePhotoUploadFile[]): PgMaintenancePresignFileInput[] {
+  return files.map((file) => ({
+    client_upload_id: file.clientUploadId,
+    content_type: file.contentType,
+    size_bytes: file.sizeBytes
+  }));
+}
+
+function toCompletePhotos(
+  photos: MaintenancePhotoCompleteInput[]
+): PgMaintenanceCompletePhotoInput[] {
+  return photos.map((photo) => ({
+    client_upload_id: photo.clientUploadId,
+    blob_path: photo.blobPath
+  }));
+}
+
+function fromPresignResponse(
+  response: PgMaintenancePresignResponse
+): MaintenancePhotoPresignResult {
+  return {
+    uploads: response.uploads.map((upload) => ({
+      clientUploadId: upload.client_upload_id,
+      uploadUrl: upload.upload_url,
+      blobPath: upload.blob_path,
+      expiresAt: upload.expires_at
+    }))
+  };
 }
 
 export function listManagedProperties(token?: string) {
@@ -210,6 +265,49 @@ export function addMaintenanceComment(
         "Idempotency-Key": idempotencyKey
       },
       body: JSON.stringify(body)
+    }
+  );
+}
+
+export async function presignMaintenancePhotos(
+  propertyId: string,
+  requestId: string,
+  files: MaintenancePhotoUploadFile[],
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  const response = await fetchApi<PgMaintenancePresignResponse>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}/photos/presign`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify({ files: toPresignFiles(files) })
+    }
+  );
+  return fromPresignResponse(response);
+}
+
+export function completeMaintenancePhotos(
+  propertyId: string,
+  requestId: string,
+  photos: MaintenancePhotoCompleteInput[],
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceRequest>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}/photos/complete`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify({ photos: toCompletePhotos(photos) })
     }
   );
 }
@@ -377,6 +475,47 @@ export function addResidenceMaintenanceComment(
     },
     body: JSON.stringify(body)
   });
+}
+
+export async function presignResidenceMaintenancePhotos(
+  requestId: string,
+  files: MaintenancePhotoUploadFile[],
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  const response = await fetchApi<PgMaintenancePresignResponse>(
+    `/tenant/pg-residence/maintenance/${requestId}/photos/presign`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify({ files: toPresignFiles(files) })
+    }
+  );
+  return fromPresignResponse(response);
+}
+
+export function completeResidenceMaintenancePhotos(
+  requestId: string,
+  photos: MaintenancePhotoCompleteInput[],
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceRequest>(
+    `/tenant/pg-residence/maintenance/${requestId}/photos/complete`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify({ photos: toCompletePhotos(photos) })
+    }
+  );
 }
 
 export function serveTenantNotice(token?: string, body: Partial<PgServeNoticeInput> = {}) {

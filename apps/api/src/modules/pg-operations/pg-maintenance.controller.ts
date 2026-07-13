@@ -11,7 +11,11 @@ import {
   Query,
   UseGuards
 } from "@nestjs/common";
-import type { PgMaintenanceCommentInput } from "@cribliv/shared-types";
+import type {
+  PgMaintenanceCommentInput,
+  PgMaintenanceCompletePhotoInput,
+  PgMaintenancePresignFileInput
+} from "@cribliv/shared-types";
 
 import { AuthGuard } from "../../common/auth.guard";
 import { AuthUser } from "../../common/auth-user.decorator";
@@ -76,6 +80,44 @@ export class PgMaintenanceController {
         key,
         () =>
           this.maintenance.addComment(user.id, requestId, body?.body, body?.attachments, propertyId)
+      )
+    );
+  }
+
+  @Post(":propertyId/maintenance/:id/photos/presign")
+  async presignPhotos(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") requestId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: { files?: PgMaintenancePresignFileInput[] } | undefined
+  ) {
+    const key = requireIdempotencyKey(idempotencyKey);
+    return ok(
+      await (this.idem ?? PASSTHROUGH_IDEMPOTENCY).run(
+        user.id,
+        `pg-operator:properties:${propertyId}:maintenance:${requestId}:photos:presign`,
+        key,
+        () => this.maintenance.presignPhotos(user.id, requestId, body?.files, propertyId)
+      )
+    );
+  }
+
+  @Post(":propertyId/maintenance/:id/photos/complete")
+  async completePhotos(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") requestId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: { photos?: PgMaintenanceCompletePhotoInput[] } | undefined
+  ) {
+    const key = requireIdempotencyKey(idempotencyKey);
+    return ok(
+      await (this.idem ?? PASSTHROUGH_IDEMPOTENCY).run(
+        user.id,
+        `pg-operator:properties:${propertyId}:maintenance:${requestId}:photos:complete`,
+        key,
+        () => this.maintenance.completeRequestPhotos(user.id, requestId, body?.photos, propertyId)
       )
     );
   }

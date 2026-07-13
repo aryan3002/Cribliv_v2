@@ -7,6 +7,8 @@ vi.mock("../api", () => ({ fetchApi }));
 import {
   addMaintenanceComment,
   addResidenceMaintenanceComment,
+  completeMaintenancePhotos,
+  completeResidenceMaintenancePhotos,
   confirmAssignmentMoveOut,
   createResidenceMaintenance,
   getOperatorBedDetail,
@@ -26,6 +28,8 @@ import {
   acceptTenantOperatorMoveOut,
   rejectTenantOperatorMoveOut,
   requestTenantMoveOut,
+  presignMaintenancePhotos,
+  presignResidenceMaintenancePhotos,
   updateMaintenanceStatus,
   updateBedStatus
 } from "../pg-operations-api";
@@ -180,6 +184,8 @@ describe("pg operations API client", () => {
   });
 
   it("sends maintenance reads and mutations to their scoped endpoints", () => {
+    fetchApi.mockResolvedValue({ uploads: [] });
+
     listPropertyMaintenance("property-1", "token-1", { status: "open" });
     listBedMaintenance("property-1", "bed-1", "token-1");
     updateMaintenanceStatus("property-1", "ticket-1", "in_progress", "token-1");
@@ -191,6 +197,32 @@ describe("pg operations API client", () => {
       "idem-2"
     );
     addResidenceMaintenanceComment("ticket-1", { body: "Thank you" }, "token-1", "idem-3");
+    presignResidenceMaintenancePhotos(
+      "ticket-1",
+      [{ clientUploadId: "photo-1", contentType: "image/jpeg", sizeBytes: 1200 }],
+      "token-1",
+      "idem-4"
+    );
+    completeResidenceMaintenancePhotos(
+      "ticket-1",
+      [{ clientUploadId: "photo-1", blobPath: "pg-maintenance/property-1/ticket-1/photo-1.jpg" }],
+      "token-1",
+      "idem-5"
+    );
+    presignMaintenancePhotos(
+      "property-1",
+      "ticket-1",
+      [{ clientUploadId: "photo-2", contentType: "image/png", sizeBytes: 900 }],
+      "token-1",
+      "idem-6"
+    );
+    completeMaintenancePhotos(
+      "property-1",
+      "ticket-1",
+      [{ clientUploadId: "photo-2", blobPath: "pg-maintenance/property-1/ticket-1/photo-2.png" }],
+      "token-1",
+      "idem-7"
+    );
 
     expect(fetchApi).toHaveBeenNthCalledWith(
       1,
@@ -244,6 +276,60 @@ describe("pg operations API client", () => {
         method: "POST",
         headers: expect.objectContaining({ "Idempotency-Key": "idem-3" }),
         body: JSON.stringify({ body: "Thank you" })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      8,
+      "/tenant/pg-residence/maintenance/ticket-1/photos/presign",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-4" }),
+        body: JSON.stringify({
+          files: [{ client_upload_id: "photo-1", content_type: "image/jpeg", size_bytes: 1200 }]
+        })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      9,
+      "/tenant/pg-residence/maintenance/ticket-1/photos/complete",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-5" }),
+        body: JSON.stringify({
+          photos: [
+            {
+              client_upload_id: "photo-1",
+              blob_path: "pg-maintenance/property-1/ticket-1/photo-1.jpg"
+            }
+          ]
+        })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      10,
+      "/pg-operator/properties/property-1/maintenance/ticket-1/photos/presign",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-6" }),
+        body: JSON.stringify({
+          files: [{ client_upload_id: "photo-2", content_type: "image/png", size_bytes: 900 }]
+        })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      11,
+      "/pg-operator/properties/property-1/maintenance/ticket-1/photos/complete",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-7" }),
+        body: JSON.stringify({
+          photos: [
+            {
+              client_upload_id: "photo-2",
+              blob_path: "pg-maintenance/property-1/ticket-1/photo-2.png"
+            }
+          ]
+        })
       })
     );
   });

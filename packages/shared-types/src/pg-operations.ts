@@ -237,7 +237,21 @@ export interface PgMaintenanceComment {
   author_role: "tenant" | "pg_operator" | "admin";
   body: string;
   attachments: string[];
+  attachment_urls: string[];
   created_at: string;
+}
+
+export interface PgMaintenanceLocation {
+  property_id: string;
+  property_name: string | null;
+  room_id: string | null;
+  room_number: string | null;
+  room_label: string | null;
+  floor: number | null;
+  bed_id: string | null;
+  bed_label: string | null;
+  tenant_name: string | null;
+  tenant_phone_e164: string | null;
 }
 
 export interface PgMaintenanceRequest {
@@ -248,12 +262,14 @@ export interface PgMaintenanceRequest {
   category: string;
   description: string;
   photo_paths: string[];
+  photo_urls: string[];
   status: PgMaintenanceStatus;
   priority: string | null;
   closed_at: string | null;
   created_at: string;
   updated_at: string;
   comments: PgMaintenanceComment[];
+  location: PgMaintenanceLocation | null;
 }
 
 export interface PgMaintenanceSummary {
@@ -275,6 +291,28 @@ export interface PgMaintenanceCommentInput {
 
 export interface PgMaintenanceListFilters {
   status?: PgMaintenanceStatus;
+}
+
+export interface PgMaintenancePresignFileInput {
+  client_upload_id: string;
+  content_type: string;
+  size_bytes: number;
+}
+
+export interface PgMaintenancePresignUpload {
+  client_upload_id: string;
+  upload_url: string;
+  blob_path: string;
+  expires_at: string;
+}
+
+export interface PgMaintenancePresignResponse {
+  uploads: PgMaintenancePresignUpload[];
+}
+
+export interface PgMaintenanceCompletePhotoInput {
+  client_upload_id: string;
+  blob_path: string;
 }
 
 export interface PgOccupancyFloorRollup {
