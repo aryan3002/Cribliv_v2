@@ -1,0 +1,209 @@
+.ows {
+  min-height: 100dvh;
+  background: #f6f8fb;
+  color: #152033;
+}
+
+.ows__desktop-nav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  min-height: 72px;
+  padding: 0 32px;
+  border-bottom: 1px solid rgba(126, 142, 164, 0.22);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px);
+}
+
+.ows__brand,
+.ows__mobile-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #14213d;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ows__brand-mark {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: #0057d8;
+  color: #fff;
+  font-weight: 800;
+}
+
+.ows-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ows-nav__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 13px;
+  border-radius: 8px;
+  color: #4d5c73;
+  font-size: 0.91rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  text-decoration: none;
+}
+
+.ows-nav__link:hover,
+.ows-nav__link--active {
+  background: #eaf1ff;
+  color: #0057d8;
+}
+
+.ows-account {
+  position: relative;
+}
+
+.ows-account summary {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(126, 142, 164, 0.28);
+  border-radius: 8px;
+  background: #fff;
+  color: #26354f;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.ows-account summary::-webkit-details-marker {
+  display: none;
+}
+
+.ows-account[open] summary {
+  border-color: rgba(0, 87, 216, 0.32);
+}
+
+.ows-account a {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  display: inline-flex;
+  min-width: 190px;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(126, 142, 164, 0.22);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(21, 32, 51, 0.16);
+  color: #26354f;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.ows__mobile-header {
+  display: none;
+}
+
+.ows__mobile-nav {
+  display: none;
+}
+
+.ows__content {
+  min-height: calc(100dvh - 72px);
+}
+
+@media (max-width: 767px) {
+  .ows__desktop-nav {
+    display: none;
+  }
+
+  .ows__mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    display: flex;
+    min-height: 56px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid rgba(126, 142, 164, 0.22);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(18px);
+  }
+
+  .ows__brand-mark {
+    width: 30px;
+    height: 30px;
+  }
+
+  .ows__mobile-account {
+    display: inline-grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 1px solid rgba(126, 142, 164, 0.28);
+    border-radius: 8px;
+    background: #fff;
+    color: #26354f;
+  }
+
+  .ows__mobile-nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 70;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: 64px;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid rgba(126, 142, 164, 0.24);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 -12px 32px rgba(21, 32, 51, 0.12);
+  }
+
+  .ows__mobile-nav.ows-nav {
+    gap: 0;
+  }
+
+  .ows-nav__link--compact {
+    min-width: 0;
+    min-height: 64px;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 3px;
+    border-radius: 0;
+    font-size: clamp(0.62rem, 2.6vw, 0.72rem);
+    line-height: 1.05;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .ows-nav__link--compact span {
+    display: block;
+    max-width: 100%;
+  }
+
+  .ows__content {
+    min-height: calc(100dvh - 56px);
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  .ows[data-focus-flow="true"] .ows__content {
+    padding-bottom: 0;
+  }
+}
