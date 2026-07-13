@@ -375,7 +375,6 @@ export class PgOccupancyService {
       throw new BadRequestException({ code: "invalid_bed_status" });
     }
 
-    // TODO(phase-3): reject manual transitions while an active assignment exists.
     const result = await this.db.query<BedRow>(
       `UPDATE pg_beds b
           SET status = $3::pg_bed_status
@@ -383,12 +382,27 @@ export class PgOccupancyService {
         WHERE b.id = $2::uuid
           AND b.room_id = r.id
           AND r.pg_property_id = $1::uuid
+          AND b.status NOT IN ('reserved'::pg_bed_status, 'occupied'::pg_bed_status)
       RETURNING b.id::text, b.room_id::text, b.bed_label, b.status::text,
                 b.available_from, b.sort_order, b.metadata, b.created_at, b.updated_at`,
       [propertyId, bedId, status]
     );
     if (!result.rows[0]) {
-      throw new NotFoundException({ code: "bed_not_found", message: "Bed not found" });
+      const current = await this.db.query<{ status: PgBedStatus }>(
+        `SELECT b.status::text
+           FROM pg_beds b
+           JOIN pg_rooms r ON r.id = b.room_id
+          WHERE b.id = $2::uuid
+            AND r.pg_property_id = $1::uuid`,
+        [propertyId, bedId]
+      );
+      if (!current.rows[0]) {
+        throw new NotFoundException({ code: "bed_not_found", message: "Bed not found" });
+      }
+      throw new BadRequestException({
+        code: "invalid_bed_status_transition",
+        message: `Cannot manually change a ${current.rows[0].status} bed`
+      });
     }
     return toBed(result.rows[0]);
   }
@@ -397,6 +411,9 @@ export class PgOccupancyService {
     if (!this.db.isEnabled()) throw this.unavailable();
     await this.assertManagedOwnership(operatorId, propertyId);
 
+    // Relist only frees a bed whose availability the operator controls (vacant refresh or
+    // un-block). A reserved/occupied bed holds a live assignment and an inactive bed is retired;
+    // those must go through the assignment or layout flows, never this quick action.
     const result = await this.db.query<BedRow>(
       `UPDATE pg_beds b
           SET status = 'vacant'::pg_bed_status, available_from = CURRENT_DATE
@@ -404,12 +421,29 @@ export class PgOccupancyService {
         WHERE b.id = $2::uuid
           AND b.room_id = r.id
           AND r.pg_property_id = $1::uuid
+          AND b.status NOT IN (
+            'reserved'::pg_bed_status, 'occupied'::pg_bed_status, 'inactive'::pg_bed_status
+          )
       RETURNING b.id::text, b.room_id::text, b.bed_label, b.status::text,
                 b.available_from, b.sort_order, b.metadata, b.created_at, b.updated_at`,
       [propertyId, bedId]
     );
     if (!result.rows[0]) {
-      throw new NotFoundException({ code: "bed_not_found", message: "Bed not found" });
+      const current = await this.db.query<{ status: PgBedStatus }>(
+        `SELECT b.status::text
+           FROM pg_beds b
+           JOIN pg_rooms r ON r.id = b.room_id
+          WHERE b.id = $2::uuid
+            AND r.pg_property_id = $1::uuid`,
+        [propertyId, bedId]
+      );
+      if (!current.rows[0]) {
+        throw new NotFoundException({ code: "bed_not_found", message: "Bed not found" });
+      }
+      throw new BadRequestException({
+        code: "invalid_bed_status_transition",
+        message: `Cannot relist a ${current.rows[0].status} bed`
+      });
     }
     return toBed(result.rows[0]);
   }

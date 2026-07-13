@@ -31,7 +31,7 @@ export default function PgBedChip({
   pending?: boolean;
 }) {
   const isBlocked = bed.status === "blocked";
-  const canAct = bed.status !== "inactive";
+  const canAct = bed.status === "vacant" || bed.status === "blocked";
 
   return (
     <article className={styles.chip} data-status={bed.status}>

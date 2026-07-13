@@ -119,4 +119,23 @@ describe("PgBedGrid", () => {
     expect(screen.getByText("Bed A")).toBeInTheDocument();
     expect(screen.getByText("Bed A").closest('[data-status="inactive"]')).toBeInTheDocument();
   });
+
+  it("hides manual actions for reserved and occupied beds", () => {
+    const assignedRooms: PgRoom[] = [
+      {
+        ...rooms[0],
+        beds: [
+          { ...rooms[0].beds[0], id: "bed-reserved", bed_label: "R", status: "reserved" },
+          { ...rooms[0].beds[1], id: "bed-occupied", bed_label: "O", status: "occupied" }
+        ]
+      }
+    ];
+
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={assignedRooms} />);
+
+    expect(screen.queryByRole("button", { name: "Block Bed R" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Relist Bed R" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Block Bed O" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Relist Bed O" })).not.toBeInTheDocument();
+  });
 });

@@ -421,6 +421,66 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
     });
   });
 
+  it("swaps existing room numbers and bed labels while preserving IDs and history", async () => {
+    const fixture = await createFixture();
+    const original = await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [
+        roomInput("101", 1, ["vacant", "vacant"], fixture.roomTypes.double),
+        roomInput("102", 1, ["vacant", "vacant"], fixture.roomTypes.double)
+      ]
+    });
+    const firstRoom = original.find((room) => room.room_number === "101")!;
+    const secondRoom = original.find((room) => room.room_number === "102")!;
+    const firstBedA = firstRoom.beds.find((bed) => bed.bed_label === "A")!;
+    const firstBedB = firstRoom.beds.find((bed) => bed.bed_label === "B")!;
+    const assignments = await db.query<{ id: string; bed_id: string }>(
+      `INSERT INTO pg_bed_assignments
+         (pg_property_id, bed_id, occupant_name, occupant_phone_e164, status, move_out_date)
+       VALUES
+         ($1::uuid, $2::uuid, 'Past occupant A', '+919999900008', 'moved_out', CURRENT_DATE),
+         ($1::uuid, $3::uuid, 'Past occupant B', '+919999900009', 'moved_out', CURRENT_DATE)
+       RETURNING id::text, bed_id::text`,
+      [fixture.propertyId, firstBedA.id, firstBedB.id]
+    );
+
+    const swapped = await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [
+        {
+          ...firstRoom,
+          room_number: "102",
+          display_label: "Room 102",
+          beds: firstRoom.beds.map((bed) => ({
+            ...bed,
+            bed_label: bed.id === firstBedA.id ? "B" : "A"
+          }))
+        },
+        { ...secondRoom, room_number: "101", display_label: "Room 101" }
+      ]
+    });
+
+    const swappedFirst = swapped.find((room) => room.id === firstRoom.id)!;
+    const swappedSecond = swapped.find((room) => room.id === secondRoom.id)!;
+    expect(swappedFirst.room_number).toBe("102");
+    expect(swappedSecond.room_number).toBe("101");
+    expect(swappedFirst.beds).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: firstBedA.id, bed_label: "B" }),
+        expect.objectContaining({ id: firstBedB.id, bed_label: "A" })
+      ])
+    );
+
+    const persistedAssignments = await db.query<{ id: string; bed_id: string }>(
+      `SELECT id::text, bed_id::text
+         FROM pg_bed_assignments
+        WHERE id = ANY($1::uuid[])
+        ORDER BY id`,
+      [assignments.rows.map((assignment) => assignment.id)]
+    );
+    expect(persistedAssignments.rows).toEqual(
+      assignments.rows.slice().sort((a, b) => a.id.localeCompare(b.id))
+    );
+  });
+
   it("rejects a supplied room ID outside the managed property", async () => {
     const target = await createFixture();
     const other = await createFixture();
@@ -769,6 +829,39 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
     expect(updated.body.data).toMatchObject({ id: bed.id, status: "blocked" });
   });
 
+  it("rejects manual status transitions from reserved and occupied beds", async () => {
+    const fixture = await createFixture();
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [
+        roomInput(
+          "101",
+          1,
+          ["reserved", "reserved", "reserved", "occupied", "occupied", "occupied"],
+          fixture.roomTypes.dorm
+        )
+      ]
+    });
+    const attempts = [
+      { label: "A", source: "reserved", target: "blocked" },
+      { label: "B", source: "reserved", target: "vacant" },
+      { label: "C", source: "reserved", target: "inactive" },
+      { label: "D", source: "occupied", target: "blocked" },
+      { label: "E", source: "occupied", target: "vacant" },
+      { label: "F", source: "occupied", target: "inactive" }
+    ] as const;
+
+    for (const attempt of attempts) {
+      const bed = await getBed(fixture.propertyId, "101", attempt.label);
+      await expect(
+        occupancy.updateBedStatus(operatorId, fixture.propertyId, bed.id, attempt.target)
+      ).rejects.toMatchObject({ response: { code: "invalid_bed_status_transition" } });
+      await expect(getBed(fixture.propertyId, "101", attempt.label)).resolves.toMatchObject({
+        id: bed.id,
+        status: attempt.source
+      });
+    }
+  });
+
   it("round-trips an editable layout after a bed is marked inactive through the status route", async () => {
     const fixture = await createFixture();
     await layout.putLayout(operatorId, fixture.propertyId, {
@@ -827,5 +920,44 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
       [bed.id]
     );
     expect(state.rows[0]).toEqual({ bed_status: "vacant", listing_status: "paused" });
+  });
+
+  it("refuses to relist a reserved, occupied, or inactive bed", async () => {
+    const fixture = await createFixture();
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("101", 1, ["reserved", "occupied", "inactive"], fixture.roomTypes.dorm)]
+    });
+
+    for (const label of ["A", "B", "C"]) {
+      const bed = await getBed(fixture.propertyId, "101", label);
+      const before = bed.status;
+      await expect(
+        occupancy.relistBed(operatorId, fixture.propertyId, bed.id)
+      ).rejects.toMatchObject({ response: { code: "invalid_bed_status_transition" } });
+      await expect(getBed(fixture.propertyId, "101", label)).resolves.toMatchObject({
+        id: bed.id,
+        status: before
+      });
+    }
+  });
+
+  it("refuses to remove an occupied bed from the layout and rolls back", async () => {
+    const fixture = await createFixture();
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant", "occupied"], fixture.roomTypes.double)]
+    });
+    const occupiedBed = await getBed(fixture.propertyId, "101", "B");
+
+    await expect(
+      layout.putLayout(operatorId, fixture.propertyId, {
+        rooms: [roomInput("101", 1, ["vacant"], fixture.roomTypes.double)]
+      })
+    ).rejects.toMatchObject({ response: { code: "bed_occupied_cannot_remove" } });
+
+    // Transaction rolled back: the occupied bed and its status are untouched.
+    await expect(getBed(fixture.propertyId, "101", "B")).resolves.toMatchObject({
+      id: occupiedBed.id,
+      status: "occupied"
+    });
   });
 });

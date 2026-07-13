@@ -44,6 +44,38 @@ function blankRoom(index: number, floor: number, roomTypeId?: string): PgLayoutR
   };
 }
 
+function generatedRoomNumber(floor: number | null | undefined, sequence: number): string {
+  return floor == null
+    ? `R${String(sequence).padStart(3, "0")}`
+    : `${floor}${String(sequence).padStart(2, "0")}`;
+}
+
+function appendGeneratedRooms(
+  current: PgLayoutRoomInput[],
+  generated: PgLayoutRoomInput[]
+): PgLayoutRoomInput[] {
+  const usedNumbers = new Set(current.map((room) => room.room_number.trim()));
+  const additions = generated.map((room) => {
+    const originalNumber = room.room_number.trim();
+    let roomNumber = originalNumber;
+    if (usedNumbers.has(roomNumber)) {
+      let sequence = 1;
+      do {
+        roomNumber = generatedRoomNumber(room.floor, sequence);
+        sequence += 1;
+      } while (usedNumbers.has(roomNumber));
+    }
+    usedNumbers.add(roomNumber);
+    return {
+      ...room,
+      room_number: roomNumber,
+      display_label:
+        room.display_label === `Room ${originalNumber}` ? `Room ${roomNumber}` : room.display_label
+    };
+  });
+  return [...current, ...additions];
+}
+
 export default function PgLayoutBuilder({
   propertyId,
   token,
@@ -144,7 +176,7 @@ export default function PgLayoutBuilder({
         [{ room_type_id: selectedRoomTypeId, count, floor }],
         token
       );
-      setRooms(draft.rooms);
+      setRooms((previous) => appendGeneratedRooms(previous, draft.rooms));
       setMessage(
         `Draft created from ${roomTypeLabel ?? "the selected room type"}. Review it before saving.`
       );

@@ -95,6 +95,17 @@ function bedLabel(index: number): string {
   return label;
 }
 
+function temporaryUniqueValue(prefix: string, id: string, occupied: Set<string>): string {
+  let suffix = 0;
+  let value: string;
+  do {
+    value = `${prefix}${id}${suffix === 0 ? "" : `_${suffix}`}`;
+    suffix += 1;
+  } while (occupied.has(value));
+  occupied.add(value);
+  return value;
+}
+
 @Injectable()
 export class PgLayoutService {
   constructor(@Inject(DatabaseService) private readonly db: DatabaseService) {}
@@ -322,6 +333,22 @@ export class PgLayoutService {
 
   private async retireOrDeleteBeds(client: PoolClient, bedIds: string[]): Promise<void> {
     if (bedIds.length === 0) return;
+    // A reserved/occupied bed holds a live occupant; it cannot be removed or retired from the
+    // layout. The operator must move the occupant out (assignment flow) first. Guarding on bed
+    // status keeps this correct without depending on the assignment state machine.
+    const occupied = await client.query<{ id: string }>(
+      `SELECT id::text FROM pg_beds
+        WHERE id = ANY($1::uuid[])
+          AND status IN ('reserved'::pg_bed_status, 'occupied'::pg_bed_status)
+        LIMIT 1`,
+      [bedIds]
+    );
+    if (occupied.rows[0]) {
+      throw new BadRequestException({
+        code: "bed_occupied_cannot_remove",
+        message: "Move the occupant out before removing this bed"
+      });
+    }
     await client.query(
       `UPDATE pg_beds b
           SET status = 'inactive'::pg_bed_status
@@ -364,13 +391,29 @@ export class PgLayoutService {
       const retainedRoomIds = new Set<string>();
 
       for (const inputRoom of draft.rooms) {
+        if (inputRoom.id && !roomById.has(inputRoom.id)) {
+          throw new BadRequestException({ code: "invalid_room_id" });
+        }
+      }
+      const occupiedRoomNumbers = new Set([
+        ...existingRooms.rows.map((room) => room.room_number),
+        ...draft.rooms.map((room) => room.room_number.trim())
+      ]);
+      for (const inputRoom of draft.rooms) {
+        if (!inputRoom.id) continue;
+        const existingRoom = roomById.get(inputRoom.id)!;
+        if (existingRoom.room_number === inputRoom.room_number.trim()) continue;
+        await client.query(`UPDATE pg_rooms SET room_number = $2 WHERE id = $1::uuid`, [
+          existingRoom.id,
+          temporaryUniqueValue("__layout_room_", existingRoom.id, occupiedRoomNumbers)
+        ]);
+      }
+
+      for (const inputRoom of draft.rooms) {
         const roomNumber = inputRoom.room_number.trim();
         const existingRoom = inputRoom.id
           ? roomById.get(inputRoom.id)
           : roomByNumber.get(roomNumber);
-        if (inputRoom.id && !existingRoom) {
-          throw new BadRequestException({ code: "invalid_room_id" });
-        }
         let roomId: string;
         if (existingRoom) {
           roomId = existingRoom.id;
@@ -416,11 +459,26 @@ export class PgLayoutService {
         const bedByLabel = new Map(existingBeds.rows.map((bed) => [bed.bed_label, bed]));
         const retainedBedIds = new Set<string>();
         for (const inputBed of inputRoom.beds) {
-          const label = inputBed.bed_label.trim();
-          const existingBed = inputBed.id ? bedById.get(inputBed.id) : bedByLabel.get(label);
-          if (inputBed.id && !existingBed) {
+          if (inputBed.id && !bedById.has(inputBed.id)) {
             throw new BadRequestException({ code: "invalid_bed_id" });
           }
+        }
+        const occupiedBedLabels = new Set([
+          ...existingBeds.rows.map((bed) => bed.bed_label),
+          ...inputRoom.beds.map((bed) => bed.bed_label.trim())
+        ]);
+        for (const inputBed of inputRoom.beds) {
+          if (!inputBed.id) continue;
+          const existingBed = bedById.get(inputBed.id)!;
+          if (existingBed.bed_label === inputBed.bed_label.trim()) continue;
+          await client.query(`UPDATE pg_beds SET bed_label = $2 WHERE id = $1::uuid`, [
+            existingBed.id,
+            temporaryUniqueValue("__layout_bed_", existingBed.id, occupiedBedLabels)
+          ]);
+        }
+        for (const inputBed of inputRoom.beds) {
+          const label = inputBed.bed_label.trim();
+          const existingBed = inputBed.id ? bedById.get(inputBed.id) : bedByLabel.get(label);
           if (existingBed) {
             retainedBedIds.add(existingBed.id);
             await client.query(
