@@ -93,8 +93,10 @@ describe("PgListingController (integration)", () => {
     // The publish redirect reads listing_id — it must never be undefined.
     expect(typeof r.body.data.listing_id).toBe("string");
     expect(r.body.data.listing_id.length).toBeGreaterThan(0);
-    // Publish = submit for review → lands in the admin queue (go-live funnel).
-    expect(r.body.data.status).toBe("pending_review");
+    // Create lands the listing as a DRAFT. The wizard uploads photos next, then
+    // calls POST :id/submit to transition draft → pending_review, so a listing
+    // never enters the admin queue without its photos.
+    expect(r.body.data.status).toBe("draft");
   });
 
   it("accepts an explicit per-listing title distinct from the property name", async () => {
@@ -164,7 +166,7 @@ describe("PgListingController — lazy property creation on first publish", () =
       });
     expect(r.status).toBe(201);
     expect(typeof r.body.data.listing_id).toBe("string");
-    expect(r.body.data.status).toBe("pending_review");
+    expect(r.body.data.status).toBe("draft");
   });
 });
 

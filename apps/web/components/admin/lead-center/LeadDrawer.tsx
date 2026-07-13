@@ -194,7 +194,79 @@ const SOURCE_TONE: Record<AdminLeadTimelineEvent["source"], PillTone> = {
 };
 
 function humanizeKind(kind: string): string {
-  return kind.replace(/_/g, " ");
+  return kind.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/* ── Human-readable event lines ──────────────────────────────────────────
+ * The timeline unions three sources (lead_events / contact_events /
+ * admin_actions), so `kind` is a status, an event_type, or an action, and
+ * `detail` is a status, a reason, or a raw metadata JSON blob. Rendering
+ * `detail` verbatim leaked JSON like `owner responded — {"channel":"call"}`
+ * onto an admin surface. describeEvent maps each known event to a plain
+ * label + optional note, and falls back to a humanized kind for anything
+ * new so an unmapped event still reads sensibly (never as JSON).
+ */
+const LEAD_STATUS_LABEL: Record<string, string> = {
+  new: "Lead created",
+  contacted: "Owner marked contacted",
+  visit_scheduled: "Visit scheduled",
+  deal_done: "Deal done",
+  lost: "Lead lost"
+};
+
+const CONTACT_EVENT_LABEL: Record<string, string> = {
+  unlock_created: "Unlock created",
+  owner_responded: "Owner responded",
+  refund_issued: "Refund issued"
+};
+
+const ADMIN_ACTION_LABEL: Record<string, string> = {
+  nudge_owner: "Admin nudged owner",
+  lead_manual_refund: "Admin refunded seeker",
+  mark_team_called: "Team marked as called"
+};
+
+const CHANNEL_LABEL: Record<string, string> = {
+  call: "call",
+  whatsapp: "WhatsApp",
+  sms: "SMS"
+};
+
+function parseMeta(detail: string | null): Record<string, unknown> | null {
+  const t = detail?.trim();
+  if (!t || !t.startsWith("{")) return null;
+  try {
+    const v = JSON.parse(t);
+    return v && typeof v === "object" ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function describeEvent(ev: AdminLeadTimelineEvent): { label: string; note?: string } {
+  if (ev.source === "contact") {
+    const label = CONTACT_EVENT_LABEL[ev.kind] ?? humanizeKind(ev.kind);
+    if (ev.kind === "unlock_created") return { label, note: "seeker spent 1 credit" };
+    if (ev.kind === "refund_issued") return { label, note: "1 credit returned to seeker" };
+    if (ev.kind === "owner_responded") {
+      const meta = parseMeta(ev.detail);
+      const channel = typeof meta?.channel === "string" ? meta.channel : null;
+      const note = channel ? `via ${CHANNEL_LABEL[channel] ?? channel}` : undefined;
+      return { label, note };
+    }
+    return { label };
+  }
+  if (ev.source === "admin") {
+    const label = ADMIN_ACTION_LABEL[ev.kind] ?? humanizeKind(ev.kind);
+    // detail here is admin_actions.reason — a human string, never JSON.
+    const reason = ev.detail?.trim();
+    return { label, note: reason && !reason.startsWith("{") ? reason : undefined };
+  }
+  // lead_events: kind is a note (e.g. "admin_nudged_owner") or a to_status.
+  if (ev.kind === "admin_nudged_owner") return { label: "Owner nudged" };
+  const statusLabel = LEAD_STATUS_LABEL[ev.kind];
+  if (statusLabel) return { label: statusLabel };
+  return { label: humanizeKind(ev.kind) };
 }
 
 // `actor` is sometimes a raw user uuid (lead_events.actor_user_id /
@@ -283,24 +355,25 @@ export function LeadDrawer({ row, onClose, accessToken, onToast, onActionDone }:
       )}
       {!loading && !error && events.length > 0 && (
         <div className="admin-feed">
-          {events.map((ev, i) => (
-            <div className="admin-feed__item" key={`${ev.source}-${ev.at}-${i}`}>
-              <span className="admin-feed__dot" aria-hidden="true" />
-              <div>
-                <div className="admin-feed__summary">
-                  <strong>{humanizeKind(ev.kind)}</strong>
-                  {ev.detail && ev.detail !== ev.kind && (
-                    <span style={{ color: "var(--ad-text-2)" }}> — {ev.detail}</span>
-                  )}
+          {events.map((ev, i) => {
+            const { label, note } = describeEvent(ev);
+            return (
+              <div className="admin-feed__item" key={`${ev.source}-${ev.at}-${i}`}>
+                <span className="admin-feed__dot" aria-hidden="true" />
+                <div>
+                  <div className="admin-feed__summary">
+                    <strong>{label}</strong>
+                    {note && <span style={{ color: "var(--ad-text-2)" }}> · {note}</span>}
+                  </div>
+                  <div className="admin-feed__meta">
+                    <StatusPill status={ev.source} tone={SOURCE_TONE[ev.source] ?? "muted"} noDot />
+                    {ev.actor && <span className="admin-feed__chip">{shortActor(ev.actor)}</span>}
+                  </div>
                 </div>
-                <div className="admin-feed__meta">
-                  <StatusPill status={ev.source} tone={SOURCE_TONE[ev.source] ?? "muted"} noDot />
-                  {ev.actor && <span className="admin-feed__chip">{shortActor(ev.actor)}</span>}
-                </div>
+                <span className="admin-feed__time">{formatRelativeTime(ev.at)}</span>
               </div>
-              <span className="admin-feed__time">{formatRelativeTime(ev.at)}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Drawer>

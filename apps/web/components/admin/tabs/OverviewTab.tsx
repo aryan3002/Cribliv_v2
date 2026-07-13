@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { StatCard } from "../primitives/StatCard";
 import { SectionCard } from "../primitives/SectionCard";
 import { EmptyState } from "../primitives/EmptyState";
-import { BarChart } from "../charts/BarChart";
+import { ListingsByCity } from "./ListingsByCity";
 import {
   fetchAdminAnalyticsByCity,
   fetchAdminAnalyticsFunnel,
@@ -129,21 +129,11 @@ export function OverviewTab({ accessToken }: Props) {
         </SectionCard>
       </div>
 
-      <SectionCard title="Listings by city" subtitle="Top localities, active listings only">
-        {cities.length === 0 ? (
-          <EmptyState title="No city data yet" />
-        ) : (
-          <BarChart
-            data={cities.slice(0, 12).map((c) => ({
-              key: `${c.city}${c.locality ? ` · ${c.locality}` : ""}`,
-              count: c.count
-            }))}
-            xKey="key"
-            yKey="count"
-            layout="vertical"
-            color="#0066FF"
-          />
-        )}
+      <SectionCard
+        title="Listings by city"
+        subtitle="Active listings · select a city to see its localities"
+      >
+        <ListingsByCity rows={cities} />
       </SectionCard>
     </div>
   );

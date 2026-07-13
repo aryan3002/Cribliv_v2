@@ -480,6 +480,17 @@ export class LeadsService {
     contactUnlockId: string | null,
     calledBy: "owner" | "team"
   ): Promise<boolean> {
+    // Canonical lock order: contact_unlocks BEFORE leads. The timeout-refund
+    // sweep locks contact_unlocks first (FOR UPDATE SKIP LOCKED) then updates
+    // leads, so every path that touches both tables must take them in that same
+    // order or the two can deadlock (AB-BA). Serialize on the unlock row first;
+    // this lock is also what makes the first-claim-wins guard below race-safe.
+    if (contactUnlockId) {
+      await client.query(`SELECT 1 FROM contact_unlocks WHERE id = $1::uuid FOR UPDATE`, [
+        contactUnlockId
+      ]);
+    }
+
     const stamped = await client.query(
       `UPDATE leads SET called_at = now(), called_by = $2, updated_at = now()
        WHERE id = $1::uuid AND called_at IS NULL`,
@@ -530,12 +541,14 @@ export class LeadsService {
         called_at: string | null;
         tenant_phone: string | null;
       }>(
+        // No FOR UPDATE here: markLeadCalled() below locks the contact_unlock
+        // first, then the lead (canonical contact_unlocks→leads order). Locking
+        // the lead up-front would invert that order and can deadlock the sweep.
         `SELECT ld.id::text, ld.access_state, ld.contact_unlock_id::text,
                 ld.called_at::text, u.phone_e164 AS tenant_phone
          FROM leads ld
          LEFT JOIN users u ON u.id = ld.tenant_user_id
-         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
-         FOR UPDATE OF ld`,
+         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid`,
         [leadId, ownerUserId]
       );
       const lead = leadResult.rows[0];
@@ -621,8 +634,12 @@ export class LeadsService {
         called_at: string | null;
         status: string;
       }>(
+        // No FOR UPDATE here: markLeadCalled() locks the contact_unlock first
+        // then the lead (canonical contact_unlocks→leads order). The called_at
+        // check below is a fast-path; markLeadCalled()'s guarded UPDATE (under
+        // the unlock lock) is the authoritative first-claim-wins gate.
         `SELECT id::text, contact_unlock_id::text, called_at::text, status::text
-         FROM leads WHERE id = $1::uuid FOR UPDATE`,
+         FROM leads WHERE id = $1::uuid`,
         [leadId]
       );
       const lead = leadResult.rows[0];
@@ -632,7 +649,10 @@ export class LeadsService {
       if (lead.called_at) {
         throw new ConflictException({ code: "already_called", message: "Call already claimed" });
       }
-      await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "team");
+      const claimed = await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "team");
+      if (!claimed) {
+        throw new ConflictException({ code: "already_called", message: "Call already claimed" });
+      }
       await client.query(
         `INSERT INTO lead_events (lead_id, to_status, notes)
          VALUES ($1::uuid, $2::lead_status, 'team_called')`,
