@@ -7,10 +7,12 @@ import { PgAssignmentController } from "./pg-assignment.controller";
 import { PgAdminManageController } from "./pg-admin-manage.controller";
 import { PgManageRequestController } from "./pg-manage-request.controller";
 import { PgPropertyOpsController } from "./pg-property-ops.controller";
+import { PgResidenceController } from "./pg-residence.controller";
 import { PgBedAssignmentService } from "./services/pg-bed-assignment.service";
 import { PgLayoutService } from "./services/pg-layout.service";
 import { PgManageRequestService } from "./services/pg-manage-request.service";
 import { PgOccupancyService } from "./services/pg-occupancy.service";
+import { PgResidenceService } from "./services/pg-residence.service";
 
 @Module({
   imports: [CoreModule, GuardsModule, PgOperatorModule, NotificationsModule],
@@ -18,9 +20,22 @@ import { PgOccupancyService } from "./services/pg-occupancy.service";
     PgManageRequestController,
     PgAdminManageController,
     PgPropertyOpsController,
-    PgAssignmentController
+    PgAssignmentController,
+    PgResidenceController
   ],
-  providers: [PgManageRequestService, PgLayoutService, PgOccupancyService, PgBedAssignmentService],
-  exports: [PgManageRequestService, PgLayoutService, PgOccupancyService, PgBedAssignmentService]
+  providers: [
+    PgManageRequestService,
+    PgLayoutService,
+    PgOccupancyService,
+    PgBedAssignmentService,
+    PgResidenceService
+  ],
+  exports: [
+    PgManageRequestService,
+    PgLayoutService,
+    PgOccupancyService,
+    PgBedAssignmentService,
+    PgResidenceService
+  ]
 })
 export class PgOperationsModule {}

@@ -1,4 +1,11 @@
-import type { PgBathroomKind, PgFurnishing, PgPropertyStatus, PgSharingKind } from "./pg-operator";
+import type {
+  PgBathroomKind,
+  PgFurnishing,
+  PgHouseRules,
+  PgMeals,
+  PgPropertyStatus,
+  PgSharingKind
+} from "./pg-operator";
 
 export type PgManageRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
 
@@ -177,6 +184,44 @@ export interface PgBedAssignment {
   updated_at: string;
 }
 
+export interface PgAssignmentEvent {
+  id: string;
+  assignment_id: string;
+  event_type: string;
+  initiator: PgAssignmentInitiator;
+  actor_user_id: string | null;
+  from_status: PgBedAssignmentStatus | null;
+  to_status: PgBedAssignmentStatus;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PgOperatorBedDetailRoom {
+  id: string;
+  pg_property_id: string;
+  room_type_id: string | null;
+  floor: number | null;
+  room_number: string;
+  display_label: string | null;
+  bed_count: number;
+  status: PgRoomStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PgOperatorBedDetail {
+  property_id: string;
+  property_name: string;
+  room: PgOperatorBedDetailRoom;
+  bed: PgBed;
+  assignment: PgBedAssignment | null;
+  events: PgAssignmentEvent[];
+  maintenance_summary: {
+    open_items: number;
+    overdue_items: number;
+  };
+}
+
 export interface PgOccupancyFloorRollup {
   floor: number | null;
   total_beds: number;
@@ -216,4 +261,35 @@ export interface PgOccupancySummary {
   upcoming_move_ins: PgOccupancyUpcomingMove[];
   upcoming_move_outs: PgOccupancyUpcomingMove[];
   available_from: PgOccupancyAvailabilitySummary[];
+}
+
+export interface PgTenantResidenceOperatorContact {
+  user_id: string;
+  name: string | null;
+  phone_e164: string | null;
+}
+
+export interface PgTenantResidence {
+  assignment_id: string;
+  property_id: string;
+  property_name: string;
+  room_id: string;
+  room_number: string;
+  bed_id: string;
+  bed_label: string;
+  sharing: PgSharingKind | null;
+  monthly_rent_paise: number | null;
+  security_deposit_paise: number | null;
+  notice_period_days: number | null;
+  lock_in_months: number | null;
+  expected_move_in_date: string | null;
+  move_in_date: string | null;
+  food_plan: PgMeals | null;
+  operator_contact: PgTenantResidenceOperatorContact;
+  house_rules: PgHouseRules | Record<string, unknown>;
+  assignment_status: PgBedAssignmentStatus;
+  notice_served_date: string | null;
+  notice_end_date: string | null;
+  notice_days_remaining: number | null;
+  operator_move_out_request_id: string | null;
 }
