@@ -1,5 +1,5 @@
 // apps/web/tests/welcome-credits.spec.ts
-// Exercises the full NextAuth signup path with a fresh random phone.
+// Exercises the full NextAuth signup path with a fresh per-run phone.
 // Selectors verified against apps/web/app/[locale]/auth/login/page.tsx:
 //   - phone input: id="phone", aria-label "Mobile number" (the only textbox
 //     on screen at step 1 — header/footer render no <input> on this route)
@@ -16,8 +16,11 @@ import { test, expect, type Page } from "@playwright/test";
 // login page before this spec's own assertions ever run.
 test.describe.configure({ retries: 2 });
 
-function randomPhone() {
-  return `+9196${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+let phoneCounter = 0;
+
+function uniquePhone(workerIndex: number) {
+  const seed = Date.now() + process.pid * 1000 + workerIndex * 100 + phoneCounter++;
+  return `+9196${String(seed % 1e8).padStart(8, "0")}`;
 }
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
@@ -58,8 +61,8 @@ function formatUtcDate(expiresAt: string) {
   }).format(new Date(expiresAt));
 }
 
-async function completeSignup(page: Page) {
-  const phone = randomPhone();
+async function completeSignup(page: Page, workerIndex: number) {
+  const phone = uniquePhone(workerIndex);
   await page.goto("/en/auth/login?tab=signup");
   await expect(page.getByTestId("signup-benefits")).toBeVisible();
 
@@ -99,8 +102,11 @@ async function readSignupSnapshots(page: Page) {
 
 test("new signup receives 10 expiring credits and sees the celebration exactly once", async ({
   page
-}) => {
-  const { verificationStartedAt, verificationFinishedAt } = await completeSignup(page);
+}, testInfo) => {
+  const { verificationStartedAt, verificationFinishedAt } = await completeSignup(
+    page,
+    testInfo.workerIndex
+  );
   const { session, wallet } = await readSignupSnapshots(page);
 
   await expect(page.getByTestId("welcome-credit-count")).toHaveText("10", { timeout: 5_000 });
@@ -141,11 +147,13 @@ test("new signup receives 10 expiring credits and sees the celebration exactly o
   await expect(page.getByTestId("welcome-credit-count")).toHaveCount(0);
 });
 
-test("reduced motion renders the final signup reward state immediately", async ({ page }) => {
+test("reduced motion renders the final signup reward state immediately", async ({
+  page
+}, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await completeSignup(page);
+  await completeSignup(page, testInfo.workerIndex);
 
-  await expect(page.getByTestId("welcome-credit-count")).toHaveText("10");
+  expect((await page.getByTestId("welcome-credit-count").textContent())?.trim()).toBe("10");
   await expect(page.getByText("Free credits added")).toBeVisible();
   await expect(page.getByText(/^Use by /)).toBeVisible();
   await expect(page.getByTestId("welcome-reward-particles")).toHaveClass(
