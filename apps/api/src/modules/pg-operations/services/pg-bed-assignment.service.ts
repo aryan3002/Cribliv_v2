@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException
 } from "@nestjs/common";
 import type {
@@ -23,6 +24,7 @@ import type { PoolClient } from "pg";
 
 import { DatabaseService } from "../../../common/database.service";
 import { NotificationService } from "../../notifications/notification.service";
+import { PgMaintenanceService } from "./pg-maintenance.service";
 
 type AssignmentRow = {
   id: string;
@@ -191,7 +193,8 @@ function toAssignmentEvent(row: AssignmentEventRow): PgAssignmentEvent {
 export class PgBedAssignmentService {
   constructor(
     @Inject(DatabaseService) private readonly db: DatabaseService,
-    @Inject(NotificationService) private readonly notifications: NotificationService
+    @Inject(NotificationService) private readonly notifications: NotificationService,
+    @Optional() @Inject(PgMaintenanceService) private readonly maintenance?: PgMaintenanceService
   ) {}
 
   private unavailable(): ServiceUnavailableException {
@@ -799,6 +802,10 @@ export class PgBedAssignmentService {
       [propertyId, bedId]
     );
 
+    const maintenanceSummary = this.maintenance
+      ? await this.maintenance.summaryForBed(operatorId, propertyId, bedId)
+      : { open_items: 0, overdue_items: 0 };
+
     return {
       property_id: row.property_id,
       property_name: row.property_name,
@@ -827,10 +834,7 @@ export class PgBedAssignmentService {
       }),
       assignment: assignmentResult.rows[0] ? toAssignment(assignmentResult.rows[0]) : null,
       events: eventResult.rows.map(toAssignmentEvent),
-      maintenance_summary: {
-        open_items: 0,
-        overdue_items: 0
-      }
+      maintenance_summary: maintenanceSummary
     };
   }
 

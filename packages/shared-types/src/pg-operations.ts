@@ -222,6 +222,62 @@ export interface PgOperatorBedDetail {
   };
 }
 
+export type PgMaintenanceStatus =
+  | "open"
+  | "in_progress"
+  | "waiting_on_tenant"
+  | "resolved"
+  | "closed"
+  | "cancelled";
+
+export interface PgMaintenanceComment {
+  id: string;
+  request_id: string;
+  author_user_id: string | null;
+  author_role: "tenant" | "pg_operator" | "admin";
+  body: string;
+  attachments: string[];
+  created_at: string;
+}
+
+export interface PgMaintenanceRequest {
+  id: string;
+  pg_property_id: string;
+  assignment_id: string | null;
+  created_by_user_id: string | null;
+  category: string;
+  description: string;
+  photo_paths: string[];
+  status: PgMaintenanceStatus;
+  priority: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  comments: PgMaintenanceComment[];
+}
+
+export interface PgMaintenanceSummary {
+  open_items: number;
+  overdue_items: number;
+}
+
+export interface PgMaintenanceCreateInput {
+  category: string;
+  description: string;
+  photo_paths?: string[];
+  priority?: string | null;
+}
+
+export interface PgMaintenanceCommentInput {
+  body: string;
+  attachments?: string[];
+}
+
+export interface PgMaintenanceListFilters {
+  status?: PgMaintenanceStatus;
+  bed_id?: string;
+}
+
 export interface PgOccupancyFloorRollup {
   floor: number | null;
   total_beds: number;
