@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -77,7 +78,7 @@ function OwnerNavLink({
 
   return (
     <Link
-      href={href}
+      href={href as Route}
       className={`ows-nav__link${active ? " ows-nav__link--active" : ""}${
         compact ? " ows-nav__link--compact" : ""
       }`}

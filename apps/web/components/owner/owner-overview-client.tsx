@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Route } from "next";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import {
@@ -371,7 +372,7 @@ export function OwnerOverviewClient({ locale }: { locale: string }): JSX.Element
                   <article key={listing.id} className="ovo-row" data-testid="overview-listing-row">
                     <div className="ovo-row__main">
                       <Link
-                        href={`/${locale}/owner/listings/${listing.id}`}
+                        href={`/${locale}/owner/listings/new?edit=${listing.id}` as Route}
                         className="ovo-row__title"
                       >
                         {listing.title}

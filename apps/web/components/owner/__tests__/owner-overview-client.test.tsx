@@ -193,6 +193,15 @@ describe("OwnerOverviewClient", () => {
     expect(screen.queryByText("Meera Singh")).not.toBeInTheDocument();
   });
 
+  it("links recent listing titles to the existing owner edit flow", async () => {
+    await renderOverview();
+
+    expect(screen.getByRole("link", { name: "Verified 2BHK" })).toHaveAttribute(
+      "href",
+      "/en/owner/listings/new?edit=active-verified"
+    );
+  });
+
   it("keeps listings usable when lead loading fails", async () => {
     fetchOwnerLeadsMock.mockRejectedValueOnce(new Error("Request failed with status 500"));
 
