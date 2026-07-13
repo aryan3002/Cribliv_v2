@@ -128,6 +128,399 @@
   min-height: calc(100dvh - 72px);
 }
 
+.ovo {
+  width: min(1120px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 28px 0 44px;
+  color: #152033;
+}
+
+.ovo-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 0 20px;
+}
+
+.ovo-hero__copy {
+  min-width: 0;
+}
+
+.ovo-eyebrow,
+.ovo-section__eyebrow {
+  margin: 0 0 6px;
+  color: #0057d8;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.ovo-title {
+  margin: 0;
+  color: #14213d;
+  font-size: 2rem;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.ovo-subtitle {
+  max-width: 620px;
+  margin: 8px 0 0;
+  color: #4d5c73;
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.ovo-add-listing,
+.ovo-link-action,
+.ovo-text-link,
+.ovo-secondary-action,
+.ovo-error button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ovo-add-listing {
+  flex: 0 0 auto;
+  padding: 0 16px;
+  background: #0057d8;
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(0, 87, 216, 0.18);
+}
+
+.ovo-headline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ovo-metric {
+  display: grid;
+  min-height: 150px;
+  align-content: space-between;
+  padding: 18px;
+  border: 1px solid rgba(126, 142, 164, 0.22);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(21, 32, 51, 0.08);
+}
+
+.ovo-metric__icon {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: #eaf1ff;
+  color: #0057d8;
+}
+
+.ovo-metric__value {
+  margin-top: 16px;
+  color: #14213d;
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.ovo-metric__label {
+  color: #26354f;
+  font-weight: 800;
+}
+
+.ovo-metric__help,
+.ovo-compact-metric span,
+.ovo-task__body p,
+.ovo-row__main p,
+.ovo-empty p,
+.ovo-management p {
+  color: #5f6f86;
+}
+
+.ovo-secondary {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 20px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.ovo-secondary::-webkit-scrollbar {
+  display: none;
+}
+
+.ovo-compact-metric {
+  display: flex;
+  min-width: 142px;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 14px;
+  border: 1px solid rgba(126, 142, 164, 0.2);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ovo-compact-metric strong {
+  color: #14213d;
+  font-size: 1.35rem;
+}
+
+.ovo-actions,
+.ovo-panels {
+  display: grid;
+  gap: 14px;
+}
+
+.ovo-task,
+.ovo-section,
+.ovo-management {
+  border: 1px solid rgba(126, 142, 164, 0.22);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ovo-task {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+}
+
+.ovo-task--urgent {
+  border-color: rgba(192, 96, 13, 0.28);
+  background: #fffaf2;
+}
+
+.ovo-task__icon {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: #fff1dc;
+  color: #a45300;
+}
+
+.ovo-task__icon--ok {
+  background: #e8f7ef;
+  color: #087044;
+}
+
+.ovo-task__icon--brand {
+  background: #eaf1ff;
+  color: #0057d8;
+}
+
+.ovo-task__body h2,
+.ovo-section__header h2,
+.ovo-management h2,
+.ovo-empty h3 {
+  margin: 0;
+  color: #14213d;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.ovo-task__body p,
+.ovo-row__main p,
+.ovo-empty p,
+.ovo-management p {
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.ovo-task__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ovo-link-action {
+  padding: 0 12px;
+  color: #0057d8;
+  background: #eef4ff;
+}
+
+.ovo-panels {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.ovo-section {
+  padding: 16px;
+}
+
+.ovo-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ovo-text-link {
+  min-height: 36px;
+  color: #0057d8;
+  font-size: 0.88rem;
+}
+
+.ovo-row-list {
+  display: grid;
+  gap: 0;
+}
+
+.ovo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(126, 142, 164, 0.18);
+}
+
+.ovo-row:first-child {
+  border-top: 0;
+}
+
+.ovo-row--loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.ovo-row--loading::before,
+.ovo-row--loading::after {
+  content: "";
+  display: block;
+  border-radius: 8px;
+  background: #edf1f6;
+}
+
+.ovo-row--loading::before {
+  width: 48%;
+  height: 16px;
+}
+
+.ovo-row--loading::after {
+  width: 68px;
+  height: 24px;
+  justify-self: end;
+}
+
+.ovo-row__title {
+  color: #14213d;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ovo-row__title:hover,
+.ovo-text-link:hover {
+  text-decoration: underline;
+}
+
+.ovo-pill {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #40516a;
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.ovo-pill--active,
+.ovo-pill--lead-new,
+.ovo-pill--lead-visit_scheduled,
+.ovo-pill--lead-deal_done {
+  background: #e8f7ef;
+  color: #087044;
+}
+
+.ovo-pill--pending_review,
+.ovo-pill--draft,
+.ovo-pill--lead-contacted {
+  background: #fff1dc;
+  color: #a45300;
+}
+
+.ovo-pill--rejected,
+.ovo-pill--lead-lost {
+  background: #ffebea;
+  color: #b42318;
+}
+
+.ovo-error,
+.ovo-empty {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0 4px;
+}
+
+.ovo-error p {
+  margin: 0;
+  color: #b42318;
+  font-weight: 700;
+}
+
+.ovo-error button {
+  width: fit-content;
+  padding: 0 14px;
+  border: 1px solid rgba(180, 35, 24, 0.24);
+  background: #fff;
+  color: #b42318;
+  cursor: pointer;
+}
+
+.ovo-management {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 16px;
+}
+
+.ovo-secondary-action {
+  padding: 0 14px;
+  border: 0;
+  background: #14213d;
+  color: #fff;
+  cursor: pointer;
+}
+
+.ovo-secondary-action:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.ovo-management__notice {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #087044;
+  font-weight: 700;
+}
+
+.ovo-management__notice--error {
+  color: #b42318;
+}
+
 @media (max-width: 767px) {
   .ows__desktop-nav {
     display: none;
@@ -212,5 +605,107 @@
 
   .ows[data-focus-flow="true"] .ows__content {
     padding-bottom: 0;
+  }
+
+  .ovo {
+    width: min(100% - 28px, 560px);
+    padding: 14px 0 calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .ovo-hero {
+    align-items: center;
+    gap: 12px;
+    min-height: 116px;
+    padding-bottom: 14px;
+  }
+
+  .ovo-title {
+    font-size: 1.38rem;
+  }
+
+  .ovo-subtitle {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.88rem;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .ovo-add-listing {
+    min-width: 44px;
+    max-width: 138px;
+    padding: 0 11px;
+    white-space: nowrap;
+  }
+
+  .ovo-headline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .ovo-metric {
+    min-height: 132px;
+    padding: 14px;
+  }
+
+  .ovo-metric__value {
+    margin-top: 12px;
+    font-size: 1.72rem;
+  }
+
+  .ovo-metric__label,
+  .ovo-metric__help {
+    font-size: 0.8rem;
+    line-height: 1.2;
+  }
+
+  .ovo-secondary {
+    margin-bottom: 16px;
+    padding-bottom: 4px;
+  }
+
+  .ovo-compact-metric {
+    min-width: 132px;
+  }
+
+  .ovo-task {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .ovo-task .ovo-link-action,
+  .ovo-task__links {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .ovo-task__links .ovo-link-action,
+  .ovo-task .ovo-link-action {
+    flex: 1 1 0;
+  }
+
+  .ovo-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .ovo-section,
+  .ovo-management {
+    padding: 14px;
+  }
+
+  .ovo-row {
+    min-height: 72px;
+  }
+
+  .ovo-management {
+    grid-template-columns: 1fr;
+  }
+
+  .ovo-secondary-action,
+  .ovo-error button {
+    width: 100%;
+    min-height: 44px;
   }
 }
