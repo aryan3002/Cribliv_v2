@@ -67,6 +67,27 @@ interface UnlockRecord {
   disputedAt?: number;
 }
 
+type LeadStatus = "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost";
+type LeadAccessState = "free" | "locked" | "unlocked" | "expired";
+
+interface LeadRecord {
+  id: string;
+  listingId: string;
+  ownerUserId: string;
+  tenantUserId: string;
+  contactUnlockId?: string;
+  tenantPhoneMasked?: string | null;
+  status: LeadStatus;
+  accessState: LeadAccessState;
+  callDeadlineAt?: number | null;
+  calledAt?: number | null;
+  calledBy?: "owner" | "team" | null;
+  ownerNotes?: string | null;
+  createdAt: number;
+  statusChangedAt: number;
+  updatedAt: number;
+}
+
 export interface PaymentOrderRecord {
   id: string;
   userId: string;
@@ -129,6 +150,8 @@ export class AppStateService {
   walletTxns = new Map<string, WalletTxn[]>();
   unlocks = new Map<string, UnlockRecord>();
   unlockByIdempotency = new Map<string, UnlockRecord>();
+  leads = new Map<string, LeadRecord>();
+  leadByListingTenant = new Map<string, string>();
   idempotencyResponses = new Map<string, unknown>();
   paymentOrders = new Map<string, PaymentOrderRecord>();
   paymentOrderByProviderOrderId = new Map<string, PaymentOrderRecord>();
@@ -296,6 +319,128 @@ export class AppStateService {
   listWalletTransactions(userId: string) {
     this.ensureWallet(userId);
     return [...(this.walletTxns.get(userId) ?? [])].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  createOwnerLead(input: {
+    listingId: string;
+    ownerUserId: string;
+    tenantUserId: string;
+    contactUnlockId?: string;
+    tenantPhoneMasked?: string | null;
+    callDeadlineAt?: number | null;
+  }) {
+    const dedupeKey = `${input.listingId}:${input.tenantUserId}`;
+    const existingId = this.leadByListingTenant.get(dedupeKey);
+    const existing = existingId ? this.leads.get(existingId) : undefined;
+    const now = Date.now();
+
+    if (existing && now - existing.createdAt < 7 * 24 * 60 * 60 * 1000) {
+      existing.contactUnlockId = existing.contactUnlockId ?? input.contactUnlockId;
+      existing.callDeadlineAt = existing.callDeadlineAt ?? input.callDeadlineAt ?? null;
+      existing.updatedAt = now;
+      return { lead: existing, created: false };
+    }
+
+    const ownerLeadCount = [...this.leads.values()].filter(
+      (lead) => lead.ownerUserId === input.ownerUserId
+    ).length;
+    const lead: LeadRecord = {
+      id: randomUUID(),
+      listingId: input.listingId,
+      ownerUserId: input.ownerUserId,
+      tenantUserId: input.tenantUserId,
+      contactUnlockId: input.contactUnlockId,
+      tenantPhoneMasked: input.tenantPhoneMasked ?? null,
+      status: "new",
+      accessState: ownerLeadCount < 2 ? "free" : "locked",
+      callDeadlineAt: input.callDeadlineAt ?? null,
+      calledAt: null,
+      calledBy: null,
+      ownerNotes: null,
+      createdAt: now,
+      statusChangedAt: now,
+      updatedAt: now
+    };
+
+    this.leads.set(lead.id, lead);
+    this.leadByListingTenant.set(dedupeKey, lead.id);
+    return { lead, created: true };
+  }
+
+  getOwnerLead(leadId: string, ownerUserId: string) {
+    const lead = this.leads.get(leadId);
+    return lead?.ownerUserId === ownerUserId ? lead : undefined;
+  }
+
+  listOwnerLeads(
+    ownerUserId: string,
+    status: LeadStatus | undefined,
+    page: number,
+    pageSize: number,
+    revealTenantPhone: boolean
+  ) {
+    const filtered = [...this.leads.values()]
+      .filter((lead) => lead.ownerUserId === ownerUserId && (!status || lead.status === status))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    const offset = (page - 1) * pageSize;
+    const items = filtered.slice(offset, offset + pageSize).map((lead) => {
+      const listing = this.listings.get(lead.listingId);
+      const tenant = this.users.get(lead.tenantUserId);
+      const tenantPhone =
+        revealTenantPhone && (lead.accessState === "free" || lead.accessState === "unlocked")
+          ? (tenant?.phone ?? null)
+          : null;
+
+      return {
+        id: lead.id,
+        listing_id: lead.listingId,
+        listing_title: listing?.title ?? "Listing",
+        tenant_user_id: lead.tenantUserId,
+        tenant_name: tenant?.full_name ?? "Tenant",
+        tenant_phone_masked: lead.tenantPhoneMasked ?? null,
+        status: lead.status,
+        status_changed_at: new Date(lead.statusChangedAt).toISOString(),
+        owner_notes: lead.ownerNotes ?? null,
+        created_at: new Date(lead.createdAt).toISOString(),
+        access_state: lead.accessState,
+        call_deadline_at: lead.callDeadlineAt ? new Date(lead.callDeadlineAt).toISOString() : null,
+        called_at: lead.calledAt ? new Date(lead.calledAt).toISOString() : null,
+        called_by: lead.calledBy ?? null,
+        tenant_phone: tenantPhone
+      };
+    });
+
+    return { items, total: filtered.length, page, page_size: pageSize };
+  }
+
+  getOwnerLeadStats(ownerUserId: string) {
+    const stats: Record<LeadStatus | "total", number> = {
+      new: 0,
+      contacted: 0,
+      visit_scheduled: 0,
+      deal_done: 0,
+      lost: 0,
+      total: 0
+    };
+
+    for (const lead of this.leads.values()) {
+      if (lead.ownerUserId !== ownerUserId) continue;
+      stats[lead.status] += 1;
+      stats.total += 1;
+    }
+
+    return stats;
+  }
+
+  updateOwnerLeadStatus(leadId: string, ownerUserId: string, status: LeadStatus, notes?: string) {
+    const lead = this.getOwnerLead(leadId, ownerUserId);
+    if (!lead) return undefined;
+
+    lead.status = status;
+    lead.ownerNotes = notes ?? lead.ownerNotes ?? null;
+    lead.statusChangedAt = Date.now();
+    lead.updatedAt = lead.statusChangedAt;
+    return lead;
   }
 
   runRefundSweep() {
