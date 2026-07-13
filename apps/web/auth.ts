@@ -24,8 +24,18 @@ declare module "next-auth" {
     accessToken: string;
     /** Wallet credit balance, synced from /auth/me on every session read */
     walletBalance: number;
+    /** Promotional wallet state, synced from /auth/me on every session read. */
+    promotionalCredits?: {
+      remaining: number;
+      expiresAt: string | null;
+    };
     /** True only during the session created by first-ever OTP verify (signup). */
     isNewUser?: boolean;
+    /** Canonical reward returned by the first successful OTP verification. */
+    signupReward?: {
+      creditsGranted: number;
+      expiresAt: string | null;
+    };
     user: {
       id: string;
       phone: string;
@@ -43,6 +53,10 @@ declare module "next-auth" {
     refreshToken: string | null;
     tokenIssuedAt: number;
     isNewUser: boolean;
+    signupReward?: {
+      creditsGranted: number;
+      expiresAt: string | null;
+    };
   }
 }
 
@@ -56,6 +70,10 @@ declare module "next-auth/jwt" {
     refreshToken: string | null;
     tokenIssuedAt: number;
     isNewUser?: boolean;
+    signupReward?: {
+      creditsGranted: number;
+      expiresAt: string | null;
+    };
   }
 }
 

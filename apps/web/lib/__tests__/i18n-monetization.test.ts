@@ -42,6 +42,16 @@ const KEYS = [
   "welcomeTenantBody",
   "welcomeOwnerBody",
   "welcomeCta",
+  "welcomeRewardBadge",
+  "welcomeRewardHeading",
+  "welcomeRewardSupporting",
+  "welcomeRewardLabel",
+  "welcomeRewardCreditsFact",
+  "welcomeRewardExpiryFact",
+  "welcomeRewardCta",
+  "welcomeRewardFootnote",
+  "welcomeRewardLive",
+  "welcomeRewardClose",
   "loginBenefitsTitle",
   "loginBenefit1",
   "loginBenefit2",
@@ -80,5 +90,20 @@ describe("monetization i18n keys", () => {
     expect(t("hi", "cpUnitPrice")).toContain("{price}");
     expect(t("en", "leadLockedWaiting")).toContain("{n}");
     expect(t("hi", "leadLockedWaiting")).toContain("{n}");
+    expect(t("en", "welcomeRewardCreditsFact")).toContain("{credits}");
+    expect(t("hi", "welcomeRewardCreditsFact")).toContain("{credits}");
+    expect(t("en", "welcomeRewardExpiryFact")).toContain("{date}");
+    expect(t("hi", "welcomeRewardExpiryFact")).toContain("{date}");
+    expect(t("en", "welcomeRewardLive")).toContain("{credits}");
+    expect(t("hi", "welcomeRewardLive")).toContain("{credits}");
+    expect(t("en", "welcomeRewardLive")).toContain("{date}");
+    expect(t("hi", "welcomeRewardLive")).toContain("{date}");
+  });
+
+  it("keeps the reward heading professional and the legacy owner copy free of the stale grant", () => {
+    expect(t("en", "welcomeRewardHeading")).toBe("Welcome to Cribliv");
+    expect(t("en", "welcomeRewardHeading")).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+    expect(t("en", "welcomeOwnerBody")).not.toContain("2 tenant leads");
+    expect(t("hi", "welcomeOwnerBody")).not.toContain("2 किरायेदार लीड");
   });
 });

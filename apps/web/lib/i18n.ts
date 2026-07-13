@@ -441,16 +441,53 @@ const dictionary: Dictionary = {
     hi: "सभी फ़ोटो देखने के लिए मुफ़्त साइन अप करें"
   },
   // ── Welcome credits celebration ────────────────────────────────────────────
-  welcomeTitle: { en: "Welcome to Cribliv! 🎉", hi: "Cribliv में आपका स्वागत है! 🎉" },
+  welcomeTitle: { en: "Welcome to Cribliv", hi: "Cribliv में आपका स्वागत है" },
   welcomeTenantBody: {
-    en: "You've got 10 free credits. Request callbacks and get a call within 24 hours.",
-    hi: "आपको 10 मुफ़्त क्रेडिट मिले हैं। कॉलबैक मांगें और 24 घंटे के भीतर कॉल पाएं।"
+    en: "Your signup reward is ready in your wallet.",
+    hi: "आपका साइनअप इनाम आपके वॉलेट में तैयार है।"
   },
   welcomeOwnerBody: {
-    en: "Welcome! Your first 2 tenant leads are free.",
-    hi: "स्वागत है! आपकी पहली 2 किरायेदार लीड मुफ़्त हैं।"
+    en: "Your signup reward is ready in your wallet.",
+    hi: "आपका साइनअप इनाम आपके वॉलेट में तैयार है।"
   },
-  welcomeCta: { en: "Start exploring", hi: "खोजना शुरू करें" },
+  welcomeCta: { en: "Start finding homes", hi: "घर खोजना शुरू करें" },
+  welcomeRewardBadge: {
+    en: "Account verified · Reward unlocked",
+    hi: "खाता सत्यापित · इनाम अनलॉक हुआ"
+  },
+  welcomeRewardHeading: {
+    en: "Welcome to Cribliv",
+    hi: "Cribliv में आपका स्वागत है"
+  },
+  welcomeRewardSupporting: {
+    en: "Your home search starts with a little more freedom.",
+    hi: "आपके घर की तलाश अब थोड़ी और आज़ादी के साथ शुरू होती है।"
+  },
+  welcomeRewardLabel: {
+    en: "Free credits added",
+    hi: "मुफ़्त क्रेडिट जोड़े गए"
+  },
+  welcomeRewardCreditsFact: {
+    en: "{credits} credits added to your wallet",
+    hi: "आपके वॉलेट में {credits} क्रेडिट जोड़े गए"
+  },
+  welcomeRewardExpiryFact: {
+    en: "Use by {date}",
+    hi: "{date} तक इस्तेमाल करें"
+  },
+  welcomeRewardCta: {
+    en: "Start finding homes",
+    hi: "घर खोजना शुरू करें"
+  },
+  welcomeRewardFootnote: {
+    en: "Promotional credits are used first. Purchased and refunded credits do not expire.",
+    hi: "प्रमोशनल क्रेडिट पहले इस्तेमाल होते हैं। खरीदे गए और वापस किए गए क्रेडिट की समय-सीमा समाप्त नहीं होती।"
+  },
+  welcomeRewardLive: {
+    en: "{credits} free credits were added to your wallet. Use by {date}.",
+    hi: "आपके वॉलेट में {credits} मुफ़्त क्रेडिट जोड़े गए। {date} तक इस्तेमाल करें।"
+  },
+  welcomeRewardClose: { en: "Close reward", hi: "इनाम बंद करें" },
   // ── Login page benefits ─────────────────────────────────────────────────────
   loginBenefitsTitle: { en: "Why sign up?", hi: "साइन अप क्यों करें?" },
   loginBenefit1: { en: "10 free credits on signup", hi: "साइन अप पर 10 मुफ़्त क्रेडिट" },
