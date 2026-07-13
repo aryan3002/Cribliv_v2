@@ -3,12 +3,15 @@ import { authenticator } from "otplib";
 import { AdminTotpService } from "../admin-totp.service";
 import { AppStateService } from "../../../../common/app-state.service";
 import { DatabaseService } from "../../../../common/database.service";
+import { AuthService } from "../../auth.service";
+import { D7OtpClient } from "../../d7-otp.client";
 
 // In-memory mode: DatabaseService.isEnabled() === false when no DATABASE_URL.
 function makeService(): { svc: AdminTotpService; appState: AppStateService } {
   const appState = new AppStateService();
   const database = new DatabaseService(); // isEnabled() false without DATABASE_URL
-  const svc = new AdminTotpService(appState, database);
+  const authService = new AuthService(appState, database, new D7OtpClient());
+  const svc = new AdminTotpService(appState, database, authService);
   return { svc, appState };
 }
 
@@ -56,5 +59,61 @@ describe("AdminTotpService (in-memory)", () => {
     await svc.enrollVerify(ADMIN_ID, authenticator.generate(secret));
     await svc.reset(ADMIN_ID);
     expect(await svc.status(ADMIN_ID)).toEqual({ enrolled: false });
+  });
+});
+
+describe("AdminTotpService.verifyLogin (in-memory)", () => {
+  const PHONE = "+919999999903"; // seeded admin
+  let svc: AdminTotpService;
+  let appState: AppStateService;
+
+  beforeEach(async () => {
+    delete process.env.DATABASE_URL;
+    ({ svc, appState } = makeService());
+  });
+
+  async function enroll(userId: string): Promise<string> {
+    await svc.enrollStart(userId);
+    const secret = appState.adminTotp.get(userId)!.secret;
+    await svc.enrollVerify(userId, authenticator.generate(secret));
+    return secret;
+  }
+
+  it("logs in an enrolled admin with a valid code", async () => {
+    const admin = appState.usersByPhone.get(PHONE)!;
+    const secret = await enroll(admin.id);
+    const out = await svc.verifyLogin(PHONE, authenticator.generate(secret));
+    expect(out.access_token.startsWith("acc_")).toBe(true);
+    expect(out.user.role).toBe("admin");
+    expect(out.user.phone_e164).toBe(PHONE);
+  });
+
+  it("rejects a non-admin phone", async () => {
+    await expect(svc.verifyLogin("+919999999902", "123456")).rejects.toThrow();
+  });
+
+  it("rejects when the admin is not enrolled", async () => {
+    await expect(svc.verifyLogin(PHONE, "123456")).rejects.toThrow();
+  });
+
+  it("rejects a wrong code and locks after 5 failures", async () => {
+    const admin = appState.usersByPhone.get(PHONE)!;
+    await enroll(admin.id);
+    for (let i = 0; i < 5; i += 1) {
+      await expect(svc.verifyLogin(PHONE, "000000")).rejects.toThrow();
+    }
+    // 6th attempt (even with a valid code) is locked
+    const secret = appState.adminTotp.get(admin.id)!.secret;
+    await expect(svc.verifyLogin(PHONE, authenticator.generate(secret))).rejects.toThrow(
+      /locked/i
+    );
+  });
+
+  it("rejects a replayed code (same step reused)", async () => {
+    const admin = appState.usersByPhone.get(PHONE)!;
+    const secret = await enroll(admin.id);
+    const code = authenticator.generate(secret);
+    await svc.verifyLogin(PHONE, code); // consumes the step
+    await expect(svc.verifyLogin(PHONE, code)).rejects.toThrow();
   });
 });
