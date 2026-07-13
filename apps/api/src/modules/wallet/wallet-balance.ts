@@ -41,12 +41,20 @@ type DebitWalletInput = {
   metadata?: Record<string, unknown>;
 };
 
-type DebitWalletResult = {
+type DebitWalletSuccess = {
+  status: "success";
   transactionId: string;
   inserted: boolean;
   balanceCredits: number;
   promotionalCreditsUsed: number;
 };
+
+type DebitWalletInsufficient = {
+  status: "insufficient";
+  balanceCredits: number;
+};
+
+export type DebitWalletResult = DebitWalletSuccess | DebitWalletInsufficient;
 
 async function lockWallet(client: PoolClient, userId: string): Promise<LockedWallet | null> {
   const result = await client.query<{
@@ -175,8 +183,9 @@ function exactReplay(transaction: ExistingWalletTransaction, input: DebitWalletI
 function replayResult(
   transaction: ExistingWalletTransaction,
   wallet: LockedWallet
-): DebitWalletResult {
+): DebitWalletSuccess {
   return {
+    status: "success",
     transactionId: transaction.id,
     inserted: false,
     balanceCredits: wallet.balanceCredits,
@@ -224,7 +233,10 @@ export async function debitWalletCredits(
   }
 
   if (wallet.balanceCredits < input.credits) {
-    throw new WalletBalanceError("insufficient_credits", "Insufficient wallet credits");
+    return {
+      status: "insufficient",
+      balanceCredits: wallet.balanceCredits
+    };
   }
 
   const promotionalUsed = Math.min(wallet.promotionalCreditsRemaining, input.credits);
@@ -291,10 +303,11 @@ export async function debitWalletCredits(
   );
   const updatedWallet = updated.rows[0];
   if (!updatedWallet) {
-    throw new WalletBalanceError("insufficient_credits", "Insufficient wallet credits");
+    throw new Error("Wallet balance update failed after locked balance precheck");
   }
 
   return {
+    status: "success",
     transactionId,
     inserted: true,
     balanceCredits: Number(updatedWallet.balance_credits),

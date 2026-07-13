@@ -150,11 +150,17 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
       .expect(402);
   });
 
-  it("debits 1 owner credit and reveals the tenant phone; idempotent replay", async () => {
+  it("debits 1 owner credit and expires due signup credits on exact paid replay", async () => {
     await db.query(
-      `INSERT INTO wallets (user_id, balance_credits, free_credits_granted)
-       VALUES ((SELECT id FROM users WHERE phone_e164 = $1), 3, 0)
-       ON CONFLICT (user_id) DO UPDATE SET balance_credits = 3`,
+      `INSERT INTO wallets (
+         user_id, balance_credits, free_credits_granted,
+         promotional_credits_remaining, promotional_credits_expires_at
+       )
+       VALUES ((SELECT id FROM users WHERE phone_e164 = $1), 3, 0, 0, NULL)
+       ON CONFLICT (user_id) DO UPDATE
+       SET balance_credits = 3,
+           promotional_credits_remaining = 0,
+           promotional_credits_expires_at = NULL`,
       [ownerPhone]
     );
     const first = await http(app)
@@ -166,12 +172,20 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
     expect(first.body.data.tenant_phone).toMatch(/^\+91/);
     expect(first.body.data.credits_remaining).toBe(2);
 
+    await db.query(
+      `UPDATE wallets
+       SET promotional_credits_remaining = 2,
+           promotional_credits_expires_at = now() - interval '1 hour'
+       WHERE user_id = (SELECT id FROM users WHERE phone_e164 = $1)`,
+      [ownerPhone]
+    );
+
     const replay = await http(app)
       .post(`/v1/owner/leads/${lockedLeadId}/unlock`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .set("Idempotency-Key", "lu-1")
       .expect(201);
-    expect(replay.body.data.credits_remaining).toBe(2); // no double debit
+    expect(replay.body.data.credits_remaining).toBe(0);
 
     const txns = await db.query(
       `SELECT count(*)::int AS n FROM wallet_transactions
@@ -180,9 +194,64 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
       [ownerPhone]
     );
     expect(txns.rows[0].n).toBe(1);
+
+    const expired = await db.query(
+      `SELECT balance_credits, promotional_credits_remaining,
+              count(wt.id)::int AS expiry_txns
+       FROM wallets w
+       LEFT JOIN wallet_transactions wt
+         ON wt.wallet_user_id = w.user_id
+        AND wt.txn_type = 'expire_signup'
+       WHERE w.user_id = (SELECT id FROM users WHERE phone_e164 = $1)
+       GROUP BY w.balance_credits, w.promotional_credits_remaining`,
+      [ownerPhone]
+    );
+    expect(expired.rows[0]).toMatchObject({
+      balance_credits: 0,
+      promotional_credits_remaining: 0,
+      expiry_txns: 1
+    });
   });
 
-  it("409s when the idempotency key was used for a different lead — no free reveal", async () => {
+  it("409s when a paid unlocked lead is replayed with a foreign key", async () => {
+    const res = await http(app)
+      .post(`/v1/owner/leads/${lockedLeadId}/unlock`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set("Idempotency-Key", "lu-foreign")
+      .expect(409);
+    expect(JSON.stringify(res.body)).toContain("duplicate_unlock");
+    expect(JSON.stringify(res.body)).not.toContain("+91");
+  });
+
+  it("commits due signup expiry before returning 402 for an unaffordable lead", async () => {
+    await db.query(
+      `UPDATE wallets
+       SET balance_credits = 1,
+           promotional_credits_remaining = 1,
+           promotional_credits_expires_at = now() - interval '1 hour'
+       WHERE user_id = (SELECT id FROM users WHERE phone_e164 = $1)`,
+      [ownerPhone]
+    );
+
+    await http(app)
+      .post(`/v1/owner/leads/${otherLockedLeadId}/unlock`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set("Idempotency-Key", "lu-expired-insufficient")
+      .expect(402);
+
+    const wallet = await db.query(
+      `SELECT balance_credits, promotional_credits_remaining
+       FROM wallets
+       WHERE user_id = (SELECT id FROM users WHERE phone_e164 = $1)`,
+      [ownerPhone]
+    );
+    expect(wallet.rows[0]).toMatchObject({
+      balance_credits: 0,
+      promotional_credits_remaining: 0
+    });
+  });
+
+  it("409s when the idempotency key was used for a different lead - no free reveal", async () => {
     // ownerToken already has credits from the earlier seeding
     const res = await http(app)
       .post(`/v1/owner/leads/${otherLockedLeadId}/unlock`)
@@ -197,14 +266,37 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
     expect(state.rows[0].access_state).toBe("locked");
   });
 
-  it("free leads unlock without debiting", async () => {
+  it("free leads expire due signup credits without debiting", async () => {
+    const debitCountBefore = await db.query(
+      `SELECT count(*)::int AS n FROM wallet_transactions
+       WHERE txn_type = 'debit_lead_unlock'
+         AND wallet_user_id = (SELECT id FROM users WHERE phone_e164 = $1)`,
+      [ownerPhone]
+    );
+    await db.query(
+      `UPDATE wallets
+       SET balance_credits = 2,
+           promotional_credits_remaining = 2,
+           promotional_credits_expires_at = now() - interval '1 hour'
+       WHERE user_id = (SELECT id FROM users WHERE phone_e164 = $1)`,
+      [ownerPhone]
+    );
+
     const res = await http(app)
       .post(`/v1/owner/leads/${freeLeadId}/unlock`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .set("Idempotency-Key", "lu-free")
       .expect(201);
     expect(res.body.data.tenant_phone).toMatch(/^\+91/);
-    expect(res.body.data.credits_remaining).toBe(2); // unchanged
+    expect(res.body.data.credits_remaining).toBe(0);
+
+    const debitCountAfter = await db.query(
+      `SELECT count(*)::int AS n FROM wallet_transactions
+       WHERE txn_type = 'debit_lead_unlock'
+         AND wallet_user_id = (SELECT id FROM users WHERE phone_e164 = $1)`,
+      [ownerPhone]
+    );
+    expect(debitCountAfter.rows[0].n).toBe(debitCountBefore.rows[0].n);
   });
 
   it("410s on an expired lead", async () => {

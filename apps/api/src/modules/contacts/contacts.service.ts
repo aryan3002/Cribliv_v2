@@ -14,7 +14,11 @@ import { logTelemetry } from "../../common/telemetry";
 import { NotificationService } from "../notifications/notification.service";
 import { LeadsService } from "../leads/leads.service";
 import { readFeatureFlags } from "../../config/feature-flags";
-import { debitWalletCredits, WalletBalanceError } from "../wallet/wallet-balance";
+import {
+  debitWalletCredits,
+  expireSignupCredits,
+  WalletBalanceError
+} from "../wallet/wallet-balance";
 
 const DISPUTE_WINDOW_MS = 72 * 60 * 60 * 1000;
 
@@ -217,6 +221,7 @@ export class ContactsService {
   ) {
     const deadlineInterval = readFeatureFlags().ff_callback_leads ? "24 hours" : "12 hours";
     const client = await this.database.getClient();
+    let committed = false;
     try {
       await client.query("BEGIN");
 
@@ -226,7 +231,6 @@ export class ContactsService {
         response_deadline_at: string;
         owner_phone: string | null;
         whatsapp_available: boolean;
-        balance_credits: number;
       }>(
         `
         SELECT
@@ -234,11 +238,9 @@ export class ContactsService {
           cu.listing_id::text,
           cu.response_deadline_at::text,
           l.contact_phone_encrypted AS owner_phone,
-          l.whatsapp_available,
-          COALESCE(w.balance_credits, 0) AS balance_credits
+          l.whatsapp_available
         FROM contact_unlocks cu
         JOIN listings l ON l.id = cu.listing_id
-        LEFT JOIN wallets w ON w.user_id = cu.tenant_user_id
         WHERE cu.tenant_user_id = $1::uuid
           AND cu.idempotency_key = $2
         LIMIT 1
@@ -253,7 +255,13 @@ export class ContactsService {
             message: "Idempotency-Key already used for another listing"
           });
         }
+        await expireSignupCredits(client, userId);
+        const balance = await client.query<{ balance_credits: number }>(
+          `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid LIMIT 1`,
+          [userId]
+        );
         await client.query("COMMIT");
+        committed = true;
         const row = existingUnlock.rows[0];
         logTelemetry("contact.unlock_idempotent_hit", {
           mode: "db",
@@ -265,7 +273,7 @@ export class ContactsService {
           unlockId: row.id,
           ownerPhone: row.owner_phone,
           whatsappAvailable: row.whatsapp_available,
-          creditsRemaining: Number(row.balance_credits),
+          creditsRemaining: Number(balance.rows[0]?.balance_credits ?? 0),
           responseDeadlineAt: row.response_deadline_at
         });
       }
@@ -327,6 +335,15 @@ export class ContactsService {
           }
         }
         throw error;
+      }
+
+      if (debit.status === "insufficient") {
+        await client.query("COMMIT");
+        committed = true;
+        throw new HttpException(
+          { code: "insufficient_credits", message: "Insufficient credits" },
+          HttpStatus.PAYMENT_REQUIRED
+        );
       }
 
       const walletTxnId = debit.transactionId;
@@ -398,6 +415,7 @@ export class ContactsService {
       }
 
       await client.query("COMMIT");
+      committed = true;
 
       const listing = listingResult.rows[0];
       logTelemetry("contact.unlock_debited", {
@@ -414,7 +432,7 @@ export class ContactsService {
         responseDeadlineAt: responseDeadlineAt
       });
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (!committed) await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();

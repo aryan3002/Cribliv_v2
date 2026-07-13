@@ -729,6 +729,7 @@ export class AdminController {
       }
 
       const client = await this.database.getClient();
+      let committed = false;
       try {
         await client.query("BEGIN");
         await client.query(
@@ -752,6 +753,14 @@ export class AdminController {
               referenceId: req.user.id,
               metadata: { reason: body.reason }
             });
+            if (debit.status === "insufficient") {
+              await client.query("COMMIT");
+              committed = true;
+              throw new BadRequestException({
+                code: "insufficient_credits",
+                message: "Insufficient wallet credits"
+              });
+            }
             transactionId = debit.transactionId;
             balanceCredits = debit.balanceCredits;
           } catch (error) {
@@ -813,12 +822,13 @@ export class AdminController {
         );
 
         await client.query("COMMIT");
+        committed = true;
         return ok({
           transaction_id: transactionId,
           balance_credits: balanceCredits
         });
       } catch (error) {
-        await client.query("ROLLBACK");
+        if (!committed) await client.query("ROLLBACK");
         throw error;
       } finally {
         client.release();

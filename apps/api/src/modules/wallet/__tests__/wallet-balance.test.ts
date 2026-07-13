@@ -236,6 +236,7 @@ describe("database wallet balance helpers", () => {
     });
 
     expect(result).toEqual({
+      status: "success",
       transactionId: "txn-1",
       inserted: true,
       balanceCredits: 9,
@@ -267,6 +268,7 @@ describe("database wallet balance helpers", () => {
     });
 
     expect(result).toEqual({
+      status: "success",
       transactionId: "txn-original",
       inserted: false,
       balanceCredits: 0,
@@ -276,6 +278,40 @@ describe("database wallet balance helpers", () => {
     expect(
       client.countQueries("promotional_credits_remaining = promotional_credits_remaining - $3")
     ).toBe(0);
+  });
+
+  it("returns insufficient after recording due expiry so the caller can commit it", async () => {
+    const client = new RecordingPoolClient(
+      wallet({
+        balanceCredits: 1,
+        promotionalCreditsRemaining: 1,
+        promotionalCreditsExpiresAt: "2020-01-01T00:00:00.000Z"
+      })
+    );
+
+    const result = await debitWalletCredits(client.asPoolClient(), {
+      userId: USER_ID,
+      credits: 1,
+      txnType: "debit_contact_unlock",
+      referenceType: "listing",
+      referenceId: LISTING_ID,
+      idempotencyKey: "expired-insufficient"
+    });
+
+    expect(result).toEqual({
+      status: "insufficient",
+      balanceCredits: 0
+    });
+    expect(client.wallet).toMatchObject({
+      balanceCredits: 0,
+      promotionalCreditsRemaining: 0
+    });
+    expect(client.transactions).toEqual([
+      expect.objectContaining({
+        txnType: "expire_signup",
+        creditsDelta: -1
+      })
+    ]);
   });
 
   it.each([
@@ -350,6 +386,7 @@ describe("database wallet balance helpers", () => {
     });
 
     expect(result).toMatchObject({
+      status: "success",
       inserted: true,
       balanceCredits: 5,
       promotionalCreditsUsed: 2
