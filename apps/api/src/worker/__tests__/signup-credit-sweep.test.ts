@@ -117,4 +117,15 @@ describe("runSignupCreditExpirySweepDb", () => {
     expect(queries.filter((entry) => entry.text === "ROLLBACK")).toHaveLength(1);
     expect(client.release).toHaveBeenCalledOnce();
   });
+
+  it("limits the due-wallet selection when user ids are supplied", async () => {
+    const { pool, queries } = createPool([[]]);
+    const userIds = ["user-1", "user-2"];
+
+    await runSignupCreditExpirySweepDb(pool, { userIds });
+
+    const select = queries.find((query) => query.text.includes("FROM wallets"));
+    expect(select?.text).toContain("user_id = ANY($2::uuid[])");
+    expect(select?.params).toEqual([100, userIds]);
+  });
 });

@@ -27,8 +27,10 @@ export class WalletController {
   async balance(@Req() req: { user: { id: string } }) {
     if (this.database.isEnabled()) {
       const client = await this.database.getClient();
+      let inTransaction = false;
       try {
         await client.query("BEGIN");
+        inTransaction = true;
         await expireSignupCredits(client, req.user.id);
         const result = await client.query<{
           balance_credits: number;
@@ -49,6 +51,7 @@ export class WalletController {
           [req.user.id]
         );
         await client.query("COMMIT");
+        inTransaction = false;
 
         return ok({
           balance_credits: Number(result.rows[0]?.balance_credits ?? 0),
@@ -57,7 +60,13 @@ export class WalletController {
           promotional_credits_expires_at: result.rows[0]?.promotional_credits_expires_at ?? null
         });
       } catch (error) {
-        await client.query("ROLLBACK");
+        if (inTransaction) {
+          try {
+            await client.query("ROLLBACK");
+          } catch {
+            // Preserve the error that aborted the wallet read.
+          }
+        }
         throw error;
       } finally {
         client.release();

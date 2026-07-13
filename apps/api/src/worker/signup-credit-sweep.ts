@@ -3,7 +3,14 @@ import { expireSignupCredits } from "../modules/wallet/wallet-balance";
 
 const SIGNUP_CREDIT_EXPIRY_BATCH_SIZE = 100;
 
-export async function runSignupCreditExpirySweepDb(pool: Pool): Promise<{
+export interface SignupCreditExpirySweepOptions {
+  userIds?: string[];
+}
+
+export async function runSignupCreditExpirySweepDb(
+  pool: Pool,
+  options: SignupCreditExpirySweepOptions = {}
+): Promise<{
   walletsExpired: number;
   creditsExpired: number;
 }> {
@@ -11,6 +18,11 @@ export async function runSignupCreditExpirySweepDb(pool: Pool): Promise<{
   let walletsExpired = 0;
   let creditsExpired = 0;
   let inTransaction = false;
+  const filterByUserIds = options.userIds !== undefined;
+  const userFilter = filterByUserIds ? "\n          AND user_id = ANY($2::uuid[])" : "";
+  const queryParams = filterByUserIds
+    ? [SIGNUP_CREDIT_EXPIRY_BATCH_SIZE, options.userIds]
+    : [SIGNUP_CREDIT_EXPIRY_BATCH_SIZE];
 
   try {
     while (true) {
@@ -23,11 +35,12 @@ export async function runSignupCreditExpirySweepDb(pool: Pool): Promise<{
         WHERE promotional_credits_remaining > 0
           AND promotional_credits_expires_at IS NOT NULL
           AND promotional_credits_expires_at <= now()
+          ${userFilter}
         ORDER BY promotional_credits_expires_at ASC
         FOR UPDATE SKIP LOCKED
         LIMIT $1
         `,
-        [SIGNUP_CREDIT_EXPIRY_BATCH_SIZE]
+        queryParams
       );
 
       if (!dueWallets.rowCount) {

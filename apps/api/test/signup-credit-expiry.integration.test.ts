@@ -5,8 +5,8 @@ import { createHmac, randomUUID } from "crypto";
 import { Pool } from "pg";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
+import { refundUnlock } from "../src/modules/contacts/refund-unlock";
 import { canonicalPayload } from "../src/modules/payments/payments.util";
-import { runRefundSweepDb } from "../src/worker/callback-sweeps";
 import { runSignupCreditExpirySweepDb } from "../src/worker/signup-credit-sweep";
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
@@ -32,7 +32,7 @@ interface PurchaseIntent {
   credits_to_grant: number;
 }
 
-function randomPhone(prefix: "93" | "94" | "95" | "96" | "97" | "98" | "99") {
+function randomPhone(prefix: "92" | "93" | "94" | "95" | "96" | "97" | "98" | "99") {
   return `+91${prefix}${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
 }
 
@@ -126,6 +126,43 @@ async function capturePurchase(app: INestApplication, purchase: PurchaseIntent, 
     .expect(201);
 }
 
+async function refundSpecificUnlock(pool: Pool, unlockId: string) {
+  const client = await pool.connect();
+  let inTransaction = false;
+  try {
+    await client.query("BEGIN");
+    inTransaction = true;
+    const locked = await client.query(
+      `SELECT id
+       FROM contact_unlocks
+       WHERE id = $1::uuid
+       FOR UPDATE`,
+      [unlockId]
+    );
+    expect(locked.rowCount).toBe(1);
+
+    const result = await refundUnlock(client, unlockId, {
+      txnType: "refund_no_response",
+      actorRole: "system",
+      expireLockedLead: true
+    });
+    await client.query("COMMIT");
+    inTransaction = false;
+    return result;
+  } catch (error) {
+    if (inTransaction) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the fixture failure.
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 describe("signup credit expiry test environment", () => {
   it("restores set and unset variables exactly", () => {
     const keys = [
@@ -170,6 +207,7 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
   const sweepPhoneOne = randomPhone("97");
   const sweepPhoneTwo = randomPhone("98");
   const futurePhone = randomPhone("99");
+  const unrelatedSweepPhone = randomPhone("92");
   const ownerPhone = randomPhone("93");
   const phones = [
     signupPhone,
@@ -178,6 +216,7 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
     sweepPhoneOne,
     sweepPhoneTwo,
     futurePhone,
+    unrelatedSweepPhone,
     ownerPhone
   ];
   const listingIds: string[] = [];
@@ -447,7 +486,12 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
        WHERE id = $1::uuid`,
       [unlockId]
     );
-    await runRefundSweepDb(pool);
+    const refund = await refundSpecificUnlock(pool, unlockId);
+    expect(refund).toMatchObject({
+      refunded: true,
+      tenantUserId: signup.user.id,
+      refundTxnId: expect.any(String)
+    });
 
     const refundedUnlock = await pool.query<{
       unlock_status: string;
@@ -577,14 +621,17 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
        VALUES
          ($1, 'tenant'),
          ($2, 'tenant'),
-         ($3, 'tenant')
+         ($3, 'tenant'),
+         ($4, 'tenant')
        RETURNING id::text, phone_e164`,
-      [sweepPhoneOne, sweepPhoneTwo, futurePhone]
+      [sweepPhoneOne, sweepPhoneTwo, futurePhone, unrelatedSweepPhone]
     );
     const byPhone = new Map(seeded.rows.map((row) => [row.phone_e164, row.id]));
     const dueOneId = byPhone.get(sweepPhoneOne)!;
     const dueTwoId = byPhone.get(sweepPhoneTwo)!;
     const futureId = byPhone.get(futurePhone)!;
+    const unrelatedId = byPhone.get(unrelatedSweepPhone)!;
+    const sweepUserIds = [dueOneId, dueTwoId, futureId];
 
     await pool.query(
       `INSERT INTO wallets(
@@ -597,12 +644,13 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
        VALUES
          ($1::uuid, 9, 4, 4, now() - interval '2 hours'),
          ($2::uuid, 8, 6, 6, now() - interval '1 hour'),
-         ($3::uuid, 3, 3, 3, now() + interval '1 day')`,
-      [dueOneId, dueTwoId, futureId]
+         ($3::uuid, 3, 3, 3, now() + interval '1 day'),
+         ($4::uuid, 7, 2, 2, now() - interval '3 hours')`,
+      [dueOneId, dueTwoId, futureId, unrelatedId]
     );
 
-    const first = await runSignupCreditExpirySweepDb(pool);
-    const second = await runSignupCreditExpirySweepDb(pool);
+    const first = await runSignupCreditExpirySweepDb(pool, { userIds: sweepUserIds });
+    const second = await runSignupCreditExpirySweepDb(pool, { userIds: sweepUserIds });
 
     expect(first).toEqual({
       walletsExpired: 2,
@@ -622,7 +670,7 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
        FROM wallets
        WHERE user_id = ANY($1::uuid[])
        ORDER BY user_id`,
-      [[dueOneId, dueTwoId, futureId]]
+      [[...sweepUserIds, unrelatedId]]
     );
     expect(
       Object.fromEntries(
@@ -646,6 +694,10 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
       [futureId]: {
         balance_credits: 3,
         promotional_credits_remaining: 3
+      },
+      [unrelatedId]: {
+        balance_credits: 7,
+        promotional_credits_remaining: 2
       }
     });
 
@@ -659,7 +711,7 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
        WHERE wallet_user_id = ANY($1::uuid[])
          AND txn_type = 'expire_signup'
        ORDER BY wallet_user_id`,
-      [[dueOneId, dueTwoId, futureId]]
+      [[...sweepUserIds, unrelatedId]]
     );
     expect(expiryTransactions.rows).toHaveLength(2);
     expect(

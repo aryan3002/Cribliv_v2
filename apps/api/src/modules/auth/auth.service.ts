@@ -387,8 +387,10 @@ export class AuthService {
   async getMe(userId: string) {
     if (this.database.isEnabled()) {
       const client = await this.database.getClient();
+      let inTransaction = false;
       try {
         await client.query("BEGIN");
+        inTransaction = true;
         await expireSignupCredits(client, userId);
         const result = await client.query<{
           id: string;
@@ -422,12 +424,19 @@ export class AuthService {
           [userId]
         );
         await client.query("COMMIT");
+        inTransaction = false;
 
         if (result.rowCount && result.rows[0]) {
           return result.rows[0];
         }
       } catch (error) {
-        await client.query("ROLLBACK");
+        if (inTransaction) {
+          try {
+            await client.query("ROLLBACK");
+          } catch {
+            // Preserve the error that aborted the wallet read.
+          }
+        }
         throw error;
       } finally {
         client.release();
