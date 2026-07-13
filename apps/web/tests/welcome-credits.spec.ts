@@ -10,12 +10,6 @@
 //   - modal CTA text is "Start finding homes" (lib/i18n.ts welcomeRewardCta)
 import { test, expect, type Page } from "@playwright/test";
 
-// Retry the flake characterized in task-s2-9-report.md: a pre-existing
-// NextAuth v5 MissingCSRF race where getSession() can lose to the cookie
-// write right after signIn(), surfacing as "Something went wrong" on the
-// login page before this spec's own assertions ever run.
-test.describe.configure({ retries: 2 });
-
 let phoneCounter = 0;
 
 function uniquePhone(workerIndex: number) {
