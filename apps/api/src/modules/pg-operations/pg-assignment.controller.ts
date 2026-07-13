@@ -51,6 +51,15 @@ export class PgAssignmentController {
     );
   }
 
+  @Get(":propertyId/beds/:bedId")
+  async getBedDetail(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("bedId") bedId: string
+  ) {
+    return ok(await this.assignments.getBedDetail(user.id, propertyId, bedId));
+  }
+
   @Post(":propertyId/beds/:bedId/reserve")
   async reserve(
     @AuthUser() user: UserContext,
@@ -105,6 +114,15 @@ export class PgAssignmentController {
     @Param("id") assignmentId: string
   ) {
     return ok(await this.assignments.confirmMoveOut(user.id, propertyId, assignmentId));
+  }
+
+  @Post(":propertyId/assignments/:id/move-out-now")
+  async moveOutNow(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") assignmentId: string
+  ) {
+    return ok(await this.assignments.operatorDirectMoveOut(user.id, propertyId, assignmentId));
   }
 
   @Post(":propertyId/assignments/:id/cancel-move-out")

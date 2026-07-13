@@ -37,12 +37,14 @@ export default function PgBedGrid({
   propertyId,
   token,
   rooms,
-  assignmentHrefBase
+  assignmentHrefBase,
+  bedDetailHrefBase
 }: {
   propertyId: string;
   token?: string;
   rooms: PgRoom[];
   assignmentHrefBase?: string;
+  bedDetailHrefBase?: string;
 }) {
   const router = useRouter();
   const [currentRooms, setCurrentRooms] = useState(rooms);
@@ -170,6 +172,11 @@ export default function PgBedGrid({
                                   ? `${assignmentHrefBase}?bedId=${encodeURIComponent(
                                       bed.id
                                     )}&mode=${bed.status === "reserved" ? "move-in" : "reserve"}`
+                                  : undefined
+                              }
+                              detailHref={
+                                bedDetailHrefBase
+                                  ? `${bedDetailHrefBase}/${encodeURIComponent(bed.id)}`
                                   : undefined
                               }
                             />

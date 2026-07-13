@@ -9,10 +9,14 @@ import {
 } from "@nestjs/common";
 import type {
   PgAssignmentInitiator,
+  PgAssignmentEvent,
+  PgBed,
   PgBedAssignment,
   PgBedAssignmentListFilters,
   PgBedAssignmentOccupantInput,
   PgBedAssignmentStatus,
+  PgOperatorBedDetail,
+  PgOperatorBedDetailRoom,
   PgServeNoticeInput
 } from "@cribliv/shared-types";
 import type { PoolClient } from "pg";
@@ -41,6 +45,54 @@ type AssignmentRow = {
   created_by: string | null;
   created_at: Date | string;
   updated_at: Date | string;
+};
+
+type BedRow = {
+  id: string;
+  room_id: string;
+  bed_label: string;
+  status: PgBed["status"];
+  available_from: Date | string | null;
+  sort_order: number | null;
+  metadata: Record<string, unknown> | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+type BedDetailRow = {
+  property_id: string;
+  property_name: string;
+  room_id: string;
+  room_property_id: string;
+  room_type_id: string | null;
+  floor: number | null;
+  room_number: string;
+  display_label: string | null;
+  bed_count: number | null;
+  room_status: PgOperatorBedDetailRoom["status"];
+  room_created_at: Date | string;
+  room_updated_at: Date | string;
+  bed_id: string;
+  bed_room_id: string;
+  bed_label: string;
+  bed_status: PgBed["status"];
+  available_from: Date | string | null;
+  sort_order: number | null;
+  metadata: Record<string, unknown> | null;
+  bed_created_at: Date | string;
+  bed_updated_at: Date | string;
+};
+
+type AssignmentEventRow = {
+  id: string;
+  assignment_id: string;
+  event_type: string;
+  initiator: PgAssignmentInitiator;
+  actor_user_id: string | null;
+  from_status: PgBedAssignmentStatus | null;
+  to_status: PgBedAssignmentStatus;
+  payload: Record<string, unknown> | null;
+  created_at: Date | string;
 };
 
 type LockedAssignmentRow = AssignmentRow & {
@@ -104,6 +156,34 @@ function toAssignment(row: AssignmentRow): PgBedAssignment {
     created_by: row.created_by,
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at)
+  };
+}
+
+function toBed(row: BedRow): PgBed {
+  return {
+    id: row.id,
+    room_id: row.room_id,
+    bed_label: row.bed_label,
+    status: row.status,
+    available_from: toDate(row.available_from),
+    sort_order: row.sort_order,
+    metadata: row.metadata ?? {},
+    created_at: toIso(row.created_at),
+    updated_at: toIso(row.updated_at)
+  };
+}
+
+function toAssignmentEvent(row: AssignmentEventRow): PgAssignmentEvent {
+  return {
+    id: row.id,
+    assignment_id: row.assignment_id,
+    event_type: row.event_type,
+    initiator: row.initiator,
+    actor_user_id: row.actor_user_id,
+    from_status: row.from_status,
+    to_status: row.to_status,
+    payload: row.payload ?? {},
+    created_at: toIso(row.created_at)
   };
 }
 
@@ -610,6 +690,24 @@ export class PgBedAssignmentService {
     return result.assignment;
   }
 
+  async operatorDirectMoveOut(
+    operatorId: string,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.operatorTransition(
+      operatorId,
+      propertyId,
+      assignmentId,
+      ["active", "notice_served", "move_out_requested", "move_out_pending_confirmation"],
+      "moved_out",
+      "operator_direct_move_out",
+      "vacant"
+    );
+    return result.assignment;
+  }
+
   async cancelMoveOut(
     operatorId: string,
     propertyId: string,
@@ -626,6 +724,114 @@ export class PgBedAssignmentService {
       "occupied"
     );
     return result.assignment;
+  }
+
+  async getBedDetail(
+    operatorId: string,
+    propertyId: string,
+    bedId: string
+  ): Promise<PgOperatorBedDetail> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    await this.assertManagedOwnership(operatorId, propertyId);
+
+    const bedResult = await this.db.query<BedDetailRow>(
+      `SELECT p.id::text AS property_id,
+              p.display_name AS property_name,
+              r.id::text AS room_id,
+              r.pg_property_id::text AS room_property_id,
+              r.room_type_id::text,
+              r.floor,
+              r.room_number,
+              r.display_label,
+              r.bed_count,
+              r.status::text AS room_status,
+              r.created_at AS room_created_at,
+              r.updated_at AS room_updated_at,
+              b.id::text AS bed_id,
+              b.room_id::text AS bed_room_id,
+              b.bed_label,
+              b.status::text AS bed_status,
+              b.available_from,
+              b.sort_order,
+              b.metadata,
+              b.created_at AS bed_created_at,
+              b.updated_at AS bed_updated_at
+         FROM pg_beds b
+         JOIN pg_rooms r ON r.id = b.room_id
+         JOIN pg_properties p ON p.id = r.pg_property_id
+        WHERE p.id = $1::uuid
+          AND b.id = $2::uuid
+        LIMIT 1`,
+      [propertyId, bedId]
+    );
+    const row = bedResult.rows[0];
+    if (!row) {
+      throw new NotFoundException({ code: "bed_not_found", message: "Bed not found" });
+    }
+
+    const assignmentResult = await this.db.query<AssignmentRow>(
+      `SELECT *
+         FROM pg_bed_assignments
+        WHERE pg_property_id = $1::uuid
+          AND bed_id = $2::uuid
+          AND status = ANY($3::pg_assignment_status[])
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT 1`,
+      [propertyId, bedId, [...ACTIVE_ASSIGNMENT_STATUSES]]
+    );
+
+    const eventResult = await this.db.query<AssignmentEventRow>(
+      `SELECT e.id::text,
+              e.assignment_id::text,
+              e.event_type,
+              e.initiator::text,
+              e.actor_user_id::text,
+              e.from_status,
+              e.to_status,
+              e.payload,
+              e.created_at
+         FROM pg_assignment_events e
+         JOIN pg_bed_assignments a ON a.id = e.assignment_id
+        WHERE a.pg_property_id = $1::uuid
+          AND a.bed_id = $2::uuid
+        ORDER BY e.created_at DESC, e.id DESC
+        LIMIT 20`,
+      [propertyId, bedId]
+    );
+
+    return {
+      property_id: row.property_id,
+      property_name: row.property_name,
+      room: {
+        id: row.room_id,
+        pg_property_id: row.room_property_id,
+        room_type_id: row.room_type_id,
+        floor: row.floor,
+        room_number: row.room_number,
+        display_label: row.display_label,
+        bed_count: Number(row.bed_count ?? 0),
+        status: row.room_status,
+        created_at: toIso(row.room_created_at),
+        updated_at: toIso(row.room_updated_at)
+      },
+      bed: toBed({
+        id: row.bed_id,
+        room_id: row.bed_room_id,
+        bed_label: row.bed_label,
+        status: row.bed_status,
+        available_from: row.available_from,
+        sort_order: row.sort_order,
+        metadata: row.metadata,
+        created_at: row.bed_created_at,
+        updated_at: row.bed_updated_at
+      }),
+      assignment: assignmentResult.rows[0] ? toAssignment(assignmentResult.rows[0]) : null,
+      events: eventResult.rows.map(toAssignmentEvent),
+      maintenance_summary: {
+        open_items: 0,
+        overdue_items: 0
+      }
+    };
   }
 
   async cancelReservation(

@@ -83,6 +83,7 @@ export default async function Page({ params }: { params: { locale: string; prope
             token={token}
             rooms={rooms}
             assignmentHrefBase={`/${params.locale}/pg-operator/properties/${params.propertyId}/tenants`}
+            bedDetailHrefBase={`/${params.locale}/pg-operator/properties/${params.propertyId}/beds`}
           />
         </section>
         <section className={styles.upcoming}>

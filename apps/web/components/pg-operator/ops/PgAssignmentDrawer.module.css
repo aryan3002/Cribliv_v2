@@ -18,7 +18,9 @@
 .field input, .field select, .field textarea { background: var(--d-surface); border: 1px solid var(--d-border-strong); border-radius: 6px; color: var(--d-text); font: inherit; min-height: 36px; padding: 7px 9px; }
 .field textarea { min-height: 72px; resize: vertical; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.detailLink { align-items: center; background: var(--d-surface); border: 1px solid var(--d-border-strong); border-radius: 7px; color: var(--d-text); display: inline-flex; font-size: 13px; font-weight: 700; min-height: 36px; padding: 0 11px; text-decoration: none; }
+.detailLink:hover { border-color: var(--d-brand); color: var(--d-brand); }
 .error { color: var(--d-danger); font-size: 12px; margin: 0; }
-.notice { border-top: 1px solid var(--d-border); display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; }
+.notice { border-bottom: 1px solid var(--d-border); display: grid; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; }
 @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .drawer { position: static; } }
 @media (max-width: 640px) { .listHeader { display: none; } .assignment { align-items: start; grid-template-columns: 1fr; } }

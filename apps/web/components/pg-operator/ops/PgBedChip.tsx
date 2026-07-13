@@ -23,6 +23,7 @@ export default function PgBedChip({
   onSetStatus,
   onRelist,
   assignmentHref,
+  detailHref,
   pending
 }: {
   bed: PgBed;
@@ -30,6 +31,7 @@ export default function PgBedChip({
   onSetStatus: (status: "blocked" | "vacant") => void;
   onRelist: () => void;
   assignmentHref?: string;
+  detailHref?: string;
   pending?: boolean;
 }) {
   const isBlocked = bed.status === "blocked";
@@ -47,7 +49,7 @@ export default function PgBedChip({
       <p className={styles.date}>
         {bed.available_from ? `Available ${bed.available_from}` : "No available date"}
       </p>
-      {(canAct || assignmentHref) && (
+      {(canAct || assignmentHref || detailHref) && (
         <div className={styles.actions}>
           {canAct && (
             <>
@@ -78,6 +80,11 @@ export default function PgBedChip({
           {assignmentHref && (
             <a className={styles.actionButton} href={assignmentHref}>
               Tenants
+            </a>
+          )}
+          {detailHref && (
+            <a className={styles.actionButton} href={detailHref}>
+              Bed record
             </a>
           )}
         </div>

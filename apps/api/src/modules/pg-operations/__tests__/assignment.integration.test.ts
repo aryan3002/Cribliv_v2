@@ -55,7 +55,13 @@ describe("PG bed assignments without a database", () => {
     await expect(
       service.confirmMoveOut(operatorId, propertyId, assignmentId)
     ).rejects.toMatchObject(unavailable);
+    await expect(
+      service.operatorDirectMoveOut(operatorId, propertyId, assignmentId)
+    ).rejects.toMatchObject(unavailable);
     await expect(service.cancelMoveOut(operatorId, propertyId, assignmentId)).rejects.toMatchObject(
+      unavailable
+    );
+    await expect(service.getBedDetail(operatorId, propertyId, bedId)).rejects.toMatchObject(
       unavailable
     );
     await expect(
@@ -422,6 +428,69 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
       .set("x-test-identity", "operator")
       .expect(201);
     expect(confirmed.body.data.status).toBe("moved_out");
+  });
+
+  it("lets an operator directly move out a live occupant and frees the bed with an audit event", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_name: "Direct Move Out" })
+    );
+
+    const movedOut = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/assignments/${active.id}/move-out-now`
+      )
+      .set("x-test-identity", "operator")
+      .expect(201);
+
+    expect(movedOut.body.data).toMatchObject({
+      id: active.id,
+      status: "moved_out"
+    });
+    expect(movedOut.body.data.move_out_date).not.toBeNull();
+    expect(await bedStatus(fixture.bedIds[0])).toBe("vacant");
+    expect(await events(active.id)).toMatchObject([
+      { from_status: null, to_status: "active", initiator: "operator" },
+      { from_status: "active", to_status: "moved_out", initiator: "operator" }
+    ]);
+  });
+
+  it("returns a bed detail read model with the current assignment and assignment history", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({
+        occupant_name: "Bed Detail Tenant",
+        occupant_phone_e164: "+919700000011",
+        monthly_rent_paise: 910000
+      })
+    );
+    await service.operatorMoveOutRequest(operatorId, fixture.propertyId, active.id);
+
+    const detail = await service.getBedDetail(operatorId, fixture.propertyId, fixture.bedIds[0]);
+
+    expect(detail).toMatchObject({
+      property_id: fixture.propertyId,
+      property_name: expect.stringMatching(/^P3 property/),
+      bed: expect.objectContaining({ id: fixture.bedIds[0], status: "occupied" }),
+      room: expect.objectContaining({ room_number: expect.stringMatching(/^P3-/) }),
+      assignment: expect.objectContaining({
+        id: active.id,
+        status: "move_out_pending_confirmation",
+        occupant_name: "Bed Detail Tenant",
+        monthly_rent_paise: 910000
+      }),
+      maintenance_summary: { open_items: 0, overdue_items: 0 }
+    });
+    expect(detail.events.map((event) => event.event_type)).toEqual([
+      "operator_move_out_requested",
+      "moved_in"
+    ]);
   });
 
   it("maps tenant double-occupancy unique violations to the clean 409 response", async () => {

@@ -76,6 +76,7 @@ export default async function Page({
           rooms={data.rooms}
           initialBedId={searchParams?.bedId}
           initialMode={searchParams?.mode}
+          bedDetailBase={`/${params.locale}/pg-operator/properties/${params.propertyId}/beds`}
         />
       </div>
     </main>

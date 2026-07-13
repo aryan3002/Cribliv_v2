@@ -1,19 +1,35 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@cribliv/ui";
-import type { PgBed, PgBedAssignment, PgRoom } from "@cribliv/shared-types";
+import type {
+  PgBed,
+  PgBedAssignment,
+  PgBedAssignmentOccupantInput,
+  PgRoom
+} from "@cribliv/shared-types";
 import {
   cancelAssignmentMoveOut,
   confirmAssignmentMoveOut,
   moveInBed,
+  moveOutAssignmentNow,
   operatorMoveOutRequest,
   reserveBed
 } from "@/lib/pg-operations-api";
 import styles from "./PgAssignmentDrawer.module.css";
 
 type Mode = "reserve" | "move-in";
+type AssignmentForm = {
+  occupant_name: string;
+  occupant_phone_e164: string;
+  expected_move_in_date: string;
+  move_in_date: string;
+  monthly_rent_paise: string;
+  security_deposit_paise: string;
+  operator_notes: string;
+};
 
 const STATUS_TONE: Record<
   PgBedAssignment["status"],
@@ -32,6 +48,11 @@ function dateValue(value: string | null): string {
   return value ?? "";
 }
 
+function statusLabel(status: PgBedAssignment["status"]): string {
+  if (status === "active") return "moved in";
+  return status.replaceAll("_", " ");
+}
+
 function key(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -47,6 +68,14 @@ function bedLabel(rooms: PgRoom[], bedId: string): string {
   return "Unknown bed";
 }
 
+function findBed(rooms: PgRoom[], bedId: string): (PgBed & { room_number: string }) | null {
+  for (const room of rooms) {
+    const bed = room.beds.find((item) => item.id === bedId);
+    if (bed) return { ...bed, room_number: room.room_number };
+  }
+  return null;
+}
+
 function selectableBeds(rooms: PgRoom[], mode: Mode): Array<PgBed & { room_number: string }> {
   const statuses = mode === "reserve" ? ["vacant"] : ["vacant", "reserved"];
   return rooms.flatMap((room) =>
@@ -56,30 +85,8 @@ function selectableBeds(rooms: PgRoom[], mode: Mode): Array<PgBed & { room_numbe
   );
 }
 
-export default function PgAssignmentDrawer({
-  propertyId,
-  token,
-  assignments,
-  rooms,
-  initialBedId,
-  initialMode
-}: {
-  propertyId: string;
-  token?: string;
-  assignments: PgBedAssignment[];
-  rooms: PgRoom[];
-  initialBedId?: string;
-  initialMode?: Mode;
-}) {
-  const router = useRouter();
-  const [mode, setMode] = useState<Mode>(initialMode ?? "reserve");
-  const beds = useMemo(() => selectableBeds(rooms, mode), [rooms, mode]);
-  const [bedId, setBedId] = useState(initialBedId ?? beds[0]?.id ?? "");
-  const initialAssignment = assignments.find((item) => item.bed_id === initialBedId);
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState(
-    initialAssignment?.id ?? assignments[0]?.id ?? ""
-  );
-  const [form, setForm] = useState({
+function emptyForm(): AssignmentForm {
+  return {
     occupant_name: "",
     occupant_phone_e164: "",
     expected_move_in_date: "",
@@ -87,11 +94,63 @@ export default function PgAssignmentDrawer({
     monthly_rent_paise: "",
     security_deposit_paise: "",
     operator_notes: ""
-  });
+  };
+}
+
+function formFromAssignment(assignment: PgBedAssignment): AssignmentForm {
+  return {
+    occupant_name: assignment.occupant_name,
+    occupant_phone_e164: assignment.occupant_phone_e164,
+    expected_move_in_date: assignment.expected_move_in_date ?? "",
+    move_in_date: assignment.move_in_date ?? assignment.expected_move_in_date ?? "",
+    monthly_rent_paise: assignment.monthly_rent_paise?.toString() ?? "",
+    security_deposit_paise: assignment.security_deposit_paise?.toString() ?? "",
+    operator_notes: assignment.operator_notes ?? ""
+  };
+}
+
+export default function PgAssignmentDrawer({
+  propertyId,
+  token,
+  assignments,
+  rooms,
+  initialBedId,
+  initialMode,
+  bedDetailBase
+}: {
+  propertyId: string;
+  token?: string;
+  assignments: PgBedAssignment[];
+  rooms: PgRoom[];
+  initialBedId?: string;
+  initialMode?: Mode;
+  bedDetailBase?: string;
+}) {
+  const router = useRouter();
+  const initialAssignment = assignments.find((item) => item.bed_id === initialBedId);
+  const initialSelection = initialAssignment ?? assignments[0] ?? null;
+  const [mode, setMode] = useState<Mode>(
+    initialMode ?? (initialSelection?.status === "reserved" ? "move-in" : "reserve")
+  );
+  const selectable = useMemo(() => selectableBeds(rooms, mode), [rooms, mode]);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(initialSelection?.id ?? "");
+  const [bedId, setBedId] = useState(initialBedId ?? initialSelection?.bed_id ?? "");
+  const [form, setForm] = useState<AssignmentForm>(
+    initialSelection ? formFromAssignment(initialSelection) : emptyForm()
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selected = assignments.find((item) => item.id === selectedAssignmentId) ?? assignments[0];
+  const selectedBed = useMemo(
+    () => (selected ? findBed(rooms, selected.bed_id) : null),
+    [rooms, selected]
+  );
+  const beds = useMemo(() => {
+    if (!selectedBed || selectable.some((bed) => bed.id === selectedBed.id)) return selectable;
+    return [selectedBed, ...selectable];
+  }, [selectable, selectedBed]);
+  const canSubmitForm = selectable.some((bed) => bed.id === bedId);
 
   useEffect(() => {
     if (!beds.some((bed) => bed.id === bedId)) {
@@ -99,8 +158,18 @@ export default function PgAssignmentDrawer({
     }
   }, [bedId, beds]);
 
-  function payload() {
-    return {
+  function selectAssignment(assignment: PgBedAssignment) {
+    setSelectedAssignmentId(assignment.id);
+    setBedId(assignment.bed_id);
+    setForm(formFromAssignment(assignment));
+    setError(null);
+    if (assignment.status === "reserved") {
+      setMode("move-in");
+    }
+  }
+
+  function payload(): PgBedAssignmentOccupantInput | null {
+    const next = {
       occupant_name: form.occupant_name.trim(),
       occupant_phone_e164: form.occupant_phone_e164.trim(),
       expected_move_in_date: form.expected_move_in_date || null,
@@ -111,16 +180,23 @@ export default function PgAssignmentDrawer({
         : null,
       operator_notes: form.operator_notes.trim() || null
     };
+    if (!next.occupant_name || !next.occupant_phone_e164) {
+      setError("Name and phone are required before saving this assignment.");
+      return null;
+    }
+    return next;
   }
 
   async function submit() {
+    const body = payload();
+    if (!body) return;
     setPending(true);
     setError(null);
     try {
       if (mode === "reserve") {
-        await reserveBed(propertyId, bedId, payload(), token, key("reserve"));
+        await reserveBed(propertyId, bedId, body, token, key("reserve"));
       } else {
-        await moveInBed(propertyId, bedId, payload(), token, key("move-in"));
+        await moveInBed(propertyId, bedId, body, token, key("move-in"));
       }
       router.refresh();
     } catch (cause) {
@@ -130,7 +206,23 @@ export default function PgAssignmentDrawer({
     }
   }
 
-  async function runAssignmentAction(action: "request" | "confirm" | "cancel") {
+  async function confirmReservedMoveIn() {
+    if (!selected || selected.status !== "reserved") return;
+    const body = payload();
+    if (!body) return;
+    setPending(true);
+    setError(null);
+    try {
+      await moveInBed(propertyId, selected.bed_id, body, token, key("move-in"));
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not confirm move-in.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function runAssignmentAction(action: "request" | "confirm" | "cancel" | "direct") {
     if (!selected) return;
     setPending(true);
     setError(null);
@@ -139,6 +231,8 @@ export default function PgAssignmentDrawer({
         await operatorMoveOutRequest(propertyId, selected.id, token);
       } else if (action === "confirm") {
         await confirmAssignmentMoveOut(propertyId, selected.id, token);
+      } else if (action === "direct") {
+        await moveOutAssignmentNow(propertyId, selected.id, token);
       } else {
         await cancelAssignmentMoveOut(propertyId, selected.id, token);
       }
@@ -167,16 +261,14 @@ export default function PgAssignmentDrawer({
               key={assignment.id}
               type="button"
               className={styles.assignment}
-              onClick={() => setSelectedAssignmentId(assignment.id)}
+              onClick={() => selectAssignment(assignment)}
             >
               <span>
                 <strong>{assignment.occupant_name}</strong>
                 <span>{assignment.occupant_phone_e164}</span>
               </span>
               <span>{bedLabel(rooms, assignment.bed_id)}</span>
-              <Badge tone={STATUS_TONE[assignment.status]}>
-                {assignment.status.replaceAll("_", " ")}
-              </Badge>
+              <Badge tone={STATUS_TONE[assignment.status]}>{statusLabel(assignment.status)}</Badge>
               <span>{selected?.id === assignment.id ? "Selected" : "Review"}</span>
             </button>
           ))
@@ -186,12 +278,88 @@ export default function PgAssignmentDrawer({
       <aside className={styles.drawer} aria-label="Assignment drawer">
         <h2>Assignment</h2>
         <p>Reserve a vacant bed, move an occupant in, or complete operator move-out actions.</p>
+        {selected && (
+          <div className={styles.notice}>
+            <p>
+              {selected.occupant_name} is currently {statusLabel(selected.status)} on{" "}
+              {bedLabel(rooms, selected.bed_id)}.
+            </p>
+            <div className={styles.actions}>
+              {bedDetailBase && (
+                <Link
+                  className={styles.detailLink}
+                  href={`${bedDetailBase}/${encodeURIComponent(selected.bed_id)}` as any}
+                >
+                  Open bed record
+                </Link>
+              )}
+              {selected.status === "reserved" && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => void confirmReservedMoveIn()}
+                >
+                  Confirm move-in
+                </Button>
+              )}
+              {["active", "notice_served", "move_out_requested"].includes(selected.status) && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => void runAssignmentAction("request")}
+                >
+                  Request move-out
+                </Button>
+              )}
+              {[
+                "active",
+                "notice_served",
+                "move_out_requested",
+                "move_out_pending_confirmation"
+              ].includes(selected.status) && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => void runAssignmentAction("direct")}
+                >
+                  Move out
+                </Button>
+              )}
+              {selected.status === "move_out_pending_confirmation" && (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={pending}
+                    onClick={() => void runAssignmentAction("confirm")}
+                  >
+                    Confirm move-out
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={pending}
+                    onClick={() => void runAssignmentAction("cancel")}
+                  >
+                    Cancel move-out
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         <div className={styles.tabs}>
           <button
             type="button"
             className={styles.tab}
             aria-pressed={mode === "reserve"}
-            onClick={() => setMode("reserve")}
+            onClick={() => {
+              setMode("reserve");
+              setError(null);
+            }}
           >
             Reserve
           </button>
@@ -199,7 +367,10 @@ export default function PgAssignmentDrawer({
             type="button"
             className={styles.tab}
             aria-pressed={mode === "move-in"}
-            onClick={() => setMode("move-in")}
+            onClick={() => {
+              setMode("move-in");
+              setError(null);
+            }}
           >
             Move in
           </button>
@@ -287,49 +458,15 @@ export default function PgAssignmentDrawer({
             </p>
           )}
           <div className={styles.actions}>
-            <Button type="button" disabled={pending || !bedId} onClick={() => void submit()}>
+            <Button
+              type="button"
+              disabled={pending || !bedId || !canSubmitForm}
+              onClick={() => void submit()}
+            >
               {mode === "reserve" ? "Reserve bed" : "Move in"}
             </Button>
           </div>
         </div>
-
-        {selected && (
-          <div className={styles.notice}>
-            <p>
-              {selected.occupant_name} is currently {selected.status.replaceAll("_", " ")} on{" "}
-              {bedLabel(rooms, selected.bed_id)}.
-            </p>
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={
-                  pending ||
-                  !["active", "notice_served", "move_out_requested"].includes(selected.status)
-                }
-                onClick={() => void runAssignmentAction("request")}
-              >
-                Request move-out
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={pending || selected.status !== "move_out_pending_confirmation"}
-                onClick={() => void runAssignmentAction("confirm")}
-              >
-                Confirm move-out
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={pending || selected.status !== "move_out_pending_confirmation"}
-                onClick={() => void runAssignmentAction("cancel")}
-              >
-                Cancel move-out
-              </Button>
-            </div>
-          </div>
-        )}
       </aside>
     </div>
   );
