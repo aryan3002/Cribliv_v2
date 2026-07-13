@@ -14,6 +14,7 @@ import { type Locale } from "../../lib/i18n";
 interface Props {
   accessToken: string;
   locale: Locale;
+  searchQuery?: string;
 }
 
 const TABS: Array<{ value: LeadStatus | "all"; label: string; color?: string }> = [
@@ -25,7 +26,7 @@ const TABS: Array<{ value: LeadStatus | "all"; label: string; color?: string }> 
   { value: "lost", label: "Lost", color: "#9ca3af" }
 ];
 
-export function LeadsPipeline({ accessToken, locale }: Props) {
+export function LeadsPipeline({ accessToken, locale, searchQuery = "" }: Props) {
   const [leads, setLeads] = useState<LeadVm[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -83,6 +84,18 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
   function handleLeadPatch(leadId: string, patch: Partial<LeadVm>) {
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...patch } : l)));
   }
+
+  const visibleLeads = leads.filter((lead) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      lead.tenantName.toLowerCase().includes(query) ||
+      lead.listingTitle.toLowerCase().includes(query) ||
+      (lead.tenantPhoneMasked ?? "").toLowerCase().includes(query) ||
+      (lead.tenantPhone ?? "").toLowerCase().includes(query) ||
+      (lead.ownerNotes ?? "").toLowerCase().includes(query)
+    );
+  });
 
   async function handleStatusChange(leadId: string, newStatus: LeadStatus, notes?: string) {
     const prevLeads = leads;
@@ -188,7 +201,7 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
         <div className="alert alert--error" role="alert">
           {error}
         </div>
-      ) : leads.length === 0 ? (
+      ) : visibleLeads.length === 0 ? (
         <div className="empty-state" style={{ padding: "var(--space-12) var(--space-6)" }}>
           <div
             style={{
@@ -225,9 +238,11 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
               textAlign: "center"
             }}
           >
-            {activeStatus === "all"
-              ? "Once tenants enquire about your listings, they'll appear here."
-              : "Try selecting a different status filter above."}
+            {searchQuery.trim()
+              ? "Try another search or clear the search field."
+              : activeStatus === "all"
+                ? "Once tenants enquire about your listings, they'll appear here."
+                : "Try selecting a different status filter above."}
           </p>
         </div>
       ) : (
@@ -239,7 +254,7 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
               gap: "var(--space-4)"
             }}
           >
-            {leads.map((lead) => (
+            {visibleLeads.map((lead) => (
               <LeadCard
                 key={lead.id}
                 lead={lead}

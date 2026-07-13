@@ -593,7 +593,9 @@
 .olc-error button,
 .lcl__btn,
 .lcl-sheet__action,
-.lcl-sheet__close {
+.lcl-sheet__close,
+.lead-card__action-btns .btn,
+.lead-card__notes-toggle {
   min-width: 44px;
   min-height: 44px;
 }
