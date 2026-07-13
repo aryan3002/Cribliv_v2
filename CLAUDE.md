@@ -47,7 +47,7 @@ Turborepo + pnpm workspaces. Build order is enforced: `packages/*` must build be
 - `apps/api/src/worker/` — standalone background process (separate from NestJS HTTP server), runs via `pnpm worker`
 - `packages/shared-types` — canonical TypeScript contracts, enums, DTO shapes shared between web and API
 - `packages/ui` — design tokens + React primitives
-- `infra/migrations/` — raw SQL files (`0001_init.sql` … `0019_…sql`), applied via `infra/migrations/run-migrations.js`
+- `infra/migrations/` — raw SQL files (`0001_init.sql` … `0054_…sql`, sequential; next free number is `0055`), applied via `infra/migrations/run-migrations.js`
 
 ### DB dual-mode (critical)
 

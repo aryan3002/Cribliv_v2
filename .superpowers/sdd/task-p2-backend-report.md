@@ -196,3 +196,33 @@ Result: PASS (exit 0), 1 test file and 13/13 tests passed. The route test create
 ### Concerns
 
 The existing Vite CJS Node API deprecation warning remains in test output. It does not affect the passing result and is outside this task's scope.
+
+---
+
+## Final Whole-Branch Review Fixes (2026-07-13)
+
+### Status
+
+DONE
+
+### Findings fixed
+
+1. **Assigned-bed manual transitions**
+   - Root cause: `updateBedStatus()` validated only the requested destination and updated any source status.
+   - Fix: the scoped update now atomically excludes `reserved` and `occupied` source rows. Existing assigned beds return `invalid_bed_status_transition`; missing or cross-property beds still return `bed_not_found`.
+   - RED: `rejects manual status transitions from reserved and occupied beds` resolved the first reserved-to-blocked attempt instead of rejecting (`1 failed, 18 passed`).
+
+2. **Room-number and bed-label swaps**
+   - Root cause: ID-based renames were persisted sequentially against immediate unique constraints, so the first side of a valid swap collided with the second side's old value.
+   - Fix: inside the existing transaction, ID-matched renamed rooms and beds first move to guaranteed-unused temporary values. Normal reconciliation then writes final values without replacing rows or assignment foreign keys.
+   - RED: `swaps existing room numbers and bed labels while preserving IDs and history` failed on `pg_rooms_pg_property_id_room_number_key` (`1 failed, 19 passed`).
+
+### Final verification
+
+- Focused real-Postgres API suite: PASS, 1 file and 20/20 tests.
+- API typecheck: PASS.
+- `rtk git diff --check`: PASS.
+
+### Concerns
+
+The existing Vite CJS Node API deprecation warning remains in the focused test output. No new backend warnings or failures were observed.

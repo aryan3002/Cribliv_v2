@@ -115,3 +115,33 @@ The property dashboard consumed `getPropertyLayout()`. That API intentionally re
 ### Concerns
 
 The existing Vite CJS Node API deprecation warning remains in both focused Vitest runs. It does not affect the passing results and is outside this fix's scope.
+
+---
+
+## Final Whole-Branch Review Fixes (2026-07-13)
+
+### Status
+
+DONE
+
+### Findings fixed
+
+1. **Assigned-bed actions**
+   - Root cause: `PgBedChip` exposed block/vacant and relist controls for every status except `inactive`.
+   - Fix: mutation controls render only for `vacant` and `blocked` beds. Reserved and occupied beds remain visible but expose no manual actions while assignment coupling is pending.
+   - RED: `hides manual actions for reserved and occupied beds` found the reserved bed's Block control (`1 failed, 4 passed`).
+
+2. **Non-destructive, composable draft generation**
+   - Root cause: every successful generate request replaced the builder's entire `rooms` state with the latest response.
+   - Fix: generated groups append to the current reviewed state. When the API's per-request numbering collides with an existing or earlier generated room, the builder assigns the next unused floor-based room number and updates the default display label.
+   - RED: both builder regressions failed after behavior-specific setup: an existing room disappeared after generation, and a second generated group replaced the first (`2 failed`).
+
+### Final verification
+
+- Focused frontend suites: PASS, 3 files and 11/11 tests, including the new builder suite.
+- Web typecheck: PASS.
+- `rtk git diff --check`: PASS.
+
+### Concerns
+
+The existing Vite CJS Node API deprecation warning remains in focused Vitest output. No new frontend warnings or failures were observed.
