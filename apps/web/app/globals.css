@@ -15770,16 +15770,16 @@ a.feature-card:hover .icon-circle {
   gap: 24px;
 }
 .dlx-grid--listings {
-  grid-template-columns: repeat(1, 1fr);
+  grid-template-columns: repeat(1, minmax(0, 1fr));
 }
 @media (min-width: 760px) {
   .dlx-grid--listings {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (min-width: 1280px) {
   .dlx-grid--listings {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

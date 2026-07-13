@@ -257,7 +257,7 @@ export function LeadsClient({ locale }: { locale: string }) {
   );
 
   return (
-    <section className="container container--narrow" style={{ paddingBlock: "var(--space-6)" }}>
+    <section className="container" style={{ paddingBlock: "var(--space-6)" }}>
       <div className="lk-toolbar">
         <div>
           <Link

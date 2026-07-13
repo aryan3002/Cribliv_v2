@@ -5,12 +5,16 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 .lk {
-  --lk-col-width: minmax(300px, 1fr);
+  --lk-col-width: minmax(220px, 1fr);
   --lk-col-gap: 16px;
   --lk-card-radius: 16px;
   --lk-col-radius: 20px;
   --lk-rail-w: 3px;
   position: relative;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 8px;
 }
 
 /* ── Toolbar (page header) ─────────────────────────────────────────────── */
