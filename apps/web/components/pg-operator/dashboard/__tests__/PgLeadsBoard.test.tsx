@@ -137,7 +137,13 @@ describe("PgLeadsBoard", () => {
             url.includes("/wallet") &&
             !url.includes("/wallet/plans") &&
             (!init?.method || init.method === "GET"),
-          respond: () => jsonOk({ balance_credits: 0, free_credits_granted: 2 })
+          respond: () =>
+            jsonOk({
+              balance_credits: 0,
+              free_credits_granted: 10,
+              promotional_credits_remaining: 0,
+              promotional_credits_expires_at: null
+            })
         }
       ])
     );
