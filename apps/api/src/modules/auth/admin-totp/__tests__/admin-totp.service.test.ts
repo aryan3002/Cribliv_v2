@@ -118,11 +118,14 @@ describe("AdminTotpService.verifyLogin (in-memory)", () => {
     for (let i = 0; i < 5; i += 1) {
       await expectRejectCode(svc.verifyLogin(PHONE, "000000"), "invalid_totp");
     }
-    // 6th attempt (even with a valid code) is locked
+    // 6th attempt, even with a VALID code, is rejected because the lock is
+    // active (proves enforcement) — and with the same generic "invalid_totp"
+    // code as every other rejection (proves no enumeration oracle: a locked
+    // account is indistinguishable from a wrong code or an unknown phone).
     const secret = appState.adminTotp.get(admin.id)!.secret;
     await expectRejectCode(
       svc.verifyLogin(PHONE, authenticator.generate(secret)),
-      "totp_locked"
+      "invalid_totp"
     );
   });
 

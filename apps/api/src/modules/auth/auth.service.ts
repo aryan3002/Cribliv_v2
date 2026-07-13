@@ -153,6 +153,11 @@ export class AuthService {
     role: string
   ): Promise<{ access_token: string; refresh_token: string }> {
     await client.query(`UPDATE users SET last_login_at = now() WHERE id = $1::uuid`, [userId]);
+    // Admin sessions are short-lived (4 hours) since admin accounts carry the
+    // most sensitive privileges; other roles get the standard 30-day session.
+    // last_login_at also feeds the Owner Health Score (recency signal) and the
+    // Fraud Intelligence Feed (flags inactive owners), so it's stamped above
+    // regardless of role.
     const sessionDuration = role === "admin" ? "4 hours" : "30 days";
     const sessionToken = randomUUID();
     const sessionResult = await client.query<{ id: string }>(

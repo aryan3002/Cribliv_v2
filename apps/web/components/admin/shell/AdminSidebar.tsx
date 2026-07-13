@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useFlag } from "../../../lib/feature-flags";
 
 export type AdminTab =
   | "live"
@@ -55,6 +56,7 @@ interface Props {
 }
 
 export function AdminSidebar({ active, onChange, counts }: Props) {
+  const showSecurity = useFlag("ff_admin_totp");
   const operate: NavItem[] = [
     { id: "live", label: "Live Ops", icon: Activity },
     { id: "overview", label: "Overview", icon: LayoutDashboard }
@@ -78,7 +80,7 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
   ];
   const ops: NavItem[] = [
     { id: "system", label: "System", icon: Wrench },
-    { id: "security", label: "Security", icon: KeyRound }
+    ...(showSecurity ? [{ id: "security" as const, label: "Security", icon: KeyRound }] : [])
   ];
 
   return (

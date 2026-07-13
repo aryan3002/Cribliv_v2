@@ -168,7 +168,12 @@ export class AdminTotpService {
     }
 
     if (record.lockedUntil && record.lockedUntil.getTime() > Date.now()) {
-      throw new UnauthorizedException({ code: "totp_locked", message: "Account temporarily locked" });
+      // Deliberately the SAME generic error as every other rejection branch.
+      // Only an enrolled admin can ever reach the locked state, so a distinct
+      // "totp_locked" code would let an attacker enumerate admin accounts by
+      // brute-forcing until they see a different error. Lock enforcement
+      // itself (rejecting before code verification) is unchanged.
+      throw new UnauthorizedException({ code: "invalid_totp", message: "Invalid credentials" });
     }
 
     const { valid, step } = verifyTotpCode(record.secret, code);
