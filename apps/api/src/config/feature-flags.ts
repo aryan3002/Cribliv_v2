@@ -11,6 +11,8 @@ export interface FeatureFlags {
   ff_heavy_analytics: boolean;
   ff_credit_purchase_enabled: boolean;
   ff_admin_wallet_adjust: boolean;
+  /** OTP-free admin login via TOTP authenticator app */
+  ff_admin_totp: boolean;
   ff_real_verification_provider: boolean;
   ff_pg_sales_leads: boolean;
   ff_owner_listing_assisted_capture: boolean;
@@ -102,6 +104,7 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_heavy_analytics: false,
   ff_credit_purchase_enabled: false,
   ff_admin_wallet_adjust: true,
+  ff_admin_totp: false,
   ff_real_verification_provider: false,
   ff_pg_sales_leads: true,
   ff_owner_listing_assisted_capture: false,
@@ -241,6 +244,7 @@ export function readFeatureFlags(): FeatureFlags {
       "FF_ADMIN_WALLET_ADJUST",
       defaultFeatureFlags.ff_admin_wallet_adjust
     ),
+    ff_admin_totp: parseBooleanEnv("FF_ADMIN_TOTP", defaultFeatureFlags.ff_admin_totp),
     ff_real_verification_provider: parseBooleanEnv(
       "FF_REAL_VERIFICATION_PROVIDER",
       defaultFeatureFlags.ff_real_verification_provider
