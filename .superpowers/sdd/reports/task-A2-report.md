@@ -104,6 +104,39 @@ Output (exit 0):
 (no output)
 ```
 
-## Concern
+## Original Concern (Resolved Below)
 
 `PgPublicDetail` now requires the new fields, while the existing `makeDetail` fixture in `apps/web/components/pg/__tests__/PgDetailClient.test.tsx` does not provide them. Vitest transpilation does not perform TypeScript typechecking, so the focused test remains green. Updating that fixture or running a broad web typecheck is outside the requested single-file implementation boundary.
+
+## Fix: Typed `makeDetail` fixture
+
+The follow-up review identified that the fixture did not satisfy the now-required
+`PgPublicDetail` fields. The fixture now supplies nullable values for
+`meal_charges_paise`, `deposit_refundable_pct`, `maintenance_paise`, and `nearby`,
+plus `total_floors` and `verification_status` at the top level. This changes test
+data only and does not alter production behavior.
+
+### Covering tests
+
+```sh
+rtk proxy corepack pnpm --filter @cribliv/web test -- components/pg/__tests__/PgDetailClient.test.tsx
+```
+
+Output (exit 0):
+
+```text
+Test Files  1 passed (1)
+Tests  12 passed (12)
+```
+
+The suite emitted pre-existing Vite CJS deprecation and React `act(...)` warnings.
+
+```sh
+rtk proxy corepack pnpm --filter @cribliv/web exec tsc --noEmit --incremental false
+```
+
+Output (exit 0):
+
+```text
+(no output)
+```
