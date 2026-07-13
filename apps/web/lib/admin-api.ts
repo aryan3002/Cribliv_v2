@@ -269,7 +269,8 @@ export interface AdminRevenue {
 
 export interface AdminCityCount {
   city: string;
-  locality: string;
+  // Null when the listing has a city but no resolved locality (e.g. Varanasi).
+  locality: string | null;
   count: number;
 }
 
@@ -393,13 +394,16 @@ export async function fetchAdminAnalyticsRevenue(
 }
 
 export async function fetchAdminAnalyticsByCity(accessToken: string): Promise<AdminCityCount[]> {
-  const raw = await fetchApi<{
-    items: Array<{ city: string; locality: string; count: number }>;
-  }>("/admin/analytics/listings", {
-    headers: authHeaders(accessToken)
-  });
+  // GET /admin/analytics/listings returns a BARE array (getListingsByArea →
+  // ok(array) → fetchApi unwraps `.data`), NOT a `{ items }` envelope like the
+  // paginated list endpoints. Reading `.items` here always yielded [] — the
+  // "No city data yet" bug.
+  const raw = await fetchApi<Array<{ city: string; locality: string | null; count: number }>>(
+    "/admin/analytics/listings",
+    { headers: authHeaders(accessToken) }
+  );
 
-  return (raw.items ?? []).map((r) => ({
+  return (raw ?? []).map((r) => ({
     city: r.city,
     locality: r.locality,
     count: r.count
