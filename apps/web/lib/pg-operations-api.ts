@@ -13,7 +13,10 @@ import type {
   PgManagedPropertyDetail,
   PgManagedPropertySummary,
   PgOccupancySummary,
-  PgRoom
+  PgOperatorBedDetail,
+  PgRoom,
+  PgServeNoticeInput,
+  PgTenantResidence
 } from "@cribliv/shared-types";
 import { fetchApi } from "./api";
 
@@ -137,6 +140,12 @@ export function listAssignments(
   );
 }
 
+export function getOperatorBedDetail(propertyId: string, bedId: string, token?: string) {
+  return fetchApi<PgOperatorBedDetail>(`/pg-operator/properties/${propertyId}/beds/${bedId}`, {
+    headers: authHeaders(token)
+  });
+}
+
 export function reserveBed(
   propertyId: string,
   bedId: string,
@@ -183,6 +192,13 @@ export function operatorMoveOutRequest(propertyId: string, assignmentId: string,
 export function confirmAssignmentMoveOut(propertyId: string, assignmentId: string, token?: string) {
   return fetchApi<PgBedAssignment>(
     `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/confirm-move-out`,
+    { method: "POST", headers: authHeaders(token) }
+  );
+}
+
+export function moveOutAssignmentNow(propertyId: string, assignmentId: string, token?: string) {
+  return fetchApi<PgBedAssignment>(
+    `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/move-out-now`,
     { method: "POST", headers: authHeaders(token) }
   );
 }
@@ -245,5 +261,42 @@ export function rejectAdminPgManageRequest(
     method: "POST",
     headers: { ...authHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify(body)
+  });
+}
+
+export function getTenantResidence(token?: string, opts: { server?: boolean } = { server: true }) {
+  return fetchApi<PgTenantResidence | null>(
+    "/tenant/pg-residence",
+    { headers: authHeaders(token) },
+    opts
+  );
+}
+
+export function serveTenantNotice(token?: string, body: Partial<PgServeNoticeInput> = {}) {
+  return fetchApi<PgTenantResidence>("/tenant/pg-residence/notice", {
+    method: "POST",
+    headers: { ...authHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+}
+
+export function requestTenantMoveOut(token?: string) {
+  return fetchApi<PgTenantResidence>("/tenant/pg-residence/move-out-request", {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+}
+
+export function acceptTenantOperatorMoveOut(requestId: string, token?: string) {
+  return fetchApi<PgTenantResidence>(`/tenant/pg-residence/operator-move-out/${requestId}/accept`, {
+    method: "POST",
+    headers: authHeaders(token)
+  });
+}
+
+export function rejectTenantOperatorMoveOut(requestId: string, token?: string) {
+  return fetchApi<PgTenantResidence>(`/tenant/pg-residence/operator-move-out/${requestId}/reject`, {
+    method: "POST",
+    headers: authHeaders(token)
   });
 }

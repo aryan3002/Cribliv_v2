@@ -109,15 +109,27 @@ describe("HeaderMenu role split", () => {
     expect(hrefs).not.toContain("/en/pg-operator/listings/new");
   });
 
-  it("tenant sees neither PG nor owner dashboard links", () => {
+  it("tenant sees their PG residence link, not operator or owner dashboard links", () => {
     setSession("tenant");
     render(<HeaderMenu locale="en" />);
     openMenu();
 
     const hrefs = allHrefs();
+    expect(hrefs).toContain("/en/tenant/pg-residence");
     expect(hrefs).not.toContain("/en/owner/dashboard");
     expect(hrefs).not.toContain("/en/pg-operator/dashboard");
     expect(hrefs).not.toContain("/en/pg-operator/listings/new");
+  });
+
+  it("non-tenant account menus do not show the PG residence link", () => {
+    for (const role of ["owner", "pg_operator", "admin"] as const) {
+      document.body.innerHTML = "";
+      setSession(role);
+      render(<HeaderMenu locale="en" />);
+      openMenu();
+
+      expect(allHrefs()).not.toContain("/en/tenant/pg-residence");
+    }
   });
 
   it("admin sees admin link, not PG or owner dashboard", () => {

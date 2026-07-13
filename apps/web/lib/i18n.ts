@@ -25,6 +25,7 @@ const dictionary: Dictionary = {
   menuOpen: { en: "Open menu", hi: "मेनू खोलें" },
   menuAccountSettings: { en: "Account settings", hi: "अकाउंट सेटिंग्स" },
   menuMySaved: { en: "My saved", hi: "मेरे सेव किए" },
+  menuMyStay: { en: "My stay", hi: "मेरा स्टे" },
   menuSearchRentals: { en: "Search rentals", hi: "किराया खोजें" },
   menuMap: { en: "CriblMap", hi: "CriblMap" },
   menuBecomeOwner: { en: "Become an owner", hi: "मालिक बनें" },

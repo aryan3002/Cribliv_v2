@@ -6,13 +6,20 @@ vi.mock("../api", () => ({ fetchApi }));
 
 import {
   confirmAssignmentMoveOut,
+  getOperatorBedDetail,
   getManagedProperty,
+  getTenantResidence,
   getOccupancySummary,
   listAssignments,
   moveInBed,
+  moveOutAssignmentNow,
   operatorMoveOutRequest,
   relistBed,
   reserveBed,
+  serveTenantNotice,
+  acceptTenantOperatorMoveOut,
+  rejectTenantOperatorMoveOut,
+  requestTenantMoveOut,
   updateBedStatus
 } from "../pg-operations-api";
 
@@ -80,6 +87,8 @@ describe("pg operations API client", () => {
     );
     operatorMoveOutRequest("property-1", "assignment-1", "token-1");
     confirmAssignmentMoveOut("property-1", "assignment-1", "token-1");
+    moveOutAssignmentNow("property-1", "assignment-1", "token-1");
+    getOperatorBedDetail("property-1", "bed-1", "token-1");
 
     expect(fetchApi).toHaveBeenNthCalledWith(
       1,
@@ -110,6 +119,55 @@ describe("pg operations API client", () => {
     expect(fetchApi).toHaveBeenNthCalledWith(
       5,
       "/pg-operator/properties/property-1/assignments/assignment-1/confirm-move-out",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      6,
+      "/pg-operator/properties/property-1/assignments/assignment-1/move-out-now",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      7,
+      "/pg-operator/properties/property-1/beds/bed-1",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+  });
+
+  it("sends tenant residence reads and actions to tenant-scoped endpoints", () => {
+    getTenantResidence("token-1");
+    serveTenantNotice("token-1", { notice_end_date: "2099-02-15" });
+    requestTenantMoveOut("token-1");
+    acceptTenantOperatorMoveOut("assignment-1", "token-1");
+    rejectTenantOperatorMoveOut("assignment-1", "token-1");
+
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      1,
+      "/tenant/pg-residence",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } }),
+      { server: true }
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      2,
+      "/tenant/pg-residence/notice",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer token-1" }),
+        body: JSON.stringify({ notice_end_date: "2099-02-15" })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      3,
+      "/tenant/pg-residence/move-out-request",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      4,
+      "/tenant/pg-residence/operator-move-out/assignment-1/accept",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      5,
+      "/tenant/pg-residence/operator-move-out/assignment-1/reject",
       expect.objectContaining({ method: "POST" })
     );
   });

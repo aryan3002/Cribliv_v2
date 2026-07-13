@@ -142,6 +142,15 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
           icon: <Heart size={16} aria-hidden="true" />,
           label: t(locale, "menuMySaved")
         },
+        ...(role === "tenant"
+          ? [
+              {
+                href: `/${locale}/tenant/pg-residence`,
+                icon: <Home size={16} aria-hidden="true" />,
+                label: t(locale, "menuMyStay")
+              } as MenuItem
+            ]
+          : []),
         ...(role === "owner"
           ? [
               {
