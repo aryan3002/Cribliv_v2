@@ -152,10 +152,17 @@
     height: 30px;
   }
 
+  .ows__mobile-title {
+    min-height: 44px;
+    padding-right: 8px;
+  }
+
   .ows__mobile-account {
     display: inline-grid;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     place-items: center;
     border: 1px solid rgba(126, 142, 164, 0.28);
     border-radius: 8px;

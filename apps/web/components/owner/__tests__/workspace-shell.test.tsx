@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 let pathname = "/en/owner/dashboard";
 let sessionState: { status: string; data: { user?: { name?: string; phone?: string } } | null } = {
@@ -33,6 +35,11 @@ const expectedHrefs = [
   "/en/owner/verification"
 ];
 
+const ownerWorkspaceCss = readFileSync(
+  resolve(process.cwd(), "components/owner/owner-workspace.css"),
+  "utf8"
+);
+
 function renderShell(children = <section>Owner page body</section>) {
   return render(<OwnerWorkspaceShell locale="en">{children}</OwnerWorkspaceShell>);
 }
@@ -41,6 +48,23 @@ function navHrefs(navName: RegExp) {
   return within(screen.getByRole("navigation", { name: navName }))
     .getAllByRole("link")
     .map((link) => link.getAttribute("href"));
+}
+
+function cssBlocks(selector: string) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Array.from(ownerWorkspaceCss.matchAll(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`, "g"))).map(
+    (match) => match[1]
+  );
+}
+
+function maxPxValue(selector: string, property: string) {
+  const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return Math.max(
+    0,
+    ...cssBlocks(selector).map((block) =>
+      Number(block.match(new RegExp(`${escaped}\\s*:\\s*(\\d+)px`))?.[1] ?? 0)
+    )
+  );
 }
 
 describe("OwnerWorkspaceShell", () => {
@@ -85,5 +109,11 @@ describe("OwnerWorkspaceShell", () => {
     const main = screen.getByRole("main");
     expect(main).toHaveAttribute("id", "main-content");
     expect(within(main).getByTestId("owner-child")).toBeInTheDocument();
+  });
+
+  it("keeps mobile header touch targets at least 44 by 44 CSS pixels", () => {
+    expect(maxPxValue(".ows__mobile-title", "min-height")).toBeGreaterThanOrEqual(44);
+    expect(maxPxValue(".ows__mobile-account", "width")).toBeGreaterThanOrEqual(44);
+    expect(maxPxValue(".ows__mobile-account", "height")).toBeGreaterThanOrEqual(44);
   });
 });
