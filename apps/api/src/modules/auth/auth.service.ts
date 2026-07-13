@@ -12,7 +12,7 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { isRateLimitingDisabled } from "../../common/rate-limit.util";
 import { D7OtpClient, D7OtpVerifyError } from "./d7-otp.client";
-import { signupFreeCredits } from "./signup-credits";
+import { signupFreeCredits, signupReward } from "./signup-credits";
 import { readOtpProviderConfig } from "./otp-provider.config";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
@@ -669,6 +669,7 @@ export class AuthService {
     this.appState.challenges.delete(challenge_id);
     let user = this.appState.usersByPhone.get(challenge.phone);
     let isNewUser = false;
+    let reward: ReturnType<typeof signupReward> | undefined;
 
     if (!user) {
       const userId = randomUUID();
@@ -682,12 +683,8 @@ export class AuthService {
       this.appState.usersByPhone.set(user.phone, user);
       this.appState.wallets.set(user.id, 0);
       this.appState.walletTxns.set(user.id, []);
-      this.appState.addWalletTxn({
-        userId: user.id,
-        type: "grant_signup",
-        creditsDelta: 2,
-        referenceId: user.id
-      });
+      reward = signupReward();
+      this.appState.grantSignupReward(user.id, reward);
       isNewUser = true;
     }
 
@@ -701,7 +698,15 @@ export class AuthService {
         phone_e164: user.phone,
         preferred_language: user.preferred_language
       },
-      is_new_user: isNewUser
+      is_new_user: isNewUser,
+      ...(reward
+        ? {
+            signup_reward: {
+              credits_granted: reward.credits,
+              expires_at: reward.expiresAt?.toISOString() ?? null
+            }
+          }
+        : {})
     };
   }
 }

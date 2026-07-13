@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
+import type { SignupReward } from "../modules/auth/signup-credits";
 
 interface UserRecord {
   id: string;
@@ -51,6 +52,13 @@ interface WalletTxn {
   referenceId?: string;
   createdAt: number;
   idempotencyKey?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PromotionalWalletState {
+  granted: number;
+  remaining: number;
+  expiresAt: number | null;
 }
 
 interface UnlockRecord {
@@ -127,6 +135,7 @@ export class AppStateService {
   shortlists = new Map<string, Set<string>>();
   wallets = new Map<string, number>();
   walletTxns = new Map<string, WalletTxn[]>();
+  promotionalWallets = new Map<string, PromotionalWalletState>();
   unlocks = new Map<string, UnlockRecord>();
   unlockByIdempotency = new Map<string, UnlockRecord>();
   idempotencyResponses = new Map<string, unknown>();
@@ -270,6 +279,8 @@ export class AppStateService {
   ensureWallet(userId: string) {
     if (!this.wallets.has(userId)) {
       this.wallets.set(userId, 0);
+    }
+    if (!this.walletTxns.has(userId)) {
       this.walletTxns.set(userId, []);
     }
   }
@@ -286,6 +297,100 @@ export class AppStateService {
     this.wallets.set(input.userId, current + input.creditsDelta);
     this.walletTxns.get(input.userId)?.push(txn);
     return txn;
+  }
+
+  grantSignupReward(userId: string, reward: SignupReward): WalletTxn {
+    this.ensureWallet(userId);
+    this.promotionalWallets.set(userId, {
+      granted: reward.credits,
+      remaining: reward.credits,
+      expiresAt: reward.expiresAt?.getTime() ?? null
+    });
+    return this.addWalletTxn({
+      userId,
+      type: "grant_signup",
+      creditsDelta: reward.credits,
+      referenceId: userId
+    });
+  }
+
+  getWalletDetails(userId: string, now = Date.now()) {
+    this.ensureWallet(userId);
+    const promotional = this.promotionalWallets.get(userId) ?? {
+      granted: 0,
+      remaining: 0,
+      expiresAt: null
+    };
+
+    if (
+      promotional.remaining > 0 &&
+      promotional.expiresAt !== null &&
+      promotional.expiresAt <= now
+    ) {
+      const expiredCredits = promotional.remaining;
+      promotional.remaining = 0;
+      this.promotionalWallets.set(userId, promotional);
+      this.addWalletTxn({
+        userId,
+        type: "expire_signup",
+        creditsDelta: -expiredCredits,
+        referenceId: userId,
+        metadata: {
+          expiredCredits,
+          expiresAt: promotional.expiresAt
+        }
+      });
+    }
+
+    return {
+      balanceCredits: this.wallets.get(userId) ?? 0,
+      freeCreditsGranted: promotional.granted,
+      promotionalCreditsRemaining: promotional.remaining,
+      promotionalCreditsExpiresAt: promotional.expiresAt
+    };
+  }
+
+  debitWalletCredits(
+    input: {
+      userId: string;
+      credits: number;
+      type: string;
+      referenceId?: string;
+      idempotencyKey?: string;
+    },
+    now = Date.now()
+  ): WalletTxn {
+    const wallet = this.getWalletDetails(input.userId, now);
+    if (!Number.isInteger(input.credits) || input.credits <= 0) {
+      throw new Error("Wallet debit credits must be a positive integer");
+    }
+    if (wallet.balanceCredits < input.credits) {
+      throw new Error("Insufficient wallet credits");
+    }
+
+    if (input.idempotencyKey) {
+      const existing = (this.walletTxns.get(input.userId) ?? []).find(
+        (txn) => txn.idempotencyKey === input.idempotencyKey
+      );
+      if (existing) {
+        return existing;
+      }
+    }
+
+    const promotional = this.promotionalWallets.get(input.userId);
+    const promotionalCreditsUsed = Math.min(promotional?.remaining ?? 0, input.credits);
+    if (promotional) {
+      promotional.remaining -= promotionalCreditsUsed;
+    }
+
+    return this.addWalletTxn({
+      userId: input.userId,
+      type: input.type,
+      creditsDelta: -input.credits,
+      referenceId: input.referenceId,
+      idempotencyKey: input.idempotencyKey,
+      metadata: { promotionalCreditsUsed }
+    });
   }
 
   getWalletBalance(userId: string) {

@@ -44,9 +44,15 @@ export class WalletController {
       });
     }
 
+    const wallet = this.appState.getWalletDetails(req.user.id);
     return ok({
-      balance_credits: this.appState.getWalletBalance(req.user.id),
-      free_credits_granted: 2
+      balance_credits: wallet.balanceCredits,
+      free_credits_granted: wallet.freeCreditsGranted,
+      promotional_credits_remaining: wallet.promotionalCreditsRemaining,
+      promotional_credits_expires_at:
+        wallet.promotionalCreditsExpiresAt === null
+          ? null
+          : new Date(wallet.promotionalCreditsExpiresAt).toISOString()
     });
   }
 
