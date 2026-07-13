@@ -9,7 +9,45 @@ import { VerificationService } from "../verification.service";
 const azureMocks = vi.hoisted(() => {
   const uploadData = vi.fn().mockResolvedValue(undefined);
   const createIfNotExists = vi.fn().mockResolvedValue(undefined);
-  const getBlockBlobClient = vi.fn(() => ({ uploadData }));
+  const setMetadata = vi.fn().mockResolvedValue(undefined);
+  const getProperties = vi.fn();
+  const blobProperties = new Map<
+    string,
+    { contentType?: string; contentLength: number; metadata: Record<string, string> }
+  >();
+  const getBlockBlobClient = vi.fn((blobPath: string) => ({
+    uploadData: async (
+      buffer: Buffer,
+      options?: {
+        blobHTTPHeaders?: { blobContentType?: string };
+        metadata?: Record<string, string>;
+      }
+    ) => {
+      await uploadData(buffer, options);
+      blobProperties.set(blobPath, {
+        contentType: options?.blobHTTPHeaders?.blobContentType,
+        contentLength: buffer.length,
+        metadata: options?.metadata ?? {}
+      });
+    },
+    setMetadata: async (metadata: Record<string, string>) => {
+      await setMetadata(blobPath, metadata);
+      const existing = blobProperties.get(blobPath);
+      blobProperties.set(blobPath, {
+        contentType: existing?.contentType,
+        contentLength: existing?.contentLength ?? 0,
+        metadata
+      });
+    },
+    getProperties: async () => {
+      await getProperties(blobPath);
+      const properties = blobProperties.get(blobPath);
+      if (!properties) {
+        throw Object.assign(new Error("not found"), { statusCode: 404 });
+      }
+      return properties;
+    }
+  }));
   const getContainerClient = vi.fn(() => ({
     createIfNotExists,
     getBlockBlobClient
@@ -23,6 +61,9 @@ const azureMocks = vi.hoisted(() => {
     createIfNotExists,
     getBlockBlobClient,
     getContainerClient,
+    getProperties,
+    setMetadata,
+    blobProperties,
     uploadData
   };
 });
@@ -103,6 +144,9 @@ describe("VerificationArtifactStorageService", () => {
     azureMocks.createIfNotExists.mockClear();
     azureMocks.getBlockBlobClient.mockClear();
     azureMocks.getContainerClient.mockClear();
+    azureMocks.getProperties.mockClear();
+    azureMocks.setMetadata.mockClear();
+    azureMocks.blobProperties.clear();
     azureMocks.uploadData.mockClear();
   });
 
@@ -647,7 +691,7 @@ describe("VerificationArtifactStorageService", () => {
     });
   });
 
-  it("releases local buffers on completion and sweeps expired uncompleted bytes and completed records", async () => {
+  it("releases local buffers, sweeps expired uploads, and keeps completed records after target expiry", async () => {
     const { state, owner, listing } = ownerFixture();
     const service = new VerificationArtifactStorageService(state, createDbStub(false));
     const completedTarget = await service.createTarget({
@@ -697,11 +741,12 @@ describe("VerificationArtifactStorageService", () => {
         kind: "video_liveness",
         blobPath: completedTarget.blobPath
       })
-    ).rejects.toMatchObject({
-      response: { code: "artifact_not_completed" }
-    });
+    ).resolves.toBeUndefined();
     expect((service as unknown as { localBytes: Map<string, unknown> }).localBytes.size).toBe(0);
     expect((service as unknown as { targets: Map<string, unknown> }).targets.size).toBe(0);
+    expect(
+      (service as unknown as { completedArtifacts: Map<string, unknown> }).completedArtifacts.size
+    ).toBe(1);
   });
 
   it("creates Azure containers before uploading bytes with the expected content type", async () => {
@@ -729,9 +774,60 @@ describe("VerificationArtifactStorageService", () => {
     expect(azureMocks.createIfNotExists).toHaveBeenCalledTimes(1);
     expect(azureMocks.getBlockBlobClient).toHaveBeenCalledWith(target.blobPath);
     expect(azureMocks.uploadData).toHaveBeenCalledWith(validArtifacts.pdf, {
-      blobHTTPHeaders: { blobContentType: "application/pdf" }
+      blobHTTPHeaders: { blobContentType: "application/pdf" },
+      metadata: {
+        ownerid: owner.id,
+        listingid: listing.id,
+        artifactkind: "electricity_bill",
+        verificationcomplete: "false"
+      }
     });
     expect((service as unknown as { localBytes: Map<string, unknown> }).localBytes.size).toBe(0);
+  });
+
+  it("persists Azure completion metadata across service instances", async () => {
+    process.env.AZURE_STORAGE_ACCOUNT_NAME = "acct";
+    process.env.AZURE_STORAGE_ACCOUNT_KEY = "key";
+    const { state, owner, listing } = ownerFixture();
+    const firstService = new VerificationArtifactStorageService(state, createDbStub(false));
+    const target = await firstService.createTarget({
+      ownerId: owner.id,
+      listingId: listing.id,
+      kind: "video_liveness",
+      contentType: "video/mp4",
+      sizeBytes: validArtifacts.mp4.length,
+      fileName: "walkthrough.mp4"
+    });
+
+    await firstService.upload({
+      ownerId: owner.id,
+      uploadToken: target.uploadToken,
+      file: multerFile({ content: validArtifacts.mp4, contentType: "video/mp4" })
+    });
+    await firstService.complete({
+      ownerId: owner.id,
+      listingId: listing.id,
+      uploadToken: target.uploadToken,
+      blobPath: target.blobPath
+    });
+
+    expect(azureMocks.setMetadata).toHaveBeenCalledWith(target.blobPath, {
+      ownerid: owner.id,
+      listingid: listing.id,
+      artifactkind: "video_liveness",
+      verificationcomplete: "true"
+    });
+
+    const restartedService = new VerificationArtifactStorageService(state, createDbStub(false));
+    await expect(
+      restartedService.assertCompletedArtifact({
+        ownerId: owner.id,
+        listingId: listing.id,
+        kind: "video_liveness",
+        blobPath: target.blobPath
+      })
+    ).resolves.toBeUndefined();
+    expect(azureMocks.getProperties).toHaveBeenCalledWith(target.blobPath);
   });
 });
 

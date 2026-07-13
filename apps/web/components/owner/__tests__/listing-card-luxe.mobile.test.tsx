@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ListingCardLuxe } from "../listing-card-luxe";
 import { toggleListingAvailability, type OwnerListingVm } from "../../../lib/owner-api";
 
@@ -62,6 +62,7 @@ function renderCard(item: OwnerListingVm) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  document.body.style.overflow = "";
   toggleListingAvailabilityMock.mockResolvedValue({ listingId: "listing-1", status: "paused" });
 });
 
@@ -105,5 +106,27 @@ describe("ListingCardLuxe mobile actions", () => {
     renderCard(listing({ status: "rejected", verificationStatus: "failed" }));
 
     expect(screen.getByRole("link", { name: /fix and resubmit/i })).toBeVisible();
+  });
+
+  it("locks scroll, traps focus, closes on Escape, and restores the trigger", async () => {
+    renderCard(listing());
+    const trigger = screen.getByRole("button", { name: /more actions/i });
+    fireEvent.click(trigger);
+
+    const sheet = screen.getByRole("dialog", { name: /listing actions/i });
+    const close = within(sheet).getByRole("button", { name: /close actions/i });
+    const lastAction = within(sheet).getByRole("checkbox", { name: /available to tenants/i });
+
+    await waitFor(() => expect(close).toHaveFocus());
+    expect(document.body.style.overflow).toBe("hidden");
+
+    lastAction.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(close).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: /listing actions/i })).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("");
+    expect(trigger).toHaveFocus();
   });
 });

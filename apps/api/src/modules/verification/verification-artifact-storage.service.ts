@@ -41,7 +41,7 @@ type CompletedArtifact = {
   listingId: string;
   kind: VerificationArtifactKind;
   blobPath: string;
-  expiresAtMs: number;
+  completedAtMs: number;
 };
 
 type StoredArtifactBytes = {
@@ -54,6 +54,7 @@ const ALLOWED_CONTENT_TYPES: Record<VerificationArtifactKind, Set<string>> = {
   video_liveness: new Set(["video/mp4", "video/webm", "video/quicktime"]),
   electricity_bill: new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"])
 };
+const MAX_LOCAL_COMPLETED_ARTIFACTS = 1000;
 
 function stripTrailingSlash(value: string) {
   return value.replace(/\/+$/, "");
@@ -282,13 +283,17 @@ export class VerificationArtifactStorageService {
     }
 
     target.completedAtMs = Date.now();
-    this.completedArtifacts.set(completedKey, {
-      ownerId: input.ownerId,
-      listingId: input.listingId,
-      kind: target.kind,
-      blobPath,
-      expiresAtMs: target.expiresAtMs
-    });
+    if (this.blobServiceClient) {
+      await this.markAzureArtifactCompleted(target);
+    } else {
+      this.rememberLocalCompletion({
+        ownerId: input.ownerId,
+        listingId: input.listingId,
+        kind: target.kind,
+        blobPath,
+        completedAtMs: target.completedAtMs
+      });
+    }
     this.localBytes.delete(target.blobPath);
     this.targets.delete(input.uploadToken);
     this.consumedTokens.set(input.uploadToken, target.expiresAtMs);
@@ -306,6 +311,11 @@ export class VerificationArtifactStorageService {
     await this.assertListingOwner(input.ownerId, input.listingId);
     const blobPath = normalizeBlobPath(input.blobPath);
     this.assertListingScopedBlobPath(input.listingId, input.kind, blobPath);
+
+    if (this.blobServiceClient) {
+      await this.assertAzureArtifactCompleted({ ...input, blobPath });
+      return;
+    }
 
     if (
       !this.completedArtifacts.has(
@@ -424,7 +434,8 @@ export class VerificationArtifactStorageService {
       await containerClient.createIfNotExists();
       const blobClient = containerClient.getBlockBlobClient(target.blobPath);
       await blobClient.uploadData(buffer, {
-        blobHTTPHeaders: { blobContentType: target.contentType }
+        blobHTTPHeaders: { blobContentType: target.contentType },
+        metadata: this.azureMetadata(target, false)
       });
       return;
     }
@@ -458,6 +469,66 @@ export class VerificationArtifactStorageService {
     return JSON.stringify([ownerId, listingId, kind, blobPath]);
   }
 
+  private rememberLocalCompletion(artifact: CompletedArtifact) {
+    this.completedArtifacts.set(
+      this.completedKey(artifact.ownerId, artifact.listingId, artifact.kind, artifact.blobPath),
+      artifact
+    );
+    while (this.completedArtifacts.size > MAX_LOCAL_COMPLETED_ARTIFACTS) {
+      const oldestKey = this.completedArtifacts.keys().next().value as string | undefined;
+      if (!oldestKey) break;
+      this.completedArtifacts.delete(oldestKey);
+    }
+  }
+
+  private azureMetadata(target: PendingArtifact, completed: boolean) {
+    return {
+      ownerid: target.ownerId,
+      listingid: target.listingId,
+      artifactkind: target.kind,
+      verificationcomplete: completed ? "true" : "false"
+    };
+  }
+
+  private async markAzureArtifactCompleted(target: PendingArtifact) {
+    if (!this.blobServiceClient) return;
+    const blobClient = this.blobServiceClient
+      .getContainerClient(this.containerName)
+      .getBlockBlobClient(target.blobPath);
+    await blobClient.setMetadata(this.azureMetadata(target, true));
+  }
+
+  private async assertAzureArtifactCompleted(input: {
+    ownerId: string;
+    listingId: string;
+    kind: VerificationArtifactKind;
+    blobPath: string;
+  }) {
+    if (!this.blobServiceClient) return;
+    const blobClient = this.blobServiceClient
+      .getContainerClient(this.containerName)
+      .getBlockBlobClient(input.blobPath);
+
+    try {
+      const properties = await blobClient.getProperties();
+      const metadata = properties.metadata ?? {};
+      const valid =
+        metadata.ownerid === input.ownerId &&
+        metadata.listingid === input.listingId &&
+        metadata.artifactkind === input.kind &&
+        metadata.verificationcomplete === "true";
+      if (valid) return;
+    } catch (error) {
+      const statusCode = (error as { statusCode?: number })?.statusCode;
+      if (statusCode !== 404) throw error;
+    }
+
+    throw new BadRequestException({
+      code: "artifact_not_completed",
+      message: "Verification artifact has not been completed"
+    });
+  }
+
   private sweepExpired(exceptUploadToken?: string) {
     const now = Date.now();
     for (const [uploadToken, target] of this.targets.entries()) {
@@ -472,12 +543,6 @@ export class VerificationArtifactStorageService {
       if (uploadToken === exceptUploadToken) continue;
       if (now > expiresAtMs) {
         this.consumedTokens.delete(uploadToken);
-      }
-    }
-
-    for (const [key, artifact] of this.completedArtifacts.entries()) {
-      if (now > artifact.expiresAtMs) {
-        this.completedArtifacts.delete(key);
       }
     }
   }

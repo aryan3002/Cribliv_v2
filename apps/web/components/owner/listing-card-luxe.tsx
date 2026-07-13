@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -73,6 +73,9 @@ const STATUS_META: Record<
 
 export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, onBoost }: Props) {
   const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsDialogRef = useRef<HTMLDivElement>(null);
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const actionsCloseRef = useRef<HTMLButtonElement>(null);
   const loc = locale as Locale;
   const status = STATUS_META[listing.status] ?? STATUS_META.draft;
   const isVerified = listing.verificationStatus === "verified";
@@ -100,6 +103,47 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
     setActionsOpen(false);
     onBoost(listing);
   }
+
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const trigger = actionsTriggerRef.current;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => actionsCloseRef.current?.focus(), 0);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setActionsOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        actionsDialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      trigger?.focus();
+    };
+  }, [actionsOpen]);
 
   return (
     <article
@@ -236,6 +280,7 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
           )}
 
           <button
+            ref={actionsTriggerRef}
             type="button"
             className="lcl__btn lcl__btn--more"
             onClick={() => setActionsOpen(true)}
@@ -279,10 +324,17 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
             if (e.target === e.currentTarget) setActionsOpen(false);
           }}
         >
-          <div className="lcl-sheet" role="dialog" aria-modal="true" aria-label="Listing actions">
+          <div
+            ref={actionsDialogRef}
+            className="lcl-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Listing actions"
+          >
             <div className="lcl-sheet__header">
               <h4>{listing.title || "Listing actions"}</h4>
               <button
+                ref={actionsCloseRef}
                 type="button"
                 className="lcl-sheet__close"
                 aria-label="Close actions"
@@ -298,6 +350,7 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   href={editHref as any}
                   className="lcl-sheet__action lcl-sheet__action--primary"
+                  onClick={() => setActionsOpen(false)}
                 >
                   <Pencil size={16} aria-hidden="true" />
                   {editLabel}
@@ -309,6 +362,7 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   href={verificationHref as any}
                   className="lcl-sheet__action"
+                  onClick={() => setActionsOpen(false)}
                 >
                   <ShieldCheck size={16} aria-hidden="true" />
                   Verify listing

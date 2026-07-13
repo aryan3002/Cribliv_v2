@@ -116,4 +116,23 @@ describe("OwnerWorkspaceShell", () => {
     expect(maxPxValue(".ows__mobile-account", "width")).toBeGreaterThanOrEqual(44);
     expect(maxPxValue(".ows__mobile-account", "height")).toBeGreaterThanOrEqual(44);
   });
+
+  it("shows the current screen title in the mobile header", () => {
+    pathname = "/en/owner/leads";
+    const { container } = renderShell();
+
+    const mobileTitle = container.querySelector(".ows__mobile-title");
+    expect(mobileTitle).toHaveAttribute("href", "/en/owner/dashboard");
+    expect(mobileTitle).toHaveTextContent("Leads");
+  });
+
+  it("preserves the current owner route when switching language", () => {
+    pathname = "/en/owner/verification";
+    renderShell();
+
+    expect(screen.getByRole("link", { name: /switch to hindi/i })).toHaveAttribute(
+      "href",
+      "/hi/owner/verification"
+    );
+  });
 });

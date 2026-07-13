@@ -456,6 +456,36 @@ test.describe("Owner workspace mobile browser coverage", () => {
     await expectTextEntryControlsAtLeast16px(page);
     await expectOwnerBottomNavLabelsInsideBounds(page);
   });
+
+  test("owner workspace adapts at 412px and tablet widths with focused controls reachable", async ({
+    page
+  }) => {
+    await page.setViewportSize({ width: 412, height: 915 });
+    await page.goto("/en/owner/verification");
+    await expect(page.getByRole("navigation", { name: /owner mobile navigation/i })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await expectOwnerBottomNavLabelsInsideBounds(page);
+
+    const reference = page.getByLabel(/reference code/i);
+    await reference.focus();
+    await page.setViewportSize({ width: 412, height: 560 });
+    await expectReachableAboveMobileNav(page, reference, "verification reference field");
+    await page.screenshot({
+      path: "../../output/playwright/final-owner-verification-412x560.png"
+    });
+
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.goto("/en/owner/leads");
+    await expect(page.getByRole("navigation", { name: /owner workspace navigation/i })).toHaveCount(
+      0
+    );
+    await expect(page.getByRole("navigation", { name: /owner mobile navigation/i })).toBeVisible();
+    await expectOwnerBottomNavLabelsInsideBounds(page);
+    await expectNoHorizontalOverflow(page);
+    await page.screenshot({
+      path: "../../output/playwright/final-owner-leads-tablet-768x1024.png"
+    });
+  });
 });
 
 test.describe("Owner workspace populated lead browser coverage", () => {

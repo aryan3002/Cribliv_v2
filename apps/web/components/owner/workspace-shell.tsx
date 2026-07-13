@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Building2,
+  Globe2,
   LayoutDashboard,
   Plus,
   Settings,
@@ -114,12 +115,27 @@ function OwnerNav({
   );
 }
 
+function currentOwnerItem(locale: Locale, pathname: string | null) {
+  return (
+    OWNER_NAV.find((item) => isCurrentDestination(pathname, item.href(locale))) ?? OWNER_NAV[0]
+  );
+}
+
+function alternateLocaleHref(locale: Locale, pathname: string | null) {
+  const nextLocale = locale === "en" ? "hi" : "en";
+  const current = pathname || `/${locale}/owner/dashboard`;
+  return current.replace(/^\/(en|hi)(?=\/|$)/, `/${nextLocale}`);
+}
+
 export function OwnerWorkspaceShell(props: { locale: Locale; children: ReactNode }): JSX.Element {
   const { locale, children } = props;
   const pathname = usePathname();
   const { data: session } = useSession();
   const accountLabel = formatAccountLabel(session);
   const isFocusFlow = /\/owner\/listings\/new(\/|$)/.test(pathname ?? "");
+  const currentItem = currentOwnerItem(locale, pathname);
+  const currentTitle = t(locale, currentItem.key);
+  const languageHref = alternateLocaleHref(locale, pathname);
 
   return (
     <div
@@ -135,22 +151,32 @@ export function OwnerWorkspaceShell(props: { locale: Locale; children: ReactNode
         <nav className="ows-nav" aria-label="Owner workspace navigation">
           <OwnerNav locale={locale} pathname={pathname} />
         </nav>
-        <details className="ows-account">
-          <summary>
-            <UserRound size={18} aria-hidden />
-            <span>{accountLabel}</span>
-          </summary>
-          <Link href={`/${locale}/settings`}>
-            <Settings size={16} aria-hidden />
-            <span>{t(locale, "menuAccountSettings")}</span>
+        <div className="ows__desktop-actions">
+          <Link
+            href={languageHref as Route}
+            className="ows__language"
+            aria-label={t(locale, "ownerLanguageSwitchLabel")}
+          >
+            <Globe2 size={17} aria-hidden />
+            <span>{t(locale, "ownerLanguageSwitch")}</span>
           </Link>
-        </details>
+          <details className="ows-account">
+            <summary>
+              <UserRound size={18} aria-hidden />
+              <span>{accountLabel}</span>
+            </summary>
+            <Link href={`/${locale}/settings`}>
+              <Settings size={16} aria-hidden />
+              <span>{t(locale, "menuAccountSettings")}</span>
+            </Link>
+          </details>
+        </div>
       </header>
 
       <header className="ows__mobile-header">
         <Link href={`/${locale}/owner/dashboard`} className="ows__mobile-title">
           <span className="ows__brand-mark">C</span>
-          <span>Owner</span>
+          <span>{currentTitle}</span>
         </Link>
         <Link
           href={`/${locale}/settings`}

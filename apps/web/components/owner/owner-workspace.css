@@ -73,9 +73,30 @@
   position: relative;
 }
 
+.ows__desktop-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ows__language {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid rgba(126, 142, 164, 0.28);
+  border-radius: 8px;
+  background: #fff;
+  color: #26354f;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .ows-account summary {
   display: inline-flex;
-  min-height: 42px;
+  min-height: 44px;
   align-items: center;
   gap: 8px;
   padding: 0 12px;
@@ -1284,7 +1305,7 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .ows__desktop-nav {
     display: none;
   }

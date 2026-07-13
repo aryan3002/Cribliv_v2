@@ -27,6 +27,8 @@ const dictionary: Dictionary = {
   ownerAdd: { en: "Add", hi: "जोड़ें" },
   ownerLeads: { en: "Leads", hi: "लीड्स" },
   ownerVerify: { en: "Verify", hi: "वेरिफाई" },
+  ownerLanguageSwitch: { en: "हिंदी", hi: "EN" },
+  ownerLanguageSwitchLabel: { en: "Switch to Hindi", hi: "अंग्रेज़ी में बदलें" },
   ownerOverviewEyebrow: { en: "Owner overview", hi: "ओनर ओवरव्यू" },
   ownerOverviewGreetingMorning: { en: "Good morning", hi: "सुप्रभात" },
   ownerOverviewGreetingAfternoon: { en: "Good afternoon", hi: "नमस्ते" },
