@@ -143,6 +143,17 @@ export class AppStateService {
   roleRequests = new Map<string, RoleRequestRecord>();
   /** Lookup: userId → latest pending/decided request id */
   roleRequestsByUser = new Map<string, string>();
+  /** Admin TOTP enrollment — keyed by user id. In-memory dual-mode parity. */
+  adminTotp = new Map<
+    string,
+    {
+      secret: string;
+      status: "pending" | "enabled";
+      lastUsedStep: number | null;
+      failedAttempts: number;
+      lockedUntil: number | null;
+    }
+  >();
   private outboundEventCounter = 1;
 
   constructor() {
