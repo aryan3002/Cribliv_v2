@@ -81,14 +81,12 @@ export class PgListingController {
             lng: parsed.data.property.lng ?? null,
             formatted_address: parsed.data.property.formatted_address ?? null
           });
-          // Wizard publish = submit for admin review → lands in the existing admin
-          // queue (listings.status='pending_review') for approval → go-live.
-          const listing = await this.listings.createDraft(
-            user.id,
-            prop.id,
-            parsed.data,
-            "pending_review"
-          );
+          // Wizard publish creates the listing as a DRAFT. The web wizard uploads
+          // photos next, then calls POST :id/submit to transition draft →
+          // pending_review — so a listing never enters the admin review queue
+          // without its photos attached. (Was created directly as pending_review,
+          // which stranded listings when the post-create photo upload failed.)
+          const listing = await this.listings.createDraft(user.id, prop.id, parsed.data, "draft");
           // Response contract the web wizard consumes (pg-operator-api.ts): the publish
           // redirect reads `listing_id`, so expose it explicitly (not the internal `id`).
           return { listing_id: listing.id, status: listing.status };

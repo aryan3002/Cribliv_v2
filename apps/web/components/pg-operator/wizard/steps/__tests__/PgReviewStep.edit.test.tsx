@@ -6,8 +6,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }
 vi.mock("@/lib/pg-funnel", () => ({ trackPgFunnel: vi.fn() }));
 
 const api = vi.hoisted(() => ({
-  createPgListing: vi.fn(() => Promise.resolve({ listing_id: "NEW", status: "pending_review" })),
-  updatePgListing: vi.fn(() => Promise.resolve({ listing_id: "L1", status: "pending_review" }))
+  createPgListing: vi.fn(() => Promise.resolve({ listing_id: "NEW", status: "draft" })),
+  updatePgListing: vi.fn(() => Promise.resolve({ listing_id: "L1", status: "pending_review" })),
+  submitPgListing: vi.fn(() => Promise.resolve({ listing_id: "NEW", status: "pending_review" }))
 }));
 vi.mock("@/lib/pg-operator-api", () => api);
 
@@ -54,8 +55,22 @@ function makeState() {
 beforeEach(() => {
   api.createPgListing.mockClear();
   api.updatePgListing.mockClear();
-  owner.presignListingPhotos.mockClear();
+  api.submitPgListing.mockClear();
+  owner.presignListingPhotos.mockReset();
+  owner.completeListingPhotos.mockReset();
   owner.reorderListingPhotos.mockClear();
+  // Happy defaults for the create-mode upload path (each id maps to an upload URL
+  // + blob path). Overridden per-test for failure cases.
+  owner.presignListingPhotos.mockResolvedValue({
+    uploads: [0, 1, 2, 3].map((i) => ({
+      clientUploadId: `existing-${i}`,
+      uploadUrl: `https://az/up/${i}`,
+      blobPath: `pg/NEW/p${i}.jpg`
+    }))
+  } as any);
+  owner.completeListingPhotos.mockResolvedValue({ photoIds: ["a", "b", "c", "d"] } as any);
+  // putToAzure() uses fetch(); a 200 lets the upload phase succeed.
+  global.fetch = vi.fn(() => Promise.resolve({ ok: true } as any));
   push.mockClear();
 });
 
@@ -89,5 +104,31 @@ describe("PgReviewStep — edit mode save", () => {
     fireEvent.click(screen.getByRole("button", { name: /submit for review/i }));
     await waitFor(() => expect(api.createPgListing).toHaveBeenCalledTimes(1));
     expect(api.updatePgListing).not.toHaveBeenCalled();
+  });
+
+  it("create mode: uploads photos THEN submits for review, routes to ?published=1", async () => {
+    render(<PgReviewStep state={makeState()} dispatch={vi.fn()} locale="en" accessToken="tok" />);
+    fireEvent.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    await waitFor(() => expect(api.submitPgListing).toHaveBeenCalledTimes(1));
+    // Submit happens only AFTER the photos are persisted — the whole point of the fix.
+    expect(owner.completeListingPhotos).toHaveBeenCalledTimes(1);
+    expect(api.submitPgListing).toHaveBeenCalledWith("NEW", "tok");
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/en/pg-operator/listings/NEW?published=1")
+    );
+  });
+
+  it("create mode: photo upload failure leaves a DRAFT and never submits for review", async () => {
+    owner.presignListingPhotos.mockRejectedValueOnce(new Error("azure down"));
+    render(<PgReviewStep state={makeState()} dispatch={vi.fn()} locale="en" accessToken="tok" />);
+    fireEvent.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    await waitFor(() => expect(api.createPgListing).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/en/pg-operator/listings/NEW?draft=1&photoError=1")
+    );
+    // The listing stays a draft — it must NOT enter the admin review queue.
+    expect(api.submitPgListing).not.toHaveBeenCalled();
   });
 });
