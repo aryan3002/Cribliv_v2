@@ -5,6 +5,7 @@ import { AppStateService } from "../../common/app-state.service";
 import { requireIdempotencyKey } from "../../common/idempotency.util";
 import { DatabaseService } from "../../common/database.service";
 import { assertCreditPurchaseEnabled, listCreditPlansForRole } from "../payments/payments.util";
+import { expireSignupCredits } from "./wallet-balance";
 import { WalletPurchaseService } from "./wallet-purchase.service";
 
 @Controller("wallet")
@@ -25,23 +26,42 @@ export class WalletController {
   @Get()
   async balance(@Req() req: { user: { id: string } }) {
     if (this.database.isEnabled()) {
-      const result = await this.database.query<{
-        balance_credits: number;
-        free_credits_granted: number;
-      }>(
-        `
-        SELECT balance_credits, free_credits_granted
-        FROM wallets
-        WHERE user_id = $1::uuid
-        LIMIT 1
-        `,
-        [req.user.id]
-      );
+      const client = await this.database.getClient();
+      try {
+        await client.query("BEGIN");
+        await expireSignupCredits(client, req.user.id);
+        const result = await client.query<{
+          balance_credits: number;
+          free_credits_granted: number;
+          promotional_credits_remaining: number;
+          promotional_credits_expires_at: string | null;
+        }>(
+          `
+          SELECT
+            balance_credits,
+            free_credits_granted,
+            promotional_credits_remaining,
+            promotional_credits_expires_at::text
+          FROM wallets
+          WHERE user_id = $1::uuid
+          LIMIT 1
+          `,
+          [req.user.id]
+        );
+        await client.query("COMMIT");
 
-      return ok({
-        balance_credits: Number(result.rows[0]?.balance_credits ?? 0),
-        free_credits_granted: Number(result.rows[0]?.free_credits_granted ?? 0)
-      });
+        return ok({
+          balance_credits: Number(result.rows[0]?.balance_credits ?? 0),
+          free_credits_granted: Number(result.rows[0]?.free_credits_granted ?? 0),
+          promotional_credits_remaining: Number(result.rows[0]?.promotional_credits_remaining ?? 0),
+          promotional_credits_expires_at: result.rows[0]?.promotional_credits_expires_at ?? null
+        });
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     }
 
     const wallet = this.appState.getWalletDetails(req.user.id);
