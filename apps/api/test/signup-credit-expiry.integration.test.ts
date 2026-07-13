@@ -1,14 +1,18 @@
 import "reflect-metadata";
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { createHmac, randomUUID } from "crypto";
 import { Pool } from "pg";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
+import { canonicalPayload } from "../src/modules/payments/payments.util";
+import { runRefundSweepDb } from "../src/worker/callback-sweeps";
 import { runSignupCreditExpirySweepDb } from "../src/worker/signup-credit-sweep";
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SIGNUP_REWARD_MS = 90 * DAY_MS;
+const WEBHOOK_SECRET = "signup-credit-expiry-webhook-secret";
 
 interface OtpVerifyData {
   access_token: string;
@@ -23,13 +27,47 @@ interface OtpVerifyData {
   };
 }
 
-function randomPhone(prefix: "94" | "95" | "96" | "97" | "98" | "99") {
+interface PurchaseIntent {
+  order_id: string;
+  credits_to_grant: number;
+}
+
+function randomPhone(prefix: "93" | "94" | "95" | "96" | "97" | "98" | "99") {
   return `+91${prefix}${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
 }
 
 function http(app: INestApplication) {
   return request(app.getHttpAdapter().getInstance());
 }
+
+function captureEnvironment<const K extends readonly string[]>(
+  keys: K
+): Record<K[number], string | undefined> {
+  return Object.fromEntries(keys.map((key) => [key, process.env[key]])) as Record<
+    K[number],
+    string | undefined
+  >;
+}
+
+function restoreEnvironment(snapshot: Record<string, string | undefined>) {
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+}
+
+const INTEGRATION_ENV_KEYS = [
+  "DATABASE_URL",
+  "OTP_PROVIDER",
+  "SIGNUP_FREE_CREDITS",
+  "FF_WHATSAPP_NOTIFICATIONS",
+  "FF_CREDIT_PURCHASE_ENABLED",
+  "PAYMENT_WEBHOOK_SECRET"
+] as const;
+const environmentBeforeIntegration = captureEnvironment(INTEGRATION_ENV_KEYS);
 
 async function loginWithOtp(app: INestApplication, phone: string): Promise<OtpVerifyData> {
   const send = await http(app)
@@ -49,60 +87,248 @@ async function loginWithOtp(app: INestApplication, phone: string): Promise<OtpVe
   return verify.body.data as OtpVerifyData;
 }
 
+async function createPurchaseIntent(
+  app: INestApplication,
+  accessToken: string,
+  idempotencyKey: string
+): Promise<PurchaseIntent> {
+  const response = await http(app)
+    .post("/v1/wallet/purchase-intents")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .set("Idempotency-Key", idempotencyKey)
+    .send({ plan_id: "starter_10", provider: "razorpay" })
+    .expect(201);
+
+  return response.body.data as PurchaseIntent;
+}
+
+async function capturePurchase(app: INestApplication, purchase: PurchaseIntent, eventId: string) {
+  const payload = {
+    id: eventId,
+    event: "payment.captured",
+    payload: {
+      payment: {
+        entity: {
+          id: `pay_${eventId}`,
+          order_id: purchase.order_id
+        }
+      }
+    }
+  };
+  const signature = createHmac("sha256", WEBHOOK_SECRET)
+    .update(canonicalPayload(payload))
+    .digest("hex");
+
+  await http(app)
+    .post("/v1/webhooks/razorpay")
+    .set("x-razorpay-signature", signature)
+    .send(payload)
+    .expect(201);
+}
+
+describe("signup credit expiry test environment", () => {
+  it("restores set and unset variables exactly", () => {
+    const keys = [
+      "DATABASE_URL",
+      "OTP_PROVIDER",
+      "SIGNUP_FREE_CREDITS",
+      "FF_WHATSAPP_NOTIFICATIONS"
+    ] as const;
+    const original = captureEnvironment(keys);
+
+    try {
+      process.env.DATABASE_URL = "original-database";
+      delete process.env.OTP_PROVIDER;
+      process.env.SIGNUP_FREE_CREDITS = "7";
+      delete process.env.FF_WHATSAPP_NOTIFICATIONS;
+      const snapshot = captureEnvironment(keys);
+
+      process.env.DATABASE_URL = "mutated-database";
+      process.env.OTP_PROVIDER = "mock";
+      delete process.env.SIGNUP_FREE_CREDITS;
+      process.env.FF_WHATSAPP_NOTIFICATIONS = "false";
+      restoreEnvironment(snapshot);
+
+      expect(process.env.DATABASE_URL).toBe("original-database");
+      expect(process.env.OTP_PROVIDER).toBeUndefined();
+      expect(process.env.SIGNUP_FREE_CREDITS).toBe("7");
+      expect(process.env.FF_WHATSAPP_NOTIFICATIONS).toBeUndefined();
+    } finally {
+      restoreEnvironment(original);
+    }
+  });
+});
+
 describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
-  let app: INestApplication;
-  let pool: Pool;
-  const previousSignupCredits = process.env.SIGNUP_FREE_CREDITS;
+  let app: INestApplication | undefined;
+  let pool: Pool | undefined;
+  const runId = randomUUID();
+  const captureEventId = `signup-credit-capture-${runId}`;
   const signupPhone = randomPhone("94");
   const walletPhone = randomPhone("95");
   const mePhone = randomPhone("96");
   const sweepPhoneOne = randomPhone("97");
   const sweepPhoneTwo = randomPhone("98");
   const futurePhone = randomPhone("99");
-  const phones = [signupPhone, walletPhone, mePhone, sweepPhoneOne, sweepPhoneTwo, futurePhone];
+  const ownerPhone = randomPhone("93");
+  const phones = [
+    signupPhone,
+    walletPhone,
+    mePhone,
+    sweepPhoneOne,
+    sweepPhoneTwo,
+    futurePhone,
+    ownerPhone
+  ];
+  const listingIds: string[] = [];
 
   beforeAll(async () => {
     process.env.DATABASE_URL = TEST_DB;
     process.env.OTP_PROVIDER = "mock";
     process.env.SIGNUP_FREE_CREDITS = "10";
     process.env.FF_WHATSAPP_NOTIFICATIONS = "false";
+    process.env.FF_CREDIT_PURCHASE_ENABLED = "true";
+    process.env.PAYMENT_WEBHOOK_SECRET = WEBHOOK_SECRET;
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("v1");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    try {
+      const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+      app = moduleRef.createNestApplication();
+      app.setGlobalPrefix("v1");
+      app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+      await app.init();
 
-    pool = new Pool({ connectionString: TEST_DB! });
+      pool = new Pool({ connectionString: TEST_DB! });
+    } catch (setupError) {
+      try {
+        try {
+          await pool?.end();
+        } catch {
+          // Preserve the setup failure.
+        }
+      } finally {
+        try {
+          await app?.close();
+        } catch {
+          // Preserve the setup failure.
+        } finally {
+          restoreEnvironment(environmentBeforeIntegration);
+        }
+      }
+      throw setupError;
+    }
   }, 60_000);
 
   afterAll(async () => {
-    await pool.query(
-      `DELETE FROM sessions
-       WHERE user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
-      [phones]
-    );
-    await pool.query(
-      `DELETE FROM wallet_transactions
-       WHERE wallet_user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
-      [phones]
-    );
-    await pool.query(
-      `DELETE FROM wallets
-       WHERE user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
-      [phones]
-    );
-    await pool.query(`DELETE FROM otp_challenges WHERE phone_e164 = ANY($1)`, [phones]);
-    await pool.query(`DELETE FROM users WHERE phone_e164 = ANY($1)`, [phones]);
-    await pool.end();
-    await app.close();
+    let teardownError: unknown;
+    const attempt = async (operation: () => Promise<unknown>) => {
+      try {
+        await operation();
+      } catch (error) {
+        teardownError ??= error;
+      }
+    };
 
-    delete process.env.DATABASE_URL;
-    delete process.env.FF_WHATSAPP_NOTIFICATIONS;
-    if (previousSignupCredits === undefined) {
-      delete process.env.SIGNUP_FREE_CREDITS;
-    } else {
-      process.env.SIGNUP_FREE_CREDITS = previousSignupCredits;
+    try {
+      if (pool) {
+        await attempt(() =>
+          pool!.query(
+            `DELETE FROM outbound_events
+             WHERE aggregate_id IN (
+               SELECT id FROM leads WHERE listing_id = ANY($1::uuid[])
+             )`,
+            [listingIds]
+          )
+        );
+        await attempt(() =>
+          pool!.query(
+            `DELETE FROM contact_events
+             WHERE contact_unlock_id IN (
+               SELECT id FROM contact_unlocks WHERE listing_id = ANY($1::uuid[])
+             )`,
+            [listingIds]
+          )
+        );
+        await attempt(() =>
+          pool!.query(`DELETE FROM leads WHERE listing_id = ANY($1::uuid[])`, [listingIds])
+        );
+        await attempt(() =>
+          pool!.query(
+            `UPDATE contact_unlocks
+             SET refund_txn_id = NULL
+             WHERE listing_id = ANY($1::uuid[])`,
+            [listingIds]
+          )
+        );
+        await attempt(() =>
+          pool!.query(`DELETE FROM contact_unlocks WHERE listing_id = ANY($1::uuid[])`, [
+            listingIds
+          ])
+        );
+        await attempt(() =>
+          pool!.query(
+            `DELETE FROM payment_webhook_events
+             WHERE provider_event_id = $2
+                OR payment_order_id IN (
+               SELECT id FROM payment_orders
+               WHERE user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))
+             )`,
+            [phones, `payment.captured:${captureEventId}`]
+          )
+        );
+        await attempt(() =>
+          pool!.query(
+            `DELETE FROM payment_orders
+             WHERE user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+            [phones]
+          )
+        );
+        await attempt(() =>
+          pool!.query(
+            `DELETE FROM sessions
+             WHERE user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+            [phones]
+          )
+        );
+        await attempt(() =>
+          pool!.query(
+            `DELETE FROM wallet_transactions
+             WHERE wallet_user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+            [phones]
+          )
+        );
+        await attempt(() =>
+          pool!.query(
+            `DELETE FROM wallets
+             WHERE user_id IN (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+            [phones]
+          )
+        );
+        await attempt(() =>
+          pool!.query(`DELETE FROM listings WHERE id = ANY($1::uuid[])`, [listingIds])
+        );
+        await attempt(() =>
+          pool!.query(`DELETE FROM otp_challenges WHERE phone_e164 = ANY($1)`, [phones])
+        );
+        await attempt(() => pool!.query(`DELETE FROM users WHERE phone_e164 = ANY($1)`, [phones]));
+      }
+    } finally {
+      try {
+        if (pool) {
+          await attempt(() => pool!.end());
+        }
+      } finally {
+        try {
+          if (app) {
+            await attempt(() => app!.close());
+          }
+        } finally {
+          restoreEnvironment(environmentBeforeIntegration);
+        }
+      }
+    }
+
+    if (teardownError) {
+      throw teardownError;
     }
   }, 60_000);
 
@@ -173,27 +399,102 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
     expect(grantCountAfter.rows[0].count).toBe(grantCountBefore.rows[0].count);
   });
 
-  it("lazily expires promotional credits before GET /wallet and exposes promo fields", async () => {
+  it("preserves credits added by captured purchase and refund paths after wallet expiry", async () => {
     const signup = await loginWithOtp(app, walletPhone);
-    const expiry = new Date(Date.now() - DAY_MS);
+    const owner = await loginWithOtp(app, ownerPhone);
+    await pool.query(`UPDATE users SET role = 'owner' WHERE id = $1::uuid`, [owner.user.id]);
+    const listing = await pool.query<{ id: string }>(
+      `INSERT INTO listings(
+         owner_user_id,
+         listing_type,
+         title_en,
+         monthly_rent,
+         status,
+         contact_phone_encrypted
+       )
+       VALUES (
+         $1::uuid,
+         'flat_house',
+         'Signup Credit Permanence Test',
+         12000,
+         'active',
+         '+919400000000'
+       )
+       RETURNING id::text`,
+      [owner.user.id]
+    );
+    const listingId = listing.rows[0].id;
+    listingIds.push(listingId);
 
+    const purchase = await createPurchaseIntent(
+      app,
+      signup.access_token,
+      `signup-credit-purchase-${runId}`
+    );
+    expect(purchase.credits_to_grant).toBe(10);
+    await capturePurchase(app, purchase, captureEventId);
+
+    const unlock = await http(app)
+      .post("/v1/tenant/contact-unlocks")
+      .set("Authorization", `Bearer ${signup.access_token}`)
+      .set("Idempotency-Key", `signup-credit-refund-${runId}`)
+      .send({ listing_id: listingId })
+      .expect(201);
+    const unlockId = unlock.body.data.unlock_id as string;
+    await pool.query(
+      `UPDATE contact_unlocks
+       SET response_deadline_at = now() - interval '1 hour'
+       WHERE id = $1::uuid`,
+      [unlockId]
+    );
+    await runRefundSweepDb(pool);
+
+    const refundedUnlock = await pool.query<{
+      unlock_status: string;
+      refund_txn_id: string | null;
+    }>(
+      `SELECT unlock_status::text, refund_txn_id::text
+       FROM contact_unlocks
+       WHERE id = $1::uuid`,
+      [unlockId]
+    );
+    expect(refundedUnlock.rows[0]).toMatchObject({
+      unlock_status: "refunded",
+      refund_txn_id: expect.any(String)
+    });
+
+    const expiry = new Date(Date.now() - DAY_MS);
     await pool.query(
       `UPDATE wallets
-       SET balance_credits = 17,
-           promotional_credits_remaining = 10,
-           promotional_credits_expires_at = $2::timestamptz
+       SET promotional_credits_expires_at = $2::timestamptz
        WHERE user_id = $1::uuid`,
       [signup.user.id, expiry.toISOString()]
     );
-    await pool.query(
-      `INSERT INTO wallet_transactions(
-         wallet_user_id, txn_type, credits_delta, reference_type, reference_id, metadata
-       )
-       VALUES
-         ($1::uuid, 'purchase_pack', 5, 'user', $1::uuid, '{}'::jsonb),
-         ($1::uuid, 'refund_no_response', 2, 'user', $1::uuid, '{}'::jsonb)`,
+
+    const permanentCredits = await pool.query<{
+      txn_type: string;
+      credits_delta: number;
+      reference_type: string | null;
+    }>(
+      `SELECT txn_type::text, credits_delta, reference_type::text
+       FROM wallet_transactions
+       WHERE wallet_user_id = $1::uuid
+         AND txn_type IN ('purchase_pack', 'refund_no_response')
+       ORDER BY txn_type`,
       [signup.user.id]
     );
+    expect(permanentCredits.rows).toEqual([
+      {
+        credits_delta: 10,
+        txn_type: "purchase_pack",
+        reference_type: "payment"
+      },
+      {
+        credits_delta: 1,
+        txn_type: "refund_no_response",
+        reference_type: "contact_unlock"
+      }
+    ]);
 
     const wallet = await http(app)
       .get("/v1/wallet")
@@ -201,7 +502,7 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
       .expect(200);
 
     expect(wallet.body.data).toEqual({
-      balance_credits: 7,
+      balance_credits: 11,
       free_credits_granted: 10,
       promotional_credits_remaining: 0,
       promotional_credits_expires_at: expect.any(String)
@@ -221,9 +522,9 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
     );
     expect(expiryTransactions.rows).toHaveLength(1);
     expect(expiryTransactions.rows[0]).toMatchObject({
-      credits_delta: -10,
+      credits_delta: -9,
       metadata: {
-        expired_credits: 10
+        expired_credits: 9
       }
     });
     expect(new Date(expiryTransactions.rows[0].metadata.expires_at).getTime()).toBe(
@@ -231,24 +532,15 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
     );
   });
 
-  it("lazily expires before GET /auth/me while preserving permanent credits", async () => {
+  it("lazily expires before GET /auth/me and exposes promotional fields", async () => {
     const signup = await loginWithOtp(app, mePhone);
     const expiry = new Date(Date.now() - 2 * DAY_MS);
 
     await pool.query(
       `UPDATE wallets
-       SET balance_credits = 13,
-           promotional_credits_remaining = 10,
-           promotional_credits_expires_at = $2::timestamptz
+       SET promotional_credits_expires_at = $2::timestamptz
        WHERE user_id = $1::uuid`,
       [signup.user.id, expiry.toISOString()]
-    );
-    await pool.query(
-      `INSERT INTO wallet_transactions(
-         wallet_user_id, txn_type, credits_delta, reference_type, reference_id, metadata
-       )
-       VALUES ($1::uuid, 'purchase_pack', 3, 'user', $1::uuid, '{}'::jsonb)`,
-      [signup.user.id]
     );
 
     const me = await http(app)
@@ -258,7 +550,7 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
 
     expect(me.body.data).toMatchObject({
       id: signup.user.id,
-      wallet_balance: 3,
+      wallet_balance: 0,
       promotional_credits_remaining: 0,
       promotional_credits_expires_at: expect.any(String)
     });
@@ -274,7 +566,7 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
       [signup.user.id]
     );
     expect(wallet.rows[0]).toEqual({
-      balance_credits: 3,
+      balance_credits: 0,
       promotional_credits_remaining: 0
     });
   });
@@ -395,5 +687,11 @@ describe.runIf(!!TEST_DB)("signup credit expiry APIs (DB)", () => {
     expect(expiryTransactions.rows.map((row) => row.credits_delta).sort((a, b) => a - b)).toEqual([
       -6, -4
     ]);
+  });
+});
+
+describe.runIf(!!TEST_DB)("signup credit expiry integration teardown", () => {
+  it("does not leak environment changes", () => {
+    expect(captureEnvironment(INTEGRATION_ENV_KEYS)).toEqual(environmentBeforeIntegration);
   });
 });

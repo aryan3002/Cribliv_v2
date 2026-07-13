@@ -78,4 +78,43 @@ describe("runSignupCreditExpirySweepDb", () => {
     expect(queries.map((query) => query.text)).toContain("ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
   });
+
+  it("does not roll back when starting the next batch transaction fails", async () => {
+    const { pool, client, queries } = createPool([[{ user_id: "user-1" }]]);
+    const query = client.query as ReturnType<typeof vi.fn>;
+    const originalQuery = query.getMockImplementation()!;
+    let beginCount = 0;
+    query.mockImplementation(async (...args: Parameters<typeof originalQuery>) => {
+      if (args[0] === "BEGIN" && ++beginCount === 2) {
+        queries.push({ text: "BEGIN", params: [] });
+        throw new Error("next batch begin failed");
+      }
+      return originalQuery(...args);
+    });
+    expireSignupCredits.mockResolvedValueOnce(4);
+
+    await expect(runSignupCreditExpirySweepDb(pool)).rejects.toThrow("next batch begin failed");
+
+    expect(queries.filter((entry) => entry.text === "ROLLBACK")).toHaveLength(0);
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the original expiry error when rollback also fails", async () => {
+    const { pool, client, queries } = createPool([[{ user_id: "user-1" }]]);
+    const query = client.query as ReturnType<typeof vi.fn>;
+    const originalQuery = query.getMockImplementation()!;
+    query.mockImplementation(async (...args: Parameters<typeof originalQuery>) => {
+      if (args[0] === "ROLLBACK") {
+        queries.push({ text: "ROLLBACK", params: [] });
+        throw new Error("rollback failed");
+      }
+      return originalQuery(...args);
+    });
+    expireSignupCredits.mockRejectedValueOnce(new Error("expiry failed"));
+
+    await expect(runSignupCreditExpirySweepDb(pool)).rejects.toThrow("expiry failed");
+
+    expect(queries.filter((entry) => entry.text === "ROLLBACK")).toHaveLength(1);
+    expect(client.release).toHaveBeenCalledOnce();
+  });
 });

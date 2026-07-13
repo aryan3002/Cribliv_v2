@@ -10,10 +10,12 @@ export async function runSignupCreditExpirySweepDb(pool: Pool): Promise<{
   const client = await pool.connect();
   let walletsExpired = 0;
   let creditsExpired = 0;
+  let inTransaction = false;
 
   try {
     while (true) {
       await client.query("BEGIN");
+      inTransaction = true;
       const dueWallets = await client.query<{ user_id: string }>(
         `
         SELECT user_id::text
@@ -30,6 +32,7 @@ export async function runSignupCreditExpirySweepDb(pool: Pool): Promise<{
 
       if (!dueWallets.rowCount) {
         await client.query("COMMIT");
+        inTransaction = false;
         break;
       }
 
@@ -42,9 +45,16 @@ export async function runSignupCreditExpirySweepDb(pool: Pool): Promise<{
       }
 
       await client.query("COMMIT");
+      inTransaction = false;
     }
   } catch (error) {
-    await client.query("ROLLBACK");
+    if (inTransaction) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Preserve the failure that caused the transaction to abort.
+      }
+    }
     throw error;
   } finally {
     client.release();
