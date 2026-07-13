@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { EmptyState } from "../primitives/EmptyState";
 import { LeadBoard } from "./LeadBoard";
+import { LeadAnalytics } from "./LeadAnalytics";
 
 interface Props {
   accessToken: string;
@@ -44,10 +44,7 @@ export function LeadCenterTab({ accessToken, onCountChange, onToast }: Props) {
       {view === "board" ? (
         <LeadBoard accessToken={accessToken} onCountChange={onCountChange} onToast={onToast} />
       ) : (
-        <EmptyState
-          title="Lead analytics coming soon"
-          hint="Funnel + engagement charts and the per-owner rollup land in Task 4."
-        />
+        <LeadAnalytics accessToken={accessToken} onToast={onToast} />
       )}
     </div>
   );
