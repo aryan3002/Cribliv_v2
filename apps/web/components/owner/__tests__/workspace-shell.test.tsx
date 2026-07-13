@@ -4,13 +4,15 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 let pathname = "/en/owner/dashboard";
+let searchParams = new URLSearchParams();
 let sessionState: { status: string; data: { user?: { name?: string; phone?: string } } | null } = {
   status: "authenticated",
   data: { user: { name: "Asha Owner", phone: "+919999999901" } }
 };
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => pathname
+  usePathname: () => pathname,
+  useSearchParams: () => searchParams
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -70,6 +72,7 @@ function maxPxValue(selector: string, property: string) {
 describe("OwnerWorkspaceShell", () => {
   beforeEach(() => {
     pathname = "/en/owner/dashboard";
+    searchParams = new URLSearchParams();
     sessionState = {
       status: "authenticated",
       data: { user: { name: "Asha Owner", phone: "+919999999901" } }
@@ -128,11 +131,12 @@ describe("OwnerWorkspaceShell", () => {
 
   it("preserves the current owner route when switching language", () => {
     pathname = "/en/owner/verification";
+    searchParams = new URLSearchParams("listing=listing-1");
     renderShell();
 
     expect(screen.getByRole("link", { name: /switch to hindi/i })).toHaveAttribute(
       "href",
-      "/hi/owner/verification"
+      "/hi/owner/verification?listing=listing-1"
     );
   });
 });

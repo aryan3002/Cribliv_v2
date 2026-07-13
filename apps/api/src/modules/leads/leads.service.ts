@@ -749,21 +749,32 @@ export class LeadsService {
   }
 
   async exportLeadsCsv(ownerUserId: string): Promise<string> {
-    if (!this.database.isEnabled()) {
-      return "lead_id,listing_title,tenant_name,tenant_phone_masked,status,created_at,status_changed_at,owner_notes\n";
-    }
-
-    const result = await this.database.query<{
-      id: string;
-      listing_title: string;
-      tenant_name: string;
-      tenant_phone_masked: string | null;
-      status: string;
-      created_at: string;
-      status_changed_at: string;
-      owner_notes: string | null;
-    }>(
-      `SELECT
+    const rows = !this.database.isEnabled()
+      ? (
+          this.appState?.listOwnerLeads(ownerUserId, undefined, 1, Number.MAX_SAFE_INTEGER, false)
+            .items ?? []
+        ).map((lead) => ({
+          id: lead.id,
+          listing_title: lead.listing_title,
+          tenant_name: lead.tenant_name,
+          tenant_phone_masked: lead.tenant_phone_masked,
+          status: lead.status,
+          created_at: this.formatCsvDate(lead.created_at),
+          status_changed_at: this.formatCsvDate(lead.status_changed_at),
+          owner_notes: lead.owner_notes
+        }))
+      : (
+          await this.database.query<{
+            id: string;
+            listing_title: string;
+            tenant_name: string;
+            tenant_phone_masked: string | null;
+            status: string;
+            created_at: string;
+            status_changed_at: string;
+            owner_notes: string | null;
+          }>(
+            `SELECT
          ld.id::text,
          COALESCE(NULLIF(l.title_en, ''), 'Listing') AS listing_title,
          COALESCE(u.full_name, 'Tenant')             AS tenant_name,
@@ -777,8 +788,9 @@ export class LeadsService {
        LEFT JOIN users u ON u.id = ld.tenant_user_id
        WHERE ld.owner_user_id = $1::uuid
        ORDER BY ld.created_at DESC`,
-      [ownerUserId]
-    );
+            [ownerUserId]
+          )
+        ).rows;
 
     const escape = (v: string | null | undefined) => {
       if (v == null) return "";
@@ -791,7 +803,7 @@ export class LeadsService {
 
     const header =
       "lead_id,listing_title,tenant_name,tenant_phone_masked,status,created_at,status_changed_at,owner_notes";
-    const rows = result.rows.map((r) =>
+    const csvRows = rows.map((r) =>
       [
         r.id,
         r.listing_title,
@@ -806,6 +818,22 @@ export class LeadsService {
         .join(",")
     );
 
-    return [header, ...rows].join("\n");
+    return [header, ...csvRows].join("\n");
+  }
+
+  private formatCsvDate(value: string) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return value;
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    })
+      .format(date)
+      .replace(",", "");
   }
 }

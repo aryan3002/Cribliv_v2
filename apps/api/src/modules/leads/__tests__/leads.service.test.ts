@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { LeadsService } from "../leads.service";
+import { AppStateService } from "../../../common/app-state.service";
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -70,5 +71,33 @@ describe("LeadsService.openLeadForOperator", () => {
       expect(err.getResponse?.().code).toBe("payment_required");
     }
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe("LeadsService.exportLeadsCsv", () => {
+  it("exports real in-memory owner leads instead of an empty header", async () => {
+    const state = new AppStateService();
+    const owner = state.usersByPhone.get("+919999999901");
+    const tenant = state.usersByPhone.get("+919999999902");
+    const listing = [...state.listings.values()].find((item) => item.ownerUserId === owner?.id);
+    if (!owner || !tenant || !listing) throw new Error("seed fixtures missing");
+    tenant.full_name = 'Asha, "Tenant"';
+
+    const { lead } = state.createOwnerLead({
+      listingId: listing.id,
+      ownerUserId: owner.id,
+      tenantUserId: tenant.id,
+      tenantPhoneMasked: "+91******9902"
+    });
+    state.updateOwnerLeadStatus(lead.id, owner.id, "contacted", "Called once");
+
+    const service = new LeadsService({ isEnabled: () => false, query: vi.fn() } as any, state);
+    const csv = await service.exportLeadsCsv(owner.id);
+
+    expect(csv).toContain(lead.id);
+    expect(csv).toContain(listing.title);
+    expect(csv).toContain('"Asha, ""Tenant"""');
+    expect(csv).toContain("contacted");
+    expect(csv).toContain("Called once");
   });
 });

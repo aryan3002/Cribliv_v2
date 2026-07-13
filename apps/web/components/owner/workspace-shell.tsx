@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Building2,
@@ -121,21 +121,28 @@ function currentOwnerItem(locale: Locale, pathname: string | null) {
   );
 }
 
-function alternateLocaleHref(locale: Locale, pathname: string | null) {
+function alternateLocaleHref(
+  locale: Locale,
+  pathname: string | null,
+  searchParams: URLSearchParams | null
+) {
   const nextLocale = locale === "en" ? "hi" : "en";
   const current = pathname || `/${locale}/owner/dashboard`;
-  return current.replace(/^\/(en|hi)(?=\/|$)/, `/${nextLocale}`);
+  const localized = current.replace(/^\/(en|hi)(?=\/|$)/, `/${nextLocale}`);
+  const query = searchParams?.toString();
+  return query ? `${localized}?${query}` : localized;
 }
 
 export function OwnerWorkspaceShell(props: { locale: Locale; children: ReactNode }): JSX.Element {
   const { locale, children } = props;
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const accountLabel = formatAccountLabel(session);
   const isFocusFlow = /\/owner\/listings\/new(\/|$)/.test(pathname ?? "");
   const currentItem = currentOwnerItem(locale, pathname);
   const currentTitle = t(locale, currentItem.key);
-  const languageHref = alternateLocaleHref(locale, pathname);
+  const languageHref = alternateLocaleHref(locale, pathname, searchParams);
 
   return (
     <div
