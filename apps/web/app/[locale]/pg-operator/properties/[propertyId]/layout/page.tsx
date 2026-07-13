@@ -38,8 +38,24 @@ export default async function LayoutPage({
   const token = (s as any)?.accessToken;
 
   const property = await getManagedProperty(params.propertyId, token).catch(() => null);
-  if (!property) redirect(`/${params.locale}/pg-operator/dashboard`);
-  const rooms = await getPropertyLayout(params.propertyId, token).catch(() => []);
+  if (!property) {
+    return (
+      <main className={styles.page}>
+        <div className={styles.inner}>
+          <Link href={`/${params.locale}/pg-operator/dashboard`} className={styles.back}>
+            <ArrowLeft size={15} aria-hidden="true" /> Dashboard
+          </Link>
+          <section role="alert" className={styles.loadError}>
+            <h1>Could not load this property</h1>
+            <p>The layout is unavailable. Refresh the page to try again.</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+  const layoutResult = await getPropertyLayout(params.propertyId, token)
+    .then((rooms) => ({ ok: true as const, rooms }))
+    .catch(() => ({ ok: false as const }));
 
   const roomTypeOptions: RoomTypeOption[] = property.room_types.map((roomType) => ({
     id: roomType.id,
@@ -71,8 +87,9 @@ export default async function LayoutPage({
           propertyId={params.propertyId}
           token={token}
           layoutStatus={property.layout_status}
-          initialRooms={rooms}
+          initialRooms={layoutResult.ok ? layoutResult.rooms : undefined}
           roomTypeOptions={roomTypeOptions}
+          loadError={layoutResult.ok ? undefined : "Could not load the saved layout."}
         />
       </div>
     </main>

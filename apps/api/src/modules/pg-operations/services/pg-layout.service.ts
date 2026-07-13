@@ -348,25 +348,32 @@ export class PgLayoutService {
           FOR UPDATE`,
         [propertyId]
       );
+      const roomById = new Map(existingRooms.rows.map((room) => [room.id, room]));
       const roomByNumber = new Map(existingRooms.rows.map((room) => [room.room_number, room]));
       const retainedRoomIds = new Set<string>();
 
       for (const inputRoom of draft.rooms) {
         const roomNumber = inputRoom.room_number.trim();
-        const existingRoom = roomByNumber.get(roomNumber);
+        const existingRoom = inputRoom.id
+          ? roomById.get(inputRoom.id)
+          : roomByNumber.get(roomNumber);
+        if (inputRoom.id && !existingRoom) {
+          throw new BadRequestException({ code: "invalid_room_id" });
+        }
         let roomId: string;
         if (existingRoom) {
           roomId = existingRoom.id;
           retainedRoomIds.add(roomId);
           await client.query(
             `UPDATE pg_rooms
-                SET room_type_id = $2::uuid, floor = $3, display_label = $4,
-                    bed_count = $5, status = 'active'
+                SET room_type_id = $2::uuid, floor = $3, room_number = $4, display_label = $5,
+                    bed_count = $6, status = 'active'
               WHERE id = $1::uuid`,
             [
               roomId,
               inputRoom.room_type_id ?? null,
               inputRoom.floor ?? null,
+              roomNumber,
               inputRoom.display_label?.trim() || null,
               inputRoom.bed_count
             ]
@@ -394,20 +401,25 @@ export class PgLayoutService {
           `SELECT id::text, bed_label FROM pg_beds WHERE room_id = $1::uuid FOR UPDATE`,
           [roomId]
         );
+        const bedById = new Map(existingBeds.rows.map((bed) => [bed.id, bed]));
         const bedByLabel = new Map(existingBeds.rows.map((bed) => [bed.bed_label, bed]));
         const retainedBedIds = new Set<string>();
         for (const inputBed of inputRoom.beds) {
           const label = inputBed.bed_label.trim();
-          const existingBed = bedByLabel.get(label);
+          const existingBed = inputBed.id ? bedById.get(inputBed.id) : bedByLabel.get(label);
+          if (inputBed.id && !existingBed) {
+            throw new BadRequestException({ code: "invalid_bed_id" });
+          }
           if (existingBed) {
             retainedBedIds.add(existingBed.id);
             await client.query(
               `UPDATE pg_beds
-                  SET status = $2::pg_bed_status, available_from = $3::date,
-                      sort_order = $4, metadata = $5::jsonb
+                  SET bed_label = $2, status = $3::pg_bed_status, available_from = $4::date,
+                      sort_order = $5, metadata = $6::jsonb
                 WHERE id = $1::uuid`,
               [
                 existingBed.id,
+                label,
                 inputBed.status ?? "vacant",
                 inputBed.available_from ?? null,
                 inputBed.sort_order ?? null,

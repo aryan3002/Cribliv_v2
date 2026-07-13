@@ -49,15 +49,19 @@ export default function PgLayoutBuilder({
   token,
   layoutStatus,
   initialRooms,
-  roomTypeOptions
+  roomTypeOptions,
+  loadError
 }: {
   propertyId: string;
   token?: string;
   layoutStatus: "needs_setup" | "ready";
-  initialRooms: PgRoom[];
+  initialRooms?: PgRoom[];
   roomTypeOptions: RoomTypeOption[];
+  loadError?: string;
 }) {
-  const [rooms, setRooms] = useState<PgLayoutRoomInput[]>(() => initialRooms.map(inputRoom));
+  const [rooms, setRooms] = useState<PgLayoutRoomInput[]>(() =>
+    (initialRooms ?? []).map(inputRoom)
+  );
   const [selectedRoomTypeId, setSelectedRoomTypeId] = useState(roomTypeOptions[0]?.id ?? "");
   const [count, setCount] = useState(1);
   const [floor, setFloor] = useState(1);
@@ -69,6 +73,25 @@ export default function PgLayoutBuilder({
     () => roomTypeOptions.find((option) => option.id === selectedRoomTypeId)?.label,
     [roomTypeOptions, selectedRoomTypeId]
   );
+
+  if (loadError) {
+    return (
+      <div className={styles.builder}>
+        <section role="alert" className={styles.loadError}>
+          <h2>{loadError}</h2>
+          <p>Editing is disabled so existing rooms and beds cannot be overwritten.</p>
+        </section>
+        <div className={styles.disabledActions}>
+          <Button type="button" variant="tertiary" disabled>
+            <Plus size={15} aria-hidden="true" /> Add room
+          </Button>
+          <Button type="button" disabled>
+            <Save size={16} aria-hidden="true" /> Save layout
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   function patchRoom(index: number, patch: Partial<PgLayoutRoomInput>) {
     setRooms((previous) =>

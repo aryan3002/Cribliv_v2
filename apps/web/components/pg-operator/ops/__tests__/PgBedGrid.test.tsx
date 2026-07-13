@@ -1,14 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgRoom } from "@cribliv/shared-types";
 import PgBedGrid from "../PgBedGrid";
 
-const { updateBedStatus, relistBed } = vi.hoisted(() => ({
+const { updateBedStatus, relistBed, refresh } = vi.hoisted(() => ({
   updateBedStatus: vi.fn(),
-  relistBed: vi.fn()
+  relistBed: vi.fn(),
+  refresh: vi.fn()
 }));
 
 vi.mock("@/lib/pg-operations-api", () => ({ updateBedStatus, relistBed }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const rooms: PgRoom[] = [
   {
@@ -50,6 +52,10 @@ const rooms: PgRoom[] = [
 ];
 
 describe("PgBedGrid", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders floor inventory and updates a blocked bed to vacant", async () => {
     updateBedStatus.mockResolvedValue({ ...rooms[0].beds[0], status: "vacant" });
     render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
@@ -62,6 +68,7 @@ describe("PgBedGrid", () => {
       expect(updateBedStatus).toHaveBeenCalledWith("property-1", "bed-a", "vacant", "token-1")
     );
     expect(await screen.findByRole("button", { name: "Block Bed A" })).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("renders beds whose room has no assigned floor", () => {
@@ -81,5 +88,21 @@ describe("PgBedGrid", () => {
 
     expect(screen.getByLabelText("Unassigned floor")).toBeInTheDocument();
     expect(screen.getByText("Bed A")).toBeInTheDocument();
+  });
+
+  it("refreshes occupancy data after relisting a bed", async () => {
+    relistBed.mockResolvedValue({ ...rooms[0].beds[0], status: "vacant" });
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Relist Bed A" }));
+
+    await waitFor(() => expect(relistBed).toHaveBeenCalledWith("property-1", "bed-a", "token-1"));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers inactive as a status filter", () => {
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+
+    expect(screen.getByRole("button", { name: "Inactive" })).toBeInTheDocument();
   });
 });

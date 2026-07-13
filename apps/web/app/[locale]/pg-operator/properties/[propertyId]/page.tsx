@@ -9,41 +9,40 @@ import {
   getOccupancySummary,
   getPropertyLayout
 } from "@/lib/pg-operations-api";
-import type { PgOccupancySummary as PgOccupancySummaryData } from "@cribliv/shared-types";
 import styles from "./pg-operations.module.css";
 
 export const dynamic = "force-dynamic";
-
-function emptySummary(propertyId: string): PgOccupancySummaryData {
-  return {
-    property_id: propertyId,
-    total_beds: 0,
-    vacant_beds: 0,
-    reserved_beds: 0,
-    occupied_beds: 0,
-    blocked_beds: 0,
-    inactive_beds: 0,
-    occupancy_percent: 0,
-    by_status: { vacant: 0, reserved: 0, occupied: 0, blocked: 0, inactive: 0 },
-    by_floor: [],
-    upcoming_move_ins: [],
-    upcoming_move_outs: [],
-    available_from: []
-  };
-}
 
 export default async function Page({ params }: { params: { locale: string; propertyId: string } }) {
   const s = await auth();
   if (s?.user?.role !== "pg_operator") redirect(`/${params.locale}/pg-operator/become`);
   const token = (s as any)?.accessToken;
 
-  const property = await getManagedProperty(params.propertyId, token).catch(() => null);
-  if (!property) redirect(`/${params.locale}/pg-operator/dashboard`);
+  const data = await Promise.all([
+    getManagedProperty(params.propertyId, token),
+    getOccupancySummary(params.propertyId, token),
+    getPropertyLayout(params.propertyId, token)
+  ])
+    .then(([property, summary, rooms]) => (property ? { property, summary, rooms } : null))
+    .catch(() => null);
 
-  const [summary, rooms] = await Promise.all([
-    getOccupancySummary(params.propertyId, token).catch(() => emptySummary(params.propertyId)),
-    getPropertyLayout(params.propertyId, token).catch(() => [])
-  ]);
+  if (!data) {
+    return (
+      <main className={styles.page}>
+        <div className={styles.inner}>
+          <Link href={`/${params.locale}/pg-operator/dashboard`} className={styles.back}>
+            <ArrowLeft size={15} aria-hidden="true" /> Dashboard
+          </Link>
+          <section role="alert" className={styles.loadError}>
+            <h1>Could not load this property</h1>
+            <p>Occupancy and bed inventory are unavailable. Refresh the page to try again.</p>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  const { property, summary, rooms } = data;
 
   return (
     <main className={styles.page}>

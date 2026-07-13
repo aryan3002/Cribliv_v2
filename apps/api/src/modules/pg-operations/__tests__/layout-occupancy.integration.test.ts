@@ -363,6 +363,103 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
     expect(property.rows[0].layout_status).toBe("ready");
   });
 
+  it("renames existing rooms and beds by ID without replacing assignment history", async () => {
+    const fixture = await createFixture();
+    const [originalRoom] = await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("101", 1, ["occupied"], fixture.roomTypes.single)]
+    });
+    const originalBed = originalRoom.beds[0];
+    const assignment = await db.query<{ id: string }>(
+      `INSERT INTO pg_bed_assignments
+         (pg_property_id, bed_id, occupant_name, occupant_phone_e164, status, move_out_date)
+       VALUES ($1::uuid, $2::uuid, 'Past occupant', '+919999900006', 'moved_out', CURRENT_DATE)
+       RETURNING id::text`,
+      [fixture.propertyId, originalBed.id]
+    );
+
+    const renamed = await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [
+        {
+          id: originalRoom.id,
+          room_type_id: originalRoom.room_type_id,
+          floor: originalRoom.floor,
+          room_number: "111",
+          display_label: "Room 111",
+          bed_count: 1,
+          beds: [
+            {
+              id: originalBed.id,
+              bed_label: "Lower",
+              status: originalBed.status,
+              available_from: originalBed.available_from,
+              sort_order: originalBed.sort_order,
+              metadata: originalBed.metadata
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(renamed[0]).toMatchObject({ id: originalRoom.id, room_number: "111" });
+    expect(renamed[0].beds[0]).toMatchObject({ id: originalBed.id, bed_label: "Lower" });
+    const persisted = await db.query<{
+      room_id: string;
+      bed_id: string;
+      assignment_bed_id: string;
+    }>(
+      `SELECT r.id::text AS room_id, b.id::text AS bed_id, a.bed_id::text AS assignment_bed_id
+         FROM pg_bed_assignments a
+         JOIN pg_beds b ON b.id = a.bed_id
+         JOIN pg_rooms r ON r.id = b.room_id
+        WHERE a.id = $1::uuid`,
+      [assignment.rows[0].id]
+    );
+    expect(persisted.rows[0]).toEqual({
+      room_id: originalRoom.id,
+      bed_id: originalBed.id,
+      assignment_bed_id: originalBed.id
+    });
+  });
+
+  it("rejects a supplied room ID outside the managed property", async () => {
+    const target = await createFixture();
+    const other = await createFixture();
+    const [targetRoom] = await layout.putLayout(operatorId, target.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant"], target.roomTypes.single)]
+    });
+    const [otherRoom] = await layout.putLayout(operatorId, other.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant"], other.roomTypes.single)]
+    });
+
+    await expect(
+      layout.putLayout(operatorId, target.propertyId, {
+        rooms: [{ ...targetRoom, id: otherRoom.id }]
+      })
+    ).rejects.toMatchObject({ response: { code: "invalid_room_id" } });
+  });
+
+  it("rejects a supplied bed ID outside the matched room", async () => {
+    const target = await createFixture();
+    const other = await createFixture();
+    const [targetRoom] = await layout.putLayout(operatorId, target.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant"], target.roomTypes.single)]
+    });
+    const [otherRoom] = await layout.putLayout(operatorId, other.propertyId, {
+      rooms: [roomInput("101", 1, ["vacant"], other.roomTypes.single)]
+    });
+
+    await expect(
+      layout.putLayout(operatorId, target.propertyId, {
+        rooms: [
+          {
+            ...targetRoom,
+            beds: [{ ...targetRoom.beds[0], id: otherRoom.beds[0].id }]
+          }
+        ]
+      })
+    ).rejects.toMatchObject({ response: { code: "invalid_bed_id" } });
+  });
+
   it("rejects room types that do not belong to the target property", async () => {
     const target = await createFixture();
     const other = await createFixture();

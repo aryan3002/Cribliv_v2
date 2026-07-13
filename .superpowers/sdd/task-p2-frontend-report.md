@@ -46,3 +46,36 @@ No browser capture was taken. The operations routes require a live authenticated
 ## Concerns
 
 None. Browser capture remains intentionally omitted because the route requires a live authenticated `pg_operator` NextAuth session and managed-property fixture; the contract and UI behavior are covered by focused integration/component tests and web typecheck.
+
+## Review Fix Report - 2026-07-13
+
+### Status
+
+DONE
+
+### Fixes delivered
+
+- Dashboard property, occupancy, or layout API failures now render an explicit error state. The route no longer fabricates zero occupancy counts or an empty bed inventory.
+- Layout property failures render an error state without the builder. Layout fetch failures use a distinct failed result and render a non-editable builder state with disabled add/save controls, preventing an empty payload from overwriting saved inventory.
+- Layout reconciliation now matches supplied room and bed IDs before mutable room numbers and bed labels. Renames update the existing rows, while no-ID inputs retain number/label fallback behavior.
+- Supplied room IDs are rejected unless they belong to the managed property. Supplied bed IDs are rejected unless they belong to the matched room.
+- Successful block, vacant, and relist actions call `router.refresh()` after applying the returned bed state so the server-rendered occupancy totals, percentages, and upcoming movement lists are refreshed.
+- Added `inactive` to the bed status filter.
+
+### TDD evidence
+
+1. Error-state/filter RED: the new operations route tests found the fabricated dashboard summary, enabled layout controls after fetch failure, redirect on property failure, and missing inactive filter. GREEN: 6 focused tests passed after explicit error states and the filter option were added.
+2. Rename RED: the integration test received a different room ID after renaming `101` to `111`. GREEN: the same room ID, bed ID, and assignment foreign key are preserved after room and bed label changes.
+3. Ownership RED: foreign room and bed IDs reached database uniqueness errors. GREEN: they are rejected as `invalid_room_id` and `invalid_bed_id` before reconciliation writes.
+4. Summary-refresh RED: a successful status mutation called route refresh zero times. GREEN: status and relist tests each verify one refresh after success.
+
+### Final verification
+
+- `rtk proxy pnpm --filter @cribliv/web test -- lib/__tests__/pg-operations-api.test.ts components/pg-operator/ops/__tests__/PgBedGrid.test.tsx 'app/[locale]/pg-operator/properties/[propertyId]/__tests__/operations-pages.test.tsx'` passed: 3 files, 10 tests.
+- `rtk proxy env DATABASE_URL="postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" pnpm --filter @cribliv/api test -- layout-occupancy.integration.test.ts` passed: 1 file, 17 tests.
+- `rtk proxy pnpm --filter @cribliv/web typecheck` passed.
+- Shared types were not changed, so the conditional shared-types build was not required.
+
+### Concerns
+
+No functional concerns. Vitest still prints the existing Vite CJS Node API deprecation warning in both focused suites.

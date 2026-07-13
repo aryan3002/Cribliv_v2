@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PgBed, PgBedStatus, PgRoom } from "@cribliv/shared-types";
 import SegmentedControl from "@/components/pg-operator/wizard/shared/SegmentedControl";
 import { relistBed, updateBedStatus } from "@/lib/pg-operations-api";
@@ -14,7 +15,8 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "vacant", label: "Vacant" },
   { value: "occupied", label: "Occupied" },
   { value: "reserved", label: "Reserved" },
-  { value: "blocked", label: "Blocked" }
+  { value: "blocked", label: "Blocked" },
+  { value: "inactive", label: "Inactive" }
 ];
 
 function sortRooms(rooms: PgRoom[]): PgRoom[] {
@@ -40,6 +42,7 @@ export default function PgBedGrid({
   token?: string;
   rooms: PgRoom[];
 }) {
+  const router = useRouter();
   const [currentRooms, setCurrentRooms] = useState(rooms);
   const [floor, setFloor] = useState<string>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -83,6 +86,7 @@ export default function PgBedGrid({
     setError(null);
     try {
       replaceBed(await updateBedStatus(propertyId, bed.id, nextStatus, token));
+      router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not update the bed status.");
     } finally {
@@ -95,6 +99,7 @@ export default function PgBedGrid({
     setError(null);
     try {
       replaceBed(await relistBed(propertyId, bed.id, token));
+      router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not relist the bed.");
     } finally {

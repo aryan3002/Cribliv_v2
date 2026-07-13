@@ -1,4 +1,8 @@
 .builder { display: flex; flex-direction: column; gap: 16px; }
+.loadError { border: 1px solid color-mix(in srgb, var(--d-danger, #dc2626) 35%, var(--d-border, #e8ecf1)); border-radius: 8px; padding: 16px; }
+.loadError h2 { font-size: 16px; margin: 0; }
+.loadError p { color: var(--d-text-soft, #64748b); font-size: 13px; margin: 5px 0 0; }
+.disabledActions { display: flex; gap: 8px; justify-content: flex-end; }
 .setupState { align-items: center; background: var(--d-brand-soft, #ebf3ff); border: 1px solid var(--d-border, #e8ecf1); border-radius: 8px; display: flex; gap: 16px; justify-content: space-between; padding: 15px 16px; }
 .setupState h2 { color: var(--d-text, #1a1a2e); font-size: 16px; margin: 0; }
 .setupState p { color: var(--d-text-soft, #64748b); font-size: 13px; line-height: 1.45; margin: 4px 0 0; }
