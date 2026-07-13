@@ -213,14 +213,18 @@ describe.runIf(!!TEST_DB)("owner lead unlock (DB)", () => {
     });
   });
 
-  it("409s when a paid unlocked lead is replayed with a foreign key", async () => {
+  it("returns an already-paid unlocked lead when a remounted client sends a fresh key", async () => {
     const res = await http(app)
       .post(`/v1/owner/leads/${lockedLeadId}/unlock`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .set("Idempotency-Key", "lu-foreign")
-      .expect(409);
-    expect(JSON.stringify(res.body)).toContain("duplicate_unlock");
-    expect(JSON.stringify(res.body)).not.toContain("+91");
+      .expect(201);
+    expect(res.body.data).toMatchObject({
+      lead_id: lockedLeadId,
+      access_state: "unlocked",
+      credits_remaining: 0
+    });
+    expect(res.body.data.tenant_phone).toMatch(/^\+91/);
   });
 
   it("commits due signup expiry before returning 402 for an unaffordable lead", async () => {

@@ -5,13 +5,9 @@ import { PromotionalCreditExpiry } from "../promotional-credit-expiry";
 afterEach(cleanup);
 
 describe("PromotionalCreditExpiry", () => {
-  it("renders the remaining promotional credits and UTC expiry date in English", () => {
+  it("renders the remaining promotional credits and India-local expiry date in English", () => {
     render(
-      <PromotionalCreditExpiry
-        remaining={7}
-        expiresAt="2026-10-11T23:30:00.000-05:00"
-        locale="en"
-      />
+      <PromotionalCreditExpiry remaining={7} expiresAt="2026-10-11T20:00:00.000Z" locale="en" />
     );
 
     expect(screen.getByText("7 promotional credits expire 12 October 2026")).toBeInTheDocument();
@@ -28,13 +24,13 @@ describe("PromotionalCreditExpiry", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders Hindi copy and the UTC-formatted Hindi date", () => {
+  it("renders Hindi copy and the India-local Hindi date", () => {
     render(
-      <PromotionalCreditExpiry remaining={10} expiresAt="2026-10-11T08:30:00.000Z" locale="hi" />
+      <PromotionalCreditExpiry remaining={10} expiresAt="2026-10-11T20:00:00.000Z" locale="hi" />
     );
 
     expect(
-      screen.getByText("10 प्रमोशनल क्रेडिट 11 अक्टूबर 2026 को समाप्त होंगे")
+      screen.getByText("10 प्रमोशनल क्रेडिट 12 अक्टूबर 2026 को समाप्त होंगे")
     ).toBeInTheDocument();
   });
 });

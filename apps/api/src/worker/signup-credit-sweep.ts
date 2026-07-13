@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { logTelemetry } from "../common/telemetry";
 import { expireSignupCredits } from "../modules/wallet/wallet-balance";
 
 const SIGNUP_CREDIT_EXPIRY_BATCH_SIZE = 100;
@@ -7,13 +8,24 @@ export interface SignupCreditExpirySweepOptions {
   userIds?: string[];
 }
 
+export interface SignupCreditExpirySweepResult {
+  walletsExpired: number;
+  creditsExpired: number;
+}
+
+export function emitSignupCreditExpiryTelemetry(result: SignupCreditExpirySweepResult): void {
+  if (result.creditsExpired <= 0) return;
+
+  logTelemetry("signup_credits_expired", {
+    wallets_expired: result.walletsExpired,
+    credits_expired: result.creditsExpired
+  });
+}
+
 export async function runSignupCreditExpirySweepDb(
   pool: Pool,
   options: SignupCreditExpirySweepOptions = {}
-): Promise<{
-  walletsExpired: number;
-  creditsExpired: number;
-}> {
+): Promise<SignupCreditExpirySweepResult> {
   const client = await pool.connect();
   let walletsExpired = 0;
   let creditsExpired = 0;

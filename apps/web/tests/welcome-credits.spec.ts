@@ -46,12 +46,12 @@ function webBaseUrl() {
   return (process.env.E2E_BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
 }
 
-function formatUtcDate(expiresAt: string) {
+function formatIndiaDate(expiresAt: string) {
   return new Intl.DateTimeFormat("en-IN", {
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "UTC"
+    timeZone: "Asia/Kolkata"
   }).format(new Date(expiresAt));
 }
 
@@ -126,7 +126,7 @@ test("new signup receives 10 expiring credits and sees the celebration exactly o
   expect(expiryTime - verificationFinishedAt).toBeLessThanOrEqual(NINETY_DAYS_MS);
 
   await expect(
-    page.getByText(`Use by ${formatUtcDate(walletExpiry!)}`, { exact: true })
+    page.getByText(`Use by ${formatIndiaDate(walletExpiry!)}`, { exact: true })
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Start finding homes" }).click();

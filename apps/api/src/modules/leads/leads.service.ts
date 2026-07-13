@@ -291,13 +291,11 @@ export class LeadsService {
         deadline_passed: boolean;
         tenant_phone: string | null;
         tenant_name: string;
-        unlock_txn_id: string | null;
       }>(
         `SELECT ld.id::text, ld.access_state, ld.call_deadline_at::text,
                 (ld.call_deadline_at IS NOT NULL AND ld.call_deadline_at <= now()) AS deadline_passed,
                 u.phone_e164 AS tenant_phone,
-                COALESCE(u.full_name, 'Tenant') AS tenant_name,
-                ld.unlock_txn_id::text
+                COALESCE(u.full_name, 'Tenant') AS tenant_name
          FROM leads ld
          LEFT JOIN users u ON u.id = ld.tenant_user_id
          WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
@@ -333,34 +331,6 @@ export class LeadsService {
       }
 
       if (lead.access_state === "unlocked") {
-        const unlockTransaction = lead.unlock_txn_id
-          ? await client.query<{
-              txn_type: string;
-              reference_type: string | null;
-              reference_id: string | null;
-              idempotency_key: string | null;
-            }>(
-              `SELECT txn_type::text, reference_type::text, reference_id::text, idempotency_key
-               FROM wallet_transactions
-               WHERE id = $1::uuid AND wallet_user_id = $2::uuid
-               LIMIT 1`,
-              [lead.unlock_txn_id, ownerUserId]
-            )
-          : null;
-        const transaction = unlockTransaction?.rows[0];
-        if (
-          !transaction ||
-          transaction.txn_type !== "debit_lead_unlock" ||
-          transaction.reference_type !== "lead" ||
-          transaction.reference_id !== leadId ||
-          transaction.idempotency_key !== idempotencyKey
-        ) {
-          throw new ConflictException({
-            code: "duplicate_unlock",
-            message: "Idempotency-Key already used for another unlock"
-          });
-        }
-
         await expireSignupCredits(client, ownerUserId);
         const credits = await balanceRow();
         await client.query("COMMIT");

@@ -46,6 +46,7 @@ export const analyticsEvents = [
   "welcome_credits_shown",
   "welcome_credits_cta_clicked",
   "welcome_credits_dismissed",
+  "signup_credits_expired",
   // Lead monetization — SEO-safe guest gating (blurred cards + signup CTA)
   "guest_gate_signup_clicked",
   "guest_gate_viewed",

@@ -54,11 +54,11 @@ describe("welcome credits gating", () => {
 });
 
 describe("signup reward expiry formatting", () => {
-  it("formats the canonical date in English using UTC", () => {
-    expect(formatSignupRewardExpiry("2026-10-11T23:30:00.000-05:00", "en")).toBe("12 October 2026");
+  it("formats the canonical date in English using India time", () => {
+    expect(formatSignupRewardExpiry("2026-10-11T20:00:00.000Z", "en")).toBe("12 October 2026");
   });
 
-  it("formats the canonical date in Hindi using UTC", () => {
-    expect(formatSignupRewardExpiry("2026-10-11T23:30:00.000-05:00", "hi")).toBe("12 अक्टूबर 2026");
+  it("formats the canonical date in Hindi using India time", () => {
+    expect(formatSignupRewardExpiry("2026-10-11T20:00:00.000Z", "hi")).toBe("12 अक्टूबर 2026");
   });
 });

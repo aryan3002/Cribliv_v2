@@ -17,7 +17,10 @@ import {
   runBlogTopicPlanner
 } from "./blog-worker";
 import { runRefundSweepDb, runLeadReminderSweepDb } from "./callback-sweeps";
-import { runSignupCreditExpirySweepDb } from "./signup-credit-sweep";
+import {
+  emitSignupCreditExpiryTelemetry,
+  runSignupCreditExpirySweepDb
+} from "./signup-credit-sweep";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const SIGNUP_CREDIT_EXPIRY_SWEEP_MS = 60 * 60 * 1000;
@@ -1079,6 +1082,7 @@ async function run() {
     setInterval(async () => {
       try {
         const result = await runSignupCreditExpirySweepDb(pool);
+        emitSignupCreditExpiryTelemetry(result);
         console.log(
           JSON.stringify({
             job: "signup_credit_expiry_sweep",

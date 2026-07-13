@@ -7,7 +7,10 @@ vi.mock("../../modules/wallet/wallet-balance", () => ({
   expireSignupCredits
 }));
 
-import { runSignupCreditExpirySweepDb } from "../signup-credit-sweep";
+import {
+  emitSignupCreditExpiryTelemetry,
+  runSignupCreditExpirySweepDb
+} from "../signup-credit-sweep";
 
 type DueRow = { user_id: string };
 
@@ -127,5 +130,30 @@ describe("runSignupCreditExpirySweepDb", () => {
     const select = queries.find((query) => query.text.includes("FROM wallets"));
     expect(select?.text).toContain("user_id = ANY($2::uuid[])");
     expect(select?.params).toEqual([100, userIds]);
+  });
+});
+
+describe("emitSignupCreditExpiryTelemetry", () => {
+  it("emits one aggregate event when credits expire", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    emitSignupCreditExpiryTelemetry({ walletsExpired: 2, creditsExpired: 10 });
+
+    expect(log).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(log.mock.calls[0][0]))).toMatchObject({
+      event: "signup_credits_expired",
+      wallets_expired: 2,
+      credits_expired: 10
+    });
+    log.mockRestore();
+  });
+
+  it("does not emit an event for an empty sweep", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    emitSignupCreditExpiryTelemetry({ walletsExpired: 0, creditsExpired: 0 });
+
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
   });
 });

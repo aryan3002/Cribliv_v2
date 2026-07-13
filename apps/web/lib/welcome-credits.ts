@@ -44,6 +44,6 @@ export function formatSignupRewardExpiry(expiresAt: string, locale: Locale): str
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "UTC"
+    timeZone: "Asia/Kolkata"
   }).format(date);
 }
