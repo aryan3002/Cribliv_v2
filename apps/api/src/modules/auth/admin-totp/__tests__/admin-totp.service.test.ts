@@ -17,6 +17,14 @@ function makeService(): { svc: AdminTotpService; appState: AppStateService } {
 
 const ADMIN_ID = "admin-user-1";
 
+// Asserts on the `code` NestJS puts on `error.response` for
+// `new UnauthorizedException({ code, message })` (an HttpException subclass).
+// Matches the repo convention used elsewhere, e.g.
+// apps/api/src/modules/payments/__tests__/razorpay-orders.service.test.ts.
+async function expectRejectCode(promise: Promise<unknown>, code: string) {
+  await expect(promise).rejects.toMatchObject({ response: { code } });
+}
+
 describe("AdminTotpService (in-memory)", () => {
   let svc: AdminTotpService;
   let appState: AppStateService;
@@ -88,24 +96,33 @@ describe("AdminTotpService.verifyLogin (in-memory)", () => {
     expect(out.user.phone_e164).toBe(PHONE);
   });
 
-  it("rejects a non-admin phone", async () => {
-    await expect(svc.verifyLogin("+919999999902", "123456")).rejects.toThrow();
+  it("rejects a non-admin phone with the generic code (no enumeration)", async () => {
+    await expectRejectCode(svc.verifyLogin("+919999999902", "123456"), "invalid_totp");
   });
 
-  it("rejects when the admin is not enrolled", async () => {
-    await expect(svc.verifyLogin(PHONE, "123456")).rejects.toThrow();
+  it("rejects when the admin is not enrolled with the generic code (no enumeration)", async () => {
+    await expectRejectCode(svc.verifyLogin(PHONE, "123456"), "invalid_totp");
+  });
+
+  it("rejects an unknown/unregistered phone with the generic code (no enumeration)", async () => {
+    await expectRejectCode(svc.verifyLogin("+910000000000", "123456"), "invalid_totp");
+  });
+
+  it("rejects an invalid phone format with the generic code (no enumeration)", async () => {
+    await expectRejectCode(svc.verifyLogin("12345", "123456"), "invalid_totp");
   });
 
   it("rejects a wrong code and locks after 5 failures", async () => {
     const admin = appState.usersByPhone.get(PHONE)!;
     await enroll(admin.id);
     for (let i = 0; i < 5; i += 1) {
-      await expect(svc.verifyLogin(PHONE, "000000")).rejects.toThrow();
+      await expectRejectCode(svc.verifyLogin(PHONE, "000000"), "invalid_totp");
     }
     // 6th attempt (even with a valid code) is locked
     const secret = appState.adminTotp.get(admin.id)!.secret;
-    await expect(svc.verifyLogin(PHONE, authenticator.generate(secret))).rejects.toThrow(
-      /locked/i
+    await expectRejectCode(
+      svc.verifyLogin(PHONE, authenticator.generate(secret)),
+      "totp_locked"
     );
   });
 

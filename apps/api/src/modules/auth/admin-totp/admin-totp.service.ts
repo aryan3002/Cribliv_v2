@@ -176,12 +176,7 @@ export class AdminTotpService {
       valid && step !== null && record.lastUsedStep !== null && step <= record.lastUsedStep;
 
     if (!valid || isReplay) {
-      const failures = record.failedAttempts + 1;
-      const lockUntil =
-        failures >= AdminTotpService.MAX_FAILURES
-          ? new Date(Date.now() + AdminTotpService.LOCKOUT_MS)
-          : null;
-      await this.recordFailure(user.id, failures, lockUntil);
+      await this.recordFailure(user.id);
       throw new UnauthorizedException({ code: "invalid_totp", message: "Invalid credentials" });
     }
 
@@ -214,17 +209,29 @@ export class AdminTotpService {
     };
   }
 
-  private async recordFailure(userId: string, failures: number, lockUntil: Date | null) {
+  private async recordFailure(userId: string) {
     if (this.database.isEnabled()) {
+      // Atomic increment: no read-then-write, so concurrent wrong attempts
+      // can't race past MAX_FAILURES and lose the lockout.
       await this.database.query(
-        `UPDATE admin_totp SET failed_attempts = $2, locked_until = $3, updated_at = now() WHERE user_id = $1::uuid`,
-        [userId, failures, lockUntil]
+        `UPDATE admin_totp
+           SET failed_attempts = failed_attempts + 1,
+               locked_until = CASE
+                 WHEN failed_attempts + 1 >= $2
+                 THEN now() + ($3 * interval '1 millisecond')
+                 ELSE locked_until
+               END,
+               updated_at = now()
+         WHERE user_id = $1::uuid`,
+        [userId, AdminTotpService.MAX_FAILURES, AdminTotpService.LOCKOUT_MS]
       );
     } else {
       const mem = this.appState.adminTotp.get(userId);
       if (mem) {
-        mem.failedAttempts = failures;
-        mem.lockedUntil = lockUntil ? lockUntil.getTime() : null;
+        mem.failedAttempts += 1;
+        if (mem.failedAttempts >= AdminTotpService.MAX_FAILURES) {
+          mem.lockedUntil = Date.now() + AdminTotpService.LOCKOUT_MS;
+        }
       }
     }
   }
