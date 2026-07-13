@@ -85,6 +85,8 @@ export interface FeatureFlags {
   ff_seo_gsc: boolean;
   /** Slice 1 – Lead monetization: callback-guarantee model (24h call promise, owner lead unlock). */
   ff_callback_leads: boolean;
+  /** Admin Lead Center — platform-wide lead ops board + analytics (ships dark). */
+  ff_admin_lead_center: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -168,7 +170,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_seo_blog: false,
   ff_seo_indexing: false,
   ff_seo_gsc: false,
-  ff_callback_leads: false
+  ff_callback_leads: false,
+  ff_admin_lead_center: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -425,6 +428,10 @@ export function readFeatureFlags(): FeatureFlags {
     ff_seo_blog: parseBooleanEnv("FF_SEO_BLOG", defaultFeatureFlags.ff_seo_blog),
     ff_seo_indexing: parseBooleanEnv("FF_SEO_INDEXING", defaultFeatureFlags.ff_seo_indexing),
     ff_seo_gsc: parseBooleanEnv("FF_SEO_GSC", defaultFeatureFlags.ff_seo_gsc),
-    ff_callback_leads: parseBooleanEnv("FF_CALLBACK_LEADS", defaultFeatureFlags.ff_callback_leads)
+    ff_callback_leads: parseBooleanEnv("FF_CALLBACK_LEADS", defaultFeatureFlags.ff_callback_leads),
+    ff_admin_lead_center: parseBooleanEnv(
+      "FF_ADMIN_LEAD_CENTER",
+      defaultFeatureFlags.ff_admin_lead_center
+    )
   };
 }

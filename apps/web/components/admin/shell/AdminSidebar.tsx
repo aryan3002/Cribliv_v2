@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Newspaper,
+  PhoneCall,
   ShieldCheck,
   TrendingUp,
   Users,
@@ -26,6 +27,7 @@ export type AdminTab =
   | "listings"
   | "verifications"
   | "leads"
+  | "lead-center"
   | "users"
   | "revenue"
   | "rent-agreements"
@@ -59,7 +61,8 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "listings", label: "Listing Review", icon: ClipboardList, count: counts.listings },
     { id: "verifications", label: "Verifications", icon: ShieldCheck, count: counts.verifications },
     { id: "leads", label: "CRM", icon: Users, count: counts.leads },
-    { id: "fraud", label: "Fraud Feed", icon: AlertTriangle, count: counts.fraud }
+    { id: "fraud", label: "Fraud Feed", icon: AlertTriangle, count: counts.fraud },
+    { id: "lead-center", label: "Lead Center", icon: PhoneCall, count: counts["lead-center"] }
   ];
   const understand: NavItem[] = [
     { id: "revenue", label: "Revenue", icon: Coins },

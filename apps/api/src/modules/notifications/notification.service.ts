@@ -3,20 +3,30 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { logTelemetry } from "../../common/telemetry";
 import { WhatsAppClient } from "./whatsapp.client";
+import { SmsClient } from "./sms.client";
 import { TEMPLATES, type NotificationType } from "./notification.templates";
 
 /**
  * High-level notification orchestrator.
  *
- * Checks user preferences (whatsapp_opt_in) and feature flags,
- * then dispatches notifications through the appropriate channel.
+ * Checks user preferences (whatsapp_opt_in) and feature flags, then fans a
+ * notification out across every channel declared on its template
+ * (`template.channels`) — currently WhatsApp and/or SMS.
  *
  * Two dispatch modes:
- * 1. **Immediate** – fires WhatsApp API call synchronously (used for
+ * 1. **Immediate** – fires the provider API call(s) synchronously (used for
  *    time-critical notifications like contact unlocks).
- * 2. **Queued** – inserts into outbound_events for worker-based delivery
- *    with retry logic (used for non-urgent notifications).
+ * 2. **Queued** – inserts one outbound_events row per channel for
+ *    worker-based delivery with retry logic (used for non-urgent
+ *    notifications).
+ *
+ * WhatsApp delivery is gated by the recipient's `whatsapp_opt_in`
+ * preference (unless `forceOptIn` is set). SMS is treated as transactional
+ * and is NOT gated by that preference — it only requires a resolvable
+ * phone number.
  */
+
+type NotificationChannel = "whatsapp" | "sms";
 
 interface SendNotificationInput {
   /** The notification type to send */
@@ -43,16 +53,18 @@ export class NotificationService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(WhatsAppClient) private readonly whatsApp: WhatsAppClient
+    @Inject(WhatsAppClient) private readonly whatsApp: WhatsAppClient,
+    @Inject(SmsClient) private readonly sms: SmsClient
   ) {
     this.featureEnabled = process.env.FF_WHATSAPP_NOTIFICATIONS !== "false";
   }
 
   /**
-   * Send a WhatsApp notification if the recipient has opted in.
+   * Send a notification across every channel its template declares.
    *
-   * Returns true if the notification was dispatched (or queued), false
-   * if it was skipped (opt-out, feature disabled, etc.).
+   * Returns true if at least one channel was dispatched (or queued)
+   * successfully, false if every channel was skipped (opt-out, no phone,
+   * feature disabled, etc.) or failed.
    */
   async send(input: SendNotificationInput): Promise<boolean> {
     if (!this.featureEnabled) {
@@ -70,30 +82,12 @@ export class NotificationService {
       return false;
     }
 
-    // Resolve recipient phone & opt-in preference
-    const recipient = await this.resolveRecipient(
-      input.recipientUserId,
-      input.recipientPhone,
-      input.forceOptIn
-    );
-
-    if (!recipient) {
-      logTelemetry("notification.skipped", {
-        type: input.type,
-        reason: "no_phone_or_opt_out",
-        user_id: input.recipientUserId
-      });
-      return false;
-    }
-
-    const bodyParams = template.buildBodyParams(input.payload);
-
     if (input.mode === "queued") {
-      return this.enqueueNotification(input, template, recipient.phone, bodyParams);
+      return this.enqueueNotification(input, template);
     }
 
     // Immediate dispatch
-    return this.dispatchImmediate(input, template, recipient.phone, bodyParams);
+    return this.dispatchImmediate(input, template);
   }
 
   /**
@@ -140,7 +134,8 @@ export class NotificationService {
       notificationType,
       phone,
       result.messageId ?? null,
-      "delivered"
+      "delivered",
+      "whatsapp"
     );
   }
 
@@ -191,15 +186,85 @@ export class NotificationService {
     return { phone };
   }
 
+  /**
+   * Resolve the recipient's phone for SMS delivery. Unlike
+   * `resolveRecipient`, this is NOT gated by `whatsapp_opt_in` — SMS here
+   * is used for transactional notifications, so it only requires a
+   * resolvable phone number.
+   */
+  private async resolveSmsPhone(userId: string, overridePhone?: string): Promise<string | null> {
+    if (overridePhone) {
+      return overridePhone;
+    }
+
+    if (this.database.isEnabled()) {
+      const result = await this.database.query<{ phone_e164: string }>(
+        `
+        SELECT phone_e164
+        FROM users
+        WHERE id = $1::uuid
+        LIMIT 1
+        `,
+        [userId]
+      );
+      return result.rows[0]?.phone_e164 ?? null;
+    }
+
+    // In-memory fallback
+    const user = this.appState.users.get(userId);
+    return user?.phone ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Immediate dispatch – loops over template.channels
+  // ---------------------------------------------------------------------------
+
   private async dispatchImmediate(
     input: SendNotificationInput,
-    template: (typeof TEMPLATES)[NotificationType],
-    phone: string,
-    bodyParams: string[]
+    template: (typeof TEMPLATES)[NotificationType]
   ): Promise<boolean> {
+    let anySucceeded = false;
+
+    for (const channel of template.channels) {
+      if (channel === "whatsapp") {
+        if (await this.dispatchWhatsAppImmediate(input, template)) {
+          anySucceeded = true;
+        }
+      } else if (channel === "sms") {
+        if (await this.dispatchSmsImmediate(input, template)) {
+          anySucceeded = true;
+        }
+      }
+    }
+
+    return anySucceeded;
+  }
+
+  private async dispatchWhatsAppImmediate(
+    input: SendNotificationInput,
+    template: (typeof TEMPLATES)[NotificationType]
+  ): Promise<boolean> {
+    const recipient = await this.resolveRecipient(
+      input.recipientUserId,
+      input.recipientPhone,
+      input.forceOptIn
+    );
+
+    if (!recipient) {
+      logTelemetry("notification.skipped", {
+        type: input.type,
+        channel: "whatsapp",
+        reason: "no_phone_or_opt_out",
+        user_id: input.recipientUserId
+      });
+      return false;
+    }
+
+    const bodyParams = template.buildBodyParams(input.payload);
+
     try {
       const result = await this.whatsApp.sendTemplate({
-        to: phone,
+        to: recipient.phone,
         templateName: template.templateName,
         languageCode: template.languageCode,
         bodyParams
@@ -208,43 +273,222 @@ export class NotificationService {
       await this.logNotification(
         input.recipientUserId,
         input.type,
-        phone,
+        recipient.phone,
         result.messageId ?? null,
-        result.success ? "delivered" : "failed"
+        result.success ? "delivered" : "failed",
+        "whatsapp"
       );
 
       if (!result.success) {
-        this.logger.warn(`Notification ${input.type} to ${phone} failed: ${result.error}`);
+        this.logger.warn(
+          `Notification ${input.type} to ${recipient.phone} failed: ${result.error}`
+        );
       }
 
       return result.success;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       this.logger.error(`Notification dispatch error: ${errMsg}`);
-      await this.logNotification(input.recipientUserId, input.type, phone, null, "failed");
+      await this.logNotification(
+        input.recipientUserId,
+        input.type,
+        recipient.phone,
+        null,
+        "failed",
+        "whatsapp"
+      );
       return false;
     }
   }
 
+  private async dispatchSmsImmediate(
+    input: SendNotificationInput,
+    template: (typeof TEMPLATES)[NotificationType]
+  ): Promise<boolean> {
+    const phone = await this.resolveSmsPhone(input.recipientUserId, input.recipientPhone);
+
+    if (!phone) {
+      logTelemetry("notification.skipped", {
+        type: input.type,
+        channel: "sms",
+        reason: "no_phone",
+        user_id: input.recipientUserId
+      });
+      return false;
+    }
+
+    if (!template.buildSmsBody) {
+      this.logger.warn(
+        `Notification type ${input.type} declares 'sms' channel but has no buildSmsBody`
+      );
+      return false;
+    }
+
+    const body = template.buildSmsBody(input.payload);
+
+    try {
+      const result = await this.sms.sendSms({ to: phone, body });
+
+      await this.logNotification(
+        input.recipientUserId,
+        input.type,
+        phone,
+        result.messageId ?? null,
+        result.success ? "delivered" : "failed",
+        "sms"
+      );
+
+      if (!result.success) {
+        this.logger.warn(`SMS notification ${input.type} to ${phone} failed: ${result.error}`);
+      }
+
+      return result.success;
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`SMS notification dispatch error: ${errMsg}`);
+      await this.logNotification(input.recipientUserId, input.type, phone, null, "failed", "sms");
+      return false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Queued dispatch – emits one outbound_events row per channel
+  // ---------------------------------------------------------------------------
+
   private async enqueueNotification(
     input: SendNotificationInput,
-    template: (typeof TEMPLATES)[NotificationType],
-    phone: string,
-    bodyParams: string[]
+    template: (typeof TEMPLATES)[NotificationType]
   ): Promise<boolean> {
+    let anySucceeded = false;
+
+    for (const channel of template.channels) {
+      if (channel === "whatsapp") {
+        if (await this.enqueueWhatsAppEvent(input, template)) {
+          anySucceeded = true;
+        }
+      } else if (channel === "sms") {
+        if (await this.enqueueSmsEvent(input, template)) {
+          anySucceeded = true;
+        }
+      }
+    }
+
+    return anySucceeded;
+  }
+
+  private async enqueueWhatsAppEvent(
+    input: SendNotificationInput,
+    template: (typeof TEMPLATES)[NotificationType]
+  ): Promise<boolean> {
+    const recipient = await this.resolveRecipient(
+      input.recipientUserId,
+      input.recipientPhone,
+      input.forceOptIn
+    );
+
+    if (!recipient) {
+      logTelemetry("notification.skipped", {
+        type: input.type,
+        channel: "whatsapp",
+        reason: "no_phone_or_opt_out",
+        user_id: input.recipientUserId
+      });
+      return false;
+    }
+
+    const bodyParams = template.buildBodyParams(input.payload);
     const eventType = `notification.whatsapp.${input.type}`;
-    const dedupeKey = input.dedupeKey ?? `wa:${input.type}:${input.recipientUserId}:${Date.now()}`;
+    const dedupeKey = this.buildDedupeKey("whatsapp", input);
 
     const payload = {
       notification_type: input.type,
       recipient_user_id: input.recipientUserId,
-      recipient_phone: phone,
+      recipient_phone: recipient.phone,
       template_name: template.templateName,
       language_code: template.languageCode,
       body_params: bodyParams,
       ...input.payload
     };
 
+    await this.insertOutboundEvent(eventType, input.recipientUserId, dedupeKey, payload);
+
+    logTelemetry("notification.queued", {
+      type: input.type,
+      channel: "whatsapp",
+      user_id: input.recipientUserId,
+      dedupe_key: dedupeKey
+    });
+
+    return true;
+  }
+
+  private async enqueueSmsEvent(
+    input: SendNotificationInput,
+    template: (typeof TEMPLATES)[NotificationType]
+  ): Promise<boolean> {
+    const phone = await this.resolveSmsPhone(input.recipientUserId, input.recipientPhone);
+
+    if (!phone) {
+      logTelemetry("notification.skipped", {
+        type: input.type,
+        channel: "sms",
+        reason: "no_phone",
+        user_id: input.recipientUserId
+      });
+      return false;
+    }
+
+    if (!template.buildSmsBody) {
+      this.logger.warn(
+        `Notification type ${input.type} declares 'sms' channel but has no buildSmsBody`
+      );
+      return false;
+    }
+
+    const smsBody = template.buildSmsBody(input.payload);
+    const eventType = `notification.sms.${input.type}`;
+    const dedupeKey = this.buildDedupeKey("sms", input);
+
+    const payload = {
+      notification_type: input.type,
+      recipient_user_id: input.recipientUserId,
+      recipient_phone: phone,
+      sms_body: smsBody,
+      ...input.payload
+    };
+
+    await this.insertOutboundEvent(eventType, input.recipientUserId, dedupeKey, payload);
+
+    logTelemetry("notification.queued", {
+      type: input.type,
+      channel: "sms",
+      user_id: input.recipientUserId,
+      dedupe_key: dedupeKey
+    });
+
+    return true;
+  }
+
+  /**
+   * Default queued-mode dedupe key, scoped per channel so a single
+   * multi-channel template (e.g. contact_unlocked) always produces one
+   * outbound_events row per channel instead of two channels colliding on
+   * the `dedupe_key` UNIQUE constraint. A caller-supplied `dedupeKey` is
+   * scoped the same way.
+   */
+  private buildDedupeKey(channel: NotificationChannel, input: SendNotificationInput): string {
+    if (input.dedupeKey) {
+      return `${channel}:${input.dedupeKey}`;
+    }
+    return `${channel}:${input.type}:${input.recipientUserId}:${Date.now()}`;
+  }
+
+  private async insertOutboundEvent(
+    eventType: string,
+    aggregateId: string,
+    dedupeKey: string,
+    payload: Record<string, unknown>
+  ): Promise<void> {
     if (this.database.isEnabled()) {
       await this.database.query(
         `
@@ -260,31 +504,24 @@ export class NotificationService {
         VALUES ($1, 'notification', $2::uuid, $3, $4::jsonb, 'pending', now())
         ON CONFLICT (dedupe_key) DO NOTHING
         `,
-        [eventType, input.recipientUserId, dedupeKey, JSON.stringify(payload)]
+        [eventType, aggregateId, dedupeKey, JSON.stringify(payload)]
       );
-    } else {
-      // In-memory fallback
-      this.appState.outboundEvents.push({
-        id: this.appState.outboundEvents.length + 1,
-        eventType,
-        aggregateType: "notification",
-        aggregateId: input.recipientUserId,
-        payload,
-        status: "pending",
-        attemptCount: 0,
-        nextAttemptAt: Date.now(),
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      });
+      return;
     }
 
-    logTelemetry("notification.queued", {
-      type: input.type,
-      user_id: input.recipientUserId,
-      dedupe_key: dedupeKey
+    // In-memory fallback
+    this.appState.outboundEvents.push({
+      id: this.appState.outboundEvents.length + 1,
+      eventType,
+      aggregateType: "notification",
+      aggregateId,
+      payload,
+      status: "pending",
+      attemptCount: 0,
+      nextAttemptAt: Date.now(),
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     });
-
-    return true;
   }
 
   private async logNotification(
@@ -292,10 +529,12 @@ export class NotificationService {
     type: NotificationType,
     phone: string,
     messageId: string | null,
-    status: "delivered" | "failed"
+    status: "delivered" | "failed",
+    channel: NotificationChannel
   ) {
     logTelemetry("notification.result", {
       type,
+      channel,
       user_id: userId,
       phone_masked: phone.slice(0, 4) + "****" + phone.slice(-2),
       message_id: messageId,
@@ -314,9 +553,9 @@ export class NotificationService {
             provider_message_id,
             status
           )
-          VALUES ($1::uuid, 'whatsapp', $2, $3, $4, $5)
+          VALUES ($1::uuid, $2, $3, $4, $5, $6)
           `,
-          [userId, type, phone.slice(0, 4) + "****" + phone.slice(-2), messageId, status]
+          [userId, channel, type, phone.slice(0, 4) + "****" + phone.slice(-2), messageId, status]
         );
       } catch (err) {
         // Non-critical – log but don't break the notification flow
