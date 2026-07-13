@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const state = vi.hoisted(() => ({
   pathname: "/en",
@@ -260,6 +262,106 @@ describe("WelcomeCreditsModal", () => {
     expect(window.localStorage.length).toBe(0);
   });
 
+  it("closes silently when the route changes to auth and does not reopen in the same session", () => {
+    const prior = document.createElement("button");
+    prior.textContent = "Prior focus";
+    document.body.appendChild(prior);
+    document.body.style.overflow = "clip";
+    prior.focus();
+
+    const view = renderModal();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("hidden");
+    expect(window.localStorage.getItem("cribliv:welcome-credits-shown:u1")).toBeTruthy();
+    analytics.trackEvent.mockClear();
+
+    state.pathname = "/en/auth/login";
+    view.rerender(<WelcomeCreditsModal locale="en" />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("clip");
+    expect(prior).toHaveFocus();
+    expect(analytics.trackEvent).not.toHaveBeenCalledWith(
+      "welcome_credits_dismissed",
+      expect.anything()
+    );
+
+    state.pathname = "/en";
+    view.rerender(<WelcomeCreditsModal locale="en" />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    prior.remove();
+  });
+
+  it.each([
+    [
+      "authentication status changes",
+      () => {
+        state.session.status = "unauthenticated";
+      }
+    ],
+    [
+      "session disappears",
+      () => {
+        state.session.data = null;
+      }
+    ],
+    [
+      "session user disappears",
+      () => {
+        state.session.data = {
+          ...state.session.data,
+          user: undefined
+        };
+      }
+    ],
+    [
+      "signup reward disappears",
+      () => {
+        state.session.data = {
+          ...state.session.data,
+          signupReward: undefined
+        };
+      }
+    ],
+    [
+      "signup reward becomes zero",
+      () => {
+        state.session.data = {
+          ...state.session.data,
+          signupReward: {
+            creditsGranted: 0,
+            expiresAt: null
+          }
+        };
+      }
+    ]
+  ])("closes silently when %s after opening", (_label, invalidateSession) => {
+    const prior = document.createElement("button");
+    prior.textContent = "Prior focus";
+    document.body.appendChild(prior);
+    document.body.style.overflow = "clip";
+    prior.focus();
+
+    const view = renderModal();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    analytics.trackEvent.mockClear();
+
+    invalidateSession();
+    view.rerender(<WelcomeCreditsModal locale="en" />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("clip");
+    expect(prior).toHaveFocus();
+    expect(window.localStorage.getItem("cribliv:welcome-credits-shown:u1")).toBeTruthy();
+    expect(analytics.trackEvent).not.toHaveBeenCalledWith(
+      "welcome_credits_dismissed",
+      expect.anything()
+    );
+
+    prior.remove();
+  });
+
   it("renders the final amount immediately when reduced motion is requested", () => {
     state.reducedMotion = true;
 
@@ -378,4 +480,37 @@ describe("WelcomeCreditsModal", () => {
       expect(piece.className).toMatch(/welcome-reward__particle--edge-/);
     }
   });
+
+  it.each([
+    ["en", "Close reward", "Start finding homes"],
+    ["hi", "इनाम बंद करें", "घर खोजना शुरू करें"]
+  ] as const)(
+    "keeps close and CTA structurally reachable in a 320x568 %s viewport",
+    (locale, closeLabel, ctaLabel) => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 568 });
+
+      renderModal(locale);
+
+      expect(screen.getByRole("dialog")).toHaveClass("welcome-reward");
+      expect(screen.getByRole("button", { name: closeLabel })).toHaveClass("welcome-reward__close");
+      expect(screen.getByRole("button", { name: ctaLabel })).toHaveClass("welcome-reward__cta");
+
+      const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+      const panelRule = css.match(/\.welcome-reward\s*\{([^}]*)\}/s)?.[1] ?? "";
+      expect(panelRule).toContain("max-height: calc(100dvh - 24px)");
+      expect(panelRule).toContain("overflow-y: auto");
+      expect(panelRule).not.toMatch(/\bmin-height\s*:/);
+      expect(css).toMatch(/\.welcome-reward__close\s*\{[^}]*position:\s*sticky;/s);
+
+      const compactStart = css.indexOf("@media (max-height: 640px)");
+      const compactEnd = css.indexOf("@media (prefers-reduced-motion: reduce)", compactStart);
+      const compactRules = css.slice(compactStart, compactEnd);
+      expect(compactStart).toBeGreaterThan(-1);
+      expect(compactRules).toContain(".welcome-reward__content");
+      expect(compactRules).toContain(".welcome-reward__token-stage");
+      expect(compactRules).toContain(".welcome-reward__token");
+      expect(compactRules).toMatch(/\.welcome-reward__cta\s*\{[^}]*min-height:\s*44px;/s);
+    }
+  );
 });

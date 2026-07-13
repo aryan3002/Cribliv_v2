@@ -84,6 +84,13 @@ export function WelcomeCreditsModal({ locale }: { locale: Locale }) {
   const userId = session?.user?.id;
   const creditsGranted = session?.signupReward?.creditsGranted;
   const expiresAt = session?.signupReward?.expiresAt;
+  const eligibleForReward =
+    !suppressed &&
+    status === "authenticated" &&
+    session?.isNewUser === true &&
+    Boolean(userId) &&
+    typeof creditsGranted === "number" &&
+    creditsGranted > 0;
 
   const closeReward = useCallback((reason?: DismissReason) => {
     if (reason) {
@@ -94,10 +101,9 @@ export function WelcomeCreditsModal({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     if (firedRef.current) return;
-    if (suppressed) return;
-    if (status !== "authenticated") return;
+    if (!eligibleForReward) return;
     if (typeof window === "undefined") return;
-    if (!session?.isNewUser || !userId || !creditsGranted || creditsGranted <= 0) return;
+    if (!userId || !creditsGranted) return;
 
     const storage = readLocalStorage();
     storageRef.current = storage;
@@ -120,7 +126,12 @@ export function WelcomeCreditsModal({ locale }: { locale: Locale }) {
       creditsGranted,
       expiresAt: expiresAt ?? null
     });
-  }, [creditsGranted, expiresAt, session?.isNewUser, status, suppressed, userId]);
+  }, [creditsGranted, eligibleForReward, expiresAt, session?.isNewUser, userId]);
+
+  useEffect(() => {
+    if (!reward || eligibleForReward) return;
+    setReward(null);
+  }, [eligibleForReward, reward]);
 
   useEffect(() => {
     if (!reward || !userId) return;

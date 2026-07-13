@@ -4865,8 +4865,10 @@ a.feature-card:hover .icon-circle {
   isolation: isolate;
   width: min(520px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(0, 102, 255, 0.14);
   border-radius: 22px;
   background: var(--surface);
@@ -4885,12 +4887,7 @@ a.feature-card:hover .icon-circle {
     linear-gradient(rgba(0, 102, 255, 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 102, 255, 0.045) 1px, transparent 1px);
   background-size: 24px 24px;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    rgba(0, 0, 0, 0.7) 48%,
-    transparent 88%
-  );
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.7) 48%, transparent 88%);
   mask-image: linear-gradient(to bottom, #000 0%, rgba(0, 0, 0, 0.7) 48%, transparent 88%);
 }
 
@@ -4987,9 +4984,8 @@ a.feature-card:hover .icon-circle {
 }
 
 .welcome-reward__close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
+  position: sticky;
+  top: 12px;
   z-index: 4;
   display: inline-flex;
   align-items: center;
@@ -5001,6 +4997,7 @@ a.feature-card:hover .icon-circle {
   background: rgba(255, 255, 255, 0.9);
   color: var(--text-secondary);
   cursor: pointer;
+  margin: 14px 14px -58px auto;
   transition:
     color var(--transition-fast),
     border-color var(--transition-fast),
@@ -5219,6 +5216,87 @@ a.feature-card:hover .icon-circle {
   .welcome-reward__heading {
     padding: 0 28px;
     font-size: 26px;
+  }
+}
+
+@media (max-height: 640px) {
+  .welcome-reward__content {
+    padding: 24px 32px 18px;
+  }
+
+  .welcome-reward__badge {
+    min-height: 28px;
+    padding: 4px 10px;
+  }
+
+  .welcome-reward__heading {
+    margin-top: 10px;
+    font-size: 26px;
+  }
+
+  .welcome-reward__supporting {
+    margin-top: 6px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .welcome-reward__token-stage {
+    width: 134px;
+    height: 108px;
+    margin-top: 4px;
+  }
+
+  .welcome-reward__rings {
+    width: 110px;
+    height: 110px;
+  }
+
+  .welcome-reward__rings span {
+    width: 92px;
+    height: 92px;
+  }
+
+  .welcome-reward__token {
+    width: 88px;
+    height: 88px;
+    border-width: 6px;
+    font-size: 40px;
+  }
+
+  .welcome-reward__label {
+    margin-top: 0;
+    font-size: 13px;
+  }
+
+  .welcome-reward__facts {
+    margin-top: 12px;
+  }
+
+  .welcome-reward__fact {
+    min-height: 38px;
+  }
+
+  .welcome-reward__cta {
+    min-height: 44px;
+    margin-top: 12px;
+    padding: 9px 16px;
+  }
+
+  .welcome-reward__footnote {
+    margin-top: 8px;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+}
+
+@media (max-width: 520px) and (max-height: 640px) {
+  .welcome-reward__content {
+    padding: 60px 20px 16px;
+  }
+
+  .welcome-reward__heading {
+    padding: 0;
+    font-size: 24px;
   }
 }
 
@@ -11092,7 +11170,12 @@ a.feature-card:hover .icon-circle {
   z-index: 1;
   content: "";
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.08) 48%, rgba(255, 255, 255, 0.28) 100%),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.42) 0%,
+      rgba(255, 255, 255, 0.08) 48%,
+      rgba(255, 255, 255, 0.28) 100%
+    ),
     linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(248, 250, 252, 0.42) 100%);
 }
 
@@ -11241,15 +11324,13 @@ a.feature-card:hover .icon-circle {
   min-height: 340px;
   border-color: rgba(0, 102, 255, 0.24);
   background:
-    linear-gradient(162deg, rgba(255, 255, 255, 0.96) 0%, var(--brand-light) 150%),
-    var(--surface);
+    linear-gradient(162deg, rgba(255, 255, 255, 0.96) 0%, var(--brand-light) 150%), var(--surface);
 }
 
 .home-city-grid .home-city-card--featured:hover {
   border-color: rgba(0, 102, 255, 0.34);
   background:
-    linear-gradient(162deg, rgba(255, 255, 255, 0.98) 0%, var(--brand-light) 150%),
-    var(--surface);
+    linear-gradient(162deg, rgba(255, 255, 255, 0.98) 0%, var(--brand-light) 150%), var(--surface);
 }
 
 .home-city-card--featured .home-city-card__pin {
@@ -20915,7 +20996,12 @@ a.feature-card:hover .icon-circle {
       rgba(8, 14, 26, 0.38) 72%,
       rgba(7, 12, 22, 0.7) 100%
     ),
-    linear-gradient(180deg, rgba(9, 15, 28, 0.3) 0%, rgba(9, 15, 28, 0) 32%, rgba(7, 12, 22, 0.42) 100%);
+    linear-gradient(
+      180deg,
+      rgba(9, 15, 28, 0.3) 0%,
+      rgba(9, 15, 28, 0) 32%,
+      rgba(7, 12, 22, 0.42) 100%
+    );
 }
 .hero-listen__glow {
   position: absolute;
@@ -21426,7 +21512,9 @@ a.feature-card:hover .icon-circle {
      .search-filters__select / .lead-card__textarea (0,1,0), leaving those
      controls below 16px. The negations both raise specificity to (0,1,1)
      and harmlessly skip controls that never take a text caret. */
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(
+      [type="color"]
+    ),
   select:not([multiple]),
   textarea:not([hidden]) {
     font-size: 16px;
