@@ -1,6 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { VerificationArtifactField } from "../verification-artifact-field";
+
+const ownerWorkspaceCss = readFileSync(
+  resolve(process.cwd(), "components/owner/owner-workspace.css"),
+  "utf8"
+);
 
 function fixtureFile(name = "video-proof.mp4", type = "video/mp4") {
   return new File(
@@ -61,5 +68,27 @@ describe("VerificationArtifactField", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(onRemove).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/artifact_blob_path|blob_path|verification-artifacts/i)).toBeNull();
+  });
+
+  it("keeps the file input accessible and exposes a visible keyboard focus state", () => {
+    render(
+      <VerificationArtifactField
+        accept="video/mp4,video/webm,video/quicktime"
+        label="Upload verification video"
+        file={null}
+        status="idle"
+        progress={0}
+        onSelect={vi.fn()}
+        onRemove={vi.fn()}
+        onRetry={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByLabelText(/upload verification video/i, { selector: "input" })
+    ).toHaveAttribute("type", "file");
+    expect(screen.getByText("Select file")).toBeInTheDocument();
+    expect(ownerWorkspaceCss).toMatch(/\.ovc-artifact:focus-within\s+\.ovc-artifact__surface/s);
+    expect(ownerWorkspaceCss).toMatch(/\.ovc-artifact__select:focus-visible/s);
   });
 });

@@ -34,6 +34,13 @@ vi.mock("../../../lib/analytics", () => ({
 
 vi.mock("../../../lib/owner-api", () => ({
   fetchVerificationStatus: vi.fn(),
+  isVerificationUploadAbortError: vi.fn(
+    (error: unknown) =>
+      typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      (error as { name?: unknown }).name === "AbortError"
+  ),
   listOwnerListings: vi.fn(),
   submitElectricityVerification: vi.fn(),
   submitVideoVerification: vi.fn(),
@@ -171,6 +178,37 @@ describe("VerificationClient", () => {
       attempt_id: "attempt-video",
       result: "pending"
     });
+  });
+
+  it("aborts an in-flight video upload when the file is removed", async () => {
+    let uploadSignal: AbortSignal | undefined;
+    uploadVerificationArtifactMock.mockImplementationOnce(
+      async (_token, input: Parameters<typeof uploadVerificationArtifact>[1]) => {
+        uploadSignal = input.signal;
+        return new Promise<{ blobPath: string }>((_resolve, reject) => {
+          input.signal?.addEventListener("abort", () => {
+            const error = new Error("Upload aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        });
+      }
+    );
+
+    await renderClient();
+
+    fireEvent.change(screen.getByLabelText(/upload verification video/i), {
+      target: { files: [videoFile()] }
+    });
+
+    await waitFor(() => expect(uploadSignal).toBeDefined());
+    expect(uploadSignal?.aborted).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: /remove/i }));
+
+    await waitFor(() => expect(uploadSignal?.aborted).toBe(true));
+    expect(screen.getByText(/no file selected/i)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("uploads an optional electricity bill before submission", async () => {

@@ -1155,6 +1155,17 @@
   color: #0057d8;
 }
 
+.ovc-artifact:focus-within .ovc-artifact__surface {
+  border-color: rgba(0, 87, 216, 0.68);
+  box-shadow: 0 0 0 3px rgba(0, 87, 216, 0.18);
+}
+
+.ovc-artifact__input:focus-visible + .ovc-artifact__surface .ovc-artifact__select,
+.ovc-artifact__select:focus-visible {
+  outline: 2px solid #0057d8;
+  outline-offset: 2px;
+}
+
 .ovc-artifact__meta {
   display: grid;
   min-width: 0;

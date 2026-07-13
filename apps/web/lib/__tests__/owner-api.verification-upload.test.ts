@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { friendlyVerificationArtifactUploadError, uploadVerificationArtifact } from "../owner-api";
+import {
+  friendlyVerificationArtifactUploadError,
+  isVerificationUploadAbortError,
+  uploadVerificationArtifact
+} from "../owner-api";
 import { ApiError, fetchApi } from "../api";
 
 vi.mock("../api", async () => {
@@ -160,5 +164,254 @@ describe("uploadVerificationArtifact", () => {
     expect(friendlyVerificationArtifactUploadError(new Error("HTTP 500"))).toBe(
       "We couldn't complete the upload. The file is still selected, so you can retry."
     );
+  });
+
+  it("uses non-2xx XHR response error codes before status fallback", async () => {
+    fetchApiMock.mockResolvedValueOnce({
+      upload_token: "upload-token-1",
+      upload_url: "/owner/verification/artifacts/upload",
+      blob_path: "listing-1/verification/video_liveness/video-proof.mp4",
+      expires_at: "2026-07-13T12:10:00.000Z"
+    });
+
+    class InvalidSignatureXhr {
+      status = 400;
+      responseText = JSON.stringify({
+        error: {
+          code: "invalid_file_signature",
+          message: "Magic bytes do not match video/mp4"
+        }
+      });
+      upload = { onprogress: null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        this.onload?.();
+      }
+    }
+
+    Object.defineProperty(globalThis, "XMLHttpRequest", {
+      configurable: true,
+      writable: true,
+      value: InvalidSignatureXhr
+    });
+
+    let caught: unknown;
+    try {
+      await uploadVerificationArtifact("owner-token", {
+        listingId: "listing-1",
+        kind: "video_liveness",
+        file: mp4File()
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(fetchApiMock).toHaveBeenCalledTimes(1);
+    expect(friendlyVerificationArtifactUploadError(caught)).toBe(
+      "Choose a supported verification file."
+    );
+    expect(friendlyVerificationArtifactUploadError(caught)).not.toMatch(/magic bytes|http 400/i);
+  });
+
+  it("maps XHR file-size response bodies to the too-large upload copy", async () => {
+    fetchApiMock.mockResolvedValueOnce({
+      upload_token: "upload-token-1",
+      upload_url: "/owner/verification/artifacts/upload",
+      blob_path: "listing-1/verification/video_liveness/video-proof.mp4",
+      expires_at: "2026-07-13T12:10:00.000Z"
+    });
+
+    class OversizedFileXhr {
+      status = 400;
+      responseText = JSON.stringify({
+        error: {
+          code: "invalid_file_size",
+          message: "Artifact size must be between 1 byte and 10485760 bytes"
+        }
+      });
+      upload = { onprogress: null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        this.onload?.();
+      }
+    }
+
+    Object.defineProperty(globalThis, "XMLHttpRequest", {
+      configurable: true,
+      writable: true,
+      value: OversizedFileXhr
+    });
+
+    let caught: unknown;
+    try {
+      await uploadVerificationArtifact("owner-token", {
+        listingId: "listing-1",
+        kind: "video_liveness",
+        file: mp4File()
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(fetchApiMock).toHaveBeenCalledTimes(1);
+    expect(friendlyVerificationArtifactUploadError(caught)).toBe(
+      "This file is too large. Choose a smaller file."
+    );
+    expect(friendlyVerificationArtifactUploadError(caught)).not.toMatch(/artifact size|http/i);
+  });
+
+  it("maps XHR lifecycle conflict response bodies to expired upload copy", async () => {
+    fetchApiMock.mockResolvedValueOnce({
+      upload_token: "upload-token-1",
+      upload_url: "/owner/verification/artifacts/upload",
+      blob_path: "listing-1/verification/video_liveness/video-proof.mp4",
+      expires_at: "2026-07-13T12:10:00.000Z"
+    });
+
+    class ConsumedTokenXhr {
+      status = 400;
+      responseText = JSON.stringify({
+        error: {
+          code: "already_consumed",
+          message: "upload_token has already been consumed"
+        }
+      });
+      upload = { onprogress: null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        this.onload?.();
+      }
+    }
+
+    Object.defineProperty(globalThis, "XMLHttpRequest", {
+      configurable: true,
+      writable: true,
+      value: ConsumedTokenXhr
+    });
+
+    let caught: unknown;
+    try {
+      await uploadVerificationArtifact("owner-token", {
+        listingId: "listing-1",
+        kind: "video_liveness",
+        file: mp4File()
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(fetchApiMock).toHaveBeenCalledTimes(1);
+    expect(friendlyVerificationArtifactUploadError(caught)).toBe(
+      "The upload expired. Select the file again, then retry."
+    );
+    expect(friendlyVerificationArtifactUploadError(caught)).not.toMatch(/already consumed|http/i);
+  });
+
+  it("maps bare 409 multipart lifecycle conflicts to expired upload copy", async () => {
+    fetchApiMock.mockResolvedValueOnce({
+      upload_token: "upload-token-1",
+      upload_url: "/owner/verification/artifacts/upload",
+      blob_path: "listing-1/verification/video_liveness/video-proof.mp4",
+      expires_at: "2026-07-13T12:10:00.000Z"
+    });
+
+    class ConflictXhr {
+      status = 409;
+      responseText = "Conflict";
+      upload = { onprogress: null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      open() {}
+      setRequestHeader() {}
+      send() {
+        this.onload?.();
+      }
+    }
+
+    Object.defineProperty(globalThis, "XMLHttpRequest", {
+      configurable: true,
+      writable: true,
+      value: ConflictXhr
+    });
+
+    let caught: unknown;
+    try {
+      await uploadVerificationArtifact("owner-token", {
+        listingId: "listing-1",
+        kind: "video_liveness",
+        file: mp4File()
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(fetchApiMock).toHaveBeenCalledTimes(1);
+    expect(friendlyVerificationArtifactUploadError(caught)).toBe(
+      "The upload expired. Select the file again, then retry."
+    );
+    expect(friendlyVerificationArtifactUploadError(caught)).not.toMatch(/conflict|http/i);
+  });
+
+  it("aborts multipart upload and does not complete after abort", async () => {
+    const controller = new AbortController();
+    let xhrInstance: AbortableXhr | null = null;
+    const file = mp4File();
+
+    fetchApiMock.mockResolvedValueOnce({
+      upload_token: "upload-token-1",
+      upload_url: "/owner/verification/artifacts/upload",
+      blob_path: "listing-1/verification/video_liveness/video-proof.mp4",
+      expires_at: "2026-07-13T12:10:00.000Z"
+    });
+
+    class AbortableXhr {
+      status = 0;
+      upload = { onprogress: null };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      abort = vi.fn(() => {
+        this.onabort?.();
+      });
+      open() {}
+      setRequestHeader() {}
+      send() {
+        xhrInstance = this;
+      }
+    }
+
+    Object.defineProperty(globalThis, "XMLHttpRequest", {
+      configurable: true,
+      writable: true,
+      value: AbortableXhr
+    });
+
+    const upload = uploadVerificationArtifact("owner-token", {
+      listingId: "listing-1",
+      kind: "video_liveness",
+      file,
+      signal: controller.signal
+    });
+
+    await vi.waitFor(() => expect(xhrInstance).toBeTruthy());
+    controller.abort();
+
+    await expect(upload).rejects.toMatchObject({ name: "AbortError" });
+    expect(isVerificationUploadAbortError(await upload.catch((error) => error))).toBe(true);
+    expect((xhrInstance as unknown as AbortableXhr).abort).toHaveBeenCalledTimes(1);
+    expect(fetchApiMock).toHaveBeenCalledTimes(1);
   });
 });

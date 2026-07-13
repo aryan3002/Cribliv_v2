@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   fetchVerificationStatus,
   friendlyVerificationArtifactUploadError,
+  isVerificationUploadAbortError,
   listOwnerListings,
   submitElectricityVerification,
   submitVideoVerification,
@@ -153,6 +154,8 @@ export function VerificationClient({ locale }: { locale: Locale }) {
   const [videoVendorReference, setVideoVendorReference] = useState("");
   const [consumerId, setConsumerId] = useState("");
   const [addressText, setAddressText] = useState("");
+  const videoUploadControllerRef = useRef<AbortController | null>(null);
+  const billUploadControllerRef = useRef<AbortController | null>(null);
 
   const artifactCopy: VerificationArtifactFieldCopy = {
     selectFile: t(locale, "verificationSelectFile"),
@@ -219,14 +222,30 @@ export function VerificationClient({ locale }: { locale: Locale }) {
     [accessToken, locale]
   );
 
+  const abortArtifactUpload = useCallback((kind: "video_liveness" | "electricity_bill") => {
+    const ref = kind === "video_liveness" ? videoUploadControllerRef : billUploadControllerRef;
+    ref.current?.abort();
+    ref.current = null;
+  }, []);
+
+  const abortAllArtifactUploads = useCallback(() => {
+    videoUploadControllerRef.current?.abort();
+    videoUploadControllerRef.current = null;
+    billUploadControllerRef.current?.abort();
+    billUploadControllerRef.current = null;
+  }, []);
+
+  useEffect(() => () => abortAllArtifactUploads(), [abortAllArtifactUploads]);
+
   const resetArtifactState = useCallback(() => {
+    abortAllArtifactUploads();
     setVideoArtifact(EMPTY_ARTIFACT);
     setBillArtifact(EMPTY_ARTIFACT);
     setVideoVendorReference("");
     setConsumerId("");
     setAddressText("");
     setSubmitSuccess(null);
-  }, []);
+  }, [abortAllArtifactUploads]);
 
   useEffect(() => {
     if (!selectedListingId) {
@@ -244,6 +263,12 @@ export function VerificationClient({ locale }: { locale: Locale }) {
     }
 
     const update = kind === "video_liveness" ? setVideoArtifact : setBillArtifact;
+    const controllerRef =
+      kind === "video_liveness" ? videoUploadControllerRef : billUploadControllerRef;
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
     update({ file, status: "uploading", progress: 0 });
     setError(null);
     setSubmitSuccess(null);
@@ -253,11 +278,15 @@ export function VerificationClient({ locale }: { locale: Locale }) {
         listingId: selectedListingId,
         kind,
         file,
-        onProgress: (progress) =>
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (controller.signal.aborted || controllerRef.current !== controller) return;
           update((current) =>
             current.file === file ? { ...current, progress, status: "uploading" } : current
-          )
+          );
+        }
       });
+      if (controller.signal.aborted || controllerRef.current !== controller) return;
       update((current) =>
         current.file === file
           ? {
@@ -269,6 +298,8 @@ export function VerificationClient({ locale }: { locale: Locale }) {
           : current
       );
     } catch (err) {
+      if (controller.signal.aborted || isVerificationUploadAbortError(err)) return;
+      if (controllerRef.current !== controller) return;
       update((current) =>
         current.file === file
           ? {
@@ -278,7 +309,20 @@ export function VerificationClient({ locale }: { locale: Locale }) {
             }
           : current
       );
+    } finally {
+      if (controllerRef.current === controller) {
+        controllerRef.current = null;
+      }
     }
+  }
+
+  function removeArtifact(kind: "video_liveness" | "electricity_bill") {
+    abortArtifactUpload(kind);
+    if (kind === "video_liveness") {
+      setVideoArtifact(EMPTY_ARTIFACT);
+      return;
+    }
+    setBillArtifact(EMPTY_ARTIFACT);
   }
 
   async function onSubmitVideo() {
@@ -530,7 +574,7 @@ export function VerificationClient({ locale }: { locale: Locale }) {
               onRetry={() => {
                 if (videoArtifact.file) void uploadArtifact("video_liveness", videoArtifact.file);
               }}
-              onRemove={() => setVideoArtifact(EMPTY_ARTIFACT)}
+              onRemove={() => removeArtifact("video_liveness")}
             />
             <label className="ovc-field-label" htmlFor="video-vendor-ref">
               {t(locale, "verificationVideoReferenceLabel")}
@@ -582,7 +626,7 @@ export function VerificationClient({ locale }: { locale: Locale }) {
                 onRetry={() => {
                   if (billArtifact.file) void uploadArtifact("electricity_bill", billArtifact.file);
                 }}
-                onRemove={() => setBillArtifact(EMPTY_ARTIFACT)}
+                onRemove={() => removeArtifact("electricity_bill")}
               />
             </div>
             <label className="ovc-field-label" htmlFor="address-text">

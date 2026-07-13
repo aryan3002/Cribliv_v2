@@ -156,6 +156,29 @@ export class VerificationArtifactUploadError extends Error {
   }
 }
 
+function createVerificationUploadAbortError() {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException("Verification artifact upload aborted", "AbortError");
+  }
+
+  const error = new Error("Verification artifact upload aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+export function isVerificationUploadAbortError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
+}
+
+function throwIfVerificationUploadAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw createVerificationUploadAbortError();
+}
+
 interface OwnerListingApiRow {
   id?: string;
   title?: string;
@@ -554,10 +577,66 @@ function verificationArtifactUploadUrl(uploadUrl: string) {
   return `${base}/${uploadUrl.replace(/^\/+/, "")}`;
 }
 
-function verificationUploadErrorKind(status: number): VerificationArtifactUploadErrorKind {
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function objectValue(value: unknown) {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function parseVerificationUploadErrorCode(responseText?: string) {
+  if (!responseText) return undefined;
+
+  try {
+    const payload = objectValue(JSON.parse(responseText));
+    if (!payload) return undefined;
+
+    const errorPayload = objectValue(payload.error);
+    const messagePayload = objectValue(payload.message);
+    const detailsPayload = objectValue(payload.details);
+
+    return (
+      stringValue(errorPayload?.code) ??
+      stringValue(payload.code) ??
+      stringValue(messagePayload?.code) ??
+      stringValue(detailsPayload?.code)
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function verificationUploadErrorKindFromCode(
+  code?: string
+): VerificationArtifactUploadErrorKind | null {
+  switch (code) {
+    case "invalid_content_type":
+    case "invalid_file_signature":
+    case "invalid_artifact_kind":
+      return "unsupported";
+    case "invalid_file_size":
+      return "too_large";
+    case "upload_token_expired":
+    case "upload_token_not_found":
+    case "upload_token_consumed":
+    case "upload_token_invalid":
+    case "already_consumed":
+      return "expired";
+    default:
+      return null;
+  }
+}
+
+function verificationUploadErrorKind(
+  status: number,
+  code?: string
+): VerificationArtifactUploadErrorKind {
+  const codeKind = verificationUploadErrorKindFromCode(code);
+  if (codeKind) return codeKind;
   if (status === 401 || status === 403) return "unauthorized";
   if (status === 413) return "too_large";
-  if (status === 400 || status === 409) return "expired";
+  if (status === 409) return "expired";
   if (status === 415) return "unsupported";
   return "complete_failed";
 }
@@ -568,13 +647,40 @@ function multipartVerificationUpload(input: {
   uploadToken: string;
   file: File;
   onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
 }) {
   return new Promise<void>((resolve, reject) => {
+    if (input.signal?.aborted) {
+      reject(createVerificationUploadAbortError());
+      return;
+    }
+
     const formData = new FormData();
     formData.append("upload_token", input.uploadToken);
     formData.append("file", input.file, input.file.name);
 
     const request = new XMLHttpRequest();
+    let settled = false;
+
+    const cleanup = () => {
+      input.signal?.removeEventListener("abort", abortRequest);
+    };
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const abortRequest = () => request.abort();
+
+    input.signal?.addEventListener("abort", abortRequest, { once: true });
+
     request.open("POST", verificationArtifactUploadUrl(input.uploadUrl));
     request.setRequestHeader("Authorization", `Bearer ${input.accessToken}`);
 
@@ -584,26 +690,32 @@ function multipartVerificationUpload(input: {
       input.onProgress?.(percent);
     };
     request.onerror = () => {
-      reject(
+      rejectOnce(
         new VerificationArtifactUploadError("network", "Verification artifact upload interrupted")
       );
     };
     request.onabort = () => {
-      reject(
-        new VerificationArtifactUploadError("network", "Verification artifact upload interrupted")
+      rejectOnce(
+        input.signal?.aborted
+          ? createVerificationUploadAbortError()
+          : new VerificationArtifactUploadError(
+              "network",
+              "Verification artifact upload interrupted"
+            )
       );
     };
     request.onload = () => {
       if (request.status >= 200 && request.status < 300) {
         input.onProgress?.(100);
-        resolve();
+        resolveOnce();
         return;
       }
-      reject(
+      const code = parseVerificationUploadErrorCode(request.responseText);
+      rejectOnce(
         new VerificationArtifactUploadError(
-          verificationUploadErrorKind(request.status),
+          verificationUploadErrorKind(request.status, code),
           "Verification artifact upload failed",
-          { status: request.status }
+          { status: request.status, code }
         )
       );
     };
@@ -614,18 +726,12 @@ function multipartVerificationUpload(input: {
 function verificationArtifactKindFromApiError(
   error: ApiError
 ): VerificationArtifactUploadErrorKind {
+  const codeKind = verificationUploadErrorKindFromCode(error.code);
+  if (codeKind) return codeKind;
   if (error.status === 401 || error.status === 403) return "unauthorized";
-  if (error.status === 413 || error.code === "invalid_file_size") return "too_large";
-  if (error.code === "invalid_content_type" || error.code === "invalid_artifact_kind") {
-    return "unsupported";
-  }
-  if (
-    error.code === "upload_token_expired" ||
-    error.code === "upload_token_consumed" ||
-    error.code === "upload_token_invalid"
-  ) {
-    return "expired";
-  }
+  if (error.status === 413) return "too_large";
+  if (error.status === 409) return "expired";
+  if (error.status === 415) return "unsupported";
   return "complete_failed";
 }
 
@@ -679,14 +785,12 @@ export async function uploadVerificationArtifact(
     kind: VerificationArtifactKind;
     file: File;
     onProgress?: (percent: number) => void;
+    signal?: AbortSignal;
   }
 ): Promise<{ blobPath: string }> {
-  const presign = await fetchApi<{
-    upload_token: string;
-    upload_url: string;
-    blob_path: string;
-    expires_at: string;
-  }>("/owner/verification/artifacts/presign", {
+  throwIfVerificationUploadAborted(input.signal);
+
+  const presignRequest: RequestInit = {
     method: "POST",
     headers: authHeaders(accessToken),
     body: JSON.stringify({
@@ -696,17 +800,30 @@ export async function uploadVerificationArtifact(
       size_bytes: input.file.size,
       file_name: input.file.name || "verification-artifact"
     })
-  });
+  };
+  if (input.signal) presignRequest.signal = input.signal;
+
+  const presign = await fetchApi<{
+    upload_token: string;
+    upload_url: string;
+    blob_path: string;
+    expires_at: string;
+  }>("/owner/verification/artifacts/presign", presignRequest);
+
+  throwIfVerificationUploadAborted(input.signal);
 
   await multipartVerificationUpload({
     accessToken,
     uploadUrl: presign.upload_url,
     uploadToken: presign.upload_token,
     file: input.file,
-    onProgress: input.onProgress
+    onProgress: input.onProgress,
+    signal: input.signal
   });
 
-  const complete = await fetchApi<{ blob_path: string }>("/owner/verification/artifacts/complete", {
+  throwIfVerificationUploadAborted(input.signal);
+
+  const completeRequest: RequestInit = {
     method: "POST",
     headers: authHeaders(accessToken),
     body: JSON.stringify({
@@ -714,7 +831,13 @@ export async function uploadVerificationArtifact(
       upload_token: presign.upload_token,
       blob_path: presign.blob_path
     })
-  });
+  };
+  if (input.signal) completeRequest.signal = input.signal;
+
+  const complete = await fetchApi<{ blob_path: string }>(
+    "/owner/verification/artifacts/complete",
+    completeRequest
+  );
 
   return { blobPath: complete.blob_path ?? presign.blob_path };
 }
