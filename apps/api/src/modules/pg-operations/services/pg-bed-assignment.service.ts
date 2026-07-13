@@ -46,11 +46,13 @@ type AssignmentRow = {
 type LockedAssignmentRow = AssignmentRow & {
   bed_status: string;
   operator_id: string;
+  property_name: string;
 };
 
 type TransitionResult = {
   assignment: PgBedAssignment;
   operatorId: string;
+  propertyName: string;
 };
 
 const ACTIVE_ASSIGNMENT_STATUSES = [
@@ -242,7 +244,7 @@ export class PgBedAssignmentService {
               a.notice_end_date, a.move_out_date, a.monthly_rent_paise,
               a.security_deposit_paise, a.operator_notes, a.created_by::text,
               a.created_at, a.updated_at, b.status::text AS bed_status,
-              p.operator_id::text
+              p.operator_id::text, p.display_name AS property_name
          FROM pg_bed_assignments a
          JOIN pg_properties p ON p.id = a.pg_property_id
          JOIN pg_beds b ON b.id = a.bed_id
@@ -275,7 +277,7 @@ export class PgBedAssignmentService {
               a.notice_end_date, a.move_out_date, a.monthly_rent_paise,
               a.security_deposit_paise, a.operator_notes, a.created_by::text,
               a.created_at, a.updated_at, b.status::text AS bed_status,
-              p.operator_id::text
+              p.operator_id::text, p.display_name AS property_name
          FROM pg_bed_assignments a
          JOIN pg_properties p ON p.id = a.pg_property_id
          JOIN pg_beds b ON b.id = a.bed_id
@@ -301,10 +303,10 @@ export class PgBedAssignmentService {
     occupant: PgBedAssignmentOccupantInput
   ): Promise<PgBedAssignment> {
     if (!this.db.isEnabled()) throw this.unavailable();
-    this.validateOccupant(occupant);
 
     return this.transaction(async (client) => {
       await this.assertManagedOwnership(operatorId, propertyId, client);
+      this.validateOccupant(occupant);
       const bed = await this.lockBed(client, propertyId, bedId);
       if (bed.status !== "vacant") {
         throw new ConflictException({ code: "bed_not_vacant" });
@@ -360,10 +362,10 @@ export class PgBedAssignmentService {
     occupant: PgBedAssignmentOccupantInput
   ): Promise<PgBedAssignment> {
     if (!this.db.isEnabled()) throw this.unavailable();
-    this.validateOccupant(occupant);
 
     return this.transaction(async (client) => {
       await this.assertManagedOwnership(operatorId, propertyId, client);
+      this.validateOccupant(occupant);
       const bed = await this.lockBed(client, propertyId, bedId);
       if (bed.status !== "vacant" && bed.status !== "reserved") {
         throw new ConflictException({ code: "bed_not_vacant" });
@@ -531,7 +533,11 @@ export class PgBedAssignmentService {
         target,
         { bed_id: current.bed_id }
       );
-      return { assignment: toAssignment(updated.rows[0]), operatorId: current.operator_id };
+      return {
+        assignment: toAssignment(updated.rows[0]),
+        operatorId: current.operator_id,
+        propertyName: current.property_name
+      };
     });
   }
 
@@ -557,7 +563,8 @@ export class PgBedAssignmentService {
         payload: {
           assignment_id: assignmentId,
           occupant_name: result.assignment.occupant_name,
-          property_id: propertyId
+          property_id: propertyId,
+          property_name: result.propertyName
         }
       });
     }
@@ -600,6 +607,24 @@ export class PgBedAssignmentService {
     return result.assignment;
   }
 
+  async cancelReservation(
+    operatorId: string,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.operatorTransition(
+      operatorId,
+      propertyId,
+      assignmentId,
+      ["reserved"],
+      "cancelled",
+      "reservation_cancelled",
+      "vacant"
+    );
+    return result.assignment;
+  }
+
   async serveNotice(
     tenantId: string,
     assignmentId: string,
@@ -638,7 +663,11 @@ export class PgBedAssignmentService {
         "notice_served",
         { bed_id: current.bed_id, notice_end_date: input.notice_end_date }
       );
-      return { assignment: toAssignment(updated.rows[0]), operatorId: current.operator_id };
+      return {
+        assignment: toAssignment(updated.rows[0]),
+        operatorId: current.operator_id,
+        propertyName: current.property_name
+      };
     });
     this.notify({
       type: "operator.pg_notice_served",
@@ -689,7 +718,11 @@ export class PgBedAssignmentService {
         target,
         { bed_id: current.bed_id }
       );
-      return { assignment: toAssignment(updated.rows[0]), operatorId: current.operator_id };
+      return {
+        assignment: toAssignment(updated.rows[0]),
+        operatorId: current.operator_id,
+        propertyName: current.property_name
+      };
     });
   }
 

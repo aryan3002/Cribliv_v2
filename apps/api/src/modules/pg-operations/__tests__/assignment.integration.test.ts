@@ -53,6 +53,9 @@ describe("PG bed assignments without a database", () => {
       unavailable
     );
     await expect(
+      service.cancelReservation(operatorId, propertyId, assignmentId)
+    ).rejects.toMatchObject(unavailable);
+    await expect(
       service.serveNotice(tenantId, assignmentId, { notice_end_date: "2099-02-15" })
     ).rejects.toMatchObject(unavailable);
     await expect(service.tenantMoveOutRequest(tenantId, assignmentId)).rejects.toMatchObject(
@@ -258,6 +261,14 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
     await expect(
       service.reserve(operatorId, fixture.propertyId, fixture.bedIds[0], occupant())
     ).rejects.toMatchObject({ response: { code: "forbidden" } });
+    await expect(
+      service.reserve(
+        operatorId,
+        fixture.propertyId,
+        fixture.bedIds[0],
+        occupant({ occupant_name: "", occupant_phone_e164: "not-e164" })
+      )
+    ).rejects.toMatchObject({ response: { code: "forbidden" } });
   });
 
   it("reserves then moves in, links the seeded tenant by phone, and writes one event each", async () => {
@@ -462,6 +473,25 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
       { from_status: null, to_status: "active" },
       { from_status: "active", to_status: "move_out_pending_confirmation" },
       { from_status: "move_out_pending_confirmation", to_status: "active" }
+    ]);
+  });
+
+  it("cancels a reservation, frees the bed, and writes an event", async () => {
+    const fixture = await createFixture();
+    const reserved = await service.reserve(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant()
+    );
+
+    const cancelled = await service.cancelReservation(operatorId, fixture.propertyId, reserved.id);
+
+    expect(cancelled.status).toBe("cancelled");
+    expect(await bedStatus(fixture.bedIds[0])).toBe("vacant");
+    expect(await events(reserved.id)).toMatchObject([
+      { from_status: null, to_status: "reserved" },
+      { from_status: "reserved", to_status: "cancelled", initiator: "operator" }
     ]);
   });
 
