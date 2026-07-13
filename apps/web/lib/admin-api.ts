@@ -1902,3 +1902,69 @@ export async function generateNextBlogBrief(accessToken: string): Promise<Genera
     remaining: raw.remaining ?? 0
   };
 }
+
+// ── Admin Lead Center (Slice 4) ─────────────────────────────────────────────
+
+import type {
+  AdminLeadBoardResponse,
+  AdminLeadBoardFilter,
+  AdminLeadAnalytics,
+  AdminLeadOwnerDetail,
+  AdminLeadTimelineResponse
+} from "@cribliv/shared-types";
+
+export interface AdminLeadBoardParams {
+  filter?: AdminLeadBoardFilter;
+  owner_id?: string;
+  state?: string;
+  status?: string;
+  q?: string;
+  range?: string;
+  page?: number;
+  page_size?: number;
+}
+export async function fetchAdminLeadBoard(accessToken: string, params: AdminLeadBoardParams = {}) {
+  const qs = buildSearchQuery(params as Record<string, string | number | boolean | undefined>);
+  return fetchApi<AdminLeadBoardResponse>(`/admin/leads/board${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+export async function fetchAdminLeadAnalytics(accessToken: string, range = "30 days") {
+  const qs = buildSearchQuery({ range });
+  return fetchApi<AdminLeadAnalytics>(`/admin/leads/analytics${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+export async function fetchAdminLeadByOwner(
+  accessToken: string,
+  ownerId: string,
+  range = "30 days"
+) {
+  const qs = buildSearchQuery({ range });
+  return fetchApi<AdminLeadOwnerDetail>(`/admin/leads/by-owner/${ownerId}${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+export async function fetchAdminLeadTimeline(accessToken: string, leadId: string) {
+  return fetchApi<AdminLeadTimelineResponse>(`/admin/leads/${leadId}/timeline`, {
+    headers: authHeaders(accessToken)
+  });
+}
+export async function markAdminLeadTeamCalled(accessToken: string, leadId: string) {
+  return fetchApi<{ lead_id: string; called_at: string; called_by: string }>(
+    `/admin/leads/${leadId}/team-called`,
+    { method: "POST", headers: authHeaders(accessToken) }
+  );
+}
+export async function nudgeAdminLeadOwner(accessToken: string, leadId: string) {
+  return fetchApi<{ lead_id: string; nudged: boolean }>(`/admin/leads/${leadId}/nudge-owner`, {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+}
+export async function refundAdminLead(accessToken: string, leadId: string, reason: string) {
+  return fetchApi<{ lead_id: string; refunded: boolean; refund_txn_id: string | null }>(
+    `/admin/leads/${leadId}/refund`,
+    { method: "POST", headers: authHeaders(accessToken), body: JSON.stringify({ reason }) }
+  );
+}
