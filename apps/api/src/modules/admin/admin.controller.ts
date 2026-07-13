@@ -46,6 +46,7 @@ import type { PgAdminPropertyPatch } from "@cribliv/shared-types";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { IndexingService } from "../seo/indexing.service";
 import { listingIndexPaths } from "../seo/seo-urls";
+import { debitWalletCredits, WalletBalanceError } from "../wallet/wallet-balance";
 
 // Clamp the ?days= query param to a sane window; default 30.
 function parseDays(raw?: string): number {
@@ -739,32 +740,64 @@ export class AdminController {
           [resolvedUserId]
         );
 
-        const txn = await client.query<{ id: string }>(
-          `
-          INSERT INTO wallet_transactions(
-            wallet_user_id,
-            txn_type,
-            credits_delta,
-            reference_type,
-            reference_id,
-            metadata
-          )
-          VALUES ($1::uuid, 'admin_adjustment', $2, 'admin', $3::uuid, $4::jsonb)
-          RETURNING id::text
-          `,
-          [resolvedUserId, body.credits_delta, req.user.id, JSON.stringify({ reason: body.reason })]
-        );
+        let transactionId: string;
+        let balanceCredits: number;
+        if (body.credits_delta < 0) {
+          try {
+            const debit = await debitWalletCredits(client, {
+              userId: resolvedUserId,
+              credits: Math.abs(body.credits_delta),
+              txnType: "admin_adjustment",
+              referenceType: "admin",
+              referenceId: req.user.id,
+              metadata: { reason: body.reason }
+            });
+            transactionId = debit.transactionId;
+            balanceCredits = debit.balanceCredits;
+          } catch (error) {
+            if (error instanceof WalletBalanceError) {
+              throw new BadRequestException({
+                code: error.code,
+                message: error.message
+              });
+            }
+            throw error;
+          }
+        } else {
+          const txn = await client.query<{ id: string }>(
+            `
+            INSERT INTO wallet_transactions(
+              wallet_user_id,
+              txn_type,
+              credits_delta,
+              reference_type,
+              reference_id,
+              metadata
+            )
+            VALUES ($1::uuid, 'admin_adjustment', $2, 'admin', $3::uuid, $4::jsonb)
+            RETURNING id::text
+            `,
+            [
+              resolvedUserId,
+              body.credits_delta,
+              req.user.id,
+              JSON.stringify({ reason: body.reason })
+            ]
+          );
 
-        const wallet = await client.query<{ balance_credits: number }>(
-          `
-          UPDATE wallets
-          SET balance_credits = balance_credits + $2,
-              updated_at = now()
-          WHERE user_id = $1::uuid
-          RETURNING balance_credits
-          `,
-          [resolvedUserId, body.credits_delta]
-        );
+          const wallet = await client.query<{ balance_credits: number }>(
+            `
+            UPDATE wallets
+            SET balance_credits = balance_credits + $2,
+                updated_at = now()
+            WHERE user_id = $1::uuid
+            RETURNING balance_credits
+            `,
+            [resolvedUserId, body.credits_delta]
+          );
+          transactionId = txn.rows[0].id;
+          balanceCredits = Number(wallet.rows[0]?.balance_credits ?? 0);
+        }
 
         await client.query(
           `
@@ -781,8 +814,8 @@ export class AdminController {
 
         await client.query("COMMIT");
         return ok({
-          transaction_id: txn.rows[0].id,
-          balance_credits: Number(wallet.rows[0]?.balance_credits ?? 0)
+          transaction_id: transactionId,
+          balance_credits: balanceCredits
         });
       } catch (error) {
         await client.query("ROLLBACK");
@@ -803,7 +836,8 @@ export class AdminController {
       userId: body.user_id,
       type: "admin_adjustment",
       creditsDelta: body.credits_delta,
-      referenceId: req.user.id
+      referenceId: req.user.id,
+      metadata: { reason: body.reason }
     });
 
     return ok({

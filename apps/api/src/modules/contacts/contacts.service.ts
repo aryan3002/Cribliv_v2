@@ -14,6 +14,7 @@ import { logTelemetry } from "../../common/telemetry";
 import { NotificationService } from "../notifications/notification.service";
 import { LeadsService } from "../leads/leads.service";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { debitWalletCredits, WalletBalanceError } from "../wallet/wallet-balance";
 
 const DISPUTE_WINDOW_MS = 72 * 60 * 60 * 1000;
 
@@ -300,76 +301,36 @@ export class ContactsService {
         [userId]
       );
 
-      const walletResult = await client.query<{ balance_credits: number }>(
-        `
-        SELECT balance_credits
-        FROM wallets
-        WHERE user_id = $1::uuid
-        FOR UPDATE
-        `,
-        [userId]
-      );
-
-      const balance = Number(walletResult.rows[0]?.balance_credits ?? 0);
-      if (balance < 1) {
-        throw new HttpException(
-          { code: "insufficient_credits", message: "Insufficient credits" },
-          HttpStatus.PAYMENT_REQUIRED
-        );
-      }
-
-      const debitTxnResult = await client.query<{ id: string }>(
-        `
-        INSERT INTO wallet_transactions(
-          wallet_user_id,
-          txn_type,
-          credits_delta,
-          reference_type,
-          reference_id,
-          idempotency_key,
-          metadata
-        )
-        VALUES ($1::uuid, 'debit_contact_unlock', -1, 'listing', $2::uuid, $3, '{}'::jsonb)
-        ON CONFLICT (wallet_user_id, idempotency_key) DO NOTHING
-        RETURNING id::text
-        `,
-        [userId, listingId, idempotencyKey]
-      );
-
-      let walletTxnId = debitTxnResult.rows[0]?.id;
-      const debitTxnInserted = Boolean(walletTxnId);
-      if (!walletTxnId) {
-        const existingTxn = await client.query<{ id: string }>(
-          `
-          SELECT id::text
-          FROM wallet_transactions
-          WHERE wallet_user_id = $1::uuid
-            AND idempotency_key = $2
-          LIMIT 1
-          `,
-          [userId, idempotencyKey]
-        );
-        walletTxnId = existingTxn.rows[0]?.id;
-      }
-
-      if (!walletTxnId) {
-        throw new ConflictException({
-          code: "duplicate_unlock",
-          message: "Duplicate unlock request"
+      let debit;
+      try {
+        debit = await debitWalletCredits(client, {
+          userId,
+          credits: 1,
+          txnType: "debit_contact_unlock",
+          referenceType: "listing",
+          referenceId: listingId,
+          idempotencyKey
         });
+      } catch (error) {
+        if (error instanceof WalletBalanceError) {
+          if (error.code === "idempotency_conflict") {
+            throw new ConflictException({
+              code: "duplicate_unlock",
+              message: "Idempotency-Key already used for another unlock"
+            });
+          }
+          if (error.code === "insufficient_credits" || error.code === "wallet_not_found") {
+            throw new HttpException(
+              { code: "insufficient_credits", message: "Insufficient credits" },
+              HttpStatus.PAYMENT_REQUIRED
+            );
+          }
+        }
+        throw error;
       }
 
-      if (debitTxnInserted) {
-        await client.query(
-          `
-          UPDATE wallets
-          SET balance_credits = balance_credits - 1, updated_at = now()
-          WHERE user_id = $1::uuid
-            AND balance_credits >= 1
-          `,
-          [userId]
-        );
-      }
+      const walletTxnId = debit.transactionId;
+      const debitTxnInserted = debit.inserted;
 
       // The `source` column ships in migration 0050. Until it's applied on a
       // given DB, omit it so this revenue-critical INSERT never fails on a
@@ -436,16 +397,6 @@ export class ContactsService {
         );
       }
 
-      const balanceAfterResult = await client.query<{ balance_credits: number }>(
-        `
-        SELECT balance_credits
-        FROM wallets
-        WHERE user_id = $1::uuid
-        LIMIT 1
-        `,
-        [userId]
-      );
-
       await client.query("COMMIT");
 
       const listing = listingResult.rows[0];
@@ -459,7 +410,7 @@ export class ContactsService {
         unlockId: unlockId,
         ownerPhone: listing.owner_phone,
         whatsappAvailable: listing.whatsapp_available,
-        creditsRemaining: Number(balanceAfterResult.rows[0]?.balance_credits ?? 0),
+        creditsRemaining: debit.balanceCredits,
         responseDeadlineAt: responseDeadlineAt
       });
     } catch (error) {
