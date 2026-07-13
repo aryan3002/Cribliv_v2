@@ -876,7 +876,7 @@ export class AdminLeadOpsService {
       dispute_rate: Number(ratesRow?.dispute_rate ?? 0)
     };
 
-    const h = health.get(ownerId);
+    const h = health.get(ownerId.toLowerCase());
 
     return {
       owner_user_id: ownerId,

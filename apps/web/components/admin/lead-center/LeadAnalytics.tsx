@@ -126,7 +126,7 @@ export function LeadAnalytics({ accessToken, onToast }: Props) {
         key: "median_response",
         header: "Median resp",
         align: "right",
-        render: (r) => formatMinutes(r.median_response_minutes ?? 0),
+        render: (r) => formatMinutes(r.median_response_minutes),
         sortValue: (r) => r.median_response_minutes ?? Number.MAX_SAFE_INTEGER
       },
       {
@@ -224,7 +224,7 @@ export function LeadAnalytics({ accessToken, onToast }: Props) {
 
       <SectionCard
         title="Owner performance"
-        subtitle={`${formatNumber(analytics?.by_owner.length ?? 0)} owners · last ${range}`}
+        subtitle={`${formatNumber(analytics?.by_owner.length ?? 0)} owners · last ${range}${loading ? " · loading…" : ""}`}
         flush
       >
         <DataTable
