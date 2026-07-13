@@ -543,6 +543,42 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
     );
   });
 
+  it("persists tenant_user_id when a later-created tenant is authorized by phone", async () => {
+    const fixture = await createFixture();
+    const phone = `+9184${Date.now().toString().slice(-9)}`;
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: phone })
+    );
+    expect(active.tenant_user_id).toBeNull();
+
+    const laterTenant = await db.query<{ id: string }>(
+      `INSERT INTO users (phone_e164, role, preferred_language)
+       VALUES ($1, 'tenant'::user_role, 'en')
+       RETURNING id::text`,
+      [phone]
+    );
+    userIds.push(laterTenant.rows[0].id);
+
+    const requested = await service.tenantMoveOutRequest(laterTenant.rows[0].id, active.id);
+
+    expect(requested).toMatchObject({
+      id: active.id,
+      tenant_user_id: laterTenant.rows[0].id,
+      status: "move_out_requested"
+    });
+    await expect(
+      service.moveIn(
+        operatorId,
+        fixture.propertyId,
+        fixture.bedIds[1],
+        occupant({ occupant_phone_e164: phone })
+      )
+    ).rejects.toMatchObject({ response: { code: "bed_or_tenant_occupied" } });
+  });
+
   it("lets the operator advance a tenant move-out request to pending confirmation", async () => {
     const fixture = await createFixture();
     const active = await service.moveIn(

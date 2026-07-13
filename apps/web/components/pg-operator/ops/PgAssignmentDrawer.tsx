@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@cribliv/ui";
 import type { PgBed, PgBedAssignment, PgRoom } from "@cribliv/shared-types";
 import {
+  cancelAssignmentMoveOut,
   confirmAssignmentMoveOut,
   moveInBed,
   operatorMoveOutRequest,
@@ -74,7 +75,10 @@ export default function PgAssignmentDrawer({
   const [mode, setMode] = useState<Mode>(initialMode ?? "reserve");
   const beds = useMemo(() => selectableBeds(rooms, mode), [rooms, mode]);
   const [bedId, setBedId] = useState(initialBedId ?? beds[0]?.id ?? "");
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState(assignments[0]?.id ?? "");
+  const initialAssignment = assignments.find((item) => item.bed_id === initialBedId);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState(
+    initialAssignment?.id ?? assignments[0]?.id ?? ""
+  );
   const [form, setForm] = useState({
     occupant_name: "",
     occupant_phone_e164: "",
@@ -88,6 +92,12 @@ export default function PgAssignmentDrawer({
   const [error, setError] = useState<string | null>(null);
 
   const selected = assignments.find((item) => item.id === selectedAssignmentId) ?? assignments[0];
+
+  useEffect(() => {
+    if (!beds.some((bed) => bed.id === bedId)) {
+      setBedId(beds[0]?.id ?? "");
+    }
+  }, [bedId, beds]);
 
   function payload() {
     return {
@@ -120,15 +130,17 @@ export default function PgAssignmentDrawer({
     }
   }
 
-  async function runAssignmentAction(action: "request" | "confirm") {
+  async function runAssignmentAction(action: "request" | "confirm" | "cancel") {
     if (!selected) return;
     setPending(true);
     setError(null);
     try {
       if (action === "request") {
         await operatorMoveOutRequest(propertyId, selected.id, token);
-      } else {
+      } else if (action === "confirm") {
         await confirmAssignmentMoveOut(propertyId, selected.id, token);
+      } else {
+        await cancelAssignmentMoveOut(propertyId, selected.id, token);
       }
       router.refresh();
     } catch (cause) {
@@ -306,6 +318,14 @@ export default function PgAssignmentDrawer({
                 onClick={() => void runAssignmentAction("confirm")}
               >
                 Confirm move-out
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={pending || selected.status !== "move_out_pending_confirmation"}
+                onClick={() => void runAssignmentAction("cancel")}
+              >
+                Cancel move-out
               </Button>
             </div>
           </div>

@@ -293,7 +293,18 @@ export class PgBedAssignmentService {
     if (!result.rows[0]) {
       throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
     }
-    return result.rows[0];
+    const row = result.rows[0];
+    if (row.tenant_user_id === null) {
+      await client.query(
+        `UPDATE pg_bed_assignments
+            SET tenant_user_id = $1::uuid
+          WHERE id = $2::uuid
+            AND tenant_user_id IS NULL`,
+        [tenantId, assignmentId]
+      );
+      row.tenant_user_id = tenantId;
+    }
+    return row;
   }
 
   async reserve(
