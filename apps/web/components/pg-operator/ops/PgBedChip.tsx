@@ -22,12 +22,14 @@ export default function PgBedChip({
   roomNumber,
   onSetStatus,
   onRelist,
+  assignmentHref,
   pending
 }: {
   bed: PgBed;
   roomNumber: string;
   onSetStatus: (status: "blocked" | "vacant") => void;
   onRelist: () => void;
+  assignmentHref?: string;
   pending?: boolean;
 }) {
   const isBlocked = bed.status === "blocked";
@@ -45,30 +47,39 @@ export default function PgBedChip({
       <p className={styles.date}>
         {bed.available_from ? `Available ${bed.available_from}` : "No available date"}
       </p>
-      {canAct && (
+      {(canAct || assignmentHref) && (
         <div className={styles.actions}>
-          <Button
-            type="button"
-            variant="tertiary"
-            className={styles.actionButton}
-            disabled={pending}
-            aria-label={
-              isBlocked ? `Mark Bed ${bed.bed_label} vacant` : `Block Bed ${bed.bed_label}`
-            }
-            onClick={() => onSetStatus(isBlocked ? "vacant" : "blocked")}
-          >
-            {isBlocked ? "Vacant" : "Block"}
-          </Button>
-          <Button
-            type="button"
-            variant="tertiary"
-            className={styles.actionButton}
-            disabled={pending}
-            aria-label={`Relist Bed ${bed.bed_label}`}
-            onClick={onRelist}
-          >
-            Relist
-          </Button>
+          {canAct && (
+            <>
+              <Button
+                type="button"
+                variant="tertiary"
+                className={styles.actionButton}
+                disabled={pending}
+                aria-label={
+                  isBlocked ? `Mark Bed ${bed.bed_label} vacant` : `Block Bed ${bed.bed_label}`
+                }
+                onClick={() => onSetStatus(isBlocked ? "vacant" : "blocked")}
+              >
+                {isBlocked ? "Vacant" : "Block"}
+              </Button>
+              <Button
+                type="button"
+                variant="tertiary"
+                className={styles.actionButton}
+                disabled={pending}
+                aria-label={`Relist Bed ${bed.bed_label}`}
+                onClick={onRelist}
+              >
+                Relist
+              </Button>
+            </>
+          )}
+          {assignmentHref && (
+            <a className={styles.actionButton} href={assignmentHref}>
+              Tenants
+            </a>
+          )}
         </div>
       )}
     </article>

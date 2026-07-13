@@ -36,11 +36,13 @@ function floorLabel(floor: number | null): string {
 export default function PgBedGrid({
   propertyId,
   token,
-  rooms
+  rooms,
+  assignmentHrefBase
 }: {
   propertyId: string;
   token?: string;
   rooms: PgRoom[];
+  assignmentHrefBase?: string;
 }) {
   const router = useRouter();
   const [currentRooms, setCurrentRooms] = useState(rooms);
@@ -163,6 +165,13 @@ export default function PgBedGrid({
                               pending={pendingBedId === bed.id}
                               onSetStatus={(nextStatus) => void changeStatus(bed, nextStatus)}
                               onRelist={() => void relist(bed)}
+                              assignmentHref={
+                                assignmentHrefBase
+                                  ? `${assignmentHrefBase}?bedId=${encodeURIComponent(
+                                      bed.id
+                                    )}&mode=${bed.status === "reserved" ? "move-in" : "reserve"}`
+                                  : undefined
+                              }
                             />
                           ))}
                         </div>

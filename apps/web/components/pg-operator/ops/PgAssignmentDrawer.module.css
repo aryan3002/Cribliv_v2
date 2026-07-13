@@ -1,0 +1,24 @@
+.shell { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 360px; }
+.list { background: var(--d-surface); border: 1px solid var(--d-border); border-radius: 8px; overflow: hidden; }
+.listHeader, .assignment { align-items: center; display: grid; gap: 12px; grid-template-columns: 1.1fr .85fr .7fr auto; padding: 12px 14px; }
+.listHeader { background: var(--d-surface-raised); color: var(--d-text-soft); font-size: 12px; font-weight: 700; }
+.assignment { border-top: 1px solid var(--d-border); text-align: left; width: 100%; }
+.assignment strong { color: var(--d-text); display: block; font-size: 13px; }
+.assignment span { color: var(--d-text-soft); display: block; font-size: 12px; margin-top: 2px; }
+.empty { color: var(--d-text-soft); font-size: 13px; padding: 24px; text-align: center; }
+.drawer { align-self: start; background: var(--d-surface); border: 1px solid var(--d-border); border-radius: 8px; padding: 14px; position: sticky; top: 88px; }
+.drawer h2 { font-size: 15px; margin: 0 0 4px; }
+.drawer p { color: var(--d-text-soft); font-size: 12px; line-height: 1.45; margin: 0 0 14px; }
+.tabs { display: grid; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 12px; }
+.tab { background: var(--d-surface-raised); border: 1px solid var(--d-border); border-radius: 6px; color: var(--d-text); cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; min-height: 34px; }
+.tab[aria-pressed="true"] { background: var(--d-brand-soft); border-color: var(--d-brand); color: var(--d-brand); }
+.form { display: grid; gap: 10px; }
+.field { display: grid; gap: 5px; }
+.field span { color: var(--d-text-soft); font-size: 12px; font-weight: 700; }
+.field input, .field select, .field textarea { background: var(--d-surface); border: 1px solid var(--d-border-strong); border-radius: 6px; color: var(--d-text); font: inherit; min-height: 36px; padding: 7px 9px; }
+.field textarea { min-height: 72px; resize: vertical; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.error { color: var(--d-danger); font-size: 12px; margin: 0; }
+.notice { border-top: 1px solid var(--d-border); display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; }
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .drawer { position: static; } }
+@media (max-width: 640px) { .listHeader { display: none; } .assignment { align-items: start; grid-template-columns: 1fr; } }

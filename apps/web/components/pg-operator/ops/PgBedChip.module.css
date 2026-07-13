@@ -23,3 +23,14 @@
   padding-inline: 7px !important;
   font-size: 11px !important;
 }
+a.actionButton {
+  align-items: center;
+  border: 1px solid var(--d-border-strong, #cbd5e1);
+  border-radius: 6px;
+  color: var(--d-text, #1a1a2e);
+  display: inline-flex;
+  font-weight: 700;
+  justify-content: center;
+  line-height: 1;
+  text-decoration: none;
+}

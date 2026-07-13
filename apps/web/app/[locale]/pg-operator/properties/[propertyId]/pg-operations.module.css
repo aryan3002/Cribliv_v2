@@ -5,7 +5,9 @@
 .header { align-items: flex-end; display: flex; gap: 16px; justify-content: space-between; }
 .header h1 { font-family: var(--font-heading, ui-sans-serif, system-ui, sans-serif); font-size: 24px; margin: 0; }
 .header p { color: var(--d-text-soft); font-size: 13px; margin: 4px 0 0; }
+.headerActions { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .layoutLink { align-items: center; background: var(--d-brand); border: 1px solid var(--d-brand); border-radius: 7px; color: #fff; display: inline-flex; font-size: 13px; font-weight: 700; gap: 7px; min-height: 36px; padding: 0 11px; text-decoration: none; }
+.secondaryLink { align-items: center; background: var(--d-surface); border: 1px solid var(--d-border-strong); border-radius: 7px; color: var(--d-text); display: inline-flex; font-size: 13px; font-weight: 700; gap: 7px; min-height: 36px; padding: 0 11px; text-decoration: none; }
 .loadError { background: var(--d-surface); border: 1px solid color-mix(in srgb, var(--d-danger) 35%, var(--d-border)); border-radius: 8px; padding: 18px; }
 .loadError h1 { font-size: 18px; margin: 0; }
 .loadError p { color: var(--d-text-soft); font-size: 13px; margin: 6px 0 0; }

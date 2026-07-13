@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
   getManagedProperty: vi.fn(),
   getOccupancySummary: vi.fn(),
   getPropertyInventory: vi.fn(),
-  getPropertyLayout: vi.fn()
+  getPropertyLayout: vi.fn(),
+  listAssignments: vi.fn()
 }));
 
 vi.mock("@/auth", () => ({ auth: mocks.auth }));
@@ -21,11 +22,13 @@ vi.mock("@/lib/pg-operations-api", () => ({
   getManagedProperty: mocks.getManagedProperty,
   getOccupancySummary: mocks.getOccupancySummary,
   getPropertyInventory: mocks.getPropertyInventory,
-  getPropertyLayout: mocks.getPropertyLayout
+  getPropertyLayout: mocks.getPropertyLayout,
+  listAssignments: mocks.listAssignments
 }));
 
 import DashboardPage from "../page";
 import LayoutPage from "../layout/page";
+import TenantsPage from "../tenants/page";
 
 const property = {
   id: "property-1",
@@ -68,6 +71,7 @@ describe("PG operations route error states", () => {
     mocks.getOccupancySummary.mockResolvedValue(summary);
     mocks.getPropertyInventory.mockResolvedValue([]);
     mocks.getPropertyLayout.mockResolvedValue([]);
+    mocks.listAssignments.mockResolvedValue([]);
   });
 
   it("loads dashboard beds from the inventory read path", async () => {
@@ -103,5 +107,13 @@ describe("PG operations route error states", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(/could not load/i);
     expect(screen.queryByRole("button", { name: /save layout/i })).not.toBeInTheDocument();
+  });
+
+  it("loads assignments and inventory for the tenants page", async () => {
+    render(await TenantsPage({ params: { locale: "en", propertyId: "property-1" } }));
+
+    expect(mocks.listAssignments).toHaveBeenCalledWith("property-1", "token-1");
+    expect(mocks.getPropertyInventory).toHaveBeenCalledWith("property-1", "token-1");
+    expect(screen.getByRole("heading", { name: "Tenants" })).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, LayoutGrid } from "lucide-react";
+import { ArrowLeft, LayoutGrid, Users } from "lucide-react";
 import { auth } from "@/auth";
 import PgBedGrid from "@/components/pg-operator/ops/PgBedGrid";
 import PgOccupancySummary from "@/components/pg-operator/ops/PgOccupancySummary";
@@ -57,12 +57,20 @@ export default async function Page({ params }: { params: { locale: string; prope
               {property.room_count} rooms, {property.bed_count} active beds
             </p>
           </div>
-          <Link
-            href={`/${params.locale}/pg-operator/properties/${params.propertyId}/layout` as any}
-            className={styles.layoutLink}
-          >
-            <LayoutGrid size={16} aria-hidden="true" /> Edit layout
-          </Link>
+          <div className={styles.headerActions}>
+            <Link
+              href={`/${params.locale}/pg-operator/properties/${params.propertyId}/tenants` as any}
+              className={styles.secondaryLink}
+            >
+              <Users size={16} aria-hidden="true" /> Tenants
+            </Link>
+            <Link
+              href={`/${params.locale}/pg-operator/properties/${params.propertyId}/layout` as any}
+              className={styles.layoutLink}
+            >
+              <LayoutGrid size={16} aria-hidden="true" /> Edit layout
+            </Link>
+          </div>
         </header>
         <PgOccupancySummary summary={summary} />
         <section className={styles.inventory}>
@@ -70,7 +78,12 @@ export default async function Page({ params }: { params: { locale: string; prope
             <h2>Bed inventory</h2>
             <span>{summary.vacant_beds} available now</span>
           </div>
-          <PgBedGrid propertyId={params.propertyId} token={token} rooms={rooms} />
+          <PgBedGrid
+            propertyId={params.propertyId}
+            token={token}
+            rooms={rooms}
+            assignmentHrefBase={`/${params.locale}/pg-operator/properties/${params.propertyId}/tenants`}
+          />
         </section>
         <section className={styles.upcoming}>
           <div>
