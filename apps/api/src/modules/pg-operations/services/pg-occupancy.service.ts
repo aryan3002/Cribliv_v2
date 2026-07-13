@@ -9,7 +9,9 @@ import {
 import type {
   PgBed,
   PgBedStatus,
+  PgManagedPropertyDetail,
   PgManagedPropertySummary,
+  PgManagedRoomType,
   PgOccupancyFloorRollup,
   PgOccupancySummary,
   PgOccupancyUpcomingMove
@@ -40,6 +42,10 @@ type CountsRow = {
   blocked_beds: number | string;
   inactive_beds: number | string;
   occupancy_percent: number | string;
+};
+
+type RoomTypeRow = Omit<PgManagedRoomType, "monthly_rent_paise"> & {
+  monthly_rent_paise: number | string;
 };
 
 type BedRow = {
@@ -170,11 +176,30 @@ export class PgOccupancyService {
   async getManagedProperty(
     operatorId: string,
     propertyId: string
-  ): Promise<PgManagedPropertySummary | null> {
+  ): Promise<PgManagedPropertyDetail | null> {
     if (!this.db.isEnabled()) return null;
     await this.assertManagedOwnership(operatorId, propertyId);
     const result = await this.queryProperties(operatorId, propertyId);
-    return result.rows[0] ? this.toProperty(result.rows[0]) : null;
+    if (!result.rows[0]) return null;
+
+    const roomTypes = await this.db.query<RoomTypeRow>(
+      `SELECT rt.id::text, rt.sharing::text, rt.ac, rt.bathroom_kind::text,
+              rt.furnishing::text, rt.monthly_rent_paise
+         FROM pg_room_types rt
+         JOIN pg_listings l ON l.id = rt.listing_id
+        WHERE l.pg_property_id = $1::uuid
+          AND l.operator_user_id = $2::uuid
+        ORDER BY rt.monthly_rent_paise DESC, rt.id ASC`,
+      [propertyId, operatorId]
+    );
+
+    return {
+      ...this.toProperty(result.rows[0]),
+      room_types: roomTypes.rows.map((roomType) => ({
+        ...roomType,
+        monthly_rent_paise: count(roomType.monthly_rent_paise)
+      }))
+    };
   }
 
   private validateFilters(filters: PgOccupancyFilters): void {

@@ -1,4 +1,4 @@
-import type { PgPropertyStatus } from "./pg-operator";
+import type { PgBathroomKind, PgFurnishing, PgPropertyStatus, PgSharingKind } from "./pg-operator";
 
 export type PgManageRequestStatus = "pending" | "approved" | "rejected" | "cancelled";
 
@@ -43,6 +43,19 @@ export interface PgManagedPropertySummary {
   room_count: number;
   bed_count: number;
   available_bed_count: number;
+}
+
+export interface PgManagedRoomType {
+  id: string;
+  sharing: PgSharingKind;
+  ac: boolean;
+  bathroom_kind: PgBathroomKind;
+  furnishing: PgFurnishing;
+  monthly_rent_paise: number;
+}
+
+export interface PgManagedPropertyDetail extends PgManagedPropertySummary {
+  room_types: PgManagedRoomType[];
 }
 
 export interface PgBed {

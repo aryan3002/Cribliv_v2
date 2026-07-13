@@ -1,0 +1,24 @@
+.builder { display: flex; flex-direction: column; gap: 16px; }
+.setupState { align-items: center; background: var(--d-brand-soft, #ebf3ff); border: 1px solid var(--d-border, #e8ecf1); border-radius: 8px; display: flex; gap: 16px; justify-content: space-between; padding: 15px 16px; }
+.setupState h2 { color: var(--d-text, #1a1a2e); font-size: 16px; margin: 0; }
+.setupState p { color: var(--d-text-soft, #64748b); font-size: 13px; line-height: 1.45; margin: 4px 0 0; }
+.generator, .roomFields, .bedLabels { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.generator { align-items: end; }
+.generator label:first-child { grid-column: span 2; }
+.generator label, .roomFields label, .bedLabels label { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.generator span, .roomFields span, .bedLabels span { color: var(--d-text-soft, #64748b); font-size: 12px; font-weight: 650; }
+.generator input, .generator select, .roomFields input, .bedLabels input { background: #fff; border: 1px solid var(--d-border-strong, #cbd5e1); border-radius: 6px; box-sizing: border-box; color: var(--d-text, #1a1a2e); font: inherit; height: 36px; min-width: 0; padding: 0 9px; width: 100%; }
+.generator button { align-self: end; height: 36px !important; white-space: nowrap; }
+.helper, .message { color: var(--d-text-soft, #64748b); font-size: 12px; line-height: 1.45; margin: 10px 0 0; }
+.addButton { align-items: center; display: inline-flex; gap: 5px; height: 32px !important; padding-inline: 8px !important; }
+.reviewEmpty { border: 1px dashed var(--d-border-strong, #cbd5e1); border-radius: 6px; color: var(--d-text-soft, #64748b); font-size: 13px; padding: 20px; text-align: center; }
+.roomList { display: flex; flex-direction: column; gap: 12px; }
+.roomEditor { background: var(--d-surface-raised, #f5f5f7); border: 1px solid var(--d-border, #e8ecf1); border-radius: 8px; padding: 12px; }
+.roomEditorHead { align-items: center; display: flex; justify-content: space-between; margin-bottom: 10px; }
+.roomEditorHead strong { color: var(--d-text, #1a1a2e); font-size: 13px; }
+.iconButton { align-items: center; background: transparent; border: 1px solid var(--d-border-strong, #cbd5e1); border-radius: 5px; color: var(--d-text-soft, #64748b); cursor: pointer; display: inline-flex; height: 28px; justify-content: center; width: 28px; }
+.iconButton:hover { border-color: var(--d-danger, #dc2626); color: var(--d-danger, #dc2626); }
+.bedLabels { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); margin-top: 10px; }
+.saveRow { display: flex; justify-content: flex-end; }
+.saveRow button { align-items: center; display: inline-flex; gap: 7px; }
+@media (max-width: 760px) { .generator, .roomFields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .generator label:first-child { grid-column: span 2; } .setupState { align-items: flex-start; flex-direction: column; } }

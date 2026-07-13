@@ -1,0 +1,17 @@
+.page { --d-brand: var(--brand, #0066ff); --d-brand-soft: var(--brand-light, #ebf3ff); --d-success: var(--trust, #0d9f4f); --d-danger: var(--accent, #dc2626); --d-text: var(--text-primary, #1a1a2e); --d-text-soft: var(--text-secondary, #64748b); --d-surface: var(--surface, #fff); --d-surface-raised: var(--surface-sunken, #f5f5f7); --d-border: var(--border, #e8ecf1); --d-border-strong: var(--border-strong, #cbd5e1); background: var(--surface-raised, #fafbfc); color: var(--d-text); min-height: calc(100vh - var(--header-height, 72px)); }
+.inner { display: flex; flex-direction: column; gap: 18px; margin: 0 auto; max-width: 1200px; padding: 24px; }
+.back { align-items: center; color: var(--d-text-soft); display: inline-flex; font-size: 13px; font-weight: 650; gap: 5px; text-decoration: none; width: fit-content; }
+.back:hover { color: var(--d-brand); }
+.header { align-items: flex-end; display: flex; gap: 16px; justify-content: space-between; }
+.header h1 { font-family: var(--font-heading, ui-sans-serif, system-ui, sans-serif); font-size: 24px; margin: 0; }
+.header p { color: var(--d-text-soft); font-size: 13px; margin: 4px 0 0; }
+.layoutLink { align-items: center; background: var(--d-brand); border: 1px solid var(--d-brand); border-radius: 7px; color: #fff; display: inline-flex; font-size: 13px; font-weight: 700; gap: 7px; min-height: 36px; padding: 0 11px; text-decoration: none; }
+.inventory, .upcoming { background: var(--d-surface); border: 1px solid var(--d-border); border-radius: 8px; padding: 16px; }
+.sectionHeading { align-items: baseline; display: flex; justify-content: space-between; margin-bottom: 14px; }
+.sectionHeading h2, .upcoming h2 { font-size: 15px; margin: 0; }
+.sectionHeading span { color: var(--d-text-soft); font-size: 12px; }
+.upcoming { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.upcoming > div + div { border-left: 1px solid var(--d-border); padding-left: 16px; }
+.upcoming p, .upcoming ul { color: var(--d-text-soft); font-size: 13px; line-height: 1.5; margin: 8px 0 0; padding-left: 0; }
+.upcoming li { list-style: none; padding: 5px 0; }
+@media (max-width: 700px) { .inner { padding: 16px 14px 40px; } .header { align-items: flex-start; flex-direction: column; } .upcoming { grid-template-columns: 1fr; } .upcoming > div + div { border-left: 0; border-top: 1px solid var(--d-border); padding-left: 0; padding-top: 16px; } }

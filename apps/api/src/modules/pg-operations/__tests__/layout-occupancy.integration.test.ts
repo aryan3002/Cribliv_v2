@@ -226,6 +226,49 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
     if (db) await db.onModuleDestroy();
   }, 30_000);
 
+  it("returns room types for the target managed property", async () => {
+    const target = await createFixture();
+    const other = await createFixture();
+
+    const response = await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${target.propertyId}`)
+      .set("x-test-identity", "operator")
+      .expect(200);
+
+    expect(response.body.data.room_types).toHaveLength(3);
+    expect(response.body.data.room_types).toEqual(
+      expect.arrayContaining([
+        {
+          id: target.roomTypes.single,
+          sharing: "single",
+          ac: false,
+          bathroom_kind: "shared_western",
+          furnishing: "semi_furnished",
+          monthly_rent_paise: 900000
+        },
+        {
+          id: target.roomTypes.double,
+          sharing: "double",
+          ac: false,
+          bathroom_kind: "shared_western",
+          furnishing: "semi_furnished",
+          monthly_rent_paise: 700000
+        },
+        {
+          id: target.roomTypes.dorm,
+          sharing: "dorm",
+          ac: false,
+          bathroom_kind: "shared_western",
+          furnishing: "semi_furnished",
+          monthly_rent_paise: 500000
+        }
+      ])
+    );
+    expect(response.body.data.room_types).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: other.roomTypes.single })])
+    );
+  });
+
   it("generates sharing-based rooms and labels without persisting the draft", async () => {
     const fixture = await createFixture();
     const roomCounts = [
