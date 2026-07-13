@@ -4,8 +4,7 @@ import path from "path";
 export default defineConfig({
   resolve: {
     alias: {
-      "@cribliv/shared-types": path.resolve(__dirname, "../../packages/shared-types/dist"),
-      "otplib": path.resolve(__dirname, "src/modules/auth/admin-totp/otplib-wrapper.ts")
+      "@cribliv/shared-types": path.resolve(__dirname, "../../packages/shared-types/dist")
     }
   },
   test: {

@@ -1,23 +1,17 @@
-import { verifySync, generateURI } from "otplib";
+import { authenticator } from "otplib";
 
 const ISSUER = "Cribliv Admin";
 const STEP_SECONDS = 30;
-const WINDOW = 1; // Allow ±1 time-step (±30s) to tolerate clock skew
+
+// Allow ±1 time-step (±30s) to tolerate clock skew between server and phone.
+authenticator.options = { window: 1 };
 
 export function generateTotpSecret(): string {
-  // Import dynamically to avoid circular dependency with alias
-  const { generateSecret } = require("otplib");
-  return generateSecret();
+  return authenticator.generateSecret();
 }
 
 export function buildOtpauthUri(secret: string, accountName: string): string {
-  return generateURI({
-    secret,
-    label: accountName,
-    issuer: ISSUER,
-    algorithm: "sha1",
-    digits: 6,
-  });
+  return authenticator.keyuri(accountName, ISSUER, secret);
 }
 
 export function currentTotpStep(): number {
@@ -26,8 +20,8 @@ export function currentTotpStep(): number {
 
 /**
  * Verify a TOTP code. Returns the absolute time-step that matched so the
- * caller can persist it and reject replays. The window parameter gives us
- * the offset (-1 | 0 | 1), which we use to compute the absolute step.
+ * caller can persist it and reject replays. `checkDelta` yields the offset
+ * (-1 | 0 | 1) of the matching window, or null when nothing matches.
  */
 export function verifyTotpCode(
   secret: string,
@@ -37,24 +31,9 @@ export function verifyTotpCode(
   if (!/^\d{6}$/.test(trimmed)) {
     return { valid: false, step: null };
   }
-
-  try {
-    const result = verifySync({
-      secret,
-      token: trimmed,
-      algorithm: "sha1",
-      digits: 6,
-      window: WINDOW,
-    });
-
-    // verifySync returns an object like { valid: boolean, delta: number, timeStep: number, ... }
-    if (result && result.valid && typeof result.delta === "number") {
-      // The absolute step is the current step + delta
-      return { valid: true, step: currentTotpStep() + result.delta };
-    }
-
-    return { valid: false, step: null };
-  } catch (e) {
+  const delta = authenticator.checkDelta(trimmed, secret);
+  if (delta === null || delta === undefined) {
     return { valid: false, step: null };
   }
+  return { valid: true, step: currentTotpStep() + delta };
 }
