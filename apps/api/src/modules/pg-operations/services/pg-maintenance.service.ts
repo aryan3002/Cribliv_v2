@@ -19,12 +19,14 @@ import type {
   PgMaintenanceInternalNoteResponse,
   PgMaintenanceLocationKind,
   PgMaintenanceLocationSnapshot,
+  PgMaintenanceAnalytics,
   PgMaintenancePriority,
   PgMaintenancePriorityOverrideInput,
   PgMaintenancePrioritySource,
   PgMaintenanceQueueFilters,
   PgMaintenanceQueuePage,
   PgMaintenanceRequest,
+  PgMaintenanceResolutionInput,
   PgMaintenanceSlaHours,
   PgMaintenanceStatus,
   PgMaintenanceSummary,
@@ -600,6 +602,55 @@ export class PgMaintenanceService {
       });
     }
     return { body, attachments };
+  }
+
+  private validateResolutionInput(input: unknown): {
+    note: string;
+    fixPhotoPaths: string[];
+    costPaise: number | null;
+    chargeableDamage: boolean;
+  } {
+    if (input !== undefined && !isRecord(input)) {
+      throw new BadRequestException({ code: "invalid_maintenance_resolution" });
+    }
+    const payload = (input ?? {}) as Partial<PgMaintenanceResolutionInput>;
+    const note = cleanRequired(payload.note, "maintenance_resolution_note_required");
+    const fixPhotoPaths = this.validateStringArray(
+      payload.fix_photo_paths,
+      "invalid_maintenance_photos"
+    );
+    if (fixPhotoPaths.length > MAX_MAINTENANCE_PHOTOS) {
+      throw new BadRequestException({
+        code: "too_many_maintenance_photos",
+        message: `Maximum ${MAX_MAINTENANCE_PHOTOS} photos per request`
+      });
+    }
+    if (typeof payload.chargeable_damage !== "boolean") {
+      throw new BadRequestException({ code: "maintenance_chargeable_damage_required" });
+    }
+    const costPaise =
+      payload.cost_paise === undefined || payload.cost_paise === null
+        ? null
+        : Number(payload.cost_paise);
+    if (
+      costPaise !== null &&
+      (!Number.isInteger(costPaise) || costPaise < 0 || !Number.isSafeInteger(costPaise))
+    ) {
+      throw new BadRequestException({ code: "invalid_maintenance_cost" });
+    }
+    return {
+      note,
+      fixPhotoPaths,
+      costPaise,
+      chargeableDamage: payload.chargeable_damage
+    };
+  }
+
+  private assertMaintenanceBlobPath(propertyId: string, requestId: string, path: string): void {
+    const prefix = `pg-maintenance/${propertyId}/${requestId}/`;
+    if (path !== path.replace(/^\/+/, "") || !path.startsWith(prefix)) {
+      throw new BadRequestException({ code: "invalid_maintenance_photos" });
+    }
   }
 
   private async residenceAssignmentsForMaintenance(
@@ -1549,6 +1600,203 @@ export class PgMaintenanceService {
     return (await this.withComments([await this.requestForAccess(requestId)]))[0];
   }
 
+  async resolve(
+    operatorId: string,
+    propertyId: string,
+    requestId: string,
+    input: unknown
+  ): Promise<PgMaintenanceRequest> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const payload = this.validateResolutionInput(input);
+
+    const updatedRequestId = await transaction(this.db, async (client) => {
+      const existing = await client.query<MaintenanceRow>(
+        `SELECT ${MAINTENANCE_REQUEST_SELECT}
+           ${MAINTENANCE_REQUEST_JOINS}
+          WHERE r.id = $1::uuid
+          FOR UPDATE OF r`,
+        [requestId]
+      );
+      const request = existing.rows[0];
+      if (!request || request.pg_property_id !== propertyId) {
+        throw new NotFoundException({
+          code: "maintenance_request_not_found",
+          message: "Maintenance request not found"
+        });
+      }
+      const ownership = await client.query<{ id: string }>(
+        `SELECT id::text
+           FROM pg_properties
+          WHERE id = $1::uuid
+            AND operator_id = $2::uuid
+            AND manage_enabled = true
+          LIMIT 1`,
+        [propertyId, operatorId]
+      );
+      if (!ownership.rows[0]) {
+        throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+      }
+      if (!["in_progress", "waiting_on_tenant"].includes(request.status)) {
+        throw new ConflictException({
+          code: "invalid_maintenance_transition",
+          from_status: request.status,
+          to_status: "resolved"
+        });
+      }
+
+      for (const path of payload.fixPhotoPaths) {
+        this.assertMaintenanceBlobPath(propertyId, requestId, path);
+        await this.requirePhotoStorage().validateMaintenanceUploadedBlob(
+          propertyId,
+          requestId,
+          path
+        );
+      }
+
+      const updated = await client.query<{ id: string }>(
+        `UPDATE pg_maintenance_requests
+            SET status = 'resolved',
+                resolved_at = now(),
+                resolved_by_user_id = $2::uuid,
+                resolution_note = $3,
+                resolution_source = 'operator',
+                fix_photo_paths = $4::jsonb,
+                resolution_cost_paise = $5::bigint,
+                chargeable_damage = $6::boolean,
+                auto_close_after = now() + INTERVAL '72 hours',
+                last_operator_activity_at = now(),
+                updated_at = now()
+          WHERE id = $1::uuid
+            AND status = $7::pg_maintenance_status
+          RETURNING id::text`,
+        [
+          requestId,
+          operatorId,
+          payload.note,
+          JSON.stringify(payload.fixPhotoPaths),
+          payload.costPaise,
+          payload.chargeableDamage,
+          request.status
+        ]
+      );
+      if (!updated.rows[0]) {
+        throw new ConflictException({
+          code: "invalid_maintenance_transition",
+          from_status: request.status,
+          to_status: "resolved"
+        });
+      }
+
+      await client.query(
+        `INSERT INTO pg_maintenance_events
+           (request_id, event_type, visibility, actor_user_id, actor_role, payload, created_at)
+         VALUES ($1::uuid, 'resolution_recorded', 'public', $2::uuid, 'pg_operator',
+                 $3::jsonb, clock_timestamp())`,
+        [
+          requestId,
+          operatorId,
+          JSON.stringify({
+            note: payload.note,
+            fix_photo_paths: payload.fixPhotoPaths,
+            cost_paise: payload.costPaise,
+            chargeable_damage: payload.chargeableDamage
+          })
+        ]
+      );
+      await client.query(
+        `INSERT INTO pg_maintenance_events
+           (request_id, event_type, visibility, actor_user_id, actor_role,
+            from_status, to_status, payload, created_at)
+         VALUES ($1::uuid, 'status_changed', 'public', $2::uuid, 'pg_operator',
+                 $3::pg_maintenance_status, 'resolved', '{}'::jsonb, clock_timestamp())`,
+        [requestId, operatorId, request.status]
+      );
+
+      return updated.rows[0].id;
+    });
+
+    return this.getForOperator(operatorId, propertyId, updatedRequestId);
+  }
+
+  async analyticsForProperty(
+    operatorId: string,
+    propertyId: string
+  ): Promise<PgMaintenanceAnalytics> {
+    if (!this.db.isEnabled()) {
+      return {
+        open: 0,
+        overdue: 0,
+        due_today: 0,
+        waiting_on_tenant: 0,
+        resolved_pending_close: 0,
+        closed_this_month: 0,
+        by_category: []
+      };
+    }
+    await this.assertManagedOwnership(operatorId, propertyId);
+    const scalar = await this.db.query<{
+      open: number | string;
+      overdue: number | string;
+      due_today: number | string;
+      waiting_on_tenant: number | string;
+      resolved_pending_close: number | string;
+      closed_this_month: number | string;
+    }>(
+      `SELECT
+          COUNT(*) FILTER (WHERE status::text IN ('open', 'in_progress')) AS open,
+          COUNT(*) FILTER (
+            WHERE status::text IN ('open', 'in_progress', 'waiting_on_tenant')
+              AND sla_due_at < now()
+          ) AS overdue,
+          COUNT(*) FILTER (
+            WHERE status::text IN ('open', 'in_progress')
+              AND sla_due_at >= now()
+              AND sla_due_at < date_trunc('day', now()) + INTERVAL '1 day'
+          ) AS due_today,
+          COUNT(*) FILTER (WHERE status = 'waiting_on_tenant') AS waiting_on_tenant,
+          COUNT(*) FILTER (
+            WHERE status = 'resolved'
+              AND auto_close_after IS NOT NULL
+              AND auto_close_after > now()
+          ) AS resolved_pending_close,
+          COUNT(*) FILTER (
+            WHERE status = 'closed'
+              AND closed_at >= date_trunc('month', now())
+              AND closed_at < date_trunc('month', now()) + INTERVAL '1 month'
+          ) AS closed_this_month
+         FROM pg_maintenance_requests
+        WHERE pg_property_id = $1::uuid`,
+      [propertyId]
+    );
+    const byCategory = await this.db.query<{
+      category_slug: string;
+      display_name: string;
+      count: number | string;
+    }>(
+      `SELECT r.category_slug, r.category_label_snapshot AS display_name, COUNT(*) AS count
+         FROM pg_maintenance_requests r
+        WHERE r.pg_property_id = $1::uuid
+          AND r.status::text IN ('open', 'in_progress')
+        GROUP BY r.category_slug, r.category_label_snapshot
+        ORDER BY count DESC, r.category_label_snapshot ASC`,
+      [propertyId]
+    );
+    const row = scalar.rows[0];
+    return {
+      open: Number(row?.open ?? 0),
+      overdue: Number(row?.overdue ?? 0),
+      due_today: Number(row?.due_today ?? 0),
+      waiting_on_tenant: Number(row?.waiting_on_tenant ?? 0),
+      resolved_pending_close: Number(row?.resolved_pending_close ?? 0),
+      closed_this_month: Number(row?.closed_this_month ?? 0),
+      by_category: byCategory.rows.map((category) => ({
+        category_slug: category.category_slug,
+        display_name: category.display_name,
+        count: Number(category.count)
+      }))
+    };
+  }
+
   async summaryForBed(
     operatorId: string,
     propertyId: string,
@@ -1556,8 +1804,15 @@ export class PgMaintenanceService {
   ): Promise<PgMaintenanceSummary> {
     if (!this.db.isEnabled()) return { open_items: 0, overdue_items: 0 };
     await this.assertManagedOwnership(operatorId, propertyId);
-    const result = await this.db.query<{ open_items: number | string }>(
-      `SELECT COUNT(*) FILTER (WHERE r.status = ANY($3::pg_maintenance_status[])) AS open_items
+    const result = await this.db.query<{
+      open_items: number | string;
+      overdue_items: number | string;
+    }>(
+      `SELECT COUNT(*) FILTER (WHERE r.status = ANY($3::pg_maintenance_status[])) AS open_items,
+              COUNT(*) FILTER (
+                WHERE r.status = ANY($3::pg_maintenance_status[])
+                  AND r.sla_due_at < now()
+              ) AS overdue_items
          FROM pg_maintenance_requests r
          JOIN pg_bed_assignments a ON a.id = r.assignment_id
         WHERE r.pg_property_id = $1::uuid
@@ -1565,7 +1820,10 @@ export class PgMaintenanceService {
           AND a.bed_id = $2::uuid`,
       [propertyId, bedId, OPEN_MAINTENANCE_STATUSES]
     );
-    return { open_items: Number(result.rows[0]?.open_items ?? 0), overdue_items: 0 };
+    return {
+      open_items: Number(result.rows[0]?.open_items ?? 0),
+      overdue_items: Number(result.rows[0]?.overdue_items ?? 0)
+    };
   }
 
   async updateStatus(

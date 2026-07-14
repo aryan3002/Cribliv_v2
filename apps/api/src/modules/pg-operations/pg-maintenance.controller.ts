@@ -17,7 +17,8 @@ import type {
   PgMaintenanceInternalNoteInput,
   PgMaintenancePriorityOverrideInput,
   PgMaintenanceQueueFilters,
-  PgMaintenancePresignFileInput
+  PgMaintenancePresignFileInput,
+  PgMaintenanceResolutionInput
 } from "@cribliv/shared-types";
 
 import { AuthGuard } from "../../common/auth.guard";
@@ -46,6 +47,14 @@ export class PgMaintenanceController {
     @Query() query: PgMaintenanceQueueFilters
   ) {
     return ok(await this.maintenance.listForProperty(user.id, propertyId, query));
+  }
+
+  @Get(":propertyId/maintenance/analytics")
+  async analyticsForProperty(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string
+  ) {
+    return ok(await this.maintenance.analyticsForProperty(user.id, propertyId));
   }
 
   @Get(":propertyId/maintenance/:id")
@@ -139,6 +148,25 @@ export class PgMaintenanceController {
         `pg-operator:properties:${propertyId}:maintenance:${requestId}:internal-notes`,
         key,
         () => this.maintenance.addInternalNote(user.id, propertyId, requestId, body)
+      )
+    );
+  }
+
+  @Post(":propertyId/maintenance/:id/resolve")
+  async resolve(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") requestId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: Partial<PgMaintenanceResolutionInput> | undefined
+  ) {
+    const key = requireIdempotencyKey(idempotencyKey);
+    return ok(
+      await (this.idem ?? PASSTHROUGH_IDEMPOTENCY).run(
+        user.id,
+        `pg-operator:properties:${propertyId}:maintenance:${requestId}:resolve`,
+        key,
+        () => this.maintenance.resolve(user.id, propertyId, requestId, body)
       )
     );
   }

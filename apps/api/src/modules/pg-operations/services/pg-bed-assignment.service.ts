@@ -224,6 +224,38 @@ export class PgBedAssignmentService {
     }
   }
 
+  private async maintenanceSummaryForBed(
+    operatorId: string,
+    propertyId: string,
+    bedId: string
+  ): Promise<{ open_items: number; overdue_items: number }> {
+    if (this.maintenance) {
+      return this.maintenance.summaryForBed(operatorId, propertyId, bedId);
+    }
+    const result = await this.db.query<{
+      open_items: number | string;
+      overdue_items: number | string;
+    }>(
+      `SELECT COUNT(*) FILTER (
+                WHERE r.status::text IN ('open', 'in_progress', 'waiting_on_tenant')
+              ) AS open_items,
+              COUNT(*) FILTER (
+                WHERE r.status::text IN ('open', 'in_progress', 'waiting_on_tenant')
+                  AND r.sla_due_at < now()
+              ) AS overdue_items
+         FROM pg_maintenance_requests r
+         JOIN pg_bed_assignments a ON a.id = r.assignment_id
+        WHERE r.pg_property_id = $1::uuid
+          AND a.pg_property_id = $1::uuid
+          AND a.bed_id = $2::uuid`,
+      [propertyId, bedId]
+    );
+    return {
+      open_items: Number(result.rows[0]?.open_items ?? 0),
+      overdue_items: Number(result.rows[0]?.overdue_items ?? 0)
+    };
+  }
+
   private validateOccupant(input: PgBedAssignmentOccupantInput): void {
     if (!input.occupant_name?.trim()) {
       throw new BadRequestException({ code: "occupant_name_required" });
@@ -797,9 +829,7 @@ export class PgBedAssignmentService {
       [propertyId, bedId]
     );
 
-    const maintenanceSummary = this.maintenance
-      ? await this.maintenance.summaryForBed(operatorId, propertyId, bedId)
-      : { open_items: 0, overdue_items: 0 };
+    const maintenanceSummary = await this.maintenanceSummaryForBed(operatorId, propertyId, bedId);
 
     return {
       property_id: row.property_id,

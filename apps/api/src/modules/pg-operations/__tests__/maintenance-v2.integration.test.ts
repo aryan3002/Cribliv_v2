@@ -9,6 +9,7 @@ import { AppModule } from "../../../app.module";
 import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
 import type { Role } from "../../../common/types";
+import { autoCloseResolvedMaintenance } from "../../../worker/maintenance-sweeps";
 import { AzureBlobPhotoStorageService } from "../../owner/azure-blob-photo-storage.service";
 import { PgMaintenanceService } from "../services/pg-maintenance.service";
 
@@ -554,6 +555,214 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
       .expect(400)
       .expect(({ body }) => {
         expect(body).toMatchObject({ code: "too_many_maintenance_attachments" });
+      });
+  });
+
+  it("resolves in-progress maintenance with idempotency and records resolution events", async () => {
+    const fixture = await createFixture();
+    const ticketId = await createTicket(fixture, { status: "in_progress" });
+    const key = randomUUID();
+
+    const first = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticketId}/resolve`)
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", key)
+      .send({
+        note: "Replaced the tap washer.",
+        fix_photo_paths: [],
+        cost_paise: null,
+        chargeable_damage: false
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.data.status).toBe("resolved");
+        expect(body.data.resolution_note).toBe("Replaced the tap washer.");
+        expect(body.data.resolution_source).toBe("operator");
+        expect(body.data.resolution_cost_paise).toBeNull();
+        expect(body.data.chargeable_damage).toBe(false);
+        expect(body.data.fix_photo_paths).toEqual([]);
+        expect(body.data.resolved_at).toEqual(expect.any(String));
+        expect(body.data.auto_close_after).toEqual(expect.any(String));
+      });
+
+    const replay = await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticketId}/resolve`)
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", key)
+      .send({
+        note: "Replaced the tap washer.",
+        fix_photo_paths: [],
+        cost_paise: null,
+        chargeable_damage: false
+      })
+      .expect(201);
+    expect(replay.body.data).toEqual(first.body.data);
+
+    const persisted = await db.query<{
+      status: string;
+      auto_close_hours: number;
+    }>(
+      `SELECT status::text,
+              round(EXTRACT(EPOCH FROM (auto_close_after - resolved_at)) / 3600)::int AS auto_close_hours
+         FROM pg_maintenance_requests
+        WHERE id = $1::uuid`,
+      [ticketId]
+    );
+    expect(persisted.rows[0]).toEqual({ status: "resolved", auto_close_hours: 72 });
+
+    const events = await db.query<{
+      event_type: string;
+      from_status: string | null;
+      to_status: string | null;
+      payload: Record<string, unknown>;
+    }>(
+      `SELECT event_type::text, from_status, to_status, payload
+         FROM pg_maintenance_events
+        WHERE request_id = $1::uuid
+        ORDER BY created_at, id`,
+      [ticketId]
+    );
+    expect(events.rows).toEqual([
+      expect.objectContaining({
+        event_type: "resolution_recorded",
+        from_status: null,
+        to_status: null,
+        payload: expect.objectContaining({ note: "Replaced the tap washer." })
+      }),
+      expect.objectContaining({
+        event_type: "status_changed",
+        from_status: "in_progress",
+        to_status: "resolved"
+      })
+    ]);
+  });
+
+  it("rejects invalid maintenance resolution payloads", async () => {
+    const fixture = await createFixture();
+    const [emptyNote, negativeCost, missingChargeable] = await Promise.all([
+      createTicket(fixture, { status: "in_progress" }),
+      createTicket(fixture, { status: "in_progress" }),
+      createTicket(fixture, { status: "in_progress" })
+    ]);
+
+    await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${emptyNote}/resolve`)
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", randomUUID())
+      .send({ note: " ", fix_photo_paths: [], cost_paise: null, chargeable_damage: false })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${negativeCost}/resolve`)
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", randomUUID())
+      .send({
+        note: "Replaced the tap washer.",
+        fix_photo_paths: [],
+        cost_paise: -1,
+        chargeable_damage: false
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${missingChargeable}/resolve`
+      )
+      .set("x-test-identity", "operator")
+      .set("Idempotency-Key", randomUUID())
+      .send({ note: "Replaced the tap washer.", fix_photo_paths: [], cost_paise: null })
+      .expect(400);
+  });
+
+  it("auto-closes due resolved maintenance idempotently", async () => {
+    const fixture = await createFixture();
+    const ticketId = await createTicket(fixture, { status: "resolved" });
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET resolved_at = now() - INTERVAL '4 days',
+              auto_close_after = now() - INTERVAL '1 minute'
+        WHERE id = $1::uuid`,
+      [ticketId]
+    );
+
+    await expect(autoCloseResolvedMaintenance(db)).resolves.toBe(1);
+    await expect(autoCloseResolvedMaintenance(db)).resolves.toBe(0);
+
+    const persisted = await db.query<{
+      status: string;
+      closed_at: Date | null;
+      auto_closed_at: Date | null;
+    }>(
+      `SELECT status::text, closed_at, auto_closed_at
+         FROM pg_maintenance_requests
+        WHERE id = $1::uuid`,
+      [ticketId]
+    );
+    expect(persisted.rows[0]).toMatchObject({
+      status: "closed",
+      closed_at: expect.any(Date),
+      auto_closed_at: expect.any(Date)
+    });
+
+    const events = await db.query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count
+         FROM pg_maintenance_events
+        WHERE request_id = $1::uuid
+          AND event_type = 'auto_closed'`,
+      [ticketId]
+    );
+    expect(events.rows[0].count).toBe(1);
+  });
+
+  it("returns operator maintenance analytics with category counts", async () => {
+    const fixture = await createFixture();
+    const openTicket = await createTicket(fixture, { categorySlug: "plumbing", status: "open" });
+    const overdueTicket = await createTicket(fixture, {
+      categorySlug: "plumbing",
+      status: "in_progress"
+    });
+    const waitingTicket = await createTicket(fixture, {
+      categorySlug: "electrical",
+      status: "waiting_on_tenant"
+    });
+    const resolvedTicket = await createTicket(fixture, {
+      categorySlug: "other",
+      status: "resolved"
+    });
+    const closedTicket = await createTicket(fixture, { categorySlug: "other", status: "closed" });
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET sla_due_at = CASE
+                WHEN id = $1::uuid THEN now() + INTERVAL '1 hour'
+                WHEN id = $2::uuid THEN now() - INTERVAL '1 hour'
+                ELSE now() + INTERVAL '2 days'
+              END,
+              auto_close_after = CASE WHEN id = $3::uuid THEN now() + INTERVAL '1 day' ELSE auto_close_after END,
+              closed_at = CASE WHEN id = $4::uuid THEN now() ELSE closed_at END
+        WHERE id = ANY($5::uuid[])`,
+      [
+        openTicket,
+        overdueTicket,
+        resolvedTicket,
+        closedTicket,
+        [openTicket, overdueTicket, waitingTicket, resolvedTicket, closedTicket]
+      ]
+    );
+
+    await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/analytics`)
+      .set("x-test-identity", "operator")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toEqual({
+          open: 2,
+          overdue: 1,
+          due_today: 1,
+          waiting_on_tenant: 1,
+          resolved_pending_close: 1,
+          closed_this_month: 1,
+          by_category: [{ category_slug: "plumbing", display_name: "Plumbing", count: 2 }]
+        });
       });
   });
 });

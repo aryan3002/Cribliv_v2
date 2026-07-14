@@ -493,6 +493,45 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
     ]);
   });
 
+  it("returns real overdue maintenance counts in the bed detail summary", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({
+        occupant_name: "Overdue Bed Tenant",
+        occupant_phone_e164: "+919700000012"
+      })
+    );
+
+    const ticket = await db.query<{ id: string }>(
+      `INSERT INTO pg_maintenance_requests
+         (pg_property_id, assignment_id, created_by_user_id, category, category_slug,
+          category_label_snapshot, description, status, priority, priority_source,
+          sla_hours, sla_due_at, location_kind, room_id, bed_id, location_snapshot)
+       SELECT a.pg_property_id, a.id, a.tenant_user_id, 'Plumbing', 'plumbing',
+              'Plumbing', 'Leaking tap near bed', 'in_progress',
+              'high', 'category_default', 24, now() - INTERVAL '1 hour',
+              'bed', b.room_id, a.bed_id, '{}'::jsonb
+         FROM pg_bed_assignments a
+         JOIN pg_beds b ON b.id = a.bed_id
+        WHERE a.id = $1::uuid
+        RETURNING id::text`,
+      [active.id]
+    );
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET sla_due_at = now() - INTERVAL '1 hour'
+        WHERE id = $1::uuid`,
+      [ticket.rows[0].id]
+    );
+
+    const detail = await service.getBedDetail(operatorId, fixture.propertyId, fixture.bedIds[0]);
+
+    expect(detail.maintenance_summary).toEqual({ open_items: 1, overdue_items: 1 });
+  });
+
   it("maps tenant double-occupancy unique violations to the clean 409 response", async () => {
     const fixture = await createFixture();
     await service.moveIn(

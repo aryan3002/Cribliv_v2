@@ -17,6 +17,7 @@ import {
   runBlogTopicPlanner
 } from "./blog-worker";
 import { runRefundSweepDb, runLeadReminderSweepDb } from "./callback-sweeps";
+import { autoCloseResolvedMaintenance } from "./maintenance-sweeps";
 import {
   emitSignupCreditExpiryTelemetry,
   runSignupCreditExpirySweepDb
@@ -24,6 +25,7 @@ import {
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const SIGNUP_CREDIT_EXPIRY_SWEEP_MS = 60 * 60 * 1000;
+const AUTO_CLOSE_SWEEP_MS = 60 * 60 * 1000;
 const OUTBOUND_DISPATCH_MS = 60 * 1000;
 const OUTBOUND_BATCH_SIZE = 50;
 const OUTBOUND_MAX_ATTEMPTS = 6;
@@ -1079,6 +1081,12 @@ async function run() {
   const smsClient = new SmsClient();
 
   if (pool) {
+    const maintenanceDb = {
+      isEnabled: () => true,
+      getClient: () => pool.connect(),
+      query: (text: string, params?: unknown[]) => pool.query(text, params)
+    } as DatabaseService;
+
     setInterval(async () => {
       try {
         const result = await runSignupCreditExpirySweepDb(pool);
@@ -1101,6 +1109,29 @@ async function run() {
         );
       }
     }, SIGNUP_CREDIT_EXPIRY_SWEEP_MS);
+
+    setInterval(async () => {
+      try {
+        const closedCount = await autoCloseResolvedMaintenance(maintenanceDb);
+        if (closedCount > 0) {
+          console.log(
+            JSON.stringify({
+              job: "maintenance_auto_close_sweep",
+              closed_count: closedCount,
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "maintenance_auto_close_sweep",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    }, AUTO_CLOSE_SWEEP_MS);
   }
 
   setInterval(async () => {
@@ -1798,6 +1829,7 @@ async function run() {
         "dispatch_outbound_events",
         "stale_listing_sweep",
         "broker_detection_sweep",
+        "maintenance_auto_close_sweep",
         "boost_expiry_sweep",
         "ranking_recompute",
         "lead_nudge_sweep",
@@ -1820,6 +1852,7 @@ async function run() {
       interval_ms: {
         refund_due_unlocks: REFUND_SWEEP_MS,
         ...(pool ? { signup_credit_expiry_sweep: SIGNUP_CREDIT_EXPIRY_SWEEP_MS } : {}),
+        ...(pool ? { maintenance_auto_close_sweep: AUTO_CLOSE_SWEEP_MS } : {}),
         dispatch_outbound_events: OUTBOUND_DISPATCH_MS,
         ranking_recompute: RANKING_RECOMPUTE_MS,
         lead_nudge_sweep: LEAD_NUDGE_MS,
