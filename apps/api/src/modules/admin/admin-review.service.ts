@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { toBlobUrl } from "../../common/photo-url";
@@ -73,6 +73,12 @@ export interface AdminVerificationDetail {
 
 @Injectable()
 export class AdminReviewService {
+  private readonly logger = new Logger(AdminReviewService.name);
+  private static readonly KIND_TO_TYPE: Record<string, string> = {
+    video_liveness: "video_liveness",
+    electricity_bill: "electricity_bill_match"
+  };
+
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AppStateService) private readonly appState: AppStateService,
@@ -282,6 +288,35 @@ export class AdminReviewService {
         member_since: a.owner_created_at
       }
     };
+  }
+
+  async getVerificationArtifactLink(
+    attemptId: string,
+    kind: string,
+    adminUserId: string
+  ): Promise<{ url: string; expires_at: string } | null> {
+    if (!this.database.isEnabled()) return null;
+    const expectedType = AdminReviewService.KIND_TO_TYPE[kind];
+    if (!expectedType) return null;
+
+    const res = await this.database.query<{ verification_type: string; artifact_paths: unknown }>(
+      `SELECT verification_type::text, artifact_paths FROM verification_attempts WHERE id = $1::uuid`,
+      [attemptId]
+    );
+    const row = res.rows[0];
+    if (!row || row.verification_type !== expectedType) return null;
+
+    const paths = Array.isArray(row.artifact_paths) ? (row.artifact_paths as string[]) : [];
+    const blobPath = paths[0];
+    if (!blobPath) return null;
+
+    const issued = this.sas.issue(blobPath, 600);
+    if (!issued) return null;
+
+    this.logger.log(
+      `admin ${adminUserId} viewed verification artifact attempt=${attemptId} kind=${kind}`
+    );
+    return { url: issued.url, expires_at: issued.expiresAt };
   }
 
   private toEvidence(a: any): AdminReviewEvidence {

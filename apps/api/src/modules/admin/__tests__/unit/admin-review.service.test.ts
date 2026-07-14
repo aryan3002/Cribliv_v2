@@ -175,3 +175,58 @@ describe("AdminReviewService.getVerificationDetail", () => {
     expect(d!.owner).toMatchObject({ name: "Ramesh Kumar", phone: "+919876543210" });
   });
 });
+
+describe("AdminReviewService.getVerificationArtifactLink", () => {
+  const attemptRow = {
+    verification_type: "video_liveness",
+    artifact_paths: ["L1/verification/video_liveness/clip.mp4"]
+  };
+
+  it("mints a read-only link for the matching kind", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [attemptRow], rowCount: 1 });
+    const database = { isEnabled: () => true, query } as any;
+    const sas = {
+      issue: vi.fn(() => ({
+        url: "https://acct/blob?sig=x",
+        expiresAt: "2026-01-01T00:00:00.000Z"
+      }))
+    };
+    const svc = new (await import("../../admin-review.service")).AdminReviewService(
+      database,
+      { listings: new Map(), users: new Map() } as any,
+      sas as any
+    );
+    const out = await svc.getVerificationArtifactLink("V1", "video_liveness", "ADMIN1");
+    expect(sas.issue).toHaveBeenCalledWith("L1/verification/video_liveness/clip.mp4", 600);
+    expect(out).toEqual({ url: "https://acct/blob?sig=x", expires_at: "2026-01-01T00:00:00.000Z" });
+  });
+
+  it("returns null when the requested kind does not match the attempt", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [attemptRow], rowCount: 1 });
+    const database = { isEnabled: () => true, query } as any;
+    const sas = { issue: vi.fn() };
+    const svc = new (await import("../../admin-review.service")).AdminReviewService(
+      database,
+      { listings: new Map(), users: new Map() } as any,
+      sas as any
+    );
+    const out = await svc.getVerificationArtifactLink("V1", "electricity_bill", "ADMIN1");
+    expect(out).toBeNull();
+    expect(sas.issue).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the attempt has no artifact", async () => {
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{ verification_type: "video_liveness", artifact_paths: [] }],
+      rowCount: 1
+    });
+    const database = { isEnabled: () => true, query } as any;
+    const sas = { issue: vi.fn() };
+    const svc = new (await import("../../admin-review.service")).AdminReviewService(
+      database,
+      { listings: new Map(), users: new Map() } as any,
+      sas as any
+    );
+    expect(await svc.getVerificationArtifactLink("V1", "video_liveness", "ADMIN1")).toBeNull();
+  });
+});
