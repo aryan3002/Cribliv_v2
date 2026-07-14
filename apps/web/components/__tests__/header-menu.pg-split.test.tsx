@@ -74,6 +74,28 @@ function allHrefs(): string[] {
 // ── HeaderMenu role split ────────────────────────────────────────────────────
 
 describe("HeaderMenu role split", () => {
+  it.each(["tenant", "owner", "pg_operator", "admin"] as const)(
+    "uses the %s avatar in the trigger and menu header",
+    (role) => {
+      setSession(role);
+      render(<HeaderMenu locale="en" />);
+
+      expect(document.querySelectorAll(`[data-role-avatar="${role}"]`)).toHaveLength(1);
+
+      openMenu();
+
+      expect(document.querySelectorAll(`[data-role-avatar="${role}"]`)).toHaveLength(2);
+      expect(screen.queryByText("8")).not.toBeInTheDocument();
+    }
+  );
+
+  it("keeps the existing generic icon for logged-out users", () => {
+    setSession(null);
+    render(<HeaderMenu locale="en" />);
+
+    expect(document.querySelector("[data-role-avatar]")).toBeNull();
+  });
+
   it("pg_operator sees PG dashboard link, not owner dashboard", () => {
     setSession("pg_operator");
     render(<HeaderMenu locale="en" />);
