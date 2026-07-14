@@ -7,6 +7,7 @@ import {
   MapPin,
   BedDouble,
   Snowflake,
+  ChevronLeft,
   ChevronRight,
   ShieldCheck,
   Shield,
@@ -620,6 +621,7 @@ export function PgDetailClient({
 }) {
   const [similar, setSimilar] = useState<PgCard[]>([]);
   const fired = useRef(false);
+  const roomCarouselRef = useRef<HTMLDivElement | null>(null);
   const pd = detail.pg_details;
 
   useEffect(() => {
@@ -657,6 +659,13 @@ export function PgDetailClient({
       /* ignore */
     }
     trackPgShare({ listing_id: detail.id, method: "clipboard" });
+  };
+
+  const scrollRooms = (direction: "prev" | "next") => {
+    roomCarouselRef.current?.scrollBy({
+      left: direction === "next" ? 280 : -280,
+      behavior: "smooth"
+    });
   };
 
   const pgAmenities = extractPgAmenities(pd.amenities ?? {});
@@ -737,7 +746,7 @@ export function PgDetailClient({
           <span className="ld-crumb__current">{detail.title ?? "PG"}</span>
         </nav>
 
-        {/* Hero header — carries the above-the-fold price */}
+        {/* Hero header */}
         <header className="pg-hero">
           <div className="pg-hero__main">
             <div className="pg-hero__badges">
@@ -762,19 +771,6 @@ export function PgDetailClient({
               <Share2 size={16} aria-hidden="true" />
               {t(locale as Locale, "shareListing")}
             </button>
-            <div className="pg-hero__pricecard" data-testid="pg-hero-price">
-              <div className="pg-hero__price">
-                <span>from</span>
-                <strong>{primaryRentPaise != null ? rupees(primaryRentPaise) : "Request"}</strong>
-                {primaryRentPaise != null && <span>/mo</span>}
-              </div>
-              <div className="pg-hero__pricesub">
-                per person
-                {pd.security_deposit_paise != null
-                  ? ` · ${rupees(pd.security_deposit_paise)} deposit`
-                  : ""}
-              </div>
-            </div>
           </div>
         </header>
 
@@ -867,10 +863,33 @@ export function PgDetailClient({
                   </div>
                 </div>
               </div>
-              <div className="pg-rooms-grid">
-                {detail.room_types.map((rt, i) => (
-                  <PgRoomCard key={`${rt.sharing}-${i}`} rt={rt} index={i} />
-                ))}
+              <div className="pg-room-carousel-shell">
+                <div className="pg-carousel-toolbar">
+                  <span className="pg-carousel-toolbar__label">Browse room types</span>
+                  <div className="pg-carousel-actions">
+                    <button
+                      type="button"
+                      className="pg-carousel-button"
+                      aria-label="Previous room type"
+                      onClick={() => scrollRooms("prev")}
+                    >
+                      <ChevronLeft size={18} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="pg-carousel-button"
+                      aria-label="Next room type"
+                      onClick={() => scrollRooms("next")}
+                    >
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                <div ref={roomCarouselRef} className="pg-rooms-grid" data-testid="pg-room-carousel">
+                  {detail.room_types.map((rt, i) => (
+                    <PgRoomCard key={`${rt.sharing}-${i}`} rt={rt} index={i} />
+                  ))}
+                </div>
               </div>
             </section>
 

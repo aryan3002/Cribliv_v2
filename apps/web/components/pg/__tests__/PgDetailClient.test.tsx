@@ -244,19 +244,30 @@ describe("PgDetailClient", () => {
     );
   });
 
-  it("shows the starting price in the hero (above the gallery)", () => {
+  it("renders room options in a labelled carousel with previous and next controls", () => {
     render(
       <PgDetailClient
         detail={makeDetail({
-          room_types: [{ ...makeDetail().room_types[0], monthly_rent_paise: 350000 }]
+          room_types: [
+            { ...makeDetail().room_types[0], sharing: "single", monthly_rent_paise: 900000 },
+            { ...makeDetail().room_types[0], sharing: "double", monthly_rent_paise: 700000 },
+            { ...makeDetail().room_types[0], sharing: "triple", monthly_rent_paise: 600000 }
+          ]
         })}
-        city="lucknow"
+        city="pune"
         locale="en"
       />
     );
-    const hero = screen.getByTestId("pg-hero-price");
-    expect(hero).toHaveTextContent("from");
-    expect(hero.textContent).toMatch(/₹\s?3,500/);
+
+    expect(screen.getByTestId("pg-room-carousel")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /previous room type/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /next room type/i })).toBeTruthy();
+  });
+
+  it("does not render the hero price card when the sticky/mobile price surfaces own conversion", () => {
+    render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+    expect(screen.queryByTestId("pg-hero-price")).toBeNull();
   });
 
   it("renders human bathroom labels, not raw enum values", () => {
