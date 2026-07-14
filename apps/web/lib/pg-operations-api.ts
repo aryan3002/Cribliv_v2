@@ -14,9 +14,11 @@ import type {
   PgMaintenanceCreateInput,
   PgMaintenanceAnalytics,
   PgMaintenanceInternalNoteInput,
+  PgMaintenanceInternalNoteResponse,
   PgMaintenancePresignFileInput,
   PgMaintenancePresignResponse,
   PgMaintenanceQueueFilters,
+  PgMaintenanceQueuePage,
   PgMaintenanceResolutionInput,
   PgMaintenanceRequest,
   PgMaintenanceStatus,
@@ -102,6 +104,8 @@ function maintenanceQuery(filters: PgMaintenanceQueueFilters = {}): string {
   if (filters.include_closed !== undefined) {
     query.set("include_closed", String(filters.include_closed));
   }
+  if (filters.limit !== undefined) query.set("limit", String(filters.limit));
+  if (filters.cursor) query.set("cursor", filters.cursor);
   const value = query.toString();
   return value ? `?${value}` : "";
 }
@@ -233,7 +237,7 @@ export function listPropertyMaintenance(
   token?: string,
   filters: PgMaintenanceQueueFilters = {}
 ) {
-  return fetchApi<PgMaintenanceRequest[]>(
+  return fetchApi<PgMaintenanceQueuePage>(
     `/pg-operator/properties/${propertyId}/maintenance${maintenanceQuery(filters)}`,
     { headers: authHeaders(token) }
   );
@@ -280,7 +284,7 @@ export function addMaintenanceInternalNote(
   token: string | undefined,
   idempotencyKey: string
 ) {
-  return fetchApi<PgMaintenanceComment>(
+  return fetchApi<PgMaintenanceInternalNoteResponse>(
     `/pg-operator/properties/${propertyId}/maintenance/${requestId}/internal-notes`,
     {
       method: "POST",

@@ -232,6 +232,15 @@ export type PgMaintenanceStatus =
 
 export type PgMaintenancePriority = "emergency" | "high" | "normal" | "low";
 
+export type PgMaintenanceSlaHours = 4 | 24 | 72 | 168;
+
+export type PgMaintenancePrioritySlaHours = {
+  emergency: 4;
+  high: 24;
+  normal: 72;
+  low: 168;
+};
+
 export type PgMaintenancePrioritySource = "category_default" | "operator_override" | "backfill";
 
 export type PgMaintenanceLocationKind =
@@ -326,6 +335,18 @@ export interface PgMaintenanceInternalNoteInput {
   attachments?: string[];
 }
 
+export interface PgMaintenanceInternalNoteResponse {
+  id: string;
+  request_id: string;
+  author_user_id: string | null;
+  author_role: "pg_operator" | "admin";
+  visibility: "operator_internal";
+  body: string;
+  attachments: string[];
+  attachment_urls: string[];
+  created_at: string;
+}
+
 export interface PgMaintenancePriorityOverrideInput {
   priority: PgMaintenancePriority;
   reason: string;
@@ -390,7 +411,10 @@ export interface PgMaintenanceRequest {
   status: PgMaintenanceStatus;
   priority: PgMaintenancePriority;
   priority_source: PgMaintenancePrioritySource;
-  sla_hours: number;
+  priority_overridden_by: string | null;
+  priority_overridden_at: string | null;
+  priority_override_reason: string | null;
+  sla_hours: PgMaintenanceSlaHours;
   sla_due_at: string;
   is_overdue: boolean;
   closed_at: string | null;
@@ -434,7 +458,7 @@ export interface PgMaintenanceCreateInput {
   category: string;
   description: string;
   photo_paths?: string[];
-  priority?: string | null;
+  priority?: PgMaintenancePriority | null;
 }
 
 export interface PgMaintenanceCommentInput {

@@ -352,7 +352,9 @@ describe("pg operations API client", () => {
       common_area: "lift",
       floor: 3,
       tenant_query: "Ravi",
-      include_closed: false
+      include_closed: false,
+      limit: 25,
+      cursor: "ticket-2"
     });
     resolveMaintenanceTicket(
       "property-1",
@@ -383,7 +385,7 @@ describe("pg operations API client", () => {
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
       3,
-      "/pg-operator/properties/property-1/maintenance?status=open&priority=high&sla_state=overdue&category_slug=plumbing&location_kind=common_area&common_area=lift&floor=3&tenant_query=Ravi&include_closed=false",
+      "/pg-operator/properties/property-1/maintenance?status=open&priority=high&sla_state=overdue&category_slug=plumbing&location_kind=common_area&common_area=lift&floor=3&tenant_query=Ravi&include_closed=false&limit=25&cursor=ticket-2",
       expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
