@@ -96,6 +96,13 @@
   margin-top: 12px;
 }
 
+.formHint {
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 10px 0 0;
+}
+
 .photoUpload {
   display: flex;
   flex-direction: column;
