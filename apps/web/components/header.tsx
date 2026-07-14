@@ -47,6 +47,15 @@ export function Header({ locale }: { locale: Locale }) {
         : `/${locale}/become-owner`
   ) as Route;
   const hostLinkLabel = isPgOperatorHost ? "New listing" : t(locale, "navPostProperty");
+  // Short label for the compact mobile pill so the action stays obvious
+  // without the full "Post Property" width.
+  const hostLinkShort = isPgOperatorHost
+    ? locale === "en"
+      ? "New"
+      : "नया"
+    : locale === "en"
+      ? "List"
+      : "पोस्ट";
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -143,7 +152,8 @@ export function Header({ locale }: { locale: Locale }) {
         <div className="nav-actions">
           <Link href={hostLinkHref} className="nav-host-link" title={hostLinkLabel}>
             <Plus size={14} aria-hidden="true" />
-            <span>{hostLinkLabel}</span>
+            <span className="nav-host-link__full">{hostLinkLabel}</span>
+            <span className="nav-host-link__short">{hostLinkShort}</span>
           </Link>
 
           <Link
