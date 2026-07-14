@@ -24,6 +24,7 @@ export class AdminLeadsController {
     @Query("status") status?: string,
     @Query("q") q?: string,
     @Query("range") range?: string,
+    @Query("sort") sort?: string,
     @Query("page") page?: string,
     @Query("page_size") pageSize?: string
   ) {
@@ -36,6 +37,7 @@ export class AdminLeadsController {
           status,
           q,
           range,
+          sort,
           page,
           page_size: pageSize
         })
