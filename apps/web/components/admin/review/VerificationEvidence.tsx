@@ -144,7 +144,7 @@ function EvidenceCard({
             }}
           />
         </div>
-        <b>{item.score ?? "-"}</b>
+        <b>{item.score != null ? Math.max(0, Math.min(100, Number(item.score))) : "-"}</b>
       </div>
       <div style={{ fontSize: 11, color: "var(--ad-text-3)", marginTop: 3 }}>
         threshold {item.threshold}
