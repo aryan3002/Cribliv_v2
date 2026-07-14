@@ -21711,13 +21711,21 @@ a.feature-card:hover .icon-circle {
   margin-bottom: var(--space-4);
 }
 .pg-hero__main {
+  width: 100%;
   min-width: 0;
+}
+.pg-hero__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 .pg-hero__badges {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-bottom: var(--space-2);
+  margin-bottom: 0;
 }
 .pg-hero__title {
   margin: 0;
@@ -21776,6 +21784,12 @@ a.feature-card:hover .icon-circle {
   box-shadow: var(--shadow-sm);
   text-decoration: none;
 }
+
+.tenant-detail-page--pg .gallery {
+  width: calc(100% - (var(--space-4) * 2));
+  margin-inline: var(--space-4);
+}
+
 @media (max-width: 640px) {
   .tenant-detail-page .pg-hero {
     flex-direction: column;
@@ -21787,6 +21801,26 @@ a.feature-card:hover .icon-circle {
     justify-content: flex-start;
     width: auto;
     padding-top: 0;
+  }
+}
+
+@media (max-width: 559px) {
+  .pg-hero__topline {
+    align-items: flex-start;
+  }
+
+  .pg-hero__badges {
+    flex: 1 1 auto;
+  }
+
+  .pg-hero__share {
+    width: 40px;
+    min-width: 40px;
+    padding-inline: 0;
+  }
+
+  .pg-hero__share-label {
+    display: none;
   }
 }
 
@@ -21823,7 +21857,7 @@ a.feature-card:hover .icon-circle {
 }
 
 .pg-carousel-toolbar {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -21837,7 +21871,7 @@ a.feature-card:hover .icon-circle {
 }
 
 .pg-carousel-actions {
-  display: flex;
+  display: none;
   gap: var(--space-2);
   flex-shrink: 0;
 }
@@ -21862,6 +21896,36 @@ a.feature-card:hover .icon-circle {
 .pg-room-card {
   min-width: 0;
   scroll-snap-align: start;
+}
+
+@media (max-width: 1024px) {
+  .pg-carousel-toolbar {
+    display: flex;
+  }
+
+  .pg-carousel-actions {
+    display: flex;
+  }
+
+  .pg-rooms-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+    padding-bottom: var(--space-3);
+    margin-inline: calc(-1 * var(--space-4));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pg-rooms-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pg-room-card {
+    flex: 0 0 min(46vw, 340px);
+  }
 }
 
 @media (max-width: 720px) {

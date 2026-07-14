@@ -327,7 +327,6 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
     availFrom && !isAvailableNow
       ? availFrom.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
       : "Now";
-  const vacancy = rt.vacancy_count ?? 0;
   const bathroomLabel = rt.bathroom_kind
     ? (BATHROOM_LABEL[rt.bathroom_kind] ?? toTitleCase(rt.bathroom_kind.replace(/_/g, " ")))
     : null;
@@ -337,17 +336,6 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
     <div className={`pg-room-card ${colorClass}`} style={{ animationDelay: `${index * 60}ms` }}>
       <div className="pg-room-card__top">
         <span className="pg-room-card__label">{rt.sharing} sharing</span>
-        {vacancy > 0 && vacancy <= 3 && (
-          <span className="pg-room-card__vacancy">
-            <span className="pg-room-card__vacancy-dot" aria-hidden="true" />
-            {vacancy} bed{vacancy > 1 ? "s" : ""} left
-          </span>
-        )}
-        {vacancy > 3 && (
-          <span className="pg-room-card__vacancy pg-room-card__vacancy--ample">
-            {vacancy} available
-          </span>
-        )}
       </div>
       <div className="pg-room-card__price">{rupees(rt.monthly_rent_paise)}</div>
       <div className="pg-room-card__period">per person / month</div>
@@ -753,28 +741,28 @@ export function PgDetailClient({
         {/* Hero header */}
         <header className="pg-hero">
           <div className="pg-hero__main">
-            <div className="pg-hero__badges">
-              <span className={`badge badge--${verif.cls}`}>
-                {verif.icon} {verif.label}
-              </span>
-              <span className="badge badge--brand">PG / Hostel</span>
+            <div className="pg-hero__topline">
+              <div className="pg-hero__badges">
+                <span className={`badge badge--${verif.cls}`}>
+                  {verif.icon} {verif.label}
+                </span>
+                <span className="badge badge--brand">PG / Hostel</span>
+              </div>
+              <button
+                type="button"
+                className="pg-hero__share"
+                onClick={onShare}
+                aria-label={t(locale as Locale, "shareListing")}
+              >
+                <Share2 size={16} aria-hidden="true" />
+                <span className="pg-hero__share-label">{t(locale as Locale, "shareListing")}</span>
+              </button>
             </div>
             <h1 className="pg-hero__title">{detail.title ?? "PG"}</h1>
             <div className="pg-hero__meta">
               <MapPin size={15} aria-hidden="true" />
               {locationLabel}
             </div>
-          </div>
-          <div className="pg-hero__aside">
-            <button
-              type="button"
-              className="pg-hero__share"
-              onClick={onShare}
-              aria-label={t(locale as Locale, "shareListing")}
-            >
-              <Share2 size={16} aria-hidden="true" />
-              {t(locale as Locale, "shareListing")}
-            </button>
           </div>
         </header>
 

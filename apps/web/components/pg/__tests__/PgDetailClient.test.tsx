@@ -91,6 +91,31 @@ describe("PgDetailClient", () => {
     expect(styles).toMatch(/\.pg-detail__cta-jump\s*\{[^}]*min-height:\s*52px/);
   });
 
+  it("keeps desktop gallery inset and only shows room carousel arrows on touch-width screens", () => {
+    const styles = readFileSync("app/globals.css", "utf8");
+
+    expect(styles).toMatch(
+      /\.tenant-detail-page--pg \.gallery\s*\{[^}]*margin-inline:\s*var\(--space-4\)/
+    );
+    expect(styles).toMatch(/\.pg-carousel-actions\s*\{[^}]*display:\s*none/);
+    expect(styles).toMatch(
+      /@media \(max-width:\s*1024px\)[\s\S]*\.pg-carousel-actions\s*\{[^}]*display:\s*flex/
+    );
+  });
+
+  it("places share beside PG badges and collapses its label below 560px", () => {
+    const { container } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+    const styles = readFileSync("app/globals.css", "utf8");
+
+    const heroTopline = container.querySelector(".pg-hero__topline");
+    expect(heroTopline).toBeTruthy();
+    expect(heroTopline?.querySelector(".badge--verified")).toBeTruthy();
+    expect(within(heroTopline as HTMLElement).getByRole("button", { name: /share/i })).toBeTruthy();
+    expect(styles).toMatch(
+      /@media \(max-width:\s*559px\)[\s\S]*\.pg-hero__share-label\s*\{[^}]*display:\s*none/
+    );
+  });
+
   it("fires pg_detail_viewed + view once on mount", () => {
     const { rerender } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
     rerender(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
@@ -328,7 +353,7 @@ describe("PgDetailClient", () => {
     expect(screen.getByText("Shared · Western")).toBeTruthy();
   });
 
-  it("shows room vacancy when low", () => {
+  it("does not show room vacancy when low", () => {
     render(
       <PgDetailClient
         detail={makeDetail({
@@ -338,7 +363,7 @@ describe("PgDetailClient", () => {
         locale="en"
       />
     );
-    expect(screen.getByText("2 beds left")).toBeTruthy();
+    expect(screen.queryByText("2 beds left")).toBeNull();
   });
 
   it("renders the What's nearby section from nearby data", () => {
