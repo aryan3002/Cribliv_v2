@@ -13,7 +13,9 @@ import {
   createResidenceMaintenance,
   fetchMaintenanceAnalytics,
   fetchMaintenanceCategories,
+  fetchMaintenanceTimeline,
   getMaintenanceTicket,
+  getResidenceMaintenanceTicket,
   getOperatorBedDetail,
   getManagedProperty,
   getTenantResidence,
@@ -37,7 +39,8 @@ import {
   presignResidenceMaintenancePhotos,
   updateMaintenanceStatus,
   updateBedStatus,
-  addMaintenanceInternalNote
+  addMaintenanceInternalNote,
+  overrideMaintenancePriority
 } from "../pg-operations-api";
 
 describe("pg operations API client", () => {
@@ -340,9 +343,31 @@ describe("pg operations API client", () => {
     );
   });
 
+  it("returns the maintenance queue page and serializes cursor filters", async () => {
+    fetchApi.mockResolvedValueOnce({ rows: [], next_cursor: "cursor-2" });
+
+    const page = await listPropertyMaintenance("property-1", "token-1", {
+      priority: "high",
+      sla_state: "overdue",
+      floor: 0,
+      chargeable_damage: false,
+      include_closed: false,
+      sort: "sla_due",
+      limit: 50,
+      cursor: "cursor-1"
+    });
+
+    expect(page).toEqual({ rows: [], next_cursor: "cursor-2" });
+    expect(fetchApi).toHaveBeenCalledWith(
+      "/pg-operator/properties/property-1/maintenance?priority=high&sla_state=overdue&floor=0&chargeable_damage=false&include_closed=false&sort=sla_due&limit=50&cursor=cursor-1",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+  });
+
   it("defines the maintenance V2 client contract", () => {
     fetchMaintenanceCategories("token-1");
     getMaintenanceTicket("property-1", "ticket-1", "token-1");
+    fetchMaintenanceTimeline("property-1", "ticket-1", "token-1");
     listPropertyMaintenance("property-1", "token-1", {
       status: "open",
       priority: "high",
@@ -363,6 +388,13 @@ describe("pg operations API client", () => {
       limit: 25,
       cursor: "ticket-2"
     });
+    overrideMaintenancePriority(
+      "property-1",
+      "ticket-1",
+      { priority: "emergency", reason: "Water entering electrical panel" },
+      "token-1",
+      "idem-priority"
+    );
     resolveMaintenanceTicket(
       "property-1",
       "ticket-1",
@@ -377,6 +409,7 @@ describe("pg operations API client", () => {
       "token-1",
       "idem-2"
     );
+    getResidenceMaintenanceTicket("ticket-1", "token-1");
     reopenResidenceMaintenance("ticket-1", { body: "Still leaking." }, "token-1", "idem-3");
     fetchMaintenanceAnalytics("property-1", "token-1");
 
@@ -392,11 +425,28 @@ describe("pg operations API client", () => {
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
       3,
-      "/pg-operator/properties/property-1/maintenance?status=open&priority=high&sla_state=overdue&category_slug=plumbing&location_kind=common_area&common_area=lift&floor=3&room_id=room-4&bed_id=bed-5&tenant_query=Ravi&chargeable_damage=true&include_closed=false&date_from=2026-07-01&date_to=2026-07-14&view=kanban&sort=newest&limit=25&cursor=ticket-2",
+      "/pg-operator/properties/property-1/maintenance/ticket-1/timeline",
       expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
       4,
+      "/pg-operator/properties/property-1/maintenance?status=open&priority=high&sla_state=overdue&category_slug=plumbing&location_kind=common_area&common_area=lift&floor=3&room_id=room-4&bed_id=bed-5&tenant_query=Ravi&chargeable_damage=true&include_closed=false&date_from=2026-07-01&date_to=2026-07-14&view=kanban&sort=newest&limit=25&cursor=ticket-2",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      5,
+      "/pg-operator/properties/property-1/maintenance/ticket-1/priority",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-priority" }),
+        body: JSON.stringify({
+          priority: "emergency",
+          reason: "Water entering electrical panel"
+        })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      6,
       "/pg-operator/properties/property-1/maintenance/ticket-1/resolve",
       expect.objectContaining({
         method: "POST",
@@ -405,7 +455,7 @@ describe("pg operations API client", () => {
       })
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
-      5,
+      7,
       "/pg-operator/properties/property-1/maintenance/ticket-1/internal-notes",
       expect.objectContaining({
         method: "POST",
@@ -414,7 +464,12 @@ describe("pg operations API client", () => {
       })
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
-      6,
+      8,
+      "/tenant/pg-residence/maintenance/ticket-1",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      9,
       "/tenant/pg-residence/maintenance/ticket-1/reopen",
       expect.objectContaining({
         method: "POST",
@@ -423,7 +478,7 @@ describe("pg operations API client", () => {
       })
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
-      7,
+      10,
       "/pg-operator/properties/property-1/maintenance/analytics",
       expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
     );

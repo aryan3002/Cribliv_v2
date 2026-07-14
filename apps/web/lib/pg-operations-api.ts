@@ -17,11 +17,13 @@ import type {
   PgMaintenanceInternalNoteResponse,
   PgMaintenancePresignFileInput,
   PgMaintenancePresignResponse,
+  PgMaintenancePriorityOverrideInput,
   PgMaintenanceQueueFilters,
   PgMaintenanceQueuePage,
   PgMaintenanceResolutionInput,
   PgMaintenanceRequest,
   PgMaintenanceStatus,
+  PgMaintenanceTimelineEvent,
   PgManageRequest,
   PgManageRequestState,
   PgManageRequestStatus,
@@ -262,6 +264,34 @@ export function getMaintenanceTicket(propertyId: string, requestId: string, toke
   return fetchApi<PgMaintenanceRequest>(
     `/pg-operator/properties/${propertyId}/maintenance/${requestId}`,
     { headers: authHeaders(token) }
+  );
+}
+
+export function fetchMaintenanceTimeline(propertyId: string, requestId: string, token?: string) {
+  return fetchApi<PgMaintenanceTimelineEvent[]>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}/timeline`,
+    { headers: authHeaders(token) }
+  );
+}
+
+export function overrideMaintenancePriority(
+  propertyId: string,
+  requestId: string,
+  body: PgMaintenancePriorityOverrideInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceRequest>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}/priority`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify(body)
+    }
   );
 }
 
@@ -529,6 +559,12 @@ export function getTenantResidence(token?: string, opts: { server?: boolean } = 
 
 export function listResidenceMaintenance(token?: string) {
   return fetchApi<PgMaintenanceRequest[]>("/tenant/pg-residence/maintenance", {
+    headers: authHeaders(token)
+  });
+}
+
+export function getResidenceMaintenanceTicket(requestId: string, token?: string) {
+  return fetchApi<PgMaintenanceRequest>(`/tenant/pg-residence/maintenance/${requestId}`, {
     headers: authHeaders(token)
   });
 }
