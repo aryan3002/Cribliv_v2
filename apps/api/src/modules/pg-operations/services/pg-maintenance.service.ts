@@ -127,6 +127,8 @@ type ResidenceAssignmentRow = {
   property_id: string;
 };
 
+type MaintenanceResidenceScope = "current" | "history" | "all";
+
 const OPEN_MAINTENANCE_STATUSES: PgMaintenanceStatus[] = [
   "open",
   "in_progress",
@@ -474,7 +476,10 @@ export class PgMaintenanceService {
     });
   }
 
-  private async currentResidenceAssignment(userId: string): Promise<ResidenceAssignmentRow> {
+  private async residenceAssignmentsForMaintenance(
+    userId: string,
+    scope: MaintenanceResidenceScope
+  ): Promise<ResidenceAssignmentRow[]> {
     const result = await this.db.query<ResidenceAssignmentRow>(
       `WITH caller AS (
          SELECT id, phone_e164
@@ -489,12 +494,19 @@ export class PgMaintenanceService {
              a.tenant_user_id = caller.id
              OR (a.tenant_user_id IS NULL AND a.occupant_phone_e164 = caller.phone_e164)
            )
-        WHERE a.status IN (
-          'reserved',
-          'active',
-          'notice_served',
-          'move_out_requested',
-          'move_out_pending_confirmation'
+        WHERE (
+          $2::text IN ('current', 'all')
+          AND a.status IN (
+            'reserved',
+            'active',
+            'notice_served',
+            'move_out_requested',
+            'move_out_pending_confirmation'
+          )
+        ) OR (
+          $2::text IN ('history', 'all')
+          AND a.status = 'moved_out'
+          AND a.move_out_date >= CURRENT_DATE - INTERVAL '6 months'
         )
         ORDER BY CASE a.status::text
                    WHEN 'active' THEN 1
@@ -502,14 +514,18 @@ export class PgMaintenanceService {
                    WHEN 'move_out_requested' THEN 3
                    WHEN 'move_out_pending_confirmation' THEN 4
                    WHEN 'reserved' THEN 5
-                   ELSE 6
+                   WHEN 'moved_out' THEN 6
+                   ELSE 7
                  END,
                  a.updated_at DESC,
-                 a.id
-        LIMIT 1`,
-      [userId]
+                 a.id`,
+      [userId, scope]
     );
-    const row = result.rows[0];
+    return result.rows;
+  }
+
+  private async currentResidenceAssignment(userId: string): Promise<ResidenceAssignmentRow> {
+    const row = (await this.residenceAssignmentsForMaintenance(userId, "current"))[0];
     if (!row) {
       throw new NotFoundException({
         code: "residence_not_found",
@@ -803,14 +819,17 @@ export class PgMaintenanceService {
   }
 
   private async assertTenantCanAccessRequest(userId: string, requestId: string): Promise<void> {
-    const residence = await this.currentResidenceAssignment(userId);
+    const residences = await this.residenceAssignmentsForMaintenance(userId, "current");
+    if (residences.length === 0) {
+      throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+    }
     const result = await this.db.query<{ id: string }>(
       `SELECT r.id::text
          FROM pg_maintenance_requests r
         WHERE r.id = $1::uuid
-          AND r.assignment_id = $2::uuid
+          AND r.assignment_id = ANY($2::uuid[])
         LIMIT 1`,
-      [requestId, residence.assignment_id]
+      [requestId, residences.map((residence) => residence.assignment_id)]
     );
     if (!result.rows[0]) {
       throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
@@ -936,17 +955,160 @@ export class PgMaintenanceService {
     return this.withComments(result.rows);
   }
 
-  async listForResidence(tenantUserId: string): Promise<PgMaintenanceRequest[]> {
+  async listForResidence(
+    tenantUserId: string,
+    scope: MaintenanceResidenceScope = "current"
+  ): Promise<PgMaintenanceRequest[]> {
     if (!this.db.isEnabled()) return [];
-    const residence = await this.currentResidenceAssignment(tenantUserId);
+    if (!(["current", "history", "all"] as const).includes(scope)) {
+      throw new BadRequestException({ code: "invalid_maintenance_scope" });
+    }
+    const residences = await this.residenceAssignmentsForMaintenance(tenantUserId, scope);
+    if (residences.length === 0) return [];
     const result = await this.db.query<MaintenanceRow>(
       `SELECT ${MAINTENANCE_REQUEST_SELECT}
          ${MAINTENANCE_REQUEST_JOINS}
-        WHERE r.assignment_id = $1::uuid
+        WHERE r.assignment_id = ANY($1::uuid[])
         ORDER BY r.created_at DESC, r.id DESC`,
-      [residence.assignment_id]
+      [residences.map((residence) => residence.assignment_id)]
     );
     return this.withComments(result.rows);
+  }
+
+  async getForTenant(tenantUserId: string, requestId: string): Promise<PgMaintenanceRequest> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const request = await this.requestForAccess(requestId);
+    const residences = await this.residenceAssignmentsForMaintenance(tenantUserId, "all");
+    if (
+      request.assignment_id === null ||
+      !residences.some((residence) => residence.assignment_id === request.assignment_id)
+    ) {
+      throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+    }
+    return (await this.withComments([request]))[0];
+  }
+
+  async reopenByTenant(
+    callerUserId: string,
+    requestId: string,
+    input: unknown
+  ): Promise<PgMaintenanceRequest> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    if (input !== undefined && !isRecord(input)) {
+      throw new BadRequestException({ code: "invalid_maintenance_reopen" });
+    }
+    const payload = input ?? {};
+    const commentBody = cleanOptional(payload.body, "invalid_maintenance_comment") ?? "";
+    const attachments = this.validateStringArray(
+      payload.attachments,
+      "invalid_maintenance_attachments"
+    );
+    if (attachments.length > MAX_MAINTENANCE_PHOTOS) {
+      throw new BadRequestException({
+        code: "too_many_maintenance_attachments",
+        message: `Maximum ${MAX_MAINTENANCE_PHOTOS} attachments per comment`
+      });
+    }
+
+    await transaction(this.db, async (client) => {
+      const existing = await client.query<MaintenanceRow>(
+        `SELECT ${MAINTENANCE_REQUEST_SELECT}
+           ${MAINTENANCE_REQUEST_JOINS}
+          WHERE r.id = $1::uuid
+          FOR UPDATE OF r`,
+        [requestId]
+      );
+      const request = existing.rows[0];
+      if (!request) {
+        throw new NotFoundException({
+          code: "maintenance_request_not_found",
+          message: "Maintenance request not found"
+        });
+      }
+
+      const access = await client.query<{ id: string }>(
+        `WITH caller AS (
+           SELECT id, phone_e164
+             FROM users
+            WHERE id = $1::uuid
+         )
+         SELECT a.id::text
+           FROM caller
+           JOIN pg_bed_assignments a
+             ON (
+               a.tenant_user_id = caller.id
+               OR (a.tenant_user_id IS NULL AND a.occupant_phone_e164 = caller.phone_e164)
+             )
+          WHERE a.id = $2::uuid
+            AND a.status IN (
+              'reserved',
+              'active',
+              'notice_served',
+              'move_out_requested',
+              'move_out_pending_confirmation'
+            )
+          LIMIT 1`,
+        [callerUserId, request.assignment_id]
+      );
+      if (!access.rows[0]) {
+        throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+      }
+      if (attachments.length > 0) {
+        await Promise.all(
+          attachments.map((path) =>
+            this.requirePhotoStorage().validateMaintenanceUploadedBlob(
+              request.pg_property_id,
+              request.id,
+              path
+            )
+          )
+        );
+      }
+
+      const updated = await client.query<{ id: string }>(
+        `UPDATE pg_maintenance_requests
+            SET status = 'in_progress',
+                auto_close_after = NULL,
+                reopened_at = now(),
+                last_tenant_activity_at = now(),
+                updated_at = now()
+          WHERE id = $1::uuid
+            AND status = 'resolved'
+            AND auto_close_after > now()
+          RETURNING id::text`,
+        [requestId]
+      );
+      if (!updated.rows[0]) {
+        throw new ConflictException({ code: "maintenance_reopen_not_allowed" });
+      }
+
+      await client.query(
+        `INSERT INTO pg_maintenance_events
+           (request_id, event_type, visibility, actor_user_id, actor_role,
+            from_status, to_status, payload, created_at)
+         VALUES ($1::uuid, 'reopened', 'public', $2::uuid, 'tenant',
+                 'resolved', 'in_progress', '{}'::jsonb, clock_timestamp())`,
+        [requestId, callerUserId]
+      );
+
+      if (commentBody || attachments.length > 0) {
+        const comment = await client.query<{ id: string }>(
+          `INSERT INTO pg_maintenance_comments
+             (request_id, author_user_id, author_role, body, attachments)
+           VALUES ($1::uuid, $2::uuid, 'tenant', $3, $4::jsonb)
+           RETURNING id::text`,
+          [requestId, callerUserId, commentBody, JSON.stringify(attachments)]
+        );
+        await client.query(
+          `INSERT INTO pg_maintenance_events
+             (request_id, event_type, visibility, actor_user_id, actor_role, payload, created_at)
+           VALUES ($1::uuid, 'comment_added', 'public', $2::uuid, 'tenant', $3::jsonb, clock_timestamp())`,
+          [requestId, callerUserId, JSON.stringify({ comment_id: comment.rows[0].id })]
+        );
+      }
+    });
+
+    return (await this.withComments([await this.requestForAccess(requestId)]))[0];
   }
 
   async summaryForBed(

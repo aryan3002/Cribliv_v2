@@ -47,6 +47,12 @@ describe("PG maintenance without a database", () => {
     await expect(service.addComment(userId, requestId, "checking")).rejects.toMatchObject({
       response: { code: "operations_requires_db" }
     });
+    await expect(service.getForTenant(userId, requestId)).rejects.toMatchObject({
+      response: { code: "operations_requires_db" }
+    });
+    await expect(service.reopenByTenant(userId, requestId, {})).rejects.toMatchObject({
+      response: { code: "operations_requires_db" }
+    });
   });
 });
 
@@ -267,7 +273,16 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
     presignCalls = [];
     const ids = propertyIds.splice(0);
     if (ids.length > 0) {
-      await db.query(`DELETE FROM pg_properties WHERE id = ANY($1::uuid[])`, [ids]);
+      await db.query(
+        `ALTER TABLE pg_maintenance_events DISABLE TRIGGER pg_maintenance_events_immutable`
+      );
+      try {
+        await db.query(`DELETE FROM pg_properties WHERE id = ANY($1::uuid[])`, [ids]);
+      } finally {
+        await db.query(
+          `ALTER TABLE pg_maintenance_events ENABLE TRIGGER pg_maintenance_events_immutable`
+        );
+      }
     }
   });
 
@@ -385,6 +400,274 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
     expect(new Date(response.body.data.sla_due_at).getTime()).toBeGreaterThan(
       new Date(response.body.data.created_at).getTime()
     );
+  });
+
+  it("lets a current tenant create tickets for every maintenance location kind", async () => {
+    const fixture = await createFixture();
+    const room = await db.query<{ room_id: string }>(
+      `SELECT room_id::text
+         FROM pg_beds
+        WHERE id = $1::uuid`,
+      [fixture.bedIds[0]]
+    );
+    const cases = [
+      { location: { kind: "bed", bed_id: fixture.bedIds[0] }, expected: { kind: "bed" } },
+      { location: { kind: "room", room_id: room.rows[0].room_id }, expected: { kind: "room" } },
+      { location: { kind: "floor", floor: 1 }, expected: { kind: "floor", floor: 1 } },
+      {
+        location: { kind: "common_area", common_area: "kitchen" },
+        expected: { kind: "common_area", common_area: "kitchen" }
+      },
+      { location: { kind: "property_wide" }, expected: { kind: "property_wide" } },
+      {
+        location: { kind: "other", detail: "Outside the main gate" },
+        expected: { kind: "other", detail: "Outside the main gate" }
+      }
+    ];
+
+    for (const testCase of cases) {
+      await request(app.getHttpServer())
+        .post("/v1/tenant/pg-residence/maintenance")
+        .set("x-test-identity", "tenant")
+        .set("Idempotency-Key", randomUUID())
+        .send({
+          category_slug: "plumbing",
+          description: `Location test: ${testCase.location.kind}`,
+          location: testCase.location
+        })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.data.location_snapshot).toMatchObject(testCase.expected);
+        });
+    }
+  });
+
+  it("gives moved-out tenants six months of read-only maintenance history", async () => {
+    const recentTicketId = await createHistoricalTicketForTenant(tenantId);
+    const expiredTicketId = await createHistoricalTicketForTenant(tenantId);
+    await db.query(
+      `UPDATE pg_bed_assignments
+          SET move_out_date = CURRENT_DATE - INTERVAL '6 months 1 day'
+        WHERE id = (
+          SELECT assignment_id
+            FROM pg_maintenance_requests
+           WHERE id = $1::uuid
+        )`,
+      [expiredTicketId]
+    );
+
+    await request(app.getHttpServer())
+      .get("/v1/tenant/pg-residence/maintenance")
+      .set("x-test-identity", "tenant")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toEqual([]);
+      });
+
+    for (const scope of ["history", "all"]) {
+      await request(app.getHttpServer())
+        .get(`/v1/tenant/pg-residence/maintenance?scope=${scope}`)
+        .set("x-test-identity", "tenant")
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.data).toEqual([expect.objectContaining({ id: recentTicketId })]);
+        });
+    }
+
+    await request(app.getHttpServer())
+      .get(`/v1/tenant/pg-residence/maintenance/${recentTicketId}`)
+      .set("x-test-identity", "tenant")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data.id).toBe(recentTicketId);
+      });
+    await request(app.getHttpServer())
+      .get(`/v1/tenant/pg-residence/maintenance/${expiredTicketId}`)
+      .set("x-test-identity", "tenant")
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post("/v1/tenant/pg-residence/maintenance")
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({ category_slug: "plumbing", description: "A ticket after moving out" })
+      .expect(404)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ code: "residence_not_found" });
+      });
+  });
+
+  it("does not expose a prior tenant ticket when a bed and phone are recycled", async () => {
+    const fixture = await createFixture(operatorId, [otherTenantId, foreignTenantId]);
+    const tenantPhone = await db.query<{ phone_e164: string }>(
+      `SELECT phone_e164
+         FROM users
+        WHERE id = $1::uuid`,
+      [tenantId]
+    );
+    await db.query(
+      `UPDATE pg_bed_assignments
+          SET status = 'moved_out',
+              move_out_date = CURRENT_DATE,
+              occupant_phone_e164 = $2
+        WHERE id = $1::uuid`,
+      [fixture.assignmentIds[0], tenantPhone.rows[0].phone_e164]
+    );
+    const priorTicket = await db.query<{ id: string }>(
+      `INSERT INTO pg_maintenance_requests
+         (pg_property_id, assignment_id, created_by_user_id, category, description)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'old', 'Prior tenant private ticket')
+       RETURNING id::text`,
+      [fixture.propertyId, fixture.assignmentIds[0], otherTenantId]
+    );
+    await db.query(
+      `INSERT INTO pg_bed_assignments
+         (pg_property_id, bed_id, tenant_user_id, occupant_name, occupant_phone_e164,
+          status, created_by)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'Current recycled tenant', $4, 'active', $5::uuid)`,
+      [fixture.propertyId, fixture.bedIds[0], tenantId, tenantPhone.rows[0].phone_e164, operatorId]
+    );
+
+    await request(app.getHttpServer())
+      .get("/v1/tenant/pg-residence/maintenance?scope=all")
+      .set("x-test-identity", "tenant")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: priorTicket.rows[0].id })])
+        );
+      });
+    await request(app.getHttpServer())
+      .get(`/v1/tenant/pg-residence/maintenance/${priorTicket.rows[0].id}`)
+      .set("x-test-identity", "tenant")
+      .expect(403);
+  });
+
+  it("reopens a resolved current ticket transactionally and replays the controller key", async () => {
+    const fixture = await createFixture();
+    const ticket = await createTenantTicket(fixture);
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET status = 'resolved', resolved_at = now(), auto_close_after = now() + INTERVAL '1 day'
+        WHERE id = $1::uuid`,
+      [ticket.id]
+    );
+    const key = randomUUID();
+
+    const first = await request(app.getHttpServer())
+      .post(`/v1/tenant/pg-residence/maintenance/${ticket.id}/reopen`)
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", key)
+      .send({ body: "Still leaking." })
+      .expect(201);
+    const replay = await request(app.getHttpServer())
+      .post(`/v1/tenant/pg-residence/maintenance/${ticket.id}/reopen`)
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", key)
+      .send({ body: "Still leaking." })
+      .expect(201);
+
+    expect(first.body.data).toMatchObject({
+      id: ticket.id,
+      status: "in_progress",
+      auto_close_after: null,
+      comments: [expect.objectContaining({ body: "Still leaking.", author_role: "tenant" })]
+    });
+    expect(replay.body.data).toEqual(first.body.data);
+    const state = await db.query<{ reopened_at: Date | null }>(
+      `SELECT reopened_at
+         FROM pg_maintenance_requests
+        WHERE id = $1::uuid`,
+      [ticket.id]
+    );
+    expect(state.rows[0].reopened_at).not.toBeNull();
+    const events = await db.query<{
+      event_type: string;
+      from_status: string | null;
+      to_status: string | null;
+    }>(
+      `SELECT event_type::text, from_status, to_status
+         FROM pg_maintenance_events
+        WHERE request_id = $1::uuid
+        ORDER BY created_at, id`,
+      [ticket.id]
+    );
+    expect(events.rows).toEqual([
+      { event_type: "reopened", from_status: "resolved", to_status: "in_progress" },
+      { event_type: "comment_added", from_status: null, to_status: null }
+    ]);
+  });
+
+  it("adds no public comment event when reopening without a body or photos", async () => {
+    const fixture = await createFixture();
+    const ticket = await createTenantTicket(fixture);
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET status = 'resolved', resolved_at = now(), auto_close_after = now() + INTERVAL '1 day'
+        WHERE id = $1::uuid`,
+      [ticket.id]
+    );
+
+    await request(app.getHttpServer())
+      .post(`/v1/tenant/pg-residence/maintenance/${ticket.id}/reopen`)
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({})
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.data.comments).toEqual([]);
+      });
+
+    const events = await db.query<{ event_type: string }>(
+      `SELECT event_type::text
+         FROM pg_maintenance_events
+        WHERE request_id = $1::uuid`,
+      [ticket.id]
+    );
+    expect(events.rows).toEqual([{ event_type: "reopened" }]);
+  });
+
+  it("rejects tenant reopen for closed, expired, and historical tickets", async () => {
+    const fixture = await createFixture();
+    const closed = await createTenantTicket(fixture);
+    const expired = await createTenantTicket(fixture);
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET status = 'closed', closed_at = now(), auto_close_after = NULL
+        WHERE id = $1::uuid`,
+      [closed.id]
+    );
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET status = 'resolved', resolved_at = now(), auto_close_after = now() - INTERVAL '1 second'
+        WHERE id = $1::uuid`,
+      [expired.id]
+    );
+    const historicalId = await createHistoricalTicketForTenant(tenantId);
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET status = 'resolved', resolved_at = now(), auto_close_after = now() - INTERVAL '1 second'
+        WHERE id = $1::uuid`,
+      [historicalId]
+    );
+
+    for (const id of [closed.id, expired.id]) {
+      await request(app.getHttpServer())
+        .post(`/v1/tenant/pg-residence/maintenance/${id}/reopen`)
+        .set("x-test-identity", "tenant")
+        .set("Idempotency-Key", randomUUID())
+        .send({ body: "Please reopen" })
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({ code: "maintenance_reopen_not_allowed" });
+        });
+    }
+    await request(app.getHttpServer())
+      .post(`/v1/tenant/pg-residence/maintenance/${historicalId}/reopen`)
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({ body: "Please reopen" })
+      .expect(403);
   });
 
   it("rejects malformed room and bed maintenance location IDs with controlled errors", async () => {
