@@ -3,7 +3,7 @@ import { VerificationService } from "../src/modules/verification/verification.se
 
 describe("Verification payload masking", () => {
   it("redacts sensitive identity and address fields in provider payloads", () => {
-    const service = new VerificationService({} as any, {} as any, {} as any, {} as any);
+    const service = new VerificationService({} as any, {} as any, {} as any, {} as any, {} as any);
 
     const masked = (service as any).maskPayload({
       consumer_id: "CONS-99887766",

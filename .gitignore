@@ -18,6 +18,7 @@ playwright-report
 skills/
 security-audit/
 temp_diff.patch
+output/
 
 # Brainstorm artifacts (regenerable, not source)
 docs/cribliv-v2-product-brainstorm.pdf

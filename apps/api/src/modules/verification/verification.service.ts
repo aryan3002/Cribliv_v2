@@ -11,6 +11,7 @@ import {
   LivenessProviderResponse,
   VerificationProviderError
 } from "./providers/provider.types";
+import { VerificationArtifactStorageService } from "./verification-artifact-storage.service";
 
 type VerificationResult = "pending" | "pass" | "fail" | "manual_review";
 type VerificationStatus = "unverified" | "pending" | "verified" | "failed";
@@ -21,7 +22,9 @@ export class VerificationService {
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(LivenessProvider) private readonly livenessProvider: LivenessProvider,
-    @Inject(ElectricityProvider) private readonly electricityProvider: ElectricityProvider
+    @Inject(ElectricityProvider) private readonly electricityProvider: ElectricityProvider,
+    @Inject(VerificationArtifactStorageService)
+    private readonly artifacts: VerificationArtifactStorageService
   ) {}
 
   async submitVideo(
@@ -46,6 +49,13 @@ export class VerificationService {
       if (!listing.rowCount) {
         throw new NotFoundException({ code: "not_found", message: "Listing not found" });
       }
+
+      await this.artifacts.assertCompletedArtifact({
+        ownerId,
+        listingId: input.listing_id,
+        kind: "video_liveness",
+        blobPath: input.artifact_blob_path
+      });
 
       const providerResult = await this.getVideoProviderResult(ownerId, input);
       const inserted = await this.database.query<{ id: string }>(
@@ -142,6 +152,13 @@ export class VerificationService {
       throw new NotFoundException({ code: "not_found", message: "Listing not found" });
     }
 
+    await this.artifacts.assertCompletedArtifact({
+      ownerId,
+      listingId: input.listing_id,
+      kind: "video_liveness",
+      blobPath: input.artifact_blob_path
+    });
+
     const providerResult = await this.getVideoProviderResult(ownerId, input);
     const attempt = {
       id: randomUUID(),
@@ -213,6 +230,15 @@ export class VerificationService {
 
       if (!listing.rowCount) {
         throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+      }
+
+      if (input.bill_artifact_blob_path) {
+        await this.artifacts.assertCompletedArtifact({
+          ownerId,
+          listingId: input.listing_id,
+          kind: "electricity_bill",
+          blobPath: input.bill_artifact_blob_path
+        });
       }
 
       const providerResult = await this.getElectricityProviderResult(ownerId, {
@@ -315,6 +341,15 @@ export class VerificationService {
     const listing = this.appState.listings.get(input.listing_id);
     if (!listing || listing.ownerUserId !== ownerId) {
       throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+    }
+
+    if (input.bill_artifact_blob_path) {
+      await this.artifacts.assertCompletedArtifact({
+        ownerId,
+        listingId: input.listing_id,
+        kind: "electricity_bill",
+        blobPath: input.bill_artifact_blob_path
+      });
     }
 
     const providerResult = await this.getElectricityProviderResult(ownerId, {

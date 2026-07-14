@@ -14,6 +14,8 @@ import Link from "next/link";
 import type { PgTenantResidence } from "@cribliv/shared-types";
 import type { Locale } from "../../../../lib/i18n";
 import { getTenantResidence } from "../../../../lib/pg-operations-api";
+import type { UserRole } from "../../../../auth.config";
+import { PromotionalCreditExpiry } from "../../../../components/promotional-credit-expiry";
 
 export default function TenantDashboardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
@@ -23,6 +25,7 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
   const phone = session?.user?.phone;
   const walletBalance = session?.walletBalance ?? 0;
   const token = session?.accessToken;
+  const promotionalCredits = session?.promotionalCredits;
   const [residence, setResidence] = useState<PgTenantResidence | null>(null);
 
   useEffect(() => {
@@ -91,6 +94,11 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
             {walletBalance > 0 &&
               ` You have ${walletBalance} unlock${walletBalance !== 1 ? "s" : ""} available.`}
           </div>
+          <PromotionalCreditExpiry
+            remaining={promotionalCredits?.remaining ?? 0}
+            expiresAt={promotionalCredits?.expiresAt ?? null}
+            locale={locale}
+          />
         </div>
       </div>
 

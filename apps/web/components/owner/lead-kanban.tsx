@@ -350,7 +350,7 @@ export function LeadKanban({
 
   return (
     <div className="lk">
-      {enableDrag ? <DragDropContext onDragEnd={handleDragEnd}>{board}</DragDropContext> : board}
+      <DragDropContext onDragEnd={handleDragEnd}>{board}</DragDropContext>
       {toast && (
         <div
           role="status"

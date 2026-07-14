@@ -9,9 +9,15 @@ import {
   NotFoundException,
   ForbiddenException
 } from "@nestjs/common";
+import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { logTelemetry } from "../../common/telemetry";
+import {
+  debitWalletCredits,
+  expireSignupCredits,
+  WalletBalanceError
+} from "../wallet/wallet-balance";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ["contacted", "lost"],
@@ -25,7 +31,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 export class LeadsService {
   private readonly logger = new Logger(LeadsService.name);
 
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(AppStateService) private readonly appState?: AppStateService
+  ) {}
 
   async createLead(params: {
     listing_id: string;
@@ -36,8 +45,24 @@ export class LeadsService {
     call_deadline_at?: string;
   }): Promise<{ lead_id: string; created: boolean }> {
     const flags = readFeatureFlags();
-    if (!flags.ff_lead_management_enabled || !this.database.isEnabled()) {
+    if (!flags.ff_lead_management_enabled) {
       return { lead_id: "", created: false };
+    }
+
+    if (!this.database.isEnabled()) {
+      if (!this.appState) return { lead_id: "", created: false };
+      const callDeadlineAt = params.call_deadline_at
+        ? new Date(params.call_deadline_at).getTime()
+        : null;
+      const { lead, created } = this.appState.createOwnerLead({
+        listingId: params.listing_id,
+        ownerUserId: params.owner_user_id,
+        tenantUserId: params.tenant_user_id,
+        contactUnlockId: params.contact_unlock_id,
+        tenantPhoneMasked: params.tenant_phone_masked,
+        callDeadlineAt: Number.isFinite(callDeadlineAt) ? callDeadlineAt : null
+      });
+      return { lead_id: lead.id, created };
     }
 
     try {
@@ -105,7 +130,15 @@ export class LeadsService {
     pageSize = 20
   ): Promise<{ items: any[]; total: number; page: number; page_size: number }> {
     if (!this.database.isEnabled()) {
-      return { items: [], total: 0, page, page_size: pageSize };
+      return (
+        this.appState?.listOwnerLeads(
+          ownerUserId,
+          status as "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost" | undefined,
+          page,
+          pageSize,
+          readFeatureFlags().ff_callback_leads
+        ) ?? { items: [], total: 0, page, page_size: pageSize }
+      );
     }
 
     const flags = readFeatureFlags();
@@ -275,6 +308,7 @@ export class LeadsService {
     }
 
     const client = await this.database.getClient();
+    let committed = false;
     try {
       await client.query("BEGIN");
 
@@ -310,13 +344,28 @@ export class LeadsService {
         return Number(r.rows[0]?.balance_credits ?? 0);
       };
 
-      // Idempotent success paths: already visible → return without debiting.
-      if (lead.access_state === "free" || lead.access_state === "unlocked") {
+      if (lead.access_state === "free") {
+        await expireSignupCredits(client, ownerUserId);
         const credits = await balanceRow();
         await client.query("COMMIT");
+        committed = true;
         return {
           lead_id: lead.id,
-          access_state: lead.access_state === "free" ? "free" : "unlocked",
+          access_state: "free",
+          tenant_phone: lead.tenant_phone,
+          tenant_name: lead.tenant_name,
+          credits_remaining: credits
+        };
+      }
+
+      if (lead.access_state === "unlocked") {
+        await expireSignupCredits(client, ownerUserId);
+        const credits = await balanceRow();
+        await client.query("COMMIT");
+        committed = true;
+        return {
+          lead_id: lead.id,
+          access_state: "unlocked",
           tenant_phone: lead.tenant_phone,
           tenant_name: lead.tenant_name,
           credits_remaining: credits
@@ -335,65 +384,59 @@ export class LeadsService {
          VALUES ($1::uuid, 0, 0) ON CONFLICT (user_id) DO NOTHING`,
         [ownerUserId]
       );
-      const walletResult = await client.query<{ balance_credits: number }>(
-        `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid FOR UPDATE`,
-        [ownerUserId]
-      );
-      if (Number(walletResult.rows[0]?.balance_credits ?? 0) < 1) {
+      let debit;
+      try {
+        debit = await debitWalletCredits(client, {
+          userId: ownerUserId,
+          credits: 1,
+          txnType: "debit_lead_unlock",
+          referenceType: "lead",
+          referenceId: leadId,
+          idempotencyKey
+        });
+      } catch (error) {
+        if (error instanceof WalletBalanceError) {
+          if (error.code === "idempotency_conflict") {
+            throw new ConflictException({
+              code: "duplicate_unlock",
+              message: "Idempotency-Key already used for another unlock"
+            });
+          }
+          if (error.code === "insufficient_credits" || error.code === "wallet_not_found") {
+            throw new HttpException(
+              { code: "insufficient_credits", message: "Insufficient credits" },
+              HttpStatus.PAYMENT_REQUIRED
+            );
+          }
+        }
+        throw error;
+      }
+
+      if (debit.status === "insufficient") {
+        await client.query("COMMIT");
+        committed = true;
         throw new HttpException(
           { code: "insufficient_credits", message: "Insufficient credits" },
           HttpStatus.PAYMENT_REQUIRED
         );
       }
 
-      // reference_type is 'lead'; reference_id carries the lead id.
-      const debit = await client.query<{ id: string }>(
-        `INSERT INTO wallet_transactions(
-           wallet_user_id, txn_type, credits_delta, reference_type, reference_id, idempotency_key, metadata)
-         VALUES ($1::uuid, 'debit_lead_unlock', -1, 'lead', $2::uuid, $3, '{}'::jsonb)
-         ON CONFLICT (wallet_user_id, idempotency_key) DO NOTHING
-         RETURNING id::text`,
-        [ownerUserId, leadId, idempotencyKey]
-      );
-      const debitInserted = Boolean(debit.rows[0]?.id);
-      if (!debitInserted) {
-        // The key was already used. If it paid for THIS lead, the lead was
-        // flipped in that same transaction and the early idempotent-return
-        // path above would have caught it — reaching here means the key
-        // belongs to something else (another lead or another flow). Reject,
-        // mirroring the tenant-side duplicate_unlock guard.
-        const existingTxn = await client.query<{ id: string; reference_id: string | null }>(
-          `SELECT id::text, reference_id::text FROM wallet_transactions
-           WHERE wallet_user_id = $1::uuid AND idempotency_key = $2
-           LIMIT 1`,
-          [ownerUserId, idempotencyKey]
-        );
-        if (existingTxn.rows[0]?.reference_id !== leadId) {
-          throw new ConflictException({
-            code: "duplicate_unlock",
-            message: "Idempotency-Key already used for another unlock"
-          });
-        }
-        // Key matches this lead but the lead is still locked — heal by
-        // flipping it using the already-paid transaction.
+      if (!debit.inserted) {
+        // Heal a same-target replay with the transaction that originally paid
+        // for this lead. The helper rejects any key used by another flow.
         await client.query(
           `UPDATE leads SET access_state = 'unlocked', unlocked_at = COALESCE(unlocked_at, now()),
                             unlock_txn_id = COALESCE(unlock_txn_id, $2::uuid), updated_at = now()
            WHERE id = $1::uuid`,
-          [leadId, existingTxn.rows[0].id]
+          [leadId, debit.transactionId]
         );
       }
-      if (debitInserted) {
-        await client.query(
-          `UPDATE wallets SET balance_credits = balance_credits - 1, updated_at = now()
-           WHERE user_id = $1::uuid AND balance_credits >= 1`,
-          [ownerUserId]
-        );
+      if (debit.inserted) {
         await client.query(
           `UPDATE leads SET access_state = 'unlocked', unlocked_at = now(),
                             unlock_txn_id = $2::uuid, updated_at = now()
            WHERE id = $1::uuid`,
-          [leadId, debit.rows[0].id]
+          [leadId, debit.transactionId]
         );
         await client.query(
           `INSERT INTO lead_events (lead_id, to_status, actor_user_id, notes)
@@ -402,22 +445,22 @@ export class LeadsService {
         );
       }
 
-      const credits = await balanceRow();
       await client.query("COMMIT");
+      committed = true;
       logTelemetry("lead.unlocked", {
         lead_id: leadId,
         owner_user_id: ownerUserId,
-        debited: debitInserted
+        debited: debit.inserted
       });
       return {
         lead_id: leadId,
         access_state: "unlocked",
         tenant_phone: lead.tenant_phone,
         tenant_name: lead.tenant_name,
-        credits_remaining: credits
+        credits_remaining: debit.balanceCredits
       };
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (!committed) await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
@@ -637,7 +680,16 @@ export class LeadsService {
 
   async getLeadStats(ownerUserId: string): Promise<Record<string, number>> {
     if (!this.database.isEnabled()) {
-      return { new: 0, contacted: 0, visit_scheduled: 0, deal_done: 0, lost: 0, total: 0 };
+      return (
+        this.appState?.getOwnerLeadStats(ownerUserId) ?? {
+          new: 0,
+          contacted: 0,
+          visit_scheduled: 0,
+          deal_done: 0,
+          lost: 0,
+          total: 0
+        }
+      );
     }
 
     const result = await this.database.query<{ status: string; count: number }>(
@@ -670,7 +722,26 @@ export class LeadsService {
     notes?: string
   ): Promise<{ lead_id: string; status: string }> {
     if (!this.database.isEnabled()) {
-      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+      const existing = this.appState?.getOwnerLead(leadId, ownerUserId);
+      if (!existing) {
+        throw new BadRequestException({ code: "not_found", message: "Lead not found" });
+      }
+
+      const allowed = VALID_TRANSITIONS[existing.status] ?? [];
+      if (!allowed.includes(newStatus)) {
+        throw new BadRequestException({
+          code: "invalid_transition",
+          message: `Cannot transition from ${existing.status} to ${newStatus}`
+        });
+      }
+
+      this.appState?.updateOwnerLeadStatus(
+        leadId,
+        ownerUserId,
+        newStatus as "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost",
+        notes
+      );
+      return { lead_id: leadId, status: newStatus };
     }
 
     const existing = await this.database.query<{ id: string; status: string }>(
@@ -713,21 +784,32 @@ export class LeadsService {
   }
 
   async exportLeadsCsv(ownerUserId: string): Promise<string> {
-    if (!this.database.isEnabled()) {
-      return "lead_id,listing_title,tenant_name,tenant_phone_masked,status,created_at,status_changed_at,owner_notes\n";
-    }
-
-    const result = await this.database.query<{
-      id: string;
-      listing_title: string;
-      tenant_name: string;
-      tenant_phone_masked: string | null;
-      status: string;
-      created_at: string;
-      status_changed_at: string;
-      owner_notes: string | null;
-    }>(
-      `SELECT
+    const rows = !this.database.isEnabled()
+      ? (
+          this.appState?.listOwnerLeads(ownerUserId, undefined, 1, Number.MAX_SAFE_INTEGER, false)
+            .items ?? []
+        ).map((lead) => ({
+          id: lead.id,
+          listing_title: lead.listing_title,
+          tenant_name: lead.tenant_name,
+          tenant_phone_masked: lead.tenant_phone_masked,
+          status: lead.status,
+          created_at: this.formatCsvDate(lead.created_at),
+          status_changed_at: this.formatCsvDate(lead.status_changed_at),
+          owner_notes: lead.owner_notes
+        }))
+      : (
+          await this.database.query<{
+            id: string;
+            listing_title: string;
+            tenant_name: string;
+            tenant_phone_masked: string | null;
+            status: string;
+            created_at: string;
+            status_changed_at: string;
+            owner_notes: string | null;
+          }>(
+            `SELECT
          ld.id::text,
          COALESCE(NULLIF(l.title_en, ''), 'Listing') AS listing_title,
          COALESCE(u.full_name, 'Tenant')             AS tenant_name,
@@ -741,8 +823,9 @@ export class LeadsService {
        LEFT JOIN users u ON u.id = ld.tenant_user_id
        WHERE ld.owner_user_id = $1::uuid
        ORDER BY ld.created_at DESC`,
-      [ownerUserId]
-    );
+            [ownerUserId]
+          )
+        ).rows;
 
     const escape = (v: string | null | undefined) => {
       if (v == null) return "";
@@ -755,7 +838,7 @@ export class LeadsService {
 
     const header =
       "lead_id,listing_title,tenant_name,tenant_phone_masked,status,created_at,status_changed_at,owner_notes";
-    const rows = result.rows.map((r) =>
+    const csvRows = rows.map((r) =>
       [
         r.id,
         r.listing_title,
@@ -770,6 +853,22 @@ export class LeadsService {
         .join(",")
     );
 
-    return [header, ...rows].join("\n");
+    return [header, ...csvRows].join("\n");
+  }
+
+  private formatCsvDate(value: string) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return value;
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    })
+      .format(date)
+      .replace(",", "");
   }
 }

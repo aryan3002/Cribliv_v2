@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { CreditPurchaseDialog } from "../credit-purchase-dialog";
 
 interface RazorpayOptions {
@@ -70,6 +72,8 @@ const TENANT_PLANS = [
   }
 ];
 
+const globalCss = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+
 function jsonOk(data: unknown) {
   return Promise.resolve({ ok: true, json: async () => ({ data }) });
 }
@@ -97,7 +101,13 @@ function walletRoute(balance: number) {
       !url.includes("/wallet/plans") &&
       !url.includes("/wallet/purchase-intents") &&
       (!init?.method || init.method === "GET"),
-    respond: () => jsonOk({ balance_credits: balance, free_credits_granted: 2 })
+    respond: () =>
+      jsonOk({
+        balance_credits: balance,
+        free_credits_granted: 10,
+        promotional_credits_remaining: 0,
+        promotional_credits_expires_at: null
+      })
   };
 }
 
@@ -120,6 +130,89 @@ afterEach(() => {
 });
 
 describe("CreditPurchaseDialog", () => {
+  it("uses a safe-area-aware bottom sheet on mobile", async () => {
+    vi.stubGlobal("fetch", routeFetch([plansRoute(OWNER_PLANS), walletRoute(3)]));
+
+    render(
+      <CreditPurchaseDialog
+        open
+        accessToken="tok"
+        locale="en"
+        audience="owner"
+        onClose={vi.fn()}
+        onCaptured={vi.fn()}
+      />
+    );
+
+    await screen.findByTestId("cp-plan-leads_5");
+
+    const dialog = screen.getByTestId("credit-purchase-dialog");
+    expect(dialog).toHaveClass("credit-purchase-overlay");
+    expect(dialog.firstElementChild).toHaveClass("credit-purchase-sheet");
+    expect(globalCss).toMatch(
+      /@media\s*\(max-width:\s*640px\)[\s\S]*?\.credit-purchase-overlay\s*\{[\s\S]*?align-items:\s*flex-end;[\s\S]*?\.credit-purchase-sheet\s*\{[\s\S]*?padding-bottom:\s*env\(safe-area-inset-bottom\);/s
+    );
+  });
+
+  it("locks page scroll, closes on Escape, and restores focus", async () => {
+    vi.stubGlobal("fetch", routeFetch([plansRoute(OWNER_PLANS), walletRoute(3)]));
+    const onClose = vi.fn();
+    const trigger = document.createElement("button");
+    trigger.textContent = "Open credits";
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const { unmount } = render(
+      <CreditPurchaseDialog
+        open
+        accessToken="tok"
+        locale="en"
+        audience="owner"
+        onClose={onClose}
+        onCaptured={vi.fn()}
+      />
+    );
+
+    await screen.findByTestId("cp-plan-leads_5");
+    await waitFor(() => expect(screen.getByTestId("cp-close-button")).toHaveFocus());
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(document.body.style.overflow).toBe("");
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
+
+  it("keeps keyboard focus inside the open dialog", async () => {
+    vi.stubGlobal("fetch", routeFetch([plansRoute(OWNER_PLANS), walletRoute(3)]));
+
+    render(
+      <CreditPurchaseDialog
+        open
+        accessToken="tok"
+        locale="en"
+        audience="owner"
+        onClose={vi.fn()}
+        onCaptured={vi.fn()}
+      />
+    );
+
+    await screen.findByTestId("cp-plan-leads_5");
+    const close = screen.getByTestId("cp-close-button");
+    const pay = screen.getByRole("button", { name: /pay securely/i });
+
+    pay.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(close).toHaveFocus();
+
+    close.focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(pay).toHaveFocus();
+  });
+
   it("renders both owner lead packs and marks leads_15 as best value", async () => {
     vi.stubGlobal("fetch", routeFetch([plansRoute(OWNER_PLANS), walletRoute(3)]));
 
@@ -251,7 +344,13 @@ describe("CreditPurchaseDialog", () => {
             !url.includes("/plans") &&
             !url.includes("/purchase-intents") &&
             (!init?.method || init.method === "GET"),
-          respond: () => jsonOk({ balance_credits: 15, free_credits_granted: 2 })
+          respond: () =>
+            jsonOk({
+              balance_credits: 15,
+              free_credits_granted: 10,
+              promotional_credits_remaining: 0,
+              promotional_credits_expires_at: null
+            })
         }
       ])
     );

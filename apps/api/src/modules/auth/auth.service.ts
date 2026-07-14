@@ -11,8 +11,9 @@ import { createHash, randomInt, randomUUID, timingSafeEqual } from "crypto";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { isRateLimitingDisabled } from "../../common/rate-limit.util";
+import { expireSignupCredits } from "../wallet/wallet-balance";
 import { D7OtpClient, D7OtpVerifyError } from "./d7-otp.client";
-import { signupFreeCredits } from "./signup-credits";
+import { signupReward } from "./signup-credits";
 import { readOtpProviderConfig } from "./otp-provider.config";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
@@ -257,27 +258,41 @@ export class AuthService {
         );
 
         let isNewUser = false;
+        let reward: ReturnType<typeof signupReward> | undefined;
 
         if (!userResult.rowCount) {
+          const rewardNow = new Date();
+          reward = signupReward(rewardNow);
           userResult = await client.query(
             `
-            INSERT INTO users(phone_e164, role, preferred_language)
-            VALUES ($1, 'tenant', 'en')
+            INSERT INTO users(
+              phone_e164,
+              role,
+              preferred_language,
+              created_at,
+              updated_at
+            )
+            VALUES ($1, 'tenant', 'en', $2::timestamptz, $2::timestamptz)
             RETURNING id::text, role::text, phone_e164, preferred_language::text
             `,
-            [challenge.phone_e164]
+            [challenge.phone_e164, rewardNow]
           );
 
           const userId = userResult.rows[0].id;
-          const freeCredits = signupFreeCredits();
           await client.query(
             `
-            INSERT INTO wallets(user_id, balance_credits, free_credits_granted)
-            VALUES ($1::uuid, $2, $2)
+            INSERT INTO wallets(
+              user_id,
+              balance_credits,
+              free_credits_granted,
+              promotional_credits_remaining,
+              promotional_credits_expires_at
+            )
+            VALUES ($1::uuid, $2, $2, $2, $3::timestamptz)
             ON CONFLICT (user_id)
             DO NOTHING
             `,
-            [userId, freeCredits]
+            [userId, reward.credits, reward.expiresAt]
           );
 
           await client.query(
@@ -292,7 +307,7 @@ export class AuthService {
             )
             VALUES ($1::uuid, 'grant_signup', $2, 'user', $1::uuid, '{}'::jsonb)
             `,
-            [userId, freeCredits]
+            [userId, reward.credits]
           );
 
           isNewUser = true;
@@ -316,7 +331,15 @@ export class AuthService {
             phone_e164: userResult.rows[0].phone_e164,
             preferred_language: userResult.rows[0].preferred_language
           },
-          is_new_user: isNewUser
+          is_new_user: isNewUser,
+          ...(reward
+            ? {
+                signup_reward: {
+                  credits_granted: reward.credits,
+                  expires_at: reward.expiresAt?.toISOString() ?? null
+                }
+              }
+            : {})
         };
       } catch (error) {
         await client.query("ROLLBACK");
@@ -381,38 +404,65 @@ export class AuthService {
 
   async getMe(userId: string) {
     if (this.database.isEnabled()) {
-      const result = await this.database.query<{
-        id: string;
-        role: string;
-        phone_e164: string;
-        full_name: string | null;
-        preferred_language: string;
-        whatsapp_opt_in: boolean;
-        wallet_balance: number;
-      }>(
-        `
-        SELECT
-          u.id::text,
-          u.role::text,
-          u.phone_e164,
-          u.full_name,
-          u.preferred_language::text,
-          u.whatsapp_opt_in,
-          COALESCE(w.balance_credits, 0) AS wallet_balance
-        FROM users u
-        LEFT JOIN wallets w ON w.user_id = u.id
-        WHERE u.id = $1::uuid
-        LIMIT 1
-        `,
-        [userId]
-      );
+      const client = await this.database.getClient();
+      let inTransaction = false;
+      try {
+        await client.query("BEGIN");
+        inTransaction = true;
+        await expireSignupCredits(client, userId);
+        const result = await client.query<{
+          id: string;
+          role: string;
+          phone_e164: string;
+          full_name: string | null;
+          preferred_language: string;
+          whatsapp_opt_in: boolean;
+          wallet_balance: number;
+          promotional_credits_remaining: number;
+          promotional_credits_expires_at: string | null;
+        }>(
+          `
+          SELECT
+            u.id::text,
+            u.role::text,
+            u.phone_e164,
+            u.full_name,
+            u.preferred_language::text,
+            u.whatsapp_opt_in,
+            COALESCE(w.balance_credits, 0) AS wallet_balance,
+            COALESCE(w.promotional_credits_remaining, 0)
+              AS promotional_credits_remaining,
+            w.promotional_credits_expires_at::text
+              AS promotional_credits_expires_at
+          FROM users u
+          LEFT JOIN wallets w ON w.user_id = u.id
+          WHERE u.id = $1::uuid
+          LIMIT 1
+          `,
+          [userId]
+        );
+        await client.query("COMMIT");
+        inTransaction = false;
 
-      if (result.rowCount && result.rows[0]) {
-        return result.rows[0];
+        if (result.rowCount && result.rows[0]) {
+          return result.rows[0];
+        }
+      } catch (error) {
+        if (inTransaction) {
+          try {
+            await client.query("ROLLBACK");
+          } catch {
+            // Preserve the error that aborted the wallet read.
+          }
+        }
+        throw error;
+      } finally {
+        client.release();
       }
     }
 
     const user = this.appState.users.get(userId);
+    const wallet = this.appState.getWalletDetails(userId);
     return {
       id: user?.id,
       role: user?.role,
@@ -420,7 +470,12 @@ export class AuthService {
       full_name: user?.full_name ?? null,
       preferred_language: user?.preferred_language,
       whatsapp_opt_in: user?.whatsapp_opt_in ?? false,
-      wallet_balance: this.appState.getWalletBalance(userId)
+      wallet_balance: wallet.balanceCredits,
+      promotional_credits_remaining: wallet.promotionalCreditsRemaining,
+      promotional_credits_expires_at:
+        wallet.promotionalCreditsExpiresAt === null
+          ? null
+          : new Date(wallet.promotionalCreditsExpiresAt).toISOString()
     };
   }
 
@@ -687,6 +742,7 @@ export class AuthService {
     this.appState.challenges.delete(challenge_id);
     let user = this.appState.usersByPhone.get(challenge.phone);
     let isNewUser = false;
+    let reward: ReturnType<typeof signupReward> | undefined;
 
     if (!user) {
       const userId = randomUUID();
@@ -700,12 +756,8 @@ export class AuthService {
       this.appState.usersByPhone.set(user.phone, user);
       this.appState.wallets.set(user.id, 0);
       this.appState.walletTxns.set(user.id, []);
-      this.appState.addWalletTxn({
-        userId: user.id,
-        type: "grant_signup",
-        creditsDelta: 2,
-        referenceId: user.id
-      });
+      reward = signupReward();
+      this.appState.grantSignupReward(user.id, reward);
       isNewUser = true;
     }
 
@@ -719,7 +771,15 @@ export class AuthService {
         phone_e164: user.phone,
         preferred_language: user.preferred_language
       },
-      is_new_user: isNewUser
+      is_new_user: isNewUser,
+      ...(reward
+        ? {
+            signup_reward: {
+              credits_granted: reward.credits,
+              expires_at: reward.expiresAt?.toISOString() ?? null
+            }
+          }
+        : {})
     };
   }
 }

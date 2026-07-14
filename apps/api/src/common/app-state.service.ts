@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "crypto";
+import { signupReward, type SignupReward } from "../modules/auth/signup-credits";
 
 interface UserRecord {
   id: string;
@@ -51,6 +52,13 @@ interface WalletTxn {
   referenceId?: string;
   createdAt: number;
   idempotencyKey?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PromotionalWalletState {
+  granted: number;
+  remaining: number;
+  expiresAt: number | null;
 }
 
 interface UnlockRecord {
@@ -65,6 +73,27 @@ interface UnlockRecord {
   refundTxnId?: string;
   tenantConfirmedAt?: number;
   disputedAt?: number;
+}
+
+type LeadStatus = "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost";
+type LeadAccessState = "free" | "locked" | "unlocked" | "expired";
+
+interface LeadRecord {
+  id: string;
+  listingId: string;
+  ownerUserId: string;
+  tenantUserId: string;
+  contactUnlockId?: string;
+  tenantPhoneMasked?: string | null;
+  status: LeadStatus;
+  accessState: LeadAccessState;
+  callDeadlineAt?: number | null;
+  calledAt?: number | null;
+  calledBy?: "owner" | "team" | null;
+  ownerNotes?: string | null;
+  createdAt: number;
+  statusChangedAt: number;
+  updatedAt: number;
 }
 
 export interface PaymentOrderRecord {
@@ -127,8 +156,11 @@ export class AppStateService {
   shortlists = new Map<string, Set<string>>();
   wallets = new Map<string, number>();
   walletTxns = new Map<string, WalletTxn[]>();
+  promotionalWallets = new Map<string, PromotionalWalletState>();
   unlocks = new Map<string, UnlockRecord>();
   unlockByIdempotency = new Map<string, UnlockRecord>();
+  leads = new Map<string, LeadRecord>();
+  leadByListingTenant = new Map<string, string>();
   idempotencyResponses = new Map<string, unknown>();
   paymentOrders = new Map<string, PaymentOrderRecord>();
   paymentOrderByProviderOrderId = new Map<string, PaymentOrderRecord>();
@@ -190,9 +222,10 @@ export class AppStateService {
     [owner, tenant, admin, pgOperator].forEach((u) => {
       this.users.set(u.id, u);
       this.usersByPhone.set(u.phone, u);
-      this.wallets.set(u.id, u.role === "tenant" ? 2 : 0);
+      this.wallets.set(u.id, 0);
       this.walletTxns.set(u.id, []);
     });
+    this.grantSignupReward(tenant.id, signupReward());
 
     const seedListings: ListingRecord[] = [
       {
@@ -281,11 +314,27 @@ export class AppStateService {
   ensureWallet(userId: string) {
     if (!this.wallets.has(userId)) {
       this.wallets.set(userId, 0);
+    }
+    if (!this.walletTxns.has(userId)) {
       this.walletTxns.set(userId, []);
     }
   }
 
   addWalletTxn(input: Omit<WalletTxn, "id" | "createdAt">) {
+    if (input.creditsDelta < 0) {
+      return this.debitWalletCredits({
+        userId: input.userId,
+        credits: -input.creditsDelta,
+        type: input.type,
+        referenceId: input.referenceId,
+        idempotencyKey: input.idempotencyKey,
+        metadata: input.metadata
+      });
+    }
+    return this.appendWalletTxn(input);
+  }
+
+  private appendWalletTxn(input: Omit<WalletTxn, "id" | "createdAt">) {
     const txn: WalletTxn = {
       ...input,
       id: randomUUID(),
@@ -299,14 +348,241 @@ export class AppStateService {
     return txn;
   }
 
-  getWalletBalance(userId: string) {
+  grantSignupReward(userId: string, reward: SignupReward): WalletTxn {
     this.ensureWallet(userId);
-    return this.wallets.get(userId) ?? 0;
+    this.promotionalWallets.set(userId, {
+      granted: reward.credits,
+      remaining: reward.credits,
+      expiresAt: reward.expiresAt?.getTime() ?? null
+    });
+    return this.addWalletTxn({
+      userId,
+      type: "grant_signup",
+      creditsDelta: reward.credits,
+      referenceId: userId
+    });
+  }
+
+  getWalletDetails(userId: string, now = Date.now()) {
+    this.ensureWallet(userId);
+    const promotional = this.promotionalWallets.get(userId) ?? {
+      granted: 0,
+      remaining: 0,
+      expiresAt: null
+    };
+
+    if (
+      promotional.remaining > 0 &&
+      promotional.expiresAt !== null &&
+      promotional.expiresAt <= now
+    ) {
+      const expiredCredits = promotional.remaining;
+      promotional.remaining = 0;
+      this.promotionalWallets.set(userId, promotional);
+      this.appendWalletTxn({
+        userId,
+        type: "expire_signup",
+        creditsDelta: -expiredCredits,
+        referenceId: userId,
+        metadata: {
+          expiredCredits,
+          expiresAt: promotional.expiresAt
+        }
+      });
+    }
+
+    return {
+      balanceCredits: this.wallets.get(userId) ?? 0,
+      freeCreditsGranted: promotional.granted,
+      promotionalCreditsRemaining: promotional.remaining,
+      promotionalCreditsExpiresAt: promotional.expiresAt
+    };
+  }
+
+  debitWalletCredits(
+    input: {
+      userId: string;
+      credits: number;
+      type: string;
+      referenceId?: string;
+      idempotencyKey?: string;
+      metadata?: Record<string, unknown>;
+    },
+    now = Date.now()
+  ): WalletTxn {
+    const wallet = this.getWalletDetails(input.userId, now);
+    if (!Number.isInteger(input.credits) || input.credits <= 0) {
+      throw new Error("Wallet debit credits must be a positive integer");
+    }
+
+    if (input.idempotencyKey) {
+      const existing = (this.walletTxns.get(input.userId) ?? []).find(
+        (txn) => txn.idempotencyKey === input.idempotencyKey
+      );
+      if (existing) {
+        if (
+          existing.type === input.type &&
+          existing.referenceId === input.referenceId &&
+          existing.creditsDelta === -input.credits
+        ) {
+          return existing;
+        }
+        throw new Error("Wallet idempotency key conflicts with a different transaction");
+      }
+    }
+
+    if (wallet.balanceCredits < input.credits) {
+      throw new Error("Insufficient wallet credits");
+    }
+
+    const promotional = this.promotionalWallets.get(input.userId);
+    const promotionalCreditsUsed = Math.min(promotional?.remaining ?? 0, input.credits);
+    if (promotional) {
+      promotional.remaining -= promotionalCreditsUsed;
+    }
+
+    return this.appendWalletTxn({
+      userId: input.userId,
+      type: input.type,
+      creditsDelta: -input.credits,
+      referenceId: input.referenceId,
+      idempotencyKey: input.idempotencyKey,
+      metadata: {
+        ...input.metadata,
+        promotionalCreditsUsed
+      }
+    });
+  }
+
+  getWalletBalance(userId: string) {
+    return this.getWalletDetails(userId).balanceCredits;
   }
 
   listWalletTransactions(userId: string) {
     this.ensureWallet(userId);
     return [...(this.walletTxns.get(userId) ?? [])].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  createOwnerLead(input: {
+    listingId: string;
+    ownerUserId: string;
+    tenantUserId: string;
+    contactUnlockId?: string;
+    tenantPhoneMasked?: string | null;
+    callDeadlineAt?: number | null;
+  }) {
+    const dedupeKey = `${input.listingId}:${input.tenantUserId}`;
+    const existingId = this.leadByListingTenant.get(dedupeKey);
+    const existing = existingId ? this.leads.get(existingId) : undefined;
+    const now = Date.now();
+
+    if (existing && now - existing.createdAt < 7 * 24 * 60 * 60 * 1000) {
+      existing.contactUnlockId = existing.contactUnlockId ?? input.contactUnlockId;
+      existing.callDeadlineAt = existing.callDeadlineAt ?? input.callDeadlineAt ?? null;
+      existing.updatedAt = now;
+      return { lead: existing, created: false };
+    }
+
+    const ownerLeadCount = [...this.leads.values()].filter(
+      (lead) => lead.ownerUserId === input.ownerUserId
+    ).length;
+    const lead: LeadRecord = {
+      id: randomUUID(),
+      listingId: input.listingId,
+      ownerUserId: input.ownerUserId,
+      tenantUserId: input.tenantUserId,
+      contactUnlockId: input.contactUnlockId,
+      tenantPhoneMasked: input.tenantPhoneMasked ?? null,
+      status: "new",
+      accessState: ownerLeadCount < 2 ? "free" : "locked",
+      callDeadlineAt: input.callDeadlineAt ?? null,
+      calledAt: null,
+      calledBy: null,
+      ownerNotes: null,
+      createdAt: now,
+      statusChangedAt: now,
+      updatedAt: now
+    };
+
+    this.leads.set(lead.id, lead);
+    this.leadByListingTenant.set(dedupeKey, lead.id);
+    return { lead, created: true };
+  }
+
+  getOwnerLead(leadId: string, ownerUserId: string) {
+    const lead = this.leads.get(leadId);
+    return lead?.ownerUserId === ownerUserId ? lead : undefined;
+  }
+
+  listOwnerLeads(
+    ownerUserId: string,
+    status: LeadStatus | undefined,
+    page: number,
+    pageSize: number,
+    revealTenantPhone: boolean
+  ) {
+    const filtered = [...this.leads.values()]
+      .filter((lead) => lead.ownerUserId === ownerUserId && (!status || lead.status === status))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    const offset = (page - 1) * pageSize;
+    const items = filtered.slice(offset, offset + pageSize).map((lead) => {
+      const listing = this.listings.get(lead.listingId);
+      const tenant = this.users.get(lead.tenantUserId);
+      const tenantPhone =
+        revealTenantPhone && (lead.accessState === "free" || lead.accessState === "unlocked")
+          ? (tenant?.phone ?? null)
+          : null;
+
+      return {
+        id: lead.id,
+        listing_id: lead.listingId,
+        listing_title: listing?.title ?? "Listing",
+        tenant_user_id: lead.tenantUserId,
+        tenant_name: tenant?.full_name ?? "Tenant",
+        tenant_phone_masked: lead.tenantPhoneMasked ?? null,
+        status: lead.status,
+        status_changed_at: new Date(lead.statusChangedAt).toISOString(),
+        owner_notes: lead.ownerNotes ?? null,
+        created_at: new Date(lead.createdAt).toISOString(),
+        access_state: lead.accessState,
+        call_deadline_at: lead.callDeadlineAt ? new Date(lead.callDeadlineAt).toISOString() : null,
+        called_at: lead.calledAt ? new Date(lead.calledAt).toISOString() : null,
+        called_by: lead.calledBy ?? null,
+        tenant_phone: tenantPhone
+      };
+    });
+
+    return { items, total: filtered.length, page, page_size: pageSize };
+  }
+
+  getOwnerLeadStats(ownerUserId: string) {
+    const stats: Record<LeadStatus | "total", number> = {
+      new: 0,
+      contacted: 0,
+      visit_scheduled: 0,
+      deal_done: 0,
+      lost: 0,
+      total: 0
+    };
+
+    for (const lead of this.leads.values()) {
+      if (lead.ownerUserId !== ownerUserId) continue;
+      stats[lead.status] += 1;
+      stats.total += 1;
+    }
+
+    return stats;
+  }
+
+  updateOwnerLeadStatus(leadId: string, ownerUserId: string, status: LeadStatus, notes?: string) {
+    const lead = this.getOwnerLead(leadId, ownerUserId);
+    if (!lead) return undefined;
+
+    lead.status = status;
+    lead.ownerNotes = notes ?? lead.ownerNotes ?? null;
+    lead.statusChangedAt = Date.now();
+    lead.updatedAt = lead.statusChangedAt;
+    return lead;
   }
 
   runRefundSweep() {

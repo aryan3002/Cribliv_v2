@@ -3,9 +3,12 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { createHmac } from "crypto";
 import request from "supertest";
+import { Client } from "pg";
 import { AppModule } from "../src/app.module";
 import { AppStateService } from "../src/common/app-state.service";
 import { canonicalPayload } from "../src/modules/payments/payments.util";
+
+const TEST_DB = process.env.TEST_DATABASE_URL;
 
 interface OtpSendData {
   challenge_id: string;
@@ -86,6 +89,60 @@ async function loginWithOtp(app: INestApplication, phone: string) {
 async function getFirstListingId(app: INestApplication) {
   const searchRes = await http(app).get("/v1/listings/search").expect(200);
   return searchRes.body.data.items[0].id as string;
+}
+
+const verificationFixtures = {
+  mp4: Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x14]), Buffer.from("ftypisom")]),
+  pdf: Buffer.from("%PDF-1.7\n")
+};
+
+async function uploadVerificationArtifact(
+  app: INestApplication,
+  accessToken: string,
+  input: {
+    listingId: string;
+    kind: "video_liveness" | "electricity_bill";
+    contentType: string;
+    fileName: string;
+    content: Buffer;
+  }
+) {
+  const presign = await http(app)
+    .post("/v1/owner/verification/artifacts/presign")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({
+      listing_id: input.listingId,
+      kind: input.kind,
+      content_type: input.contentType,
+      size_bytes: input.content.length,
+      file_name: input.fileName
+    })
+    .expect(201);
+
+  const uploadToken = presign.body.data.upload_token as string;
+  const blobPath = presign.body.data.blob_path as string;
+
+  await http(app)
+    .post("/v1/owner/verification/artifacts/upload")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .field("upload_token", uploadToken)
+    .attach("file", input.content, {
+      filename: input.fileName,
+      contentType: input.contentType
+    })
+    .expect(201);
+
+  await http(app)
+    .post("/v1/owner/verification/artifacts/complete")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({
+      listing_id: input.listingId,
+      upload_token: uploadToken,
+      blob_path: blobPath
+    })
+    .expect(201);
+
+  return blobPath;
 }
 
 async function createPurchaseIntent(
@@ -188,7 +245,37 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(1);
+    expect(wallet.body.data).toMatchObject({
+      balance_credits: 9,
+      free_credits_granted: 10,
+      promotional_credits_remaining: 9,
+      promotional_credits_expires_at: expect.any(String)
+    });
+  });
+
+  it("returns insufficient_credits when promotional credits expire before contact unlock", async () => {
+    if (!app) {
+      throw new Error("App not initialized");
+    }
+    const tenant = await loginWithOtp(app, "+919999999902");
+    const listingId = await getFirstListingId(app);
+    const appState = app.get(AppStateService);
+    const promotional = appState.promotionalWallets.get(tenant.user.id);
+    expect(promotional).toBeDefined();
+    promotional!.expiresAt = Date.now() - 1;
+
+    const response = await http(app)
+      .post("/v1/tenant/contact-unlocks")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .set("Idempotency-Key", "expired-promo-unlock")
+      .send({ listing_id: listingId })
+      .expect(402);
+
+    expect(getErrorCode(response.body)).toBe("insufficient_credits");
+    expect(appState.getWalletDetails(tenant.user.id)).toMatchObject({
+      balanceCredits: 0,
+      promotionalCreditsRemaining: 0
+    });
   });
 
   it("does not refund when owner responds before deadline", async () => {
@@ -225,7 +312,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(1);
+    expect(wallet.body.data.balance_credits).toBe(9);
   });
 
   it("refunds exactly once after 12h no-response timeout", async () => {
@@ -258,7 +345,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("enforces shortlist auth and supports CRUD for authenticated users", async () => {
@@ -372,7 +459,7 @@ describe("Phase 1 integration flows", () => {
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
 
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("handles concurrent webhook replay without double credit", async () => {
@@ -420,7 +507,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("rejects invalid webhook signature without credit posting", async () => {
@@ -460,7 +547,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("accepts a later valid webhook after an invalid signature attempt on same event id", async () => {
@@ -506,7 +593,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("does not credit wallet for failed payment webhook", async () => {
@@ -546,7 +633,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("ignores a captured webhook whose amount does not match the order and does not credit wallet", async () => {
@@ -591,7 +678,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("ignores a captured webhook whose currency is not INR and does not credit wallet", async () => {
@@ -636,7 +723,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(2);
+    expect(wallet.body.data.balance_credits).toBe(10);
   });
 
   it("still credits wallet for a captured webhook payload without amount/currency fields", async () => {
@@ -679,7 +766,7 @@ describe("Phase 1 integration flows", () => {
       .get("/v1/wallet")
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(200);
-    expect(wallet.body.data.balance_credits).toBe(12);
+    expect(wallet.body.data.balance_credits).toBe(20);
   });
 
   it("creates sales lead once per idempotency key and supports admin status updates", async () => {
@@ -742,13 +829,20 @@ describe("Phase 1 integration flows", () => {
     }
     const owner = await loginWithOtp(app, "+919999999901");
     const listingId = await getFirstListingId(app);
+    const artifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "video_liveness",
+      contentType: "video/mp4",
+      fileName: "video-proof.mp4",
+      content: verificationFixtures.mp4
+    });
 
     const video = await http(app)
       .post("/v1/owner/verification/video")
       .set("Authorization", `Bearer ${owner.access_token}`)
       .send({
         listing_id: listingId,
-        artifact_blob_path: "/tmp/video-proof.mp4",
+        artifact_blob_path: artifactBlobPath,
         vendor_reference: "video_ref_1"
       })
       .expect(201);
@@ -773,6 +867,13 @@ describe("Phase 1 integration flows", () => {
     const owner = await loginWithOtp(app, "+919999999901");
     const admin = await loginWithOtp(app, "+919999999903");
     const listingId = await getFirstListingId(app);
+    const billArtifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "electricity_bill",
+      contentType: "application/pdf",
+      fileName: "bill.pdf",
+      content: verificationFixtures.pdf
+    });
 
     const submitted = await http(app)
       .post("/v1/owner/verification/electricity")
@@ -781,7 +882,7 @@ describe("Phase 1 integration flows", () => {
         listing_id: listingId,
         consumer_id: "cons_001",
         address_text: "gurugram sector 14",
-        bill_artifact_blob_path: "/tmp/bill.pdf"
+        bill_artifact_blob_path: billArtifactBlobPath
       })
       .expect(201);
 
@@ -825,6 +926,13 @@ describe("Phase 1 integration flows", () => {
     const owner = await loginWithOtp(app, "+919999999901");
     const admin = await loginWithOtp(app, "+919999999903");
     const listingId = await getFirstListingId(app);
+    const billArtifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "electricity_bill",
+      contentType: "application/pdf",
+      fileName: "bill-fail.pdf",
+      content: verificationFixtures.pdf
+    });
 
     const submitted = await http(app)
       .post("/v1/owner/verification/electricity")
@@ -833,7 +941,7 @@ describe("Phase 1 integration flows", () => {
         listing_id: listingId,
         consumer_id: "cons_002",
         address_text: "fraud mismatch-hard signal",
-        bill_artifact_blob_path: "/tmp/bill-fail.pdf"
+        bill_artifact_blob_path: billArtifactBlobPath
       })
       .expect(201);
 
@@ -874,13 +982,20 @@ describe("Phase 1 integration flows", () => {
     const owner = await loginWithOtp(app, "+919999999901");
     const admin = await loginWithOtp(app, "+919999999903");
     const listingId = await getFirstListingId(app);
+    const artifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "video_liveness",
+      contentType: "video/mp4",
+      fileName: "video-proof.mp4",
+      content: verificationFixtures.mp4
+    });
 
     const timeout = await http(app)
       .post("/v1/owner/verification/video")
       .set("Authorization", `Bearer ${owner.access_token}`)
       .send({
         listing_id: listingId,
-        artifact_blob_path: "/tmp/video-proof.mp4",
+        artifact_blob_path: artifactBlobPath,
         vendor_reference: "simulate-timeout"
       })
       .expect(201);
@@ -916,5 +1031,155 @@ describe("Phase 1 integration flows", () => {
         ELECTRICITY_PROVIDER_API_KEY: undefined
       })
     ).rejects.toThrow();
+  });
+});
+
+describe.runIf(!!TEST_DB)("Phase 1 contact wallet flows (DB)", () => {
+  let app: INestApplication;
+  let db: Client;
+  const tenantPhone = `+9196${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+  const ownerPhone = `+9195${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+  let tenant: OtpVerifyData;
+  let listingOne: string;
+  let listingTwo: string;
+
+  beforeAll(async () => {
+    app = await createApp({
+      DATABASE_URL: TEST_DB,
+      FF_CALLBACK_LEADS: "false",
+      FF_LEAD_MANAGEMENT_ENABLED: "false"
+    });
+    db = new Client({ connectionString: TEST_DB! });
+    await db.connect();
+
+    tenant = await loginWithOtp(app, tenantPhone);
+    const owner = await loginWithOtp(app, ownerPhone);
+    await db.query(`UPDATE users SET role = 'owner' WHERE id = $1::uuid`, [owner.user.id]);
+
+    const listings = await db.query<{ id: string }>(
+      `INSERT INTO listings (
+         owner_user_id, listing_type, title_en, monthly_rent, status, contact_phone_encrypted
+       )
+       VALUES
+         ($1::uuid, 'flat_house', 'Phase 1 Wallet Replay A', 12000, 'active', '+919511111111'),
+         ($1::uuid, 'flat_house', 'Phase 1 Wallet Replay B', 13000, 'active', '+919522222222')
+       RETURNING id::text`,
+      [owner.user.id]
+    );
+    [listingOne, listingTwo] = listings.rows.map((row) => row.id);
+  }, 60_000);
+
+  afterAll(async () => {
+    await db.query(
+      `DELETE FROM contact_events WHERE contact_unlock_id IN
+         (SELECT id FROM contact_unlocks WHERE listing_id = ANY($1::uuid[]))`,
+      [[listingOne, listingTwo]]
+    );
+    await db.query(`DELETE FROM contact_unlocks WHERE listing_id = ANY($1::uuid[])`, [
+      [listingOne, listingTwo]
+    ]);
+    await db.query(
+      `DELETE FROM wallet_transactions WHERE wallet_user_id IN
+         (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+      [[tenantPhone, ownerPhone]]
+    );
+    await db.query(
+      `DELETE FROM wallets WHERE user_id IN
+         (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+      [[tenantPhone, ownerPhone]]
+    );
+    await db.query(`DELETE FROM listings WHERE id = ANY($1::uuid[])`, [[listingOne, listingTwo]]);
+    await db.query(
+      `DELETE FROM sessions WHERE user_id IN
+         (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+      [[tenantPhone, ownerPhone]]
+    );
+    await db.query(`DELETE FROM otp_challenges WHERE phone_e164 = ANY($1)`, [
+      [tenantPhone, ownerPhone]
+    ]);
+    await db.query(`DELETE FROM users WHERE phone_e164 = ANY($1)`, [[tenantPhone, ownerPhone]]);
+    await db.end();
+    await app.close();
+    delete process.env.DATABASE_URL;
+    delete process.env.FF_CALLBACK_LEADS;
+    delete process.env.FF_LEAD_MANAGEMENT_ENABLED;
+  }, 60_000);
+
+  it("expires signup credits before returning a completed contact replay balance", async () => {
+    const key = "phase1-contact-replay";
+    await http(app)
+      .post("/v1/tenant/contact-unlocks")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .set("Idempotency-Key", key)
+      .send({ listing_id: listingOne })
+      .expect(201);
+
+    await db.query(
+      `UPDATE wallets
+       SET balance_credits = 1,
+           promotional_credits_remaining = 1,
+           promotional_credits_expires_at = now() - interval '1 hour'
+       WHERE user_id = $1::uuid`,
+      [tenant.user.id]
+    );
+
+    const replay = await http(app)
+      .post("/v1/tenant/contact-unlocks")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .set("Idempotency-Key", key)
+      .send({ listing_id: listingOne })
+      .expect(201);
+    expect(replay.body.data.credits_remaining).toBe(0);
+
+    const wallet = await db.query(
+      `SELECT balance_credits, promotional_credits_remaining
+       FROM wallets WHERE user_id = $1::uuid`,
+      [tenant.user.id]
+    );
+    expect(wallet.rows[0]).toMatchObject({
+      balance_credits: 0,
+      promotional_credits_remaining: 0
+    });
+  });
+
+  it("commits signup expiry and its ledger before contact unlock returns 402", async () => {
+    const expiryCountBefore = await db.query(
+      `SELECT count(*)::int AS n FROM wallet_transactions
+       WHERE wallet_user_id = $1::uuid AND txn_type = 'expire_signup'`,
+      [tenant.user.id]
+    );
+    await db.query(
+      `UPDATE wallets
+       SET balance_credits = 1,
+           promotional_credits_remaining = 1,
+           promotional_credits_expires_at = now() - interval '1 hour'
+       WHERE user_id = $1::uuid`,
+      [tenant.user.id]
+    );
+
+    const response = await http(app)
+      .post("/v1/tenant/contact-unlocks")
+      .set("Authorization", `Bearer ${tenant.access_token}`)
+      .set("Idempotency-Key", "phase1-contact-insufficient")
+      .send({ listing_id: listingTwo })
+      .expect(402);
+    expect(getErrorCode(response.body)).toBe("insufficient_credits");
+
+    const wallet = await db.query(
+      `SELECT balance_credits, promotional_credits_remaining
+       FROM wallets WHERE user_id = $1::uuid`,
+      [tenant.user.id]
+    );
+    expect(wallet.rows[0]).toMatchObject({
+      balance_credits: 0,
+      promotional_credits_remaining: 0
+    });
+
+    const expiryCountAfter = await db.query(
+      `SELECT count(*)::int AS n FROM wallet_transactions
+       WHERE wallet_user_id = $1::uuid AND txn_type = 'expire_signup'`,
+      [tenant.user.id]
+    );
+    expect(expiryCountAfter.rows[0].n).toBe(expiryCountBefore.rows[0].n + 1);
   });
 });

@@ -9,23 +9,24 @@ import {
   type LeadStatus
 } from "../../lib/owner-api";
 import { LeadCard } from "./lead-card";
-import { type Locale } from "../../lib/i18n";
+import { t, type Locale } from "../../lib/i18n";
 
 interface Props {
   accessToken: string;
   locale: Locale;
+  searchQuery?: string;
 }
 
-const TABS: Array<{ value: LeadStatus | "all"; label: string; color?: string }> = [
-  { value: "all", label: "All" },
-  { value: "new", label: "New", color: "#3b82f6" },
-  { value: "contacted", label: "Contacted", color: "#f59e0b" },
-  { value: "visit_scheduled", label: "Visit Scheduled", color: "#5046e5" },
-  { value: "deal_done", label: "Deal Done", color: "#22c55e" },
-  { value: "lost", label: "Lost", color: "#9ca3af" }
+const TABS: Array<{ value: LeadStatus | "all"; labelKey: string; color?: string }> = [
+  { value: "all", labelKey: "ownerLeadStatusAll" },
+  { value: "new", labelKey: "ownerLeadStatusNew", color: "#3b82f6" },
+  { value: "contacted", labelKey: "ownerLeadStatusContacted", color: "#f59e0b" },
+  { value: "visit_scheduled", labelKey: "ownerLeadStatusVisitScheduled", color: "#5046e5" },
+  { value: "deal_done", labelKey: "ownerLeadStatusDealDone", color: "#22c55e" },
+  { value: "lost", labelKey: "ownerLeadStatusLost", color: "#9ca3af" }
 ];
 
-export function LeadsPipeline({ accessToken, locale }: Props) {
+export function LeadsPipeline({ accessToken, locale, searchQuery = "" }: Props) {
   const [leads, setLeads] = useState<LeadVm[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -84,6 +85,18 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
     setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...patch } : l)));
   }
 
+  const visibleLeads = leads.filter((lead) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      lead.tenantName.toLowerCase().includes(query) ||
+      lead.listingTitle.toLowerCase().includes(query) ||
+      (lead.tenantPhoneMasked ?? "").toLowerCase().includes(query) ||
+      (lead.tenantPhone ?? "").toLowerCase().includes(query) ||
+      (lead.ownerNotes ?? "").toLowerCase().includes(query)
+    );
+  });
+
   async function handleStatusChange(leadId: string, newStatus: LeadStatus, notes?: string) {
     const prevLeads = leads;
     // Optimistic update
@@ -124,7 +137,7 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
       <div
         className="dash-filter-row"
         role="tablist"
-        aria-label="Filter leads by status"
+        aria-label={t(locale, "ownerLeadsFilterByStatus")}
         style={{ marginBottom: "var(--space-5)" }}
       >
         {TABS.map((tab) => (
@@ -148,7 +161,7 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
                 }}
               />
             )}
-            {tab.label}
+            {t(locale, tab.labelKey)}
             {tabCounts[tab.value] !== undefined && (
               <span className="dash-filter-chip__count">{tabCounts[tab.value]}</span>
             )}
@@ -188,7 +201,7 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
         <div className="alert alert--error" role="alert">
           {error}
         </div>
-      ) : leads.length === 0 ? (
+      ) : visibleLeads.length === 0 ? (
         <div className="empty-state" style={{ padding: "var(--space-12) var(--space-6)" }}>
           <div
             style={{
@@ -214,8 +227,12 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
               marginBottom: "var(--space-2)"
             }}
           >
-            No leads
-            {activeStatus !== "all" ? ` with status "${activeStatus.replace("_", " ")}"` : " yet"}
+            {activeStatus !== "all"
+              ? t(locale, "ownerLeadsListEmptyStatusTitle").replace(
+                  "{status}",
+                  t(locale, TABS.find((tab) => tab.value === activeStatus)?.labelKey ?? "")
+                )
+              : t(locale, "ownerLeadsListEmptyTitle")}
           </h3>
           <p
             style={{
@@ -225,9 +242,11 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
               textAlign: "center"
             }}
           >
-            {activeStatus === "all"
-              ? "Once tenants enquire about your listings, they'll appear here."
-              : "Try selecting a different status filter above."}
+            {searchQuery.trim()
+              ? t(locale, "ownerLeadsListEmptySearchBody")
+              : activeStatus === "all"
+                ? t(locale, "ownerLeadsListEmptyAllBody")
+                : t(locale, "ownerLeadsListEmptyStatusBody")}
           </p>
         </div>
       ) : (
@@ -239,7 +258,7 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
               gap: "var(--space-4)"
             }}
           >
-            {leads.map((lead) => (
+            {visibleLeads.map((lead) => (
               <LeadCard
                 key={lead.id}
                 lead={lead}
@@ -262,7 +281,9 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
                 disabled={loadingMore}
                 style={{ minWidth: 160 }}
               >
-                {loadingMore ? "Loading…" : `Load more (${total - leads.length} remaining)`}
+                {loadingMore
+                  ? t(locale, "ownerLeadsLoadingMore")
+                  : t(locale, "ownerLeadsLoadMore").replace("{n}", String(total - leads.length))}
               </button>
             </div>
           )}
@@ -275,7 +296,9 @@ export function LeadsPipeline({ accessToken, locale }: Props) {
               marginTop: "var(--space-4)"
             }}
           >
-            Showing {leads.length} of {total} leads
+            {t(locale, "ownerLeadsShowingCount")
+              .replace("{shown}", String(leads.length))
+              .replace("{total}", String(total))}
           </p>
         </>
       )}

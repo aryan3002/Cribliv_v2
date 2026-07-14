@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -11,9 +12,11 @@ import {
   AlertCircle,
   XCircle,
   Building,
-  Home as HomeIcon
+  Home as HomeIcon,
+  MoreHorizontal
 } from "lucide-react";
 import type { OwnerListingVm, ListingStatus } from "../../lib/owner-api";
+import { t, type Locale } from "../../lib/i18n";
 import { toTitleCase, VERIFICATION_LABELS } from "../../lib/utils";
 import { AvailabilityToggle } from "./availability-toggle";
 import { SeekerNearWidget } from "./seeker-near-widget";
@@ -69,6 +72,11 @@ const STATUS_META: Record<
 };
 
 export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, onBoost }: Props) {
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsDialogRef = useRef<HTMLDivElement>(null);
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const actionsCloseRef = useRef<HTMLButtonElement>(null);
+  const loc = locale as Locale;
   const status = STATUS_META[listing.status] ?? STATUS_META.draft;
   const isVerified = listing.verificationStatus === "verified";
   const isPendingVerif = listing.verificationStatus === "pending";
@@ -76,9 +84,66 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
   const cover = listing.coverImage || listing.photos?.[0];
   const localityInitial = (listing.locality || listing.city || "C").trim().charAt(0).toUpperCase();
   const editHref = `/${locale}/owner/listings/new?edit=${listing.id}`;
+  const verificationHref = `/${locale}/owner/verification?listing=${listing.id}`;
+  const canToggleAvailability =
+    (listing.status === "active" || listing.status === "paused") && Boolean(accessToken);
+  const canEdit =
+    listing.status === "draft" ||
+    listing.status === "rejected" ||
+    listing.status === "pending_review" ||
+    listing.status === "active" ||
+    listing.status === "paused";
+  const canBoost = listing.status === "active";
+  const editLabel = listing.status === "rejected" ? "Fix and resubmit" : "Edit";
 
   const verifLabel =
     VERIFICATION_LABELS[listing.verificationStatus as keyof typeof VERIFICATION_LABELS];
+
+  function handleBoost() {
+    setActionsOpen(false);
+    onBoost(listing);
+  }
+
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const trigger = actionsTriggerRef.current;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => actionsCloseRef.current?.focus(), 0);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setActionsOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        actionsDialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      trigger?.focus();
+    };
+  }, [actionsOpen]);
 
   return (
     <article
@@ -203,36 +268,46 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
         )}
 
         <div className="lcl__actions">
-          {(listing.status === "active" || listing.status === "paused") && accessToken && (
-            <AvailabilityToggle
-              listingId={listing.id}
-              currentStatus={listing.status as "active" | "paused"}
-              accessToken={accessToken}
-              showLabel={false}
-              onStatusChange={(newStatus) => onStatusChange(listing.id, newStatus)}
-            />
-          )}
-
-          {(listing.status === "draft" ||
-            listing.status === "rejected" ||
-            listing.status === "pending_review" ||
-            listing.status === "active" ||
-            listing.status === "paused") && (
+          {canEdit && (
             <Link
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               href={editHref as any}
               className="lcl__btn lcl__btn--primary"
             >
               <Pencil size={12} aria-hidden="true" />
-              {listing.status === "rejected" ? "Fix & Resubmit" : "Edit"}
+              {editLabel}
             </Link>
           )}
 
-          {listing.status === "active" && (
+          <button
+            ref={actionsTriggerRef}
+            type="button"
+            className="lcl__btn lcl__btn--more"
+            onClick={() => setActionsOpen(true)}
+            aria-haspopup="dialog"
+          >
+            <MoreHorizontal size={15} aria-hidden="true" />
+            More actions
+          </button>
+
+          {canToggleAvailability && accessToken && (
+            <div className="lcl__desktop-action">
+              <AvailabilityToggle
+                listingId={listing.id}
+                currentStatus={listing.status as "active" | "paused"}
+                accessToken={accessToken}
+                showLabel={false}
+                errorMessage={t(loc, "ownerListingsErrorAvailability")}
+                onStatusChange={(newStatus) => onStatusChange(listing.id, newStatus)}
+              />
+            </div>
+          )}
+
+          {canBoost && (
             <button
               type="button"
-              className="lcl__btn lcl__btn--boost"
-              onClick={() => onBoost(listing)}
+              className="lcl__btn lcl__btn--boost lcl__desktop-action"
+              onClick={handleBoost}
             >
               <Zap size={12} aria-hidden="true" />
               Boost
@@ -240,6 +315,82 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
           )}
         </div>
       </div>
+
+      {actionsOpen && (
+        <div
+          className="lcl-sheet__overlay"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActionsOpen(false);
+          }}
+        >
+          <div
+            ref={actionsDialogRef}
+            className="lcl-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Listing actions"
+          >
+            <div className="lcl-sheet__header">
+              <h4>{listing.title || "Listing actions"}</h4>
+              <button
+                ref={actionsCloseRef}
+                type="button"
+                className="lcl-sheet__close"
+                aria-label="Close actions"
+                onClick={() => setActionsOpen(false)}
+              >
+                <XCircle size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="lcl-sheet__actions">
+              {canEdit && (
+                <Link
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  href={editHref as any}
+                  className="lcl-sheet__action lcl-sheet__action--primary"
+                  onClick={() => setActionsOpen(false)}
+                >
+                  <Pencil size={16} aria-hidden="true" />
+                  {editLabel}
+                </Link>
+              )}
+
+              {!isVerified && (
+                <Link
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  href={verificationHref as any}
+                  className="lcl-sheet__action"
+                  onClick={() => setActionsOpen(false)}
+                >
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  Verify listing
+                </Link>
+              )}
+
+              {canBoost && (
+                <button type="button" className="lcl-sheet__action" onClick={handleBoost}>
+                  <Zap size={16} aria-hidden="true" />
+                  Boost
+                </button>
+              )}
+
+              {canToggleAvailability && accessToken && (
+                <div className="lcl-sheet__availability">
+                  <AvailabilityToggle
+                    listingId={listing.id}
+                    currentStatus={listing.status as "active" | "paused"}
+                    accessToken={accessToken}
+                    errorMessage={t(loc, "ownerListingsErrorAvailability")}
+                    onStatusChange={(newStatus) => onStatusChange(listing.id, newStatus)}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
