@@ -141,7 +141,7 @@ export function buildArticle(input: ArticleInput): JsonLd {
       "@type": "Organization",
       name: "Cribliv",
       url: SITE_URL,
-      logo: { "@type": "ImageObject", url: `${SITE_URL}/images/logo.png` }
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/cribliv.png` }
     }
   };
   if (input.description) out.description = input.description;

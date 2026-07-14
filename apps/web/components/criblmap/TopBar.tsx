@@ -208,7 +208,7 @@ export function TopBar({ locale, onPlaceSelect }: TopBarProps) {
           <Image
             src="/criblivFont.png"
             alt="Cribliv"
-            width={72}
+            width={96}
             height={24}
             priority
             className="cmap-brand__wordmark"

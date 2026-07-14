@@ -447,11 +447,15 @@ h4,
 }
 
 .logo-font {
-  height: 22px;
+  height: 16px;
   width: auto;
   display: block;
   object-fit: contain;
   margin-left: var(--space-1);
+  /* Optical alignment: the mark's visual focal point (window cutout) sits
+     slightly below its bounding-box center, so the wordmark is nudged down
+     to match rather than aligning both boxes' raw geometric centers. */
+  transform: translateY(2px);
 }
 
 .logo-wordmark {
@@ -757,7 +761,7 @@ h4,
     gap: 6px;
   }
   .header .brand-lockup--md .logo-font {
-    height: 18px;
+    height: 16px;
   }
   .profile-pill {
     gap: 6px;
@@ -6977,7 +6981,7 @@ a.feature-card:hover .icon-circle {
   height: 20px;
 }
 .brand-lockup--sm .logo-font {
-  height: 16px;
+  height: 11px;
   margin-left: 4px;
 }
 /* md = default: inherits global .logo-img/.logo-font (30 / 22) */
@@ -6988,8 +6992,9 @@ a.feature-card:hover .icon-circle {
   height: 40px;
 }
 .brand-lockup--lg .logo-font {
-  height: 32px;
+  height: 22px;
   margin-left: 6px;
+  transform: translateY(3px);
 }
 
 /* Auth dark-portal glow — keeps the wordmark legible on dark canvas without
@@ -12065,14 +12070,16 @@ a.feature-card:hover .icon-circle {
   transition: filter 200ms ease;
 }
 .cmap-brand__wordmark {
-  height: 18px;
+  height: 13px;
   width: auto;
   display: block;
   /* The source PNG is dark-on-light; brighten for the dark map chrome. */
   filter: brightness(0) invert(1);
   opacity: 0.96;
-  /* Optical lift — image baselines often sit ~1px below text caps. */
-  transform: translateY(-1px);
+  /* Optical alignment: the mark's focal point sits below its box center,
+     so the wordmark is nudged down to match rather than centering both
+     boxes' raw geometric centers. */
+  transform: translateY(2px);
 }
 .cmap-brand__sep {
   width: 1px;
@@ -13194,7 +13201,7 @@ a.feature-card:hover .icon-circle {
     height: 20px;
   }
   .cmap-brand__wordmark {
-    height: 14px;
+    height: 11px;
   }
   .cmap-brand__sep {
     height: 12px;
@@ -18768,7 +18775,7 @@ a.feature-card:hover .icon-circle {
 }
 
 .brand-lockup--md .logo-font {
-  height: 25px;
+  height: 18px;
 }
 
 .nav-tab,
@@ -19322,7 +19329,7 @@ a.feature-card:hover .icon-circle {
   }
 
   .brand-lockup--md .logo-font {
-    height: 22px;
+    height: 16px;
   }
 
   .hero--home-prototype {
@@ -19390,7 +19397,7 @@ a.feature-card:hover .icon-circle {
   height: 30px;
 }
 .brand-lockup--md .logo-font {
-  height: 22px;
+  height: 16px;
 }
 
 .hero--home-prototype {
@@ -20085,7 +20092,7 @@ a.feature-card:hover .icon-circle {
   filter: drop-shadow(0 5px 12px rgba(0, 102, 255, 0.22));
 }
 .cmap-brand__wordmark {
-  height: 18px;
+  height: 15px;
   filter: none;
   opacity: 1;
 }
