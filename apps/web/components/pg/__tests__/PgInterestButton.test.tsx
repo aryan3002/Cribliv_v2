@@ -22,7 +22,7 @@ describe("PgInterestButton", () => {
   it("shows a login link when logged out", () => {
     render(<PgInterestButton listingId="abc" locale="en" />);
     const link = screen.getByRole("link", { name: /log in/i });
-    expect(link.getAttribute("href")).toContain("/en/auth/login");
+    expect(link.getAttribute("href")).toBe("/en/auth/login?from=%2Fen%2Fpg%2Flucknow%2Fabc");
   });
 
   it("posts interest and shows success copy when logged in", async () => {

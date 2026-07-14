@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { auth } from "../../../../../auth";
 import { getPgPublicListing } from "../../../../../lib/pg-public-api";
 import { PgDetailClient } from "../../../../../components/pg/PgDetailClient";
 import { jsonLdSafe } from "../../../../../lib/jsonld";
@@ -43,6 +44,8 @@ export default async function PgDetailPage({
 }) {
   const detail = await load(params.id);
   if (!detail) notFound();
+  const session = await auth().catch(() => null);
+  const isGuest = !session?.user?.id;
 
   const breadcrumb = {
     "@context": "https://schema.org",
@@ -71,7 +74,7 @@ export default async function PgDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdSafe(breadcrumb) }}
       />
-      <PgDetailClient detail={detail} city={params.city} locale={params.locale} />
+      <PgDetailClient detail={detail} city={params.city} locale={params.locale} isGuest={isGuest} />
     </>
   );
 }

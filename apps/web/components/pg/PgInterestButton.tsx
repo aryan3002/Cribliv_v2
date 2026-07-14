@@ -45,7 +45,7 @@ export function PgInterestButton({
     return (
       <div className={interestClassName}>
         <Link
-          href={`/${locale}/auth/login?return=${encodeURIComponent(returnTo)}` as Route}
+          href={`/${locale}/auth/login?from=${encodeURIComponent(returnTo)}` as Route}
           className={buttonClassName}
         >
           <Heart size={16} aria-hidden="true" /> {children ?? "Log in to show interest"}

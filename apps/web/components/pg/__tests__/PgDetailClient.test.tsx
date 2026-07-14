@@ -84,13 +84,11 @@ beforeEach(() => {
 });
 
 describe("PgDetailClient", () => {
-  it("scopes the mobile interest wrapper styling to the PG detail CTA", () => {
+  it("styles the PG detail bottom CTA as a direct card jump", () => {
     const styles = readFileSync("app/globals.css", "utf8");
 
-    expect(styles).toMatch(/\.pg-detail__cta \.pg-interest--mobile\s*\{[^}]*flex:\s*1/);
-    expect(styles).toMatch(
-      /\.pg-detail__cta \.pg-interest--mobile \.pg-interest__mobile-button\s*\{[^}]*width:\s*100%/
-    );
+    expect(styles).toMatch(/\.pg-detail__cta-jump\s*\{[^}]*flex:\s*1/);
+    expect(styles).toMatch(/\.pg-detail__cta-jump\s*\{[^}]*min-height:\s*52px/);
   });
 
   it("fires pg_detail_viewed + view once on mount", () => {
@@ -114,33 +112,49 @@ describe("PgDetailClient", () => {
     expect(screen.queryByText(/beds left/i)).toBeNull();
   });
 
-  it("keeps main-content rent neutral and total monthly cost secondary", () => {
+  it("keeps visible pricing to rent and move-in terms without all-in monthly copy", () => {
     render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
 
     const pricing = screen.getByRole("region", { name: /pg pricing and trust summary/i });
     expect(within(pricing).getByText(/^rent$/i)).toBeTruthy();
     expect(within(pricing).getByText("from ₹7,000")).toBeTruthy();
-    expect(within(pricing).getByText("Total monthly cost ₹8,364/mo all-in")).toBeTruthy();
+    expect(within(pricing).getByText("per person / month")).toBeTruthy();
     expect(pricing.querySelector(".tenant-cost-card--price")).toBeNull();
     expect(within(pricing).queryByText(/^total monthly cost$/i)).toBeNull();
+    expect(screen.queryByText(/Total monthly cost/i)).toBeNull();
+    expect(screen.queryByText(/all-in/i)).toBeNull();
   });
 
-  it("uses rent first in the sticky rail and mobile cta", () => {
+  it("uses one interest action in the sticky price card and a mobile jump to it", () => {
+    const originalRaf = window.requestAnimationFrame;
+    window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    };
+
     render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
 
-    expect(screen.getAllByText("from ₹7,000")).toHaveLength(3);
-    expect(screen.getAllByText("/mo rent")).toHaveLength(2);
-    expect(screen.getAllByText("Total monthly cost ₹8,364/mo all-in")).toHaveLength(3);
-    expect(screen.queryByText("/mo all-in")).toBeNull();
-  });
+    try {
+      const interestCard = screen.getByTestId("pg-interest-card");
+      const scrollIntoView = vi.fn();
+      const focus = vi.fn();
+      interestCard.scrollIntoView = scrollIntoView;
+      interestCard.focus = focus;
 
-  it("uses a real mobile interest action instead of a scroll-to-top link", () => {
-    const { container } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+      const cta = document.querySelector(".pg-detail__cta") as HTMLElement;
+      expect(cta).toBeTruthy();
+      expect(cta.querySelector('a[href="#main-content"]')).toBeNull();
+      expect(screen.getAllByText("from ₹7,000")).toHaveLength(3);
+      expect(screen.getAllByText("/mo rent")).toHaveLength(2);
+      expect(screen.getAllByRole("button", { name: /show interest/i })).toHaveLength(1);
 
-    const cta = container.querySelector(".pg-detail__cta");
-    expect(cta).toBeTruthy();
-    expect(cta?.querySelector('a[href="#main-content"]')).toBeNull();
-    expect(within(cta as HTMLElement).getByRole("button", { name: /show interest/i })).toBeTruthy();
+      fireEvent.click(within(cta).getByRole("button", { name: /show interest/i }));
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    } finally {
+      window.requestAnimationFrame = originalRaf;
+    }
   });
 
   it("hides vacancy urgency when plenty available", () => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import {
   Share2,
+  Heart,
   MapPin,
   BedDouble,
   Snowflake,
@@ -613,11 +614,13 @@ function PgPolicyTerms({
 export function PgDetailClient({
   detail,
   city,
-  locale
+  locale,
+  isGuest = false
 }: {
   detail: PgPublicDetail;
   city: string;
   locale: string;
+  isGuest?: boolean;
 }) {
   const [similar, setSimilar] = useState<PgCard[]>([]);
   const fired = useRef(false);
@@ -666,6 +669,13 @@ export function PgDetailClient({
       left: direction === "next" ? 280 : -280,
       behavior: "smooth"
     });
+  };
+
+  const scrollToInterestCard = () => {
+    const target = document.getElementById("pg-interest-card");
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.requestAnimationFrame(() => target.focus({ preventScroll: true }));
   };
 
   const pgAmenities = extractPgAmenities(pd.amenities ?? {});
@@ -721,14 +731,8 @@ export function PgDetailClient({
       : detail.monthly_rent != null
         ? detail.monthly_rent * 100
         : null;
-  const monthlyAllInPaise =
-    primaryRentPaise != null
-      ? primaryRentPaise + Math.round((pd.security_deposit_paise ?? 0) / 11)
-      : null;
   const primaryRentLabel =
     primaryRentPaise != null ? `from ${rupees(primaryRentPaise)}` : "Request price";
-  const monthlyAllInLabel =
-    monthlyAllInPaise != null ? `Total monthly cost ${rupees(monthlyAllInPaise)}/mo all-in` : null;
 
   const verif = VERIF_BADGE[detail.verification_status ?? "unverified"] ?? VERIF_BADGE.unverified;
 
@@ -782,6 +786,8 @@ export function PgDetailClient({
           photos={photoUrls}
           title={detail.title ?? "PG"}
           locale={locale as Locale}
+          isGuest={isGuest}
+          returnPath={`/${locale}/pg/${cityDisplay}/${detail.id}`}
           onPhotoClick={(idx) => trackPgPhotoViewed(detail.id, idx)}
         />
 
@@ -800,9 +806,7 @@ export function PgDetailClient({
             </span>
             <span className="tenant-cost-card__label">Rent</span>
             <strong>{primaryRentLabel}</strong>
-            <span className="tenant-cost-card__note">
-              {monthlyAllInLabel ?? "Per person rent before move-in terms"}
-            </span>
+            <span className="tenant-cost-card__note">per person / month</span>
           </div>
           <div className="tenant-cost-card">
             <span
@@ -1019,7 +1023,12 @@ export function PgDetailClient({
 
           {/* ── Sticky sidebar ── */}
           <aside className="detail-layout__sidebar">
-            <div className="detail-rail">
+            <div
+              className="detail-rail"
+              id="pg-interest-card"
+              data-testid="pg-interest-card"
+              tabIndex={-1}
+            >
               <div>
                 <div className="detail-rail__price">
                   <strong>
@@ -1027,9 +1036,6 @@ export function PgDetailClient({
                   </strong>
                   {primaryRentPaise != null && <span>/mo rent</span>}
                 </div>
-                {monthlyAllInLabel && (
-                  <div className="detail-rail__secondary">{monthlyAllInLabel}</div>
-                )}
                 {pd.security_deposit_paise != null && (
                   <div className="pg-rail-deposit">
                     <Shield size={13} aria-hidden="true" />
@@ -1131,30 +1137,21 @@ export function PgDetailClient({
 
       {/* Mobile CTA bar */}
       <div className="cta-bar pg-detail__cta">
-        <div>
+        <div className="pg-detail__cta-price">
           <div className="card__price">
             {primaryRentPaise != null ? primaryRentLabel : "Price on request"}
             {primaryRentPaise != null && <span className="card__price-period">/mo rent</span>}
           </div>
-          {monthlyAllInLabel ? (
-            <div className="body-sm text-secondary" style={{ fontSize: 12 }}>
-              {monthlyAllInLabel}
-            </div>
-          ) : pd.security_deposit_paise != null ? (
-            <div className="body-sm text-secondary" style={{ fontSize: 12 }}>
-              {rupees(pd.security_deposit_paise)} {t(locale as Locale, "depositShort")}
-            </div>
-          ) : null}
         </div>
-        <PgInterestButton
-          listingId={detail.id}
-          locale={locale}
-          variant="mobile"
-          onBefore={() => trackPgInterestClicked(detail.id, "logged_in")}
-          onSuccess={() => trackPgInterestSubmitted(detail.id)}
+        <button
+          type="button"
+          className="btn btn--primary btn--lg pg-detail__cta-jump"
+          aria-controls="pg-interest-card"
+          onClick={scrollToInterestCard}
         >
+          <Heart size={16} aria-hidden="true" />
           Show Interest
-        </PgInterestButton>
+        </button>
       </div>
     </>
   );
