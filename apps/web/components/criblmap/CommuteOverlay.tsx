@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Navigation, X, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { MapPin, Navigation, X, Sparkles } from "lucide-react";
 import { useMapState, useMapDispatch, type LocalityReachability } from "./hooks/useMapState";
 import { fetchApi } from "../../lib/api";
+import { useGooglePlaces, type PlacePrediction } from "../../lib/google-places";
 
 interface CommuteOverlayProps {
   map: google.maps.Map | null;
@@ -34,45 +35,51 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
   const originMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const [address, setAddress] = useState("");
   const [fetching, setFetching] = useState(false);
+  const [showPredictions, setShowPredictions] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const autocompleteListenerRef = useRef<google.maps.MapsEventListener | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
   const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /* Places autocomplete on the office input. */
+  // Office-address autocomplete via the new Places API (AutocompleteSuggestion
+  // + Place). Empty `types` means no primary-type filter, so establishments
+  // (office parks, buildings) and street addresses both surface — matching the
+  // legacy widget's ["establishment", "geocode"] intent.
+  const { predictions, fetchPredictions, getPlaceDetails, clearPredictions, enabled } =
+    useGooglePlaces({ types: [] });
+
+  /* Resolve a chosen suggestion to coordinates and set it as the office. */
+  const handleSelect = useCallback(
+    async (prediction: PlacePrediction) => {
+      setAddress(prediction.description);
+      setShowPredictions(false);
+      clearPredictions();
+      const details = await getPlaceDetails(prediction.place_id);
+      if (!details) return;
+      const addr = details.formatted_address || details.name || prediction.description;
+      setAddress(addr);
+      dispatch({
+        type: "SET_COMMUTE_ORIGIN",
+        origin: {
+          lat: details.geometry.lat,
+          lng: details.geometry.lng,
+          address: addr
+        }
+      });
+      onCloseInput();
+    },
+    [clearPredictions, dispatch, getPlaceDetails, onCloseInput]
+  );
+
+  /* Close the prediction list on an outside click. */
   useEffect(() => {
-    if (!showInput || !inputRef.current || typeof google === "undefined") return;
-
-    autocompleteListenerRef.current?.remove();
-    autocompleteListenerRef.current = null;
-    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
-      types: ["establishment", "geocode"],
-      componentRestrictions: { country: "in" }
-    });
-
-    autocompleteListenerRef.current = autocompleteRef.current.addListener("place_changed", () => {
-      const place = autocompleteRef.current?.getPlace();
-      if (place?.geometry?.location) {
-        const addr = place.formatted_address ?? place.name ?? "";
-        setAddress(addr);
-        dispatch({
-          type: "SET_COMMUTE_ORIGIN",
-          origin: {
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
-            address: addr
-          }
-        });
-        onCloseInput();
+    function onOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowPredictions(false);
       }
-    });
-
-    return () => {
-      autocompleteListenerRef.current?.remove();
-      autocompleteListenerRef.current = null;
-      autocompleteRef.current = null;
-    };
-  }, [showInput, dispatch, onCloseInput]);
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, []);
 
   /* Render the office pin marker. */
   useEffect(() => {
@@ -150,7 +157,7 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
   return (
     <>
       {showInput && (
-        <div className="cmap-commute-input">
+        <div className="cmap-commute-input" ref={searchRef}>
           <Navigation size={16} />
           <input
             ref={inputRef}
@@ -159,12 +166,53 @@ export function CommuteOverlay({ map, showInput, onCloseInput }: CommuteOverlayP
             style={{ borderRadius: 8, paddingLeft: 12, flex: 1 }}
             placeholder="Enter your office address…"
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setAddress(value);
+              if (enabled && value.trim().length >= 2) {
+                fetchPredictions(value);
+                setShowPredictions(true);
+              } else {
+                setShowPredictions(false);
+              }
+            }}
+            onFocus={() => {
+              if (predictions.length > 0) setShowPredictions(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && predictions[0]) {
+                e.preventDefault();
+                void handleSelect(predictions[0]);
+              } else if (e.key === "Escape") {
+                setShowPredictions(false);
+              }
+            }}
+            autoComplete="off"
             autoFocus
           />
           <button className="cmap-panel__close" onClick={onCloseInput} aria-label="Close">
             <X size={14} />
           </button>
+          {showPredictions && predictions.length > 0 && (
+            <div className="cmap-topbar__predictions">
+              {predictions.map((p) => (
+                <button
+                  key={p.place_id}
+                  type="button"
+                  className="cmap-topbar__prediction-item"
+                  onClick={() => void handleSelect(p)}
+                >
+                  <MapPin size={14} style={{ opacity: 0.7, flexShrink: 0 }} />
+                  <span>
+                    {p.structured_formatting.main_text}
+                    {p.structured_formatting.secondary_text ? (
+                      <small>{p.structured_formatting.secondary_text}</small>
+                    ) : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
