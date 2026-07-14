@@ -16905,6 +16905,78 @@ a.feature-card:hover .icon-circle {
   background: #f1f5f9;
   color: #334155;
 }
+.pg-badge--trust {
+  background: #ecfdf5;
+  color: #047857;
+}
+.pg-card-strip-shell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pg-card__strip {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.pg-card__strip::-webkit-scrollbar {
+  display: none;
+}
+.pg-card__strip .pg-badge {
+  flex: 0 0 auto;
+}
+.pg-card-strip-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.pg-card-strip-button:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.pg-card__body-top {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.pg-card__body-top > div:first-child {
+  min-width: 0;
+}
+.pg-card__price-stack {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.pg-card__trust-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pg-card__body-link {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
 
 /* ── PG filters bar ── */
 .pg-filters {
@@ -19164,6 +19236,18 @@ a.feature-card:hover .icon-circle {
   min-width: 0;
 }
 
+.pg-city-inventory {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.pg-city-inventory .listing-grid,
+.pg-city-inventory .tenant-results-map-panel {
+  min-width: 0;
+}
+
 .tenant-results-map-panel {
   position: sticky;
   top: calc(var(--header-height) + var(--space-4));
@@ -19948,6 +20032,22 @@ a.feature-card:hover .icon-circle {
   .tenant-results-map-shell {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
+  }
+
+  .pg-city-inventory {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .tenant-results-page .listing-grid,
+  .pg-city-inventory .listing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tenant-results-page .listing-card,
+  .pg-city-inventory .listing-card {
+    width: 100%;
+    min-width: 0;
   }
 
   .tenant-results-toolbar .segbar,
