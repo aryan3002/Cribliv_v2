@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import type { PgPublicDetail } from "../../../lib/pg-public-api";
 
 const detailView = vi.fn();
@@ -83,6 +84,15 @@ beforeEach(() => {
 });
 
 describe("PgDetailClient", () => {
+  it("keeps the mobile interest wrapper as the primary CTA flex item", () => {
+    const styles = readFileSync("app/globals.css", "utf8");
+
+    expect(styles).toMatch(/\.cta-bar \.pg-interest--mobile\s*\{[^}]*flex:\s*1/);
+    expect(styles).toMatch(
+      /\.cta-bar \.pg-interest--mobile \.pg-interest__mobile-button\s*\{[^}]*width:\s*100%/
+    );
+  });
+
   it("fires pg_detail_viewed + view once on mount", () => {
     const { rerender } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
     rerender(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);

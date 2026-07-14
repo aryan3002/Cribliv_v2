@@ -3558,6 +3558,13 @@ h4,
   .cta-bar .btn {
     flex: 1;
   }
+  .cta-bar .pg-interest--mobile {
+    flex: 1;
+    min-width: 0;
+  }
+  .cta-bar .pg-interest--mobile .pg-interest__mobile-button {
+    width: 100%;
+  }
 }
 
 /* ── Section Header ──────────────────────────────────────────────────── */
