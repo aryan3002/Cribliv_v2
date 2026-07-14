@@ -4,7 +4,8 @@ import { VerificationArtifactSasIssuer } from "../../verification-artifact-sas.i
 const ENV_KEYS = [
   "AZURE_STORAGE_ACCOUNT_NAME",
   "AZURE_STORAGE_ACCOUNT_KEY",
-  "AZURE_STORAGE_CONTAINER_VERIFICATION_ARTIFACTS"
+  "AZURE_STORAGE_CONTAINER_VERIFICATION_ARTIFACTS",
+  "AZURE_STORAGE_CONNECTION_STRING"
 ];
 
 describe("VerificationArtifactSasIssuer", () => {
@@ -37,6 +38,7 @@ describe("VerificationArtifactSasIssuer", () => {
   it("returns null when storage credentials are absent", () => {
     delete process.env.AZURE_STORAGE_ACCOUNT_NAME;
     delete process.env.AZURE_STORAGE_ACCOUNT_KEY;
+    delete process.env.AZURE_STORAGE_CONNECTION_STRING;
     const issuer = new VerificationArtifactSasIssuer();
     expect(issuer.issue("x/y.mp4")).toBeNull();
   });
