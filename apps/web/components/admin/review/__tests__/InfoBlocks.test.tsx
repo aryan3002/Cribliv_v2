@@ -64,7 +64,7 @@ describe("review info blocks", () => {
     // exact text "2"; /2/ also matches digits inside formatted rent/date
     // strings. getAllByText keeps the assertion meaningful without the
     // ambiguity of a loose regex match.
-    expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("2")).toHaveLength(2);
     expect(screen.getByText("Parking")).toBeInTheDocument();
   });
 
