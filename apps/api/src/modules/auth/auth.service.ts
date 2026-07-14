@@ -142,6 +142,38 @@ export class AuthService {
     return this.sendOtpInMemory(phone_e164, purpose);
   }
 
+  /**
+   * Mint a session for an already-resolved user, inside a caller-provided
+   * transaction/client. Shared by the OTP verify path and admin TOTP login so
+   * both produce identical sessions. Stamps last_login_at.
+   */
+  async issueSessionTokens(
+    client: Awaited<ReturnType<DatabaseService["getClient"]>>,
+    userId: string,
+    role: string
+  ): Promise<{ access_token: string; refresh_token: string }> {
+    await client.query(`UPDATE users SET last_login_at = now() WHERE id = $1::uuid`, [userId]);
+    // Admin sessions are short-lived (4 hours) since admin accounts carry the
+    // most sensitive privileges; other roles get the standard 30-day session.
+    // last_login_at also feeds the Owner Health Score (recency signal) and the
+    // Fraud Intelligence Feed (flags inactive owners), so it's stamped above
+    // regardless of role.
+    const sessionDuration = role === "admin" ? "4 hours" : "30 days";
+    const sessionToken = randomUUID();
+    const sessionResult = await client.query<{ id: string }>(
+      `
+      INSERT INTO sessions(user_id, refresh_token_hash, expires_at)
+      VALUES ($1::uuid, $2, now() + interval '${sessionDuration}')
+      RETURNING id::text
+      `,
+      [userId, sessionToken]
+    );
+    return {
+      access_token: `acc_${sessionResult.rows[0].id}`,
+      refresh_token: `ref_${sessionToken}`
+    };
+  }
+
   async verifyOtp(challenge_id: string, otp_code: string) {
     if (this.database.isEnabled()) {
       if (!/^[0-9a-f-]{36}$/i.test(challenge_id)) {
@@ -266,32 +298,18 @@ export class AuthService {
           isNewUser = true;
         }
 
-        // Stamp last_login_at — used by Owner Health Score (freshness)
-        // and the Fraud Intelligence Feed (inactive-owner signal).
-        await client.query(`UPDATE users SET last_login_at = now() WHERE id = $1::uuid`, [
-          userResult.rows[0].id
-        ]);
-
-        // Admin sessions are short-lived (4 hours) for security;
-        // regular users get 30-day sessions
-        const userRole = userResult.rows[0].role;
-        const sessionDuration = userRole === "admin" ? "4 hours" : "30 days";
-
-        const sessionToken = randomUUID();
-        const sessionResult = await client.query<{ id: string }>(
-          `
-          INSERT INTO sessions(user_id, refresh_token_hash, expires_at)
-          VALUES ($1::uuid, $2, now() + interval '${sessionDuration}')
-          RETURNING id::text
-          `,
-          [userResult.rows[0].id, sessionToken]
+        // Stamp last_login_at + mint session (shared with admin TOTP login).
+        const tokens = await this.issueSessionTokens(
+          client,
+          userResult.rows[0].id,
+          userResult.rows[0].role
         );
 
         await client.query("COMMIT");
 
         return {
-          access_token: `acc_${sessionResult.rows[0].id}`,
-          refresh_token: `ref_${sessionToken}`,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
           user: {
             id: userResult.rows[0].id,
             role: userResult.rows[0].role,

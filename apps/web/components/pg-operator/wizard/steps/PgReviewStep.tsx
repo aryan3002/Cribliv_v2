@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { trackPgFunnel } from "@/lib/pg-funnel";
 import { PgWizardState, PgWizardAction, buildSubmitPayload } from "@/lib/pg-wizard-state";
-import { createPgListing, updatePgListing } from "@/lib/pg-operator-api";
+import { createPgListing, updatePgListing, submitPgListing } from "@/lib/pg-operator-api";
 import { presignListingPhotos, completeListingPhotos, reorderListingPhotos } from "@/lib/owner-api";
 import PgScoreMeter from "../shared/PgScoreMeter";
 import SectionCard from "../shared/SectionCard";
@@ -284,16 +284,34 @@ export default function PgReviewStep({
           console.error("[pg-wizard] photo upload failed post-create:", photoErr);
           dispatch({
             type: "SUBMIT_FAIL",
-            error: "Listing was created but photo upload failed. Add photos from your dashboard."
+            error:
+              "Saved as a draft, but the photos didn't upload. Open the listing to add photos and submit for review."
           });
-          // The listing WAS created — clear the autosaved draft so the next "new
-          // listing" starts blank (else it restores this listing's data: BUG-3).
+          // The listing was created as a DRAFT (NOT submitted for review), so it is
+          // not stranded in the admin queue. Clear the autosaved draft so the next
+          // "new listing" starts blank (else it restores this data: BUG-3).
           sessionStorage.removeItem("pg-wizard-draft-v1");
           router.push(
-            `/${locale}/pg-operator/listings/${res.listing_id}?published=1&photoError=1` as any
+            `/${locale}/pg-operator/listings/${res.listing_id}?draft=1&photoError=1` as any
           );
           return;
         }
+      }
+      // Photos are attached — NOW transition the draft to pending_review. Doing
+      // this AFTER the upload guarantees a listing never enters the admin review
+      // queue without its photos (the root cause of the strand-in-review bug).
+      try {
+        await submitPgListing(res.listing_id, accessToken ?? undefined);
+      } catch (submitErr) {
+        console.error("[pg-wizard] submit-for-review failed:", submitErr);
+        dispatch({
+          type: "SUBMIT_FAIL",
+          error:
+            "Your listing and photos were saved as a draft, but submitting for review failed. Open the listing and submit again."
+        });
+        sessionStorage.removeItem("pg-wizard-draft-v1");
+        router.push(`/${locale}/pg-operator/listings/${res.listing_id}?draft=1` as any);
+        return;
       }
       dispatch({ type: "SUBMIT_OK" });
       sessionStorage.removeItem("pg-wizard-draft-v1");

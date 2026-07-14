@@ -21040,3 +21040,287 @@ a.feature-card:hover .icon-circle {
     font-size: 16px;
   }
 }
+
+/* ============================================================
+   PG DETAIL REDESIGN — appended so it wins the cascade over
+   earlier .tenant-detail-page rules. Tokens only.
+   ============================================================ */
+
+/* Hero header with above-the-fold price */
+.tenant-detail-page .pg-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-4);
+}
+.pg-hero__main {
+  min-width: 0;
+}
+.pg-hero__badges {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+.pg-hero__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: clamp(24px, 3.2vw, 34px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  max-width: 760px;
+}
+.pg-hero__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-2);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.pg-hero__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+.pg-hero__share {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: background var(--transition-fast);
+}
+.pg-hero__share:hover {
+  background: var(--surface-sunken);
+  text-decoration: none;
+}
+.pg-hero__pricecard {
+  text-align: right;
+  background: linear-gradient(135deg, var(--brand-50), var(--surface));
+  border: 1px solid rgba(0, 102, 255, 0.16);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-5);
+  box-shadow: var(--shadow-xs);
+}
+.pg-hero__price {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.pg-hero__price span {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.pg-hero__price strong {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 30px;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.pg-hero__pricesub {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+
+@media (max-width: 640px) {
+  .tenant-detail-page .pg-hero {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .pg-hero__aside {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  .pg-hero__pricecard {
+    padding: var(--space-2) var(--space-4);
+  }
+  .pg-hero__price strong {
+    font-size: 24px;
+  }
+}
+
+/* Room card — vacancy header row */
+.pg-room-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.pg-room-card__vacancy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger);
+}
+.pg-room-card__vacancy-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: pg-pulse 1.8s ease-in-out infinite;
+}
+.pg-room-card__vacancy--ample {
+  color: var(--trust);
+}
+@keyframes pg-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Premium amenity tiles */
+.amenity-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--space-3);
+}
+.amenity-tile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast);
+}
+.amenity-tile:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-strong);
+}
+.amenity-tile__icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--brand);
+}
+.amenity-tile__label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+@media (max-width: 600px) {
+  .amenity-tile-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+  .amenity-tile {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+  .amenity-tile__icon {
+    width: 32px;
+    height: 32px;
+  }
+  .amenity-tile__label {
+    font-size: 12.5px;
+  }
+}
+
+/* What's nearby */
+.pg-nearby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+}
+.pg-nearby-col__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
+.pg-nearby-col__icon {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--brand-50);
+  color: var(--brand);
+}
+.pg-nearby-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pg-nearby-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Meals — diet badge + notes row */
+.pg-meal-diet {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+}
+.pg-meal-diet--veg {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+.pg-meal-diet--mixed {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+/* House rules — notes row (quiet hours / curfew / guests) */
+.pg-rules-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

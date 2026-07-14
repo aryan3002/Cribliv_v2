@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Pool } from "pg";
 import { AppStateService } from "../common/app-state.service";
 import { WhatsAppClient } from "../modules/notifications/whatsapp.client";
+import { SmsClient } from "../modules/notifications/sms.client";
 import { NotificationService } from "../modules/notifications/notification.service";
 import { PgScoreService } from "../modules/pg-operator/services/pg-score.service";
 import type { DatabaseService } from "../common/database.service";
@@ -379,10 +380,51 @@ async function dispatchWhatsAppEvent(
   );
 }
 
+/**
+ * Send an SMS notification event using the D7 SMS API.
+ * Called by the worker for queued notification events (mode: "queued").
+ * Mirrors dispatchWhatsAppEvent, but reads the sms_body/recipient_phone
+ * fields written by NotificationService.enqueueSmsEvent.
+ */
+async function dispatchSmsEvent(
+  smsClient: SmsClient,
+  event: {
+    id: number;
+    event_type: string;
+    payload: Record<string, unknown>;
+  }
+) {
+  const payload = event.payload;
+  const phone = payload.recipient_phone as string;
+  const body = payload.sms_body as string;
+
+  if (!phone || !body) {
+    throw new Error(`SMS event ${event.id} missing recipient_phone or sms_body`);
+  }
+
+  const result = await smsClient.sendSms({ to: phone, body });
+
+  if (!result.success) {
+    throw new Error(result.error ?? "SMS send failed");
+  }
+
+  console.log(
+    JSON.stringify({
+      job: "dispatch_sms",
+      event_id: event.id,
+      event_type: event.event_type,
+      message_id: result.messageId,
+      status: "sent",
+      timestamp: new Date().toISOString()
+    })
+  );
+}
+
 export async function runOutboundDispatchDb(
   pool: Pool,
   crmWebhookUrl: string | undefined,
-  whatsAppClient?: WhatsAppClient
+  whatsAppClient?: WhatsAppClient,
+  smsClient?: SmsClient
 ) {
   const client = await pool.connect();
   let dispatchedCount = 0;
@@ -420,6 +462,7 @@ export async function runOutboundDispatchDb(
       for (const event of events.rows) {
         try {
           const isWhatsApp = event.event_type.startsWith("notification.whatsapp.");
+          const isSms = event.event_type.startsWith("notification.sms.");
 
           if (isWhatsApp && whatsAppClient) {
             // Dispatch via WhatsApp API
@@ -429,6 +472,20 @@ export async function runOutboundDispatchDb(
             console.log(
               JSON.stringify({
                 job: "dispatch_whatsapp",
+                event_id: event.id,
+                event_type: event.event_type,
+                status: "skipped_no_client",
+                timestamp: new Date().toISOString()
+              })
+            );
+          } else if (isSms && smsClient) {
+            // Dispatch via D7 SMS API
+            await dispatchSmsEvent(smsClient, event);
+          } else if (isSms && !smsClient) {
+            // No SMS client configured – auto-mark as dispatched in dev
+            console.log(
+              JSON.stringify({
+                job: "dispatch_sms",
                 event_id: event.id,
                 event_type: event.event_type,
                 status: "skipped_no_client",
@@ -1013,6 +1070,8 @@ async function run() {
   // Initialize WhatsApp client for worker-based notification dispatch
   const whatsAppEnabled = process.env.FF_WHATSAPP_NOTIFICATIONS !== "false";
   const whatsAppClient = whatsAppEnabled ? new WhatsAppClient() : undefined;
+  // Initialize SMS client for worker-based notification dispatch (mock provider by default)
+  const smsClient = new SmsClient();
 
   setInterval(async () => {
     try {
@@ -1065,7 +1124,7 @@ async function run() {
   setInterval(async () => {
     try {
       const result = pool
-        ? await runOutboundDispatchDb(pool, crmWebhookUrl, whatsAppClient)
+        ? await runOutboundDispatchDb(pool, crmWebhookUrl, whatsAppClient, smsClient)
         : await runOutboundDispatchInMemory(appState!, crmWebhookUrl);
       console.log(
         JSON.stringify({

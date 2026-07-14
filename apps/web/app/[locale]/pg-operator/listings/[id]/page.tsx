@@ -6,6 +6,7 @@ import {
   Building2,
   BedDouble,
   MapPin,
+  Pencil,
   Sparkles,
   ScrollText,
   Wallet,
@@ -164,6 +165,30 @@ export default async function Page({
         {detail.status === "pending_review" && (
           <div className={`${styles.banner} ${styles.bannerInfo}`}>
             Submitted for review. It goes live once our team approves it.
+          </div>
+        )}
+        {detail.status === "rejected" && (
+          <div className={`${styles.banner} ${styles.bannerWarn}`}>
+            This listing was rejected. Edit the details or photos and resubmit for review.
+          </div>
+        )}
+
+        {/* Recovery affordance: an operator can edit details AND re-upload photos
+            while the listing is not yet live. The wizard's edit mode and the
+            underlying update/photo endpoints already accept these statuses — only
+            this entry point was missing, which left listings whose photos failed to
+            attach at create time with no way to fix them. The visibility toggle
+            stays hidden here (it is correctly server-gated to active/paused/archived). */}
+        {(detail.status === "draft" ||
+          detail.status === "pending_review" ||
+          detail.status === "rejected") && (
+          <div className={styles.btnRow}>
+            <Link
+              href={`/${params.locale}/pg-operator/listings/new?edit=${detail.id}` as any}
+              className={`${styles.btn} ${styles.btnPrimary}`}
+            >
+              <Pencil size={15} /> Edit listing
+            </Link>
           </div>
         )}
 

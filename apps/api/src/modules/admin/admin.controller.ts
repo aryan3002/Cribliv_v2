@@ -198,31 +198,10 @@ export class AdminController {
         throw new BadRequestException({ code: "reason_required", message: "Reason is required" });
       }
 
-      // BUG-H2: never let a PG listing go live with too few photos. If the
-      // post-publish photo upload failed, the listing sits in pending_review with
-      // 0 photos; block approval→active until it meets the same minimum the wizard
-      // enforces (mirrors web PG_MIN_PHOTOS). Non-PG listings are unaffected.
-      if (body.decision === "approve") {
-        const PG_MIN_PHOTOS_FOR_GOLIVE = 4;
-        const pre = await this.database.query<{ listing_type: string; photo_count: number }>(
-          `
-          SELECT l.listing_type::text AS listing_type,
-                 (SELECT count(*)::int FROM listing_photos p WHERE p.listing_id = l.id) AS photo_count
-          FROM listings l
-          WHERE l.id = $1::uuid
-          LIMIT 1
-          `,
-          [listingId]
-        );
-        const row = pre.rows[0];
-        if (row && row.listing_type === "pg" && row.photo_count < PG_MIN_PHOTOS_FOR_GOLIVE) {
-          throw new BadRequestException({
-            code: "insufficient_photos",
-            message: `PG listing needs at least ${PG_MIN_PHOTOS_FOR_GOLIVE} photos before going live (has ${row.photo_count}).`
-          });
-        }
-      }
-
+      // Admins may approve any listing at their discretion — there is no
+      // photo-count gate. The PG operator flow now attaches photos before the
+      // listing enters pending_review (create as draft → upload → submit), so
+      // review-queue listings carry their photos in the normal case.
       const newStatus =
         body.decision === "approve" ? "active" : body.decision === "reject" ? "rejected" : "paused";
       const updated = await this.database.query<{ id: string; status: string }>(

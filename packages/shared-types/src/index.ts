@@ -5,6 +5,7 @@ export * from "./pg-operator";
 export * from "./voice-agent-pg";
 export * from "./pg-listing-score";
 export * from "./pg-operations";
+export * from "./admin-leads";
 
 // ── Bundler-safe explicit re-exports for RUNTIME (value) exports ──────────────
 // A barrel `export *` compiles (CommonJS) to TypeScript's `__exportStar`, a

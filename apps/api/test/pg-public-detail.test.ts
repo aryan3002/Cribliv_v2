@@ -70,4 +70,26 @@ describe("PG detail location_point", () => {
     );
     expect(d.location_point).toBeNull();
   });
+
+  it("exposes nearby, meal charges, deposit refundable, maintenance, floors", async () => {
+    const d = await (
+      svc({
+        ...head,
+        nearby: { metro: ["Munshipulia"], college: [], office: ["Vibhuti Khand"] },
+        meal_charges_paise: 120000,
+        deposit_refundable_pct: 80,
+        maintenance_paise: 50000,
+        total_floors: 3
+      }) as any
+    ).loadListingDetail("1".repeat(32));
+    expect(d.pg_details.nearby).toEqual({
+      metro: ["Munshipulia"],
+      college: [],
+      office: ["Vibhuti Khand"]
+    });
+    expect(d.pg_details.meal_charges_paise).toBe(120000);
+    expect(d.pg_details.deposit_refundable_pct).toBe(80);
+    expect(d.pg_details.maintenance_paise).toBe(50000);
+    expect(d.total_floors).toBe(3);
+  });
 });

@@ -11,6 +11,8 @@ export interface FeatureFlags {
   ff_heavy_analytics: boolean;
   ff_credit_purchase_enabled: boolean;
   ff_admin_wallet_adjust: boolean;
+  /** OTP-free admin login via TOTP authenticator app */
+  ff_admin_totp: boolean;
   ff_real_verification_provider: boolean;
   ff_pg_sales_leads: boolean;
   ff_owner_listing_assisted_capture: boolean;
@@ -85,6 +87,8 @@ export interface FeatureFlags {
   ff_seo_gsc: boolean;
   /** Slice 1 – Lead monetization: callback-guarantee model (24h call promise, owner lead unlock). */
   ff_callback_leads: boolean;
+  /** Admin Lead Center — platform-wide lead ops board + analytics (ships dark). */
+  ff_admin_lead_center: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -100,6 +104,7 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_heavy_analytics: false,
   ff_credit_purchase_enabled: false,
   ff_admin_wallet_adjust: true,
+  ff_admin_totp: false,
   ff_real_verification_provider: false,
   ff_pg_sales_leads: true,
   ff_owner_listing_assisted_capture: false,
@@ -168,7 +173,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_seo_blog: false,
   ff_seo_indexing: false,
   ff_seo_gsc: false,
-  ff_callback_leads: false
+  ff_callback_leads: false,
+  ff_admin_lead_center: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -238,6 +244,7 @@ export function readFeatureFlags(): FeatureFlags {
       "FF_ADMIN_WALLET_ADJUST",
       defaultFeatureFlags.ff_admin_wallet_adjust
     ),
+    ff_admin_totp: parseBooleanEnv("FF_ADMIN_TOTP", defaultFeatureFlags.ff_admin_totp),
     ff_real_verification_provider: parseBooleanEnv(
       "FF_REAL_VERIFICATION_PROVIDER",
       defaultFeatureFlags.ff_real_verification_provider
@@ -425,6 +432,10 @@ export function readFeatureFlags(): FeatureFlags {
     ff_seo_blog: parseBooleanEnv("FF_SEO_BLOG", defaultFeatureFlags.ff_seo_blog),
     ff_seo_indexing: parseBooleanEnv("FF_SEO_INDEXING", defaultFeatureFlags.ff_seo_indexing),
     ff_seo_gsc: parseBooleanEnv("FF_SEO_GSC", defaultFeatureFlags.ff_seo_gsc),
-    ff_callback_leads: parseBooleanEnv("FF_CALLBACK_LEADS", defaultFeatureFlags.ff_callback_leads)
+    ff_callback_leads: parseBooleanEnv("FF_CALLBACK_LEADS", defaultFeatureFlags.ff_callback_leads),
+    ff_admin_lead_center: parseBooleanEnv(
+      "FF_ADMIN_LEAD_CENTER",
+      defaultFeatureFlags.ff_admin_lead_center
+    )
   };
 }

@@ -37,6 +37,11 @@ import {
   Dumbbell,
   Gamepad2,
   Sparkles,
+  TramFront,
+  Building2,
+  Navigation,
+  Layers,
+  Leaf,
   type LucideIcon
 } from "lucide-react";
 import type { PgPublicDetail, PgCard } from "../../lib/pg-public-api";
@@ -82,12 +87,55 @@ const SHARING_COLORS: Record<string, string> = {
   dorm: "dorm"
 };
 
+// FIX: real enum keys (attached_western | attached_indian | shared_western | shared_indian).
+const BATHROOM_LABEL: Record<string, string> = {
+  attached_western: "Attached · Western",
+  attached_indian: "Attached · Indian",
+  shared_western: "Shared · Western",
+  shared_indian: "Shared · Indian",
+  attached: "Attached bath",
+  shared: "Shared bath"
+};
+const FURNISHING_LABEL: Record<string, string> = {
+  fully_furnished: "Furnished",
+  semi_furnished: "Semi-furnished",
+  unfurnished: "Unfurnished"
+};
+const ELECTRICITY_LABEL: Record<string, string> = {
+  flat: "Included in rent",
+  submetered: "Sub-metered",
+  split_equally: "Split equally"
+};
+
 const RULE_LABELS: Record<string, string> = {
   smoking: "Smoking",
   alcohol: "Alcohol",
   non_veg: "Non-veg food",
   pets: "Pets",
   cooking_in_room: "Cooking in room"
+};
+
+const VERIF_BADGE: Record<string, { cls: string; label: string; icon: React.ReactNode }> = {
+  verified: {
+    cls: "verified",
+    label: "Verified",
+    icon: <ShieldCheck size={14} style={{ marginRight: 4 }} />
+  },
+  pending: {
+    cls: "pending",
+    label: "Under review",
+    icon: <Clock size={14} style={{ marginRight: 4 }} />
+  },
+  unverified: {
+    cls: "unverified",
+    label: "Unverified",
+    icon: <Shield size={14} style={{ marginRight: 4 }} />
+  },
+  failed: {
+    cls: "unverified",
+    label: "Unverified",
+    icon: <Shield size={14} style={{ marginRight: 4 }} />
+  }
 };
 
 const PG_AMENITY_LABEL: Record<string, string> = {
@@ -160,12 +208,8 @@ function extractPgAmenities(amenities: Record<string, unknown>): string[] {
   const found: string[] = [];
   for (const [key, value] of Object.entries(amenities)) {
     if (Array.isArray(value)) {
-      for (const item of value) {
-        if (typeof item === "string") found.push(item);
-      }
-    } else if (value === true || value === 1) {
-      found.push(key);
-    }
+      for (const item of value) if (typeof item === "string") found.push(item);
+    } else if (value === true || value === 1) found.push(key);
   }
   return found;
 }
@@ -184,7 +228,7 @@ function PgAmenitiesDisplay({ amenityKeys }: { amenityKeys: string[] }) {
     })).filter((g) => g.items.length > 0),
     ...((): { label: string; items: string[] }[] => {
       const unknown = amenityKeys.filter((k) => !knownKeys.has(k));
-      return unknown.length > 0 ? [{ label: "Other", items: unknown }] : [];
+      return unknown.length > 0 ? [{ label: "More", items: unknown }] : [];
     })()
   ];
 
@@ -200,14 +244,16 @@ function PgAmenitiesDisplay({ amenityKeys }: { amenityKeys: string[] }) {
         {visibleGroups.map((group) => (
           <div key={group.label} className="amenity-group">
             <div className="amenity-group__label">{group.label}</div>
-            <div className="amenity-grid--detail">
+            <div className="amenity-tile-grid">
               {group.items.map((key) => {
                 const label = PG_AMENITY_LABEL[key] ?? key;
                 const Icon = PG_AMENITY_ICON[key] ?? Sparkles;
                 return (
-                  <div key={key} className="amenity-row">
-                    <Icon size={20} strokeWidth={1.6} aria-hidden="true" />
-                    <span className="amenity-row__label">{label}</span>
+                  <div key={key} className="amenity-tile">
+                    <span className="amenity-tile__icon" aria-hidden="true">
+                      <Icon size={18} strokeWidth={1.6} />
+                    </span>
+                    <span className="amenity-tile__label">{label}</span>
                   </div>
                 );
               })}
@@ -279,48 +325,52 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
     availFrom && !isAvailableNow
       ? availFrom.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
       : "Now";
-
-  const furnishingMap: Record<string, string> = {
-    fully_furnished: "Furnished",
-    semi_furnished: "Semi-Furn",
-    unfurnished: "Unfurnished"
-  };
-  const bathroomMap: Record<string, string> = {
-    attached: "Attached Bath",
-    shared: "Shared Bath"
-  };
+  const vacancy = rt.vacancy_count ?? 0;
+  const bathroomLabel = rt.bathroom_kind
+    ? (BATHROOM_LABEL[rt.bathroom_kind] ?? toTitleCase(rt.bathroom_kind.replace(/_/g, " ")))
+    : null;
+  const furnishingLabel = rt.furnishing ? (FURNISHING_LABEL[rt.furnishing] ?? rt.furnishing) : null;
 
   return (
     <div className={`pg-room-card ${colorClass}`} style={{ animationDelay: `${index * 60}ms` }}>
-      <div className="pg-room-card__label">{rt.sharing} sharing</div>
+      <div className="pg-room-card__top">
+        <span className="pg-room-card__label">{rt.sharing} sharing</span>
+        {vacancy > 0 && vacancy <= 3 && (
+          <span className="pg-room-card__vacancy">
+            <span className="pg-room-card__vacancy-dot" aria-hidden="true" />
+            {vacancy} bed{vacancy > 1 ? "s" : ""} left
+          </span>
+        )}
+        {vacancy > 3 && (
+          <span className="pg-room-card__vacancy pg-room-card__vacancy--ample">
+            {vacancy} available
+          </span>
+        )}
+      </div>
       <div className="pg-room-card__price">{rupees(rt.monthly_rent_paise)}</div>
       <div className="pg-room-card__period">per person / month</div>
 
       <div className="pg-room-card__features">
-        {rt.ac && (
-          <span className="pg-room-feat pg-room-feat--ac">
-            <Snowflake size={11} aria-hidden="true" /> AC
-          </span>
-        )}
-        {rt.bathroom_kind && (
+        <span className={`pg-room-feat${rt.ac ? " pg-room-feat--ac" : ""}`}>
+          <Snowflake size={11} aria-hidden="true" /> {rt.ac ? "AC" : "Non-AC"}
+        </span>
+        {bathroomLabel && (
           <span
-            className={`pg-room-feat${rt.bathroom_kind === "attached" ? " pg-room-feat--attached" : ""}`}
+            className={`pg-room-feat${rt.bathroom_kind?.startsWith("attached") ? " pg-room-feat--attached" : ""}`}
           >
             <ShowerHead size={11} aria-hidden="true" />
-            {bathroomMap[rt.bathroom_kind] ?? rt.bathroom_kind}
+            {bathroomLabel}
           </span>
         )}
-        {rt.furnishing && rt.furnishing !== "unfurnished" && (
-          <span className="pg-room-feat pg-room-feat--furnished">
-            {furnishingMap[rt.furnishing] ?? rt.furnishing}
-          </span>
+        {furnishingLabel && (
+          <span className="pg-room-feat pg-room-feat--furnished">{furnishingLabel}</span>
         )}
       </div>
 
       <div className="pg-room-card__footer">
         <span className="pg-room-card__avail">
           <Calendar size={11} aria-hidden="true" />
-          From {availLabel}
+          {isAvailableNow ? "Available now" : `From ${availLabel}`}
         </span>
       </div>
     </div>
@@ -334,13 +384,15 @@ function PgMealsSection({
   meals: Record<string, unknown>;
   mealChargesPaise?: number | null;
 }) {
+  // FIX: writer stores "snack" (singular). Old code checked "snacks" and never matched.
   const MEAL_TIMES = [
     { key: "breakfast", label: "Breakfast" },
     { key: "lunch", label: "Lunch" },
     { key: "dinner", label: "Dinner" },
-    { key: "snacks", label: "Snacks" }
+    { key: "snack", label: "Snacks" }
   ];
   const activeMeals = MEAL_TIMES.filter((m) => meals[m.key] === true);
+  const vegOnly = meals.veg_only === true;
 
   return (
     <div className="pg-meals-card">
@@ -350,22 +402,19 @@ function PgMealsSection({
       <div>
         <p className="pg-meals-title">Meals Included</p>
         <p className="pg-meals-sub">Home-style food provided by the PG</p>
-        {activeMeals.length > 0 ? (
-          <div className="pg-meal-chips">
-            {activeMeals.map((m) => (
+        <div className="pg-meal-chips">
+          <span className={`pg-meal-diet ${vegOnly ? "pg-meal-diet--veg" : "pg-meal-diet--mixed"}`}>
+            <Leaf size={11} aria-hidden="true" /> {vegOnly ? "Pure Veg" : "Veg & Non-veg"}
+          </span>
+          {(activeMeals.length > 0 ? activeMeals : [{ key: "all", label: "All meals" }]).map(
+            (m) => (
               <span key={m.key} className="pg-meal-chip">
                 <CheckCircle size={11} aria-hidden="true" /> {m.label}
               </span>
-            ))}
-          </div>
-        ) : (
-          <div className="pg-meal-chips">
-            <span className="pg-meal-chip">
-              <CheckCircle size={11} aria-hidden="true" /> All meals
-            </span>
-          </div>
-        )}
-        {mealChargesPaise && mealChargesPaise > 0 && (
+            )
+          )}
+        </div>
+        {mealChargesPaise != null && mealChargesPaise > 0 && (
           <p className="pg-meals-charge">
             <Wallet size={13} aria-hidden="true" />
             {rupees(mealChargesPaise)} / month extra
@@ -376,16 +425,51 @@ function PgMealsSection({
   );
 }
 
+function PgNearbySection({
+  nearby
+}: {
+  nearby: NonNullable<PgPublicDetail["pg_details"]["nearby"]>;
+}) {
+  const groups = [
+    { label: "Metro & Transit", Icon: TramFront, items: nearby.metro ?? [] },
+    { label: "Colleges", Icon: GraduationCap, items: nearby.college ?? [] },
+    { label: "Offices & IT Parks", Icon: Building2, items: nearby.office ?? [] }
+  ].filter((g) => g.items.length > 0);
+  if (groups.length === 0) return null;
+  return (
+    <div className="pg-nearby-grid">
+      {groups.map((g) => (
+        <div key={g.label} className="pg-nearby-col">
+          <div className="pg-nearby-col__head">
+            <span className="pg-nearby-col__icon" aria-hidden="true">
+              <g.Icon size={16} />
+            </span>
+            {g.label}
+          </div>
+          <div className="pg-nearby-chips">
+            {g.items.map((item, i) => (
+              <span key={i} className="pg-nearby-chip">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PgHouseRulesSection({ rules }: { rules: Record<string, unknown> }) {
   const ruleFlags = Object.entries(RULE_LABELS).map(([key, label]) => ({
     key,
     label,
     allowed: rules[key] === true
   }));
-
   const allowed = ruleFlags.filter((r) => r.allowed);
   const blocked = ruleFlags.filter((r) => !r.allowed && rules[r.key] !== undefined);
   const quietHours = rules.quiet_hours as { from?: string; to?: string } | undefined;
+  const curfew = typeof rules.curfew_time === "string" ? rules.curfew_time : null;
+  const guests = typeof rules.guests_policy === "string" ? rules.guests_policy : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
@@ -393,8 +477,7 @@ function PgHouseRulesSection({ rules }: { rules: Record<string, unknown> }) {
         {allowed.length > 0 && (
           <div className="pg-rules-col pg-rules-col--allowed">
             <div className="pg-rules-col__head">
-              <CheckCircle size={14} aria-hidden="true" />
-              Allowed
+              <CheckCircle size={14} aria-hidden="true" /> Allowed
             </div>
             {allowed.map((r) => (
               <span key={r.key} className="pg-rule-chip pg-rule-chip--allowed">
@@ -407,8 +490,7 @@ function PgHouseRulesSection({ rules }: { rules: Record<string, unknown> }) {
         {blocked.length > 0 && (
           <div className="pg-rules-col pg-rules-col--blocked">
             <div className="pg-rules-col__head">
-              <XCircle size={14} aria-hidden="true" />
-              Not Allowed
+              <XCircle size={14} aria-hidden="true" /> Not Allowed
             </div>
             {blocked.map((r) => (
               <span key={r.key} className="pg-rule-chip pg-rule-chip--blocked">
@@ -419,22 +501,36 @@ function PgHouseRulesSection({ rules }: { rules: Record<string, unknown> }) {
           </div>
         )}
       </div>
-      {quietHours?.from && quietHours?.to && (
-        <div>
-          <div className="pg-rules-group__label" style={{ marginBottom: 8 }}>
-            Quiet hours
-          </div>
-          <span className="pg-quiet-hours">
-            <Clock size={16} aria-hidden="true" />
-            {quietHours.from} to {quietHours.to}
-          </span>
+      {(quietHours?.from && quietHours?.to) || curfew || guests ? (
+        <div className="pg-rules-notes">
+          {quietHours?.from && quietHours?.to && (
+            <span className="pg-quiet-hours">
+              <Clock size={16} aria-hidden="true" /> Quiet hours {quietHours.from}–{quietHours.to}
+            </span>
+          )}
+          {curfew && (
+            <span className="pg-quiet-hours">
+              <Lock size={16} aria-hidden="true" /> Gate closes {curfew}
+            </span>
+          )}
+          {guests && (
+            <span className="pg-quiet-hours">
+              <Users size={16} aria-hidden="true" /> {guests}
+            </span>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function PgPolicyTerms({ pd }: { pd: PgPublicDetail["pg_details"] }) {
+function PgPolicyTerms({
+  pd,
+  totalFloors
+}: {
+  pd: PgPublicDetail["pg_details"];
+  totalFloors: number | null;
+}) {
   const items: Array<{ icon: React.ReactNode; iconCls: string; label: string; value: string }> = [];
 
   if (pd.security_deposit_paise != null)
@@ -443,6 +539,13 @@ function PgPolicyTerms({ pd }: { pd: PgPublicDetail["pg_details"] }) {
       iconCls: "pg-policy-item__icon--amber",
       label: "Security deposit",
       value: rupees(pd.security_deposit_paise)
+    });
+  if (pd.deposit_refundable_pct != null)
+    items.push({
+      icon: <ShieldCheck size={16} />,
+      iconCls: "pg-policy-item__icon--trust",
+      label: "Deposit refundable",
+      value: `${pd.deposit_refundable_pct}%`
     });
   if (pd.notice_period_days != null)
     items.push({
@@ -458,12 +561,19 @@ function PgPolicyTerms({ pd }: { pd: PgPublicDetail["pg_details"] }) {
       label: "Lock-in period",
       value: `${pd.lock_in_months} month${pd.lock_in_months !== 1 ? "s" : ""}`
     });
+  if (pd.maintenance_paise != null && pd.maintenance_paise > 0)
+    items.push({
+      icon: <Wallet size={16} />,
+      iconCls: "pg-policy-item__icon--blue",
+      label: "Maintenance",
+      value: `${rupees(pd.maintenance_paise)}/mo`
+    });
   if (pd.electricity_mode)
     items.push({
       icon: <Zap size={16} />,
       iconCls: "pg-policy-item__icon--yellow",
       label: "Electricity",
-      value: pd.electricity_mode
+      value: ELECTRICITY_LABEL[pd.electricity_mode] ?? toTitleCase(pd.electricity_mode)
     });
   if (pd.rent_due_day)
     items.push({
@@ -471,6 +581,13 @@ function PgPolicyTerms({ pd }: { pd: PgPublicDetail["pg_details"] }) {
       iconCls: "pg-policy-item__icon--trust",
       label: "Rent due",
       value: `${pd.rent_due_day}${pd.rent_due_day === 1 ? "st" : pd.rent_due_day === 2 ? "nd" : pd.rent_due_day === 3 ? "rd" : "th"} of month`
+    });
+  if (totalFloors != null && totalFloors > 0)
+    items.push({
+      icon: <Layers size={16} />,
+      iconCls: "pg-policy-item__icon--blue",
+      label: "Floors",
+      value: `${totalFloors}`
     });
 
   if (items.length === 0) return null;
@@ -563,17 +680,28 @@ export function PgDetailClient({
 
   const hasMeals = !!(pd.meals && Object.keys(pd.meals).length > 0);
   const mealsData = pd.meals as Record<string, unknown> | null;
-  const mealChargesPaise = (pd as Record<string, unknown>).meal_charges_paise as number | null;
+  const mealChargesPaise = pd.meal_charges_paise ?? null;
 
   const hasRules = Object.keys(pd.house_rules ?? {}).length > 0;
+  const hasNearby =
+    !!pd.nearby && pd.nearby.metro.length + pd.nearby.college.length + pd.nearby.office.length > 0;
   const hasPolicyTerms =
     pd.security_deposit_paise != null ||
     pd.notice_period_days != null ||
     pd.lock_in_months != null ||
-    pd.electricity_mode != null;
+    pd.electricity_mode != null ||
+    pd.maintenance_paise != null ||
+    pd.deposit_refundable_pct != null ||
+    (detail.total_floors ?? 0) > 0;
 
   const photoUrls = detail.photos.map((p) => photoUrl(p.blob_path));
   const cityDisplay = detail.city_slug ?? city;
+  const locationLabel =
+    [detail.locality_slug, detail.city_slug]
+      .filter((s): s is string => Boolean(s))
+      .map(toTitleCase)
+      .join(", ") || "Location";
+
   const lowestPrice =
     detail.room_types.length > 0
       ? Math.min(...detail.room_types.map((r) => r.monthly_rent_paise))
@@ -593,6 +721,8 @@ export function PgDetailClient({
   const monthlyAllInLabel =
     monthlyAllInPaise != null ? `Total monthly cost ${rupees(monthlyAllInPaise)}/mo all-in` : null;
 
+  const verif = VERIF_BADGE[detail.verification_status ?? "unverified"] ?? VERIF_BADGE.unverified;
+
   return (
     <>
       <div className="container ld-page tenant-detail-page tenant-detail-page--pg">
@@ -607,41 +737,46 @@ export function PgDetailClient({
           <span className="ld-crumb__current">{detail.title ?? "PG"}</span>
         </nav>
 
-        {/* Title toolbar */}
-        <div className="listing-toolbar">
-          <div className="listing-toolbar__heading">
-            <div
-              className="flex items-center gap-2"
-              style={{ flexWrap: "wrap", marginBottom: "var(--space-2)" }}
-            >
-              <span className="badge badge--verified">
-                <ShieldCheck size={14} style={{ marginRight: 4 }} aria-hidden="true" /> Verified
+        {/* Hero header — carries the above-the-fold price */}
+        <header className="pg-hero">
+          <div className="pg-hero__main">
+            <div className="pg-hero__badges">
+              <span className={`badge badge--${verif.cls}`}>
+                {verif.icon} {verif.label}
               </span>
               <span className="badge badge--brand">PG / Hostel</span>
             </div>
-            <h1>{detail.title ?? "PG"}</h1>
-            <div className="listing-toolbar__meta">
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <MapPin size={14} aria-hidden="true" />
-                {[detail.locality_slug, detail.city_slug]
-                  .filter((s): s is string => Boolean(s))
-                  .map(toTitleCase)
-                  .join(", ") || "Location"}
-              </span>
+            <h1 className="pg-hero__title">{detail.title ?? "PG"}</h1>
+            <div className="pg-hero__meta">
+              <MapPin size={15} aria-hidden="true" />
+              {locationLabel}
             </div>
           </div>
-          <div className="listing-toolbar__actions">
+          <div className="pg-hero__aside">
             <button
               type="button"
-              className="listing-toolbar__btn"
+              className="pg-hero__share"
               onClick={onShare}
               aria-label={t(locale as Locale, "shareListing")}
             >
               <Share2 size={16} aria-hidden="true" />
               {t(locale as Locale, "shareListing")}
             </button>
+            <div className="pg-hero__pricecard" data-testid="pg-hero-price">
+              <div className="pg-hero__price">
+                <span>from</span>
+                <strong>{primaryRentPaise != null ? rupees(primaryRentPaise) : "Request"}</strong>
+                {primaryRentPaise != null && <span>/mo</span>}
+              </div>
+              <div className="pg-hero__pricesub">
+                per person
+                {pd.security_deposit_paise != null
+                  ? ` · ${rupees(pd.security_deposit_paise)} deposit`
+                  : ""}
+              </div>
+            </div>
           </div>
-        </div>
+        </header>
 
         {/* Quick facts strip */}
         <PgQuickFacts pd={pd} totalBeds={totalBeds} hasMeals={hasMeals} />
@@ -661,6 +796,7 @@ export function PgDetailClient({
           pgTotalBeds={totalBeds || null}
         />
 
+        {/* Cost summary strip */}
         <section className="tenant-cost-strip" aria-label="PG pricing and trust summary">
           <div className="tenant-cost-card tenant-cost-card--price">
             <span className="tenant-cost-card__icon" aria-hidden="true">
@@ -690,8 +826,12 @@ export function PgDetailClient({
                   : "Ask owner"}
             </strong>
             <span className="tenant-cost-card__note">
-              {pd.security_deposit_paise != null && pd.notice_period_days != null
-                ? `${pd.notice_period_days} day notice period`
+              {pd.security_deposit_paise != null
+                ? pd.deposit_refundable_pct != null
+                  ? `${pd.deposit_refundable_pct}% refundable`
+                  : pd.notice_period_days != null
+                    ? `${pd.notice_period_days} day notice period`
+                    : "Terms shown before move-in"
                 : "Terms shown before move-in"}
             </span>
           </div>
@@ -703,7 +843,7 @@ export function PgDetailClient({
               <ShieldCheck size={18} />
             </span>
             <span className="tenant-cost-card__label">PG trust</span>
-            <strong>Verified</strong>
+            <strong>{verif.label}</strong>
             <span className="tenant-cost-card__note">Meals and sharing captured</span>
           </div>
         </section>
@@ -770,6 +910,24 @@ export function PgDetailClient({
               </section>
             )}
 
+            {/* ── What's nearby ── */}
+            {hasNearby && pd.nearby && (
+              <section className="ld-section">
+                <div className="ld-section__head">
+                  <div className="ld-section__title">
+                    <span className="ld-section__icon ld-section__icon--blue" aria-hidden="true">
+                      <Navigation size={18} />
+                    </span>
+                    <div>
+                      <h2>What&apos;s nearby</h2>
+                      <p className="ld-section__sub">Transit, colleges &amp; workplaces</p>
+                    </div>
+                  </div>
+                </div>
+                <PgNearbySection nearby={pd.nearby} />
+              </section>
+            )}
+
             {/* ── House Rules ── */}
             {hasRules && (
               <section className="ld-section">
@@ -796,7 +954,7 @@ export function PgDetailClient({
                     <h2>{t(locale as Locale, "thingsToKnow")}</h2>
                   </div>
                 </div>
-                <PgPolicyTerms pd={pd} />
+                <PgPolicyTerms pd={pd} totalFloors={detail.total_floors} />
                 {pd.payment_modes?.length > 0 && (
                   <div style={{ marginTop: "var(--space-5)" }}>
                     <div className="pg-rail-label" style={{ marginBottom: 8 }}>
@@ -805,7 +963,7 @@ export function PgDetailClient({
                     <div className="pg-rail-payment-modes">
                       {pd.payment_modes.map((m) => (
                         <span key={m} className="pg-rail-mode">
-                          {m}
+                          {toTitleCase(m.replace(/_/g, " "))}
                         </span>
                       ))}
                     </div>
@@ -836,7 +994,6 @@ export function PgDetailClient({
           {/* ── Sticky sidebar ── */}
           <aside className="detail-layout__sidebar">
             <div className="detail-rail">
-              {/* Price block */}
               <div>
                 <div className="detail-rail__price">
                   <strong>
@@ -857,7 +1014,6 @@ export function PgDetailClient({
 
               <hr className="pg-rail-divider" />
 
-              {/* Room tiers list */}
               {detail.room_types.length > 0 && (
                 <div>
                   <div className="pg-rail-label">All room types</div>
@@ -884,7 +1040,6 @@ export function PgDetailClient({
                 </div>
               )}
 
-              {/* Gender + tenant info */}
               {(pd.gender_policy || pd.tenant_type) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
                   {pd.gender_policy && (
@@ -909,7 +1064,6 @@ export function PgDetailClient({
 
               <hr className="pg-rail-divider" />
 
-              {/* CTA */}
               <div className="detail-rail__panel">
                 <PgInterestButton
                   listingId={detail.id}
@@ -919,30 +1073,12 @@ export function PgDetailClient({
                 />
               </div>
 
-              {/* Reassurance */}
               <div className="detail-rail__reassure">
                 <Shield size={14} aria-hidden="true" />
                 <span>
                   {t(locale as Locale, "noChargeUntilUnlock") || "Owner will contact you directly"}
                 </span>
               </div>
-
-              {/* Payment modes */}
-              {pd.payment_modes?.length > 0 && (
-                <>
-                  <hr className="pg-rail-divider" />
-                  <div>
-                    <div className="pg-rail-label">Payment modes</div>
-                    <div className="pg-rail-payment-modes">
-                      {pd.payment_modes.map((m) => (
-                        <span key={m} className="pg-rail-mode">
-                          {m}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
             </div>
           </aside>
         </div>

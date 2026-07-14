@@ -17,7 +17,8 @@ const apiMocks = vi.hoisted(() => ({
   getPgListingEditPayload: vi.fn(),
   getPgListingDetail: vi.fn(() => Promise.resolve({ photoItems: [] })),
   createPgListing: vi.fn(),
-  updatePgListing: vi.fn()
+  updatePgListing: vi.fn(),
+  submitPgListing: vi.fn(() => Promise.resolve({ listing_id: "d1", status: "pending_review" }))
 }));
 vi.mock("@/lib/pg-operator-api", () => apiMocks);
 

@@ -10,9 +10,11 @@ import {
   Coins,
   FileText,
   Globe,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Newspaper,
+  PhoneCall,
   ShieldCheck,
   TrendingUp,
   Users,
@@ -20,6 +22,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { useFlag } from "../../../lib/feature-flags";
 
 export type AdminTab =
   | "live"
@@ -27,6 +30,7 @@ export type AdminTab =
   | "listings"
   | "verifications"
   | "leads"
+  | "lead-center"
   | "users"
   | "revenue"
   | "rent-agreements"
@@ -37,7 +41,8 @@ export type AdminTab =
   | "seo"
   | "search-performance"
   | "blog"
-  | "system";
+  | "system"
+  | "security";
 
 interface NavItem {
   id: AdminTab;
@@ -53,6 +58,7 @@ interface Props {
 }
 
 export function AdminSidebar({ active, onChange, counts }: Props) {
+  const showSecurity = useFlag("ff_admin_totp");
   const operate: NavItem[] = [
     { id: "live", label: "Live Ops", icon: Activity },
     { id: "overview", label: "Overview", icon: LayoutDashboard }
@@ -61,7 +67,8 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "listings", label: "Listing Review", icon: ClipboardList, count: counts.listings },
     { id: "verifications", label: "Verifications", icon: ShieldCheck, count: counts.verifications },
     { id: "leads", label: "CRM", icon: Users, count: counts.leads },
-    { id: "fraud", label: "Fraud Feed", icon: AlertTriangle, count: counts.fraud }
+    { id: "fraud", label: "Fraud Feed", icon: AlertTriangle, count: counts.fraud },
+    { id: "lead-center", label: "Lead Center", icon: PhoneCall, count: counts["lead-center"] }
   ];
   const understand: NavItem[] = [
     { id: "revenue", label: "Revenue", icon: Coins },
@@ -74,7 +81,10 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "search-performance", label: "Search Performance", icon: TrendingUp },
     { id: "blog", label: "Blog Review", icon: Newspaper, count: counts.blog }
   ];
-  const ops: NavItem[] = [{ id: "system", label: "System", icon: Wrench }];
+  const ops: NavItem[] = [
+    { id: "system", label: "System", icon: Wrench },
+    ...(showSecurity ? [{ id: "security" as const, label: "Security", icon: KeyRound }] : [])
+  ];
 
   return (
     <nav className="admin-sidebar" aria-label="Admin navigation">

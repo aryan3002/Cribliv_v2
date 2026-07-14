@@ -126,6 +126,18 @@ describe.runIf(!!TEST_DB)("admin rescue queue (DB)", () => {
       [phones]
     );
     await db.query(`DELETE FROM otp_challenges WHERE phone_e164 = ANY($1)`, [phones]);
+    await db.query(
+      `DELETE FROM admin_actions WHERE admin_user_id IN
+         (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+      [phones]
+    );
+    // The owner.contact_unlocked SMS mock writes a notification_log row keyed to
+    // the owner user; clear it before deleting users or the FK blocks teardown.
+    await db.query(
+      `DELETE FROM notification_log WHERE user_id IN
+         (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+      [phones]
+    );
     await db.query(`DELETE FROM users WHERE phone_e164 = ANY($1)`, [phones]);
     await db.end();
     await app.close();
@@ -175,6 +187,15 @@ describe.runIf(!!TEST_DB)("admin rescue queue (DB)", () => {
       [lead.rows[0].contact_unlock_id]
     );
     expect(unlock.rows[0].owner_response_status).toBe("responded");
+
+    const audit = await db.query(
+      `SELECT action::text, admin_user_id::text FROM admin_actions
+       WHERE target_type = 'lead' AND target_id = $1::uuid`,
+      [lockedLeadId]
+    );
+    expect(audit.rows.length).toBe(1);
+    expect(audit.rows[0].action).toBe("mark_team_called");
+    expect(audit.rows[0].admin_user_id).not.toBeNull();
 
     // second team-called on the same lead → 409
     await http(app)
