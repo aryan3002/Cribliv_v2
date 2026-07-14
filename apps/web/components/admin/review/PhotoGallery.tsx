@@ -9,7 +9,7 @@ export function PhotoGallery({ photos }: { photos: AdminListingPhotoVm[] }) {
   const usable = photos.filter((p) => p.url);
 
   if (usable.length === 0) {
-    return <EmptyState title="No photos" hint="This listing has nothing to review." />;
+    return <EmptyState title="No photos" hint="This submission has no images to review." />;
   }
 
   return (
@@ -26,8 +26,7 @@ export function PhotoGallery({ photos }: { photos: AdminListingPhotoVm[] }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={p.url!}
-              alt=""
-              role="img"
+              alt={p.is_cover ? "Cover photo" : `Listing photo ${i + 1}`}
               loading="lazy"
               onClick={() => setLightbox(p.url)}
               style={{
@@ -95,7 +94,7 @@ export function PhotoGallery({ photos }: { photos: AdminListingPhotoVm[] }) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightbox}
-            alt=""
+            alt="Listing photo enlarged"
             style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain" }}
           />
         </div>
