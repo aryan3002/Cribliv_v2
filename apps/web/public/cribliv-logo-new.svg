@@ -1,22 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100" fill="none">
-  <defs>
-    <linearGradient id="gTR" x1="0.15" y1="1" x2="0.85" y2="0"><stop offset="0" stop-color="#2f86dd"></stop><stop offset="1" stop-color="#5fe0ee"></stop></linearGradient>
-    <linearGradient id="gBR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2f86dd"></stop><stop offset="1" stop-color="#173f9c"></stop></linearGradient>
-    <linearGradient id="gBL" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0" stop-color="#163a86"></stop><stop offset="1" stop-color="#0a1a4e"></stop></linearGradient>
-    <linearGradient id="gTL" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22c8a6"></stop><stop offset="1" stop-color="#145394"></stop></linearGradient>
-    <clipPath id="cmgClip"><path d="M50 8 L88 36 Q92 38 92 43 L92 88 Q92 92 88 92 L12 92 Q8 92 8 88 L8 43 Q8 38 12 36 Z"></path></clipPath>
-  </defs>
-  <g clip-path="url(#cmgClip)">
-    <polygon points="42,49 50,8 92,38 58,49" fill="url(#gTR)"></polygon>
-    <polygon points="58,49 92,38 92,92 58,65" fill="url(#gBR)"></polygon>
-    <polygon points="58,65 92,92 8,92 42,65" fill="url(#gBL)"></polygon>
-    <polygon points="42,65 8,92 8,38 50,8 42,49" fill="url(#gTL)"></polygon>
-    <g stroke-linecap="round" fill="none">
-      <line x1="42" y1="49" x2="50" y2="8" stroke="#ffffff" stroke-opacity="0.34" stroke-width="0.9"></line>
-      <line x1="58" y1="49" x2="92" y2="38" stroke="#ffffff" stroke-opacity="0.28" stroke-width="0.9"></line>
-      <line x1="58" y1="65" x2="92" y2="92" stroke="#03103a" stroke-opacity="0.32" stroke-width="0.9"></line>
-      <line x1="42" y1="65" x2="8" y2="92" stroke="#03103a" stroke-opacity="0.32" stroke-width="0.9"></line>
-    </g>
-  </g>
-  <rect x="42" y="49" width="16" height="16" rx="2.5" fill="#ffffff"></rect>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<defs>
+<clipPath id="clip"><path d="M56 12 L88 36 Q92 38 92 43 L92 88 Q92 92 88 92 L12 92 Q8 92 8 88 L8 43 Q8 38 12 36 L44 12 Q50 7 56 12 Z"></path></clipPath>
+<linearGradient id="g1" x1="0.15" y1="1" x2="0.85" y2="0"><stop offset="0" stop-color="#4D94FF"></stop><stop offset="1" stop-color="#8CC2FF"></stop></linearGradient>
+<linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2E7BFF"></stop><stop offset="1" stop-color="#0052D6"></stop></linearGradient>
+<linearGradient id="g3" x1="0.5" y1="0" x2="0.5" y2="1"><stop offset="0" stop-color="#0B3FA8"></stop><stop offset="1" stop-color="#082566"></stop></linearGradient>
+<linearGradient id="g4" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3D8BFF"></stop><stop offset="1" stop-color="#0B3FA8"></stop></linearGradient>
+</defs><g clip-path="url(#clip)">
+<polygon points="42,49 50,8 92,38 58,49" fill="url(#g1)"></polygon>
+<polygon points="58,49 92,38 92,92 58,65" fill="url(#g2)"></polygon>
+<polygon points="58,65 92,92 8,92 42,65" fill="url(#g3)"></polygon>
+<polygon points="42,65 8,92 8,38 50,8 42,49" fill="url(#g4)"></polygon>
+</g>
+<rect x="42" y="49" width="16" height="16" rx="2.5" fill="#ffffff"></rect>
 </svg>

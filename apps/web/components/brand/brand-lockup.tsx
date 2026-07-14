@@ -29,8 +29,9 @@ export function BrandLockup({ size = "md", glow = false, priority = false, class
       aria-label="Cribliv"
     >
       {/* width/height props are required by next/image but CSS overrides them.
-          We pass the natural aspect (28×25 for the icon, 72×24 for the wordmark)
-          so the layout reservation is correct before CSS applies. */}
+          We pass the natural aspect (1:1 for the icon, ~4:1 for the wordmark,
+          tightly cropped to its glyphs) so the layout reservation is correct
+          before CSS applies. */}
       <Image
         src={BRAND_MARK_SRC}
         alt=""
@@ -42,7 +43,7 @@ export function BrandLockup({ size = "md", glow = false, priority = false, class
       <Image
         src={BRAND_WORDMARK_SRC}
         alt="Cribliv"
-        width={72}
+        width={96}
         height={24}
         priority={priority}
         className="logo-font"
