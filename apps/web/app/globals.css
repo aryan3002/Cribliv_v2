@@ -3558,11 +3558,11 @@ h4,
   .cta-bar .btn {
     flex: 1;
   }
-  .cta-bar .pg-interest--mobile {
+  .pg-detail__cta .pg-interest--mobile {
     flex: 1;
     min-width: 0;
   }
-  .cta-bar .pg-interest--mobile .pg-interest__mobile-button {
+  .pg-detail__cta .pg-interest--mobile .pg-interest__mobile-button {
     width: 100%;
   }
 }
@@ -21694,7 +21694,7 @@ a.feature-card:hover .icon-circle {
 .tenant-detail-page--pg .tenant-cost-strip,
 .tenant-detail-page--pg .pg-fact-strip,
 .tenant-detail-page--pg .amenity-tile-grid,
-.cta-bar {
+.pg-detail__cta {
   min-width: 0;
 }
 
@@ -21751,7 +21751,7 @@ a.feature-card:hover .icon-circle {
     max-width: 100%;
   }
 
-  .cta-bar {
+  .pg-detail__cta {
     max-width: 100vw;
   }
 

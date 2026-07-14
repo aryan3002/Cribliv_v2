@@ -84,12 +84,12 @@ beforeEach(() => {
 });
 
 describe("PgDetailClient", () => {
-  it("keeps the mobile interest wrapper as the primary CTA flex item", () => {
+  it("scopes the mobile interest wrapper styling to the PG detail CTA", () => {
     const styles = readFileSync("app/globals.css", "utf8");
 
-    expect(styles).toMatch(/\.cta-bar \.pg-interest--mobile\s*\{[^}]*flex:\s*1/);
+    expect(styles).toMatch(/\.pg-detail__cta \.pg-interest--mobile\s*\{[^}]*flex:\s*1/);
     expect(styles).toMatch(
-      /\.cta-bar \.pg-interest--mobile \.pg-interest__mobile-button\s*\{[^}]*width:\s*100%/
+      /\.pg-detail__cta \.pg-interest--mobile \.pg-interest__mobile-button\s*\{[^}]*width:\s*100%/
     );
   });
 
@@ -114,13 +114,14 @@ describe("PgDetailClient", () => {
     expect(screen.queryByText(/beds left/i)).toBeNull();
   });
 
-  it("emphasizes starting rent and keeps total monthly cost secondary", () => {
+  it("keeps main-content rent neutral and total monthly cost secondary", () => {
     render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
 
     const pricing = screen.getByRole("region", { name: /pg pricing and trust summary/i });
-    expect(within(pricing).getByText(/starting rent/i)).toBeTruthy();
+    expect(within(pricing).getByText(/^rent$/i)).toBeTruthy();
     expect(within(pricing).getByText("from ₹7,000")).toBeTruthy();
     expect(within(pricing).getByText("Total monthly cost ₹8,364/mo all-in")).toBeTruthy();
+    expect(pricing.querySelector(".tenant-cost-card--price")).toBeNull();
     expect(within(pricing).queryByText(/^total monthly cost$/i)).toBeNull();
   });
 
@@ -136,7 +137,7 @@ describe("PgDetailClient", () => {
   it("uses a real mobile interest action instead of a scroll-to-top link", () => {
     const { container } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
 
-    const cta = container.querySelector(".cta-bar");
+    const cta = container.querySelector(".pg-detail__cta");
     expect(cta).toBeTruthy();
     expect(cta?.querySelector('a[href="#main-content"]')).toBeNull();
     expect(within(cta as HTMLElement).getByRole("button", { name: /show interest/i })).toBeTruthy();
@@ -260,8 +261,37 @@ describe("PgDetailClient", () => {
     );
 
     expect(screen.getByTestId("pg-room-carousel")).toBeTruthy();
+    expect(screen.getByTestId("pg-room-carousel")).toHaveAttribute(
+      "aria-labelledby",
+      "pg-room-carousel-label"
+    );
     expect(screen.getByRole("button", { name: /previous room type/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /next room type/i })).toBeTruthy();
+  });
+
+  it("scrolls room options in response to carousel controls", () => {
+    const scrollBy = vi.fn();
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollBy");
+    Object.defineProperty(HTMLElement.prototype, "scrollBy", {
+      configurable: true,
+      value: scrollBy
+    });
+
+    try {
+      render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+      fireEvent.click(screen.getByRole("button", { name: /previous room type/i }));
+      fireEvent.click(screen.getByRole("button", { name: /next room type/i }));
+
+      expect(scrollBy).toHaveBeenNthCalledWith(1, { left: -280, behavior: "smooth" });
+      expect(scrollBy).toHaveBeenNthCalledWith(2, { left: 280, behavior: "smooth" });
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(HTMLElement.prototype, "scrollBy", descriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollBy");
+      }
+    }
   });
 
   it("does not render the hero price card when the sticky/mobile price surfaces own conversion", () => {

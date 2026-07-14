@@ -794,11 +794,11 @@ export function PgDetailClient({
 
         {/* Cost summary strip */}
         <section className="tenant-cost-strip" aria-label="PG pricing and trust summary">
-          <div className="tenant-cost-card tenant-cost-card--price">
+          <div className="tenant-cost-card">
             <span className="tenant-cost-card__icon" aria-hidden="true">
               <Wallet size={18} />
             </span>
-            <span className="tenant-cost-card__label">Starting rent</span>
+            <span className="tenant-cost-card__label">Rent</span>
             <strong>{primaryRentLabel}</strong>
             <span className="tenant-cost-card__note">
               {monthlyAllInLabel ?? "Per person rent before move-in terms"}
@@ -865,7 +865,9 @@ export function PgDetailClient({
               </div>
               <div className="pg-room-carousel-shell">
                 <div className="pg-carousel-toolbar">
-                  <span className="pg-carousel-toolbar__label">Browse room types</span>
+                  <span id="pg-room-carousel-label" className="pg-carousel-toolbar__label">
+                    Browse room types
+                  </span>
                   <div className="pg-carousel-actions">
                     <button
                       type="button"
@@ -885,7 +887,12 @@ export function PgDetailClient({
                     </button>
                   </div>
                 </div>
-                <div ref={roomCarouselRef} className="pg-rooms-grid" data-testid="pg-room-carousel">
+                <div
+                  ref={roomCarouselRef}
+                  className="pg-rooms-grid"
+                  data-testid="pg-room-carousel"
+                  aria-labelledby="pg-room-carousel-label"
+                >
                   {detail.room_types.map((rt, i) => (
                     <PgRoomCard key={`${rt.sharing}-${i}`} rt={rt} index={i} />
                   ))}
@@ -1123,7 +1130,7 @@ export function PgDetailClient({
       </div>
 
       {/* Mobile CTA bar */}
-      <div className="cta-bar">
+      <div className="cta-bar pg-detail__cta">
         <div>
           <div className="card__price">
             {primaryRentPaise != null ? primaryRentLabel : "Price on request"}
