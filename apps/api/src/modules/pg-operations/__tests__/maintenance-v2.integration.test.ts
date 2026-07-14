@@ -101,6 +101,7 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
   async function createTicket(
     fixture: Fixture,
     overrides: {
+      id?: string;
       assignmentIndex?: 0 | 1;
       categorySlug?: string;
       priority?: "emergency" | "high" | "normal" | "low";
@@ -127,17 +128,18 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
     const commonArea = overrides.commonArea ?? (locationKind === "common_area" ? "kitchen" : null);
     const result = await db.query<{ id: string }>(
       `INSERT INTO pg_maintenance_requests
-         (pg_property_id, assignment_id, created_by_user_id, category, category_slug,
+         (id, pg_property_id, assignment_id, created_by_user_id, category, category_slug,
           category_label_snapshot, description, status, priority, priority_source,
           sla_hours, sla_due_at, location_kind, room_id, bed_id, floor, common_area,
           location_snapshot, created_at, updated_at)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7,
-               $8::pg_maintenance_status, $9::pg_maintenance_priority, 'category_default',
-               24, $10::timestamptz, $11::pg_maintenance_location_kind,
-               $12::uuid, $13::uuid, $14, $15::pg_maintenance_common_area,
-               $16::jsonb, $17::timestamptz, $17::timestamptz)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, $8,
+               $9::pg_maintenance_status, $10::pg_maintenance_priority, 'category_default',
+               24, $11::timestamptz, $12::pg_maintenance_location_kind,
+               $13::uuid, $14::uuid, $15, $16::pg_maintenance_common_area,
+               $17::jsonb, $18::timestamptz, $18::timestamptz)
        RETURNING id::text`,
       [
+        overrides.id ?? randomUUID(),
         fixture.propertyId,
         fixture.assignmentIds[assignmentIndex],
         assignmentIndex === 0 ? tenantId : otherTenantId,
@@ -345,32 +347,52 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
 
   it("continues the operator queue without overlap for sla_due and newest keysets", async () => {
     const fixture = await createFixture();
-    const first = await createTicket(fixture, {
-      createdAt: "2026-07-15T08:00:00.000Z",
+    const olderSameSla = await createTicket(fixture, {
+      id: "00000000-0000-0000-0000-000000000101",
+      priority: "low",
+      createdAt: "2026-07-08T10:00:00.000Z",
       slaDueAt: "2026-07-15T10:00:00.000Z"
     });
-    const second = await createTicket(fixture, {
-      createdAt: "2026-07-15T09:00:00.000Z",
-      slaDueAt: "2026-07-15T11:00:00.000Z"
+    const newerSameSla = await createTicket(fixture, {
+      id: "00000000-0000-0000-0000-000000000102",
+      priority: "high",
+      createdAt: "2026-07-14T10:00:00.000Z",
+      slaDueAt: "2026-07-15T10:00:00.000Z"
     });
     const third = await createTicket(fixture, {
-      createdAt: "2026-07-15T10:00:00.000Z",
+      id: "00000000-0000-0000-0000-000000000103",
+      priority: "normal",
+      createdAt: "2026-07-14T12:00:00.000Z",
       slaDueAt: "2026-07-15T12:00:00.000Z"
     });
 
     const firstPage = await request(app.getHttpServer())
-      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance?limit=2`)
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance?limit=1`)
       .set("x-test-identity", "operator")
       .expect(200);
     const secondPage = await request(app.getHttpServer())
       .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance`)
-      .query({ limit: 2, cursor: firstPage.body.data.next_cursor })
+      .query({ limit: 1, cursor: firstPage.body.data.next_cursor })
+      .set("x-test-identity", "operator")
+      .expect(200);
+    const thirdPage = await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance`)
+      .query({ limit: 1, cursor: secondPage.body.data.next_cursor })
+      .set("x-test-identity", "operator")
+      .expect(200);
+    const fourthPage = await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance`)
+      .query({ limit: 1, cursor: thirdPage.body.data.next_cursor })
       .set("x-test-identity", "operator")
       .expect(200);
 
-    expect(firstPage.body.data.rows.map((row: { id: string }) => row.id)).toEqual([first, second]);
-    expect(secondPage.body.data.rows.map((row: { id: string }) => row.id)).toEqual([third]);
-    expect(secondPage.body.data.next_cursor).toBeNull();
+    const slaDuePages = [firstPage, secondPage, thirdPage].flatMap((page) =>
+      page.body.data.rows.map((row: { id: string }) => row.id)
+    );
+    expect(slaDuePages).toEqual([newerSameSla, olderSameSla, third]);
+    expect(new Set(slaDuePages).size).toBe(slaDuePages.length);
+    expect(fourthPage.body.data.rows).toEqual([]);
+    expect(fourthPage.body.data.next_cursor).toBeNull();
 
     const newestFirstPage = await request(app.getHttpServer())
       .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance`)
@@ -385,9 +407,11 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
 
     expect(newestFirstPage.body.data.rows.map((row: { id: string }) => row.id)).toEqual([
       third,
-      second
+      newerSameSla
     ]);
-    expect(newestSecondPage.body.data.rows.map((row: { id: string }) => row.id)).toEqual([first]);
+    expect(newestSecondPage.body.data.rows.map((row: { id: string }) => row.id)).toEqual([
+      olderSameSla
+    ]);
   });
 
   it("overrides priority transactionally and records the timeline event", async () => {

@@ -547,14 +547,19 @@ export class PgMaintenanceService {
     const payload =
       sort === "newest"
         ? { sort, created_at: toIso(row.created_at), id: row.id }
-        : { sort, sla_due_at: toIso(row.sla_due_at), id: row.id };
+        : {
+            sort,
+            sla_due_at: toIso(row.sla_due_at),
+            created_at: toIso(row.created_at),
+            id: row.id
+          };
     return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   }
 
   private decodeQueueCursor(
     value: unknown,
     sort: "sla_due" | "newest"
-  ): { at: string; id: string } | null {
+  ): { createdAt: string; id: string; slaDueAt?: string } | null {
     if (value === undefined || value === null || value === "") return null;
     if (typeof value !== "string")
       throw new BadRequestException({ code: "invalid_maintenance_cursor" });
@@ -566,9 +571,10 @@ export class PgMaintenanceService {
       if (parsed.sort !== sort || typeof parsed.id !== "string") {
         throw new Error("cursor sort mismatch");
       }
-      const at = sort === "newest" ? parsed.created_at : parsed.sla_due_at;
-      if (typeof at !== "string") throw new Error("cursor timestamp missing");
-      return { at, id: parsed.id };
+      if (typeof parsed.created_at !== "string") throw new Error("cursor timestamp missing");
+      if (sort === "newest") return { createdAt: parsed.created_at, id: parsed.id };
+      if (typeof parsed.sla_due_at !== "string") throw new Error("cursor timestamp missing");
+      return { createdAt: parsed.created_at, slaDueAt: parsed.sla_due_at, id: parsed.id };
     } catch {
       throw new BadRequestException({ code: "invalid_maintenance_cursor" });
     }
@@ -1151,21 +1157,33 @@ export class PgMaintenanceService {
 
     if (cursor) {
       if (sort === "newest") {
-        values.push(cursor.at, cursor.id);
+        values.push(cursor.createdAt, cursor.id);
         where.push(
           `(r.created_at, r.id) < ($${values.length - 1}::timestamptz, $${values.length}::uuid)`
         );
       } else {
-        values.push(cursor.at, cursor.id);
+        values.push(cursor.slaDueAt, cursor.createdAt, cursor.id);
         where.push(
-          `(r.sla_due_at, r.id) > ($${values.length - 1}::timestamptz, $${values.length}::uuid)`
+          `(r.sla_due_at > $${values.length - 2}::timestamptz
+            OR (
+              r.sla_due_at = $${values.length - 2}::timestamptz
+              AND (
+                r.created_at < $${values.length - 1}::timestamptz
+                OR (
+                  r.created_at = $${values.length - 1}::timestamptz
+                  AND r.id > $${values.length}::uuid
+                )
+              )
+            ))`
         );
       }
     }
 
     values.push(limit);
     const order =
-      sort === "newest" ? "r.created_at DESC, r.id DESC" : "r.sla_due_at ASC NULLS LAST, r.id ASC";
+      sort === "newest"
+        ? "r.created_at DESC, r.id DESC"
+        : "r.sla_due_at ASC NULLS LAST, r.created_at DESC, r.id ASC";
     const result = await this.db.query<MaintenanceRow>(
       `SELECT ${MAINTENANCE_REQUEST_SELECT}
          ${MAINTENANCE_REQUEST_JOINS}
