@@ -713,15 +713,55 @@ h4,
   background: var(--surface-sunken);
 }
 
+/* Short label hidden by default; shown only on the compact mobile pill. */
+.nav-host-link__short {
+  display: none;
+}
+
 @media (max-width: 640px) {
-  .nav-host-link span {
+  /* Post Property becomes a labeled brand pill (not a bare + icon) so the
+     action stays obvious; the language switch moves into the hamburger menu. */
+  .nav-host-link {
+    width: auto;
+    height: auto;
+    padding: 7px 10px;
+    gap: 4px;
+    background: var(--brand-light);
+    color: var(--brand);
+    font-weight: 700;
+  }
+  .nav-host-link:hover {
+    background: var(--brand-light);
+  }
+  .nav-host-link__full {
     display: none;
   }
-  .nav-host-link {
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    justify-content: center;
+  .nav-host-link__short {
+    display: inline;
+  }
+  /* Language stays visible on the top bar as a compact "हिंदी" chip — Hindi
+     discovery matters for the audience. Drop the globe on mobile to save width;
+     the label alone is self-explanatory, and the border reads as tappable. */
+  .nav-actions .lang-pill {
+    padding: 6px 11px;
+    gap: 0;
+    border: 1px solid var(--border);
+  }
+  .nav-actions .lang-pill svg {
+    display: none;
+  }
+  /* Free horizontal room so the profile pill sits a comfortable margin from the
+     edge on small phones: tighten the action gap, the logo wordmark, and the
+     profile pill's internal padding. */
+  .nav-actions {
+    gap: 6px;
+  }
+  .header .brand-lockup--md .logo-font {
+    height: 18px;
+  }
+  .profile-pill {
+    gap: 6px;
+    padding-left: 9px;
   }
 }
 
@@ -747,11 +787,10 @@ h4,
 }
 
 @media (max-width: 480px) {
-  .lang-pill__label {
-    display: none;
-  }
+  /* Keep the हिंदी label visible even on small phones so language discovery
+     stays obvious; just tighten padding. */
   .lang-pill {
-    padding: 8px;
+    padding: 7px 9px;
   }
 }
 
@@ -22137,4 +22176,325 @@ a.feature-card:hover .icon-circle {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Homepage hero rework (authoritative — appended last to win the cascade)
+   Two-column hero: copy + live-listing cluster, with a centered fallback.
+   Quiet, intentional backdrop replaces the old street/road/grid noise.
+   ════════════════════════════════════════════════════════════════════ */
+.hero--home-prototype {
+  /* clip horizontally (contains the rotated cards + background) but keep
+     vertical overflow visible so the search dropdown can float downward
+     over the sections below, exactly as the original hero did. */
+  overflow-x: clip;
+  overflow-y: visible;
+  background: linear-gradient(176deg, #f6f9fd 0%, #eaf1f9 60%, #e6eef7 100%);
+}
+
+/* Soft brand glow, weighted to the right where the visual sits. */
+.home-hero__wash {
+  background: radial-gradient(
+    120% 92% at 50% -12%,
+    rgba(255, 255, 255, 0.92),
+    rgba(255, 255, 255, 0) 55%
+  );
+}
+
+.home-hero__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(44% 58% at 84% 20%, rgba(0, 102, 255, 0.13), transparent 62%),
+    radial-gradient(38% 52% at 92% 82%, rgba(255, 90, 95, 0.08), transparent 60%);
+}
+
+/* Crisp, faded dot texture (replaces the muddy graph-paper grid). */
+.hero--home-prototype::before {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(82% 74% at 72% 30%, #000 0%, transparent 76%);
+  mask-image: radial-gradient(82% 74% at 72% 30%, #000 0%, transparent 76%);
+}
+
+/* ── Two-column layout ── */
+.hero--has-visual .home-hero__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 34%, 400px);
+  gap: clamp(28px, 4.5vw, 68px);
+  align-items: center;
+}
+
+.hero--has-visual .home-hero__copy {
+  width: 100%;
+  /* Fill the grid cell so the search box + its dropdown get prod-like width.
+     The headline (max 720) and subtitle (max 560) self-limit; only the wide
+     search shell benefits. */
+  max-width: 860px;
+}
+
+/* ── Centered fallback (no listings with photos) ── */
+.hero--centered .home-hero__copy {
+  margin-inline: auto;
+  max-width: 720px;
+  text-align: center;
+}
+
+.hero--centered .home-hero__eyebrow,
+.hero--centered .home-hero__intelligence,
+.hero--centered .home-hero__trust {
+  justify-content: center;
+}
+
+.hero--centered .home-hero__title,
+.hero--centered .home-hero__subtitle,
+.hero--centered .home-hero__search-shell {
+  margin-inline: auto;
+}
+
+/* ── Listing cluster visual ── */
+.home-hero__visual {
+  position: relative;
+  align-self: center;
+  min-height: 320px;
+  animation: heroVisualIn 0.7s 0.18s both cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.home-hero__visual-head {
+  display: none;
+}
+
+.home-hero__cards {
+  position: relative;
+  height: 320px;
+}
+
+.home-hero__card {
+  position: absolute;
+  width: 226px;
+  display: block;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 52px -24px rgba(15, 23, 42, 0.5);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform 0.32s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.32s ease;
+}
+
+.home-hero__card:nth-child(1) {
+  top: 0;
+  left: 0;
+  z-index: 1;
+  transform: rotate(-5deg);
+}
+
+.home-hero__card:nth-child(2) {
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  transform: rotate(4deg);
+}
+
+.home-hero__card:hover,
+.home-hero__card:focus-visible {
+  transform: translateY(-6px) rotate(0deg) scale(1.03);
+  box-shadow: 0 30px 64px -22px rgba(15, 23, 42, 0.58);
+  z-index: 5;
+}
+
+.home-hero__card-media {
+  display: block;
+  height: 122px;
+  position: relative;
+  background-color: #dbe7f5;
+  background-size: cover;
+  background-position: center;
+}
+
+.home-hero__card-media--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--brand-light) 0%, #e7eef9 100%);
+  color: rgba(0, 102, 255, 0.45);
+}
+
+.home-hero__card-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--trust);
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.home-hero__card-body {
+  display: block;
+  padding: 10px 12px 12px;
+}
+
+.home-hero__card-rent {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.home-hero__card-title {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.home-hero__card-loc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.home-hero__card-loc svg {
+  flex: none;
+  color: var(--brand);
+}
+
+/* Rent pins — map-style accents attached to the cluster. */
+.home-hero__price {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: var(--radius-full);
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 12px 26px -8px rgba(15, 23, 42, 0.42);
+}
+
+.home-hero__price span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.home-hero__price--low {
+  top: -8px;
+  right: 20px;
+  padding: 6px 11px;
+  background: var(--surface);
+  color: var(--brand);
+  font-size: 12.5px;
+}
+
+.home-hero__price--high {
+  bottom: 2px;
+  right: -4px;
+  padding: 7px 13px;
+  background: var(--accent);
+  color: #fff;
+  border: 2px solid var(--surface);
+  font-size: 13px;
+  box-shadow: 0 12px 26px -6px rgba(255, 90, 95, 0.5);
+}
+
+@keyframes heroVisualIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+}
+
+/* ── Stat band: adapt to 3 or 4 honest cards ── */
+.home-market-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+/* ── Tablet / mobile: stack, and turn the cluster into a scroll strip ── */
+@media (max-width: 900px) {
+  .hero--has-visual .home-hero__inner {
+    display: block;
+  }
+
+  .hero--has-visual .home-hero__copy {
+    max-width: 640px;
+  }
+
+  /* Hide the listing cluster on phones/tablets: on a narrow single column it
+     would just repeat the "Live homes in Lucknow" carousel further down the
+     page. Desktop keeps the side-by-side cluster where it balances the layout. */
+  .home-hero__visual {
+    display: none;
+  }
+
+  .home-market-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Phone: compact the trust strip into inline chips ── */
+@media (max-width: 640px) {
+  .home-hero__trust {
+    display: flex;
+    flex-flow: row wrap;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+    gap: 6px 8px;
+    margin: 16px 0 8px;
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .home-hero__trust .trust-strip__item {
+    width: auto;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.66);
+    font-size: 12px;
+  }
+
+  .home-hero__trust-dot {
+    display: none;
+  }
+
+  /* Give the search button its label back now that the placeholder is short. */
+  .hero--home-prototype .hero-search__btn {
+    width: auto;
+    padding: 0 14px;
+  }
+
+  .hero--home-prototype .hero-search__btn .search-btn-label {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero__visual {
+    animation: none;
+  }
 }

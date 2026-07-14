@@ -2007,3 +2007,129 @@ export async function resetAdminTotp(accessToken: string): Promise<{ reset: bool
     headers: authHeaders(accessToken)
   });
 }
+
+// ── Admin review detail VMs + fetchers (Task 6) ─────────────────────────────
+// These payloads are large; VMs keep the server's snake_case field names
+// verbatim (no camelCase mapping layer) to avoid duplicating the shape.
+
+export interface AdminReviewOwnerVm {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  whatsapp_opt_in: boolean;
+  preferred_language: string | null;
+  role: string;
+  is_blocked: boolean;
+  member_since: string | null;
+  active_listings: number;
+  report_count: number;
+}
+
+export interface AdminListingPhotoVm {
+  url: string | null;
+  is_cover: boolean;
+  sort_order: number;
+  moderation_status: string;
+}
+
+export interface AdminReviewEvidenceVm {
+  attempt_id: string;
+  kind: string;
+  result: string;
+  liveness_score: number | null;
+  address_match_score: number | null;
+  threshold: number;
+  provider: string | null;
+  provider_result_code: string | null;
+  review_reason: string | null;
+  artifact_available: boolean;
+  created_at: string;
+}
+
+export interface AdminListingDetailVm {
+  listing: {
+    id: string;
+    listing_type: "flat_house" | "pg";
+    title_en: string | null;
+    title_hi: string | null;
+    description_en: string | null;
+    description_hi: string | null;
+    status: string;
+    verification_status: string;
+    monthly_rent: number | null;
+    security_deposit: number | null;
+    available_from: string | null;
+    furnishing: string | null;
+    bhk: number | null;
+    bathrooms: number | null;
+    area_sqft: number | null;
+    preferred_tenant: string | null;
+    whatsapp_available: boolean;
+    amenities: string[];
+    rules: Record<string, unknown>;
+    created_at: string;
+  };
+  location: {
+    address_line1?: string | null;
+    landmark?: string | null;
+    pincode?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    masked_address?: string | null;
+    locality_name?: string | null;
+    city_slug?: string | null;
+    city_name?: string | null;
+  } | null;
+  owner: AdminReviewOwnerVm;
+  photos: AdminListingPhotoVm[];
+  pg: { details: Record<string, unknown> | null; rooms: Record<string, unknown>[] } | null;
+  verification: AdminReviewEvidenceVm[];
+}
+
+export interface AdminVerificationDetailVm {
+  attempt_id: string;
+  kind: string;
+  result: string;
+  liveness_score: number | null;
+  address_match_score: number | null;
+  threshold: number;
+  provider: string | null;
+  provider_reference: string | null;
+  provider_result_code: string | null;
+  review_reason: string | null;
+  retryable: boolean | null;
+  artifact_available: boolean;
+  created_at: string;
+  listing: { id: string | null; title: string | null; address: string | null };
+  owner: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    whatsapp_opt_in: boolean;
+    member_since: string | null;
+  };
+}
+
+export async function fetchAdminListingDetail(accessToken: string, listingId: string) {
+  return fetchApi<AdminListingDetailVm>(`/admin/review/listings/${listingId}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminVerificationDetail(accessToken: string, attemptId: string) {
+  return fetchApi<AdminVerificationDetailVm>(`/admin/review/verifications/${attemptId}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchVerificationArtifactLink(
+  accessToken: string,
+  attemptId: string,
+  kind: "video_liveness" | "electricity_bill"
+) {
+  const res = await fetchApi<{ url: string; expires_at: string } | null>(
+    `/admin/review/verifications/${attemptId}/artifact-link?kind=${kind}`,
+    { headers: authHeaders(accessToken) }
+  );
+  return res ? { url: res.url, expiresAt: res.expires_at } : null;
+}

@@ -54,6 +54,11 @@ function makeCtrl() {
     getFullListing: vi.fn(async () => ({}))
   } as any;
   const indexing = { enqueue: vi.fn(async () => null) } as any;
+  const review = {
+    getListingDetail: vi.fn(async () => ({ listing: { id: "L1" } })),
+    getVerificationDetail: vi.fn(async () => ({ attempt_id: "V1" })),
+    getVerificationArtifactLink: vi.fn(async () => ({ url: "https://x", expires_at: "t" }))
+  } as any;
 
   const ctrl = new AdminController(
     appState,
@@ -71,9 +76,10 @@ function makeCtrl() {
     pgProps,
     pgOverrides,
     pgEdit,
-    indexing
+    indexing,
+    review
   );
-  return { ctrl, pgProps, pgOverrides, pgAnalytics };
+  return { ctrl, pgProps, pgOverrides, pgAnalytics, review };
 }
 
 describe("Admin PG endpoints (unit)", () => {
@@ -134,5 +140,27 @@ describe("Admin PG endpoints (unit)", () => {
     const req = { user: { id: "admin-1" } };
     await ctrl.pgListingOverrideClear(req, "l-1", { scope: "listing", operator_id: "op-1" });
     expect(pgOverrides.clear).toHaveBeenCalledWith("admin-1", "op-1", { listingId: "l-1" }, null);
+  });
+
+  it("GET review/listings/:id delegates to review.getListingDetail and wraps in ok()", async () => {
+    const { ctrl, review } = makeCtrl();
+    const res = await ctrl.listingDetail("L1");
+    expect(review.getListingDetail).toHaveBeenCalledWith("L1");
+    expect(res).toMatchObject({ data: { listing: { id: "L1" } } });
+  });
+
+  it("GET review/verifications/:id/artifact-link passes kind + admin id", async () => {
+    const { ctrl, review } = makeCtrl();
+    const res = await ctrl.verificationArtifactLink(
+      { user: { id: "ADMIN1" } } as any,
+      "V1",
+      "video_liveness"
+    );
+    expect(review.getVerificationArtifactLink).toHaveBeenCalledWith(
+      "V1",
+      "video_liveness",
+      "ADMIN1"
+    );
+    expect(res).toMatchObject({ data: { url: "https://x" } });
   });
 });

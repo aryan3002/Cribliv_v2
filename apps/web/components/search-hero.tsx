@@ -58,6 +58,18 @@ export function SearchHero({ locale }: { locale: Locale }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string | null>(null);
+  // On narrow screens the mic + search button leave little room for the input,
+  // so a long placeholder truncates mid-word. Swap to a short one under 640px.
+  const [isCompact, setIsCompact] = useState(false);
+  useEffect(() => {
+    // Guard: jsdom (tests) and SSR expose `window` without `matchMedia`.
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsCompact(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
   const [clarification, setClarification] = useState<
     AgenticRouteResponse["clarifying_question"] | null
   >(null);
@@ -442,9 +454,17 @@ export function SearchHero({ locale }: { locale: Locale }) {
             placeholder={
               segment === "pg"
                 ? locale === "hi"
-                  ? "शहर, इलाके या नाम से PG खोजें…"
-                  : "Search PGs by city, area or name…"
-                : t(locale, "searchPlaceholder")
+                  ? isCompact
+                    ? "इलाके/नाम से PG…"
+                    : "शहर, इलाके या नाम से PG खोजें…"
+                  : isCompact
+                    ? "PG by area or name…"
+                    : "Search PGs by city, area or name…"
+                : isCompact
+                  ? locale === "hi"
+                    ? "इलाका या बजट…"
+                    : "Area or budget…"
+                  : t(locale, "searchPlaceholder")
             }
             className="hero-search__input"
             autoComplete="off"
