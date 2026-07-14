@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
@@ -12,11 +12,17 @@ import { expressPgInterest } from "../../lib/pg-public-api";
 export function PgInterestButton({
   listingId,
   locale,
+  variant = "rail",
+  className,
+  children,
   onBefore,
   onSuccess
 }: {
   listingId: string;
   locale: string;
+  variant?: "rail" | "mobile";
+  className?: string;
+  children?: ReactNode;
   onBefore?: () => void;
   onSuccess?: () => void;
 }) {
@@ -29,17 +35,20 @@ export function PgInterestButton({
     null;
 
   const [state, setState] = useState<"idle" | "loading" | "done" | "self" | "error">("idle");
+  const label = children ?? (state === "loading" ? "Sending..." : "I'm interested");
+  const interestClassName = `pg-interest pg-interest--${variant}`;
+  const buttonClassName = `btn btn--primary ${variant === "mobile" ? "btn--lg pg-interest__mobile-button" : "btn--lg"} ${className ?? ""}`;
 
   if (!token) {
     // Return to THIS PG detail page after login, not a generic /pg.
     const returnTo = pathname ?? `/${locale}/pg`;
     return (
-      <div className="pg-interest">
+      <div className={interestClassName}>
         <Link
           href={`/${locale}/auth/login?return=${encodeURIComponent(returnTo)}` as Route}
-          className="btn btn--primary btn--lg"
+          className={buttonClassName}
         >
-          <Heart size={16} aria-hidden="true" /> Log in to show interest
+          <Heart size={16} aria-hidden="true" /> {children ?? "Log in to show interest"}
         </Link>
       </div>
     );
@@ -47,7 +56,7 @@ export function PgInterestButton({
 
   if (state === "done") {
     return (
-      <div className="pg-interest pg-interest--done" role="status">
+      <div className={`${interestClassName} pg-interest--done`} role="status">
         <Check size={18} aria-hidden="true" />
         <span>The PG owner has your interest. They&apos;ll reach out.</span>
       </div>
@@ -56,7 +65,7 @@ export function PgInterestButton({
 
   if (state === "self") {
     return (
-      <div className="pg-interest" role="status">
+      <div className={interestClassName} role="status">
         <span className="body-sm text-secondary">This is your own listing.</span>
       </div>
     );
@@ -84,14 +93,14 @@ export function PgInterestButton({
   }
 
   return (
-    <div className="pg-interest">
+    <div className={interestClassName}>
       <button
         type="button"
-        className="btn btn--primary btn--lg"
+        className={buttonClassName}
         onClick={onClick}
         disabled={state === "loading"}
       >
-        <Heart size={16} aria-hidden="true" /> {state === "loading" ? "Sending…" : "I'm interested"}
+        <Heart size={16} aria-hidden="true" /> {label}
       </button>
       {state === "error" && (
         <p className="body-sm" style={{ color: "var(--danger)", marginTop: 8 }}>

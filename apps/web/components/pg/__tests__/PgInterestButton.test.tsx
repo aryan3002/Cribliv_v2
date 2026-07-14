@@ -34,6 +34,22 @@ describe("PgInterestButton", () => {
     expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1");
   });
 
+  it("allows mobile CTA copy while preserving interest submission", async () => {
+    __session = { access_token: "tok_1" };
+    expressPgInterest.mockResolvedValue({ interested: true, created: true, lead_id: "lead_1" });
+
+    render(
+      <PgInterestButton listingId="abc" locale="en" variant="mobile">
+        Show Interest
+      </PgInterestButton>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /show interest/i }));
+
+    await waitFor(() => expect(screen.getByText(/owner has your interest/i)).toBeTruthy());
+    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1");
+  });
+
   it("shows an error (not success) when the lead was not recorded", async () => {
     __session = { access_token: "tok_1" };
     expressPgInterest.mockResolvedValue({ interested: true, created: false });

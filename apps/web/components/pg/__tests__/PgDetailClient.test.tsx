@@ -18,7 +18,11 @@ vi.mock("../../../lib/pg-public-api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/pg-public-api")>()),
   searchPgListings: vi.fn(async () => ({ items: [], total: 0, page: 1, page_size: 4 }))
 }));
-vi.mock("../PgInterestButton", () => ({ PgInterestButton: () => <button>interested</button> }));
+vi.mock("../PgInterestButton", () => ({
+  PgInterestButton: ({ children }: { children?: React.ReactNode }) => (
+    <button>{children ?? "interested"}</button>
+  )
+}));
 
 import { PgDetailClient } from "../PgDetailClient";
 
@@ -117,6 +121,15 @@ describe("PgDetailClient", () => {
     expect(screen.getAllByText("/mo rent")).toHaveLength(2);
     expect(screen.getAllByText("Total monthly cost ₹8,364/mo all-in")).toHaveLength(3);
     expect(screen.queryByText("/mo all-in")).toBeNull();
+  });
+
+  it("uses a real mobile interest action instead of a scroll-to-top link", () => {
+    const { container } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+    const cta = container.querySelector(".cta-bar");
+    expect(cta).toBeTruthy();
+    expect(cta?.querySelector('a[href="#main-content"]')).toBeNull();
+    expect(within(cta as HTMLElement).getByRole("button", { name: /show interest/i })).toBeTruthy();
   });
 
   it("hides vacancy urgency when plenty available", () => {

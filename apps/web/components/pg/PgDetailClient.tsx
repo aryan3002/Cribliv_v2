@@ -1120,16 +1120,15 @@ export function PgDetailClient({
             </div>
           ) : null}
         </div>
-        <a
-          href="#main-content"
-          className="btn btn--primary btn--sm"
-          onClick={(e) => {
-            e.preventDefault();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
+        <PgInterestButton
+          listingId={detail.id}
+          locale={locale}
+          variant="mobile"
+          onBefore={() => trackPgInterestClicked(detail.id, "logged_in")}
+          onSuccess={() => trackPgInterestSubmitted(detail.id)}
         >
           Show Interest
-        </a>
+        </PgInterestButton>
       </div>
     </>
   );
