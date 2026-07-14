@@ -74,7 +74,13 @@ function walletRoute(balance: number) {
       !url.includes("/wallet/plans") &&
       !url.includes("/wallet/purchase-intents") &&
       (!init?.method || init.method === "GET"),
-    respond: () => jsonOk({ balance_credits: balance, free_credits_granted: 2 })
+    respond: () =>
+      jsonOk({
+        balance_credits: balance,
+        free_credits_granted: 10,
+        promotional_credits_remaining: 0,
+        promotional_credits_expires_at: null
+      })
   };
 }
 
@@ -168,7 +174,9 @@ describe("LeadCreditBalanceBar", () => {
             walletCalls += 1;
             return jsonOk({
               balance_credits: walletCalls === 1 ? 2 : 17,
-              free_credits_granted: 2
+              free_credits_granted: 10,
+              promotional_credits_remaining: 2,
+              promotional_credits_expires_at: "2099-01-01T00:00:00.000Z"
             });
           }
         },

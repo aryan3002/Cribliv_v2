@@ -12,6 +12,7 @@ import { Search as SearchIcon, Heart, Home as HomeIcon } from "lucide-react";
 import Link from "next/link";
 import type { Locale } from "../../../../lib/i18n";
 import type { UserRole } from "../../../../auth.config";
+import { PromotionalCreditExpiry } from "../../../../components/promotional-credit-expiry";
 
 export default function TenantDashboardPage({ params }: { params: { locale: string } }) {
   const locale = params.locale as Locale;
@@ -20,6 +21,7 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
   const role = session?.user?.role;
   const phone = session?.user?.phone;
   const walletBalance = session?.walletBalance ?? 0;
+  const promotionalCredits = session?.promotionalCredits;
 
   return (
     <div
@@ -67,6 +69,11 @@ export default function TenantDashboardPage({ params }: { params: { locale: stri
             {walletBalance > 0 &&
               ` You have ${walletBalance} unlock${walletBalance !== 1 ? "s" : ""} available.`}
           </div>
+          <PromotionalCreditExpiry
+            remaining={promotionalCredits?.remaining ?? 0}
+            expiresAt={promotionalCredits?.expiresAt ?? null}
+            locale={locale}
+          />
         </div>
       </div>
 

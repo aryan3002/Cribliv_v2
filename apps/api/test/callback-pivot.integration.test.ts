@@ -5,6 +5,7 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { AppModule } from "../src/app.module";
+import { AppStateService } from "../src/common/app-state.service";
 
 async function createApp(overrides: Record<string, string | undefined> = {}) {
   delete process.env.DATABASE_URL;
@@ -93,6 +94,15 @@ describe("callback pivot (ff_callback_leads ON)", () => {
 
   it("still 402s when credits run out", async () => {
     const tenant = await loginWithOtp(app, "+919999999902");
+    const appState = app.get(AppStateService);
+    const tenantUser = appState.usersByPhone.get("+919999999902");
+    if (!tenantUser) {
+      throw new Error("Seeded tenant missing");
+    }
+    appState.wallets.set(tenantUser.id, 2);
+    appState.promotionalWallets.delete(tenantUser.id);
+    appState.walletTxns.set(tenantUser.id, []);
+
     const listingId = await getFirstListingId(app);
     for (const key of ["cb-a", "cb-b"]) {
       await http(app)

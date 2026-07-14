@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { getApiBaseUrl } from "../lib/api";
+import type { Locale } from "../lib/i18n";
+import { PromotionalCreditExpiry } from "./promotional-credit-expiry";
 
 interface UserProfile {
   id: string;
@@ -29,9 +31,12 @@ interface UserProfile {
   preferred_language: string;
   whatsapp_opt_in: boolean;
   wallet_balance: number;
+  promotional_credits_remaining: number;
+  promotional_credits_expires_at: string | null;
 }
 
 export function SettingsClient({ locale }: { locale: string }) {
+  const activeLocale = locale as Locale;
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -307,6 +312,11 @@ export function SettingsClient({ locale }: { locale: string }) {
               <span className="text-secondary" style={{ marginLeft: "var(--space-1)" }}>
                 credits
               </span>
+              <PromotionalCreditExpiry
+                remaining={profile?.promotional_credits_remaining ?? 0}
+                expiresAt={profile?.promotional_credits_expires_at ?? null}
+                locale={activeLocale}
+              />
             </div>
           </div>
         </div>

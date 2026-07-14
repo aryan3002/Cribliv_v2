@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
+const E2E_API_BASE_URL = process.env.E2E_API_BASE_URL || "http://localhost:4000/v1";
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: false,
@@ -25,8 +27,7 @@ export default defineConfig({
       timeout: 120_000
     },
     {
-      command:
-        'AUTH_SECRET=cribliv-e2e-secret NEXTAUTH_SECRET=cribliv-e2e-secret NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/v1 API_BASE_URL=http://localhost:4000/v1 NEXT_PUBLIC_FF_CALLBACK_LEADS="${NEXT_PUBLIC_FF_CALLBACK_LEADS:-}" NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED="${NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED:-}" corepack pnpm --filter @cribliv/web dev',
+      command: `AUTH_SECRET=cribliv-e2e-secret NEXTAUTH_SECRET=cribliv-e2e-secret NEXT_PUBLIC_API_BASE_URL="${E2E_API_BASE_URL}" API_BASE_URL="${E2E_API_BASE_URL}" NEXT_PUBLIC_FF_CALLBACK_LEADS="\${NEXT_PUBLIC_FF_CALLBACK_LEADS:-}" NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED="\${NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED:-}" corepack pnpm --filter @cribliv/web dev`,
       port: 3000,
       reuseExistingServer: true,
       timeout: 120_000

@@ -136,7 +136,7 @@ describe("tenant callbacks", () => {
       .set("Authorization", `Bearer ${tenant.access_token}`)
       .expect(201);
     expect(dispute.body.data.refunded).toBe(true);
-    expect(dispute.body.data.credits_remaining).toBe(2); // 2 - 1 + 1
+    expect(dispute.body.data.credits_remaining).toBe(10); // 10 - 1 + 1
 
     await http(app)
       .post(`/v1/tenant/callbacks/${unlockId}/dispute`)

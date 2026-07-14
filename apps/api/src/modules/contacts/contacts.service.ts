@@ -14,6 +14,11 @@ import { logTelemetry } from "../../common/telemetry";
 import { NotificationService } from "../notifications/notification.service";
 import { LeadsService } from "../leads/leads.service";
 import { readFeatureFlags } from "../../config/feature-flags";
+import {
+  debitWalletCredits,
+  expireSignupCredits,
+  WalletBalanceError
+} from "../wallet/wallet-balance";
 
 const DISPUTE_WINDOW_MS = 72 * 60 * 60 * 1000;
 
@@ -216,6 +221,7 @@ export class ContactsService {
   ) {
     const deadlineInterval = readFeatureFlags().ff_callback_leads ? "24 hours" : "12 hours";
     const client = await this.database.getClient();
+    let committed = false;
     try {
       await client.query("BEGIN");
 
@@ -225,7 +231,6 @@ export class ContactsService {
         response_deadline_at: string;
         owner_phone: string | null;
         whatsapp_available: boolean;
-        balance_credits: number;
       }>(
         `
         SELECT
@@ -233,11 +238,9 @@ export class ContactsService {
           cu.listing_id::text,
           cu.response_deadline_at::text,
           l.contact_phone_encrypted AS owner_phone,
-          l.whatsapp_available,
-          COALESCE(w.balance_credits, 0) AS balance_credits
+          l.whatsapp_available
         FROM contact_unlocks cu
         JOIN listings l ON l.id = cu.listing_id
-        LEFT JOIN wallets w ON w.user_id = cu.tenant_user_id
         WHERE cu.tenant_user_id = $1::uuid
           AND cu.idempotency_key = $2
         LIMIT 1
@@ -252,7 +255,13 @@ export class ContactsService {
             message: "Idempotency-Key already used for another listing"
           });
         }
+        await expireSignupCredits(client, userId);
+        const balance = await client.query<{ balance_credits: number }>(
+          `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid LIMIT 1`,
+          [userId]
+        );
         await client.query("COMMIT");
+        committed = true;
         const row = existingUnlock.rows[0];
         logTelemetry("contact.unlock_idempotent_hit", {
           mode: "db",
@@ -264,7 +273,7 @@ export class ContactsService {
           unlockId: row.id,
           ownerPhone: row.owner_phone,
           whatsappAvailable: row.whatsapp_available,
-          creditsRemaining: Number(row.balance_credits),
+          creditsRemaining: Number(balance.rows[0]?.balance_credits ?? 0),
           responseDeadlineAt: row.response_deadline_at
         });
       }
@@ -300,76 +309,45 @@ export class ContactsService {
         [userId]
       );
 
-      const walletResult = await client.query<{ balance_credits: number }>(
-        `
-        SELECT balance_credits
-        FROM wallets
-        WHERE user_id = $1::uuid
-        FOR UPDATE
-        `,
-        [userId]
-      );
+      let debit;
+      try {
+        debit = await debitWalletCredits(client, {
+          userId,
+          credits: 1,
+          txnType: "debit_contact_unlock",
+          referenceType: "listing",
+          referenceId: listingId,
+          idempotencyKey
+        });
+      } catch (error) {
+        if (error instanceof WalletBalanceError) {
+          if (error.code === "idempotency_conflict") {
+            throw new ConflictException({
+              code: "duplicate_unlock",
+              message: "Idempotency-Key already used for another unlock"
+            });
+          }
+          if (error.code === "insufficient_credits" || error.code === "wallet_not_found") {
+            throw new HttpException(
+              { code: "insufficient_credits", message: "Insufficient credits" },
+              HttpStatus.PAYMENT_REQUIRED
+            );
+          }
+        }
+        throw error;
+      }
 
-      const balance = Number(walletResult.rows[0]?.balance_credits ?? 0);
-      if (balance < 1) {
+      if (debit.status === "insufficient") {
+        await client.query("COMMIT");
+        committed = true;
         throw new HttpException(
           { code: "insufficient_credits", message: "Insufficient credits" },
           HttpStatus.PAYMENT_REQUIRED
         );
       }
 
-      const debitTxnResult = await client.query<{ id: string }>(
-        `
-        INSERT INTO wallet_transactions(
-          wallet_user_id,
-          txn_type,
-          credits_delta,
-          reference_type,
-          reference_id,
-          idempotency_key,
-          metadata
-        )
-        VALUES ($1::uuid, 'debit_contact_unlock', -1, 'listing', $2::uuid, $3, '{}'::jsonb)
-        ON CONFLICT (wallet_user_id, idempotency_key) DO NOTHING
-        RETURNING id::text
-        `,
-        [userId, listingId, idempotencyKey]
-      );
-
-      let walletTxnId = debitTxnResult.rows[0]?.id;
-      const debitTxnInserted = Boolean(walletTxnId);
-      if (!walletTxnId) {
-        const existingTxn = await client.query<{ id: string }>(
-          `
-          SELECT id::text
-          FROM wallet_transactions
-          WHERE wallet_user_id = $1::uuid
-            AND idempotency_key = $2
-          LIMIT 1
-          `,
-          [userId, idempotencyKey]
-        );
-        walletTxnId = existingTxn.rows[0]?.id;
-      }
-
-      if (!walletTxnId) {
-        throw new ConflictException({
-          code: "duplicate_unlock",
-          message: "Duplicate unlock request"
-        });
-      }
-
-      if (debitTxnInserted) {
-        await client.query(
-          `
-          UPDATE wallets
-          SET balance_credits = balance_credits - 1, updated_at = now()
-          WHERE user_id = $1::uuid
-            AND balance_credits >= 1
-          `,
-          [userId]
-        );
-      }
+      const walletTxnId = debit.transactionId;
+      const debitTxnInserted = debit.inserted;
 
       // The `source` column ships in migration 0050. Until it's applied on a
       // given DB, omit it so this revenue-critical INSERT never fails on a
@@ -436,17 +414,8 @@ export class ContactsService {
         );
       }
 
-      const balanceAfterResult = await client.query<{ balance_credits: number }>(
-        `
-        SELECT balance_credits
-        FROM wallets
-        WHERE user_id = $1::uuid
-        LIMIT 1
-        `,
-        [userId]
-      );
-
       await client.query("COMMIT");
+      committed = true;
 
       const listing = listingResult.rows[0];
       logTelemetry("contact.unlock_debited", {
@@ -459,11 +428,11 @@ export class ContactsService {
         unlockId: unlockId,
         ownerPhone: listing.owner_phone,
         whatsappAvailable: listing.whatsapp_available,
-        creditsRemaining: Number(balanceAfterResult.rows[0]?.balance_credits ?? 0),
+        creditsRemaining: debit.balanceCredits,
         responseDeadlineAt: responseDeadlineAt
       });
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (!committed) await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
