@@ -351,8 +351,15 @@ describe("pg operations API client", () => {
       location_kind: "common_area",
       common_area: "lift",
       floor: 3,
+      room_id: "room-4",
+      bed_id: "bed-5",
       tenant_query: "Ravi",
+      chargeable_damage: true,
       include_closed: false,
+      date_from: "2026-07-01",
+      date_to: "2026-07-14",
+      view: "kanban",
+      sort: "newest",
       limit: 25,
       cursor: "ticket-2"
     });
@@ -385,7 +392,7 @@ describe("pg operations API client", () => {
     );
     expect(fetchApi).toHaveBeenNthCalledWith(
       3,
-      "/pg-operator/properties/property-1/maintenance?status=open&priority=high&sla_state=overdue&category_slug=plumbing&location_kind=common_area&common_area=lift&floor=3&tenant_query=Ravi&include_closed=false&limit=25&cursor=ticket-2",
+      "/pg-operator/properties/property-1/maintenance?status=open&priority=high&sla_state=overdue&category_slug=plumbing&location_kind=common_area&common_area=lift&floor=3&room_id=room-4&bed_id=bed-5&tenant_query=Ravi&chargeable_damage=true&include_closed=false&date_from=2026-07-01&date_to=2026-07-14&view=kanban&sort=newest&limit=25&cursor=ticket-2",
       expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
     );
     expect(fetchApi).toHaveBeenNthCalledWith(

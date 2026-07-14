@@ -100,10 +100,19 @@ function maintenanceQuery(filters: PgMaintenanceQueueFilters = {}): string {
   if (filters.location_kind) query.set("location_kind", filters.location_kind);
   if (filters.common_area) query.set("common_area", filters.common_area);
   if (filters.floor !== undefined) query.set("floor", String(filters.floor));
+  if (filters.room_id) query.set("room_id", filters.room_id);
+  if (filters.bed_id) query.set("bed_id", filters.bed_id);
   if (filters.tenant_query) query.set("tenant_query", filters.tenant_query);
+  if (filters.chargeable_damage !== undefined) {
+    query.set("chargeable_damage", String(filters.chargeable_damage));
+  }
   if (filters.include_closed !== undefined) {
     query.set("include_closed", String(filters.include_closed));
   }
+  if (filters.date_from) query.set("date_from", filters.date_from);
+  if (filters.date_to) query.set("date_to", filters.date_to);
+  if (filters.view) query.set("view", filters.view);
+  if (filters.sort) query.set("sort", filters.sort);
   if (filters.limit !== undefined) query.set("limit", String(filters.limit));
   if (filters.cursor) query.set("cursor", filters.cursor);
   const value = query.toString();
