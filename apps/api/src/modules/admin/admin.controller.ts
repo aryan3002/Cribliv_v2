@@ -46,6 +46,7 @@ import type { PgAdminPropertyPatch } from "@cribliv/shared-types";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { IndexingService } from "../seo/indexing.service";
 import { listingIndexPaths } from "../seo/seo-urls";
+import { AdminReviewService } from "./admin-review.service";
 import { debitWalletCredits, WalletBalanceError } from "../wallet/wallet-balance";
 
 // Clamp the ?days= query param to a sane window; default 30.
@@ -75,7 +76,8 @@ export class AdminController {
     @Inject(PgAdminPropertiesService) private readonly pgProps: PgAdminPropertiesService,
     @Inject(PgAnalyticsOverrideService) private readonly pgOverrides: PgAnalyticsOverrideService,
     @Inject(PgAdminListingEditService) private readonly pgEdit: PgAdminListingEditService,
-    @Inject(IndexingService) private readonly indexing: IndexingService
+    @Inject(IndexingService) private readonly indexing: IndexingService,
+    @Inject(AdminReviewService) private readonly review: AdminReviewService
   ) {}
 
   /* ── Live Operations dashboard ─────────────────────────────────── */
@@ -342,6 +344,25 @@ export class AdminController {
     });
 
     return ok({ listing_id: listing.id, new_status: listing.status });
+  }
+
+  @Get("review/listings/:listing_id")
+  async listingDetail(@Param("listing_id") listingId: string) {
+    return ok(await this.review.getListingDetail(listingId));
+  }
+
+  @Get("review/verifications/:attempt_id")
+  async verificationDetail(@Param("attempt_id") attemptId: string) {
+    return ok(await this.review.getVerificationDetail(attemptId));
+  }
+
+  @Get("review/verifications/:attempt_id/artifact-link")
+  async verificationArtifactLink(
+    @Req() req: { user: { id: string } },
+    @Param("attempt_id") attemptId: string,
+    @Query("kind") kind: string
+  ) {
+    return ok(await this.review.getVerificationArtifactLink(attemptId, kind, req.user.id));
   }
 
   @Get("review/verifications")

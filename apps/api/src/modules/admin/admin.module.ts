@@ -15,6 +15,8 @@ import { PgAnalyticsOverrideService } from "./pg-analytics-override.service";
 import { PgAdminPropertiesService } from "./pg-admin-properties.service";
 import { PgAdminListingEditService } from "./pg-admin-listing-edit.service";
 import { AzureBlobPhotoStorageService } from "../owner/azure-blob-photo-storage.service";
+import { AdminReviewService } from "./admin-review.service";
+import { VerificationArtifactSasIssuer } from "./verification-artifact-sas.issuer";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
 import { SeoModule } from "../seo/seo.module";
@@ -45,7 +47,12 @@ import { SeoModule } from "../seo/seo.module";
     PgAdminListingEditService,
     // Azure SAS provider for admin photo uploads. No-arg constructor (reads env),
     // so a local provider avoids importing OwnerModule.
-    AzureBlobPhotoStorageService
+    AzureBlobPhotoStorageService,
+    // Admin review: listing/verification detail + short-lived verification
+    // artifact SAS links (liveness video / electricity bill). No-arg SAS
+    // issuer, DatabaseService-only review service — local providers.
+    VerificationArtifactSasIssuer,
+    AdminReviewService
   ]
 })
 export class AdminModule {}
