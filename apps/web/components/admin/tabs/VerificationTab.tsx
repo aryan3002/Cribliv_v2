@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { SectionCard } from "../primitives/SectionCard";
 import { EmptyState } from "../primitives/EmptyState";
 import { DataTable, type Column } from "../primitives/DataTable";
-import { Drawer } from "../primitives/Drawer";
 import { StatusPill } from "../primitives/StatusPill";
+import { VerificationReviewView } from "../review/VerificationReviewView";
 import {
   decideAdminVerification,
   fetchAdminVerifications,
@@ -17,14 +17,14 @@ interface Props {
   accessToken: string;
   onCountChange?: (count: number) => void;
   onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
+  onOpenListing?: (listingId: string) => void;
 }
 
-export function VerificationTab({ accessToken, onCountChange, onToast }: Props) {
+export function VerificationTab({ accessToken, onCountChange, onToast, onOpenListing }: Props) {
   const [items, setItems] = useState<AdminVerificationVm[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "video_liveness" | "electricity_bill_match">("all");
-  const [active, setActive] = useState<AdminVerificationVm | null>(null);
-  const [reason, setReason] = useState("");
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
@@ -45,24 +45,37 @@ export function VerificationTab({ accessToken, onCountChange, onToast }: Props) 
 
   const filtered = filter === "all" ? items : items.filter((i) => i.verificationType === filter);
 
-  async function decide(decision: "pass" | "fail" | "manual_review") {
-    if (!active) return;
+  async function decide(decision: "pass" | "fail" | "manual_review", reason: string) {
+    if (!activeId) return;
     if (decision === "fail" && !reason.trim()) {
       onToast("Reason is required when failing", "warn");
       return;
     }
     setBusy(decision);
     try {
-      await decideAdminVerification(accessToken, active.id, decision, reason.trim() || undefined);
+      await decideAdminVerification(accessToken, activeId, decision, reason.trim() || undefined);
       onToast(`Verification ${decision.replace("_", " ")}`, "trust");
-      setActive(null);
-      setReason("");
+      setActiveId(null);
       void load();
     } catch (err) {
       onToast(err instanceof Error ? err.message : "Action failed", "danger");
     } finally {
       setBusy(null);
     }
+  }
+
+  if (activeId) {
+    return (
+      <VerificationReviewView
+        accessToken={accessToken}
+        attemptId={activeId}
+        onBack={() => setActiveId(null)}
+        onDecide={decide}
+        busy={busy}
+        onToast={onToast}
+        onOpenListing={onOpenListing}
+      />
+    );
   }
 
   const columns: Column<AdminVerificationVm>[] = [
@@ -158,125 +171,10 @@ export function VerificationTab({ accessToken, onCountChange, onToast }: Props) 
             columns={columns}
             rows={filtered}
             rowKey={(r) => r.id}
-            onRowClick={(r) => {
-              setActive(r);
-              setReason("");
-            }}
+            onRowClick={(r) => setActiveId(r.id)}
           />
         )}
       </SectionCard>
-
-      <Drawer
-        open={!!active}
-        onClose={() => setActive(null)}
-        title="Verification attempt"
-        subtitle={active?.id}
-        footer={
-          <>
-            <button
-              type="button"
-              className="admin-btn admin-btn--ghost"
-              disabled={!!busy}
-              onClick={() => decide("manual_review")}
-            >
-              Manual review
-            </button>
-            <button
-              type="button"
-              className="admin-btn admin-btn--danger"
-              disabled={!!busy}
-              onClick={() => decide("fail")}
-            >
-              Fail
-            </button>
-            <button
-              type="button"
-              className="admin-btn admin-btn--primary"
-              disabled={!!busy}
-              onClick={() => decide("pass")}
-            >
-              Pass
-            </button>
-          </>
-        }
-      >
-        {active && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Row label="Type" value={active.verificationType} />
-            <Row label="User" value={active.userId} mono />
-            {active.listingId && <Row label="Listing" value={active.listingId} mono />}
-            <Row label="Provider" value={active.provider ?? "-"} />
-            <Row label="Provider ref" value={active.providerReference ?? "-"} mono />
-            <Row label="Provider code" value={active.providerResultCode ?? "-"} mono />
-            <Row label="Threshold" value={String(active.threshold)} />
-            <Row
-              label="Liveness score"
-              value={active.livenessScore != null ? String(Math.round(active.livenessScore)) : "-"}
-            />
-            <Row
-              label="Address match"
-              value={
-                active.addressMatchScore != null
-                  ? String(Math.round(active.addressMatchScore))
-                  : "-"
-              }
-            />
-            <Row label="Review reason" value={active.reviewReason?.replace(/_/g, " ") ?? "-"} />
-            <Row
-              label="Retryable"
-              value={active.retryable == null ? "-" : active.retryable ? "yes" : "no"}
-            />
-            <Row label="Submitted" value={formatDate(active.createdAt)} />
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--ad-text-2)",
-                  marginBottom: 6
-                }}
-              >
-                Reason (required when failing)
-              </label>
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Document why this is being failed or sent to manual review"
-                style={{
-                  width: "100%",
-                  minHeight: 80,
-                  padding: 10,
-                  border: "1px solid var(--ad-border)",
-                  borderRadius: 8,
-                  fontFamily: "inherit",
-                  fontSize: 13,
-                  resize: "vertical"
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </Drawer>
-    </div>
-  );
-}
-
-function Row({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "140px 1fr",
-        gap: 12,
-        fontSize: 13,
-        alignItems: "center"
-      }}
-    >
-      <span style={{ color: "var(--ad-text-3)", fontWeight: 500 }}>{label}</span>
-      <span style={mono ? { fontFamily: "var(--font-mono)", fontSize: 12 } : undefined}>
-        {value}
-      </span>
     </div>
   );
 }
