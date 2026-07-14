@@ -35,6 +35,7 @@ export interface BoardParams {
   status?: string;
   q?: string;
   range?: string; // interval string for the 'all' filter, e.g. '30 days'
+  sort?: "urgency" | "newest";
   page?: number;
   pageSize?: number;
 }
@@ -59,6 +60,7 @@ interface BoardSqlRow {
   seconds_remaining: number | null;
   owner_response_status: string | null;
   unlock_status: string | null;
+  lead_kind: AdminLeadBoardRow["lead_kind"];
   source: string | null;
   created_at: string;
 }
@@ -260,6 +262,14 @@ export class AdminLeadOpsService {
     }
     const whereSql = where.join(" AND ");
 
+    // "urgency" (default): soonest refund deadline first, no-deadline leads last.
+    // "newest": most recently created first — surfaces fresh leads (incl. free
+    // PG-interest leads that have no deadline and would otherwise sink).
+    const orderBy =
+      p.sort === "newest"
+        ? "ld.created_at DESC"
+        : "(ld.call_deadline_at IS NULL), ld.call_deadline_at ASC, ld.created_at DESC";
+
     // Page of rows.
     params.push(pageSize);
     const limitIdx = params.length;
@@ -276,7 +286,10 @@ export class AdminLeadOpsService {
               ld.access_state, ld.status::text AS status,
               ld.called_at::text, ld.called_by,
               ld.call_deadline_at::text AS response_deadline_at,
-              GREATEST(0, EXTRACT(EPOCH FROM (ld.call_deadline_at - now())))::int AS seconds_remaining,
+              CASE WHEN ld.call_deadline_at IS NULL THEN NULL
+                   ELSE GREATEST(0, EXTRACT(EPOCH FROM (ld.call_deadline_at - now())))::int
+              END AS seconds_remaining,
+              CASE WHEN ld.contact_unlock_id IS NULL THEN 'interest' ELSE 'callback' END AS lead_kind,
               cu.owner_response_status, cu.unlock_status, cu.source, ld.created_at::text
        FROM leads ld
        JOIN listings l ON l.id = ld.listing_id
@@ -284,7 +297,7 @@ export class AdminLeadOpsService {
        JOIN users t ON t.id = ld.tenant_user_id
        LEFT JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id
        WHERE ${whereSql}
-       ORDER BY (ld.call_deadline_at IS NULL), ld.call_deadline_at ASC, ld.created_at DESC
+       ORDER BY ${orderBy}
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params
     );
@@ -325,6 +338,7 @@ export class AdminLeadOpsService {
       response_deadline_at: r.response_deadline_at,
       seconds_remaining: r.seconds_remaining,
       refund_state: refundState(r.owner_response_status, r.unlock_status),
+      lead_kind: r.lead_kind,
       source: r.source,
       created_at: r.created_at
     }));
