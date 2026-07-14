@@ -10,7 +10,10 @@ export interface RawBoardParams {
   range?: string;
   page?: string;
   page_size?: string;
+  sort?: string;
 }
+
+const VALID_SORTS = new Set(["urgency", "newest"]);
 
 const VALID_FILTERS: ReadonlySet<AdminLeadBoardFilter> = new Set([
   "needs_call",
@@ -58,6 +61,7 @@ export function sanitizeBoardParams(raw: RawBoardParams): BoardParams {
     status,
     q: raw.q || undefined,
     range,
+    sort: raw.sort && VALID_SORTS.has(raw.sort) ? (raw.sort as "urgency" | "newest") : "urgency",
     page: toPositiveInt(raw.page, 1),
     pageSize: toPositiveInt(raw.page_size, 50, 100)
   };

@@ -43,6 +43,7 @@ function boardRow(overrides: Partial<AdminLeadBoardRow> = {}): AdminLeadBoardRow
     response_deadline_at: "2026-07-13T18:00:00.000Z",
     seconds_remaining: 18_000,
     refund_state: "pending",
+    lead_kind: "callback",
     source: "contact_unlock",
     created_at: "2026-07-12T18:00:00.000Z",
     ...overrides

@@ -51,4 +51,10 @@ describe("sanitizeBoardParams", () => {
     expect(sanitizeBoardParams({ owner_id: validUuid }).ownerId).toBe(validUuid);
     expect(sanitizeBoardParams({ owner_id: "xyz" }).ownerId).toBeUndefined();
   });
+
+  it("defaults sort to 'urgency' and only accepts the known sorts", () => {
+    expect(sanitizeBoardParams({}).sort).toBe("urgency");
+    expect(sanitizeBoardParams({ sort: "newest" }).sort).toBe("newest");
+    expect(sanitizeBoardParams({ sort: "nonsense" }).sort).toBe("urgency");
+  });
 });

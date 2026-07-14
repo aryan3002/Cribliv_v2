@@ -1912,6 +1912,7 @@ export async function generateNextBlogBrief(accessToken: string): Promise<Genera
 import type {
   AdminLeadBoardResponse,
   AdminLeadBoardFilter,
+  AdminLeadBoardSort,
   AdminLeadAnalytics,
   AdminLeadOwnerDetail,
   AdminLeadTimelineResponse
@@ -1924,6 +1925,7 @@ export interface AdminLeadBoardParams {
   status?: string;
   q?: string;
   range?: string;
+  sort?: AdminLeadBoardSort;
   page?: number;
   page_size?: number;
 }
