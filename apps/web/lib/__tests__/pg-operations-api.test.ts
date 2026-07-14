@@ -11,6 +11,9 @@ import {
   completeResidenceMaintenancePhotos,
   confirmAssignmentMoveOut,
   createResidenceMaintenance,
+  fetchMaintenanceAnalytics,
+  fetchMaintenanceCategories,
+  getMaintenanceTicket,
   getOperatorBedDetail,
   getManagedProperty,
   getTenantResidence,
@@ -23,6 +26,8 @@ import {
   moveOutAssignmentNow,
   operatorMoveOutRequest,
   relistBed,
+  reopenResidenceMaintenance,
+  resolveMaintenanceTicket,
   reserveBed,
   serveTenantNotice,
   acceptTenantOperatorMoveOut,
@@ -31,7 +36,8 @@ import {
   presignMaintenancePhotos,
   presignResidenceMaintenancePhotos,
   updateMaintenanceStatus,
-  updateBedStatus
+  updateBedStatus,
+  addMaintenanceInternalNote
 } from "../pg-operations-api";
 
 describe("pg operations API client", () => {
@@ -331,6 +337,86 @@ describe("pg operations API client", () => {
           ]
         })
       })
+    );
+  });
+
+  it("defines the maintenance V2 client contract", () => {
+    fetchMaintenanceCategories("token-1");
+    getMaintenanceTicket("property-1", "ticket-1", "token-1");
+    listPropertyMaintenance("property-1", "token-1", {
+      status: "open",
+      priority: "high",
+      sla_state: "overdue",
+      category_slug: "plumbing",
+      location_kind: "common_area",
+      common_area: "lift",
+      floor: 3,
+      tenant_query: "Ravi",
+      include_closed: false
+    });
+    resolveMaintenanceTicket(
+      "property-1",
+      "ticket-1",
+      { note: "Fixed tap", chargeable_damage: false, cost_paise: null },
+      "token-1",
+      "idem-1"
+    );
+    addMaintenanceInternalNote(
+      "property-1",
+      "ticket-1",
+      { body: "Call plumber again if this repeats." },
+      "token-1",
+      "idem-2"
+    );
+    reopenResidenceMaintenance("ticket-1", { body: "Still leaking." }, "token-1", "idem-3");
+    fetchMaintenanceAnalytics("property-1", "token-1");
+
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      1,
+      "/pg-operator/maintenance/categories",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      2,
+      "/pg-operator/properties/property-1/maintenance/ticket-1",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      3,
+      "/pg-operator/properties/property-1/maintenance?status=open&priority=high&sla_state=overdue&category_slug=plumbing&location_kind=common_area&common_area=lift&floor=3&tenant_query=Ravi&include_closed=false",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      4,
+      "/pg-operator/properties/property-1/maintenance/ticket-1/resolve",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-1" }),
+        body: JSON.stringify({ note: "Fixed tap", chargeable_damage: false, cost_paise: null })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      5,
+      "/pg-operator/properties/property-1/maintenance/ticket-1/internal-notes",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-2" }),
+        body: JSON.stringify({ body: "Call plumber again if this repeats." })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      6,
+      "/tenant/pg-residence/maintenance/ticket-1/reopen",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "idem-3" }),
+        body: JSON.stringify({ body: "Still leaking." })
+      })
+    );
+    expect(fetchApi).toHaveBeenNthCalledWith(
+      7,
+      "/pg-operator/properties/property-1/maintenance/analytics",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
     );
   });
 });

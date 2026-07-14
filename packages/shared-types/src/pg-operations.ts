@@ -230,6 +230,128 @@ export type PgMaintenanceStatus =
   | "closed"
   | "cancelled";
 
+export type PgMaintenancePriority = "emergency" | "high" | "normal" | "low";
+
+export type PgMaintenancePrioritySource = "category_default" | "operator_override" | "backfill";
+
+export type PgMaintenanceLocationKind =
+  | "bed"
+  | "room"
+  | "floor"
+  | "common_area"
+  | "property_wide"
+  | "other";
+
+export type PgMaintenanceCommonArea =
+  | "kitchen"
+  | "common_bathroom"
+  | "lift"
+  | "stairs"
+  | "corridor"
+  | "terrace"
+  | "laundry"
+  | "parking"
+  | "reception"
+  | "mess_food_area"
+  | "water_tank_motor"
+  | "wifi_router"
+  | "security_cctv"
+  | "other";
+
+export type PgMaintenanceEventType =
+  | "created"
+  | "status_changed"
+  | "priority_set"
+  | "priority_overridden"
+  | "comment_added"
+  | "internal_note_added"
+  | "photo_added"
+  | "resolution_recorded"
+  | "reopened"
+  | "auto_closed"
+  | "cancelled";
+
+export type PgMaintenanceEventVisibility = "public" | "operator_internal";
+
+export interface PgMaintenanceCategory {
+  slug: string;
+  display_name: string;
+  default_priority: PgMaintenancePriority;
+  active: boolean;
+  sort_order: number;
+}
+
+export interface PgMaintenanceLocationInput {
+  kind: PgMaintenanceLocationKind;
+  room_id?: string;
+  bed_id?: string;
+  floor?: number;
+  common_area?: PgMaintenanceCommonArea;
+  detail?: string;
+}
+
+export interface PgMaintenanceLocationSnapshot {
+  kind: PgMaintenanceLocationKind;
+  property_name: string | null;
+  room_number: string | null;
+  room_label: string | null;
+  floor: number | null;
+  bed_label: string | null;
+  common_area: PgMaintenanceCommonArea | null;
+  detail: string | null;
+}
+
+export interface PgMaintenanceTimelineEvent {
+  id: string;
+  request_id: string;
+  event_type: PgMaintenanceEventType;
+  visibility: PgMaintenanceEventVisibility;
+  actor_user_id: string | null;
+  actor_role: "tenant" | "pg_operator" | "admin" | "system";
+  from_status: PgMaintenanceStatus | null;
+  to_status: PgMaintenanceStatus | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PgMaintenanceResolutionInput {
+  note: string;
+  fix_photo_paths?: string[];
+  cost_paise?: number | null;
+  chargeable_damage: boolean;
+}
+
+export interface PgMaintenanceInternalNoteInput {
+  body: string;
+  attachments?: string[];
+}
+
+export interface PgMaintenancePriorityOverrideInput {
+  priority: PgMaintenancePriority;
+  reason: string;
+}
+
+export interface PgMaintenanceQueueFilters {
+  status?: PgMaintenanceStatus | "all";
+  priority?: PgMaintenancePriority;
+  sla_state?: "overdue" | "due_today" | "on_track";
+  category_slug?: string;
+  location_kind?: PgMaintenanceLocationKind;
+  common_area?: PgMaintenanceCommonArea;
+  floor?: number;
+  room_id?: string;
+  bed_id?: string;
+  tenant_query?: string;
+  chargeable_damage?: boolean;
+  include_closed?: boolean;
+  date_from?: string;
+  date_to?: string;
+  view?: "list" | "kanban";
+  sort?: "sla_due" | "newest";
+  limit?: number;
+  cursor?: string;
+}
+
 export interface PgMaintenanceComment {
   id: string;
   request_id: string;
@@ -260,16 +382,47 @@ export interface PgMaintenanceRequest {
   assignment_id: string | null;
   created_by_user_id: string | null;
   category: string;
+  category_slug: string;
+  category_label_snapshot: string;
   description: string;
   photo_paths: string[];
   photo_urls: string[];
   status: PgMaintenanceStatus;
-  priority: string | null;
+  priority: PgMaintenancePriority;
+  priority_source: PgMaintenancePrioritySource;
+  sla_hours: number;
+  sla_due_at: string;
+  is_overdue: boolean;
   closed_at: string | null;
+  resolved_at: string | null;
+  resolution_note: string | null;
+  resolution_source: string | null;
+  fix_photo_paths: string[];
+  fix_photo_urls: string[];
+  resolution_cost_paise: number | null;
+  chargeable_damage: boolean;
+  auto_close_after: string | null;
   created_at: string;
   updated_at: string;
   comments: PgMaintenanceComment[];
   location: PgMaintenanceLocation | null;
+  location_snapshot: PgMaintenanceLocationSnapshot;
+  timeline?: PgMaintenanceTimelineEvent[];
+}
+
+export interface PgMaintenanceQueuePage {
+  rows: PgMaintenanceRequest[];
+  next_cursor: string | null;
+}
+
+export interface PgMaintenanceAnalytics {
+  open: number;
+  overdue: number;
+  due_today: number;
+  waiting_on_tenant: number;
+  resolved_pending_close: number;
+  closed_this_month: number;
+  by_category: Array<{ category_slug: string; display_name: string; count: number }>;
 }
 
 export interface PgMaintenanceSummary {

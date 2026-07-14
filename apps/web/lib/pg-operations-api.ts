@@ -9,11 +9,15 @@ import type {
   PgLayoutRoomCountInput,
   PgMaintenanceComment,
   PgMaintenanceCommentInput,
+  PgMaintenanceCategory,
   PgMaintenanceCompletePhotoInput,
   PgMaintenanceCreateInput,
-  PgMaintenanceListFilters,
+  PgMaintenanceAnalytics,
+  PgMaintenanceInternalNoteInput,
   PgMaintenancePresignFileInput,
   PgMaintenancePresignResponse,
+  PgMaintenanceQueueFilters,
+  PgMaintenanceResolutionInput,
   PgMaintenanceRequest,
   PgMaintenanceStatus,
   PgManageRequest,
@@ -85,9 +89,19 @@ function assignmentQuery(filters: PgBedAssignmentListFilters = {}): string {
   return value ? `?${value}` : "";
 }
 
-function maintenanceQuery(filters: Pick<PgMaintenanceListFilters, "status"> = {}): string {
+function maintenanceQuery(filters: PgMaintenanceQueueFilters = {}): string {
   const query = new URLSearchParams();
   if (filters.status) query.set("status", filters.status);
+  if (filters.priority) query.set("priority", filters.priority);
+  if (filters.sla_state) query.set("sla_state", filters.sla_state);
+  if (filters.category_slug) query.set("category_slug", filters.category_slug);
+  if (filters.location_kind) query.set("location_kind", filters.location_kind);
+  if (filters.common_area) query.set("common_area", filters.common_area);
+  if (filters.floor !== undefined) query.set("floor", String(filters.floor));
+  if (filters.tenant_query) query.set("tenant_query", filters.tenant_query);
+  if (filters.include_closed !== undefined) {
+    query.set("include_closed", String(filters.include_closed));
+  }
   const value = query.toString();
   return value ? `?${value}` : "";
 }
@@ -217,10 +231,72 @@ export function getOperatorBedDetail(propertyId: string, bedId: string, token?: 
 export function listPropertyMaintenance(
   propertyId: string,
   token?: string,
-  filters: Pick<PgMaintenanceListFilters, "status"> = {}
+  filters: PgMaintenanceQueueFilters = {}
 ) {
   return fetchApi<PgMaintenanceRequest[]>(
     `/pg-operator/properties/${propertyId}/maintenance${maintenanceQuery(filters)}`,
+    { headers: authHeaders(token) }
+  );
+}
+
+export function fetchMaintenanceCategories(token?: string) {
+  return fetchApi<PgMaintenanceCategory[]>("/pg-operator/maintenance/categories", {
+    headers: authHeaders(token)
+  });
+}
+
+export function getMaintenanceTicket(propertyId: string, requestId: string, token?: string) {
+  return fetchApi<PgMaintenanceRequest>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}`,
+    { headers: authHeaders(token) }
+  );
+}
+
+export function resolveMaintenanceTicket(
+  propertyId: string,
+  requestId: string,
+  body: PgMaintenanceResolutionInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceRequest>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}/resolve`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify(body)
+    }
+  );
+}
+
+export function addMaintenanceInternalNote(
+  propertyId: string,
+  requestId: string,
+  body: PgMaintenanceInternalNoteInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceComment>(
+    `/pg-operator/properties/${propertyId}/maintenance/${requestId}/internal-notes`,
+    {
+      method: "POST",
+      headers: {
+        ...authHeaders(token),
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
+      body: JSON.stringify(body)
+    }
+  );
+}
+
+export function fetchMaintenanceAnalytics(propertyId: string, token?: string) {
+  return fetchApi<PgMaintenanceAnalytics>(
+    `/pg-operator/properties/${propertyId}/maintenance/analytics`,
     { headers: authHeaders(token) }
   );
 }
@@ -467,6 +543,23 @@ export function addResidenceMaintenanceComment(
   idempotencyKey: string
 ) {
   return fetchApi<PgMaintenanceComment>(`/tenant/pg-residence/maintenance/${requestId}/comments`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+export function reopenResidenceMaintenance(
+  requestId: string,
+  body: PgMaintenanceCommentInput,
+  token: string | undefined,
+  idempotencyKey: string
+) {
+  return fetchApi<PgMaintenanceRequest>(`/tenant/pg-residence/maintenance/${requestId}/reopen`, {
     method: "POST",
     headers: {
       ...authHeaders(token),
