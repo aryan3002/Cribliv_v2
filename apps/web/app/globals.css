@@ -16937,6 +16937,78 @@ a.feature-card:hover .icon-circle {
   background: #f1f5f9;
   color: #334155;
 }
+.pg-badge--trust {
+  background: #ecfdf5;
+  color: #047857;
+}
+.pg-card-strip-shell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pg-card__strip {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.pg-card__strip::-webkit-scrollbar {
+  display: none;
+}
+.pg-card__strip .pg-badge {
+  flex: 0 0 auto;
+}
+.pg-card-strip-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.pg-card-strip-button:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.pg-card__body-top {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.pg-card__body-top > div:first-child {
+  min-width: 0;
+}
+.pg-card__price-stack {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.pg-card__trust-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pg-card__body-link {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
 
 /* ── PG filters bar ── */
 .pg-filters {
@@ -17214,11 +17286,11 @@ a.feature-card:hover .icon-circle {
   align-items: center;
   gap: var(--space-2);
   margin: var(--space-5) 0 var(--space-6);
-  padding: var(--space-4) var(--space-5);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .pg-fact {
   display: inline-flex;
@@ -17913,14 +17985,14 @@ a.feature-card:hover .icon-circle {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-  padding: 6px 10px;
-  background: var(--amber-light);
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-sm);
-  margin-top: calc(-1 * var(--space-2));
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  margin-top: var(--space-1);
 }
 .pg-rail-deposit svg {
-  color: var(--amber);
+  color: var(--brand);
   flex-shrink: 0;
 }
 .pg-rail-divider {
@@ -19196,6 +19268,18 @@ a.feature-card:hover .icon-circle {
   min-width: 0;
 }
 
+.pg-city-inventory {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.pg-city-inventory .listing-grid,
+.pg-city-inventory .tenant-results-map-panel {
+  min-width: 0;
+}
+
 .tenant-results-map-panel {
   position: sticky;
   top: calc(var(--header-height) + var(--space-4));
@@ -19980,6 +20064,22 @@ a.feature-card:hover .icon-circle {
   .tenant-results-map-shell {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
+  }
+
+  .pg-city-inventory {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .tenant-results-page .listing-grid,
+  .pg-city-inventory .listing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tenant-results-page .listing-card,
+  .pg-city-inventory .listing-card {
+    width: 100%;
+    min-width: 0;
   }
 
   .tenant-results-toolbar .segbar,
@@ -21641,7 +21741,7 @@ a.feature-card:hover .icon-circle {
    earlier .tenant-detail-page rules. Tokens only.
    ============================================================ */
 
-/* Hero header with above-the-fold price */
+/* Hero header */
 .tenant-detail-page .pg-hero {
   display: flex;
   align-items: flex-start;
@@ -21650,13 +21750,21 @@ a.feature-card:hover .icon-circle {
   margin-bottom: var(--space-4);
 }
 .pg-hero__main {
+  width: 100%;
   min-width: 0;
+}
+.pg-hero__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 .pg-hero__badges {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-bottom: var(--space-2);
+  margin-bottom: 0;
 }
 .pg-hero__title {
   margin: 0;
@@ -21682,57 +21790,47 @@ a.feature-card:hover .icon-circle {
   align-items: flex-end;
   gap: var(--space-2);
   flex-shrink: 0;
+  padding-top: 2px;
 }
 .pg-hero__share {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(203, 213, 225, 0.88);
+  border-radius: var(--radius-full);
   color: var(--text-primary);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  transition: background var(--transition-fast);
+  text-decoration: none;
+  box-shadow: var(--shadow-xs);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 .pg-hero__share:hover {
-  background: var(--surface-sunken);
+  background: var(--brand-50);
+  border-color: var(--brand-100);
+  color: var(--brand);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
   text-decoration: none;
 }
-.pg-hero__pricecard {
-  text-align: right;
-  background: linear-gradient(135deg, var(--brand-50), var(--surface));
-  border: 1px solid rgba(0, 102, 255, 0.16);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3) var(--space-5);
-  box-shadow: var(--shadow-xs);
-}
-.pg-hero__price {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.pg-hero__price span {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-.pg-hero__price strong {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 30px;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-  line-height: 1;
-}
-.pg-hero__pricesub {
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  margin-top: 3px;
+
+.tenant-detail-page--pg .gallery {
+  width: calc(100% - (var(--space-4) * 2));
+  margin-inline: var(--space-4);
+  gap: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
 @media (max-width: 640px) {
@@ -21743,14 +21841,174 @@ a.feature-card:hover .icon-circle {
   .pg-hero__aside {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
+    justify-content: flex-start;
+    width: auto;
+    padding-top: 0;
   }
-  .pg-hero__pricecard {
-    padding: var(--space-2) var(--space-4);
+}
+
+@media (max-width: 559px) {
+  .pg-hero__topline {
+    align-items: flex-start;
   }
-  .pg-hero__price strong {
-    font-size: 24px;
+
+  .pg-hero__badges {
+    flex: 1 1 auto;
+  }
+
+  .pg-hero__share {
+    width: 40px;
+    min-width: 40px;
+    padding-inline: 0;
+  }
+
+  .pg-hero__share-label {
+    display: none;
+  }
+}
+
+/* Room carousel and mobile overflow guards */
+.tenant-detail-page--pg {
+  max-width: min(calc(100% - clamp(48px, 6vw, 96px)), 1320px);
+  margin-inline: auto;
+  overflow-x: clip;
+}
+
+.tenant-detail-page--pg .detail-layout,
+.tenant-detail-page--pg .tenant-cost-strip,
+.tenant-detail-page--pg .pg-fact-strip,
+.tenant-detail-page--pg .amenity-tile-grid,
+.pg-detail__cta {
+  min-width: 0;
+}
+
+.pg-detail__cta-price {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.pg-detail__cta-jump {
+  flex: 1;
+  min-width: 150px;
+  min-height: 52px;
+  border-radius: 16px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pg-room-carousel-shell {
+  min-width: 0;
+}
+
+.pg-carousel-toolbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.pg-carousel-toolbar__label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pg-carousel-actions {
+  display: none;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.pg-carousel-button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pg-carousel-button:hover {
+  background: var(--surface-sunken);
+}
+
+.pg-room-card {
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+@media (max-width: 1024px) {
+  .pg-carousel-toolbar {
+    display: flex;
+  }
+
+  .pg-carousel-actions {
+    display: flex;
+  }
+
+  .pg-rooms-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+    padding-bottom: var(--space-3);
+    margin-inline: calc(-1 * var(--space-4));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pg-rooms-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pg-room-card {
+    flex: 0 0 min(46vw, 340px);
+  }
+}
+
+@media (max-width: 720px) {
+  .tenant-detail-page--pg {
+    max-width: 100%;
+  }
+
+  .tenant-detail-page--pg .detail-layout,
+  .tenant-detail-page--pg .tenant-cost-strip,
+  .tenant-detail-page--pg .amenity-tile-grid {
+    max-width: 100%;
+  }
+
+  .pg-detail__cta {
+    max-width: 100vw;
+  }
+
+  .pg-detail__cta-price {
+    max-width: calc(100vw - 210px);
+  }
+
+  .pg-rooms-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+    padding-bottom: var(--space-3);
+    margin-inline: calc(-1 * var(--space-4));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pg-rooms-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pg-room-card {
+    flex: 0 0 min(86vw, 340px);
   }
 }
 

@@ -43,6 +43,7 @@ describe("/pg browse map", () => {
   it("links to full CriblMap with listing_type=pg and city", async () => {
     render(await PgPage({ params: { locale: "en" }, searchParams: { city: "lucknow" } }));
 
+    expect(screen.getByRole("region", { name: /pg results/i })).toBeTruthy();
     const link = screen.getByRole("link", { name: /criblmap/i });
     expect(link.getAttribute("href")).toContain("listing_type=pg");
     expect(link.getAttribute("href")).toContain("city=lucknow");

@@ -329,7 +329,13 @@ export default async function ListingDetailPage({
         </div>
 
         {/* Gallery */}
-        <ListingGallery photos={photos} title={listing.title} locale={locale} isGuest={isGuest} />
+        <ListingGallery
+          photos={photos}
+          title={listing.title}
+          locale={locale}
+          isGuest={isGuest}
+          returnPath={`/${locale}/listing/${params.listingId}`}
+        />
 
         {/* Highlight chips */}
         <ListingHighlights

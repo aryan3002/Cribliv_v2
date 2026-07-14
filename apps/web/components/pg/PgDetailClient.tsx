@@ -4,9 +4,11 @@ import Link from "next/link";
 import type { Route } from "next";
 import {
   Share2,
+  Heart,
   MapPin,
   BedDouble,
   Snowflake,
+  ChevronLeft,
   ChevronRight,
   ShieldCheck,
   Shield,
@@ -325,7 +327,6 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
     availFrom && !isAvailableNow
       ? availFrom.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
       : "Now";
-  const vacancy = rt.vacancy_count ?? 0;
   const bathroomLabel = rt.bathroom_kind
     ? (BATHROOM_LABEL[rt.bathroom_kind] ?? toTitleCase(rt.bathroom_kind.replace(/_/g, " ")))
     : null;
@@ -335,17 +336,6 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
     <div className={`pg-room-card ${colorClass}`} style={{ animationDelay: `${index * 60}ms` }}>
       <div className="pg-room-card__top">
         <span className="pg-room-card__label">{rt.sharing} sharing</span>
-        {vacancy > 0 && vacancy <= 3 && (
-          <span className="pg-room-card__vacancy">
-            <span className="pg-room-card__vacancy-dot" aria-hidden="true" />
-            {vacancy} bed{vacancy > 1 ? "s" : ""} left
-          </span>
-        )}
-        {vacancy > 3 && (
-          <span className="pg-room-card__vacancy pg-room-card__vacancy--ample">
-            {vacancy} available
-          </span>
-        )}
       </div>
       <div className="pg-room-card__price">{rupees(rt.monthly_rent_paise)}</div>
       <div className="pg-room-card__period">per person / month</div>
@@ -612,14 +602,17 @@ function PgPolicyTerms({
 export function PgDetailClient({
   detail,
   city,
-  locale
+  locale,
+  isGuest = false
 }: {
   detail: PgPublicDetail;
   city: string;
   locale: string;
+  isGuest?: boolean;
 }) {
   const [similar, setSimilar] = useState<PgCard[]>([]);
   const fired = useRef(false);
+  const roomCarouselRef = useRef<HTMLDivElement | null>(null);
   const pd = detail.pg_details;
 
   useEffect(() => {
@@ -657,6 +650,20 @@ export function PgDetailClient({
       /* ignore */
     }
     trackPgShare({ listing_id: detail.id, method: "clipboard" });
+  };
+
+  const scrollRooms = (direction: "prev" | "next") => {
+    roomCarouselRef.current?.scrollBy({
+      left: direction === "next" ? 280 : -280,
+      behavior: "smooth"
+    });
+  };
+
+  const scrollToInterestCard = () => {
+    const target = document.getElementById("pg-interest-card");
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.requestAnimationFrame(() => target.focus({ preventScroll: true }));
   };
 
   const pgAmenities = extractPgAmenities(pd.amenities ?? {});
@@ -712,14 +719,8 @@ export function PgDetailClient({
       : detail.monthly_rent != null
         ? detail.monthly_rent * 100
         : null;
-  const monthlyAllInPaise =
-    primaryRentPaise != null
-      ? primaryRentPaise + Math.round((pd.security_deposit_paise ?? 0) / 11)
-      : null;
   const primaryRentLabel =
     primaryRentPaise != null ? `from ${rupees(primaryRentPaise)}` : "Request price";
-  const monthlyAllInLabel =
-    monthlyAllInPaise != null ? `Total monthly cost ${rupees(monthlyAllInPaise)}/mo all-in` : null;
 
   const verif = VERIF_BADGE[detail.verification_status ?? "unverified"] ?? VERIF_BADGE.unverified;
 
@@ -737,43 +738,30 @@ export function PgDetailClient({
           <span className="ld-crumb__current">{detail.title ?? "PG"}</span>
         </nav>
 
-        {/* Hero header — carries the above-the-fold price */}
+        {/* Hero header */}
         <header className="pg-hero">
           <div className="pg-hero__main">
-            <div className="pg-hero__badges">
-              <span className={`badge badge--${verif.cls}`}>
-                {verif.icon} {verif.label}
-              </span>
-              <span className="badge badge--brand">PG / Hostel</span>
+            <div className="pg-hero__topline">
+              <div className="pg-hero__badges">
+                <span className={`badge badge--${verif.cls}`}>
+                  {verif.icon} {verif.label}
+                </span>
+                <span className="badge badge--brand">PG / Hostel</span>
+              </div>
+              <button
+                type="button"
+                className="pg-hero__share"
+                onClick={onShare}
+                aria-label={t(locale as Locale, "shareListing")}
+              >
+                <Share2 size={16} aria-hidden="true" />
+                <span className="pg-hero__share-label">{t(locale as Locale, "shareListing")}</span>
+              </button>
             </div>
             <h1 className="pg-hero__title">{detail.title ?? "PG"}</h1>
             <div className="pg-hero__meta">
               <MapPin size={15} aria-hidden="true" />
               {locationLabel}
-            </div>
-          </div>
-          <div className="pg-hero__aside">
-            <button
-              type="button"
-              className="pg-hero__share"
-              onClick={onShare}
-              aria-label={t(locale as Locale, "shareListing")}
-            >
-              <Share2 size={16} aria-hidden="true" />
-              {t(locale as Locale, "shareListing")}
-            </button>
-            <div className="pg-hero__pricecard" data-testid="pg-hero-price">
-              <div className="pg-hero__price">
-                <span>from</span>
-                <strong>{primaryRentPaise != null ? rupees(primaryRentPaise) : "Request"}</strong>
-                {primaryRentPaise != null && <span>/mo</span>}
-              </div>
-              <div className="pg-hero__pricesub">
-                per person
-                {pd.security_deposit_paise != null
-                  ? ` · ${rupees(pd.security_deposit_paise)} deposit`
-                  : ""}
-              </div>
             </div>
           </div>
         </header>
@@ -786,6 +774,8 @@ export function PgDetailClient({
           photos={photoUrls}
           title={detail.title ?? "PG"}
           locale={locale as Locale}
+          isGuest={isGuest}
+          returnPath={`/${locale}/pg/${cityDisplay}/${detail.id}`}
           onPhotoClick={(idx) => trackPgPhotoViewed(detail.id, idx)}
         />
 
@@ -798,22 +788,17 @@ export function PgDetailClient({
 
         {/* Cost summary strip */}
         <section className="tenant-cost-strip" aria-label="PG pricing and trust summary">
-          <div className="tenant-cost-card tenant-cost-card--price">
+          <div className="tenant-cost-card">
             <span className="tenant-cost-card__icon" aria-hidden="true">
               <Wallet size={18} />
             </span>
-            <span className="tenant-cost-card__label">Starting rent</span>
+            <span className="tenant-cost-card__label">Rent</span>
             <strong>{primaryRentLabel}</strong>
-            <span className="tenant-cost-card__note">
-              {monthlyAllInLabel ?? "Per person rent before move-in terms"}
-            </span>
+            <span className="tenant-cost-card__note">per person / month</span>
           </div>
           <div className="tenant-cost-card">
-            <span
-              className="tenant-cost-card__icon tenant-cost-card__icon--amber"
-              aria-hidden="true"
-            >
-              <Shield size={18} />
+            <span className="tenant-cost-card__icon" aria-hidden="true">
+              <Wallet size={18} />
             </span>
             <span className="tenant-cost-card__label">
               {pd.security_deposit_paise != null ? "Security deposit" : "Move-in terms"}
@@ -867,10 +852,40 @@ export function PgDetailClient({
                   </div>
                 </div>
               </div>
-              <div className="pg-rooms-grid">
-                {detail.room_types.map((rt, i) => (
-                  <PgRoomCard key={`${rt.sharing}-${i}`} rt={rt} index={i} />
-                ))}
+              <div className="pg-room-carousel-shell">
+                <div className="pg-carousel-toolbar">
+                  <span id="pg-room-carousel-label" className="pg-carousel-toolbar__label">
+                    Browse room types
+                  </span>
+                  <div className="pg-carousel-actions">
+                    <button
+                      type="button"
+                      className="pg-carousel-button"
+                      aria-label="Previous room type"
+                      onClick={() => scrollRooms("prev")}
+                    >
+                      <ChevronLeft size={18} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="pg-carousel-button"
+                      aria-label="Next room type"
+                      onClick={() => scrollRooms("next")}
+                    >
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                <div
+                  ref={roomCarouselRef}
+                  className="pg-rooms-grid"
+                  data-testid="pg-room-carousel"
+                  aria-labelledby="pg-room-carousel-label"
+                >
+                  {detail.room_types.map((rt, i) => (
+                    <PgRoomCard key={`${rt.sharing}-${i}`} rt={rt} index={i} />
+                  ))}
+                </div>
               </div>
             </section>
 
@@ -993,7 +1008,12 @@ export function PgDetailClient({
 
           {/* ── Sticky sidebar ── */}
           <aside className="detail-layout__sidebar">
-            <div className="detail-rail">
+            <div
+              className="detail-rail"
+              id="pg-interest-card"
+              data-testid="pg-interest-card"
+              tabIndex={-1}
+            >
               <div>
                 <div className="detail-rail__price">
                   <strong>
@@ -1001,12 +1021,9 @@ export function PgDetailClient({
                   </strong>
                   {primaryRentPaise != null && <span>/mo rent</span>}
                 </div>
-                {monthlyAllInLabel && (
-                  <div className="detail-rail__secondary">{monthlyAllInLabel}</div>
-                )}
                 {pd.security_deposit_paise != null && (
                   <div className="pg-rail-deposit">
-                    <Shield size={13} aria-hidden="true" />
+                    <Wallet size={13} aria-hidden="true" />
                     {rupees(pd.security_deposit_paise)} security deposit
                   </div>
                 )}
@@ -1074,10 +1091,8 @@ export function PgDetailClient({
               </div>
 
               <div className="detail-rail__reassure">
-                <Shield size={14} aria-hidden="true" />
-                <span>
-                  {t(locale as Locale, "noChargeUntilUnlock") || "Owner will contact you directly"}
-                </span>
+                <CheckCircle size={14} aria-hidden="true" />
+                <span>The PG operator will contact you shortly. Showing interest is free.</span>
               </div>
             </div>
           </aside>
@@ -1104,32 +1119,22 @@ export function PgDetailClient({
       </div>
 
       {/* Mobile CTA bar */}
-      <div className="cta-bar">
-        <div>
+      <div className="cta-bar pg-detail__cta">
+        <div className="pg-detail__cta-price">
           <div className="card__price">
             {primaryRentPaise != null ? primaryRentLabel : "Price on request"}
             {primaryRentPaise != null && <span className="card__price-period">/mo rent</span>}
           </div>
-          {monthlyAllInLabel ? (
-            <div className="body-sm text-secondary" style={{ fontSize: 12 }}>
-              {monthlyAllInLabel}
-            </div>
-          ) : pd.security_deposit_paise != null ? (
-            <div className="body-sm text-secondary" style={{ fontSize: 12 }}>
-              {rupees(pd.security_deposit_paise)} {t(locale as Locale, "depositShort")}
-            </div>
-          ) : null}
         </div>
-        <a
-          href="#main-content"
-          className="btn btn--primary btn--sm"
-          onClick={(e) => {
-            e.preventDefault();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
+        <button
+          type="button"
+          className="btn btn--primary btn--lg pg-detail__cta-jump"
+          aria-controls="pg-interest-card"
+          onClick={scrollToInterestCard}
         >
+          <Heart size={16} aria-hidden="true" />
           Show Interest
-        </a>
+        </button>
       </div>
     </>
   );

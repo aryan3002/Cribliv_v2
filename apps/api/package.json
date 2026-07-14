@@ -22,6 +22,7 @@
     "migrate:v1": "ts-node --files --transpile-only --compiler-options '{\"module\":\"CommonJS\",\"moduleResolution\":\"Node\",\"target\":\"ES2020\",\"esModuleInterop\":true}' src/migration/v1/migrate.ts"
   },
   "dependencies": {
+    "@cribliv/shared-types": "workspace:*",
     "@azure/storage-blob": "^12.31.0",
     "@nestjs/common": "^10.4.2",
     "@nestjs/config": "^3.2.3",
