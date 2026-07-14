@@ -55,6 +55,7 @@ export function AdminShell({ accessToken }: Props) {
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(Date.now());
   const [counts, setCounts] = useState<Partial<Record<AdminTab, number>>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [listingReviewTarget, setListingReviewTarget] = useState<string | null>(null);
   const { toast, push, dismiss } = useToast();
 
   // Persist last tab per session
@@ -79,6 +80,17 @@ export function AdminShell({ accessToken }: Props) {
     };
   }, []);
 
+  const openListingReview = useCallback((listingId: string) => {
+    setListingReviewTarget(listingId);
+    setTab("listings");
+  }, []);
+
+  // Clear the one-shot target after switching away from listings, so
+  // returning to the tab later doesn't force-reopen the old listing.
+  useEffect(() => {
+    if (tab !== "listings" && listingReviewTarget) setListingReviewTarget(null);
+  }, [tab, listingReviewTarget]);
+
   const view = useMemo(() => {
     // Force-remount tabs on refresh nonce to re-fetch.
     const k = refreshNonce;
@@ -94,6 +106,7 @@ export function AdminShell({ accessToken }: Props) {
           <ListingReviewTab
             key={`li-${k}`}
             accessToken={accessToken}
+            initialListingId={listingReviewTarget}
             onCountChange={handleCount("listings")}
             onToast={push}
           />
@@ -105,6 +118,7 @@ export function AdminShell({ accessToken }: Props) {
             accessToken={accessToken}
             onCountChange={handleCount("verifications")}
             onToast={push}
+            onOpenListing={openListingReview}
           />
         );
       case "leads":
@@ -148,7 +162,7 @@ export function AdminShell({ accessToken }: Props) {
       case "security":
         return <AdminTotpPanel key={`security-${k}`} accessToken={accessToken} />;
     }
-  }, [tab, refreshNonce, accessToken, handleCount, push]);
+  }, [tab, refreshNonce, accessToken, handleCount, push, listingReviewTarget, openListingReview]);
 
   return (
     <div className="admin-shell">
