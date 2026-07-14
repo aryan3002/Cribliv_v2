@@ -125,3 +125,53 @@ describe("AdminReviewService.getListingDetail", () => {
     expect(await svc.getListingDetail("missing")).toBeNull();
   });
 });
+
+describe("AdminReviewService.getVerificationDetail", () => {
+  it("returns attempt + listing summary + owner summary", async () => {
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [
+        {
+          id: "V1",
+          listing_id: "L1",
+          user_id: "O1",
+          verification_type: "video_liveness",
+          result: "manual_review",
+          liveness_score: 82,
+          address_match_score: null,
+          threshold: 85,
+          artifact_paths: ["L1/verification/video_liveness/clip.mp4"],
+          created_at: "2026-07-12T10:05:00.000Z",
+          provider: "mock",
+          provider_reference: "lv_9",
+          provider_result_code: "LOW_CONFIDENCE",
+          review_reason: "below",
+          retryable: true,
+          listing_title: "2BHK",
+          listing_address: "142, 5th Cross, Koramangala",
+          owner_name: "Ramesh Kumar",
+          owner_phone: "+919876543210",
+          owner_whatsapp: true,
+          owner_created_at: "2024-07-01T00:00:00.000Z"
+        }
+      ],
+      rowCount: 1
+    });
+    const database = { isEnabled: () => true, query } as any;
+    const svc = new (await import("../../admin-review.service")).AdminReviewService(
+      database,
+      { listings: new Map(), users: new Map() } as any,
+      { issue: vi.fn() } as any
+    );
+    const d = await svc.getVerificationDetail("V1");
+    expect(d).not.toBeNull();
+    expect(d!.attempt_id).toBe("V1");
+    expect(d!.kind).toBe("video_liveness");
+    expect(d!.artifact_available).toBe(true);
+    expect(d!.listing).toMatchObject({
+      id: "L1",
+      title: "2BHK",
+      address: "142, 5th Cross, Koramangala"
+    });
+    expect(d!.owner).toMatchObject({ name: "Ramesh Kumar", phone: "+919876543210" });
+  });
+});

@@ -47,6 +47,30 @@ export interface AdminListingDetail {
   verification: AdminReviewEvidence[];
 }
 
+export interface AdminVerificationDetail {
+  attempt_id: string;
+  kind: string;
+  result: string;
+  liveness_score: number | null;
+  address_match_score: number | null;
+  threshold: number;
+  provider: string | null;
+  provider_reference: string | null;
+  provider_result_code: string | null;
+  review_reason: string | null;
+  retryable: boolean | null;
+  artifact_available: boolean;
+  created_at: string;
+  listing: { id: string | null; title: string | null; address: string | null };
+  owner: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    whatsapp_opt_in: boolean;
+    member_since: string | null;
+  };
+}
+
 @Injectable()
 export class AdminReviewService {
   constructor(
@@ -202,6 +226,61 @@ export class AdminReviewService {
       })),
       pg,
       verification: attempts.rows.map((a) => this.toEvidence(a))
+    };
+  }
+
+  async getVerificationDetail(attemptId: string): Promise<AdminVerificationDetail | null> {
+    if (!this.database.isEnabled()) return null;
+    const res = await this.database.query<any>(
+      `
+      SELECT
+        va.id::text AS id, va.listing_id::text AS listing_id, va.user_id::text AS user_id,
+        va.verification_type::text AS verification_type, va.result::text AS result,
+        va.liveness_score, va.address_match_score, va.threshold, va.artifact_paths,
+        va.created_at::text AS created_at,
+        vpl.provider, vpl.provider_reference, vpl.provider_result_code, vpl.review_reason, vpl.retryable,
+        COALESCE(NULLIF(l.title_en, ''), NULLIF(l.title_hi, ''), 'Listing') AS listing_title,
+        ll.address_line1 AS listing_address,
+        u.full_name AS owner_name, u.phone_e164 AS owner_phone,
+        u.whatsapp_opt_in AS owner_whatsapp, u.created_at::text AS owner_created_at
+      FROM verification_attempts va
+      LEFT JOIN LATERAL (
+        SELECT provider, provider_reference, provider_result_code, review_reason, retryable
+        FROM verification_provider_logs
+        WHERE attempt_id = va.id ORDER BY created_at DESC LIMIT 1
+      ) vpl ON true
+      LEFT JOIN listings l ON l.id = va.listing_id
+      LEFT JOIN listing_locations ll ON ll.listing_id = va.listing_id
+      JOIN users u ON u.id = va.user_id
+      WHERE va.id = $1::uuid
+      `,
+      [attemptId]
+    );
+    const a = res.rows[0];
+    if (!a) return null;
+    const paths = Array.isArray(a.artifact_paths) ? a.artifact_paths : [];
+    return {
+      attempt_id: a.id,
+      kind: a.verification_type,
+      result: a.result,
+      liveness_score: a.liveness_score,
+      address_match_score: a.address_match_score,
+      threshold: Number(a.threshold),
+      provider: a.provider ?? null,
+      provider_reference: a.provider_reference ?? null,
+      provider_result_code: a.provider_result_code ?? null,
+      review_reason: a.review_reason ?? null,
+      retryable: a.retryable ?? null,
+      artifact_available: paths.length > 0,
+      created_at: a.created_at,
+      listing: { id: a.listing_id, title: a.listing_title, address: a.listing_address },
+      owner: {
+        id: a.user_id,
+        name: a.owner_name,
+        phone: a.owner_phone,
+        whatsapp_opt_in: Boolean(a.owner_whatsapp),
+        member_since: a.owner_created_at
+      }
     };
   }
 
