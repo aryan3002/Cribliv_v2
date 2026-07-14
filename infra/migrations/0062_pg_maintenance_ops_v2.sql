@@ -218,6 +218,125 @@ ALTER TABLE pg_maintenance_requests
 ALTER TABLE pg_maintenance_requests DROP COLUMN priority;
 ALTER TABLE pg_maintenance_requests RENAME COLUMN priority_enum TO priority;
 
+CREATE OR REPLACE FUNCTION pg_maintenance_apply_v2_defaults()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  category_record pg_maintenance_categories%ROWTYPE;
+  property_name text;
+  assigned_bed_id uuid;
+  assigned_room_id uuid;
+  assigned_floor smallint;
+  assigned_bed_label text;
+  assigned_room_number text;
+  assigned_room_label text;
+  mapped_sla_hours smallint;
+BEGIN
+  SELECT c.*
+    INTO category_record
+    FROM pg_maintenance_categories c
+   WHERE c.slug = COALESCE(
+     NULLIF(NEW.category_slug, ''),
+     lower(regexp_replace(COALESCE(NEW.category, ''), '[^a-zA-Z0-9]+', '_', 'g'))
+   )
+   LIMIT 1;
+
+  IF NOT FOUND THEN
+    SELECT c.*
+      INTO category_record
+      FROM pg_maintenance_categories c
+     WHERE c.slug = 'other';
+  END IF;
+
+  NEW.category_slug := COALESCE(NULLIF(NEW.category_slug, ''), category_record.slug);
+  NEW.category_label_snapshot := COALESCE(
+    NULLIF(NEW.category_label_snapshot, ''),
+    NULLIF(NEW.category, ''),
+    category_record.display_name
+  );
+  NEW.priority := COALESCE(NEW.priority, category_record.default_priority);
+
+  mapped_sla_hours := CASE NEW.priority
+    WHEN 'emergency' THEN 4
+    WHEN 'high' THEN 24
+    WHEN 'normal' THEN 72
+    WHEN 'low' THEN 168
+  END;
+  NEW.sla_hours := mapped_sla_hours;
+
+  IF TG_OP = 'INSERT'
+     OR NEW.priority IS DISTINCT FROM OLD.priority
+     OR NEW.sla_due_at IS NULL THEN
+    NEW.sla_due_at := COALESCE(NEW.created_at, now())
+      + make_interval(hours => mapped_sla_hours);
+  END IF;
+
+  SELECT p.display_name,
+         b.id,
+         rm.id,
+         rm.floor,
+         b.bed_label,
+         rm.room_number,
+         rm.display_label
+    INTO property_name,
+         assigned_bed_id,
+         assigned_room_id,
+         assigned_floor,
+         assigned_bed_label,
+         assigned_room_number,
+         assigned_room_label
+    FROM pg_properties p
+    LEFT JOIN pg_bed_assignments a ON a.id = NEW.assignment_id
+    LEFT JOIN pg_beds b ON b.id = a.bed_id
+    LEFT JOIN pg_rooms rm ON rm.id = b.room_id
+   WHERE p.id = NEW.pg_property_id;
+
+  NEW.location_kind := COALESCE(
+    NEW.location_kind,
+    CASE WHEN assigned_bed_id IS NOT NULL THEN 'bed'::pg_maintenance_location_kind
+         ELSE 'property_wide'::pg_maintenance_location_kind END
+  );
+
+  IF NEW.location_kind = 'bed' THEN
+    NEW.bed_id := COALESCE(NEW.bed_id, assigned_bed_id);
+    NEW.room_id := COALESCE(NEW.room_id, assigned_room_id);
+    NEW.floor := COALESCE(NEW.floor, assigned_floor);
+  END IF;
+
+  IF NEW.location_snapshot IS NULL OR NEW.location_snapshot = '{}'::jsonb THEN
+    NEW.location_snapshot := jsonb_build_object(
+      'kind', NEW.location_kind::text,
+      'property_name', property_name,
+      'room_number', CASE WHEN COALESCE(NEW.room_id, assigned_room_id) IS NOT NULL
+        THEN assigned_room_number ELSE null END,
+      'room_label', CASE WHEN COALESCE(NEW.room_id, assigned_room_id) IS NOT NULL
+        THEN assigned_room_label ELSE null END,
+      'floor', NEW.floor,
+      'bed_label', CASE WHEN COALESCE(NEW.bed_id, assigned_bed_id) IS NOT NULL
+        THEN assigned_bed_label ELSE null END,
+      'common_area', NEW.common_area,
+      'detail', NEW.location_detail
+    );
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+     AND NEW.status::text IN ('resolved', 'closed')
+     AND NEW.resolved_at IS NULL
+     AND (NEW.resolution_source IS NULL OR NEW.resolution_source = OLD.resolution_source) THEN
+    NEW.resolved_at := COALESCE(NEW.closed_at, now());
+    NEW.resolution_source := 'legacy_v1_status_update';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS pg_maintenance_apply_v2_defaults ON pg_maintenance_requests;
+CREATE TRIGGER pg_maintenance_apply_v2_defaults
+  BEFORE INSERT OR UPDATE ON pg_maintenance_requests
+  FOR EACH ROW EXECUTE FUNCTION pg_maintenance_apply_v2_defaults();
+
 ALTER TABLE pg_maintenance_requests
   ALTER COLUMN category_slug SET NOT NULL,
   ALTER COLUMN category_label_snapshot SET NOT NULL,
@@ -232,6 +351,33 @@ ALTER TABLE pg_maintenance_requests
     CHECK (priority_source IN ('category_default','operator_override','backfill')),
   ADD CONSTRAINT pg_maint_sla_hours_positive
     CHECK (sla_hours IN (4, 24, 72, 168)),
+  ADD CONSTRAINT pg_maint_sla_hours_matches_priority
+    CHECK (
+      (priority = 'emergency' AND sla_hours = 4)
+      OR (priority = 'high' AND sla_hours = 24)
+      OR (priority = 'normal' AND sla_hours = 72)
+      OR (priority = 'low' AND sla_hours = 168)
+    ),
+  ADD CONSTRAINT pg_maint_priority_override_fields
+    CHECK (
+      priority_source <> 'operator_override'
+      OR (
+        priority_overridden_by IS NOT NULL
+        AND priority_overridden_at IS NOT NULL
+        AND nullif(btrim(priority_override_reason), '') IS NOT NULL
+      )
+    ),
+  ADD CONSTRAINT pg_maint_resolution_required
+    CHECK (
+      status::text NOT IN ('resolved', 'closed')
+      OR resolution_source IN ('backfill_v1', 'legacy_v1_status_update')
+      OR (
+        resolved_at IS NOT NULL
+        AND resolved_by_user_id IS NOT NULL
+        AND nullif(btrim(resolution_note), '') IS NOT NULL
+        AND nullif(btrim(resolution_source), '') IS NOT NULL
+      )
+    ),
   ADD CONSTRAINT pg_maint_location_required
     CHECK (
       (location_kind = 'bed' AND bed_id IS NOT NULL)
@@ -282,12 +428,37 @@ CREATE INDEX IF NOT EXISTS idx_pg_maint_common_area
 CREATE INDEX IF NOT EXISTS idx_pg_maint_events_request
   ON pg_maintenance_events(request_id, created_at, id);
 
+ALTER TABLE pg_maintenance_events
+  ADD CONSTRAINT pg_maint_event_internal_note_private
+    CHECK (
+      event_type <> 'internal_note_added'
+      OR (
+        visibility = 'operator_internal'
+        AND actor_role IN ('pg_operator', 'admin', 'system')
+      )
+    );
+
+CREATE OR REPLACE FUNCTION pg_maintenance_events_reject_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'pg_maintenance_events are immutable'
+    USING ERRCODE = '55000';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS pg_maintenance_events_immutable ON pg_maintenance_events;
+CREATE TRIGGER pg_maintenance_events_immutable
+  BEFORE UPDATE OR DELETE ON pg_maintenance_events
+  FOR EACH ROW EXECUTE FUNCTION pg_maintenance_events_reject_mutation();
+
 CREATE INDEX IF NOT EXISTS idx_pg_assignments_tenant_history
   ON pg_bed_assignments(tenant_user_id, move_out_date DESC)
   WHERE status = 'moved_out';
 
 INSERT INTO pg_maintenance_events (request_id, event_type, visibility, actor_user_id, actor_role, to_status, payload, created_at)
-SELECT r.id, 'created', 'public', r.created_by_user_id, 'tenant', r.status::text,
+SELECT r.id, 'created', 'public', r.created_by_user_id, 'tenant', 'open',
        jsonb_build_object('category_slug', r.category_slug, 'priority', r.priority),
        r.created_at
 FROM pg_maintenance_requests r

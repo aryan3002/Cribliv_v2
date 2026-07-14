@@ -14,6 +14,23 @@ DROP INDEX IF EXISTS idx_pg_maint_closed_at;
 DROP INDEX IF EXISTS idx_pg_maint_queue_sla;
 DROP INDEX IF EXISTS idx_pg_maint_queue;
 
+DROP TRIGGER IF EXISTS pg_maintenance_apply_v2_defaults ON pg_maintenance_requests;
+DROP FUNCTION IF EXISTS pg_maintenance_apply_v2_defaults();
+
+ALTER TABLE pg_maintenance_requests
+  DROP CONSTRAINT IF EXISTS pg_maint_resolution_required,
+  DROP CONSTRAINT IF EXISTS pg_maint_priority_override_fields,
+  DROP CONSTRAINT IF EXISTS pg_maint_sla_hours_matches_priority,
+  DROP CONSTRAINT IF EXISTS pg_maint_location_required,
+  DROP CONSTRAINT IF EXISTS pg_maint_sla_hours_positive,
+  DROP CONSTRAINT IF EXISTS pg_maint_priority_source_valid,
+  DROP CONSTRAINT IF EXISTS pg_maint_resolution_cost_nonnegative;
+
+DROP TRIGGER IF EXISTS pg_maintenance_events_immutable ON pg_maintenance_events;
+DROP FUNCTION IF EXISTS pg_maintenance_events_reject_mutation();
+ALTER TABLE IF EXISTS pg_maintenance_events
+  DROP CONSTRAINT IF EXISTS pg_maint_event_internal_note_private;
+
 -- R2: restore legacy free-text priority column (values are lost, all NULL).
 ALTER TABLE pg_maintenance_requests DROP COLUMN IF EXISTS priority;
 ALTER TABLE pg_maintenance_requests ADD COLUMN IF NOT EXISTS priority text;
