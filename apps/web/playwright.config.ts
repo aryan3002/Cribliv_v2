@@ -50,7 +50,7 @@ export default defineConfig({
       timeout: 120_000
     },
     {
-      command: `AUTH_SECRET=cribliv-e2e-secret NEXTAUTH_SECRET=cribliv-e2e-secret PORT=${webPort} NEXT_PUBLIC_API_BASE_URL=${shellQuote(apiBaseURL)} API_BASE_URL=${shellQuote(apiBaseURL)} NEXT_PUBLIC_FF_CALLBACK_LEADS="\${NEXT_PUBLIC_FF_CALLBACK_LEADS:-}" NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED="\${NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED:-}" pnpm --filter @cribliv/web dev`,
+      command: `AUTH_SECRET=cribliv-e2e-secret NEXTAUTH_SECRET=cribliv-e2e-secret PORT=${webPort} NEXT_PUBLIC_API_BASE_URL=${shellQuote(apiBaseURL)} API_BASE_URL=${shellQuote(apiBaseURL)} NEXT_PUBLIC_FF_CALLBACK_LEADS="\${NEXT_PUBLIC_FF_CALLBACK_LEADS:-}" NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED="\${NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED:-}" corepack pnpm --filter @cribliv/web dev`,
       port: webPort,
       reuseExistingServer: true,
       timeout: 120_000

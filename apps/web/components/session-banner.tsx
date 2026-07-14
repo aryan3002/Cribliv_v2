@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { Locale } from "../lib/i18n";
 import type { UserRole } from "../auth.config";
+import { PromotionalCreditExpiry } from "./promotional-credit-expiry";
 
 const ROLE_LABEL: Record<string, string> = {
   tenant: "Tenant",
@@ -58,6 +59,7 @@ export function SessionBanner({ locale }: { locale: Locale }) {
   const role = (session.user as { role?: UserRole } | undefined)?.role;
   const phone = (session.user as { phone?: string } | undefined)?.phone;
   const walletBalance = (session as { walletBalance?: number }).walletBalance ?? 0;
+  const promotionalCredits = session.promotionalCredits;
 
   return (
     <div
@@ -81,6 +83,11 @@ export function SessionBanner({ locale }: { locale: Locale }) {
             ✦ {walletBalance} credit{walletBalance !== 1 ? "s" : ""}
           </span>
         </div>
+        <PromotionalCreditExpiry
+          remaining={promotionalCredits?.remaining ?? 0}
+          expiresAt={promotionalCredits?.expiresAt ?? null}
+          locale={locale}
+        />
       </div>
 
       {/* Role-specific CTAs */}

@@ -8,6 +8,7 @@ import { ShieldCheck, Sparkles } from "lucide-react";
 import { BrandLockup } from "../../../../components/brand/brand-lockup";
 import { t } from "../../../../lib/i18n";
 import { resolveAuthedDestination } from "../../../../lib/login-redirect";
+import { signInWithCsrfRetry } from "../../../../lib/sign-in-retry";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,6 +62,7 @@ const OTP_ERRORS: Record<string, string> = {
   otp_blocked: "Too many incorrect attempts. Please request a new OTP.",
   otp_rate_limited: "Too many requests. Please wait a few minutes before trying again.",
   invalid_phone: "Invalid phone number format.",
+  MissingCSRF: "Your secure sign-in session expired. Please try again.",
   CredentialsSignin: "Incorrect OTP or session expired."
 };
 
@@ -165,8 +167,7 @@ function LoginPageInner() {
 
     setLoading(true);
     try {
-      const result = await signIn("credentials", {
-        redirect: false,
+      const result = await signInWithCsrfRetry(signIn, {
         challengeId,
         otpCode: otp.trim(),
         phone: phone.trim()

@@ -14,6 +14,10 @@ interface OtpVerifyResponse {
   access_token: string;
   refresh_token?: string;
   is_new_user?: boolean;
+  signup_reward?: {
+    credits_granted: number;
+    expires_at: string | null;
+  };
   user: {
     id: string;
     phone_e164: string;
@@ -29,6 +33,8 @@ interface MeResponse {
   role: UserRole;
   preferred_language: "en" | "hi";
   wallet_balance: number;
+  promotional_credits_remaining?: number;
+  promotional_credits_expires_at?: string | null;
 }
 
 export const authConfig: NextAuthConfig = {
@@ -75,7 +81,47 @@ export const authConfig: NextAuthConfig = {
             accessToken: data.access_token,
             refreshToken: data.refresh_token ?? null,
             tokenIssuedAt: Date.now(),
-            isNewUser: data.is_new_user ?? false
+            isNewUser: data.is_new_user ?? false,
+            signupReward: data.signup_reward
+              ? {
+                  creditsGranted: data.signup_reward.credits_granted,
+                  expiresAt: data.signup_reward.expires_at
+                }
+              : undefined
+          };
+        } catch {
+          return null;
+        }
+      }
+    }),
+    Credentials({
+      id: "admin-totp",
+      name: "Admin TOTP",
+      credentials: {
+        phone: { label: "Phone", type: "text" },
+        totpCode: { label: "Authenticator code", type: "text" }
+      },
+      async authorize(credentials) {
+        const { phone, totpCode } = credentials as { phone: string; totpCode: string };
+        if (!phone || !totpCode) return null;
+        try {
+          const res = await fetch(`${API_BASE_URL}/auth/admin/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone_e164: phone, totp_code: totpCode })
+          });
+          if (!res.ok) return null;
+          const payload = (await res.json()) as { data: OtpVerifyResponse };
+          const data = payload.data;
+          return {
+            id: data.user.id,
+            phone: data.user.phone_e164,
+            role: data.user.role,
+            preferredLanguage: data.user.preferred_language,
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token ?? null,
+            tokenIssuedAt: Date.now(),
+            isNewUser: false
           };
         } catch {
           return null;
@@ -101,7 +147,8 @@ export const authConfig: NextAuthConfig = {
           accessToken: user.accessToken,
           refreshToken: user.refreshToken,
           tokenIssuedAt: Date.now(),
-          isNewUser: user.isNewUser
+          isNewUser: user.isNewUser,
+          signupReward: user.signupReward
         };
       }
 
@@ -149,6 +196,12 @@ export const authConfig: NextAuthConfig = {
         session.user.preferredLanguage = token.preferredLanguage as "en" | "hi";
         session.accessToken = token.accessToken;
         session.isNewUser = Boolean(token.isNewUser);
+        if (token.signupReward) {
+          session.signupReward = {
+            creditsGranted: token.signupReward.creditsGranted,
+            expiresAt: token.signupReward.expiresAt
+          };
+        }
       }
 
       // Sync role from backend to catch permission changes in real-time
@@ -164,6 +217,10 @@ export const authConfig: NextAuthConfig = {
             const payload = (await res.json()) as { data: MeResponse };
             session.user.role = payload.data.role;
             session.walletBalance = payload.data.wallet_balance ?? 0;
+            session.promotionalCredits = {
+              remaining: payload.data.promotional_credits_remaining ?? 0,
+              expiresAt: payload.data.promotional_credits_expires_at ?? null
+            };
           }
         } catch {
           // Silently ignore — keep the role from the token

@@ -35,6 +35,12 @@ export interface PgSearchResponse {
   page_size: number;
 }
 
+export interface PgNearby {
+  metro: string[];
+  college: string[];
+  office: string[];
+}
+
 export interface PgPublicDetail {
   id: string;
   status: string;
@@ -44,11 +50,16 @@ export interface PgPublicDetail {
   city_slug: string | null;
   locality_slug: string | null;
   location_point: PgMapPoint | null;
+  total_floors: number | null;
+  verification_status: string | null;
   pg_details: {
     total_beds: number | null;
     gender_policy: string | null;
     tenant_type: string | null;
     security_deposit_paise: number | null;
+    meal_charges_paise: number | null;
+    deposit_refundable_pct: number | null;
+    maintenance_paise: number | null;
     notice_period_days: number | null;
     lock_in_months: number | null;
     electricity_mode: string | null;
@@ -56,6 +67,7 @@ export interface PgPublicDetail {
     price_negotiable: boolean;
     payment_modes: string[];
     meals: Record<string, unknown> | null;
+    nearby: PgNearby | null;
     amenities: Record<string, unknown>;
     house_rules: Record<string, unknown>;
   };

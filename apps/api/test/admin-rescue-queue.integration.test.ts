@@ -131,6 +131,13 @@ describe.runIf(!!TEST_DB)("admin rescue queue (DB)", () => {
          (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
       [phones]
     );
+    // The owner.contact_unlocked SMS mock writes a notification_log row keyed to
+    // the owner user; clear it before deleting users or the FK blocks teardown.
+    await db.query(
+      `DELETE FROM notification_log WHERE user_id IN
+         (SELECT id FROM users WHERE phone_e164 = ANY($1))`,
+      [phones]
+    );
     await db.query(`DELETE FROM users WHERE phone_e164 = ANY($1)`, [phones]);
     await db.end();
     await app.close();

@@ -33,6 +33,22 @@ function isUuid(v: string): boolean {
   return typeof v === "string" && UUID_RE.test(v);
 }
 
+function normalizeNearby(
+  raw: unknown
+): { metro: string[]; college: string[]; office: string[] } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const nearby = raw as Record<string, unknown>;
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+  const metro = strings(nearby.metro);
+  const college = strings(nearby.college);
+  const office = strings(nearby.office);
+  if (metro.length === 0 && college.length === 0 && office.length === 0) return null;
+  return { metro, college, office };
+}
+
 /**
  * Minimal query surface satisfied by both a pg `PoolClient` (transaction) and
  * the `DatabaseService` convenience wrapper. Lets the write helpers run inside
@@ -54,6 +70,7 @@ export interface PgListingDetail {
   created_at: string | null;
   city_slug: string | null;
   locality_slug: string | null;
+  total_floors: number | null;
   location_point: PgMapPoint | null;
   /** Committed admin-verification state — for the edit-wizard score meter. */
   verification_status: string | null;
@@ -75,6 +92,10 @@ export interface PgListingDetail {
     meals: Record<string, unknown> | null;
     amenities: Record<string, unknown>;
     house_rules: Record<string, unknown>;
+    meal_charges_paise: number | null;
+    deposit_refundable_pct: number | null;
+    maintenance_paise: number | null;
+    nearby: { metro: string[]; college: string[]; office: string[] } | null;
   };
   room_types: Array<{
     sharing: string;
@@ -771,6 +792,11 @@ export class PgListingService {
         d.meals                   AS meals,
         d.amenities               AS amenities,
         d.house_rules             AS house_rules,
+        d.meal_charges_paise      AS meal_charges_paise,
+        d.deposit_refundable_pct  AS deposit_refundable_pct,
+        d.maintenance_paise       AS maintenance_paise,
+        d.nearby                  AS nearby,
+        pp.total_floors           AS total_floors,
         -- Committed signals the edit-wizard score meter needs (else it fabricates
         -- "unverified" + no-geo and shows a score that mismatches the dashboard).
         -- verification lives on the public projection (what the server score reads);
@@ -839,6 +865,7 @@ export class PgListingService {
       created_at: (h.created_at as string) ?? null,
       city_slug: (h.city_slug as string) ?? null,
       locality_slug: (h.locality_slug as string) ?? null,
+      total_floors: h.total_floors == null ? null : Number(h.total_floors),
       location_point: resolvePgMapPoint({
         ll_lat: h.ll_lat as number | null,
         ll_lng: h.ll_lng as number | null,
@@ -866,7 +893,12 @@ export class PgListingService {
         payment_modes: (h.payment_modes as string[]) ?? [],
         meals: (h.meals as Record<string, unknown>) ?? null,
         amenities: (h.amenities as Record<string, unknown>) ?? {},
-        house_rules: (h.house_rules as Record<string, unknown>) ?? {}
+        house_rules: (h.house_rules as Record<string, unknown>) ?? {},
+        meal_charges_paise: h.meal_charges_paise == null ? null : Number(h.meal_charges_paise),
+        deposit_refundable_pct:
+          h.deposit_refundable_pct == null ? null : Number(h.deposit_refundable_pct),
+        maintenance_paise: h.maintenance_paise == null ? null : Number(h.maintenance_paise),
+        nearby: normalizeNearby(h.nearby)
       },
       room_types: rooms.rows.map((r) => ({
         sharing: String(r.sharing),

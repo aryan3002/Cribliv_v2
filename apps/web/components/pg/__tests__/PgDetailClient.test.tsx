@@ -32,11 +32,16 @@ function makeDetail(over: Partial<PgPublicDetail> = {}): PgPublicDetail {
     city_slug: "pune",
     locality_slug: "kothrud",
     location_point: null,
+    total_floors: null,
+    verification_status: "verified",
     pg_details: {
       total_beds: 10,
       gender_policy: "girls",
       tenant_type: "students",
       security_deposit_paise: 1500000,
+      meal_charges_paise: null,
+      deposit_refundable_pct: null,
+      maintenance_paise: null,
       notice_period_days: 30,
       lock_in_months: 3,
       electricity_mode: "metered",
@@ -44,6 +49,7 @@ function makeDetail(over: Partial<PgPublicDetail> = {}): PgPublicDetail {
       price_negotiable: false,
       payment_modes: ["upi", "cash"],
       meals: null,
+      nearby: null,
       amenities: { wifi: true, parking: false, unknown_x: true },
       house_rules: { smoking: "no" }
     },
@@ -213,5 +219,80 @@ describe("PgDetailClient", () => {
     await waitFor(() =>
       expect(share).toHaveBeenCalledWith(expect.objectContaining({ listing_id: "L1" }))
     );
+  });
+
+  it("shows the starting price in the hero (above the gallery)", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          room_types: [{ ...makeDetail().room_types[0], monthly_rent_paise: 350000 }]
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    const hero = screen.getByTestId("pg-hero-price");
+    expect(hero).toHaveTextContent("from");
+    expect(hero.textContent).toMatch(/₹\s?3,500/);
+  });
+
+  it("renders human bathroom labels, not raw enum values", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          room_types: [{ ...makeDetail().room_types[0], bathroom_kind: "shared_western" }]
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.queryByText("shared_western")).toBeNull();
+    expect(screen.getByText("Shared · Western")).toBeTruthy();
+  });
+
+  it("shows room vacancy when low", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          room_types: [{ ...makeDetail().room_types[0], vacancy_count: 2 }]
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("2 beds left")).toBeTruthy();
+  });
+
+  it("renders the What's nearby section from nearby data", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          pg_details: {
+            ...makeDetail().pg_details,
+            nearby: { metro: ["Munshipulia"], college: [], office: [] }
+          }
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("What's nearby")).toBeTruthy();
+    expect(screen.getByText("Munshipulia")).toBeTruthy();
+  });
+
+  it("renders snacks meal chip (snack key)", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          pg_details: {
+            ...makeDetail().pg_details,
+            meals: { provided: true, snack: true }
+          }
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("Snacks")).toBeTruthy();
   });
 });

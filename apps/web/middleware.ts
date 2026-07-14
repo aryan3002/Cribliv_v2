@@ -47,6 +47,8 @@ const PUBLIC_PREFIXES = [
   "/en/map",
   "/hi/map",
   "/hi/pg-operator/become",
+  "/en/admin/login",
+  "/hi/admin/login",
   "/_next",
   "/favicon",
   "/public",

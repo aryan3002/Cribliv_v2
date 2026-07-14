@@ -25,7 +25,8 @@ export type WalletTxnType =
   | "admin_adjustment"
   | "purchase_pack"
   | "debit_lead_unlock"
-  | "refund_lead_dispute";
+  | "refund_lead_dispute"
+  | "expire_signup";
 
 export type UnlockStatus = "active" | "refunded" | "cancelled";
 

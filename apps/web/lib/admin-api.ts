@@ -269,7 +269,8 @@ export interface AdminRevenue {
 
 export interface AdminCityCount {
   city: string;
-  locality: string;
+  // Null when the listing has a city but no resolved locality (e.g. Varanasi).
+  locality: string | null;
   count: number;
 }
 
@@ -393,13 +394,16 @@ export async function fetchAdminAnalyticsRevenue(
 }
 
 export async function fetchAdminAnalyticsByCity(accessToken: string): Promise<AdminCityCount[]> {
-  const raw = await fetchApi<{
-    items: Array<{ city: string; locality: string; count: number }>;
-  }>("/admin/analytics/listings", {
-    headers: authHeaders(accessToken)
-  });
+  // GET /admin/analytics/listings returns a BARE array (getListingsByArea →
+  // ok(array) → fetchApi unwraps `.data`), NOT a `{ items }` envelope like the
+  // paginated list endpoints. Reading `.items` here always yielded [] — the
+  // "No city data yet" bug.
+  const raw = await fetchApi<Array<{ city: string; locality: string | null; count: number }>>(
+    "/admin/analytics/listings",
+    { headers: authHeaders(accessToken) }
+  );
 
-  return (raw.items ?? []).map((r) => ({
+  return (raw ?? []).map((r) => ({
     city: r.city,
     locality: r.locality,
     count: r.count
@@ -1967,4 +1971,39 @@ export async function refundAdminLead(accessToken: string, leadId: string, reaso
     `/admin/leads/${leadId}/refund`,
     { method: "POST", headers: authHeaders(accessToken), body: JSON.stringify({ reason }) }
   );
+}
+
+// ── Admin TOTP enrollment (Task 11) ─────────────────────────────────────────
+
+export async function fetchAdminTotpStatus(accessToken: string): Promise<{ enrolled: boolean }> {
+  return fetchApi<{ enrolled: boolean }>("/auth/admin/totp/status", {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function startAdminTotpEnroll(
+  accessToken: string
+): Promise<{ otpauth_uri: string; qr_data_url: string }> {
+  return fetchApi<{ otpauth_uri: string; qr_data_url: string }>("/auth/admin/totp/enroll/start", {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function verifyAdminTotpEnroll(
+  accessToken: string,
+  totpCode: string
+): Promise<{ enabled: boolean }> {
+  return fetchApi<{ enabled: boolean }>("/auth/admin/totp/enroll/verify", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ totp_code: totpCode })
+  });
+}
+
+export async function resetAdminTotp(accessToken: string): Promise<{ reset: boolean }> {
+  return fetchApi<{ reset: boolean }>("/auth/admin/totp/reset", {
+    method: "POST",
+    headers: authHeaders(accessToken)
+  });
 }

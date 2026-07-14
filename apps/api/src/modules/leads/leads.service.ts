@@ -13,6 +13,11 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { logTelemetry } from "../../common/telemetry";
+import {
+  debitWalletCredits,
+  expireSignupCredits,
+  WalletBalanceError
+} from "../wallet/wallet-balance";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ["contacted", "lost"],
@@ -303,6 +308,7 @@ export class LeadsService {
     }
 
     const client = await this.database.getClient();
+    let committed = false;
     try {
       await client.query("BEGIN");
 
@@ -338,13 +344,28 @@ export class LeadsService {
         return Number(r.rows[0]?.balance_credits ?? 0);
       };
 
-      // Idempotent success paths: already visible → return without debiting.
-      if (lead.access_state === "free" || lead.access_state === "unlocked") {
+      if (lead.access_state === "free") {
+        await expireSignupCredits(client, ownerUserId);
         const credits = await balanceRow();
         await client.query("COMMIT");
+        committed = true;
         return {
           lead_id: lead.id,
-          access_state: lead.access_state === "free" ? "free" : "unlocked",
+          access_state: "free",
+          tenant_phone: lead.tenant_phone,
+          tenant_name: lead.tenant_name,
+          credits_remaining: credits
+        };
+      }
+
+      if (lead.access_state === "unlocked") {
+        await expireSignupCredits(client, ownerUserId);
+        const credits = await balanceRow();
+        await client.query("COMMIT");
+        committed = true;
+        return {
+          lead_id: lead.id,
+          access_state: "unlocked",
           tenant_phone: lead.tenant_phone,
           tenant_name: lead.tenant_name,
           credits_remaining: credits
@@ -363,65 +384,59 @@ export class LeadsService {
          VALUES ($1::uuid, 0, 0) ON CONFLICT (user_id) DO NOTHING`,
         [ownerUserId]
       );
-      const walletResult = await client.query<{ balance_credits: number }>(
-        `SELECT balance_credits FROM wallets WHERE user_id = $1::uuid FOR UPDATE`,
-        [ownerUserId]
-      );
-      if (Number(walletResult.rows[0]?.balance_credits ?? 0) < 1) {
+      let debit;
+      try {
+        debit = await debitWalletCredits(client, {
+          userId: ownerUserId,
+          credits: 1,
+          txnType: "debit_lead_unlock",
+          referenceType: "lead",
+          referenceId: leadId,
+          idempotencyKey
+        });
+      } catch (error) {
+        if (error instanceof WalletBalanceError) {
+          if (error.code === "idempotency_conflict") {
+            throw new ConflictException({
+              code: "duplicate_unlock",
+              message: "Idempotency-Key already used for another unlock"
+            });
+          }
+          if (error.code === "insufficient_credits" || error.code === "wallet_not_found") {
+            throw new HttpException(
+              { code: "insufficient_credits", message: "Insufficient credits" },
+              HttpStatus.PAYMENT_REQUIRED
+            );
+          }
+        }
+        throw error;
+      }
+
+      if (debit.status === "insufficient") {
+        await client.query("COMMIT");
+        committed = true;
         throw new HttpException(
           { code: "insufficient_credits", message: "Insufficient credits" },
           HttpStatus.PAYMENT_REQUIRED
         );
       }
 
-      // reference_type is 'lead'; reference_id carries the lead id.
-      const debit = await client.query<{ id: string }>(
-        `INSERT INTO wallet_transactions(
-           wallet_user_id, txn_type, credits_delta, reference_type, reference_id, idempotency_key, metadata)
-         VALUES ($1::uuid, 'debit_lead_unlock', -1, 'lead', $2::uuid, $3, '{}'::jsonb)
-         ON CONFLICT (wallet_user_id, idempotency_key) DO NOTHING
-         RETURNING id::text`,
-        [ownerUserId, leadId, idempotencyKey]
-      );
-      const debitInserted = Boolean(debit.rows[0]?.id);
-      if (!debitInserted) {
-        // The key was already used. If it paid for THIS lead, the lead was
-        // flipped in that same transaction and the early idempotent-return
-        // path above would have caught it — reaching here means the key
-        // belongs to something else (another lead or another flow). Reject,
-        // mirroring the tenant-side duplicate_unlock guard.
-        const existingTxn = await client.query<{ id: string; reference_id: string | null }>(
-          `SELECT id::text, reference_id::text FROM wallet_transactions
-           WHERE wallet_user_id = $1::uuid AND idempotency_key = $2
-           LIMIT 1`,
-          [ownerUserId, idempotencyKey]
-        );
-        if (existingTxn.rows[0]?.reference_id !== leadId) {
-          throw new ConflictException({
-            code: "duplicate_unlock",
-            message: "Idempotency-Key already used for another unlock"
-          });
-        }
-        // Key matches this lead but the lead is still locked — heal by
-        // flipping it using the already-paid transaction.
+      if (!debit.inserted) {
+        // Heal a same-target replay with the transaction that originally paid
+        // for this lead. The helper rejects any key used by another flow.
         await client.query(
           `UPDATE leads SET access_state = 'unlocked', unlocked_at = COALESCE(unlocked_at, now()),
                             unlock_txn_id = COALESCE(unlock_txn_id, $2::uuid), updated_at = now()
            WHERE id = $1::uuid`,
-          [leadId, existingTxn.rows[0].id]
+          [leadId, debit.transactionId]
         );
       }
-      if (debitInserted) {
-        await client.query(
-          `UPDATE wallets SET balance_credits = balance_credits - 1, updated_at = now()
-           WHERE user_id = $1::uuid AND balance_credits >= 1`,
-          [ownerUserId]
-        );
+      if (debit.inserted) {
         await client.query(
           `UPDATE leads SET access_state = 'unlocked', unlocked_at = now(),
                             unlock_txn_id = $2::uuid, updated_at = now()
            WHERE id = $1::uuid`,
-          [leadId, debit.rows[0].id]
+          [leadId, debit.transactionId]
         );
         await client.query(
           `INSERT INTO lead_events (lead_id, to_status, actor_user_id, notes)
@@ -430,22 +445,22 @@ export class LeadsService {
         );
       }
 
-      const credits = await balanceRow();
       await client.query("COMMIT");
+      committed = true;
       logTelemetry("lead.unlocked", {
         lead_id: leadId,
         owner_user_id: ownerUserId,
-        debited: debitInserted
+        debited: debit.inserted
       });
       return {
         lead_id: leadId,
         access_state: "unlocked",
         tenant_phone: lead.tenant_phone,
         tenant_name: lead.tenant_name,
-        credits_remaining: credits
+        credits_remaining: debit.balanceCredits
       };
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (!committed) await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
@@ -463,6 +478,17 @@ export class LeadsService {
     contactUnlockId: string | null,
     calledBy: "owner" | "team"
   ): Promise<boolean> {
+    // Canonical lock order: contact_unlocks BEFORE leads. The timeout-refund
+    // sweep locks contact_unlocks first (FOR UPDATE SKIP LOCKED) then updates
+    // leads, so every path that touches both tables must take them in that same
+    // order or the two can deadlock (AB-BA). Serialize on the unlock row first;
+    // this lock is also what makes the first-claim-wins guard below race-safe.
+    if (contactUnlockId) {
+      await client.query(`SELECT 1 FROM contact_unlocks WHERE id = $1::uuid FOR UPDATE`, [
+        contactUnlockId
+      ]);
+    }
+
     const stamped = await client.query(
       `UPDATE leads SET called_at = now(), called_by = $2, updated_at = now()
        WHERE id = $1::uuid AND called_at IS NULL`,
@@ -513,12 +539,14 @@ export class LeadsService {
         called_at: string | null;
         tenant_phone: string | null;
       }>(
+        // No FOR UPDATE here: markLeadCalled() below locks the contact_unlock
+        // first, then the lead (canonical contact_unlocks→leads order). Locking
+        // the lead up-front would invert that order and can deadlock the sweep.
         `SELECT ld.id::text, ld.access_state, ld.contact_unlock_id::text,
                 ld.called_at::text, u.phone_e164 AS tenant_phone
          FROM leads ld
          LEFT JOIN users u ON u.id = ld.tenant_user_id
-         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid
-         FOR UPDATE OF ld`,
+         WHERE ld.id = $1::uuid AND ld.owner_user_id = $2::uuid`,
         [leadId, ownerUserId]
       );
       const lead = leadResult.rows[0];
@@ -604,8 +632,12 @@ export class LeadsService {
         called_at: string | null;
         status: string;
       }>(
+        // No FOR UPDATE here: markLeadCalled() locks the contact_unlock first
+        // then the lead (canonical contact_unlocks→leads order). The called_at
+        // check below is a fast-path; markLeadCalled()'s guarded UPDATE (under
+        // the unlock lock) is the authoritative first-claim-wins gate.
         `SELECT id::text, contact_unlock_id::text, called_at::text, status::text
-         FROM leads WHERE id = $1::uuid FOR UPDATE`,
+         FROM leads WHERE id = $1::uuid`,
         [leadId]
       );
       const lead = leadResult.rows[0];
@@ -615,7 +647,10 @@ export class LeadsService {
       if (lead.called_at) {
         throw new ConflictException({ code: "already_called", message: "Call already claimed" });
       }
-      await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "team");
+      const claimed = await this.markLeadCalled(client, leadId, lead.contact_unlock_id, "team");
+      if (!claimed) {
+        throw new ConflictException({ code: "already_called", message: "Call already claimed" });
+      }
       await client.query(
         `INSERT INTO lead_events (lead_id, to_status, notes)
          VALUES ($1::uuid, $2::lead_status, 'team_called')`,

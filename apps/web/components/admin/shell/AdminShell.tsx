@@ -22,6 +22,7 @@ import { SeoProgrammaticPages } from "../tabs/SeoProgrammaticPages";
 import { SearchPerformanceTab } from "../tabs/SearchPerformanceTab";
 import { BlogReviewTab } from "../tabs/BlogReviewTab";
 import { SystemTab } from "../tabs/SystemTab";
+import { AdminTotpPanel } from "../security/AdminTotpPanel";
 
 interface Props {
   accessToken: string;
@@ -43,7 +44,8 @@ const TAB_TITLES: Record<AdminTab, string> = {
   seo: "Programmatic SEO",
   "search-performance": "Search Performance",
   blog: "Blog Review",
-  system: "System Tools"
+  system: "System Tools",
+  security: "Security"
 };
 
 export function AdminShell({ accessToken }: Props) {
@@ -143,6 +145,8 @@ export function AdminShell({ accessToken }: Props) {
         return <BlogReviewTab key={`blog-${k}`} accessToken={accessToken} onToast={push} />;
       case "system":
         return <SystemTab key={`sy-${k}`} accessToken={accessToken} onToast={push} />;
+      case "security":
+        return <AdminTotpPanel key={`security-${k}`} accessToken={accessToken} />;
     }
   }, [tab, refreshNonce, accessToken, handleCount, push]);
 

@@ -17,8 +17,13 @@ import {
   runBlogTopicPlanner
 } from "./blog-worker";
 import { runRefundSweepDb, runLeadReminderSweepDb } from "./callback-sweeps";
+import {
+  emitSignupCreditExpiryTelemetry,
+  runSignupCreditExpirySweepDb
+} from "./signup-credit-sweep";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
+const SIGNUP_CREDIT_EXPIRY_SWEEP_MS = 60 * 60 * 1000;
 const OUTBOUND_DISPATCH_MS = 60 * 1000;
 const OUTBOUND_BATCH_SIZE = 50;
 const OUTBOUND_MAX_ATTEMPTS = 6;
@@ -1073,6 +1078,31 @@ async function run() {
   // Initialize SMS client for worker-based notification dispatch (mock provider by default)
   const smsClient = new SmsClient();
 
+  if (pool) {
+    setInterval(async () => {
+      try {
+        const result = await runSignupCreditExpirySweepDb(pool);
+        emitSignupCreditExpiryTelemetry(result);
+        console.log(
+          JSON.stringify({
+            job: "signup_credit_expiry_sweep",
+            wallets_expired: result.walletsExpired,
+            credits_expired: result.creditsExpired,
+            timestamp: new Date().toISOString()
+          })
+        );
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            job: "signup_credit_expiry_sweep",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString()
+          })
+        );
+      }
+    }, SIGNUP_CREDIT_EXPIRY_SWEEP_MS);
+  }
+
   setInterval(async () => {
     try {
       const refundedCount = pool
@@ -1764,6 +1794,7 @@ async function run() {
       worker: "started",
       jobs: [
         "refund_due_unlocks",
+        ...(pool ? ["signup_credit_expiry_sweep"] : []),
         "dispatch_outbound_events",
         "stale_listing_sweep",
         "broker_detection_sweep",
@@ -1788,6 +1819,7 @@ async function run() {
       whatsapp_provider: whatsAppEnabled ? (process.env.WHATSAPP_PROVIDER ?? "mock") : "disabled",
       interval_ms: {
         refund_due_unlocks: REFUND_SWEEP_MS,
+        ...(pool ? { signup_credit_expiry_sweep: SIGNUP_CREDIT_EXPIRY_SWEEP_MS } : {}),
         dispatch_outbound_events: OUTBOUND_DISPATCH_MS,
         ranking_recompute: RANKING_RECOMPUTE_MS,
         lead_nudge_sweep: LEAD_NUDGE_MS,
