@@ -797,11 +797,8 @@ export function PgDetailClient({
             <span className="tenant-cost-card__note">per person / month</span>
           </div>
           <div className="tenant-cost-card">
-            <span
-              className="tenant-cost-card__icon tenant-cost-card__icon--amber"
-              aria-hidden="true"
-            >
-              <Shield size={18} />
+            <span className="tenant-cost-card__icon" aria-hidden="true">
+              <Wallet size={18} />
             </span>
             <span className="tenant-cost-card__label">
               {pd.security_deposit_paise != null ? "Security deposit" : "Move-in terms"}
@@ -1026,7 +1023,7 @@ export function PgDetailClient({
                 </div>
                 {pd.security_deposit_paise != null && (
                   <div className="pg-rail-deposit">
-                    <Shield size={13} aria-hidden="true" />
+                    <Wallet size={13} aria-hidden="true" />
                     {rupees(pd.security_deposit_paise)} security deposit
                   </div>
                 )}
@@ -1094,10 +1091,8 @@ export function PgDetailClient({
               </div>
 
               <div className="detail-rail__reassure">
-                <Shield size={14} aria-hidden="true" />
-                <span>
-                  {t(locale as Locale, "noChargeUntilUnlock") || "Owner will contact you directly"}
-                </span>
+                <CheckCircle size={14} aria-hidden="true" />
+                <span>The PG operator will contact you shortly. Showing interest is free.</span>
               </div>
             </div>
           </aside>

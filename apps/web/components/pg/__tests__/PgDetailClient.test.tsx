@@ -95,12 +95,25 @@ describe("PgDetailClient", () => {
     const styles = readFileSync("app/globals.css", "utf8");
 
     expect(styles).toMatch(
+      /\.tenant-detail-page--pg\s*\{[^}]*max-width:\s*min\(calc\(100% - clamp\(48px,\s*6vw,\s*96px\)\),\s*1320px\)/
+    );
+    expect(styles).toMatch(
+      /@media \(max-width:\s*720px\)[\s\S]*\.tenant-detail-page--pg\s*\{[^}]*max-width:\s*100%/
+    );
+    expect(styles).toMatch(
       /\.tenant-detail-page--pg \.gallery\s*\{[^}]*margin-inline:\s*var\(--space-4\)/
     );
+    expect(styles).toMatch(/\.tenant-detail-page--pg \.gallery\s*\{[^}]*gap:\s*0/);
+    expect(styles).toMatch(/\.tenant-detail-page--pg \.gallery\s*\{[^}]*border:\s*0/);
+    expect(styles).toMatch(/\.pg-fact-strip\s*\{[^}]*background:\s*transparent/);
+    expect(styles).toMatch(/\.pg-fact-strip\s*\{[^}]*border:\s*0/);
+    expect(styles).toMatch(/\.pg-fact-strip\s*\{[^}]*box-shadow:\s*none/);
     expect(styles).toMatch(/\.pg-carousel-actions\s*\{[^}]*display:\s*none/);
     expect(styles).toMatch(
       /@media \(max-width:\s*1024px\)[\s\S]*\.pg-carousel-actions\s*\{[^}]*display:\s*flex/
     );
+    expect(styles).toMatch(/\.pg-rail-deposit\s*\{[^}]*background:\s*transparent/);
+    expect(styles).toMatch(/\.pg-rail-deposit\s*\{[^}]*border:\s*0/);
   });
 
   it("places share beside PG badges and collapses its label below 560px", () => {
@@ -180,6 +193,20 @@ describe("PgDetailClient", () => {
     } finally {
       window.requestAnimationFrame = originalRaf;
     }
+  });
+
+  it("shows free-interest reassurance in the rail without charge or refund copy", () => {
+    render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+    const interestCard = screen.getByTestId("pg-interest-card");
+
+    expect(within(interestCard).getByText("₹15,000 security deposit")).toBeTruthy();
+    expect(
+      within(interestCard).getByText(/The PG operator will contact you shortly/i)
+    ).toBeTruthy();
+    expect(within(interestCard).getByText(/Showing interest is free/i)).toBeTruthy();
+    expect(within(interestCard).queryByText(/won't be charged/i)).toBeNull();
+    expect(within(interestCard).queryByText(/Auto-refund/i)).toBeNull();
   });
 
   it("hides vacancy urgency when plenty available", () => {

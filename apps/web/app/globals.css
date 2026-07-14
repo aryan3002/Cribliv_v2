@@ -17247,11 +17247,11 @@ a.feature-card:hover .icon-circle {
   align-items: center;
   gap: var(--space-2);
   margin: var(--space-5) 0 var(--space-6);
-  padding: var(--space-4) var(--space-5);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .pg-fact {
   display: inline-flex;
@@ -17946,14 +17946,14 @@ a.feature-card:hover .icon-circle {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-  padding: 6px 10px;
-  background: var(--amber-light);
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-sm);
-  margin-top: calc(-1 * var(--space-2));
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  margin-top: var(--space-1);
 }
 .pg-rail-deposit svg {
-  color: var(--amber);
+  color: var(--brand);
   flex-shrink: 0;
 }
 .pg-rail-divider {
@@ -21788,6 +21788,10 @@ a.feature-card:hover .icon-circle {
 .tenant-detail-page--pg .gallery {
   width: calc(100% - (var(--space-4) * 2));
   margin-inline: var(--space-4);
+  gap: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
 @media (max-width: 640px) {
@@ -21826,7 +21830,8 @@ a.feature-card:hover .icon-circle {
 
 /* Room carousel and mobile overflow guards */
 .tenant-detail-page--pg {
-  max-width: 100%;
+  max-width: min(calc(100% - clamp(48px, 6vw, 96px)), 1320px);
+  margin-inline: auto;
   overflow-x: clip;
 }
 
@@ -21929,6 +21934,10 @@ a.feature-card:hover .icon-circle {
 }
 
 @media (max-width: 720px) {
+  .tenant-detail-page--pg {
+    max-width: 100%;
+  }
+
   .tenant-detail-page--pg .detail-layout,
   .tenant-detail-page--pg .tenant-cost-strip,
   .tenant-detail-page--pg .amenity-tile-grid {
