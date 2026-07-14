@@ -14,7 +14,7 @@ Occupant records first; `tenant_user_id` linked when `occupant_phone_e164` match
 
 Phases 1 and 2 are DONE and committed on `feat/pg-operations-v2`. Do NOT re-create any of this:
 
-- **The assignment schema already exists** — migration `0057_pg_bed_operations.sql` already created enums `pg_assignment_status` (`reserved|active|notice_served|move_out_requested|move_out_pending_confirmation|moved_out|cancelled`) and `pg_assignment_initiator` (`operator|tenant|system`), tables `pg_bed_assignments` (with **both** partial unique indexes `uq_pg_active_assignment_per_bed` and `uq_pg_active_assignment_per_tenant`) and `pg_assignment_events`, plus triggers/indexes. The table is empty. **So Phase 3 needs NO new migration — it is service + controller + tests + frontend only.** (Next free migration number is `0058`, reserved for Phase 5 maintenance.)
+- **The assignment schema already exists** — migration `0060_pg_bed_operations.sql` already created enums `pg_assignment_status` (`reserved|active|notice_served|move_out_requested|move_out_pending_confirmation|moved_out|cancelled`) and `pg_assignment_initiator` (`operator|tenant|system`), tables `pg_bed_assignments` (with **both** partial unique indexes `uq_pg_active_assignment_per_bed` and `uq_pg_active_assignment_per_tenant`) and `pg_assignment_events`, plus triggers/indexes. The table is empty. **So Phase 3 needs NO new migration — it is service + controller + tests + frontend only.** (Phase 5 maintenance is already migration `0061_pg_maintenance.sql`.)
 - **`PgOccupancyService.summary` already queries assignments** for upcoming move-ins/outs (it reads `status`, `expected_move_in_date`, `move_out_date`, `notice_end_date`, `occupant_name`). Your writes must populate those columns so the dashboard lights up.
 - **Guards already in place that your state machine MUST respect (don't regress them):**
   - `pg_beds` derived status is the coupling point. `PgOccupancyService.updateBedStatus` refuses manual changes on `reserved`/`occupied` beds; `relistBed` refuses `reserved`/`occupied`/`inactive`; `PgLayoutService` refuses to remove/retire a `reserved`/`occupied` bed. Your transitions are the ONLY code allowed to move a bed into/out of `reserved`/`occupied`.
@@ -26,7 +26,7 @@ Phases 1 and 2 are DONE and committed on `feat/pg-operations-v2`. Do NOT re-crea
 
 - Confirm the schema is present: `psql …5433 -c '\d pg_bed_assignments'` shows both partial unique indexes.
 - **Prove the constraints in a test** (real 5433): insert one `active` assignment on a bed, then insert a second `active`/`reserved` on the same bed → expect a `23505` unique violation; likewise a second active assignment for the same `tenant_user_id` → `23505`. These indexes are the load-bearing anti-double-booking guarantee; your service catches `23505` → `409 { code:'bed_or_tenant_occupied' }`.
-- If (and only if) you find a genuine schema gap, add `0058_…` and renumber Phase 5 to `0059` — but the plan's DDL is already applied, so you should not need to.
+- If (and only if) you find a genuine schema gap, first check the latest migration on `origin/master`, then add the next free `0062_…`-style migration — but the plan's DDL is already applied, so you should not need to.
 
 ### Slice 3.2 — `PgBedAssignmentService` (Opus authors)
 

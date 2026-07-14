@@ -1,6 +1,6 @@
 # Phase 5 — Maintenance tickets (operator + tenant)
 
-> First read `docs/superpowers/prompts/00-EXECUTION-CONTEXT.md` and plan §4 (`0058_pg_maintenance.sql`), §6, §10.3. Depends on Phases 3–4 (assignments + residence). All DB commands use inline local `DATABASE_URL` (5433).
+> First read `docs/superpowers/prompts/00-EXECUTION-CONTEXT.md` and plan §4 (`0061_pg_maintenance.sql`), §6, §10.3. Depends on Phases 3–4 (assignments + residence). All DB commands use inline local `DATABASE_URL` (5433).
 
 ## Mission
 
@@ -12,9 +12,9 @@ New `pg_maintenance_requests` + `pg_maintenance_comments`. Maintenance photos ne
 
 ## Execution slices
 
-### Slice 5.1 — Migration `0058_pg_maintenance.sql` (renumber if Phase 3 used 0058) (+ rollback)
+### Slice 5.1 — Migration `0061_pg_maintenance.sql` (+ rollback)
 
-- Use the **verbatim DDL in plan §4** (`0058` block): enum `pg_maintenance_status`; tables `pg_maintenance_requests`, `pg_maintenance_comments`; indexes; `set_updated_at` trigger. Apply + rollback round-trip.
+- Use the **verbatim DDL in plan §4** (`0061` block): enum `pg_maintenance_status`; tables `pg_maintenance_requests`, `pg_maintenance_comments`; indexes; `set_updated_at` trigger. Apply + rollback round-trip.
 
 ### Slice 5.2 — `PgMaintenanceService` + controllers + tests
 

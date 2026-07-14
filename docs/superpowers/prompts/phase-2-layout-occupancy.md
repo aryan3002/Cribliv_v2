@@ -12,14 +12,14 @@ Extend `pg_rooms`/`pg_beds`; add `inactive` to the existing `pg_bed_status` (not
 
 ## Execution slices
 
-### Slice 2.1 — Migration `0056_pg_bed_status_inactive.sql` (isolated enum add)
+### Slice 2.1 — Migration `0059_pg_bed_status_inactive.sql` (isolated enum add)
 
 - Single statement: `ALTER TYPE pg_bed_status ADD VALUE IF NOT EXISTS 'inactive';`. **Its own migration** because Postgres forbids using a new enum value in the same transaction it's added. Rollback file: a no-op with an explanatory comment (Postgres can't drop an enum value cleanly — document that).
 - Apply; confirm `SELECT unnest(enum_range(NULL::pg_bed_status));` includes `inactive`.
 
-### Slice 2.2 — Migration `0057_pg_bed_operations.sql` (+ rollback)
+### Slice 2.2 — Migration `0060_pg_bed_operations.sql` (+ rollback)
 
-- Use the **verbatim DDL in plan §4** (`0057` block): `ALTER pg_rooms ADD display_label/bed_count/status/updated_at` + `set_updated_at` trigger; `ALTER pg_beds ADD sort_order/metadata`. (Assignment tables in this same file belong to Phase 3 — you MAY create them now since they're in the plan's `0057`, but they carry no logic until Phase 3. If you prefer a tighter diff, split the assignment tables into Phase 3's migration and keep `0057` to the room/bed extensions only. Pick one and note it in the report.)
+- Use the **verbatim DDL in plan §4** (`0060` block): `ALTER pg_rooms ADD display_label/bed_count/status/updated_at` + `set_updated_at` trigger; `ALTER pg_beds ADD sort_order/metadata`. (Assignment tables in this same file belong to Phase 3 — you MAY create them now since they're in the plan's `0060`, but they carry no logic until Phase 3. If you prefer a tighter diff, split the assignment tables into Phase 3's migration and keep `0060` to the room/bed extensions only. Pick one and note it in the report.)
 - Apply + rollback round-trip on 5433.
 
 ### Slice 2.3 — Backend: layout + occupancy services + controller + tests
