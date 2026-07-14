@@ -220,4 +220,79 @@ describe("PgDetailClient", () => {
       expect(share).toHaveBeenCalledWith(expect.objectContaining({ listing_id: "L1" }))
     );
   });
+
+  it("shows the starting price in the hero (above the gallery)", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          room_types: [{ ...makeDetail().room_types[0], monthly_rent_paise: 350000 }]
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    const hero = screen.getByTestId("pg-hero-price");
+    expect(hero).toHaveTextContent("from");
+    expect(hero.textContent).toMatch(/₹\s?3,500/);
+  });
+
+  it("renders human bathroom labels, not raw enum values", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          room_types: [{ ...makeDetail().room_types[0], bathroom_kind: "shared_western" }]
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.queryByText("shared_western")).toBeNull();
+    expect(screen.getByText("Shared · Western")).toBeTruthy();
+  });
+
+  it("shows room vacancy when low", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          room_types: [{ ...makeDetail().room_types[0], vacancy_count: 2 }]
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("2 beds left")).toBeTruthy();
+  });
+
+  it("renders the What's nearby section from nearby data", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          pg_details: {
+            ...makeDetail().pg_details,
+            nearby: { metro: ["Munshipulia"], college: [], office: [] }
+          }
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("What's nearby")).toBeTruthy();
+    expect(screen.getByText("Munshipulia")).toBeTruthy();
+  });
+
+  it("renders snacks meal chip (snack key)", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({
+          pg_details: {
+            ...makeDetail().pg_details,
+            meals: { provided: true, snack: true }
+          }
+        })}
+        city="lucknow"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("Snacks")).toBeTruthy();
+  });
 });
