@@ -14,6 +14,9 @@ import {
 import type {
   PgMaintenanceCommentInput,
   PgMaintenanceCompletePhotoInput,
+  PgMaintenanceInternalNoteInput,
+  PgMaintenancePriorityOverrideInput,
+  PgMaintenanceQueueFilters,
   PgMaintenancePresignFileInput
 } from "@cribliv/shared-types";
 
@@ -40,9 +43,27 @@ export class PgMaintenanceController {
   async listForProperty(
     @AuthUser() user: UserContext,
     @Param("propertyId") propertyId: string,
-    @Query("status") status?: string
+    @Query() query: PgMaintenanceQueueFilters
   ) {
-    return ok(await this.maintenance.listForProperty(user.id, propertyId, { status }));
+    return ok(await this.maintenance.listForProperty(user.id, propertyId, query));
+  }
+
+  @Get(":propertyId/maintenance/:id")
+  async getForOperator(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") requestId: string
+  ) {
+    return ok(await this.maintenance.getForOperator(user.id, propertyId, requestId));
+  }
+
+  @Get(":propertyId/maintenance/:id/timeline")
+  async timelineForOperator(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") requestId: string
+  ) {
+    return ok(await this.maintenance.timelineForOperator(user.id, propertyId, requestId));
   }
 
   @Get(":propertyId/beds/:bedId/maintenance")
@@ -80,6 +101,44 @@ export class PgMaintenanceController {
         key,
         () =>
           this.maintenance.addComment(user.id, requestId, body?.body, body?.attachments, propertyId)
+      )
+    );
+  }
+
+  @Post(":propertyId/maintenance/:id/priority")
+  async overridePriority(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") requestId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: Partial<PgMaintenancePriorityOverrideInput> | undefined
+  ) {
+    const key = requireIdempotencyKey(idempotencyKey);
+    return ok(
+      await (this.idem ?? PASSTHROUGH_IDEMPOTENCY).run(
+        user.id,
+        `pg-operator:properties:${propertyId}:maintenance:${requestId}:priority`,
+        key,
+        () => this.maintenance.overridePriority(user.id, propertyId, requestId, body)
+      )
+    );
+  }
+
+  @Post(":propertyId/maintenance/:id/internal-notes")
+  async addInternalNote(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") requestId: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: Partial<PgMaintenanceInternalNoteInput> | undefined
+  ) {
+    const key = requireIdempotencyKey(idempotencyKey);
+    return ok(
+      await (this.idem ?? PASSTHROUGH_IDEMPOTENCY).run(
+        user.id,
+        `pg-operator:properties:${propertyId}:maintenance:${requestId}:internal-notes`,
+        key,
+        () => this.maintenance.addInternalNote(user.id, propertyId, requestId, body)
       )
     );
   }

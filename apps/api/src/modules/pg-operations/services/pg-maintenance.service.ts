@@ -14,16 +14,23 @@ import type {
   PgMaintenanceCommonArea,
   PgMaintenanceCompletePhotoInput,
   PgMaintenanceCreateInput,
+  PgMaintenanceEventType,
+  PgMaintenanceEventVisibility,
+  PgMaintenanceInternalNoteResponse,
   PgMaintenanceLocationKind,
   PgMaintenanceLocationSnapshot,
   PgMaintenancePriority,
+  PgMaintenancePriorityOverrideInput,
   PgMaintenancePrioritySource,
+  PgMaintenanceQueueFilters,
+  PgMaintenanceQueuePage,
   PgMaintenanceRequest,
   PgMaintenanceSlaHours,
   PgMaintenanceStatus,
   PgMaintenanceSummary,
   PgMaintenancePresignFileInput,
-  PgMaintenancePresignResponse
+  PgMaintenancePresignResponse,
+  PgMaintenanceTimelineEvent
 } from "@cribliv/shared-types";
 
 import { DatabaseService } from "../../../common/database.service";
@@ -122,6 +129,19 @@ type CommentRow = {
   created_at: Date | string;
 };
 
+type TimelineEventRow = {
+  id: string;
+  request_id: string;
+  event_type: PgMaintenanceEventType;
+  visibility: PgMaintenanceEventVisibility;
+  actor_user_id: string | null;
+  actor_role: PgMaintenanceTimelineEvent["actor_role"];
+  from_status: PgMaintenanceStatus | null;
+  to_status: PgMaintenanceStatus | null;
+  payload: unknown;
+  created_at: Date | string;
+};
+
 type ResidenceAssignmentRow = {
   assignment_id: string;
   property_id: string;
@@ -172,6 +192,13 @@ const PG_MAINTENANCE_COMMON_AREAS: readonly PgMaintenanceCommonArea[] = [
   "wifi_router",
   "security_cctv",
   "other"
+];
+
+const PG_MAINTENANCE_PRIORITIES: readonly PgMaintenancePriority[] = [
+  "emergency",
+  "high",
+  "normal",
+  "low"
 ];
 
 const MAINTENANCE_REQUEST_SELECT = `
@@ -263,6 +290,21 @@ function toComment(row: CommentRow, photoBaseUrl = ""): PgMaintenanceComment {
     body: row.body,
     attachments,
     attachment_urls: attachments.map((path) => toPhotoUrl(path, photoBaseUrl)),
+    created_at: toIso(row.created_at)
+  };
+}
+
+function toTimelineEvent(row: TimelineEventRow): PgMaintenanceTimelineEvent {
+  return {
+    id: row.id,
+    request_id: row.request_id,
+    event_type: row.event_type,
+    visibility: row.visibility,
+    actor_user_id: row.actor_user_id,
+    actor_role: row.actor_role,
+    from_status: row.from_status,
+    to_status: row.to_status,
+    payload: isRecord(row.payload) ? row.payload : {},
     created_at: toIso(row.created_at)
   };
 }
@@ -474,6 +516,84 @@ export class PgMaintenanceService {
         blobPath: cleanRequired(photo?.blob_path, "blob_path_required")
       };
     });
+  }
+
+  private cleanQueueLimit(value: unknown): number {
+    if (value === undefined || value === null || value === "") return 30;
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      throw new BadRequestException({ code: "invalid_maintenance_limit" });
+    }
+    return Math.min(parsed, 100);
+  }
+
+  private cleanQueueBoolean(value: unknown): boolean {
+    if (value === true || value === "true") return true;
+    if (value === false || value === "false" || value === undefined || value === null) {
+      return false;
+    }
+    throw new BadRequestException({ code: "invalid_maintenance_boolean" });
+  }
+
+  private cleanQueueFloor(value: unknown): number | undefined {
+    if (value === undefined || value === null || value === "") return undefined;
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(parsed))
+      throw new BadRequestException({ code: "invalid_maintenance_floor" });
+    return parsed;
+  }
+
+  private encodeQueueCursor(sort: "sla_due" | "newest", row: MaintenanceRow): string {
+    const payload =
+      sort === "newest"
+        ? { sort, created_at: toIso(row.created_at), id: row.id }
+        : { sort, sla_due_at: toIso(row.sla_due_at), id: row.id };
+    return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  }
+
+  private decodeQueueCursor(
+    value: unknown,
+    sort: "sla_due" | "newest"
+  ): { at: string; id: string } | null {
+    if (value === undefined || value === null || value === "") return null;
+    if (typeof value !== "string")
+      throw new BadRequestException({ code: "invalid_maintenance_cursor" });
+    try {
+      const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Record<
+        string,
+        unknown
+      >;
+      if (parsed.sort !== sort || typeof parsed.id !== "string") {
+        throw new Error("cursor sort mismatch");
+      }
+      const at = sort === "newest" ? parsed.created_at : parsed.sla_due_at;
+      if (typeof at !== "string") throw new Error("cursor timestamp missing");
+      return { at, id: parsed.id };
+    } catch {
+      throw new BadRequestException({ code: "invalid_maintenance_cursor" });
+    }
+  }
+
+  private validateInternalNote(input: unknown): { body: string; attachments: string[] } {
+    if (input !== undefined && !isRecord(input)) {
+      throw new BadRequestException({ code: "invalid_internal_note" });
+    }
+    const payload = input ?? {};
+    const body = cleanOptional(payload.body, "invalid_internal_note_body") ?? "";
+    const attachments = this.validateStringArray(
+      payload.attachments,
+      "invalid_maintenance_attachments"
+    );
+    if (!body && attachments.length === 0) {
+      throw new BadRequestException({ code: "maintenance_internal_note_required" });
+    }
+    if (attachments.length > MAX_MAINTENANCE_PHOTOS) {
+      throw new BadRequestException({
+        code: "too_many_maintenance_attachments",
+        message: `Maximum ${MAX_MAINTENANCE_PHOTOS} attachments per comment`
+      });
+    }
+    return { body, attachments };
   }
 
   private async residenceAssignmentsForMaintenance(
@@ -857,6 +977,24 @@ export class PgMaintenanceService {
     return rows.map((row) => toRequest(row, byRequest.get(row.id) ?? [], photoBaseUrl));
   }
 
+  private async timelineForRequest(
+    requestId: string,
+    visibility: "public" | "all"
+  ): Promise<PgMaintenanceTimelineEvent[]> {
+    const result = await this.db.query<TimelineEventRow>(
+      `SELECT id::text, request_id::text, event_type::text AS event_type,
+              visibility::text AS visibility, actor_user_id::text, actor_role,
+              from_status::text AS from_status, to_status::text AS to_status,
+              payload, created_at
+         FROM pg_maintenance_events
+        WHERE request_id = $1::uuid
+          AND ($2::boolean OR visibility = 'public')
+        ORDER BY created_at ASC, id ASC`,
+      [requestId, visibility === "all"]
+    );
+    return result.rows.map(toTimelineEvent);
+  }
+
   async create(
     callerUserId: string,
     _propertyId: string,
@@ -915,25 +1053,134 @@ export class PgMaintenanceService {
     return requests[0];
   }
 
+  async listForProperty(operatorId: string, propertyId: string): Promise<PgMaintenanceRequest[]>;
   async listForProperty(
     operatorId: string,
     propertyId: string,
-    filters: { status?: unknown } = {}
-  ): Promise<PgMaintenanceRequest[]> {
-    if (!this.db.isEnabled()) return [];
-    if (filters.status !== undefined && !isPgMaintenanceStatus(filters.status)) {
+    filters: PgMaintenanceQueueFilters
+  ): Promise<PgMaintenanceQueuePage>;
+  async listForProperty(
+    operatorId: string,
+    propertyId: string,
+    filters?: PgMaintenanceQueueFilters
+  ): Promise<PgMaintenanceRequest[] | PgMaintenanceQueuePage> {
+    if (!this.db.isEnabled()) {
+      return filters === undefined ? [] : { rows: [], next_cursor: null };
+    }
+    if (filters === undefined) {
+      await this.assertManagedOwnership(operatorId, propertyId);
+      const result = await this.db.query<MaintenanceRow>(
+        `SELECT ${MAINTENANCE_REQUEST_SELECT}
+           ${MAINTENANCE_REQUEST_JOINS}
+          WHERE r.pg_property_id = $1::uuid
+          ORDER BY r.created_at DESC, r.id DESC`,
+        [propertyId]
+      );
+      return this.withComments(result.rows);
+    }
+
+    const status = filters.status;
+    if (status !== undefined && status !== "all" && !isPgMaintenanceStatus(status)) {
       throw new BadRequestException({ code: "invalid_maintenance_status" });
     }
+    if (
+      filters.priority !== undefined &&
+      !PG_MAINTENANCE_PRIORITIES.includes(filters.priority as PgMaintenancePriority)
+    ) {
+      throw new BadRequestException({ code: "invalid_maintenance_priority" });
+    }
+    if (
+      filters.location_kind !== undefined &&
+      !PG_MAINTENANCE_LOCATION_KINDS.includes(filters.location_kind as PgMaintenanceLocationKind)
+    ) {
+      throw new BadRequestException({ code: "invalid_maintenance_location_kind" });
+    }
+    if (
+      filters.common_area !== undefined &&
+      !PG_MAINTENANCE_COMMON_AREAS.includes(filters.common_area as PgMaintenanceCommonArea)
+    ) {
+      throw new BadRequestException({ code: "invalid_maintenance_common_area" });
+    }
+    if (
+      filters.sla_state !== undefined &&
+      !["overdue", "due_today", "on_track"].includes(filters.sla_state)
+    ) {
+      throw new BadRequestException({ code: "invalid_maintenance_sla_state" });
+    }
+    const sort = filters.sort === "newest" ? "newest" : "sla_due";
+    if (filters.sort !== undefined && !["sla_due", "newest"].includes(filters.sort)) {
+      throw new BadRequestException({ code: "invalid_maintenance_sort" });
+    }
+    const limit = this.cleanQueueLimit(filters.limit);
+    const floor = this.cleanQueueFloor(filters.floor);
+    const includeClosed = this.cleanQueueBoolean(filters.include_closed);
+    const cursor = this.decodeQueueCursor(filters.cursor, sort);
+
     await this.assertManagedOwnership(operatorId, propertyId);
+
+    const values: unknown[] = [propertyId];
+    const where = ["r.pg_property_id = $1::uuid"];
+    const add = (condition: string, value: unknown) => {
+      values.push(value);
+      where.push(condition.replace("?", `$${values.length}`));
+    };
+
+    if (!includeClosed) where.push("r.status::text NOT IN ('closed', 'cancelled')");
+    if (status !== undefined && status !== "all") add("r.status::text = ?", status);
+    if (filters.priority !== undefined) add("r.priority::text = ?", filters.priority);
+    if (filters.category_slug) add("r.category_slug = ?", filters.category_slug);
+    if (filters.location_kind !== undefined)
+      add("r.location_kind::text = ?", filters.location_kind);
+    if (filters.common_area !== undefined) add("r.common_area::text = ?", filters.common_area);
+    if (floor !== undefined) add("r.floor = ?", floor);
+    if (filters.tenant_query) {
+      const tenantQuery = `%${filters.tenant_query.trim()}%`;
+      add("(a.occupant_name ILIKE ? OR a.occupant_phone_e164 ILIKE ?)", tenantQuery);
+      values.push(tenantQuery);
+      where[where.length - 1] = where[where.length - 1].replace("?", `$${values.length}`);
+    }
+    if (filters.sla_state === "overdue") {
+      where.push("r.sla_due_at < now() AND r.status::text NOT IN ('closed', 'cancelled')");
+    } else if (filters.sla_state === "due_today") {
+      where.push(
+        "r.sla_due_at >= now() AND r.sla_due_at < date_trunc('day', now()) + INTERVAL '1 day'"
+      );
+    } else if (filters.sla_state === "on_track") {
+      where.push("r.sla_due_at >= date_trunc('day', now()) + INTERVAL '1 day'");
+    }
+
+    if (cursor) {
+      if (sort === "newest") {
+        values.push(cursor.at, cursor.id);
+        where.push(
+          `(r.created_at, r.id) < ($${values.length - 1}::timestamptz, $${values.length}::uuid)`
+        );
+      } else {
+        values.push(cursor.at, cursor.id);
+        where.push(
+          `(r.sla_due_at, r.id) > ($${values.length - 1}::timestamptz, $${values.length}::uuid)`
+        );
+      }
+    }
+
+    values.push(limit);
+    const order =
+      sort === "newest" ? "r.created_at DESC, r.id DESC" : "r.sla_due_at ASC NULLS LAST, r.id ASC";
     const result = await this.db.query<MaintenanceRow>(
       `SELECT ${MAINTENANCE_REQUEST_SELECT}
          ${MAINTENANCE_REQUEST_JOINS}
-        WHERE r.pg_property_id = $1::uuid
-          AND ($2::text IS NULL OR r.status::text = $2)
-        ORDER BY r.created_at DESC, r.id DESC`,
-      [propertyId, filters.status ?? null]
+        WHERE ${where.join("\n          AND ")}
+        ORDER BY ${order}
+        LIMIT $${values.length}`,
+      values
     );
-    return this.withComments(result.rows);
+    return {
+      rows: result.rows.map((row) => toRequest(row, [], this.photoBaseUrl())),
+      next_cursor:
+        result.rows.length === limit && result.rows.length > 0
+          ? this.encodeQueueCursor(sort, result.rows[result.rows.length - 1])
+          : null
+    };
   }
 
   async listForBed(
@@ -985,7 +1232,180 @@ export class PgMaintenanceService {
     ) {
       throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
     }
-    return (await this.withComments([request]))[0];
+    const result = (await this.withComments([request]))[0];
+    return {
+      ...result,
+      timeline: await this.timelineForRequest(requestId, "public")
+    };
+  }
+
+  async getForOperator(
+    operatorId: string,
+    propertyId: string,
+    requestId: string
+  ): Promise<PgMaintenanceRequest> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    await this.assertManagedOwnership(operatorId, propertyId);
+    const request = await this.requestForAccess(requestId);
+    if (request.pg_property_id !== propertyId) {
+      throw new NotFoundException({
+        code: "maintenance_request_not_found",
+        message: "Maintenance request not found"
+      });
+    }
+    const result = (await this.withComments([request]))[0];
+    return {
+      ...result,
+      timeline: await this.timelineForRequest(requestId, "all")
+    };
+  }
+
+  async timelineForOperator(
+    operatorId: string,
+    propertyId: string,
+    requestId: string
+  ): Promise<PgMaintenanceTimelineEvent[]> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    await this.assertManagedOwnership(operatorId, propertyId);
+    const request = await this.requestForAccess(requestId);
+    if (request.pg_property_id !== propertyId) {
+      throw new NotFoundException({
+        code: "maintenance_request_not_found",
+        message: "Maintenance request not found"
+      });
+    }
+    return this.timelineForRequest(requestId, "all");
+  }
+
+  async overridePriority(
+    operatorId: string,
+    propertyId: string,
+    requestId: string,
+    input: Partial<PgMaintenancePriorityOverrideInput> | undefined
+  ): Promise<PgMaintenanceRequest> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const priority = cleanRequired(input?.priority, "maintenance_priority_required");
+    if (!PG_MAINTENANCE_PRIORITIES.includes(priority as PgMaintenancePriority)) {
+      throw new BadRequestException({ code: "invalid_maintenance_priority" });
+    }
+    const reason = cleanRequired(input?.reason, "maintenance_priority_reason_required");
+    const newPriority = priority as PgMaintenancePriority;
+    const slaHours = this.priorityHours(newPriority);
+
+    await transaction(this.db, async (client) => {
+      const existing = await client.query<MaintenanceRow>(
+        `SELECT ${MAINTENANCE_REQUEST_SELECT}
+           ${MAINTENANCE_REQUEST_JOINS}
+          WHERE r.id = $1::uuid
+          FOR UPDATE OF r`,
+        [requestId]
+      );
+      const request = existing.rows[0];
+      if (!request || request.pg_property_id !== propertyId) {
+        throw new NotFoundException({
+          code: "maintenance_request_not_found",
+          message: "Maintenance request not found"
+        });
+      }
+      const ownership = await client.query<{ id: string }>(
+        `SELECT id::text
+           FROM pg_properties
+          WHERE id = $1::uuid
+            AND operator_id = $2::uuid
+            AND manage_enabled = true
+          LIMIT 1`,
+        [propertyId, operatorId]
+      );
+      if (!ownership.rows[0]) {
+        throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+      }
+
+      await client.query(
+        `UPDATE pg_maintenance_requests
+            SET priority = $2::pg_maintenance_priority,
+                sla_hours = $3::integer,
+                sla_due_at = created_at + make_interval(hours => $3::integer),
+                priority_source = 'operator_override',
+                priority_overridden_by = $4::uuid,
+                priority_overridden_at = clock_timestamp(),
+                priority_override_reason = $5,
+                updated_at = now()
+          WHERE id = $1::uuid`,
+        [requestId, newPriority, slaHours, operatorId, reason]
+      );
+      await client.query(
+        `INSERT INTO pg_maintenance_events
+           (request_id, event_type, visibility, actor_user_id, actor_role, payload, created_at)
+         VALUES ($1::uuid, 'priority_overridden', 'public', $2::uuid, 'pg_operator',
+                 $3::jsonb, clock_timestamp())`,
+        [
+          requestId,
+          operatorId,
+          JSON.stringify({
+            from_priority: request.priority,
+            to_priority: newPriority,
+            reason,
+            sla_hours: slaHours
+          })
+        ]
+      );
+    });
+
+    return this.getForOperator(operatorId, propertyId, requestId);
+  }
+
+  async addInternalNote(
+    operatorId: string,
+    propertyId: string,
+    requestId: string,
+    input: unknown
+  ): Promise<PgMaintenanceInternalNoteResponse> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const { body, attachments } = this.validateInternalNote(input);
+    await this.assertManagedOwnership(operatorId, propertyId);
+    const request = await this.requestForAccess(requestId);
+    if (request.pg_property_id !== propertyId) {
+      throw new NotFoundException({
+        code: "maintenance_request_not_found",
+        message: "Maintenance request not found"
+      });
+    }
+
+    if (attachments.length > 0) {
+      await Promise.all(
+        attachments.map((path) =>
+          this.requirePhotoStorage().validateMaintenanceUploadedBlob(
+            request.pg_property_id,
+            request.id,
+            path
+          )
+        )
+      );
+    }
+
+    const result = await this.db.query<TimelineEventRow>(
+      `INSERT INTO pg_maintenance_events
+         (request_id, event_type, visibility, actor_user_id, actor_role, payload, created_at)
+       VALUES ($1::uuid, 'internal_note_added', 'operator_internal', $2::uuid, 'pg_operator',
+               $3::jsonb, clock_timestamp())
+       RETURNING id::text, request_id::text, event_type::text AS event_type,
+                 visibility::text AS visibility, actor_user_id::text, actor_role,
+                 from_status::text AS from_status, to_status::text AS to_status,
+                 payload, created_at`,
+      [requestId, operatorId, JSON.stringify({ body, attachments })]
+    );
+    const event = toTimelineEvent(result.rows[0]);
+    return {
+      id: event.id,
+      request_id: event.request_id,
+      author_user_id: event.actor_user_id,
+      author_role: "pg_operator",
+      visibility: "operator_internal",
+      body,
+      attachments,
+      attachment_urls: attachments.map((path) => toPhotoUrl(path, this.photoBaseUrl())),
+      created_at: event.created_at
+    };
   }
 
   async reopenByTenant(
