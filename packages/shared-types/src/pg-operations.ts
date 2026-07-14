@@ -454,12 +454,24 @@ export interface PgMaintenanceSummary {
   overdue_items: number;
 }
 
-export interface PgMaintenanceCreateInput {
-  category: string;
+interface PgMaintenanceCreateInputBase {
   description: string;
   photo_paths?: string[];
   priority?: PgMaintenancePriority | null;
+  location?: PgMaintenanceLocationInput;
 }
+
+export type PgMaintenanceCreateInput = PgMaintenanceCreateInputBase &
+  (
+    | {
+        category: string;
+        category_slug?: string;
+      }
+    | {
+        category?: string;
+        category_slug: string;
+      }
+  );
 
 export interface PgMaintenanceCommentInput {
   body: string;

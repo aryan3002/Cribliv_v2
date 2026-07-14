@@ -144,6 +144,8 @@ const STATUS_TRANSITIONS: Record<PgMaintenanceStatus, readonly PgMaintenanceStat
 
 const MAX_MAINTENANCE_PHOTOS = 6;
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const PG_MAINTENANCE_LOCATION_KINDS: readonly PgMaintenanceLocationKind[] = [
   "bed",
   "room",
@@ -349,6 +351,12 @@ function cleanOptional(value: unknown, code: string): string | null {
   if (typeof value !== "string") throw new BadRequestException({ code });
   const cleaned = value.trim();
   return cleaned || null;
+}
+
+function cleanUuid(value: unknown, requiredCode: string, invalidCode: string): string {
+  const cleaned = cleanRequired(value, requiredCode);
+  if (!UUID_PATTERN.test(cleaned)) throw new BadRequestException({ code: invalidCode });
+  return cleaned;
 }
 
 @Injectable()
@@ -641,7 +649,11 @@ export class PgMaintenanceService {
     const kind = input.kind as PgMaintenanceLocationKind;
 
     if (kind === "bed") {
-      const bedId = cleanRequired(input.bed_id, "maintenance_bed_id_required");
+      const bedId = cleanUuid(
+        input.bed_id,
+        "maintenance_bed_id_required",
+        "invalid_maintenance_bed"
+      );
       const result = await this.db.query<ResidenceLocationRow>(
         `SELECT p.display_name AS property_name, p.total_floors,
                 rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
@@ -667,7 +679,11 @@ export class PgMaintenanceService {
     }
 
     if (kind === "room") {
-      const roomId = cleanRequired(input.room_id, "maintenance_room_id_required");
+      const roomId = cleanUuid(
+        input.room_id,
+        "maintenance_room_id_required",
+        "invalid_maintenance_room"
+      );
       const result = await this.db.query<ResidenceLocationRow>(
         `SELECT p.display_name AS property_name, p.total_floors,
                 rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,

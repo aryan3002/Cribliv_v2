@@ -387,6 +387,53 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
     );
   });
 
+  it("rejects malformed room and bed maintenance location IDs with controlled errors", async () => {
+    await createFixture();
+    const foreignFixture = await createFixture(otherOperatorId, [
+      foreignTenantId,
+      foreignOtherTenantId
+    ]);
+    const foreignRoom = await db.query<{ room_id: string }>(
+      `SELECT room_id::text
+         FROM pg_beds
+        WHERE id = $1::uuid`,
+      [foreignFixture.bedIds[0]]
+    );
+
+    for (const { location, code } of [
+      {
+        location: { kind: "bed", bed_id: "not-a-uuid" },
+        code: "invalid_maintenance_bed"
+      },
+      {
+        location: { kind: "bed", bed_id: foreignFixture.bedIds[0] },
+        code: "invalid_maintenance_bed"
+      },
+      {
+        location: { kind: "room", room_id: "not-a-uuid" },
+        code: "invalid_maintenance_room"
+      },
+      {
+        location: { kind: "room", room_id: foreignRoom.rows[0].room_id },
+        code: "invalid_maintenance_room"
+      }
+    ]) {
+      await request(app.getHttpServer())
+        .post("/v1/tenant/pg-residence/maintenance")
+        .set("x-test-identity", "tenant")
+        .set("Idempotency-Key", randomUUID())
+        .send({
+          category_slug: "plumbing",
+          description: "The washroom tap is leaking badly.",
+          location
+        })
+        .expect(400)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({ code });
+        });
+    }
+  });
+
   it("returns room context and supports request and comment photos", async () => {
     const fixture = await createFixture();
     const createResponse = await request(app.getHttpServer())
