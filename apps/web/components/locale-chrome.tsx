@@ -10,11 +10,10 @@ import type { Locale } from "../lib/i18n";
  * LocaleChrome
  *
  * Wraps page content with the public site's Header + Footer, EXCEPT on
- * admin routes — admins get a god-view shell with its own sidebar/topbar
- * and shouldn't see the consumer chrome.
+ * admin and owner routes — these workspaces provide their own route chrome.
  * ──────────────────────────────────────────────────────────────────── */
 
-const NO_CHROME_PATHS = [/\/admin(\/|$)/];
+const NO_CHROME_PATHS = [/\/admin(\/|$)/, /\/owner(\/|$)/];
 
 export function LocaleChrome({ locale, children }: { locale: Locale; children: ReactNode }) {
   const pathname = usePathname();

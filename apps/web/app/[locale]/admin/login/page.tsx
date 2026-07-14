@@ -81,7 +81,13 @@ export default function AdminLoginPage() {
           onChange={(e) => setPhone(e.target.value)}
           placeholder="98765 43210"
           disabled={loading}
-          style={{ width: "100%", padding: 10, margin: "6px 0 14px", borderRadius: 8, border: "1px solid #D1D5DB" }}
+          style={{
+            width: "100%",
+            padding: 10,
+            margin: "6px 0 14px",
+            borderRadius: 8,
+            border: "1px solid #D1D5DB"
+          }}
         />
 
         <label style={{ fontSize: 12, color: "#374151" }} htmlFor="admin-code">
@@ -97,13 +103,30 @@ export default function AdminLoginPage() {
           placeholder="••••••"
           disabled={loading}
           maxLength={6}
-          style={{ width: "100%", padding: 10, margin: "6px 0 14px", borderRadius: 8, border: "1px solid #D1D5DB", letterSpacing: 6, textAlign: "center" }}
+          style={{
+            width: "100%",
+            padding: 10,
+            margin: "6px 0 14px",
+            borderRadius: 8,
+            border: "1px solid #D1D5DB",
+            letterSpacing: 6,
+            textAlign: "center"
+          }}
         />
 
         <button
           onClick={handleSubmit}
           disabled={loading || code.length < 6}
-          style={{ width: "100%", padding: 11, borderRadius: 8, border: "none", background: "#111827", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+          style={{
+            width: "100%",
+            padding: 11,
+            borderRadius: 8,
+            border: "none",
+            background: "#111827",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer"
+          }}
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>

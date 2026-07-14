@@ -71,7 +71,10 @@ export class AdminTotpService {
   async enrollVerify(userId: string, code: string): Promise<{ enabled: true }> {
     const record = await this.getSecretRecord(userId);
     if (!record) {
-      throw new BadRequestException({ code: "totp_not_started", message: "Start enrollment first" });
+      throw new BadRequestException({
+        code: "totp_not_started",
+        message: "Start enrollment first"
+      });
     }
     const { valid } = verifyTotpCode(record.secret, code);
     if (!valid) {

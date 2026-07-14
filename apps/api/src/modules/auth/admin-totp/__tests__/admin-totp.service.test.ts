@@ -123,10 +123,7 @@ describe("AdminTotpService.verifyLogin (in-memory)", () => {
     // code as every other rejection (proves no enumeration oracle: a locked
     // account is indistinguishable from a wrong code or an unknown phone).
     const secret = appState.adminTotp.get(admin.id)!.secret;
-    await expectRejectCode(
-      svc.verifyLogin(PHONE, authenticator.generate(secret)),
-      "invalid_totp"
-    );
+    await expectRejectCode(svc.verifyLogin(PHONE, authenticator.generate(secret)), "invalid_totp");
   });
 
   it("rejects a replayed code (same step reused)", async () => {

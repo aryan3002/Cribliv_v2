@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
+import { LeadsClient } from "../../../../components/owner/leads-client";
 
 interface PageProps {
   params: { locale: string };
 }
 
 export default function OwnerLeadsPage({ params }: PageProps) {
-  redirect(`/${params.locale}/owner/dashboard?tab=leads`);
+  return <LeadsClient locale={params.locale} />;
 }

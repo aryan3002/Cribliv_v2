@@ -9,6 +9,7 @@ import {
   NotFoundException,
   ForbiddenException
 } from "@nestjs/common";
+import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { logTelemetry } from "../../common/telemetry";
@@ -30,7 +31,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 export class LeadsService {
   private readonly logger = new Logger(LeadsService.name);
 
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(AppStateService) private readonly appState?: AppStateService
+  ) {}
 
   async createLead(params: {
     listing_id: string;
@@ -41,8 +45,24 @@ export class LeadsService {
     call_deadline_at?: string;
   }): Promise<{ lead_id: string; created: boolean }> {
     const flags = readFeatureFlags();
-    if (!flags.ff_lead_management_enabled || !this.database.isEnabled()) {
+    if (!flags.ff_lead_management_enabled) {
       return { lead_id: "", created: false };
+    }
+
+    if (!this.database.isEnabled()) {
+      if (!this.appState) return { lead_id: "", created: false };
+      const callDeadlineAt = params.call_deadline_at
+        ? new Date(params.call_deadline_at).getTime()
+        : null;
+      const { lead, created } = this.appState.createOwnerLead({
+        listingId: params.listing_id,
+        ownerUserId: params.owner_user_id,
+        tenantUserId: params.tenant_user_id,
+        contactUnlockId: params.contact_unlock_id,
+        tenantPhoneMasked: params.tenant_phone_masked,
+        callDeadlineAt: Number.isFinite(callDeadlineAt) ? callDeadlineAt : null
+      });
+      return { lead_id: lead.id, created };
     }
 
     try {
@@ -110,7 +130,15 @@ export class LeadsService {
     pageSize = 20
   ): Promise<{ items: any[]; total: number; page: number; page_size: number }> {
     if (!this.database.isEnabled()) {
-      return { items: [], total: 0, page, page_size: pageSize };
+      return (
+        this.appState?.listOwnerLeads(
+          ownerUserId,
+          status as "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost" | undefined,
+          page,
+          pageSize,
+          readFeatureFlags().ff_callback_leads
+        ) ?? { items: [], total: 0, page, page_size: pageSize }
+      );
     }
 
     const flags = readFeatureFlags();
@@ -652,7 +680,16 @@ export class LeadsService {
 
   async getLeadStats(ownerUserId: string): Promise<Record<string, number>> {
     if (!this.database.isEnabled()) {
-      return { new: 0, contacted: 0, visit_scheduled: 0, deal_done: 0, lost: 0, total: 0 };
+      return (
+        this.appState?.getOwnerLeadStats(ownerUserId) ?? {
+          new: 0,
+          contacted: 0,
+          visit_scheduled: 0,
+          deal_done: 0,
+          lost: 0,
+          total: 0
+        }
+      );
     }
 
     const result = await this.database.query<{ status: string; count: number }>(
@@ -685,7 +722,26 @@ export class LeadsService {
     notes?: string
   ): Promise<{ lead_id: string; status: string }> {
     if (!this.database.isEnabled()) {
-      throw new BadRequestException({ code: "db_unavailable", message: "Database unavailable" });
+      const existing = this.appState?.getOwnerLead(leadId, ownerUserId);
+      if (!existing) {
+        throw new BadRequestException({ code: "not_found", message: "Lead not found" });
+      }
+
+      const allowed = VALID_TRANSITIONS[existing.status] ?? [];
+      if (!allowed.includes(newStatus)) {
+        throw new BadRequestException({
+          code: "invalid_transition",
+          message: `Cannot transition from ${existing.status} to ${newStatus}`
+        });
+      }
+
+      this.appState?.updateOwnerLeadStatus(
+        leadId,
+        ownerUserId,
+        newStatus as "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost",
+        notes
+      );
+      return { lead_id: leadId, status: newStatus };
     }
 
     const existing = await this.database.query<{ id: string; status: string }>(
@@ -728,21 +784,32 @@ export class LeadsService {
   }
 
   async exportLeadsCsv(ownerUserId: string): Promise<string> {
-    if (!this.database.isEnabled()) {
-      return "lead_id,listing_title,tenant_name,tenant_phone_masked,status,created_at,status_changed_at,owner_notes\n";
-    }
-
-    const result = await this.database.query<{
-      id: string;
-      listing_title: string;
-      tenant_name: string;
-      tenant_phone_masked: string | null;
-      status: string;
-      created_at: string;
-      status_changed_at: string;
-      owner_notes: string | null;
-    }>(
-      `SELECT
+    const rows = !this.database.isEnabled()
+      ? (
+          this.appState?.listOwnerLeads(ownerUserId, undefined, 1, Number.MAX_SAFE_INTEGER, false)
+            .items ?? []
+        ).map((lead) => ({
+          id: lead.id,
+          listing_title: lead.listing_title,
+          tenant_name: lead.tenant_name,
+          tenant_phone_masked: lead.tenant_phone_masked,
+          status: lead.status,
+          created_at: this.formatCsvDate(lead.created_at),
+          status_changed_at: this.formatCsvDate(lead.status_changed_at),
+          owner_notes: lead.owner_notes
+        }))
+      : (
+          await this.database.query<{
+            id: string;
+            listing_title: string;
+            tenant_name: string;
+            tenant_phone_masked: string | null;
+            status: string;
+            created_at: string;
+            status_changed_at: string;
+            owner_notes: string | null;
+          }>(
+            `SELECT
          ld.id::text,
          COALESCE(NULLIF(l.title_en, ''), 'Listing') AS listing_title,
          COALESCE(u.full_name, 'Tenant')             AS tenant_name,
@@ -756,8 +823,9 @@ export class LeadsService {
        LEFT JOIN users u ON u.id = ld.tenant_user_id
        WHERE ld.owner_user_id = $1::uuid
        ORDER BY ld.created_at DESC`,
-      [ownerUserId]
-    );
+            [ownerUserId]
+          )
+        ).rows;
 
     const escape = (v: string | null | undefined) => {
       if (v == null) return "";
@@ -770,7 +838,7 @@ export class LeadsService {
 
     const header =
       "lead_id,listing_title,tenant_name,tenant_phone_masked,status,created_at,status_changed_at,owner_notes";
-    const rows = result.rows.map((r) =>
+    const csvRows = rows.map((r) =>
       [
         r.id,
         r.listing_title,
@@ -785,6 +853,22 @@ export class LeadsService {
         .join(",")
     );
 
-    return [header, ...rows].join("\n");
+    return [header, ...csvRows].join("\n");
+  }
+
+  private formatCsvDate(value: string) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return value;
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    })
+      .format(date)
+      .replace(",", "");
   }
 }

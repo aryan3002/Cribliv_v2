@@ -87,15 +87,16 @@ New controller `auth/admin-totp/admin-totp.controller.ts` (or extend the auth
 module), all following the established `@UseGuards(AuthGuard, RolesGuard)` +
 `@Roles("admin")` convention where auth is required.
 
-| Method & path | Guard | Purpose |
-|---|---|---|
-| `POST /auth/admin/totp/enroll/start` | admin (logged in) | Generate secret, store `pending`, return `{ otpauth_uri, qr_data_url }`. |
-| `POST /auth/admin/totp/enroll/verify` | admin (logged in) | Body `{ totp_code }`. Confirm the scan; flip `pending → enabled`. |
-| `GET  /auth/admin/totp/status` | admin (logged in) | Return `{ enrolled: boolean }`. |
-| `POST /auth/admin/login` | **public** | Body `{ phone_e164, totp_code }`. The OTP-free login (see §5). |
-| `POST /auth/admin/totp/reset` | admin (logged in) | Wipe the secret so a new device can be enrolled (used after an OTP break-glass login). |
+| Method & path                         | Guard             | Purpose                                                                                |
+| ------------------------------------- | ----------------- | -------------------------------------------------------------------------------------- |
+| `POST /auth/admin/totp/enroll/start`  | admin (logged in) | Generate secret, store `pending`, return `{ otpauth_uri, qr_data_url }`.               |
+| `POST /auth/admin/totp/enroll/verify` | admin (logged in) | Body `{ totp_code }`. Confirm the scan; flip `pending → enabled`.                      |
+| `GET  /auth/admin/totp/status`        | admin (logged in) | Return `{ enrolled: boolean }`.                                                        |
+| `POST /auth/admin/login`              | **public**        | Body `{ phone_e164, totp_code }`. The OTP-free login (see §5).                         |
+| `POST /auth/admin/totp/reset`         | admin (logged in) | Wipe the secret so a new device can be enrolled (used after an OTP break-glass login). |
 
 **`POST /auth/admin/login` logic:**
+
 1. Look up `users` by `phone_e164`.
 2. Require `role = 'admin'` **and** an `admin_totp` row with `status = 'enabled'`.
 3. Enforce lockout (`locked_until`) and verify the code (§5).
@@ -103,7 +104,7 @@ module), all following the established `@UseGuards(AuthGuard, RolesGuard)` +
    session** identical to the OTP path (4-hour admin session, `acc_`/`ref_`
    tokens).
 5. On failure: increment `failed_attempts`; at 5 → set `locked_until = now +
-   15 min`.
+15 min`.
 
 **Shared session helper:** factor the session-minting block currently inline in
 `AuthService.verifyOtp` into a private `issueSession(user, client)` helper so
@@ -160,6 +161,7 @@ zero-risk to existing logins.
 ### 9. DB dual-mode
 
 Per `DatabaseService.isEnabled()`, implement **both** code paths:
+
 - DB mode: the `admin_totp` table above.
 - In-memory mode (local/no-DB dev): a minimal `Map` in `AppStateService`
   mirroring the same shape. Local dev has no real admins, so this path is
@@ -168,6 +170,7 @@ Per `DatabaseService.isEnabled()`, implement **both** code paths:
 ## Files touched (anticipated)
 
 **API**
+
 - `infra/migrations/0056_admin_totp.sql` + `.rollback.sql`
 - `apps/api/src/modules/auth/admin-totp/totp.crypto.ts` (new, mirrors pan.crypto)
 - `apps/api/src/modules/auth/admin-totp/admin-totp.service.ts` (new)
@@ -179,6 +182,7 @@ Per `DatabaseService.isEnabled()`, implement **both** code paths:
 - `apps/api/package.json` (`otplib`, `qrcode`)
 
 **Web**
+
 - `apps/web/auth.config.ts` (second Credentials provider)
 - `apps/web/app/[locale]/admin/login/page.tsx` (new)
 - Admin "Security" panel under `apps/web/components/admin/…`

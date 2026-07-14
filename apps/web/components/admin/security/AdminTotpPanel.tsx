@@ -80,14 +80,18 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
 
   return (
     <section style={{ maxWidth: 460, padding: 20 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Authenticator (2-step login)</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+        Authenticator (2-step login)
+      </h2>
       <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
         Log in without SMS OTP using an authenticator app (Google Authenticator, Authy, etc.).
       </p>
 
       {enrolled === true && !qr && (
         <div>
-          <p style={{ color: "#059669", fontSize: 14, marginBottom: 12 }}>✓ Authenticator enrolled</p>
+          <p style={{ color: "#059669", fontSize: 14, marginBottom: 12 }}>
+            ✓ Authenticator enrolled
+          </p>
           <button onClick={resetDevice} disabled={busy} style={btnGhost}>
             Reset device (re-enroll)
           </button>
@@ -102,9 +106,17 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
 
       {qr && (
         <div>
-          <p style={{ fontSize: 13, marginBottom: 8 }}>1. Scan this QR in your authenticator app:</p>
+          <p style={{ fontSize: 13, marginBottom: 8 }}>
+            1. Scan this QR in your authenticator app:
+          </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt="Authenticator QR code" width={180} height={180} style={{ marginBottom: 12 }} />
+          <img
+            src={qr}
+            alt="Authenticator QR code"
+            width={180}
+            height={180}
+            style={{ marginBottom: 12 }}
+          />
           <p style={{ fontSize: 13, marginBottom: 8 }}>2. Enter the 6-digit code it shows:</p>
           <input
             value={code}
@@ -112,7 +124,14 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
             inputMode="numeric"
             maxLength={6}
             placeholder="••••••"
-            style={{ padding: 10, borderRadius: 8, border: "1px solid #D1D5DB", letterSpacing: 6, textAlign: "center", width: 160 }}
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #D1D5DB",
+              letterSpacing: 6,
+              textAlign: "center",
+              width: 160
+            }}
           />
           <div style={{ marginTop: 12 }}>
             <button onClick={confirmEnroll} disabled={busy || code.length < 6} style={btnPrimary}>
@@ -122,14 +141,29 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
         </div>
       )}
 
-      {error && <div role="alert" style={{ marginTop: 12, color: "#DC2626", fontSize: 13 }}>{error}</div>}
+      {error && (
+        <div role="alert" style={{ marginTop: 12, color: "#DC2626", fontSize: 13 }}>
+          {error}
+        </div>
+      )}
     </section>
   );
 }
 
 const btnPrimary: CSSProperties = {
-  padding: "9px 16px", borderRadius: 8, border: "none", background: "#111827", color: "#fff", fontWeight: 600, cursor: "pointer"
+  padding: "9px 16px",
+  borderRadius: 8,
+  border: "none",
+  background: "#111827",
+  color: "#fff",
+  fontWeight: 600,
+  cursor: "pointer"
 };
 const btnGhost: CSSProperties = {
-  padding: "9px 16px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#fff", color: "#374151", cursor: "pointer"
+  padding: "9px 16px",
+  borderRadius: 8,
+  border: "1px solid #D1D5DB",
+  background: "#fff",
+  color: "#374151",
+  cursor: "pointer"
 };

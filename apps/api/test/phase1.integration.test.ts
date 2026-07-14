@@ -91,6 +91,60 @@ async function getFirstListingId(app: INestApplication) {
   return searchRes.body.data.items[0].id as string;
 }
 
+const verificationFixtures = {
+  mp4: Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x14]), Buffer.from("ftypisom")]),
+  pdf: Buffer.from("%PDF-1.7\n")
+};
+
+async function uploadVerificationArtifact(
+  app: INestApplication,
+  accessToken: string,
+  input: {
+    listingId: string;
+    kind: "video_liveness" | "electricity_bill";
+    contentType: string;
+    fileName: string;
+    content: Buffer;
+  }
+) {
+  const presign = await http(app)
+    .post("/v1/owner/verification/artifacts/presign")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({
+      listing_id: input.listingId,
+      kind: input.kind,
+      content_type: input.contentType,
+      size_bytes: input.content.length,
+      file_name: input.fileName
+    })
+    .expect(201);
+
+  const uploadToken = presign.body.data.upload_token as string;
+  const blobPath = presign.body.data.blob_path as string;
+
+  await http(app)
+    .post("/v1/owner/verification/artifacts/upload")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .field("upload_token", uploadToken)
+    .attach("file", input.content, {
+      filename: input.fileName,
+      contentType: input.contentType
+    })
+    .expect(201);
+
+  await http(app)
+    .post("/v1/owner/verification/artifacts/complete")
+    .set("Authorization", `Bearer ${accessToken}`)
+    .send({
+      listing_id: input.listingId,
+      upload_token: uploadToken,
+      blob_path: blobPath
+    })
+    .expect(201);
+
+  return blobPath;
+}
+
 async function createPurchaseIntent(
   app: INestApplication,
   accessToken: string,
@@ -775,13 +829,20 @@ describe("Phase 1 integration flows", () => {
     }
     const owner = await loginWithOtp(app, "+919999999901");
     const listingId = await getFirstListingId(app);
+    const artifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "video_liveness",
+      contentType: "video/mp4",
+      fileName: "video-proof.mp4",
+      content: verificationFixtures.mp4
+    });
 
     const video = await http(app)
       .post("/v1/owner/verification/video")
       .set("Authorization", `Bearer ${owner.access_token}`)
       .send({
         listing_id: listingId,
-        artifact_blob_path: "/tmp/video-proof.mp4",
+        artifact_blob_path: artifactBlobPath,
         vendor_reference: "video_ref_1"
       })
       .expect(201);
@@ -806,6 +867,13 @@ describe("Phase 1 integration flows", () => {
     const owner = await loginWithOtp(app, "+919999999901");
     const admin = await loginWithOtp(app, "+919999999903");
     const listingId = await getFirstListingId(app);
+    const billArtifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "electricity_bill",
+      contentType: "application/pdf",
+      fileName: "bill.pdf",
+      content: verificationFixtures.pdf
+    });
 
     const submitted = await http(app)
       .post("/v1/owner/verification/electricity")
@@ -814,7 +882,7 @@ describe("Phase 1 integration flows", () => {
         listing_id: listingId,
         consumer_id: "cons_001",
         address_text: "gurugram sector 14",
-        bill_artifact_blob_path: "/tmp/bill.pdf"
+        bill_artifact_blob_path: billArtifactBlobPath
       })
       .expect(201);
 
@@ -858,6 +926,13 @@ describe("Phase 1 integration flows", () => {
     const owner = await loginWithOtp(app, "+919999999901");
     const admin = await loginWithOtp(app, "+919999999903");
     const listingId = await getFirstListingId(app);
+    const billArtifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "electricity_bill",
+      contentType: "application/pdf",
+      fileName: "bill-fail.pdf",
+      content: verificationFixtures.pdf
+    });
 
     const submitted = await http(app)
       .post("/v1/owner/verification/electricity")
@@ -866,7 +941,7 @@ describe("Phase 1 integration flows", () => {
         listing_id: listingId,
         consumer_id: "cons_002",
         address_text: "fraud mismatch-hard signal",
-        bill_artifact_blob_path: "/tmp/bill-fail.pdf"
+        bill_artifact_blob_path: billArtifactBlobPath
       })
       .expect(201);
 
@@ -907,13 +982,20 @@ describe("Phase 1 integration flows", () => {
     const owner = await loginWithOtp(app, "+919999999901");
     const admin = await loginWithOtp(app, "+919999999903");
     const listingId = await getFirstListingId(app);
+    const artifactBlobPath = await uploadVerificationArtifact(app, owner.access_token, {
+      listingId,
+      kind: "video_liveness",
+      contentType: "video/mp4",
+      fileName: "video-proof.mp4",
+      content: verificationFixtures.mp4
+    });
 
     const timeout = await http(app)
       .post("/v1/owner/verification/video")
       .set("Authorization", `Bearer ${owner.access_token}`)
       .send({
         listing_id: listingId,
-        artifact_blob_path: "/tmp/video-proof.mp4",
+        artifact_blob_path: artifactBlobPath,
         vendor_reference: "simulate-timeout"
       })
       .expect(201);

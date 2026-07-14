@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import {
   fetchBoostPlans,
   fetchBoostStatus,
@@ -40,6 +41,8 @@ export function BoostModal({
   onClose,
   onSuccess
 }: BoostModalProps) {
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [plans, setPlans] = useState<BoostPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +72,28 @@ export function BoostModal({
       )
       .finally(() => setLoading(false));
   }, [isOpen, accessToken, listingId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    window.setTimeout(() => closeButtonRef.current?.focus(), 0);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [isOpen, onClose]);
 
   function showToast(t: Toast) {
     setToast(t);
@@ -121,9 +146,11 @@ export function BoostModal({
           }
         }
       });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Purchase failed";
-      showToast({ type: "error", message: msg });
+    } catch {
+      showToast({
+        type: "error",
+        message: "We couldn't start the boost purchase. Please try again."
+      });
     } finally {
       setPurchasing(false);
     }
@@ -137,7 +164,7 @@ export function BoostModal({
 
   return (
     <div
-      className="modal-overlay"
+      className="modal-overlay owner-modal-overlay"
       role="dialog"
       aria-modal
       aria-label="Boost listing"
@@ -145,38 +172,26 @@ export function BoostModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div
-        className="modal"
-        style={{ maxWidth: 500, width: "min(500px, 94vw)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal owner-sheet" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="modal__header">
           <div>
-            <h2 className="modal__title" style={{ fontSize: 18 }}>
-              ⚡ Boost Listing
-            </h2>
-            <p
-              style={{
-                fontSize: 12,
-                color: "var(--text-tertiary)",
-                marginTop: 2,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                maxWidth: 300
-              }}
-            >
-              {listingTitle}
-            </p>
+            <h2 className="modal__title owner-sheet__title">⚡ Boost Listing</h2>
+            <p className="owner-sheet__subtitle">{listingTitle}</p>
           </div>
-          <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
-            ✕
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="modal__close"
+            onClick={onClose}
+            aria-label="Close boost dialog"
+          >
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="modal__body" style={{ padding: "var(--space-5)" }}>
+        <div className="modal__body owner-sheet__body">
           {/* Active boost banner */}
           {activeBoost && (
             <div

@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { authenticator } from "otplib";
-import {
-  buildOtpauthUri,
-  currentTotpStep,
-  generateTotpSecret,
-  verifyTotpCode
-} from "../totp";
+import { buildOtpauthUri, currentTotpStep, generateTotpSecret, verifyTotpCode } from "../totp";
 
 describe("totp primitives", () => {
   it("generates a non-empty base32 secret", () => {

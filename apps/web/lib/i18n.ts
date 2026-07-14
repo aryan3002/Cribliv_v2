@@ -22,6 +22,182 @@ const dictionary: Dictionary = {
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
   navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },
   navAdmin: { en: "Admin", hi: "एडमिन" },
+  ownerOverview: { en: "Overview", hi: "ओवरव्यू" },
+  ownerListings: { en: "Listings", hi: "लिस्टिंग" },
+  ownerAdd: { en: "Add", hi: "जोड़ें" },
+  ownerLeads: { en: "Leads", hi: "लीड्स" },
+  ownerVerify: { en: "Verify", hi: "वेरिफाई" },
+  ownerLanguageSwitch: { en: "हिंदी", hi: "EN" },
+  ownerLanguageSwitchLabel: { en: "Switch to Hindi", hi: "अंग्रेज़ी में बदलें" },
+  ownerOverviewEyebrow: { en: "Owner overview", hi: "ओनर ओवरव्यू" },
+  ownerOverviewGreetingMorning: { en: "Good morning", hi: "सुप्रभात" },
+  ownerOverviewGreetingAfternoon: { en: "Good afternoon", hi: "नमस्ते" },
+  ownerOverviewGreetingEvening: { en: "Good evening", hi: "शुभ संध्या" },
+  ownerOverviewEmptySubtitle: {
+    en: "Start with one listing, then track every lead from here.",
+    hi: "एक लिस्टिंग से शुरू करें, फिर हर लीड यहीं से ट्रैक करें।"
+  },
+  ownerOverviewPortfolioSubtitle: {
+    en: "{listings} listings in your portfolio, {leads} tenant leads tracked.",
+    hi: "आपके पोर्टफोलियो में {listings} लिस्टिंग हैं, {leads} किरायेदार लीड ट्रैक हो रही हैं।"
+  },
+  ownerOverviewHeadlineMetrics: {
+    en: "Owner headline metrics",
+    hi: "ओनर मुख्य मीट्रिक"
+  },
+  ownerOverviewActiveListings: { en: "Active listings", hi: "सक्रिय लिस्टिंग" },
+  ownerOverviewVisibleTenants: { en: "Visible to tenants", hi: "किरायेदारों को दिख रही हैं" },
+  ownerOverviewNewLeads7d: { en: "New leads (7d)", hi: "नई लीड्स (7 दिन)" },
+  ownerOverviewLeadRefreshFailed: { en: "Lead refresh failed", hi: "लीड रिफ्रेश नहीं हुई" },
+  ownerOverviewFreshInterest: { en: "Fresh tenant interest", hi: "नई किरायेदार रुचि" },
+  ownerOverviewPortfolioSummary: { en: "Portfolio summary", hi: "पोर्टफोलियो सारांश" },
+  ownerOverviewPending: { en: "Pending", hi: "समीक्षाधीन" },
+  ownerOverviewDrafts: { en: "Drafts", hi: "ड्राफ्ट" },
+  ownerOverviewTotal: { en: "Total", hi: "कुल" },
+  ownerOverviewPriorityWork: { en: "Priority work", hi: "जरूरी काम" },
+  ownerOverviewVerificationAttention: {
+    en: "Verification needs attention",
+    hi: "वेरिफिकेशन पर ध्यान दें"
+  },
+  ownerOverviewVerificationAttentionBody: {
+    en: "Complete verification for active listings to improve tenant trust.",
+    hi: "किरायेदार भरोसा बढ़ाने के लिए सक्रिय लिस्टिंग का वेरिफिकेशन पूरा करें।"
+  },
+  ownerOverviewCompleteVerification: {
+    en: "Complete verification",
+    hi: "वेरिफिकेशन पूरा करें"
+  },
+  ownerOverviewNoUrgentVerification: {
+    en: "No urgent verification work",
+    hi: "कोई जरूरी वेरिफिकेशन काम नहीं"
+  },
+  ownerOverviewNoUrgentVerificationBody: {
+    en: "Your active portfolio has no verification blockers.",
+    hi: "आपके सक्रिय पोर्टफोलियो में कोई वेरिफिकेशन रुकावट नहीं है।"
+  },
+  ownerOverviewViewVerification: { en: "View verification", hi: "वेरिफिकेशन देखें" },
+  ownerOverviewPortfolioManagement: { en: "Portfolio management", hi: "पोर्टफोलियो मैनेजमेंट" },
+  ownerOverviewPortfolioManagementBody: {
+    en: "Jump into focused pages for listing updates and tenant follow-up.",
+    hi: "लिस्टिंग अपडेट और किरायेदार फॉलो-अप के लिए अलग पेज खोलें।"
+  },
+  ownerOverviewManageListings: { en: "Manage listings", hi: "लिस्टिंग संभालें" },
+  ownerOverviewReviewLeads: { en: "Review leads", hi: "लीड्स देखें" },
+  ownerOverviewPortfolio: { en: "Portfolio", hi: "पोर्टफोलियो" },
+  ownerOverviewRecentListings: { en: "Recent listings", hi: "हाल की लिस्टिंग" },
+  ownerOverviewTenantInterest: { en: "Tenant interest", hi: "किरायेदार रुचि" },
+  ownerOverviewRecentLeads: { en: "Recent leads", hi: "हाल की लीड्स" },
+  ownerOverviewLoadingListings: { en: "Loading listings", hi: "लिस्टिंग लोड हो रही हैं" },
+  ownerOverviewLoadingLeads: { en: "Loading leads", hi: "लीड्स लोड हो रही हैं" },
+  ownerOverviewNoListingsYet: { en: "No listings yet", hi: "अभी कोई लिस्टिंग नहीं" },
+  ownerOverviewNoListingsYetBody: {
+    en: "Create your first listing to start receiving tenant interest.",
+    hi: "किरायेदार रुचि पाने के लिए अपनी पहली लिस्टिंग बनाएं।"
+  },
+  ownerOverviewNoLeadsYet: { en: "No leads yet", hi: "अभी कोई लीड नहीं" },
+  ownerOverviewNoLeadsYetBody: {
+    en: "New tenant enquiries will appear here.",
+    hi: "नई किरायेदार पूछताछ यहां दिखेगी।"
+  },
+  ownerOverviewLocationPending: {
+    en: "Location details pending",
+    hi: "लोकेशन जानकारी बाकी है"
+  },
+  ownerOverviewPropertyManagementAssistance: {
+    en: "Property management assistance",
+    hi: "प्रॉपर्टी मैनेजमेंट मदद"
+  },
+  ownerOverviewSecondaryAction: { en: "Secondary action", hi: "दूसरा विकल्प" },
+  ownerOverviewManagementTitle: {
+    en: "Need help managing properties?",
+    hi: "प्रॉपर्टी मैनेज करने में मदद चाहिए?"
+  },
+  ownerOverviewManagementBody: {
+    en: "Ask the Cribliv team for hands-off onboarding and operations support.",
+    hi: "ऑनबोर्डिंग और ऑपरेशन सपोर्ट के लिए Cribliv टीम से मदद मांगें।"
+  },
+  ownerOverviewRequestHelp: { en: "Request management help", hi: "मैनेजमेंट मदद मांगें" },
+  ownerOverviewRetryHelp: { en: "Retry management help", hi: "मैनेजमेंट मदद फिर मांगें" },
+  ownerOverviewSendingRequest: { en: "Sending request...", hi: "रिक्वेस्ट भेजी जा रही है..." },
+  ownerOverviewRequestSubmitted: {
+    en: "Request submitted. Our team will contact you shortly.",
+    hi: "रिक्वेस्ट जमा हो गई। हमारी टीम जल्द संपर्क करेगी।"
+  },
+  ownerOverviewRetry: { en: "Retry", hi: "फिर कोशिश करें" },
+  ownerListingsEyebrow: { en: "Listings", hi: "लिस्टिंग" },
+  ownerListingsTitle: { en: "Manage listings", hi: "लिस्टिंग संभालें" },
+  ownerListingsSubtitle: {
+    en: "Review every property, adjust availability, boost active homes, and fix items that need attention.",
+    hi: "हर प्रॉपर्टी देखें, उपलब्धता बदलें, सक्रिय घरों को बूस्ट करें और जिन लिस्टिंग पर ध्यान चाहिए उन्हें ठीक करें।"
+  },
+  ownerListingsToolbar: { en: "Listing controls", hi: "लिस्टिंग कंट्रोल" },
+  ownerFilterGroup: { en: "Listing status filters", hi: "लिस्टिंग स्टेटस फिल्टर" },
+  ownerFilterAll: { en: "All", hi: "सभी" },
+  ownerFilterDrafts: { en: "Drafts", hi: "ड्राफ्ट" },
+  ownerFilterPending: { en: "Pending", hi: "समीक्षाधीन" },
+  ownerFilterActive: { en: "Active", hi: "सक्रिय" },
+  ownerFilterRejected: { en: "Rejected", hi: "अस्वीकृत" },
+  ownerFilterPaused: { en: "Paused", hi: "रोकी गई" },
+  ownerListingsLoading: { en: "Loading listings", hi: "लिस्टिंग लोड हो रही हैं" },
+  ownerListingsEmptyTitle: { en: "No listings yet", hi: "अभी कोई लिस्टिंग नहीं" },
+  ownerListingsEmptyBody: {
+    en: "Create your first listing to start receiving tenant enquiries.",
+    hi: "किरायेदार पूछताछ पाने के लिए अपनी पहली लिस्टिंग बनाएं।"
+  },
+  ownerListingsFilteredEmpty: {
+    en: "No listings in this status",
+    hi: "इस स्टेटस में कोई लिस्टिंग नहीं"
+  },
+  ownerListingsFilteredEmptyBody: {
+    en: "Try another status filter or view all listings.",
+    hi: "दूसरा स्टेटस फिल्टर चुनें या सभी लिस्टिंग देखें।"
+  },
+  ownerListingsShowAll: { en: "Show all listings", hi: "सभी लिस्टिंग दिखाएं" },
+  ownerListingsBoostSuccess: {
+    en: "Boost started. Your listing will get higher visibility.",
+    hi: "बूस्ट शुरू हो गया। आपकी लिस्टिंग को ज्यादा विजिबिलिटी मिलेगी।"
+  },
+  ownerListingsErrorUnauthorized: {
+    en: "Your session expired. Please log in again to continue.",
+    hi: "आपका सेशन समाप्त हो गया है। जारी रखने के लिए फिर से लॉग इन करें।"
+  },
+  ownerListingsErrorNetwork: {
+    en: "You're offline or the connection dropped. Check your internet and retry.",
+    hi: "आप ऑफलाइन हैं या कनेक्शन टूट गया है। इंटरनेट जांचें और फिर कोशिश करें।"
+  },
+  ownerListingsErrorListings: {
+    en: "We couldn't refresh your listings. Please try again.",
+    hi: "हम आपकी लिस्टिंग रिफ्रेश नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerListingsErrorAvailability: {
+    en: "We couldn't update availability. Please try again.",
+    hi: "हम उपलब्धता अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerOverviewErrorUnauthorized: {
+    en: "Your session expired. Please log in again to continue.",
+    hi: "आपका सेशन समाप्त हो गया है। जारी रखने के लिए फिर से लॉग इन करें।"
+  },
+  ownerOverviewErrorNetwork: {
+    en: "You're offline or the connection dropped. Check your internet and retry.",
+    hi: "आप ऑफलाइन हैं या कनेक्शन टूट गया है। इंटरनेट जांचें और फिर कोशिश करें।"
+  },
+  ownerOverviewErrorListings: {
+    en: "We couldn't refresh your listings. Please try again.",
+    hi: "हम आपकी लिस्टिंग रिफ्रेश नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerOverviewErrorLeads: {
+    en: "We couldn't refresh your leads. Please try again.",
+    hi: "हम आपकी लीड्स रिफ्रेश नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerOverviewErrorPm: {
+    en: "We couldn't send your request. Please try again.",
+    hi: "हम आपकी रिक्वेस्ट नहीं भेज सके। कृपया फिर कोशिश करें।"
+  },
+  ownerOverviewLeadStatusNew: { en: "New", hi: "नई" },
+  ownerOverviewLeadStatusContacted: { en: "Contacted", hi: "संपर्क हुआ" },
+  ownerOverviewLeadStatusVisitScheduled: { en: "Visit Scheduled", hi: "विजिट तय" },
+  ownerOverviewLeadStatusDealDone: { en: "Deal Done", hi: "डील पूरी" },
+  ownerOverviewLeadStatusLost: { en: "Lost", hi: "छूटी" },
   menuOpen: { en: "Open menu", hi: "मेनू खोलें" },
   menuAccountSettings: { en: "Account settings", hi: "अकाउंट सेटिंग्स" },
   menuMySaved: { en: "My saved", hi: "मेरे सेव किए" },
@@ -100,6 +276,158 @@ const dictionary: Dictionary = {
     en: "Complete verification to earn a Verified badge. This builds trust and helps you get more enquiries.",
     hi: "वेरिफाइड बैज पाने के लिए वेरिफिकेशन पूरा करें। इससे भरोसा बनता है और ज़्यादा पूछताछ मिलती है।"
   },
+  verificationListingLabel: { en: "Listing", hi: "लिस्टिंग" },
+  verificationSelectListing: { en: "Select listing...", hi: "लिस्टिंग चुनें..." },
+  verificationCreateListingFirst: {
+    en: "Create a listing first, then complete owner verification.",
+    hi: "पहले लिस्टिंग बनाएं, फिर ओनर वेरिफिकेशन पूरा करें।"
+  },
+  verificationSelectListingFirst: {
+    en: "Select a listing before uploading a verification file.",
+    hi: "वेरिफिकेशन फ़ाइल अपलोड करने से पहले लिस्टिंग चुनें।"
+  },
+  verificationCurrentStatus: { en: "Current status", hi: "मौजूदा स्थिति" },
+  verificationPassedTitle: { en: "Verification Passed", hi: "वेरिफिकेशन पास" },
+  verificationPassedBody: {
+    en: "Your identity is verified. Tenants will see a Verified badge on your listing.",
+    hi: "आपकी पहचान वेरिफाइड है। किरायेदारों को आपकी लिस्टिंग पर Verified बैज दिखेगा।"
+  },
+  verificationFailedTitle: { en: "Verification Failed", hi: "वेरिफिकेशन फेल" },
+  verificationFailedBody: {
+    en: "We could not verify this listing. Re-submit with clearer details.",
+    hi: "हम इस लिस्टिंग को वेरिफाई नहीं कर सके। कृपया स्पष्ट जानकारी के साथ दोबारा जमा करें।"
+  },
+  verificationPendingTitle: {
+    en: "Verification In Progress",
+    hi: "वेरिफिकेशन प्रक्रिया में"
+  },
+  verificationPendingBody: {
+    en: "Your submission is being reviewed.",
+    hi: "आपकी सबमिशन की समीक्षा चल रही है।"
+  },
+  verificationUnverifiedTitle: { en: "Get Verified", hi: "वेरिफाइड हों" },
+  verificationUnverifiedBody: {
+    en: "Complete verification to build trust and improve lead quality.",
+    hi: "भरोसा बढ़ाने और बेहतर लीड पाने के लिए वेरिफिकेशन पूरा करें।"
+  },
+  verificationAwaitingAdmin: {
+    en: "Awaiting admin review for final verification status.",
+    hi: "अंतिम वेरिफिकेशन स्थिति के लिए एडमिन समीक्षा बाकी है।"
+  },
+  verificationStatusFailed: { en: "Verification Failed", hi: "वेरिफिकेशन फेल" },
+  verificationResultPending: { en: "Verification Pending", hi: "वेरिफिकेशन लंबित" },
+  verificationProvider: { en: "Provider", hi: "प्रोवाइडर" },
+  verificationProviderReference: { en: "Provider reference", hi: "प्रोवाइडर रेफरेंस" },
+  verificationProviderResultCode: { en: "Provider result code", hi: "प्रोवाइडर रिजल्ट कोड" },
+  verificationReviewReason: { en: "Review reason", hi: "समीक्षा कारण" },
+  verificationMatchScore: { en: "Match score: {score}%", hi: "मैच स्कोर: {score}%" },
+  verificationThreshold: { en: "Threshold: {threshold}%", hi: "थ्रेशहोल्ड: {threshold}%" },
+  verificationNoScore: {
+    en: "Complete a verification step to see results.",
+    hi: "परिणाम देखने के लिए एक वेरिफिकेशन स्टेप पूरा करें।"
+  },
+  verificationMethodLabel: { en: "Verification method", hi: "वेरिफिकेशन तरीका" },
+  verificationChooseMethod: { en: "Choose one method", hi: "एक तरीका चुनें" },
+  verificationMethodVideo: { en: "Video selfie", hi: "वीडियो सेल्फी" },
+  verificationMethodElectricity: { en: "Electricity bill", hi: "बिजली बिल" },
+  verificationVideoTitle: { en: "Video verification", hi: "वीडियो वेरिफिकेशन" },
+  verificationVideoBody: {
+    en: "Upload a clear liveness video for this listing. We upload it first, then submit the completed artifact for review.",
+    hi: "इस लिस्टिंग के लिए साफ लिवनेस वीडियो अपलोड करें। हम पहले इसे अपलोड करेंगे, फिर पूरे आर्टिफैक्ट को समीक्षा के लिए जमा करेंगे।"
+  },
+  verificationVideoArtifactLabel: {
+    en: "Upload verification video",
+    hi: "वेरिफिकेशन वीडियो अपलोड करें"
+  },
+  verificationVideoReferenceLabel: { en: "Reference code (if any)", hi: "रेफरेंस कोड (यदि हो)" },
+  verificationVideoReferencePlaceholder: { en: "e.g. REF-12345", hi: "जैसे REF-12345" },
+  verificationSubmitVideo: {
+    en: "Submit Video Verification",
+    hi: "वीडियो वेरिफिकेशन जमा करें"
+  },
+  verificationVideoRequired: {
+    en: "Please select a listing and upload a verification video.",
+    hi: "कृपया लिस्टिंग चुनें और वेरिफिकेशन वीडियो अपलोड करें।"
+  },
+  verificationVideoSubmitted: {
+    en: "Video verification submitted.",
+    hi: "वीडियो वेरिफिकेशन जमा हो गया।"
+  },
+  verificationElectricityTitle: {
+    en: "Electricity verification",
+    hi: "बिजली बिल वेरिफिकेशन"
+  },
+  verificationElectricityBody: {
+    en: "Enter your consumer ID and the address printed on the bill. Uploading a bill is optional, but helps review.",
+    hi: "अपना कंज्यूमर ID और बिल पर छपा पता दर्ज करें। बिल अपलोड करना वैकल्पिक है, लेकिन समीक्षा में मदद करता है।"
+  },
+  verificationConsumerIdLabel: { en: "Consumer ID", hi: "कंज्यूमर ID" },
+  verificationConsumerIdPlaceholder: { en: "Consumer ID", hi: "कंज्यूमर ID" },
+  verificationBillArtifactLabel: {
+    en: "Upload electricity bill (optional)",
+    hi: "बिजली बिल अपलोड करें (वैकल्पिक)"
+  },
+  verificationAddressTextLabel: { en: "Address text", hi: "पते का टेक्स्ट" },
+  verificationAddressTextPlaceholder: {
+    en: "Enter bill address text for fuzzy match",
+    hi: "मैच के लिए बिल पर लिखा पता दर्ज करें"
+  },
+  verificationSubmitElectricity: {
+    en: "Submit Electricity Verification",
+    hi: "बिजली वेरिफिकेशन जमा करें"
+  },
+  verificationElectricityRequired: {
+    en: "Please select a listing and provide your consumer ID and address.",
+    hi: "कृपया लिस्टिंग चुनें और कंज्यूमर ID व पता दें।"
+  },
+  verificationBillUploadRequired: {
+    en: "Wait for the bill upload to finish, or remove it before submitting.",
+    hi: "सबमिट करने से पहले बिल अपलोड पूरा होने दें या उसे हटा दें।"
+  },
+  verificationElectricitySubmitted: {
+    en: "Electricity verification submitted successfully.",
+    hi: "बिजली वेरिफिकेशन सफलतापूर्वक जमा हो गया।"
+  },
+  verificationSubmitting: { en: "Submitting...", hi: "जमा हो रहा है..." },
+  verificationSelectFile: { en: "Select file", hi: "फ़ाइल चुनें" },
+  verificationRetryUpload: { en: "Retry", hi: "फिर कोशिश करें" },
+  verificationRemoveFile: { en: "Remove", hi: "हटाएं" },
+  verificationUploadReady: { en: "Ready", hi: "तैयार" },
+  verificationNoFileSelected: { en: "No file selected", hi: "कोई फ़ाइल नहीं चुनी गई" },
+  verificationUploaded: { en: "uploaded", hi: "अपलोड हुआ" },
+  verificationHistoryKicker: { en: "Audit trail", hi: "ऑडिट ट्रेल" },
+  verificationHistoryTitle: { en: "Submission history", hi: "सबमिशन इतिहास" },
+  verificationHistoryVideo: { en: "Video selfie", hi: "वीडियो सेल्फी" },
+  verificationHistoryElectricity: { en: "Electricity bill", hi: "बिजली बिल" },
+  verificationHistoryStatus: { en: "Status", hi: "स्थिति" },
+  verificationHistoryMachineResult: { en: "Machine result", hi: "मशीन परिणाम" },
+  verificationHistoryAddressScore: { en: "Address match score", hi: "पता मैच स्कोर" },
+  verificationHistoryLivenessScore: { en: "Liveness score", hi: "लिवनेस स्कोर" },
+  verificationRetryableProvider: {
+    en: "Provider signaled this attempt may be retried.",
+    hi: "प्रोवाइडर ने बताया कि इस कोशिश को दोबारा किया जा सकता है।"
+  },
+  verificationSubmittedAt: { en: "Submitted", hi: "जमा किया गया" },
+  verificationErrorNetwork: {
+    en: "You're offline or the connection dropped. Check your internet and retry.",
+    hi: "आप ऑफलाइन हैं या कनेक्शन टूट गया है। इंटरनेट जांचें और फिर कोशिश करें।"
+  },
+  verificationErrorLoadListings: {
+    en: "We couldn't load your listings. Please retry.",
+    hi: "हम आपकी लिस्टिंग लोड नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  verificationErrorLoadStatus: {
+    en: "We couldn't load verification status. Please retry.",
+    hi: "हम वेरिफिकेशन स्थिति लोड नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  verificationErrorSubmitVideo: {
+    en: "Video submission failed. Please retry.",
+    hi: "वीडियो सबमिशन विफल रहा। कृपया फिर कोशिश करें।"
+  },
+  verificationErrorSubmitElectricity: {
+    en: "Electricity submission failed. Please retry.",
+    hi: "बिजली वेरिफिकेशन सबमिशन विफल रहा। कृपया फिर कोशिश करें।"
+  },
   adminDashboard: {
     en: "Admin Dashboard",
     hi: "एडमिन डैशबोर्ड"
@@ -109,6 +437,7 @@ const dictionary: Dictionary = {
   active: { en: "Active", hi: "सक्रिय" },
   rejected: { en: "Rejected", hi: "अस्वीकृत" },
   paused: { en: "Paused", hi: "रोका गया" },
+  archived: { en: "Archived", hi: "आर्काइव" },
   verified: { en: "Verified", hi: "वेरिफाइड" },
   unverified: { en: "Unverified", hi: "अवेरिफाइड" },
   submit: { en: "Submit", hi: "जमा करें" },
@@ -428,6 +757,105 @@ const dictionary: Dictionary = {
   leadLockedWaiting: {
     en: "{n} locked leads waiting",
     hi: "{n} लॉक्ड लीड इंतज़ार में हैं"
+  },
+  ownerLeadsBackDashboard: { en: "Dashboard", hi: "डैशबोर्ड" },
+  ownerLeadsTitle: { en: "Your leads", hi: "आपकी लीड्स" },
+  ownerLeadsTotal: { en: "total", hi: "कुल" },
+  ownerLeadsThisWeek: { en: "this week", hi: "इस हफ्ते" },
+  ownerLeadsVsLast7d: { en: "vs last 7d", hi: "पिछले 7 दिन से तुलना" },
+  ownerLeadsSearchLabel: { en: "Search leads", hi: "लीड्स खोजें" },
+  ownerLeadsSearchPlaceholder: {
+    en: "Search tenant, listing, phone",
+    hi: "किरायेदार, लिस्टिंग, फोन खोजें"
+  },
+  ownerLeadsViewMode: { en: "View mode", hi: "व्यू मोड" },
+  ownerLeadsBoard: { en: "Board", hi: "बोर्ड" },
+  ownerLeadsList: { en: "List", hi: "लिस्ट" },
+  ownerLeadsExportCsv: { en: "Export CSV", hi: "CSV एक्सपोर्ट करें" },
+  ownerLeadsExportingCsv: { en: "Exporting...", hi: "एक्सपोर्ट हो रहा है..." },
+  ownerLeadsExportDownloaded: {
+    en: "Export downloaded.",
+    hi: "एक्सपोर्ट डाउनलोड हो गया।"
+  },
+  ownerLeadsExportFailed: {
+    en: "We couldn't export your leads. Please try again.",
+    hi: "हम आपकी लीड्स एक्सपोर्ट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerLeadsActions: { en: "Lead actions", hi: "लीड क्रियाएं" },
+  ownerLeadsMobileControls: { en: "Mobile lead controls", hi: "मोबाइल लीड कंट्रोल" },
+  ownerLeadsFilterByStatus: {
+    en: "Filter leads by status",
+    hi: "स्टेटस से लीड फिल्टर करें"
+  },
+  ownerLeadsFilterEmpty: {
+    en: "Try another search or status filter.",
+    hi: "दूसरी खोज या स्टेटस फिल्टर आज़माएं।"
+  },
+  ownerLeadsLoading: { en: "Loading leads", hi: "लीड्स लोड हो रही हैं" },
+  ownerLeadsLoginRequired: {
+    en: "Please log in to view leads.",
+    hi: "लीड्स देखने के लिए कृपया लॉग इन करें।"
+  },
+  ownerLeadsUpdateFailed: {
+    en: "We couldn't update this lead. Please try again.",
+    hi: "हम यह लीड अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
+  ownerLeadsMovedTo: { en: "Moved to {status}", hi: "{status} में ले जाया गया" },
+  ownerLeadStatusAll: { en: "All", hi: "सभी" },
+  ownerLeadStatusNew: { en: "New", hi: "नई" },
+  ownerLeadStatusContacted: { en: "Contacted", hi: "संपर्क हुआ" },
+  ownerLeadStatusVisitScheduled: { en: "Visit Scheduled", hi: "विजिट तय" },
+  ownerLeadStatusDealDone: { en: "Deal Done", hi: "डील पूरी" },
+  ownerLeadStatusLost: { en: "Lost", hi: "छूटी" },
+  ownerLeadActionMarkContacted: { en: "Mark Contacted", hi: "संपर्क हुआ मार्क करें" },
+  ownerLeadActionMarkLost: { en: "Mark Lost", hi: "छूटी मार्क करें" },
+  ownerLeadActionScheduleVisit: { en: "Schedule Visit", hi: "विजिट तय करें" },
+  ownerLeadActionDealDone: { en: "Deal Done", hi: "डील पूरी" },
+  ownerLeadActionReopen: { en: "Re-open", hi: "फिर खोलें" },
+  ownerLeadSaving: { en: "Saving...", hi: "सेव हो रहा है..." },
+  ownerLeadEnquired: { en: "Enquired {date}", hi: "{date} को पूछताछ" },
+  ownerLeadUpdated: { en: "Updated {date}", hi: "{date} को अपडेट" },
+  ownerLeadNotesPlaceholder: {
+    en: "Add notes about this lead...",
+    hi: "इस लीड के बारे में नोट्स जोड़ें..."
+  },
+  ownerLeadAddNotes: { en: "Add notes", hi: "नोट्स जोड़ें" },
+  ownerLeadEditNotes: { en: "Edit notes", hi: "नोट्स संपादित करें" },
+  ownerLeadHideNotes: { en: "Hide notes", hi: "नोट्स छिपाएं" },
+  ownerLeadDealDoneMessage: {
+    en: "Deal completed. Great work!",
+    hi: "डील पूरी हो गई। अच्छा काम!"
+  },
+  ownerLeadsStatsEmptySub: {
+    en: "Share your listings to start receiving tenant enquiries.",
+    hi: "किरायेदार पूछताछ पाने के लिए अपनी लिस्टिंग शेयर करें।"
+  },
+  ownerLeadsTotalEnquiries: { en: "total enquiries", hi: "कुल पूछताछ" },
+  ownerLeadsListEmptyTitle: { en: "No leads", hi: "कोई लीड नहीं" },
+  ownerLeadsListEmptyStatusTitle: {
+    en: 'No leads with status "{status}"',
+    hi: '"{status}" स्टेटस में कोई लीड नहीं'
+  },
+  ownerLeadsListEmptyAllBody: {
+    en: "Once tenants enquire about your listings, they'll appear here.",
+    hi: "किरायेदार आपकी लिस्टिंग पर पूछताछ करेंगे तो वे यहां दिखेंगे।"
+  },
+  ownerLeadsListEmptySearchBody: {
+    en: "Try another search or clear the search field.",
+    hi: "दूसरी खोज करें या खोज फील्ड खाली करें।"
+  },
+  ownerLeadsListEmptyStatusBody: {
+    en: "Try selecting a different status filter above.",
+    hi: "ऊपर कोई दूसरा स्टेटस फिल्टर चुनें।"
+  },
+  ownerLeadsLoadMore: {
+    en: "Load more ({n} remaining)",
+    hi: "और लोड करें ({n} बाकी)"
+  },
+  ownerLeadsLoadingMore: { en: "Loading...", hi: "लोड हो रहा है..." },
+  ownerLeadsShowingCount: {
+    en: "Showing {shown} of {total} leads",
+    hi: "{total} में से {shown} लीड दिख रही हैं"
   },
   // ── Guest gating ────────────────────────────────────────────────────────────
   gateHeadline: { en: "Sign up free, get 10 credits", hi: "मुफ़्त साइन अप करें, 10 क्रेडिट पाएं" },

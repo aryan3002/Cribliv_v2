@@ -1,5 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { loginAsRole, setSessionOnPage } from "./utils/auth";
+
+async function goNext(page: Page) {
+  await page.getByRole("button", { name: /^next$/i }).click();
+}
 
 test.describe("Owner listing wizard happy path", () => {
   test.beforeEach(async ({ page, request }) => {
@@ -9,71 +13,76 @@ test.describe("Owner listing wizard happy path", () => {
 
   test("wizard navigates through all steps with validation", async ({ page }) => {
     await page.goto("/en/owner/listings/new");
-    await page.getByRole("button", { name: /fill manually/i }).click();
 
     /* Step indicator is visible */
-    await expect(page.getByRole("navigation", { name: /wizard progress/i })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: /listing progress/i })).toBeVisible();
 
-    /* Step 1: Basics – required fields prevent advancing */
-    await expect(page.getByLabel(/listing title/i)).toBeVisible();
-    await expect(page.getByLabel(/monthly rent/i)).toBeVisible();
+    /* Step 1: Basics - required fields prevent advancing */
+    await expect(page.getByRole("spinbutton", { name: /monthly rent/i })).toBeVisible();
 
-    /* Next should be disabled without required fields */
-    const nextBtn = page.getByRole("button", { name: /next/i });
-    await expect(nextBtn).toBeDisabled();
+    await goNext(page);
+    await expect(page.getByText(/rent is required/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: /property basics/i })).toBeVisible();
 
     /* Fill required basics */
-    await page.getByLabel(/listing title/i).fill("Test 2BHK Sector 62");
-    await page.getByLabel(/monthly rent/i).fill("18000");
+    await page.getByRole("spinbutton", { name: /monthly rent/i }).fill("18000");
+    await page.getByRole("spinbutton", { name: /security deposit/i }).fill("36000");
 
-    /* Next should now be enabled */
-    await expect(nextBtn).toBeEnabled();
-    await nextBtn.click();
+    await goNext(page);
 
     /* Step 2: Location */
-    await expect(page.getByLabel(/city/i)).toBeVisible();
-    await page.getByLabel(/city/i).selectOption("noida");
-    await page.getByRole("button", { name: /next/i }).click();
+    await expect(page.getByRole("combobox", { name: /city/i })).toBeVisible();
+    await page.getByRole("combobox", { name: /city/i }).selectOption("noida");
+    await page.getByRole("textbox", { name: /locality/i }).fill("Sector 62");
+    await page.getByRole("textbox", { name: /pincode/i }).fill("201301");
+    await goNext(page);
 
     /* Step 3: Details */
-    await expect(page.getByLabel(/bedrooms/i)).toBeVisible();
-    await page.getByLabel(/bedrooms/i).fill("2");
-    await page.getByLabel(/bathrooms/i).fill("1");
-    await page.getByRole("button", { name: /next/i }).click();
+    await expect(page.getByRole("spinbutton", { name: /bedrooms/i })).toBeVisible();
+    await page.getByRole("spinbutton", { name: /bedrooms/i }).fill("2");
+    await page.getByRole("spinbutton", { name: /bathrooms/i }).fill("1");
+    await page.getByRole("spinbutton", { name: /carpet area/i }).fill("850");
+    await goNext(page);
 
-    /* Step 4: Photos */
-    await expect(page.getByText(/add photos of your property/i)).toBeVisible();
-    await expect(page.getByText(/click or drag photos here/i)).toBeVisible();
-    await page.getByRole("button", { name: /next/i }).click();
+    /* Step 4: Title & description */
+    await expect(page.getByRole("heading", { name: /title & description/i })).toBeVisible();
+    await page.getByRole("textbox", { name: /^title$/i }).fill("Test 2BHK Sector 62");
+    await page
+      .getByRole("textbox", { name: /description/i })
+      .fill("A bright two bedroom flat near the metro.");
+    await goNext(page);
 
-    /* Step 5: Review */
-    await expect(page.getByText(/review your listing details/i)).toBeVisible();
-    await expect(page.getByText("Test 2BHK Sector 62")).toBeVisible();
-    await expect(page.getByText(/18,000/)).toBeVisible();
+    /* Step 5: Photos */
+    await expect(page.getByRole("heading", { name: /add photos/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /upload photos/i })).toBeVisible();
+    await goNext(page);
+
+    /* Step 6: Review */
+    await expect(page.getByRole("heading", { name: /review your listing/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Test 2BHK Sector 62" })).toBeVisible();
+    await expect(page.locator(".cz-review__rent")).toContainText("18,000");
     await expect(page.getByRole("button", { name: /submit for review/i })).toBeVisible();
   });
 
   test("PG segmentation shows correct banner", async ({ page }) => {
     await page.goto("/en/owner/listings/new");
-    await page.getByRole("button", { name: /fill manually/i }).click();
 
     /* Select PG type */
-    await page.getByLabel(/listing title/i).fill("PG in Gurugram");
-    await page.getByLabel(/property type/i).selectOption("pg");
-    await page.getByLabel(/monthly rent/i).fill("8000");
+    await page.getByRole("combobox", { name: /^property$/i }).selectOption("pg");
+    await page.getByRole("spinbutton", { name: /monthly rent/i }).fill("8000");
 
     /* Fill step 1, navigate to step 2, then step 3 */
-    await page.getByRole("button", { name: /next/i }).click();
-    await page.getByLabel(/city/i).selectOption("gurugram");
-    await page.getByRole("button", { name: /next/i }).click();
+    await goNext(page);
+    await page.getByRole("combobox", { name: /city/i }).selectOption("gurugram");
+    await goNext(page);
 
     /* Step 3: PG details with <30 beds shows self-serve */
-    await expect(page.getByLabel(/total beds/i)).toBeVisible();
-    await page.getByLabel(/total beds/i).fill("15");
-    await expect(page.getByText(/you can manage your listing yourself/i)).toBeVisible();
+    await expect(page.getByRole("spinbutton", { name: /total beds/i })).toBeVisible();
+    await page.getByRole("spinbutton", { name: /total beds/i }).fill("15");
+    await expect(page.getByText(/with 15 beds.*manage this listing yourself/i)).toBeVisible();
 
     /* Change to >=30 beds shows sales-assist */
-    await page.getByLabel(/total beds/i).fill("50");
-    await expect(page.getByText(/our team will help you/i)).toBeVisible();
+    await page.getByRole("spinbutton", { name: /total beds/i }).fill("50");
+    await expect(page.getByText(/our team will reach out/i)).toBeVisible();
   });
 });

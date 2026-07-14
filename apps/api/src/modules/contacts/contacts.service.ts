@@ -128,7 +128,25 @@ export class ContactsService {
     unlockId: string,
     callDeadlineAt: string | null
   ) {
-    if (!this.database.isEnabled()) return;
+    if (!this.database.isEnabled()) {
+      const listing = this.appState.listings.get(listingId);
+      if (!listing) return;
+
+      const tenant = this.appState.users.get(tenantUserId);
+      const phone = tenant?.phone ?? "";
+      const masked =
+        phone.length >= 4 ? phone.slice(0, -4).replace(/./g, "X") + phone.slice(-4) : null;
+
+      await this.leadsService.createLead({
+        listing_id: listingId,
+        owner_user_id: listing.ownerUserId,
+        tenant_user_id: tenantUserId,
+        contact_unlock_id: unlockId,
+        tenant_phone_masked: masked ?? undefined,
+        call_deadline_at: callDeadlineAt ?? undefined
+      });
+      return;
+    }
 
     // Get owner_user_id and tenant phone for the lead
     const listingInfo = await this.database.query<{ owner_user_id: string }>(

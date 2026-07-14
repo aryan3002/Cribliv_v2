@@ -1,4 +1,4 @@
-import { fetchApi } from "./api";
+import { ApiError, fetchApi, getApiBaseUrl } from "./api";
 import type { ListingStatus, VerificationStatus, ListingType } from "@cribliv/shared-types";
 
 export type { ListingStatus, VerificationStatus, ListingType };
@@ -127,6 +127,56 @@ export interface VerificationAttemptVm {
 export interface VerificationStatusVm {
   overallStatus: VerificationStatus;
   attempts: VerificationAttemptVm[];
+}
+
+export type VerificationArtifactKind = "video_liveness" | "electricity_bill";
+export type VerificationArtifactUploadErrorKind =
+  | "unsupported"
+  | "too_large"
+  | "network"
+  | "expired"
+  | "unauthorized"
+  | "complete_failed";
+
+export class VerificationArtifactUploadError extends Error {
+  readonly kind: VerificationArtifactUploadErrorKind;
+  readonly status?: number;
+  readonly code?: string;
+
+  constructor(
+    kind: VerificationArtifactUploadErrorKind,
+    message: string,
+    input: { status?: number; code?: string } = {}
+  ) {
+    super(message);
+    this.name = "VerificationArtifactUploadError";
+    this.kind = kind;
+    this.status = input.status;
+    this.code = input.code;
+  }
+}
+
+function createVerificationUploadAbortError() {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException("Verification artifact upload aborted", "AbortError");
+  }
+
+  const error = new Error("Verification artifact upload aborted");
+  error.name = "AbortError";
+  return error;
+}
+
+export function isVerificationUploadAbortError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    (error as { name?: unknown }).name === "AbortError"
+  );
+}
+
+function throwIfVerificationUploadAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw createVerificationUploadAbortError();
 }
 
 interface OwnerListingApiRow {
@@ -521,6 +571,277 @@ export async function completeListingPhotos(
   };
 }
 
+function verificationArtifactUploadUrl(uploadUrl: string) {
+  if (/^https?:\/\//i.test(uploadUrl)) return uploadUrl;
+  const base = getApiBaseUrl().replace(/\/+$/, "");
+  return `${base}/${uploadUrl.replace(/^\/+/, "")}`;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function objectValue(value: unknown) {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function parseVerificationUploadErrorCode(responseText?: string) {
+  if (!responseText) return undefined;
+
+  try {
+    const payload = objectValue(JSON.parse(responseText));
+    if (!payload) return undefined;
+
+    const errorPayload = objectValue(payload.error);
+    const messagePayload = objectValue(payload.message);
+    const detailsPayload = objectValue(payload.details);
+
+    return (
+      stringValue(errorPayload?.code) ??
+      stringValue(payload.code) ??
+      stringValue(messagePayload?.code) ??
+      stringValue(detailsPayload?.code)
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function verificationUploadErrorKindFromCode(
+  code?: string
+): VerificationArtifactUploadErrorKind | null {
+  switch (code) {
+    case "invalid_content_type":
+    case "invalid_file_signature":
+    case "invalid_artifact_kind":
+      return "unsupported";
+    case "invalid_file_size":
+      return "too_large";
+    case "upload_token_expired":
+    case "upload_token_not_found":
+    case "upload_token_consumed":
+    case "upload_token_invalid":
+    case "already_consumed":
+      return "expired";
+    default:
+      return null;
+  }
+}
+
+function verificationUploadErrorKind(
+  status: number,
+  code?: string
+): VerificationArtifactUploadErrorKind {
+  const codeKind = verificationUploadErrorKindFromCode(code);
+  if (codeKind) return codeKind;
+  if (status === 401 || status === 403) return "unauthorized";
+  if (status === 413) return "too_large";
+  if (status === 409) return "expired";
+  if (status === 415) return "unsupported";
+  return "complete_failed";
+}
+
+function multipartVerificationUpload(input: {
+  accessToken: string;
+  uploadUrl: string;
+  uploadToken: string;
+  file: File;
+  onProgress?: (percent: number) => void;
+  signal?: AbortSignal;
+}) {
+  return new Promise<void>((resolve, reject) => {
+    if (input.signal?.aborted) {
+      reject(createVerificationUploadAbortError());
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("upload_token", input.uploadToken);
+    formData.append("file", input.file, input.file.name);
+
+    const request = new XMLHttpRequest();
+    let settled = false;
+
+    const cleanup = () => {
+      input.signal?.removeEventListener("abort", abortRequest);
+    };
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const abortRequest = () => request.abort();
+
+    input.signal?.addEventListener("abort", abortRequest, { once: true });
+
+    request.open("POST", verificationArtifactUploadUrl(input.uploadUrl));
+    request.setRequestHeader("Authorization", `Bearer ${input.accessToken}`);
+
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable || event.total <= 0) return;
+      const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      input.onProgress?.(percent);
+    };
+    request.onerror = () => {
+      rejectOnce(
+        new VerificationArtifactUploadError("network", "Verification artifact upload interrupted")
+      );
+    };
+    request.onabort = () => {
+      rejectOnce(
+        input.signal?.aborted
+          ? createVerificationUploadAbortError()
+          : new VerificationArtifactUploadError(
+              "network",
+              "Verification artifact upload interrupted"
+            )
+      );
+    };
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        input.onProgress?.(100);
+        resolveOnce();
+        return;
+      }
+      const code = parseVerificationUploadErrorCode(request.responseText);
+      rejectOnce(
+        new VerificationArtifactUploadError(
+          verificationUploadErrorKind(request.status, code),
+          "Verification artifact upload failed",
+          { status: request.status, code }
+        )
+      );
+    };
+    request.send(formData);
+  });
+}
+
+function verificationArtifactKindFromApiError(
+  error: ApiError
+): VerificationArtifactUploadErrorKind {
+  const codeKind = verificationUploadErrorKindFromCode(error.code);
+  if (codeKind) return codeKind;
+  if (error.status === 401 || error.status === 403) return "unauthorized";
+  if (error.status === 413) return "too_large";
+  if (error.status === 409) return "expired";
+  if (error.status === 415) return "unsupported";
+  return "complete_failed";
+}
+
+function verificationArtifactErrorKind(error: unknown): VerificationArtifactUploadErrorKind {
+  if (error instanceof VerificationArtifactUploadError) return error.kind;
+  if (error instanceof ApiError) return verificationArtifactKindFromApiError(error);
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : typeof error === "string" ? error : "";
+  if (message.includes("failed to fetch") || message.includes("network")) return "network";
+  return "complete_failed";
+}
+
+export function friendlyVerificationArtifactUploadError(
+  error: unknown,
+  locale: "en" | "hi" = "en"
+) {
+  const kind = verificationArtifactErrorKind(error);
+  const copy: Record<VerificationArtifactUploadErrorKind, { en: string; hi: string }> = {
+    unsupported: {
+      en: "Choose a supported verification file.",
+      hi: "समर्थित वेरिफिकेशन फ़ाइल चुनें।"
+    },
+    too_large: {
+      en: "This file is too large. Choose a smaller file.",
+      hi: "यह फ़ाइल बहुत बड़ी है। छोटी फ़ाइल चुनें।"
+    },
+    network: {
+      en: "The upload was interrupted. Check your connection, then retry.",
+      hi: "अपलोड रुक गया। अपना इंटरनेट जांचें, फिर दोबारा कोशिश करें।"
+    },
+    expired: {
+      en: "The upload expired. Select the file again, then retry.",
+      hi: "अपलोड की समय-सीमा खत्म हो गई। फ़ाइल फिर से चुनें, फिर कोशिश करें।"
+    },
+    unauthorized: {
+      en: "Your session expired. Sign in again, then retry.",
+      hi: "आपका सेशन खत्म हो गया है। फिर से साइन इन करें और कोशिश करें।"
+    },
+    complete_failed: {
+      en: "We couldn't complete the upload. The file is still selected, so you can retry.",
+      hi: "हम अपलोड पूरा नहीं कर सके। फ़ाइल चुनी हुई है, इसलिए आप दोबारा कोशिश कर सकते हैं।"
+    }
+  };
+  return copy[kind][locale];
+}
+
+export async function uploadVerificationArtifact(
+  accessToken: string,
+  input: {
+    listingId: string;
+    kind: VerificationArtifactKind;
+    file: File;
+    onProgress?: (percent: number) => void;
+    signal?: AbortSignal;
+  }
+): Promise<{ blobPath: string }> {
+  throwIfVerificationUploadAborted(input.signal);
+
+  const presignRequest: RequestInit = {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({
+      listing_id: input.listingId,
+      kind: input.kind,
+      content_type: input.file.type || "application/octet-stream",
+      size_bytes: input.file.size,
+      file_name: input.file.name || "verification-artifact"
+    })
+  };
+  if (input.signal) presignRequest.signal = input.signal;
+
+  const presign = await fetchApi<{
+    upload_token: string;
+    upload_url: string;
+    blob_path: string;
+    expires_at: string;
+  }>("/owner/verification/artifacts/presign", presignRequest);
+
+  throwIfVerificationUploadAborted(input.signal);
+
+  await multipartVerificationUpload({
+    accessToken,
+    uploadUrl: presign.upload_url,
+    uploadToken: presign.upload_token,
+    file: input.file,
+    onProgress: input.onProgress,
+    signal: input.signal
+  });
+
+  throwIfVerificationUploadAborted(input.signal);
+
+  const completeRequest: RequestInit = {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({
+      listing_id: input.listingId,
+      upload_token: presign.upload_token,
+      blob_path: presign.blob_path
+    })
+  };
+  if (input.signal) completeRequest.signal = input.signal;
+
+  const complete = await fetchApi<{ blob_path: string }>(
+    "/owner/verification/artifacts/complete",
+    completeRequest
+  );
+
+  return { blobPath: complete.blob_path ?? presign.blob_path };
+}
+
 export async function submitVideoVerification(
   accessToken: string,
   body: { listingId: string; artifactBlobPath: string; vendorReference?: string }
@@ -775,6 +1096,26 @@ export async function fetchOwnerLeads(
 
 export async function fetchLeadStats(accessToken: string): Promise<LeadStats> {
   return fetchApi<LeadStats>("/owner/leads/stats", { headers: authHeaders(accessToken) });
+}
+
+export async function exportOwnerLeadsCsv(accessToken: string): Promise<Blob> {
+  const response = await fetch(`${getApiBaseUrl()}/owner/leads/export`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const errorPayload = payload?.error ?? payload ?? {};
+    throw new ApiError(errorPayload?.message ?? `Request failed with status ${response.status}`, {
+      status: response.status,
+      code: errorPayload?.code,
+      details: errorPayload?.details
+    });
+  }
+
+  return response.blob();
 }
 
 export async function updateLeadStatus(

@@ -24,10 +24,12 @@
 ### Task 1: DB migration — `admin_totp` table
 
 **Files:**
+
 - Create: `infra/migrations/0056_admin_totp.sql`
 - Create: `infra/migrations/0056_admin_totp.rollback.sql`
 
 **Interfaces:**
+
 - Produces: table `admin_totp(user_id, secret_encrypted, status, last_used_step, failed_attempts, locked_until, created_at, enabled_at, updated_at)`.
 
 - [ ] **Step 1: Write the migration SQL**
@@ -85,10 +87,12 @@ git commit --no-verify -m "feat(auth): add admin_totp table (migration 0056)"
 ### Task 2: API feature flag `ff_admin_totp`
 
 **Files:**
+
 - Modify: `apps/api/src/config/feature-flags.ts` (interface, defaults, `readFeatureFlags`)
 - Test: `apps/api/src/config/__tests__/feature-flags-admin-totp.test.ts`
 
 **Interfaces:**
+
 - Produces: `FeatureFlags.ff_admin_totp: boolean` (default `false`); `readFeatureFlags().ff_admin_totp` reads env `FF_ADMIN_TOTP`.
 
 - [ ] **Step 1: Write the failing test**
@@ -126,8 +130,8 @@ Expected: FAIL — `ff_admin_totp` does not exist on the type / is undefined.
 In `apps/api/src/config/feature-flags.ts`, in the `FeatureFlags` interface, add near the other admin flags:
 
 ```typescript
-  /** OTP-free admin login via TOTP authenticator app */
-  ff_admin_totp: boolean;
+/** OTP-free admin login via TOTP authenticator app */
+ff_admin_totp: boolean;
 ```
 
 - [ ] **Step 4: Add the default (false)**
@@ -163,10 +167,12 @@ git commit --no-verify -m "feat(auth): add ff_admin_totp feature flag"
 ### Task 3: TOTP secret crypto helper
 
 **Files:**
+
 - Create: `apps/api/src/modules/auth/admin-totp/totp.crypto.ts`
 - Test: `apps/api/src/modules/auth/admin-totp/__tests__/totp.crypto.test.ts`
 
 **Interfaces:**
+
 - Produces: `encryptTotpSecret(plaintext: string, key?: Buffer): Buffer` and `decryptTotpSecret(ciphertext: Buffer, key?: Buffer): string`. Env key `ADMIN_TOTP_ENC_KEY` (32-byte base64).
 
 - [ ] **Step 1: Write the failing test**
@@ -320,11 +326,13 @@ git commit --no-verify -m "feat(auth): AES-256-GCM helper for admin TOTP secrets
 ### Task 4: TOTP primitive wrapper (otplib)
 
 **Files:**
+
 - Modify: `apps/api/package.json` (add `otplib`, `qrcode`, `@types/qrcode`)
 - Create: `apps/api/src/modules/auth/admin-totp/totp.ts`
 - Test: `apps/api/src/modules/auth/admin-totp/__tests__/totp.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `generateTotpSecret(): string` — base32 secret.
   - `buildOtpauthUri(secret: string, accountName: string): string` — `otpauth://…` URI, issuer `"Cribliv Admin"`.
@@ -343,12 +351,7 @@ Create `apps/api/src/modules/auth/admin-totp/__tests__/totp.test.ts`:
 ```typescript
 import { describe, expect, it } from "vitest";
 import { authenticator } from "otplib";
-import {
-  buildOtpauthUri,
-  currentTotpStep,
-  generateTotpSecret,
-  verifyTotpCode
-} from "../totp";
+import { buildOtpauthUri, currentTotpStep, generateTotpSecret, verifyTotpCode } from "../totp";
 
 describe("totp primitives", () => {
   it("generates a non-empty base32 secret", () => {
@@ -444,6 +447,7 @@ Expected: PASS (4 tests).
 git add apps/api/package.json apps/api/src/modules/auth/admin-totp/totp.ts apps/api/src/modules/auth/admin-totp/__tests__/totp.test.ts ../../pnpm-lock.yaml
 git commit --no-verify -m "feat(auth): otplib TOTP primitives with skew + replay step"
 ```
+
 (If `pnpm-lock.yaml` is at the repo root, adjust the path; `git add -A` the lockfile if unsure.)
 
 ---
@@ -451,11 +455,13 @@ git commit --no-verify -m "feat(auth): otplib TOTP primitives with skew + replay
 ### Task 5: `AdminTotpService` — enrollment (start / verify / status / reset)
 
 **Files:**
+
 - Modify: `apps/api/src/common/app-state.service.ts` (in-memory store)
 - Create: `apps/api/src/modules/auth/admin-totp/admin-totp.service.ts`
 - Test: `apps/api/src/modules/auth/admin-totp/__tests__/admin-totp.service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `generateTotpSecret`, `buildOtpauthUri`, `verifyTotpCode` (Task 4); `encryptTotpSecret`, `decryptTotpSecret` (Task 3); `AppStateService`, `DatabaseService`.
 - Produces (class `AdminTotpService`):
   - `enrollStart(userId: string): Promise<{ otpauth_uri: string; qr_data_url: string }>`
@@ -469,17 +475,17 @@ git commit --no-verify -m "feat(auth): otplib TOTP primitives with skew + replay
 In `apps/api/src/common/app-state.service.ts`, near the other `Map` fields (`sessions = new Map…`), add:
 
 ```typescript
-  /** Admin TOTP enrollment — keyed by user id. In-memory dual-mode parity. */
-  adminTotp = new Map<
-    string,
-    {
-      secret: string;
-      status: "pending" | "enabled";
-      lastUsedStep: number | null;
-      failedAttempts: number;
-      lockedUntil: number | null;
-    }
-  >();
+/** Admin TOTP enrollment — keyed by user id. In-memory dual-mode parity. */
+adminTotp = new Map<
+  string,
+  {
+    secret: string;
+    status: "pending" | "enabled";
+    lastUsedStep: number | null;
+    failedAttempts: number;
+    lockedUntil: number | null;
+  }
+>();
 ```
 
 - [ ] **Step 2: Write the failing test**
@@ -624,7 +630,10 @@ export class AdminTotpService {
   async enrollVerify(userId: string, code: string): Promise<{ enabled: true }> {
     const record = await this.getSecretRecord(userId);
     if (!record) {
-      throw new BadRequestException({ code: "totp_not_started", message: "Start enrollment first" });
+      throw new BadRequestException({
+        code: "totp_not_started",
+        message: "Start enrollment first"
+      });
     }
     const { valid } = verifyTotpCode(record.secret, code);
     if (!valid) {
@@ -711,9 +720,11 @@ git commit --no-verify -m "feat(auth): AdminTotpService enrollment (start/verify
 ### Task 6: Extract `issueSessionTokens` in AuthService (behavior-preserving refactor)
 
 **Files:**
+
 - Modify: `apps/api/src/modules/auth/auth.service.ts`
 
 **Interfaces:**
+
 - Produces: `AuthService.issueSessionTokens(client, userId, role): Promise<{ access_token: string; refresh_token: string }>` where `client` is `Awaited<ReturnType<DatabaseService["getClient"]>>`. Stamps `last_login_at`, inserts a session (`4 hours` for admin else `30 days`), returns `acc_`/`ref_` tokens.
 
 - [ ] **Step 1: Add the helper method**
@@ -754,26 +765,26 @@ In `apps/api/src/modules/auth/auth.service.ts`, add a private method (place it j
 In `verifyOtp`, replace the existing block that stamps `last_login_at`, computes `sessionDuration`, and inserts into `sessions` (currently around lines 269–288, ending before `await client.query("COMMIT")`) with:
 
 ```typescript
-        // Stamp last_login_at + mint session (shared with admin TOTP login).
-        const tokens = await this.issueSessionTokens(
-          client,
-          userResult.rows[0].id,
-          userResult.rows[0].role
-        );
+// Stamp last_login_at + mint session (shared with admin TOTP login).
+const tokens = await this.issueSessionTokens(
+  client,
+  userResult.rows[0].id,
+  userResult.rows[0].role
+);
 
-        await client.query("COMMIT");
+await client.query("COMMIT");
 
-        return {
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          user: {
-            id: userResult.rows[0].id,
-            role: userResult.rows[0].role,
-            phone_e164: userResult.rows[0].phone_e164,
-            preferred_language: userResult.rows[0].preferred_language
-          },
-          is_new_user: isNewUser
-        };
+return {
+  access_token: tokens.access_token,
+  refresh_token: tokens.refresh_token,
+  user: {
+    id: userResult.rows[0].id,
+    role: userResult.rows[0].role,
+    phone_e164: userResult.rows[0].phone_e164,
+    preferred_language: userResult.rows[0].preferred_language
+  },
+  is_new_user: isNewUser
+};
 ```
 
 (Delete the now-duplicated `sessionToken`/`sessionResult`/`sessionDuration` lines and the old `return` that followed them.)
@@ -800,10 +811,12 @@ git commit --no-verify -m "refactor(auth): extract issueSessionTokens for reuse"
 ### Task 7: `AdminTotpService.verifyLogin` — OTP-free login with replay + lockout
 
 **Files:**
+
 - Modify: `apps/api/src/modules/auth/admin-totp/admin-totp.service.ts`
 - Modify: `apps/api/src/modules/auth/admin-totp/__tests__/admin-totp.service.test.ts`
 
 **Interfaces:**
+
 - Consumes: `AuthService.issueSessionTokens` (Task 6), `AdminTotpService.getSecretRecord` (Task 5), `verifyTotpCode` (Task 4).
 - Produces: `AdminTotpService.verifyLogin(phoneE164, code): Promise<{ access_token; refresh_token; user: { id; role; phone_e164; preferred_language } }>`. Requires `role='admin'` + enrolled. Locks the account for 15 min after 5 wrong codes; rejects replayed codes via `last_used_step`.
 
@@ -888,9 +901,7 @@ describe("AdminTotpService.verifyLogin (in-memory)", () => {
     }
     // 6th attempt (even with a valid code) is locked
     const secret = appState.adminTotp.get(admin.id)!.secret;
-    await expect(svc.verifyLogin(PHONE, authenticator.generate(secret))).rejects.toThrow(
-      /locked/i
-    );
+    await expect(svc.verifyLogin(PHONE, authenticator.generate(secret))).rejects.toThrow(/locked/i);
   });
 
   it("rejects a replayed code (same step reused)", async () => {
@@ -1063,11 +1074,13 @@ git commit --no-verify -m "feat(auth): admin TOTP login with replay guard + lock
 ### Task 8: `AdminTotpController` + module wiring + throttle
 
 **Files:**
+
 - Create: `apps/api/src/modules/auth/admin-totp/admin-totp.controller.ts`
 - Modify: `apps/api/src/modules/auth/auth.module.ts`
 - Test: `apps/api/src/modules/auth/admin-totp/__tests__/admin-totp.controller.int.test.ts`
 
 **Interfaces:**
+
 - Consumes: `AdminTotpService` (Tasks 5, 7), `readFeatureFlags` (Task 2), `AuthGuard`, `RolesGuard`, `@Roles`.
 - Produces the routes in the spec: `POST /auth/admin/totp/enroll/start`, `POST /auth/admin/totp/enroll/verify`, `GET /auth/admin/totp/status`, `POST /auth/admin/totp/reset` (all admin-guarded), `POST /auth/admin/login` (public, throttled). All flag-gated: return `403 { code: "totp_disabled" }` when `ff_admin_totp` is false.
 
@@ -1117,10 +1130,7 @@ export class AdminTotpController {
   @Roles("admin")
   @HttpCode(200)
   @Post("auth/admin/totp/enroll/verify")
-  async enrollVerify(
-    @Req() req: { user: { id: string } },
-    @Body() body: { totp_code: string }
-  ) {
+  async enrollVerify(@Req() req: { user: { id: string } }, @Body() body: { totp_code: string }) {
     assertEnabled();
     return ok(await this.service.enrollVerify(req.user.id, body.totp_code));
   }
@@ -1261,9 +1271,11 @@ git commit --no-verify -m "feat(auth): admin TOTP controller + module wiring"
 ### Task 9: Web — second NextAuth Credentials provider (`admin-totp`)
 
 **Files:**
+
 - Modify: `apps/web/auth.config.ts`
 
 **Interfaces:**
+
 - Consumes: `POST /auth/admin/login` (Task 8) returning `{ data: OtpVerifyResponse }`.
 - Produces: a NextAuth provider with `id: "admin-totp"`, credentials `{ phone, totpCode }`, feeding the same `jwt`/`session` callbacks as the OTP provider. The existing OTP provider keeps its default id `"credentials"`.
 
@@ -1272,40 +1284,40 @@ git commit --no-verify -m "feat(auth): admin TOTP controller + module wiring"
 In `apps/web/auth.config.ts`, add a second provider to the `providers` array (after the existing `Credentials({ name: "OTP", … })`):
 
 ```typescript
-    Credentials({
-      id: "admin-totp",
-      name: "Admin TOTP",
-      credentials: {
-        phone: { label: "Phone", type: "text" },
-        totpCode: { label: "Authenticator code", type: "text" }
-      },
-      async authorize(credentials) {
-        const { phone, totpCode } = credentials as { phone: string; totpCode: string };
-        if (!phone || !totpCode) return null;
-        try {
-          const res = await fetch(`${API_BASE_URL}/auth/admin/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone_e164: phone, totp_code: totpCode })
-          });
-          if (!res.ok) return null;
-          const payload = (await res.json()) as { data: OtpVerifyResponse };
-          const data = payload.data;
-          return {
-            id: data.user.id,
-            phone: data.user.phone_e164,
-            role: data.user.role,
-            preferredLanguage: data.user.preferred_language,
-            accessToken: data.access_token,
-            refreshToken: data.refresh_token ?? null,
-            tokenIssuedAt: Date.now(),
-            isNewUser: false
-          };
-        } catch {
-          return null;
-        }
-      }
-    })
+Credentials({
+  id: "admin-totp",
+  name: "Admin TOTP",
+  credentials: {
+    phone: { label: "Phone", type: "text" },
+    totpCode: { label: "Authenticator code", type: "text" }
+  },
+  async authorize(credentials) {
+    const { phone, totpCode } = credentials as { phone: string; totpCode: string };
+    if (!phone || !totpCode) return null;
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone_e164: phone, totp_code: totpCode })
+      });
+      if (!res.ok) return null;
+      const payload = (await res.json()) as { data: OtpVerifyResponse };
+      const data = payload.data;
+      return {
+        id: data.user.id,
+        phone: data.user.phone_e164,
+        role: data.user.role,
+        preferredLanguage: data.user.preferred_language,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? null,
+        tokenIssuedAt: Date.now(),
+        isNewUser: false
+      };
+    } catch {
+      return null;
+    }
+  }
+});
 ```
 
 - [ ] **Step 2: Typecheck the web app**
@@ -1325,10 +1337,12 @@ git commit --no-verify -m "feat(web): admin-totp NextAuth credentials provider"
 ### Task 10: Web — dedicated admin login page
 
 **Files:**
+
 - Create: `apps/web/app/[locale]/admin/login/page.tsx`
 - Modify: `apps/web/lib/feature-flags.ts` (register `ff_admin_totp`)
 
 **Interfaces:**
+
 - Consumes: `signIn("admin-totp", …)` (Task 9), `useFlag("ff_admin_totp")`.
 - Produces: a phone + 6-digit-code login screen at `/en/admin/login` that redirects to `/en/admin` on success.
 
@@ -1430,7 +1444,13 @@ export default function AdminLoginPage() {
           onChange={(e) => setPhone(e.target.value)}
           placeholder="98765 43210"
           disabled={loading}
-          style={{ width: "100%", padding: 10, margin: "6px 0 14px", borderRadius: 8, border: "1px solid #D1D5DB" }}
+          style={{
+            width: "100%",
+            padding: 10,
+            margin: "6px 0 14px",
+            borderRadius: 8,
+            border: "1px solid #D1D5DB"
+          }}
         />
 
         <label style={{ fontSize: 12, color: "#374151" }} htmlFor="admin-code">
@@ -1446,13 +1466,30 @@ export default function AdminLoginPage() {
           placeholder="••••••"
           disabled={loading}
           maxLength={6}
-          style={{ width: "100%", padding: 10, margin: "6px 0 14px", borderRadius: 8, border: "1px solid #D1D5DB", letterSpacing: 6, textAlign: "center" }}
+          style={{
+            width: "100%",
+            padding: 10,
+            margin: "6px 0 14px",
+            borderRadius: 8,
+            border: "1px solid #D1D5DB",
+            letterSpacing: 6,
+            textAlign: "center"
+          }}
         />
 
         <button
           onClick={handleSubmit}
           disabled={loading || code.length < 6}
-          style={{ width: "100%", padding: 11, borderRadius: 8, border: "none", background: "#111827", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+          style={{
+            width: "100%",
+            padding: 11,
+            borderRadius: 8,
+            border: "none",
+            background: "#111827",
+            color: "#fff",
+            fontWeight: 600,
+            cursor: "pointer"
+          }}
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>
@@ -1492,10 +1529,12 @@ git commit --no-verify -m "feat(web): admin TOTP login page"
 ### Task 11: Web — admin "Security" enrollment panel
 
 **Files:**
+
 - Create: `apps/web/components/admin/security/AdminTotpPanel.tsx`
 - Modify: `apps/web/components/admin/shell/AdminShell.tsx` (surface the panel — add a "Security" nav entry/section)
 
 **Interfaces:**
+
 - Consumes: `GET/POST /auth/admin/totp/*` (Task 8) with `Authorization: Bearer <accessToken>`; `useFlag("ff_admin_totp")`.
 - Produces: a panel showing enrollment state — "Set up authenticator" (QR + confirm-code) when not enrolled, and "Enrolled ✓ / Reset device" when enrolled.
 
@@ -1595,14 +1634,18 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
 
   return (
     <section style={{ maxWidth: 460, padding: 20 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Authenticator (2-step login)</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+        Authenticator (2-step login)
+      </h2>
       <p style={{ fontSize: 13, color: "#6B7280", marginBottom: 16 }}>
         Log in without SMS OTP using an authenticator app (Google Authenticator, Authy, etc.).
       </p>
 
       {enrolled === true && !qr && (
         <div>
-          <p style={{ color: "#059669", fontSize: 14, marginBottom: 12 }}>✓ Authenticator enrolled</p>
+          <p style={{ color: "#059669", fontSize: 14, marginBottom: 12 }}>
+            ✓ Authenticator enrolled
+          </p>
           <button onClick={resetDevice} disabled={busy} style={btnGhost}>
             Reset device (re-enroll)
           </button>
@@ -1617,9 +1660,17 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
 
       {qr && (
         <div>
-          <p style={{ fontSize: 13, marginBottom: 8 }}>1. Scan this QR in your authenticator app:</p>
+          <p style={{ fontSize: 13, marginBottom: 8 }}>
+            1. Scan this QR in your authenticator app:
+          </p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt="Authenticator QR code" width={180} height={180} style={{ marginBottom: 12 }} />
+          <img
+            src={qr}
+            alt="Authenticator QR code"
+            width={180}
+            height={180}
+            style={{ marginBottom: 12 }}
+          />
           <p style={{ fontSize: 13, marginBottom: 8 }}>2. Enter the 6-digit code it shows:</p>
           <input
             value={code}
@@ -1627,7 +1678,14 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
             inputMode="numeric"
             maxLength={6}
             placeholder="••••••"
-            style={{ padding: 10, borderRadius: 8, border: "1px solid #D1D5DB", letterSpacing: 6, textAlign: "center", width: 160 }}
+            style={{
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #D1D5DB",
+              letterSpacing: 6,
+              textAlign: "center",
+              width: 160
+            }}
           />
           <div style={{ marginTop: 12 }}>
             <button onClick={confirmEnroll} disabled={busy || code.length < 6} style={btnPrimary}>
@@ -1637,16 +1695,31 @@ export function AdminTotpPanel({ accessToken }: { accessToken: string }) {
         </div>
       )}
 
-      {error && <div role="alert" style={{ marginTop: 12, color: "#DC2626", fontSize: 13 }}>{error}</div>}
+      {error && (
+        <div role="alert" style={{ marginTop: 12, color: "#DC2626", fontSize: 13 }}>
+          {error}
+        </div>
+      )}
     </section>
   );
 }
 
 const btnPrimary: React.CSSProperties = {
-  padding: "9px 16px", borderRadius: 8, border: "none", background: "#111827", color: "#fff", fontWeight: 600, cursor: "pointer"
+  padding: "9px 16px",
+  borderRadius: 8,
+  border: "none",
+  background: "#111827",
+  color: "#fff",
+  fontWeight: 600,
+  cursor: "pointer"
 };
 const btnGhost: React.CSSProperties = {
-  padding: "9px 16px", borderRadius: 8, border: "1px solid #D1D5DB", background: "#fff", color: "#374151", cursor: "pointer"
+  padding: "9px 16px",
+  borderRadius: 8,
+  border: "1px solid #D1D5DB",
+  background: "#fff",
+  color: "#374151",
+  cursor: "pointer"
 };
 ```
 
@@ -1681,10 +1754,12 @@ git commit --no-verify -m "feat(web): admin authenticator enrollment panel"
 ### Task 12: End-to-end verification + docs
 
 **Files:**
+
 - Modify: `apps/api/.env.example` (or the repo's env sample) — document `ADMIN_TOTP_ENC_KEY` and `FF_ADMIN_TOTP`
 - Modify: `apps/web/.env.example` — document `NEXT_PUBLIC_FF_ADMIN_TOTP`
 
 **Interfaces:**
+
 - Consumes: everything above.
 
 - [ ] **Step 1: Document the new env vars**
@@ -1712,6 +1787,7 @@ Expected: all green.
 - [ ] **Step 3: Manual end-to-end smoke (in-memory)**
 
 With `FF_ADMIN_TOTP=true`, `ADMIN_TOTP_ENC_KEY` set, `OTP_PROVIDER=mock`:
+
 1. Log into `/en/admin` via `/auth/login` (OTP break-glass), phone `+919999999903`.
 2. Security → Set up authenticator → scan QR into an authenticator app.
 3. Sign out.
@@ -1751,6 +1827,7 @@ EOF
 ## Self-Review
 
 **Spec coverage:**
+
 - Data model (§1) → Task 1. ✓
 - Libraries (§2) → Task 4 Step 1. ✓
 - Secret encryption (§3) → Task 3. ✓
@@ -1761,7 +1838,7 @@ EOF
 - Bootstrap & recovery flow (§7) → Task 12 Step 3 (manual), page copy in Task 10. ✓
 - Rollout flag (§8) → Task 2 (API), Tasks 10/11 (web), Task 8 (gate). ✓
 - DB dual-mode (§9) → every service task implements both paths. ✓
-- Testing (§ Testing) → unit (Tasks 3,4,5,7), integration (Task 8); Playwright E2E is optional and folded into Task 12's manual smoke (no dedicated Playwright task — see note below). 
+- Testing (§ Testing) → unit (Tasks 3,4,5,7), integration (Task 8); Playwright E2E is optional and folded into Task 12's manual smoke (no dedicated Playwright task — see note below).
 
 **Note / intentional scope choice:** the spec mentioned a Playwright E2E. This plan verifies the web flow via the dev-server manual smoke (Task 11 Step 3, Task 12 Step 3) rather than a new Playwright spec, because the repo's E2E requires a DB-backed session harness and admin TOTP is primarily a prod-DB feature. If you want an automated E2E, add it as a follow-up task mirroring `apps/web/**/__tests__` Playwright patterns.
 

@@ -39,10 +39,7 @@ export class AdminTotpController {
   @Roles("admin")
   @HttpCode(200)
   @Post("auth/admin/totp/enroll/verify")
-  async enrollVerify(
-    @Req() req: { user: { id: string } },
-    @Body() body: { totp_code: string }
-  ) {
+  async enrollVerify(@Req() req: { user: { id: string } }, @Body() body: { totp_code: string }) {
     assertEnabled();
     return ok(await this.service.enrollVerify(req.user.id, body.totp_code));
   }

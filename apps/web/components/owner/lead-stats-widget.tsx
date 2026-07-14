@@ -3,44 +3,58 @@
 import { useEffect, useState, useCallback } from "react";
 import { fetchLeadStats, type LeadStats } from "../../lib/owner-api";
 import { Inbox, Phone, CalendarCheck, CheckCircle2, XCircle, TrendingUp } from "lucide-react";
+import { t, type Locale } from "../../lib/i18n";
 
 interface Props {
   accessToken: string;
+  locale: Locale;
 }
 
 const STAT_CONFIG: Array<{
   key: keyof Omit<LeadStats, "total">;
-  label: string;
+  labelKey: string;
   color: string;
   bg: string;
   Icon: typeof Inbox;
 }> = [
-  { key: "new", label: "New", color: "#3b82f6", bg: "rgba(59,130,246,0.1)", Icon: Inbox },
+  {
+    key: "new",
+    labelKey: "ownerLeadStatusNew",
+    color: "#3b82f6",
+    bg: "rgba(59,130,246,0.1)",
+    Icon: Inbox
+  },
   {
     key: "contacted",
-    label: "Contacted",
+    labelKey: "ownerLeadStatusContacted",
     color: "#f59e0b",
     bg: "rgba(245,158,11,0.1)",
     Icon: Phone
   },
   {
     key: "visit_scheduled",
-    label: "Visit Scheduled",
+    labelKey: "ownerLeadStatusVisitScheduled",
     color: "#7c3aed",
     bg: "rgba(124,58,237,0.1)",
     Icon: CalendarCheck
   },
   {
     key: "deal_done",
-    label: "Deal Done",
+    labelKey: "ownerLeadStatusDealDone",
     color: "#22c55e",
     bg: "rgba(34,197,94,0.1)",
     Icon: CheckCircle2
   },
-  { key: "lost", label: "Lost", color: "#94a3b8", bg: "rgba(148,163,184,0.1)", Icon: XCircle }
+  {
+    key: "lost",
+    labelKey: "ownerLeadStatusLost",
+    color: "#94a3b8",
+    bg: "rgba(148,163,184,0.1)",
+    Icon: XCircle
+  }
 ];
 
-export function LeadStatsWidget({ accessToken }: Props) {
+export function LeadStatsWidget({ accessToken, locale }: Props) {
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -75,10 +89,8 @@ export function LeadStatsWidget({ accessToken }: Props) {
       <div className="lead-stats-empty">
         <Inbox size={20} className="lead-stats-empty__icon" aria-hidden="true" />
         <div>
-          <p className="lead-stats-empty__title">No leads yet</p>
-          <p className="lead-stats-empty__sub">
-            Share your listings to start receiving tenant enquiries.
-          </p>
+          <p className="lead-stats-empty__title">{t(locale, "ownerOverviewNoLeadsYet")}</p>
+          <p className="lead-stats-empty__sub">{t(locale, "ownerLeadsStatsEmptySub")}</p>
         </div>
       </div>
     );
@@ -90,7 +102,7 @@ export function LeadStatsWidget({ accessToken }: Props) {
       <div className="lead-stats-total">
         <TrendingUp size={16} className="lead-stats-total__icon" aria-hidden="true" />
         <span className="lead-stats-total__num">{stats.total}</span>
-        <span className="lead-stats-total__label">total enquiries</span>
+        <span className="lead-stats-total__label">{t(locale, "ownerLeadsTotalEnquiries")}</span>
       </div>
 
       {/* Stat cards */}
@@ -107,7 +119,7 @@ export function LeadStatsWidget({ accessToken }: Props) {
               <span className="lead-stat-card__num" style={{ color: s.color }}>
                 {value}
               </span>
-              <span className="lead-stat-card__label">{s.label}</span>
+              <span className="lead-stat-card__label">{t(locale, s.labelKey)}</span>
               {/* Progress bar */}
               <div className="lead-stat-card__bar-track">
                 <div

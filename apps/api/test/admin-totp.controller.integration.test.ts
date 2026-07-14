@@ -85,9 +85,7 @@ describe("AdminTotpController (integration, in-memory)", () => {
   });
 
   it("full flow: enroll -> verify -> status -> login", async () => {
-    const start = await request(app.getHttpServer())
-      .post("/auth/admin/totp/enroll/start")
-      .send({});
+    const start = await request(app.getHttpServer()).post("/auth/admin/totp/enroll/start").send({});
     expect(start.status).toBe(201);
     expect(start.body.data.otpauth_uri).toMatch(/^otpauth:\/\/totp\//);
     expect(start.body.data.qr_data_url).toMatch(/^data:image\/png/);

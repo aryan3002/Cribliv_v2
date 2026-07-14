@@ -15,38 +15,55 @@ interface LeadCardProps {
   onLeadPatch?: (leadId: string, patch: Partial<LeadVm>) => void;
 }
 
-const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: string; dot: string }> =
-  {
-    new: { label: "New", color: "#1d4ed8", bg: "#eff6ff", dot: "#3b82f6" },
-    contacted: { label: "Contacted", color: "#92400e", bg: "#fffbeb", dot: "#f59e0b" },
-    visit_scheduled: { label: "Visit Scheduled", color: "#3730a3", bg: "#eef2ff", dot: "#5046e5" },
-    deal_done: { label: "Deal Done", color: "#166534", bg: "#f0fdf4", dot: "#22c55e" },
-    lost: { label: "Lost", color: "#4b5563", bg: "#f9fafb", dot: "#9ca3af" }
-  };
+const STATUS_CONFIG: Record<
+  LeadStatus,
+  { labelKey: string; color: string; bg: string; dot: string }
+> = {
+  new: { labelKey: "ownerLeadStatusNew", color: "#1d4ed8", bg: "#eff6ff", dot: "#3b82f6" },
+  contacted: {
+    labelKey: "ownerLeadStatusContacted",
+    color: "#92400e",
+    bg: "#fffbeb",
+    dot: "#f59e0b"
+  },
+  visit_scheduled: {
+    labelKey: "ownerLeadStatusVisitScheduled",
+    color: "#3730a3",
+    bg: "#eef2ff",
+    dot: "#5046e5"
+  },
+  deal_done: {
+    labelKey: "ownerLeadStatusDealDone",
+    color: "#166534",
+    bg: "#f0fdf4",
+    dot: "#22c55e"
+  },
+  lost: { labelKey: "ownerLeadStatusLost", color: "#4b5563", bg: "#f9fafb", dot: "#9ca3af" }
+};
 
 const ACTIONS: Record<
   LeadStatus,
-  Array<{ label: string; next: LeadStatus; variant: "primary" | "secondary" | "danger" }>
+  Array<{ labelKey: string; next: LeadStatus; variant: "primary" | "secondary" | "danger" }>
 > = {
   new: [
-    { label: "Mark Contacted", next: "contacted", variant: "primary" },
-    { label: "Mark Lost", next: "lost", variant: "danger" }
+    { labelKey: "ownerLeadActionMarkContacted", next: "contacted", variant: "primary" },
+    { labelKey: "ownerLeadActionMarkLost", next: "lost", variant: "danger" }
   ],
   contacted: [
-    { label: "Schedule Visit", next: "visit_scheduled", variant: "primary" },
-    { label: "Mark Lost", next: "lost", variant: "danger" }
+    { labelKey: "ownerLeadActionScheduleVisit", next: "visit_scheduled", variant: "primary" },
+    { labelKey: "ownerLeadActionMarkLost", next: "lost", variant: "danger" }
   ],
   visit_scheduled: [
-    { label: "Deal Done ✓", next: "deal_done", variant: "primary" },
-    { label: "Mark Lost", next: "lost", variant: "danger" }
+    { labelKey: "ownerLeadActionDealDone", next: "deal_done", variant: "primary" },
+    { labelKey: "ownerLeadActionMarkLost", next: "lost", variant: "danger" }
   ],
   deal_done: [],
-  lost: [{ label: "Re-open", next: "new", variant: "secondary" }]
+  lost: [{ labelKey: "ownerLeadActionReopen", next: "new", variant: "secondary" }]
 };
 
-function formatDate(iso: string) {
+function formatDate(iso: string, locale: Locale) {
   try {
-    return new Intl.DateTimeFormat("en-IN", {
+    return new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", {
       day: "numeric",
       month: "short",
       year: "numeric"
@@ -69,6 +86,7 @@ export function LeadCard({
   const [pendingStatus, setPendingStatus] = useState<LeadStatus | null>(null);
 
   const cfg = STATUS_CONFIG[lead.status];
+  const statusLabel = t(locale, cfg.labelKey);
 
   async function handleAction(next: LeadStatus) {
     setPendingStatus(next);
@@ -90,7 +108,7 @@ export function LeadCard({
           <h4 className="lead-card__listing-title">{lead.listingTitle}</h4>
           <span className="lead-card__status" style={{ background: cfg.bg, color: cfg.color }}>
             <span className="lead-card__status-dot" style={{ background: cfg.dot }} />
-            {cfg.label}
+            {statusLabel}
           </span>
         </div>
 
@@ -118,12 +136,19 @@ export function LeadCard({
         {/* Dates */}
         <div className="lead-card__dates">
           <Clock size={11} aria-hidden="true" />
-          <span>Enquired {formatDate(lead.createdAt)}</span>
+          <span>
+            {t(locale, "ownerLeadEnquired").replace("{date}", formatDate(lead.createdAt, locale))}
+          </span>
           {lead.statusChangedAt !== lead.createdAt && (
             <span className="lead-card__dates-sep">·</span>
           )}
           {lead.statusChangedAt !== lead.createdAt && (
-            <span>Updated {formatDate(lead.statusChangedAt)}</span>
+            <span>
+              {t(locale, "ownerLeadUpdated").replace(
+                "{date}",
+                formatDate(lead.statusChangedAt, locale)
+              )}
+            </span>
           )}
         </div>
 
@@ -139,7 +164,7 @@ export function LeadCard({
         {lead.status === "deal_done" && (
           <div className="lead-card__deal-done">
             <span aria-hidden="true">🎉</span>
-            Deal completed. Great work!
+            {t(locale, "ownerLeadDealDoneMessage")}
           </div>
         )}
 
@@ -149,7 +174,7 @@ export function LeadCard({
             className="textarea lead-card__textarea"
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
-            placeholder="Add notes about this lead…"
+            placeholder={t(locale, "ownerLeadNotesPlaceholder")}
           />
         )}
 
@@ -168,10 +193,10 @@ export function LeadCard({
                   {pendingStatus === action.next ? (
                     <>
                       <span className="lead-card__spinner" aria-hidden="true" />
-                      Saving…
+                      {t(locale, "ownerLeadSaving")}
                     </>
                   ) : (
-                    action.label
+                    t(locale, action.labelKey)
                   )}
                 </button>
               ))}
@@ -183,7 +208,11 @@ export function LeadCard({
               onClick={() => setShowNotes((v) => !v)}
             >
               <StickyNote size={12} aria-hidden="true" />
-              {showNotes ? "Hide notes" : lead.ownerNotes ? "Edit notes" : "Add notes"}
+              {showNotes
+                ? t(locale, "ownerLeadHideNotes")
+                : lead.ownerNotes
+                  ? t(locale, "ownerLeadEditNotes")
+                  : t(locale, "ownerLeadAddNotes")}
             </button>
           </div>
         )}
