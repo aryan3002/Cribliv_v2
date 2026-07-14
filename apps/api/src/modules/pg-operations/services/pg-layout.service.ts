@@ -16,6 +16,7 @@ import type {
 import type { PoolClient } from "pg";
 
 import { DatabaseService } from "../../../common/database.service";
+import { transaction } from "../../../common/transaction";
 
 type RoomTypeRow = {
   id: string;
@@ -372,9 +373,7 @@ export class PgLayoutService {
   ): Promise<PgRoom[]> {
     if (!this.db.isEnabled()) throw this.unavailable();
 
-    const client = await this.db.getClient();
-    try {
-      await client.query("BEGIN");
+    await transaction(this.db, async (client) => {
       await this.assertManagedOwnership(operatorId, propertyId, client);
       this.validateDraft(draft);
       await this.validateRoomTypes(client, propertyId, draft);
@@ -553,13 +552,7 @@ export class PgLayoutService {
       await client.query(`UPDATE pg_properties SET layout_status = 'ready' WHERE id = $1::uuid`, [
         propertyId
       ]);
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK").catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
 
     return this.getLayout(operatorId, propertyId);
   }

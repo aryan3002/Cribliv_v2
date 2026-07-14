@@ -358,6 +358,35 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
     ).rejects.toMatchObject({ response: { code: "maintenance_photos_not_supported" } });
   });
 
+  it("maps V2 category, SLA, and common-area location metadata when a tenant creates a ticket", async () => {
+    await createFixture();
+
+    const response = await request(app.getHttpServer())
+      .post("/v1/tenant/pg-residence/maintenance")
+      .set("x-test-identity", "tenant")
+      .set("Idempotency-Key", randomUUID())
+      .send({
+        category_slug: "plumbing",
+        description: "The washroom tap is leaking badly.",
+        location: { kind: "common_area", common_area: "common_bathroom" }
+      })
+      .expect(201);
+
+    expect(response.body.data).toMatchObject({
+      category_slug: "plumbing",
+      category_label_snapshot: "Plumbing",
+      priority: "high",
+      sla_hours: 24,
+      location_snapshot: expect.objectContaining({
+        kind: "common_area",
+        common_area: "common_bathroom"
+      })
+    });
+    expect(new Date(response.body.data.sla_due_at).getTime()).toBeGreaterThan(
+      new Date(response.body.data.created_at).getTime()
+    );
+  });
+
   it("returns room context and supports request and comment photos", async () => {
     const fixture = await createFixture();
     const createResponse = await request(app.getHttpServer())

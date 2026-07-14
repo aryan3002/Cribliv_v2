@@ -10,9 +10,16 @@ import {
 } from "@nestjs/common";
 import type {
   PgMaintenanceComment,
+  PgMaintenanceCategory,
+  PgMaintenanceCommonArea,
   PgMaintenanceCompletePhotoInput,
   PgMaintenanceCreateInput,
+  PgMaintenanceLocationKind,
+  PgMaintenanceLocationSnapshot,
+  PgMaintenancePriority,
+  PgMaintenancePrioritySource,
   PgMaintenanceRequest,
+  PgMaintenanceSlaHours,
   PgMaintenanceStatus,
   PgMaintenanceSummary,
   PgMaintenancePresignFileInput,
@@ -20,6 +27,7 @@ import type {
 } from "@cribliv/shared-types";
 
 import { DatabaseService } from "../../../common/database.service";
+import { transaction } from "../../../common/transaction";
 import type { Role } from "../../../common/types";
 import { AzureBlobPhotoStorageService } from "../../owner/azure-blob-photo-storage.service";
 
@@ -29,11 +37,34 @@ type MaintenanceRow = {
   assignment_id: string | null;
   created_by_user_id: string | null;
   category: string;
+  category_slug: string;
+  category_label_snapshot: string;
   description: string;
   photo_paths: unknown;
   status: PgMaintenanceStatus;
-  priority: string | null;
+  priority: PgMaintenancePriority;
+  priority_source: PgMaintenancePrioritySource;
+  priority_overridden_by: string | null;
+  priority_overridden_at: Date | string | null;
+  priority_override_reason: string | null;
+  sla_hours: number | string;
+  sla_due_at: Date | string;
+  is_overdue: boolean;
   closed_at: Date | string | null;
+  resolved_at: Date | string | null;
+  resolution_note: string | null;
+  resolution_source: string | null;
+  fix_photo_paths: unknown;
+  resolution_cost_paise: number | string | null;
+  chargeable_damage: boolean;
+  auto_close_after: Date | string | null;
+  location_kind: PgMaintenanceLocationKind;
+  location_room_id: string | null;
+  location_bed_id: string | null;
+  location_floor: number | null;
+  common_area: PgMaintenanceCommonArea | null;
+  location_detail: string | null;
+  location_snapshot: unknown;
   created_at: Date | string;
   updated_at: Date | string;
   property_name?: string | null;
@@ -45,6 +76,40 @@ type MaintenanceRow = {
   bed_label?: string | null;
   tenant_name?: string | null;
   tenant_phone_e164?: string | null;
+};
+
+type CategoryRow = {
+  slug: string;
+  display_name: string;
+  default_priority: PgMaintenancePriority;
+  active: boolean;
+  sort_order: number;
+};
+
+type ResidenceLocationRow = {
+  property_name: string;
+  total_floors: number | null;
+  room_id: string | null;
+  room_number: string | null;
+  room_label: string | null;
+  floor: number | null;
+  bed_id: string | null;
+  bed_label: string | null;
+};
+
+type ValidatedLocation = {
+  kind: PgMaintenanceLocationKind;
+  roomId: string | null;
+  bedId: string | null;
+  floor: number | null;
+  commonArea: PgMaintenanceCommonArea | null;
+  detail: string | null;
+  snapshot: PgMaintenanceLocationSnapshot;
+};
+
+type MaintenanceCreatePayload = Partial<PgMaintenanceCreateInput> & {
+  category_slug?: unknown;
+  location?: unknown;
 };
 
 type CommentRow = {
@@ -79,6 +144,59 @@ const STATUS_TRANSITIONS: Record<PgMaintenanceStatus, readonly PgMaintenanceStat
 
 const MAX_MAINTENANCE_PHOTOS = 6;
 
+const PG_MAINTENANCE_LOCATION_KINDS: readonly PgMaintenanceLocationKind[] = [
+  "bed",
+  "room",
+  "floor",
+  "common_area",
+  "property_wide",
+  "other"
+];
+
+const PG_MAINTENANCE_COMMON_AREAS: readonly PgMaintenanceCommonArea[] = [
+  "kitchen",
+  "common_bathroom",
+  "lift",
+  "stairs",
+  "corridor",
+  "terrace",
+  "laundry",
+  "parking",
+  "reception",
+  "mess_food_area",
+  "water_tank_motor",
+  "wifi_router",
+  "security_cctv",
+  "other"
+];
+
+const MAINTENANCE_REQUEST_SELECT = `
+  r.id::text, r.pg_property_id::text, r.assignment_id::text, r.created_by_user_id::text,
+  r.category, r.category_slug, r.category_label_snapshot, r.description, r.photo_paths,
+  r.status::text, r.priority::text AS priority, r.priority_source,
+  r.priority_overridden_by::text, r.priority_overridden_at, r.priority_override_reason,
+  r.sla_hours, r.sla_due_at,
+  (r.sla_due_at < now() AND r.status::text NOT IN ('closed', 'cancelled')) AS is_overdue,
+  r.closed_at, r.resolved_at, r.resolution_note, r.resolution_source,
+  r.fix_photo_paths, r.resolution_cost_paise, r.chargeable_damage, r.auto_close_after,
+  r.location_kind::text AS location_kind, r.room_id::text AS location_room_id,
+  r.bed_id::text AS location_bed_id, r.floor AS location_floor,
+  r.common_area::text AS common_area, r.location_detail, r.location_snapshot,
+  r.created_at, r.updated_at,
+  p.display_name AS property_name,
+  rm.room_number, rm.display_label AS room_label,
+  b.bed_label,
+  a.occupant_name AS tenant_name, a.occupant_phone_e164 AS tenant_phone_e164
+`;
+
+const MAINTENANCE_REQUEST_JOINS = `
+  FROM pg_maintenance_requests r
+  LEFT JOIN pg_properties p ON p.id = r.pg_property_id
+  LEFT JOIN pg_bed_assignments a ON a.id = r.assignment_id
+  LEFT JOIN pg_beds b ON b.id = r.bed_id
+  LEFT JOIN pg_rooms rm ON rm.id = r.room_id
+`;
+
 export const PG_MAINTENANCE_STATUSES = Object.keys(
   STATUS_TRANSITIONS
 ) as readonly PgMaintenanceStatus[];
@@ -103,6 +221,28 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function nullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function toCategory(row: CategoryRow): PgMaintenanceCategory {
+  return {
+    slug: row.slug,
+    display_name: row.display_name,
+    default_priority: row.default_priority,
+    active: row.active,
+    sort_order: Number(row.sort_order)
+  };
+}
+
 function toPhotoUrl(path: string, baseUrl: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   const normalized = path.replace(/^\/+/, "");
@@ -124,18 +264,32 @@ function toComment(row: CommentRow, photoBaseUrl = ""): PgMaintenanceComment {
 }
 
 function toLocation(row: MaintenanceRow): PgMaintenanceRequest["location"] {
-  if (!row.bed_id && !row.room_id && !row.assignment_id) return null;
+  if (!row.location_bed_id && !row.location_room_id && !row.assignment_id) return null;
   return {
     property_id: row.pg_property_id,
     property_name: row.property_name ?? null,
-    room_id: row.room_id ?? null,
+    room_id: row.location_room_id,
     room_number: row.room_number ?? null,
     room_label: row.room_label ?? null,
-    floor: row.floor ?? null,
-    bed_id: row.bed_id ?? null,
+    floor: row.location_floor,
+    bed_id: row.location_bed_id,
     bed_label: row.bed_label ?? null,
     tenant_name: row.tenant_name ?? null,
     tenant_phone_e164: row.tenant_phone_e164 ?? null
+  };
+}
+
+function toLocationSnapshot(row: MaintenanceRow): PgMaintenanceLocationSnapshot {
+  const snapshot = isRecord(row.location_snapshot) ? row.location_snapshot : {};
+  return {
+    kind: row.location_kind,
+    property_name: nullableString(snapshot.property_name) ?? row.property_name ?? null,
+    room_number: nullableString(snapshot.room_number) ?? row.room_number ?? null,
+    room_label: nullableString(snapshot.room_label) ?? row.room_label ?? null,
+    floor: nullableNumber(snapshot.floor) ?? row.location_floor,
+    bed_label: nullableString(snapshot.bed_label) ?? row.bed_label ?? null,
+    common_area: row.common_area,
+    detail: nullableString(snapshot.detail) ?? row.location_detail
   };
 }
 
@@ -156,11 +310,30 @@ function toRequest(
     photo_urls: photoPaths.map((path) => toPhotoUrl(path, photoBaseUrl)),
     status: row.status,
     priority: row.priority,
+    category_slug: row.category_slug,
+    category_label_snapshot: row.category_label_snapshot,
+    priority_source: row.priority_source,
+    priority_overridden_by: row.priority_overridden_by,
+    priority_overridden_at: toIsoNullable(row.priority_overridden_at),
+    priority_override_reason: row.priority_override_reason,
+    sla_hours: Number(row.sla_hours) as PgMaintenanceSlaHours,
+    sla_due_at: toIso(row.sla_due_at),
+    is_overdue: row.is_overdue,
     closed_at: toIsoNullable(row.closed_at),
+    resolved_at: toIsoNullable(row.resolved_at),
+    resolution_note: row.resolution_note,
+    resolution_source: row.resolution_source,
+    fix_photo_paths: stringArray(row.fix_photo_paths),
+    fix_photo_urls: stringArray(row.fix_photo_paths).map((path) => toPhotoUrl(path, photoBaseUrl)),
+    resolution_cost_paise:
+      row.resolution_cost_paise === null ? null : Number(row.resolution_cost_paise),
+    chargeable_damage: row.chargeable_damage,
+    auto_close_after: toIsoNullable(row.auto_close_after),
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
     comments,
-    location: toLocation(row)
+    location: toLocation(row),
+    location_snapshot: toLocationSnapshot(row)
   };
 }
 
@@ -338,6 +511,248 @@ export class PgMaintenanceService {
     return row;
   }
 
+  private priorityHours(priority: PgMaintenancePriority): PgMaintenanceSlaHours {
+    return priority === "emergency"
+      ? 4
+      : priority === "high"
+        ? 24
+        : priority === "normal"
+          ? 72
+          : 168;
+  }
+
+  private async categoryBySlug(slug: unknown): Promise<PgMaintenanceCategory> {
+    const cleaned = cleanRequired(slug, "maintenance_category_required");
+    const result = await this.db.query<CategoryRow>(
+      `SELECT slug, display_name, default_priority::text AS default_priority, active, sort_order
+         FROM pg_maintenance_categories
+        WHERE slug = $1 AND active = true
+        LIMIT 1`,
+      [cleaned]
+    );
+    if (!result.rows[0]) {
+      throw new BadRequestException({ code: "invalid_maintenance_category" });
+    }
+    return toCategory(result.rows[0]);
+  }
+
+  private async categoryForCreate(payload: MaintenanceCreatePayload): Promise<{
+    category: PgMaintenanceCategory;
+    legacyCategory: string;
+  }> {
+    if (payload.category_slug !== undefined) {
+      const category = await this.categoryBySlug(payload.category_slug);
+      return { category, legacyCategory: category.display_name };
+    }
+
+    const legacyCategory = cleanRequired(payload.category, "maintenance_category_required");
+    const normalized = legacyCategory
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const result = await this.db.query<CategoryRow>(
+      `SELECT slug, display_name, default_priority::text AS default_priority, active, sort_order
+         FROM pg_maintenance_categories
+        WHERE slug = $1 AND active = true
+        LIMIT 1`,
+      [normalized]
+    );
+    return {
+      category: result.rows[0] ? toCategory(result.rows[0]) : await this.categoryBySlug("other"),
+      legacyCategory
+    };
+  }
+
+  private async validateLocationInput(
+    propertyId: string,
+    residence: ResidenceAssignmentRow,
+    input: unknown
+  ): Promise<ValidatedLocation> {
+    const residenceLocation = await this.db.query<ResidenceLocationRow>(
+      `SELECT p.display_name AS property_name, p.total_floors,
+              rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
+              b.id::text AS bed_id, b.bed_label
+         FROM pg_properties p
+         JOIN pg_bed_assignments a ON a.id = $2::uuid AND a.pg_property_id = p.id
+         LEFT JOIN pg_beds b ON b.id = a.bed_id
+         LEFT JOIN pg_rooms rm ON rm.id = b.room_id
+        WHERE p.id = $1::uuid
+        LIMIT 1`,
+      [propertyId, residence.assignment_id]
+    );
+    const base = residenceLocation.rows[0];
+    if (!base) {
+      throw new BadRequestException({ code: "invalid_maintenance_location" });
+    }
+
+    const snapshot = (
+      kind: PgMaintenanceLocationKind,
+      room: Pick<ResidenceLocationRow, "room_number" | "room_label" | "floor">,
+      bedLabel: string | null,
+      commonArea: PgMaintenanceCommonArea | null,
+      detail: string | null
+    ): PgMaintenanceLocationSnapshot => ({
+      kind,
+      property_name: base.property_name,
+      room_number: room.room_number,
+      room_label: room.room_label,
+      floor: room.floor,
+      bed_label: bedLabel,
+      common_area: commonArea,
+      detail
+    });
+
+    if (input === undefined) {
+      if (base.bed_id) {
+        return {
+          kind: "bed",
+          roomId: base.room_id,
+          bedId: base.bed_id,
+          floor: base.floor,
+          commonArea: null,
+          detail: null,
+          snapshot: snapshot("bed", base, base.bed_label, null, null)
+        };
+      }
+      return {
+        kind: "property_wide",
+        roomId: null,
+        bedId: null,
+        floor: null,
+        commonArea: null,
+        detail: null,
+        snapshot: snapshot(
+          "property_wide",
+          { room_number: null, room_label: null, floor: null },
+          null,
+          null,
+          null
+        )
+      };
+    }
+
+    if (
+      !isRecord(input) ||
+      !PG_MAINTENANCE_LOCATION_KINDS.includes(input.kind as PgMaintenanceLocationKind)
+    ) {
+      throw new BadRequestException({ code: "invalid_maintenance_location" });
+    }
+    const kind = input.kind as PgMaintenanceLocationKind;
+
+    if (kind === "bed") {
+      const bedId = cleanRequired(input.bed_id, "maintenance_bed_id_required");
+      const result = await this.db.query<ResidenceLocationRow>(
+        `SELECT p.display_name AS property_name, p.total_floors,
+                rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
+                b.id::text AS bed_id, b.bed_label
+           FROM pg_beds b
+           JOIN pg_rooms rm ON rm.id = b.room_id
+           JOIN pg_properties p ON p.id = rm.pg_property_id
+          WHERE b.id = $1::uuid AND p.id = $2::uuid
+          LIMIT 1`,
+        [bedId, propertyId]
+      );
+      const bed = result.rows[0];
+      if (!bed) throw new BadRequestException({ code: "invalid_maintenance_bed" });
+      return {
+        kind,
+        roomId: bed.room_id,
+        bedId: bed.bed_id,
+        floor: bed.floor,
+        commonArea: null,
+        detail: null,
+        snapshot: snapshot(kind, bed, bed.bed_label, null, null)
+      };
+    }
+
+    if (kind === "room") {
+      const roomId = cleanRequired(input.room_id, "maintenance_room_id_required");
+      const result = await this.db.query<ResidenceLocationRow>(
+        `SELECT p.display_name AS property_name, p.total_floors,
+                rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
+                NULL::text AS bed_id, NULL::text AS bed_label
+           FROM pg_rooms rm
+           JOIN pg_properties p ON p.id = rm.pg_property_id
+          WHERE rm.id = $1::uuid AND p.id = $2::uuid
+          LIMIT 1`,
+        [roomId, propertyId]
+      );
+      const room = result.rows[0];
+      if (!room) throw new BadRequestException({ code: "invalid_maintenance_room" });
+      return {
+        kind,
+        roomId: room.room_id,
+        bedId: null,
+        floor: room.floor,
+        commonArea: null,
+        detail: null,
+        snapshot: snapshot(kind, room, null, null, null)
+      };
+    }
+
+    if (kind === "floor") {
+      const floor = input.floor;
+      if (
+        typeof floor !== "number" ||
+        !Number.isInteger(floor) ||
+        floor < 0 ||
+        (base.total_floors !== null && floor > base.total_floors)
+      ) {
+        throw new BadRequestException({ code: "invalid_maintenance_floor" });
+      }
+      return {
+        kind,
+        roomId: null,
+        bedId: null,
+        floor,
+        commonArea: null,
+        detail: null,
+        snapshot: snapshot(kind, { room_number: null, room_label: null, floor }, null, null, null)
+      };
+    }
+
+    if (kind === "common_area") {
+      if (!PG_MAINTENANCE_COMMON_AREAS.includes(input.common_area as PgMaintenanceCommonArea)) {
+        throw new BadRequestException({ code: "invalid_maintenance_common_area" });
+      }
+      const commonArea = input.common_area as PgMaintenanceCommonArea;
+      return {
+        kind,
+        roomId: null,
+        bedId: null,
+        floor: null,
+        commonArea,
+        detail: null,
+        snapshot: snapshot(
+          kind,
+          { room_number: null, room_label: null, floor: null },
+          null,
+          commonArea,
+          null
+        )
+      };
+    }
+
+    const detail =
+      kind === "other" ? cleanRequired(input.detail, "maintenance_location_detail_required") : null;
+    return {
+      kind,
+      roomId: null,
+      bedId: null,
+      floor: null,
+      commonArea: null,
+      detail,
+      snapshot: snapshot(
+        kind,
+        { room_number: null, room_label: null, floor: null },
+        null,
+        null,
+        detail
+      )
+    };
+  }
+
   private async callerRole(userId: string): Promise<Role> {
     const result = await this.db.query<{ role: Role }>(
       `SELECT role::text AS role
@@ -355,18 +770,8 @@ export class PgMaintenanceService {
 
   private async requestForAccess(requestId: string): Promise<MaintenanceRow> {
     const result = await this.db.query<MaintenanceRow>(
-      `SELECT r.id::text, r.pg_property_id::text, r.assignment_id::text, r.created_by_user_id::text,
-              r.category, r.description, r.photo_paths, r.status::text, r.priority,
-              r.closed_at, r.created_at, r.updated_at,
-              p.display_name AS property_name,
-              rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
-              b.id::text AS bed_id, b.bed_label,
-              a.occupant_name AS tenant_name, a.occupant_phone_e164 AS tenant_phone_e164
-         FROM pg_maintenance_requests r
-         LEFT JOIN pg_properties p ON p.id = r.pg_property_id
-         LEFT JOIN pg_bed_assignments a ON a.id = r.assignment_id
-         LEFT JOIN pg_beds b ON b.id = a.bed_id
-         LEFT JOIN pg_rooms rm ON rm.id = b.room_id
+      `SELECT ${MAINTENANCE_REQUEST_SELECT}
+         ${MAINTENANCE_REQUEST_JOINS}
         WHERE r.id = $1::uuid
         LIMIT 1`,
       [requestId]
@@ -424,29 +829,51 @@ export class PgMaintenanceService {
     input: Partial<PgMaintenanceCreateInput> | undefined
   ): Promise<PgMaintenanceRequest> {
     if (!this.db.isEnabled()) throw this.unavailable();
-    const payload = input ?? {};
-    const category = cleanRequired(payload.category, "maintenance_category_required");
+    const payload = (input ?? {}) as MaintenanceCreatePayload;
     const description = cleanRequired(payload.description, "maintenance_description_required");
     const photoPaths = this.validateStringArray(payload.photo_paths, "invalid_maintenance_photos");
     if (photoPaths.length > 0) {
       throw new BadRequestException({ code: "maintenance_photos_not_supported" });
     }
-    const priority = cleanOptional(payload.priority, "invalid_maintenance_priority");
     const residence = await this.currentResidenceAssignment(callerUserId);
+    const { category, legacyCategory } = await this.categoryForCreate(payload);
+    const location = await this.validateLocationInput(
+      residence.property_id,
+      residence,
+      payload.location
+    );
+    const slaHours = this.priorityHours(category.default_priority);
 
     const result = await this.db.query<{ id: string }>(
       `INSERT INTO pg_maintenance_requests
-         (pg_property_id, assignment_id, created_by_user_id, category, description, photo_paths, priority)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::jsonb, $7)
+         (pg_property_id, assignment_id, created_by_user_id, category, category_slug,
+          category_label_snapshot, description, photo_paths, priority, priority_source,
+          sla_hours, sla_due_at, location_kind, room_id, bed_id, floor, common_area,
+          location_detail, location_snapshot)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::jsonb,
+               $9::pg_maintenance_priority, 'category_default', $10,
+               now() + make_interval(hours => $11::integer), $12::pg_maintenance_location_kind,
+               $13::uuid, $14::uuid, $15, $16::pg_maintenance_common_area, $17, $18::jsonb)
        RETURNING id::text`,
       [
         residence.property_id,
         residence.assignment_id,
         callerUserId,
-        category,
+        legacyCategory,
+        category.slug,
+        category.display_name,
         description,
         JSON.stringify(photoPaths),
-        priority
+        category.default_priority,
+        slaHours,
+        slaHours,
+        location.kind,
+        location.roomId,
+        location.bedId,
+        location.floor,
+        location.commonArea,
+        location.detail,
+        JSON.stringify(location.snapshot)
       ]
     );
     const requests = await this.withComments([await this.requestForAccess(result.rows[0].id)]);
@@ -464,18 +891,8 @@ export class PgMaintenanceService {
     }
     await this.assertManagedOwnership(operatorId, propertyId);
     const result = await this.db.query<MaintenanceRow>(
-      `SELECT r.id::text, r.pg_property_id::text, r.assignment_id::text, r.created_by_user_id::text,
-              r.category, r.description, r.photo_paths, r.status::text, r.priority,
-              r.closed_at, r.created_at, r.updated_at,
-              p.display_name AS property_name,
-              rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
-              b.id::text AS bed_id, b.bed_label,
-              a.occupant_name AS tenant_name, a.occupant_phone_e164 AS tenant_phone_e164
-         FROM pg_maintenance_requests r
-         LEFT JOIN pg_properties p ON p.id = r.pg_property_id
-         LEFT JOIN pg_bed_assignments a ON a.id = r.assignment_id
-         LEFT JOIN pg_beds b ON b.id = a.bed_id
-         LEFT JOIN pg_rooms rm ON rm.id = b.room_id
+      `SELECT ${MAINTENANCE_REQUEST_SELECT}
+         ${MAINTENANCE_REQUEST_JOINS}
         WHERE r.pg_property_id = $1::uuid
           AND ($2::text IS NULL OR r.status::text = $2)
         ORDER BY r.created_at DESC, r.id DESC`,
@@ -492,21 +909,11 @@ export class PgMaintenanceService {
     if (!this.db.isEnabled()) return [];
     await this.assertManagedOwnership(operatorId, propertyId);
     const result = await this.db.query<MaintenanceRow>(
-      `SELECT r.id::text, r.pg_property_id::text, r.assignment_id::text,
-              r.created_by_user_id::text, r.category, r.description, r.photo_paths,
-              r.status::text, r.priority, r.closed_at, r.created_at, r.updated_at,
-              p.display_name AS property_name,
-              rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
-              b.id::text AS bed_id, b.bed_label,
-              a.occupant_name AS tenant_name, a.occupant_phone_e164 AS tenant_phone_e164
-         FROM pg_maintenance_requests r
-         LEFT JOIN pg_properties p ON p.id = r.pg_property_id
-         JOIN pg_bed_assignments a ON a.id = r.assignment_id
-         LEFT JOIN pg_beds b ON b.id = a.bed_id
-         LEFT JOIN pg_rooms rm ON rm.id = b.room_id
+      `SELECT ${MAINTENANCE_REQUEST_SELECT}
+         ${MAINTENANCE_REQUEST_JOINS}
         WHERE r.pg_property_id = $1::uuid
           AND a.pg_property_id = $1::uuid
-          AND a.bed_id = $2::uuid
+          AND r.bed_id = $2::uuid
         ORDER BY r.created_at DESC, r.id DESC`,
       [propertyId, bedId]
     );
@@ -517,18 +924,8 @@ export class PgMaintenanceService {
     if (!this.db.isEnabled()) return [];
     const residence = await this.currentResidenceAssignment(tenantUserId);
     const result = await this.db.query<MaintenanceRow>(
-      `SELECT r.id::text, r.pg_property_id::text, r.assignment_id::text,
-              r.created_by_user_id::text, r.category, r.description, r.photo_paths,
-              r.status::text, r.priority, r.closed_at, r.created_at, r.updated_at,
-              p.display_name AS property_name,
-              rm.id::text AS room_id, rm.room_number, rm.display_label AS room_label, rm.floor,
-              b.id::text AS bed_id, b.bed_label,
-              a.occupant_name AS tenant_name, a.occupant_phone_e164 AS tenant_phone_e164
-         FROM pg_maintenance_requests r
-         LEFT JOIN pg_properties p ON p.id = r.pg_property_id
-         LEFT JOIN pg_bed_assignments a ON a.id = r.assignment_id
-         LEFT JOIN pg_beds b ON b.id = a.bed_id
-         LEFT JOIN pg_rooms rm ON rm.id = b.room_id
+      `SELECT ${MAINTENANCE_REQUEST_SELECT}
+         ${MAINTENANCE_REQUEST_JOINS}
         WHERE r.assignment_id = $1::uuid
         ORDER BY r.created_at DESC, r.id DESC`,
       [residence.assignment_id]
@@ -565,16 +962,12 @@ export class PgMaintenanceService {
     if (!isPgMaintenanceStatus(status)) {
       throw new BadRequestException({ code: "invalid_maintenance_status" });
     }
-    const client = await this.db.getClient();
-    try {
-      await client.query("BEGIN");
+    const updatedRequestId = await transaction(this.db, async (client) => {
       const existing = await client.query<MaintenanceRow>(
-        `SELECT id::text, pg_property_id::text, assignment_id::text, created_by_user_id::text,
-                category, description, photo_paths, status::text, priority,
-                closed_at, created_at, updated_at
-           FROM pg_maintenance_requests
-          WHERE id = $1::uuid
-          FOR UPDATE`,
+        `SELECT ${MAINTENANCE_REQUEST_SELECT}
+           ${MAINTENANCE_REQUEST_JOINS}
+          WHERE r.id = $1::uuid
+          FOR UPDATE OF r`,
         [requestId]
       );
       const request = existing.rows[0];
@@ -627,15 +1020,10 @@ export class PgMaintenanceService {
           to_status: status
         });
       }
-      await client.query("COMMIT");
-      const requests = await this.withComments([await this.requestForAccess(result.rows[0].id)]);
-      return requests[0];
-    } catch (error) {
-      await client.query("ROLLBACK").catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+      return result.rows[0].id;
+    });
+    const requests = await this.withComments([await this.requestForAccess(updatedRequestId)]);
+    return requests[0];
   }
 
   async addComment(
@@ -748,9 +1136,7 @@ export class PgMaintenanceService {
       )
     );
 
-    const client = await this.db.getClient();
-    try {
-      await client.query("BEGIN");
+    await transaction(this.db, async (client) => {
       const current = await client.query<{ photo_paths: unknown }>(
         `SELECT photo_paths
            FROM pg_maintenance_requests
@@ -783,13 +1169,7 @@ export class PgMaintenanceService {
           WHERE id = $1::uuid`,
         [requestId, JSON.stringify(merged)]
       );
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK").catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
     const requests = await this.withComments([await this.requestForAccess(requestId)]);
     return requests[0];
   }
