@@ -1,0 +1,270 @@
+import { Inject, Injectable } from "@nestjs/common";
+import { AppStateService } from "../../common/app-state.service";
+import { DatabaseService } from "../../common/database.service";
+import { toBlobUrl } from "../../common/photo-url";
+import { VerificationArtifactSasIssuer } from "./verification-artifact-sas.issuer";
+
+export interface AdminListingPhoto {
+  url: string | null;
+  is_cover: boolean;
+  sort_order: number;
+  moderation_status: string;
+}
+
+export interface AdminReviewOwner {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  whatsapp_opt_in: boolean;
+  preferred_language: string | null;
+  role: string;
+  is_blocked: boolean;
+  member_since: string | null;
+  active_listings: number;
+  report_count: number;
+}
+
+export interface AdminReviewEvidence {
+  attempt_id: string;
+  kind: string; // verification_type
+  result: string;
+  liveness_score: number | null;
+  address_match_score: number | null;
+  threshold: number;
+  provider: string | null;
+  provider_result_code: string | null;
+  review_reason: string | null;
+  artifact_available: boolean;
+  created_at: string;
+}
+
+export interface AdminListingDetail {
+  listing: Record<string, unknown>;
+  location: Record<string, unknown> | null;
+  owner: AdminReviewOwner;
+  photos: AdminListingPhoto[];
+  pg: { details: Record<string, unknown> | null; rooms: Record<string, unknown>[] } | null;
+  verification: AdminReviewEvidence[];
+}
+
+@Injectable()
+export class AdminReviewService {
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(AppStateService) private readonly appState: AppStateService,
+    @Inject(VerificationArtifactSasIssuer)
+    private readonly sas: VerificationArtifactSasIssuer
+  ) {}
+
+  async getListingDetail(listingId: string): Promise<AdminListingDetail | null> {
+    if (!this.database.isEnabled()) {
+      return this.getListingDetailInMemory(listingId);
+    }
+
+    const main = await this.database.query<any>(
+      `
+      SELECT
+        l.id::text, l.listing_type::text, l.title_en, l.title_hi,
+        l.description_en, l.description_hi, l.status::text, l.verification_status::text,
+        l.monthly_rent, l.security_deposit, l.available_from::text, l.furnishing::text,
+        l.bhk, l.bathrooms, l.area_sqft, l.preferred_tenant::text, l.whatsapp_available,
+        l.amenities, l.rules, l.created_at::text,
+        ll.address_line1, ll.landmark, ll.pincode, ll.lat, ll.lng, ll.masked_address,
+        loc.name_en AS locality_name, c.slug AS city_slug, c.name_en AS city_name,
+        u.id::text AS owner_id, u.full_name AS owner_name, u.phone_e164 AS owner_phone,
+        u.whatsapp_opt_in AS owner_whatsapp, u.preferred_language::text AS owner_language,
+        u.role::text AS owner_role, u.is_blocked AS owner_blocked, u.created_at::text AS owner_created_at
+      FROM listings l
+      LEFT JOIN listing_locations ll ON ll.listing_id = l.id
+      LEFT JOIN cities c ON c.id = ll.city_id
+      LEFT JOIN localities loc ON loc.id = ll.locality_id
+      JOIN users u ON u.id = l.owner_user_id
+      WHERE l.id = $1::uuid
+      `,
+      [listingId]
+    );
+    const row = main.rows[0];
+    if (!row) return null;
+
+    const agg = await this.database.query<{ active_listings: number; report_count: number }>(
+      `
+      SELECT
+        count(*) FILTER (WHERE status = 'active')::int AS active_listings,
+        COALESCE(sum(report_count)::int, 0) AS report_count
+      FROM listings WHERE owner_user_id = $1::uuid
+      `,
+      [row.owner_id]
+    );
+
+    const photos = await this.database.query<any>(
+      `
+      SELECT blob_path, is_cover, sort_order, moderation_status::text
+      FROM listing_photos
+      WHERE listing_id = $1::uuid AND moderation_status != 'rejected'
+      ORDER BY is_cover DESC, sort_order ASC, created_at ASC
+      `,
+      [listingId]
+    );
+
+    let pg: AdminListingDetail["pg"] = null;
+    if (row.listing_type === "pg") {
+      const details = await this.database.query<any>(
+        `
+        SELECT total_beds, occupancy_type::text, gender_policy::text, tenant_type::text,
+               food_included, curfew_time::text, attached_bathroom, notice_period_days,
+               lock_in_months, electricity_mode::text, meals, house_rules, amenities
+        FROM pg_details WHERE listing_id = $1::uuid
+        `,
+        [listingId]
+      );
+      const rooms = await this.database.query<any>(
+        `
+        SELECT sharing::text, ac, bathroom_kind::text, furnishing::text,
+               monthly_rent_paise, vacancy_count, available_from::text
+        FROM pg_room_types WHERE listing_id = $1::uuid
+        ORDER BY monthly_rent_paise ASC
+        `,
+        [listingId]
+      );
+      pg = { details: details.rows[0] ?? null, rooms: rooms.rows };
+    }
+
+    const attempts = await this.database.query<any>(
+      `
+      SELECT DISTINCT ON (va.verification_type)
+        va.id::text AS id, va.verification_type::text AS verification_type, va.result::text AS result,
+        va.liveness_score, va.address_match_score, va.threshold, va.artifact_paths,
+        va.created_at::text AS created_at,
+        vpl.provider, vpl.provider_result_code, vpl.review_reason
+      FROM verification_attempts va
+      LEFT JOIN LATERAL (
+        SELECT provider, provider_result_code, review_reason
+        FROM verification_provider_logs
+        WHERE attempt_id = va.id ORDER BY created_at DESC LIMIT 1
+      ) vpl ON true
+      WHERE va.listing_id = $1::uuid
+      ORDER BY va.verification_type, va.created_at DESC
+      `,
+      [listingId]
+    );
+
+    return {
+      listing: {
+        id: row.id,
+        listing_type: row.listing_type,
+        title_en: row.title_en,
+        title_hi: row.title_hi,
+        description_en: row.description_en,
+        description_hi: row.description_hi,
+        status: row.status,
+        verification_status: row.verification_status,
+        monthly_rent: row.monthly_rent,
+        security_deposit: row.security_deposit,
+        available_from: row.available_from,
+        furnishing: row.furnishing,
+        bhk: row.bhk,
+        bathrooms: row.bathrooms,
+        area_sqft: row.area_sqft,
+        preferred_tenant: row.preferred_tenant,
+        whatsapp_available: row.whatsapp_available,
+        amenities: row.amenities ?? [],
+        rules: row.rules ?? {},
+        created_at: row.created_at
+      },
+      location: {
+        address_line1: row.address_line1,
+        landmark: row.landmark,
+        pincode: row.pincode,
+        lat: row.lat,
+        lng: row.lng,
+        masked_address: row.masked_address,
+        locality_name: row.locality_name,
+        city_slug: row.city_slug,
+        city_name: row.city_name
+      },
+      owner: {
+        id: row.owner_id,
+        name: row.owner_name,
+        phone: row.owner_phone,
+        whatsapp_opt_in: Boolean(row.owner_whatsapp),
+        preferred_language: row.owner_language,
+        role: row.owner_role,
+        is_blocked: Boolean(row.owner_blocked),
+        member_since: row.owner_created_at,
+        active_listings: agg.rows[0]?.active_listings ?? 0,
+        report_count: agg.rows[0]?.report_count ?? 0
+      },
+      photos: photos.rows.map((p) => ({
+        url: toBlobUrl(p.blob_path),
+        is_cover: Boolean(p.is_cover),
+        sort_order: p.sort_order,
+        moderation_status: p.moderation_status
+      })),
+      pg,
+      verification: attempts.rows.map((a) => this.toEvidence(a))
+    };
+  }
+
+  private toEvidence(a: any): AdminReviewEvidence {
+    const paths = Array.isArray(a.artifact_paths) ? a.artifact_paths : [];
+    return {
+      attempt_id: a.id,
+      kind: a.verification_type,
+      result: a.result,
+      liveness_score: a.liveness_score,
+      address_match_score: a.address_match_score,
+      threshold: Number(a.threshold),
+      provider: a.provider ?? null,
+      provider_result_code: a.provider_result_code ?? null,
+      review_reason: a.review_reason ?? null,
+      artifact_available: paths.length > 0,
+      created_at: a.created_at
+    };
+  }
+
+  private getListingDetailInMemory(listingId: string): AdminListingDetail | null {
+    const l = this.appState.listings.get(listingId);
+    if (!l) return null;
+    const u = this.appState.users.get(l.ownerUserId);
+    return {
+      listing: {
+        id: l.id,
+        listing_type: l.listingType,
+        title_en: l.title,
+        title_hi: null,
+        description_en: null,
+        description_hi: null,
+        status: l.status,
+        verification_status: l.verificationStatus,
+        monthly_rent: l.monthlyRent,
+        security_deposit: null,
+        available_from: null,
+        furnishing: l.furnishing ?? null,
+        bhk: null,
+        bathrooms: null,
+        area_sqft: null,
+        preferred_tenant: null,
+        whatsapp_available: false,
+        amenities: l.amenities ?? [],
+        rules: {},
+        created_at: new Date(l.createdAt).toISOString()
+      },
+      location: { city_name: l.city ?? null, locality_name: l.locality ?? null } as any,
+      owner: {
+        id: l.ownerUserId,
+        name: (u as any)?.full_name ?? null,
+        phone: (u as any)?.phone ?? null,
+        whatsapp_opt_in: Boolean((u as any)?.whatsapp_opt_in),
+        preferred_language: (u as any)?.preferred_language ?? null,
+        role: (u as any)?.role ?? "owner",
+        is_blocked: false,
+        member_since: null,
+        active_listings: 0,
+        report_count: 0
+      },
+      photos: [],
+      pg: null,
+      verification: []
+    };
+  }
+}
