@@ -74,10 +74,13 @@ export interface AdminVerificationDetail {
 @Injectable()
 export class AdminReviewService {
   private readonly logger = new Logger(AdminReviewService.name);
-  private static readonly KIND_TO_TYPE: Record<string, string> = {
-    video_liveness: "video_liveness",
-    electricity_bill: "electricity_bill_match"
-  };
+  private static readonly KIND_TO_TYPE: Record<string, string> = Object.assign(
+    Object.create(null),
+    {
+      video_liveness: "video_liveness",
+      electricity_bill: "electricity_bill_match"
+    }
+  );
 
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
@@ -310,12 +313,24 @@ export class AdminReviewService {
     const blobPath = paths[0];
     if (!blobPath) return null;
 
-    const issued = this.sas.issue(blobPath, 600);
+    const ttl = Number(process.env.VERIFICATION_ARTIFACT_SAS_TTL_SECONDS) || 600;
+    const issued = this.sas.issue(blobPath, ttl);
     if (!issued) return null;
 
     this.logger.log(
       `admin ${adminUserId} viewed verification artifact attempt=${attemptId} kind=${kind}`
     );
+
+    await this.database
+      .query(
+        `
+        INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+        VALUES ($1::uuid, 'verification_attempt', $2::uuid, 'verification_artifact_view'::admin_action_type, $3, null, null)
+        `,
+        [adminUserId, attemptId, `kind=${kind}`]
+      )
+      .catch(() => undefined); // admin_actions insert is best-effort; must not block the artifact link
+
     return { url: issued.url, expires_at: issued.expiresAt };
   }
 

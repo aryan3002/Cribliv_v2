@@ -183,7 +183,10 @@ describe("AdminReviewService.getVerificationArtifactLink", () => {
   };
 
   it("mints a read-only link for the matching kind", async () => {
-    const query = vi.fn().mockResolvedValueOnce({ rows: [attemptRow], rowCount: 1 });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [attemptRow], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });
     const database = { isEnabled: () => true, query } as any;
     const sas = {
       issue: vi.fn(() => ({
@@ -198,6 +201,33 @@ describe("AdminReviewService.getVerificationArtifactLink", () => {
     );
     const out = await svc.getVerificationArtifactLink("V1", "video_liveness", "ADMIN1");
     expect(sas.issue).toHaveBeenCalledWith("L1/verification/video_liveness/clip.mp4", 600);
+    expect(out).toEqual({ url: "https://acct/blob?sig=x", expires_at: "2026-01-01T00:00:00.000Z" });
+
+    expect(query).toHaveBeenCalledTimes(2);
+    const [auditSql, auditParams] = query.mock.calls[1];
+    expect(auditSql).toContain("admin_actions");
+    expect(auditSql).toContain("verification_artifact_view");
+    expect(auditParams).toEqual(["ADMIN1", "V1", "kind=video_liveness"]);
+  });
+
+  it("still returns the link when the best-effort audit insert fails", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [attemptRow], rowCount: 1 })
+      .mockRejectedValueOnce(new Error("insert failed"));
+    const database = { isEnabled: () => true, query } as any;
+    const sas = {
+      issue: vi.fn(() => ({
+        url: "https://acct/blob?sig=x",
+        expiresAt: "2026-01-01T00:00:00.000Z"
+      }))
+    };
+    const svc = new (await import("../../admin-review.service")).AdminReviewService(
+      database,
+      { listings: new Map(), users: new Map() } as any,
+      sas as any
+    );
+    const out = await svc.getVerificationArtifactLink("V1", "video_liveness", "ADMIN1");
     expect(out).toEqual({ url: "https://acct/blob?sig=x", expires_at: "2026-01-01T00:00:00.000Z" });
   });
 

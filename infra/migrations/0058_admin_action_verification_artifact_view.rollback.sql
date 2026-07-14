@@ -1,0 +1,3 @@
+-- 0058_admin_action_verification_artifact_view.rollback.sql
+-- Enum ADD VALUE is not reversible in Postgres; the added value is harmless
+-- and left in place. Nothing to roll back.
