@@ -201,7 +201,6 @@ import type {
   LeadStatus,
   ListingStatus,
   VerificationResult,
-  VerificationStatus,
   VerificationType
 } from "./types";
 
@@ -311,7 +310,7 @@ export interface AdminHomeDetail {
     description_en: string | null;
     description_hi: string | null;
     status: Extract<ListingStatus, "active" | "paused" | "archived">;
-    verification_status: VerificationStatus;
+    verification_status: "verified";
     monthly_rent: number;
     security_deposit: number | null;
     available_from: string | null;
@@ -378,7 +377,7 @@ export interface AdminHomeDetail {
     median_response_minutes: number | null;
   };
   recent_leads: AdminHomeRecentLead[];
-  verification_status: VerificationStatus;
+  verification_status: "verified";
   verified_at: string | null;
   verification_attempts: AdminHomeVerificationAttempt[];
   activity: AdminHomeActivityItem[];
