@@ -4,6 +4,7 @@ import {
   buildCityLandmarkEntries,
   buildCityLocalityEntries,
   buildCityMetroEntries,
+  buildSitemapIndexXml,
   entry,
   LANDMARK_INTENTS,
   LOCALITY_INTENTS,
@@ -32,6 +33,20 @@ describe("sitemap chunk builders", () => {
         }
       }
     });
+  });
+
+  it("entry omits lastModified so the sitemap does not fake freshness on every crawl", () => {
+    const rows = entry(BASE_URL, "/city/lucknow");
+
+    expect(rows[0].lastModified).toBeUndefined();
+    expect(rows[1].lastModified).toBeUndefined();
+  });
+
+  it("entry includes lastModified only when an explicit date is provided", () => {
+    const when = new Date("2026-07-01T00:00:00.000Z");
+    const rows = entry(BASE_URL, "/city/lucknow", { lastModified: when });
+
+    expect(rows[0].lastModified).toBe(when);
   });
 
   it("metroSlug matches the page resolver rule with no hyphen trim", () => {
@@ -86,5 +101,22 @@ describe("sitemap chunk builders", () => {
     expect(rows.some((row) => row.url.endsWith("/en/city/lucknow/near/charbagh-station"))).toBe(
       true
     );
+  });
+});
+
+describe("buildSitemapIndexXml", () => {
+  it("lists one child sitemap per chunk with no per-request lastmod", () => {
+    const xml = buildSitemapIndexXml(BASE_URL, 3);
+
+    expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
+    expect(xml).toContain("<sitemapindex");
+    expect(xml).toContain(`<loc>${BASE_URL}/sitemap/0.xml</loc>`);
+    expect(xml).toContain(`<loc>${BASE_URL}/sitemap/2.xml</loc>`);
+    expect(xml).not.toContain("/sitemap/3.xml");
+    expect((xml.match(/<loc>/g) ?? []).length).toBe(3);
+
+    // A per-request timestamp claims every child changed "just now" on every
+    // crawl; Google then distrusts lastmod. Omitting it is the honest signal.
+    expect(xml).not.toContain("<lastmod>");
   });
 });
