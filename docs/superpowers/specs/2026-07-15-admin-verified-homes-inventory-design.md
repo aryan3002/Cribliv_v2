@@ -81,7 +81,7 @@ scanning and comparison.
 - **Leads 30d:** leads created during the last 30 days across the currently
   filtered result set.
 - **Needs attention:** number of homes in the currently filtered result set with
-  at least one uncalled, non-expired lead.
+  at least one open, uncalled, non-expired lead.
 
 The API returns these KPIs for the full filtered result set, not only the current
 page. `views_30d`, `leads_30d`, and `needs_attention` respect the selected
@@ -129,7 +129,10 @@ Invalid query values fall back to the defaults rather than reaching SQL casts.
   - Copy public URL.
   - Open public page in a new tab.
 
-Action buttons stop propagation so they do not open the workspace.
+Public URL actions are enabled only for `active` homes because paused and
+archived listings are intentionally unavailable on the public listing endpoint.
+Paused and archived rows show **Not publicly available** instead. Action buttons
+stop propagation so they do not open the workspace.
 
 ### 4.3 Listing Workspace
 
@@ -149,13 +152,16 @@ browser route.
 - Open public page action.
 - Open in Listing Review action for status or moderation work.
 
+Copy URL and Open public page are enabled only while the home is `active`.
+Paused and archived homes remain fully inspectable in admin but show
+**Not publicly available** in place of those actions.
+
 #### KPI strip
 
 - Views in the last 30 days.
 - Leads in the last 30 days.
 - Open leads.
 - Conversion rate.
-- Shortlists in the last 30 days.
 - Last owner activity.
 
 #### Overview tab
@@ -182,9 +188,11 @@ This tab is read-only.
 #### Leads tab
 
 - Thirty-day lead totals and conversion metrics.
-- Status breakdown: new, contacted, visit scheduled, deal done, and lost.
-- Access-state breakdown: free, locked, unlocked, and expired.
-- Called, uncalled, refunded, and open-lead counts.
+- Thirty-day status breakdown: new, contacted, visit scheduled, deal done, and
+  lost.
+- Thirty-day access-state breakdown: free, locked, unlocked, and expired.
+- Thirty-day called and refunded counts.
+- Current lifetime uncalled and open-lead counts.
 - Median response time when response data exists.
 - Up to 10 recent lead previews with seeker name, state, status, called state,
   deadline, and creation time. The preview does not expose seeker phone numbers.
@@ -198,7 +206,7 @@ Definitions:
 
 - **Open lead:** status is `new`, `contacted`, or `visit_scheduled`, and
   `access_state` is not `expired`.
-- **Uncalled lead:** `called_at` is null and `access_state` is not `expired`.
+- **Uncalled lead:** the lead is open and `called_at` is null.
 - **Refunded lead:** its linked contact unlock has `unlock_status = 'refunded'`.
 - **Median response time:** median `called_at - created_at` for leads created in
   the last 30 days that have a `called_at` value.
@@ -220,7 +228,8 @@ short-lived and every access remains recorded in `admin_actions`.
 
 - Owner ID, name, full phone, role, language, WhatsApp opt-in, blocked state, and
   member-since date.
-- Owner portfolio counts: active, paused, and archived homes.
+- Owner portfolio counts: all `flat_house` active, paused, and archived homes,
+  regardless of verification status.
 - Owner lead-health summary.
 - Report count and last login/activity.
 
@@ -288,7 +297,6 @@ interface AdminHomesListResponse {
 - `public_path`, generated from listing type, city slug, and UUID.
 - `cover_photo_url`.
 - `owner_id`.
-- `shortlists_30d`.
 - `open_leads`.
 
 The database path uses set-based CTEs or lateral aggregates so listing events,
@@ -316,6 +324,9 @@ The endpoint returns not found unless the record is:
 - `listing_type = 'flat_house'`
 - `verification_status = 'verified'`
 - `status IN ('active', 'paused', 'archived')`
+
+Malformed listing IDs return the same not-found response without reaching a
+Postgres UUID cast.
 
 The detail endpoint is read-only. It reuses existing photo URL resolution and
 verification evidence conventions.
@@ -368,14 +379,15 @@ The canonical path uses the existing listing routing convention:
 
 This feature only handles `flat_house`, so no PG city route is required.
 
-The copied URL is absolute and uses:
+For active homes, the copied URL is absolute and uses:
 
 1. `NEXT_PUBLIC_SITE_URL` when configured.
 2. `https://cribliv.com` as the production fallback.
 
 The UI must not copy the admin host or API host. Clipboard success and failure
 produce admin toasts. When `navigator.clipboard` is unavailable, use a temporary
-text selection fallback.
+text selection fallback. Paused and archived homes do not expose Copy URL or
+Open public page actions.
 
 ## 8. UI and Interaction Design
 
@@ -431,8 +443,12 @@ dashboard theme.
 - All counts are numeric, not Postgres string values.
 - Search text is parameterized and bounded to 200 characters.
 - Page size is capped at 100.
-- No migration is required. Existing indexes on listings, leads, and
-  `listing_events` support the primary joins and time-window aggregates.
+- No migration is planned. Existing indexes on listings, leads, and
+  `listing_events` are expected to support the primary joins and time-window
+  aggregates, but this assumption must be checked with
+  `EXPLAIN (ANALYZE, BUFFERS)` against a migrated test database before release.
+  If production-scale evidence shows a required index, that is a separate
+  migration decision and must not be hidden inside this feature.
 
 ## 10. Dual-Mode Behavior
 
@@ -451,6 +467,8 @@ Use `AppStateService`:
   statuses.
 - Support status, city, title/UUID search, pagination, and deterministic sorting.
 - Return zero analytics where the in-memory state has no equivalent event data.
+- Use `createdAt` as the in-memory updated-sort fallback because `ListingRecord`
+  has no separate updated timestamp.
 - Return available owner/listing fields and empty verification/activity arrays
   where unavailable.
 
@@ -463,6 +481,8 @@ The API remains bootable and testable without `DATABASE_URL`.
 - Seeker phone is only displayed in the Lead Center; the homes detail recent
   lead preview intentionally omits seeker phone numbers and calling controls.
 - Verification artifacts are never returned directly in the home payload.
+- Detail responses never return verification `artifact_paths`,
+  `submitted_payload`, provider request payloads, or provider response payloads.
 - Artifact URLs remain short-lived and audit logged.
 - SQL accepts only sanitized enum-like filters and parameterized values.
 - Public URL actions expose only the public listing URL.
@@ -482,6 +502,7 @@ The API remains bootable and testable without `DATABASE_URL`.
   activity.
 - Detail rejects PG, unverified, pending-review, rejected, and missing records.
 - Lead Center `listing_id` validation and SQL forwarding.
+- Lead Center board rows, total, and counters all respect `listing_id`.
 - Database-disabled inventory and detail fallback.
 
 ### Web
@@ -490,6 +511,8 @@ The API remains bootable and testable without `DATABASE_URL`.
 - Inventory default filter and rendered columns.
 - Search/filter/sort/page query forwarding.
 - Copy URL success and fallback behavior.
+- Paused/archived homes show Not publicly available and expose no public URL
+  actions.
 - Open-public-page action.
 - Row-to-workspace navigation and back behavior.
 - Workspace tab content and empty states.
@@ -516,7 +539,8 @@ The API remains bootable and testable without `DATABASE_URL`.
   information without N+1 requests.
 - Selecting a home exposes complete read-only property, lead, verification,
   owner, and activity information.
-- The copied URL opens the correct public listing page.
+- Active homes copy/open the correct public listing page; paused and archived
+  homes show Not publicly available.
 - Lead operations continue exclusively in Lead Center, opened with an exact
   listing filter.
 - Verification evidence remains short-lived and audit logged.
