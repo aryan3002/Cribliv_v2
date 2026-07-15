@@ -557,6 +557,7 @@ export interface PgTenantResidence {
   property_name: string;
   room_id: string;
   room_number: string;
+  floor: number | null;
   bed_id: string;
   bed_label: string;
   sharing: PgSharingKind | null;

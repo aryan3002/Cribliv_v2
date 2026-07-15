@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import type { PgMaintenanceRequest } from "@cribliv/shared-types";
 import { auth } from "@/auth";
-import { fetchApi } from "@/lib/api";
-import { getTenantResidence } from "@/lib/pg-operations-api";
+import { isPgMaintenanceOpsV2Enabled } from "@/lib/pg-maintenance-ops-v2-flag";
+import { getTenantResidence, listResidenceMaintenance } from "@/lib/pg-operations-api";
 import PgResidenceClient from "./PgResidenceClient";
 import styles from "./pg-residence.module.css";
 
@@ -18,11 +17,12 @@ export default async function Page({ params }: { params: { locale: string } }) {
 
   const token = session.accessToken;
   const residence = await getTenantResidence(token).catch(() => null);
-  const maintenance = await fetchApi<PgMaintenanceRequest[]>(
-    "/tenant/pg-residence/maintenance?scope=all",
-    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-    { server: true }
-  ).catch(() => null);
+  const maintenanceOpsV2Enabled = isPgMaintenanceOpsV2Enabled();
+  const maintenance = maintenanceOpsV2Enabled
+    ? await listResidenceMaintenance(token, "all").catch(() => null)
+    : residence
+      ? await listResidenceMaintenance(token).catch(() => null)
+      : [];
 
   return (
     <main className={styles.page}>
@@ -37,6 +37,7 @@ export default async function Page({ params }: { params: { locale: string } }) {
           initialResidence={residence}
           initialMaintenance={maintenance ?? []}
           maintenanceLoadError={maintenance === null ? "Could not load maintenance tickets." : null}
+          maintenanceHistoryEnabled={maintenanceOpsV2Enabled}
           token={token}
         />
       </div>

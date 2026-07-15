@@ -557,8 +557,9 @@ export function getTenantResidence(token?: string, opts: { server?: boolean } = 
   );
 }
 
-export function listResidenceMaintenance(token?: string) {
-  return fetchApi<PgMaintenanceRequest[]>("/tenant/pg-residence/maintenance", {
+export function listResidenceMaintenance(token?: string, scope?: "current" | "history" | "all") {
+  const query = scope ? `?scope=${scope}` : "";
+  return fetchApi<PgMaintenanceRequest[]>(`/tenant/pg-residence/maintenance${query}`, {
     headers: authHeaders(token)
   });
 }

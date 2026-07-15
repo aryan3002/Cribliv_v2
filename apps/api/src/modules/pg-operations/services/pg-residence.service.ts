@@ -10,6 +10,7 @@ type ResidenceRow = {
   property_name: string;
   room_id: string;
   room_number: string;
+  floor: number | string | null;
   bed_id: string;
   bed_label: string;
   sharing: PgTenantResidence["sharing"];
@@ -62,6 +63,7 @@ function toResidence(row: ResidenceRow): PgTenantResidence {
     property_name: row.property_name,
     room_id: row.room_id,
     room_number: row.room_number,
+    floor: toNumber(row.floor),
     bed_id: row.bed_id,
     bed_label: row.bed_label,
     sharing: row.sharing,
@@ -126,6 +128,7 @@ export class PgResidenceService {
               p.display_name AS property_name,
               r.id::text AS room_id,
               r.room_number,
+              r.floor,
               b.id::text AS bed_id,
               b.bed_label,
               rt.sharing::text AS sharing,

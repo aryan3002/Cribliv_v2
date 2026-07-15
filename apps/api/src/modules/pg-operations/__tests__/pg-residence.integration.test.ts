@@ -273,6 +273,7 @@ describe.skipIf(!HAS_DB)("PG tenant residence (real Postgres integration)", () =
 
     expect(resolved).toMatchObject({
       room_number: "401",
+      floor: 4,
       bed_label: "A",
       sharing: "double",
       monthly_rent_paise: 1234500,

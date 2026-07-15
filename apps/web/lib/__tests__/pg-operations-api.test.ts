@@ -266,6 +266,11 @@ describe("pg operations API client", () => {
       "/tenant/pg-residence/maintenance",
       expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
     );
+    listResidenceMaintenance("token-1", "all");
+    expect(fetchApi).toHaveBeenLastCalledWith(
+      "/tenant/pg-residence/maintenance?scope=all",
+      expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
     expect(fetchApi).toHaveBeenNthCalledWith(
       6,
       "/tenant/pg-residence/maintenance",

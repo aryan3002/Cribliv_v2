@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, type BadgeTone } from "@cribliv/ui";
-import type { PgMaintenanceRequest, PgTenantResidence } from "@cribliv/shared-types";
+import type {
+  PgMaintenanceLocation,
+  PgMaintenanceRequest,
+  PgTenantResidence
+} from "@cribliv/shared-types";
 import { CalendarDays, Check, Home, IndianRupee, Utensils, Wrench, X } from "lucide-react";
 import SectionCard from "@/components/pg-operator/wizard/shared/SectionCard";
 import MaintenanceWorkspace from "@/components/pg-operator/ops/MaintenanceWorkspace";
@@ -68,15 +72,32 @@ function ruleRows(residence: PgTenantResidence): string[] {
   ].filter((item): item is string => Boolean(item));
 }
 
+function currentMaintenanceLocation(residence: PgTenantResidence): PgMaintenanceLocation {
+  return {
+    property_id: residence.property_id,
+    property_name: residence.property_name,
+    room_id: residence.room_id,
+    room_number: residence.room_number,
+    room_label: residence.room_number,
+    floor: residence.floor,
+    bed_id: residence.bed_id,
+    bed_label: residence.bed_label,
+    tenant_name: null,
+    tenant_phone_e164: null
+  };
+}
+
 export default function PgResidenceClient({
   initialResidence,
   initialMaintenance,
   maintenanceLoadError,
+  maintenanceHistoryEnabled,
   token
 }: {
   initialResidence: PgTenantResidence | null;
   initialMaintenance: PgMaintenanceRequest[];
   maintenanceLoadError: string | null;
+  maintenanceHistoryEnabled: boolean;
   token: string;
 }) {
   const router = useRouter();
@@ -115,31 +136,37 @@ export default function PgResidenceClient({
           <h2>No active PG residence</h2>
           <p>Your tenant account is not mapped to an active or reserved PG bed.</p>
         </section>
-        <SectionCard title="Past Stays maintenance" icon={<Wrench size={18} aria-hidden="true" />}>
-          {maintenanceLoadError ? (
-            <p role="alert" className={styles.error}>
-              {maintenanceLoadError}
-            </p>
-          ) : initialMaintenance.length > 0 ? (
-            <MaintenanceWorkspace
-              compact
-              readOnly
-              initialRequests={initialMaintenance}
-              mode="tenant"
-              token={token}
-            />
-          ) : (
-            <p className={styles.historyEmpty}>
-              Past stay maintenance is available for recent stays only. No historical tickets are
-              available.
-            </p>
-          )}
-        </SectionCard>
+        {maintenanceHistoryEnabled ? (
+          <SectionCard
+            title="Past Stays maintenance"
+            icon={<Wrench size={18} aria-hidden="true" />}
+          >
+            {maintenanceLoadError ? (
+              <p role="alert" className={styles.error}>
+                {maintenanceLoadError}
+              </p>
+            ) : initialMaintenance.length > 0 ? (
+              <MaintenanceWorkspace
+                compact
+                readOnly
+                initialRequests={initialMaintenance}
+                mode="tenant"
+                token={token}
+              />
+            ) : (
+              <p className={styles.historyEmpty}>
+                Past stay maintenance is available for recent stays only. No historical tickets are
+                available.
+              </p>
+            )}
+          </SectionCard>
+        ) : null}
       </div>
     );
   }
 
   const rules = ruleRows(residence);
+  const maintenanceLocation = currentMaintenanceLocation(residence);
   const canServeNotice = residence.assignment_status === "active";
   const canRequestMoveOut = residence.assignment_status === "active";
   const canRespondToOperator = Boolean(residence.operator_move_out_request_id);
@@ -302,6 +329,7 @@ export default function PgResidenceClient({
           initialRequests={initialMaintenance}
           mode="tenant"
           token={token}
+          currentResidenceLocation={maintenanceLocation}
         />
       </SectionCard>
     </div>
