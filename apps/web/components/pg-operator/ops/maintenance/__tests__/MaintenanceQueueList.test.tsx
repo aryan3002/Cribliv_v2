@@ -115,6 +115,7 @@ function setup(initialPage: PgMaintenanceQueuePage = page([ticket()], "cursor-pa
     <MaintenanceQueueList
       propertyId="property-1"
       token="token-1"
+      ticketHrefBase="/en/pg-operator/properties/property-1/maintenance"
       categories={categories}
       analytics={analytics}
       initialPage={initialPage}
@@ -146,6 +147,11 @@ describe("MaintenanceQueueList", () => {
     expect(within(row).getByText("Room P5-101 · Bed A")).toBeInTheDocument();
     expect(within(row).getByText("P5 Tenant 1")).toBeInTheDocument();
     expect(within(row).getByText("Updated 14 Jul, 10:30 am")).toBeInTheDocument();
+    expect(
+      within(row).getByRole("link", {
+        name: "Open Plumbing ticket at Room P5-101 · Bed A (ticket-1)"
+      })
+    ).toHaveAttribute("href", "/en/pg-operator/properties/property-1/maintenance/ticket-1");
   });
 
   it("calls listPropertyMaintenance with chosen filters and resets pagination", async () => {

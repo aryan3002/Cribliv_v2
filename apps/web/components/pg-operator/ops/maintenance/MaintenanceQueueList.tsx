@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type {
   PgMaintenanceAnalytics,
   PgMaintenanceCategory,
@@ -62,18 +63,24 @@ function tenantLabel(request: PgMaintenanceRequest): string {
   return request.location?.tenant_name ?? "Unassigned";
 }
 
+function ticketLinkLabel(request: PgMaintenanceRequest): string {
+  return `Open ${request.category} ticket at ${locationLabel(request)} (${request.id})`;
+}
+
 export default function MaintenanceQueueList({
   propertyId,
   token,
   categories,
   analytics,
-  initialPage
+  initialPage,
+  ticketHrefBase
 }: {
   propertyId: string;
   token?: string;
   categories: PgMaintenanceCategory[];
   analytics: PgMaintenanceAnalytics;
   initialPage: PgMaintenanceQueuePage;
+  ticketHrefBase?: string;
 }) {
   const [filters, setFilters] = useState<MaintenanceQueueFilterState>(DEFAULT_QUEUE_FILTERS);
   const [rows, setRows] = useState(initialPage.rows);
@@ -135,7 +142,17 @@ export default function MaintenanceQueueList({
                 <tr key={request.id}>
                   <td>
                     <div className={styles.primaryCell}>
-                      <strong>{request.category}</strong>
+                      {ticketHrefBase ? (
+                        <Link
+                          href={`${ticketHrefBase}/${request.id}` as any}
+                          className={styles.ticketLink}
+                          aria-label={ticketLinkLabel(request)}
+                        >
+                          {request.category}
+                        </Link>
+                      ) : (
+                        <strong>{request.category}</strong>
+                      )}
                       <span>{request.description}</span>
                     </div>
                   </td>

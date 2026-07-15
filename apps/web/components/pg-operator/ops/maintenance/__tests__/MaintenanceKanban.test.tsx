@@ -1,14 +1,18 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgMaintenanceQueuePage, PgMaintenanceRequest } from "@cribliv/shared-types";
 
-const { listPropertyMaintenance, updateMaintenanceStatus } = vi.hoisted(() => ({
-  listPropertyMaintenance: vi.fn(),
-  updateMaintenanceStatus: vi.fn()
-}));
+const { listPropertyMaintenance, resolveMaintenanceTicket, updateMaintenanceStatus } = vi.hoisted(
+  () => ({
+    listPropertyMaintenance: vi.fn(),
+    resolveMaintenanceTicket: vi.fn(),
+    updateMaintenanceStatus: vi.fn()
+  })
+);
 
 vi.mock("@/lib/pg-operations-api", () => ({
   listPropertyMaintenance,
+  resolveMaintenanceTicket,
   updateMaintenanceStatus
 }));
 
@@ -82,6 +86,7 @@ function setup() {
     <MaintenanceKanban
       propertyId="property-1"
       token="token-1"
+      ticketHrefBase="/en/pg-operator/properties/property-1/maintenance"
       initialPage={page([
         ticket({ id: "open-ticket", status: "open", category: "Plumbing", priority: "high" }),
         ticket({
@@ -106,7 +111,11 @@ function setup() {
 describe("MaintenanceKanban", () => {
   beforeEach(() => {
     listPropertyMaintenance.mockReset();
+    resolveMaintenanceTicket.mockReset();
     updateMaintenanceStatus.mockReset();
+    resolveMaintenanceTicket.mockResolvedValue(
+      ticket({ id: "work-ticket", status: "resolved", category: "Electrical" })
+    );
   });
 
   it("renders workflow columns and cards with SLA and priority", () => {
@@ -120,13 +129,18 @@ describe("MaintenanceKanban", () => {
     expect(within(openColumn).getByText("Plumbing")).toBeInTheDocument();
     expect(within(openColumn).getByText("Due 15 Jul, 09:00 am")).toBeInTheDocument();
     expect(within(openColumn).getByText("High")).toBeInTheDocument();
+    expect(
+      within(openColumn).getByRole("link", {
+        name: "Open Plumbing ticket at Room P5-101 · Bed A (open-ticket)"
+      })
+    ).toHaveAttribute("href", "/en/pg-operator/properties/property-1/maintenance/open-ticket");
 
     const progressColumn = screen.getByRole("region", { name: "In progress" });
     expect(within(progressColumn).getByText("Emergency")).toBeInTheDocument();
     expect(within(progressColumn).getByText("Due 15 Jul, 05:30 am")).toBeInTheDocument();
   });
 
-  it("opens the resolution sheet when moving a card to Resolved", () => {
+  it("submits resolution details from the kanban dialog", async () => {
     setup();
 
     const progressColumn = screen.getByRole("region", { name: "In progress" });
@@ -134,6 +148,29 @@ describe("MaintenanceKanban", () => {
 
     expect(screen.getByRole("dialog", { name: "Resolve ticket" })).toBeInTheDocument();
     expect(updateMaintenanceStatus).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Resolution note"), {
+      target: { value: "Fixed the room furniture issue." }
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "No" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resolve ticket" }));
+
+    await waitFor(() =>
+      expect(resolveMaintenanceTicket).toHaveBeenCalledWith(
+        "property-1",
+        "work-ticket",
+        {
+          note: "Fixed the room furniture issue.",
+          chargeable_damage: false
+        },
+        "token-1",
+        expect.any(String)
+      )
+    );
+    expect(screen.queryByRole("dialog", { name: "Resolve ticket" })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Resolved" })).getByText("Electrical")
+    ).toBeInTheDocument();
   });
 
   it("disables invalid transition controls", () => {

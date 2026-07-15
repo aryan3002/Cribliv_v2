@@ -231,6 +231,30 @@ describe("MaintenanceWorkspace", () => {
     expect(screen.queryByRole("button", { name: "Start work" })).not.toBeInTheDocument();
   });
 
+  it("defaults to active work while keeping closed tickets reachable from all statuses", () => {
+    render(
+      <MaintenanceWorkspace
+        initialRequests={[
+          ticket({ id: "open-ticket", category: "Plumbing", status: "open" }),
+          ticket({ id: "closed-ticket", category: "Cleaning", status: "closed" })
+        ]}
+        mode="operator"
+        propertyId="property-1"
+        token="token-1"
+      />
+    );
+
+    expect(screen.getByLabelText("Filter tickets")).toHaveDisplayValue("Active work");
+    expect(screen.getByText("1 total")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Plumbing" })).toBeInTheDocument();
+    expect(screen.queryByText("Cleaning")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Filter tickets"), { target: { value: "all" } });
+
+    expect(screen.getByText("2 total")).toBeInTheDocument();
+    expect(screen.getByText("Cleaning")).toBeInTheDocument();
+  });
+
   it("requires a trimmed comment or photo before submitting it", async () => {
     render(
       <MaintenanceWorkspace

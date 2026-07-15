@@ -32,7 +32,13 @@ import {
 import styles from "./MaintenanceWorkspace.module.css";
 
 type MaintenanceMode = "operator" | "tenant";
-type TicketFilter = "all" | PgMaintenanceStatus;
+type TicketFilter = "active" | "all" | PgMaintenanceStatus;
+const ACTIVE_STATUSES: readonly PgMaintenanceStatus[] = [
+  "open",
+  "in_progress",
+  "waiting_on_tenant",
+  "resolved"
+];
 
 const STATUS_LABEL: Record<PgMaintenanceStatus, string> = {
   open: "Open",
@@ -108,7 +114,7 @@ export default function MaintenanceWorkspace({
   const router = useRouter();
   const [requests, setRequests] = useState(initialRequests);
   const [selectedId, setSelectedId] = useState<string | null>(initialRequests[0]?.id ?? null);
-  const [filter, setFilter] = useState<TicketFilter>("all");
+  const [filter, setFilter] = useState<TicketFilter>("active");
   const [comment, setComment] = useState("");
   const [commentPhotos, setCommentPhotos] = useState<PendingMaintenancePhoto[]>([]);
   const [pending, setPending] = useState<string | null>(null);
@@ -136,10 +142,13 @@ export default function MaintenanceWorkspace({
     []
   );
 
-  const visibleRequests = useMemo(
-    () => (filter === "all" ? requests : requests.filter((request) => request.status === filter)),
-    [filter, requests]
-  );
+  const visibleRequests = useMemo(() => {
+    if (filter === "all") return requests;
+    if (filter === "active") {
+      return requests.filter((request) => ACTIVE_STATUSES.includes(request.status));
+    }
+    return requests.filter((request) => request.status === filter);
+  }, [filter, requests]);
   useEffect(() => {
     setSelectedId((current) => {
       if (current && visibleRequests.some((request) => request.id === current)) return current;
@@ -332,7 +341,7 @@ export default function MaintenanceWorkspace({
           <div className={styles.listHeading}>
             <div>
               <h3>Tickets</h3>
-              <span>{requests.length} total</span>
+              <span>{visibleRequests.length} total</span>
             </div>
             <label className={styles.filterField}>
               <span className={styles.srOnly}>Filter tickets</span>
@@ -341,6 +350,7 @@ export default function MaintenanceWorkspace({
                 value={filter}
                 onChange={(event) => setFilter(event.target.value as TicketFilter)}
               >
+                <option value="active">Active work</option>
                 <option value="all">All statuses</option>
                 {Object.entries(STATUS_LABEL).map(([value, label]) => (
                   <option key={value} value={value}>

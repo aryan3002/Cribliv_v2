@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type {
   PgMaintenancePriority,
   PgMaintenanceQueuePage,
@@ -8,6 +9,7 @@ import type {
   PgMaintenanceStatus
 } from "@cribliv/shared-types";
 import { listPropertyMaintenance, updateMaintenanceStatus } from "@/lib/pg-operations-api";
+import MaintenanceResolutionSheet from "./MaintenanceResolutionSheet";
 import styles from "./MaintenanceQueue.module.css";
 
 const COLUMNS: Array<{ status: PgMaintenanceStatus; label: string }> = [
@@ -53,6 +55,23 @@ function displayDateTime(value: string): string {
   }).format(new Date(value));
 }
 
+function locationLabel(request: PgMaintenanceRequest): string {
+  const location = request.location;
+  const snapshot = request.location_snapshot;
+  const room = location?.room_number ?? snapshot.room_number;
+  const bed = location?.bed_label ?? snapshot.bed_label;
+  if (room && bed) return `Room ${room} · Bed ${bed}`;
+  if (room) return `Room ${room}`;
+  if (snapshot.floor !== null && snapshot.floor !== undefined) return `Floor ${snapshot.floor}`;
+  if (snapshot.common_area) return snapshot.common_area.replaceAll("_", " ");
+  if (snapshot.detail) return snapshot.detail;
+  return snapshot.kind.replaceAll("_", " ");
+}
+
+function ticketLinkLabel(request: PgMaintenanceRequest): string {
+  return `Open ${request.category} ticket at ${locationLabel(request)} (${request.id})`;
+}
+
 function canMove(request: PgMaintenanceRequest, status: PgMaintenanceStatus): boolean {
   return TRANSITIONS[request.status].includes(status);
 }
@@ -75,16 +94,20 @@ export default function MaintenanceKanban({
   propertyId,
   token,
   initialPage,
-  initialColumnPages
+  initialColumnPages,
+  ticketHrefBase
 }: {
   propertyId: string;
   token?: string;
   initialPage: PgMaintenanceQueuePage;
   initialColumnPages?: KanbanColumnPages;
+  ticketHrefBase?: string;
 }) {
   const [columns, setColumns] = useState(initialColumns(initialPage, initialColumnPages));
   const [resolving, setResolving] = useState<PgMaintenanceRequest | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const byStatus = useMemo(
     () =>
       COLUMNS.map((column) => ({
@@ -94,6 +117,43 @@ export default function MaintenanceKanban({
       })),
     [columns]
   );
+
+  useEffect(() => {
+    if (!resolving) return;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusable = dialogRef.current?.querySelector<HTMLElement>(
+      "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+    );
+    focusable?.focus();
+    return () => {
+      previousFocusRef.current?.focus();
+      previousFocusRef.current = null;
+    };
+  }, [resolving]);
+
+  function handleDialogKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      setResolving(null);
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+      )
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   function replaceRequest(updated: PgMaintenanceRequest) {
     setColumns((current) => {
@@ -166,7 +226,17 @@ export default function MaintenanceKanban({
                 ) : (
                   column.rows.map((request) => (
                     <article key={request.id} className={styles.kanbanCard}>
-                      <strong className={styles.cardTitle}>{request.category}</strong>
+                      {ticketHrefBase ? (
+                        <Link
+                          href={`${ticketHrefBase}/${request.id}` as any}
+                          className={styles.cardTitleLink}
+                          aria-label={ticketLinkLabel(request)}
+                        >
+                          {request.category}
+                        </Link>
+                      ) : (
+                        <strong className={styles.cardTitle}>{request.category}</strong>
+                      )}
                       <div className={styles.badgeRow}>
                         <span className={styles.badge}>{PRIORITY_LABEL[request.priority]}</span>
                         <span className={request.is_overdue ? styles.danger : styles.cardMeta}>
@@ -222,20 +292,24 @@ export default function MaintenanceKanban({
             aria-modal="true"
             aria-label="Resolve ticket"
             className={styles.dialog}
+            ref={dialogRef}
+            onKeyDown={handleDialogKeyDown}
           >
             <h2>Resolve ticket</h2>
-            <label>
-              <span>Resolution note</span>
-              <textarea />
-            </label>
             <div className={styles.dialogActions}>
               <button type="button" onClick={() => setResolving(null)}>
                 Cancel
               </button>
-              <button type="button" disabled>
-                Resolve
-              </button>
             </div>
+            <MaintenanceResolutionSheet
+              request={resolving}
+              propertyId={propertyId}
+              token={token ?? ""}
+              onResolved={(updated) => {
+                replaceRequest(updated);
+                setResolving(null);
+              }}
+            />
           </div>
         </div>
       ) : null}

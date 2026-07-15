@@ -5,6 +5,13 @@
   gap: 14px;
 }
 
+.ticketPageShell {
+  color: var(--text-primary, #1a1a2e);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .createForm,
 .ticketTool {
   border: 1px solid var(--border, #e8ecf1);
@@ -144,6 +151,85 @@
   position: absolute;
   width: 1px;
   clip: rect(0, 0, 0, 0);
+}
+
+.ticketPhotoPanel,
+.ticketDetailSurface {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+}
+
+.ticketPhotoPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.ticketPhotoHeader {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ticketPhotoHeader h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.ticketPhotoActions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.ticketPhotoButton {
+  align-items: center;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 7px;
+  color: var(--text-primary, #1a1a2e);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.ticketPhotoButton:hover,
+.ticketPhotoButton:focus-visible {
+  border-color: var(--brand, #0066ff);
+  color: var(--brand, #0066ff);
+}
+
+.ticketPhotoButton:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand, #0066ff) 20%, transparent);
+  outline-offset: 2px;
+}
+
+.ticketPhotoButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.requestPhotoInput {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+  clip: rect(0, 0, 0, 0);
+}
+
+.ticketDetailSurface {
+  padding: 16px;
 }
 
 .pendingPhotos {
@@ -721,5 +807,24 @@
 
   .detailPane {
     min-height: 360px;
+  }
+
+  .ticketPhotoHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ticketPhotoActions,
+  .ticketPhotoActions button {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .ticketPhotoActions button {
+    justify-content: center;
+  }
+
+  .ticketDetailSurface {
+    padding: 14px;
   }
 }
