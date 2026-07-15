@@ -585,6 +585,7 @@ describe("AdminHomesService", () => {
     ]);
     expect(cityCall?.[0]).toContain("l.status = 'active'");
     expect(cityCall?.[0]).toContain("ILIKE $1");
+    expect(cityCall?.[0]).toContain("loc.slug ILIKE $1");
     expect(cityCall?.[0]).not.toContain("c.slug =");
     expect(cityCall?.[1]).toEqual(["%gomti%"]);
   });

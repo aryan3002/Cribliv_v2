@@ -259,6 +259,7 @@ export class AdminHomesService {
         OR ll.address_line1 ILIKE $${index}
         OR c.slug ILIKE $${index}
         OR c.name_en ILIKE $${index}
+        OR loc.slug ILIKE $${index}
         OR loc.name_en ILIKE $${index}
       )`);
     }

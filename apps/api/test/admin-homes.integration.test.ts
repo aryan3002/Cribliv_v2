@@ -28,11 +28,14 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
 
   async function createUser(role: "owner" | "tenant", label: string) {
+    const phoneSeed = String(
+      (Number.parseInt(suffix.slice(-8), 10) + userIds.length) % 100_000_000
+    ).padStart(8, "0");
     const result = await pool.query<{ id: string }>(
       `INSERT INTO users (phone_e164, role, full_name)
        VALUES ($1, $2, $3)
        RETURNING id::text`,
-      [`+919${String(userIds.length + 10).padStart(9, "0")}`, role, `${label} ${suffix}`]
+      [`+9199${phoneSeed}`, role, `${label} ${suffix}`]
     );
     userIds.push(result.rows[0].id);
     return result.rows[0].id;
@@ -291,20 +294,33 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
   }, 60_000);
 
   afterAll(async () => {
-    await pool.query(`DELETE FROM listing_events WHERE listing_id = ANY($1::uuid[])`, [listingIds]);
-    await pool.query(`DELETE FROM leads WHERE listing_id = ANY($1::uuid[])`, [listingIds]);
-    await pool.query(`DELETE FROM listings WHERE id = ANY($1::uuid[])`, [listingIds]);
-    await pool.query(`DELETE FROM localities WHERE city_id = ANY($1::int[])`, [
-      [cityAId, cityBId, cityPageId]
-    ]);
-    await pool.query(`DELETE FROM cities WHERE id = ANY($1::int[])`, [
-      [cityAId, cityBId, cityPageId]
-    ]);
-    await pool.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [userIds]);
-    await database.onModuleDestroy();
-    await pool.end();
-    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-    else process.env.DATABASE_URL = originalDatabaseUrl;
+    let cleanupError: unknown;
+    const cleanupQueries: Array<[string, unknown[]]> = [
+      [`DELETE FROM listing_events WHERE listing_id = ANY($1::uuid[])`, [listingIds]],
+      [`DELETE FROM leads WHERE listing_id = ANY($1::uuid[])`, [listingIds]],
+      [`DELETE FROM listings WHERE id = ANY($1::uuid[])`, [listingIds]],
+      [`DELETE FROM localities WHERE city_id = ANY($1::int[])`, [[cityAId, cityBId, cityPageId]]],
+      [`DELETE FROM cities WHERE id = ANY($1::int[])`, [[cityAId, cityBId, cityPageId]]],
+      [`DELETE FROM users WHERE id = ANY($1::uuid[])`, [userIds]]
+    ];
+    try {
+      for (const [sql, params] of cleanupQueries) {
+        try {
+          await pool.query(sql, params);
+        } catch (error) {
+          cleanupError ??= error;
+        }
+      }
+    } finally {
+      try {
+        await database.onModuleDestroy();
+      } finally {
+        await pool.end();
+        if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = originalDatabaseUrl;
+      }
+    }
+    if (cleanupError) throw cleanupError;
   }, 60_000);
 
   it("returns only eligible verified flat_house rows and applies every sort", async () => {
@@ -352,10 +368,23 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
       page: 1,
       page_size: 25
     });
+    const localitySearched = await service.listHomes({
+      status: "all",
+      city: cityASlug,
+      q: `locality-${cityASlug}`,
+      sort: "updated",
+      page: 1,
+      page_size: 25
+    });
 
     expect(paused.items.map((item) => item.id)).toEqual([pausedHomeId]);
     expect(city.items.map((item) => item.id)).toEqual([cityBHomeId]);
     expect(searched.items.map((item) => item.id)).toEqual([archivedHomeId]);
+    expect(localitySearched.items.map((item) => item.id)).toEqual([
+      activeHomeId,
+      pausedHomeId,
+      archivedHomeId
+    ]);
     expect(city.available_cities.map((item) => item.slug)).toEqual(
       expect.arrayContaining([cityASlug, cityBSlug])
     );
