@@ -51,7 +51,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       error: (message, options) => push("error", message, options),
       info: (message, options) => push("info", message, options),
       promise: async (promise, messages) => {
-        const loadingId = push("info", messages.loading);
+        const loadingId = push("info", messages.loading, { duration: 0 });
         try {
           const result = await promise;
           dismiss(loadingId);

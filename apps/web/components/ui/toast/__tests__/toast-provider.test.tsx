@@ -32,6 +32,26 @@ function ToastHarness({ onRetry = vi.fn() }: { onRetry?: () => void }) {
   );
 }
 
+function PromiseToastHarness({ onStart }: { onStart: (resolve: (value: string) => void) => void }) {
+  const toast = useToast();
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const pending = new Promise<string>((resolve) => onStart(resolve));
+        void toast.promise(pending, {
+          loading: "Saving listing",
+          success: "Listing saved",
+          error: "Could not save listing"
+        });
+      }}
+    >
+      Save
+    </button>
+  );
+}
+
 describe("ToastProvider", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -92,6 +112,23 @@ describe("ToastProvider", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
     expect(screen.queryByText("Could not update listing")).not.toBeInTheDocument();
+  });
+
+  it("keeps a promise loading notification visible until the promise settles", async () => {
+    let resolve: ((value: string) => void) | undefined;
+    render(
+      <ToastProvider>
+        <PromiseToastHarness onStart={(complete) => (resolve = complete)} />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(screen.getByText("Saving listing")).toBeInTheDocument();
+
+    await act(async () => resolve?.("saved"));
+    expect(screen.queryByText("Saving listing")).not.toBeInTheDocument();
+    expect(screen.getByText("Listing saved")).toBeInTheDocument();
   });
 });
 

@@ -48,4 +48,32 @@ describe("OverflowMenu", () => {
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
+
+  it("renders its menu in a portal and traps Tab focus within enabled items", () => {
+    const { container } = render(
+      <OverflowMenu
+        ariaLabel="Portal actions"
+        items={[
+          { label: "Edit", onSelect: vi.fn() },
+          { label: "Archive", onSelect: vi.fn() },
+          { label: "Disabled", onSelect: vi.fn(), disabled: true }
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Portal actions" }));
+    const menu = screen.getByRole("menu");
+    const edit = screen.getByRole("menuitem", { name: "Edit" });
+    const archive = screen.getByRole("menuitem", { name: "Archive" });
+
+    expect(container).not.toContainElement(menu);
+    expect(edit).toHaveFocus();
+
+    fireEvent.keyDown(menu, { key: "Tab" });
+    expect(archive).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "Tab" });
+    expect(edit).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "Tab", shiftKey: true });
+    expect(archive).toHaveFocus();
+  });
 });

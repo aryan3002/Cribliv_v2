@@ -34,7 +34,9 @@ export default function PgListingControls({
       router.refresh();
     } catch (e) {
       setCur(prev);
-      toast.error(e instanceof Error ? e.message : "Couldn't update status");
+      toast.error(e instanceof Error ? e.message : "Couldn't update status", {
+        action: { label: "Retry", onClick: () => void apply(next, label) }
+      });
     } finally {
       setBusy(null);
     }
