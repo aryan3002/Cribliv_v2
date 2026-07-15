@@ -34,7 +34,7 @@ const TAB_ITEMS: Array<{ id: AdminTab; label: string; icon: typeof Activity; gro
   { id: "revenue", label: "Revenue", icon: Coins, group: "Navigate" },
   { id: "fraud", label: "Fraud Feed", icon: AlertTriangle, group: "Navigate" },
   { id: "seo", label: "Programmatic SEO", icon: Globe, group: "Navigate" },
-  { id: "homes", label: "Verified Homes", icon: House, group: "Understand" },
+  { id: "homes", label: "Verified Homes", icon: House, group: "Navigate" },
   { id: "system", label: "System", icon: Wrench, group: "Navigate" }
 ];
 
@@ -65,23 +65,21 @@ export function CommandPalette({ open, onOpenChange, onNavigate, onRefresh }: Pr
           <Command.Input placeholder="Jump to a tab, find a user, run an action…" autoFocus />
           <Command.List>
             <Command.Empty>No results.</Command.Empty>
-            {["Navigate", "Understand"].map((group) => (
-              <Command.Group key={group} heading={group}>
-                {TAB_ITEMS.filter((item) => item.group === group).map((it) => {
-                  const Icon = it.icon;
-                  return (
-                    <Command.Item
-                      key={it.id}
-                      value={`${it.label} ${it.id}`}
-                      onSelect={() => pick(() => onNavigate(it.id))}
-                    >
-                      <Icon size={14} aria-hidden="true" />
-                      Go to {it.label}
-                    </Command.Item>
-                  );
-                })}
-              </Command.Group>
-            ))}
+            <Command.Group heading="Navigate">
+              {TAB_ITEMS.map((it) => {
+                const Icon = it.icon;
+                return (
+                  <Command.Item
+                    key={it.id}
+                    value={`${it.label} ${it.id}`}
+                    onSelect={() => pick(() => onNavigate(it.id))}
+                  >
+                    <Icon size={14} aria-hidden="true" />
+                    Go to {it.label}
+                  </Command.Item>
+                );
+              })}
+            </Command.Group>
             <Command.Group heading="Actions">
               <Command.Item value="refresh all" onSelect={() => pick(() => onRefresh())}>
                 <RefreshCw size={14} aria-hidden="true" />
