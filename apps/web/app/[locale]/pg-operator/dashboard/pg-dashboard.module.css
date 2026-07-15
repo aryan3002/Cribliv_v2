@@ -1,22 +1,15 @@
 /* PG operator dashboard: light product theme, scoped to this route. */
 .dashboardPage {
-  --d-brand: #0066ff;
-  --d-brand-dark: #0052cc;
-  --d-brand-soft: #ebf3ff;
-  --d-warning: #e88c00;
-  --d-warning-soft: #fff8e1;
-  --d-danger: #dc2626;
-  --d-danger-soft: #fff1f0;
-  --d-success: #0d9f4f;
-  --d-success-soft: #ecfdf5;
-  --d-page: #fafbfc;
-  --d-surface: #fff;
-  --d-surface-raised: #f5f5f7;
-  --d-border: #e8ecf1;
-  --d-border-strong: #cbd5e1;
-  --d-text: #1a1a2e;
-  --d-text-soft: #64748b;
-  --d-text-mute: #64748b;
+  /* Core --d-* values come from the operator theme's .pgo-dark wrapper. */
+  --d-brand-dark: color-mix(in srgb, var(--d-brand) 80%, #000);
+  --d-brand-soft: color-mix(in srgb, var(--d-brand) 10%, var(--d-surface));
+  --d-warning-soft: color-mix(in srgb, var(--d-warning) 12%, var(--d-surface));
+  --d-danger-soft: color-mix(in srgb, var(--d-danger) 8%, var(--d-surface));
+  --d-success-soft: color-mix(in srgb, var(--d-success) 8%, var(--d-surface));
+  --d-page: var(--d-raised);
+  --d-surface-raised: var(--d-raised);
+  --d-text-soft: var(--d-secondary);
+  --d-text-mute: var(--d-secondary);
   --d-radius: 12px;
 
   min-height: calc(100vh - var(--header-height, 72px));
