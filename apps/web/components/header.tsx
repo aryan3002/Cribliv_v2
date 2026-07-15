@@ -8,7 +8,6 @@ import { useSession } from "next-auth/react";
 import {
   BarChart3,
   Building2,
-  FileText,
   Globe,
   Heart,
   LayoutDashboard,
@@ -115,13 +114,6 @@ export function Header({ locale }: { locale: Locale }) {
               >
                 <Heart size={15} aria-hidden="true" />
                 <span>{t(locale, "navSaved")}</span>
-              </Link>
-              <Link
-                href={`/${locale}/rent-agreement`}
-                className={`nav-tab${isActive(`/${locale}/rent-agreement`) ? " nav-tab--active" : ""}`}
-              >
-                <FileText size={15} aria-hidden="true" />
-                <span>Rent Agreement</span>
               </Link>
               {/* CRIBLIV TIMES — a serif masthead chip so the blog reads as
                   "the newspaper", distinct from the sans nav tabs. */}
