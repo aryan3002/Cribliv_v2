@@ -47,7 +47,7 @@
 - `apps/api/src/modules/admin/__tests__/admin-homes.params.test.ts`: parser behavior.
 - `apps/api/src/modules/admin/__tests__/admin-homes.service.test.ts`: scope, list mapping, detail mapping, and in-memory fallback.
 - `apps/api/src/modules/admin/__tests__/admin-homes.controller.test.ts`: controller delegation/envelope.
-- `apps/api/test/admin-homes.integration.test.ts`: `TEST_DATABASE_URL`-gated scope, aggregate, privacy, and performance evidence.
+- `apps/api/test/admin-homes.integration.test.ts`: `TEST_DATABASE_URL`-gated list/detail scope, aggregate, privacy, ordering, and performance evidence.
 
 ### Lead Center exact listing filter
 
@@ -353,6 +353,14 @@ export interface AdminHomeDetail {
     paused_homes: number;
     archived_homes: number;
     report_count: number;
+    lead_health: {
+      health_score: number | null;
+      health_grade: "A" | "B" | "C" | "D" | "F" | null;
+      leads_30d: number;
+      called_rate_30d: number;
+      refund_rate_30d: number;
+      median_response_minutes_30d: number | null;
+    };
   };
   metrics_30d: {
     views: number;
@@ -459,6 +467,7 @@ git commit -m "feat(shared): add admin homes contracts and filters"
 - Modify: `apps/api/src/modules/admin/admin.module.ts`
 - Create: `apps/api/src/modules/admin/__tests__/admin-homes.service.test.ts`
 - Create: `apps/api/src/modules/admin/__tests__/admin-homes.controller.test.ts`
+- Create: `apps/api/test/admin-homes.integration.test.ts`
 
 **Interfaces:**
 
@@ -553,7 +562,39 @@ it("masks inventory owner phones on the server", async () => {
   expect(result.items[0].owner_phone_masked).toMatch(/X/);
   expect(result.items[0].owner_phone_masked).not.toContain("+919999999901");
 });
+
+it.each(["leads", "views", "conversion", "updated", "rent_desc", "rent_asc"] as const)(
+  "applies deterministic in-memory %s sorting",
+  async (sort) => {
+    const result = await service.listHomes({
+      status: "all",
+      sort,
+      page: 1,
+      page_size: 25
+    });
+    expect(result.items).toHaveLength(3);
+    expect(result.items.map((row) => row.id)).toEqual(expectedInMemoryOrderBySort[sort]);
+  }
+);
+
+it("paginates the in-memory inventory and reports the unpaged total", async () => {
+  installThirtyEligibleHomes(appState);
+  const result = await service.listHomes({
+    status: "all",
+    sort: "updated",
+    page: 2,
+    page_size: 25
+  });
+  expect(result.total).toBe(30);
+  expect(result.items).toHaveLength(5);
+  expect(result.page).toBe(2);
+  expect(result.page_size).toBe(25);
+});
 ```
+
+Define `expectedInMemoryOrderBySort` and `installThirtyEligibleHomes` in the
+test file with explicit IDs/rents/timestamps so these tests do not derive their
+expectations from the implementation.
 
 Add a database-mode mapping test with a fake `query` router. It must assert:
 
@@ -563,13 +604,31 @@ Add a database-mode mapping test with a fake `query` router. It must assert:
 - Returned Postgres numeric/string values are converted to JavaScript numbers.
 - `toBlobUrl` resolves the cover photo path.
 
+Before implementation, create `apps/api/test/admin-homes.integration.test.ts`
+with the repository's `describe.runIf(!!TEST_DATABASE_URL)` pattern. Seed the
+three eligible statuses plus PG, unverified, pending-review, and rejected
+records; current and older views; and multiple lead states. Add RED assertions
+for:
+
+- Eligible/ineligible scope.
+- Every sort value.
+- Status/city/search filters.
+- Pagination and page sizes.
+- Full-filtered summary values.
+- Server-side owner phone masking.
+- Numeric aggregate coercion.
+- `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` returning a plan for manual review.
+
 - [ ] **Step 2: Run the service test and verify RED**
 
 ```bash
 pnpm --filter @cribliv/api exec vitest run src/modules/admin/__tests__/admin-homes.service.test.ts
+TEST_DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @cribliv/api exec vitest run \
+  test/admin-homes.integration.test.ts
 ```
 
-Expected: FAIL because `AdminHomesService` does not exist.
+Expected: unit test FAIL because `AdminHomesService` does not exist; DB suite
+FAIL when configured and self-skip otherwise.
 
 - [ ] **Step 3: Implement `listHomes`**
 
@@ -705,7 +764,8 @@ git add apps/api/src/modules/admin/admin-homes.service.ts \
   apps/api/src/modules/admin/admin-homes.controller.ts \
   apps/api/src/modules/admin/admin.module.ts \
   apps/api/src/modules/admin/__tests__/admin-homes.service.test.ts \
-  apps/api/src/modules/admin/__tests__/admin-homes.controller.test.ts
+  apps/api/src/modules/admin/__tests__/admin-homes.controller.test.ts \
+  apps/api/test/admin-homes.integration.test.ts
 git commit -m "feat(api): add verified homes inventory endpoint"
 ```
 
@@ -804,12 +864,27 @@ Add a database-mode mapping test whose fake query results cover:
 - Verification attempts.
 - Activity.
 
-Create the `TEST_DATABASE_URL`-gated
-`apps/api/test/admin-homes.integration.test.ts` before implementation. Seed the
-eligible/ineligible listings, current/old view events, lead states, refunded
-unlock, verification attempts, photos, and activity described below. Its first
-run must fail because `getHome` and the complete detail SQL do not yet satisfy
-the assertions.
+It must also assert:
+
+```ts
+expect(detail.recent_leads).toHaveLength(10);
+expect(detail.recent_leads.map((lead) => lead.created_at)).toEqual(
+  [...detail.recent_leads.map((lead) => lead.created_at)].sort().reverse()
+);
+expect(detail.photos.every((photo) => photo.moderation_status !== "rejected")).toBe(true);
+expect(detail.photos[0].is_cover).toBe(true);
+expect(detail.verification_attempts.map((attempt) => attempt.created_at)).toEqual(
+  [...detail.verification_attempts.map((attempt) => attempt.created_at)].sort().reverse()
+);
+expect(detail.location?.lat).toBeTypeOf("number");
+expect(detail.location?.lng).toBeTypeOf("number");
+```
+
+Extend the existing `TEST_DATABASE_URL`-gated
+`apps/api/test/admin-homes.integration.test.ts` before detail implementation.
+Add refunded unlock, verification attempts, photos, and activity fixtures plus
+the detail assertions below. Its first detail run must fail because `getHome`
+and the complete detail SQL do not yet satisfy the assertions.
 
 - [ ] **Step 2: Run the detail tests and verify RED**
 
@@ -872,6 +947,15 @@ const [ownerAgg, photos, metrics, leadSummary, recentLeads, attempts, activity] 
   for leads created in the last 30 days with `called_at IS NOT NULL`.
 - Verified at: latest `verification_attempts.created_at` where result is `pass`.
 
+Query requirements:
+
+- Recent leads: `ORDER BY ld.created_at DESC LIMIT 10`.
+- Photos: exclude `moderation_status = 'rejected'` and order by
+  `is_cover DESC, sort_order ASC, created_at ASC`.
+- Verification attempts: include every attempt and order by `created_at DESC`.
+- Convert Postgres numerics, including latitude/longitude, scores, rates, and
+  counts, with `Number(...)` or null-preserving helpers.
+
 5. Build activity with one `UNION ALL` query over:
 
 - Listing created/updated synthetic rows.
@@ -896,6 +980,17 @@ Use `AppStateService` maps and arrays:
 - Use `createdAt` as the `updated_at` and updated-sort fallback.
 - Owner portfolio counts include every `flat_house` listing in
   `active/paused/archived`, regardless of verification status.
+- Compute owner `lead_health` in both modes. Database mode may reuse the
+  existing `computeOwnerHealth` calculator inputs; in-memory mode computes the
+  available lead counts/rates and returns null score/grade when required
+  recency/report inputs are unavailable.
+
+Add in-memory assertions for:
+
+- Owner active/paused/archived portfolio counts.
+- 30-day status/access/called/refunded summaries.
+- Current lifetime open/uncalled counts.
+- Listing-scoped verification attempts and admin activity only.
 
 - [ ] **Step 5: Add and test the detail route**
 
@@ -934,16 +1029,11 @@ pnpm --filter @cribliv/api typecheck
 
 Expected: all focused tests PASS and API typecheck exits 0.
 
-- [ ] **Step 7: Complete and verify the DB-backed integration suite**
+- [ ] **Step 7: Complete and verify the DB-backed detail integration suite**
 
-The integration file created in Step 1 uses the repository's
-`describe.runIf(!!TEST_DATABASE_URL)` pattern and seeds:
+The integration file created in Task 2 already proves inventory SQL. Its Task 3
+extension seeds:
 
-- One eligible active verified `flat_house`.
-- One eligible paused verified `flat_house`.
-- One eligible archived verified `flat_house`.
-- One PG, one unverified home, one pending-review home, and one rejected home.
-- Current and older-than-30-day view events.
 - Leads covering every status/access state, called and uncalled state, and one
   refunded contact unlock.
 - Two verification attempts for the eligible home.
@@ -964,11 +1054,10 @@ expect(JSON.stringify(await service.getHome(activeId))).not.toMatch(
 );
 ```
 
-Test all six sort values, filtered summary totals, detail scope, latest passing
-`verified_at`, and activity cap. Capture an `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`
-for the inventory SQL and assert the result is returned; store the printed plan
-in the test output for manual release review rather than enforcing
-machine-specific timing thresholds.
+Test detail scope, latest passing `verified_at`, privacy exclusions, ordering and
+caps, portfolio/lead-health values, and numeric conversion. Task 2 already
+captures the inventory `EXPLAIN`; retain its printed plan for manual release
+review rather than enforcing machine-specific timing thresholds.
 
 Run:
 
@@ -1008,6 +1097,22 @@ git commit -m "feat(api): add verified home detail workspace data"
 - `BoardParams.listingId?: string`.
 - `RawBoardParams.listing_id?: string`.
 - `GET /admin/leads/board?listing_id=<uuid>`.
+- Preserve the current positional argument order and append `listingId`:
+
+```ts
+board(
+  filter?: string,
+  ownerId?: string,
+  state?: string,
+  status?: string,
+  q?: string,
+  range?: string,
+  sort?: string,
+  page?: string,
+  pageSize?: string,
+  listingId?: string
+): Promise<unknown>;
+```
 
 - [ ] **Step 1: Write failing parser/controller tests**
 
@@ -1034,6 +1139,8 @@ it("forwards listing_id through to getBoard", async () => {
     undefined,
     undefined,
     "newest",
+    undefined,
+    undefined,
     listingId
   );
   expect(getBoard).toHaveBeenCalledWith(expect.objectContaining({ listingId }));
@@ -1056,8 +1163,10 @@ Expected: FAIL because `listing_id`/`listingId` are not wired.
 Add `listing_id` to `RawBoardParams`, validate with the existing `UUID_RE`, and
 return `listingId`.
 
-Add `@Query("listing_id") listingId?: string` to the controller and pass it to
-`sanitizeBoardParams`.
+Append `@Query("listing_id") listingId?: string` after `pageSize` in the
+controller signature and pass it to `sanitizeBoardParams`. Update the existing
+signature comment in `admin-leads.controller.test.ts` to list all ten
+parameters.
 
 - [ ] **Step 4: Write and run a failing exact-listing integration test**
 
@@ -1338,6 +1447,23 @@ export function AdminHomesTab(props: {
   onOpenLeadCenter: (listingId: string) => void;
   onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
 }): JSX.Element;
+
+interface AdminHomesQueryState {
+  status: AdminHomeStatusFilter;
+  city: string;
+  q: string;
+  sort: AdminHomeSort;
+  page: number;
+  pageSize: 25 | 50 | 100;
+}
+
+export function HomesInventory(props: {
+  accessToken: string;
+  query: AdminHomesQueryState;
+  onQueryChange: (next: AdminHomesQueryState) => void;
+  onSelect: (listingId: string) => void;
+  onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
+}): JSX.Element;
 ```
 
 - [ ] **Step 1: Write failing inventory tests**
@@ -1420,6 +1546,27 @@ it("renders agreed columns and copies without opening the workspace", async () =
   expect(fetchAdminHomeDetail).not.toHaveBeenCalled();
 });
 
+it("opens an active inventory row public page without opening the workspace", async () => {
+  mockedFetchAdminHomes.mockResolvedValueOnce(homeListFixture);
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  render(
+    <AdminHomesTab
+      accessToken="tok"
+      onOpenListingReview={vi.fn()}
+      onOpenLeadCenter={vi.fn()}
+      onToast={vi.fn()}
+    />
+  );
+  await screen.findByText("2BHK in Gomti Nagar");
+  fireEvent.click(screen.getByRole("button", { name: /open public page/i }));
+  expect(open).toHaveBeenCalledWith(
+    "https://cribliv.com/en/listing/11111111-1111-4111-8111-111111111111",
+    "_blank",
+    "noopener,noreferrer"
+  );
+  expect(fetchAdminHomeDetail).not.toHaveBeenCalled();
+});
+
 it("resets page one when filters change and shows all verified from empty active state", async () => {
   mockedFetchAdminHomes.mockResolvedValue(emptyActiveHomeListFixture);
   render(
@@ -1439,11 +1586,7 @@ it("resets page one when filters change and shows all verified from empty active
   );
 });
 
-it("shows no public URL actions for paused and archived inventory rows", async () => {
-  mockedFetchAdminHomes.mockResolvedValueOnce({
-    ...homeListFixture,
-    items: [{ ...homeRow, status: "paused" }]
-  });
+it("preserves filters and page after opening a workspace and returning", async () => {
   render(
     <AdminHomesTab
       accessToken="tok"
@@ -1452,10 +1595,65 @@ it("shows no public URL actions for paused and archived inventory rows", async (
       onToast={vi.fn()}
     />
   );
-  expect(await screen.findByText("Not publicly available")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /copy public url/i })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /open public page/i })).not.toBeInTheDocument();
+  fireEvent.change(await screen.findByLabelText("Home status"), {
+    target: { value: "paused" }
+  });
+  fireEvent.click(screen.getByText("2BHK in Gomti Nagar"));
+  fireEvent.click(await screen.findByRole("button", { name: "Back to verified homes" }));
+  expect(screen.getByLabelText("Home status")).toHaveValue("paused");
 });
+
+it("forwards search, city, sort, and page-size changes and resets page one", async () => {
+  render(
+    <AdminHomesTab
+      accessToken="tok"
+      onOpenListingReview={vi.fn()}
+      onOpenLeadCenter={vi.fn()}
+      onToast={vi.fn()}
+    />
+  );
+  fireEvent.change(await screen.findByLabelText("Search verified homes"), {
+    target: { value: "gomti" }
+  });
+  fireEvent.change(screen.getByLabelText("City"), { target: { value: "lucknow" } });
+  fireEvent.change(screen.getByLabelText("Sort homes"), { target: { value: "views" } });
+  fireEvent.change(screen.getByLabelText("Rows per page"), { target: { value: "50" } });
+  await waitFor(
+    () =>
+      expect(mockedFetchAdminHomes).toHaveBeenLastCalledWith(
+        "tok",
+        expect.objectContaining({
+          q: "gomti",
+          city: "lucknow",
+          sort: "views",
+          page: 1,
+          page_size: 50
+        })
+      ),
+    { timeout: 1_000 }
+  );
+});
+
+it.each(["paused", "archived"] as const)(
+  "shows no public URL actions for %s inventory rows",
+  async (status) => {
+    mockedFetchAdminHomes.mockResolvedValueOnce({
+      ...homeListFixture,
+      items: [{ ...homeRow, status }]
+    });
+    render(
+      <AdminHomesTab
+        accessToken="tok"
+        onOpenListingReview={vi.fn()}
+        onOpenLeadCenter={vi.fn()}
+        onToast={vi.fn()}
+      />
+    );
+    expect(await screen.findByText("Not publicly available")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /copy public url/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /open public page/i })).not.toBeInTheDocument();
+  }
+);
 ```
 
 - [ ] **Step 2: Run RED**
@@ -1468,28 +1666,31 @@ Expected: FAIL because the homes components do not exist.
 
 - [ ] **Step 3: Implement inventory state and data flow**
 
-`AdminHomesTab` owns:
+`AdminHomesTab` owns both selection and the complete query state so replacing the
+inventory with the workspace does not reset filters:
 
 ```ts
 const [selectedId, setSelectedId] = useState<string | null>(initialListingId ?? null);
+const [query, setQuery] = useState<AdminHomesQueryState>({
+  status: "active",
+  city: "",
+  q: "",
+  sort: "leads",
+  page: 1,
+  pageSize: 25
+});
 ```
 
-`HomesInventory` owns:
-
-```ts
-const [status, setStatus] = useState<AdminHomeStatusFilter>("active");
-const [city, setCity] = useState("");
-const [q, setQ] = useState("");
-const [debouncedQ, setDebouncedQ] = useState("");
-const [sort, setSort] = useState<AdminHomeSort>("leads");
-const [page, setPage] = useState(1);
-const [pageSize, setPageSize] = useState<25 | 50 | 100>(25);
-```
+`HomesInventory` receives the controlled `query` and `onQueryChange`. It may
+hold only transient request state (`loading`, `error`, fetched data, and the
+300ms debounced search value).
 
 - Debounce search by 300ms.
 - Reset page to 1 for status/city/search/sort/page-size changes.
 - Preserve filter state when returning from workspace.
-- Use `DataTable` on desktop and `.admin-homes-mobile-list` below 760px.
+- Render a feature-specific semantic `<table>` on desktop so rows can carry
+  `data-admin-home-row`. Do not extend or modify the generic `DataTable`.
+- Render `.admin-homes-mobile-list` stacked records below 760px.
 - Add `data-admin-home-row` to desktop rows and mobile records for E2E targeting.
 - Action buttons call `stopPropagation`.
 - Copy success: `onToast("Public URL copied", "trust")`.
@@ -1675,7 +1876,15 @@ const homeDetailFixture = {
     active_homes: 1,
     paused_homes: 0,
     archived_homes: 0,
-    report_count: 0
+    report_count: 0,
+    lead_health: {
+      health_score: 86,
+      health_grade: "A" as const,
+      leads_30d: 14,
+      called_rate_30d: 10 / 14,
+      refund_rate_30d: 0,
+      median_response_minutes_30d: 42
+    }
   },
   metrics_30d: { views: 428, leads: 14, open_leads: 4, conversion_rate: 14 / 428 },
   lead_summary: {
@@ -1771,25 +1980,28 @@ it("copies, opens the active public page, and delegates moderation to Listing Re
   expect(onOpenListingReview).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
 });
 
-it("hides public actions for paused and archived homes", async () => {
-  mockedFetchAdminHomeDetail.mockResolvedValueOnce({
-    ...homeDetailFixture,
-    listing: { ...homeDetailFixture.listing, status: "paused" }
-  });
-  render(
-    <AdminHomeWorkspace
-      accessToken="tok"
-      listingId="11111111-1111-4111-8111-111111111111"
-      onBack={vi.fn()}
-      onOpenListingReview={vi.fn()}
-      onOpenLeadCenter={vi.fn()}
-      onToast={vi.fn()}
-    />
-  );
-  expect(await screen.findByText("Not publicly available")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Copy public URL" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Open public page" })).not.toBeInTheDocument();
-});
+it.each(["paused", "archived"] as const)(
+  "hides public actions for %s homes",
+  async (status) => {
+    mockedFetchAdminHomeDetail.mockResolvedValueOnce({
+      ...homeDetailFixture,
+      listing: { ...homeDetailFixture.listing, status }
+    });
+    render(
+      <AdminHomeWorkspace
+        accessToken="tok"
+        listingId="11111111-1111-4111-8111-111111111111"
+        onBack={vi.fn()}
+        onOpenListingReview={vi.fn()}
+        onOpenLeadCenter={vi.fn()}
+        onToast={vi.fn()}
+      />
+    );
+    expect(await screen.findByText("Not publicly available")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy public URL" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open public page" })).not.toBeInTheDocument();
+  }
+);
 
 it("shows recent lead metrics but delegates actions to Lead Center", async () => {
   const onOpenLeadCenter = vi.fn();
@@ -2131,6 +2343,12 @@ test("admin can inspect a verified home and open its public page and leads", asy
   await expect(page.getByRole("heading", { name: "Verified Homes" })).toBeVisible();
   await page.locator("[data-admin-home-row]").first().click();
   await expect(page.getByRole("button", { name: "Copy public URL" })).toBeVisible();
+  const [publicPage] = await Promise.all([
+    page.waitForEvent("popup"),
+    page.getByRole("button", { name: "Open public page" }).click()
+  ]);
+  await expect(publicPage).toHaveURL(/\/en\/listing\/[0-9a-f-]+$/);
+  await publicPage.close();
   await page.getByRole("button", { name: "Leads" }).click();
   await page.getByRole("button", { name: "Manage in Lead Center" }).click();
   await expect(page.getByRole("heading", { name: "Lead Center" })).toBeVisible();
@@ -2199,6 +2417,23 @@ When `TEST_DATABASE_URL` is configured, also run the DB-backed admin homes and
 Lead Center integration tests and capture `EXPLAIN (ANALYZE, BUFFERS)` for the
 inventory query. Without `TEST_DATABASE_URL`, report those gates as skipped
 rather than claiming Postgres query correctness or performance evidence.
+
+Record a manual performance verdict in
+`.superpowers/sdd/admin-homes-explain-review.md` containing:
+
+```text
+Database dataset size:
+Observed plan:
+Unexpected sequential scans:
+Aggregate/sort spill:
+Decision: acceptable without migration | migration required before release
+Reviewer:
+Date:
+```
+
+The release gate passes only when the decision is `acceptable without
+migration`. A `migration required before release` decision stops completion and
+requires a separate user-approved migration plan.
 
 - [ ] **Step 9: Commit**
 

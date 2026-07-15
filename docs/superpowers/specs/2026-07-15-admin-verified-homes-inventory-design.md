@@ -230,7 +230,8 @@ short-lived and every access remains recorded in `admin_actions`.
   member-since date.
 - Owner portfolio counts: all `flat_house` active, paused, and archived homes,
   regardless of verification status.
-- Owner lead-health summary.
+- Owner lead-health summary: current health score/grade plus 30-day lead count,
+  called rate, refund rate, and median response time.
 - Report count and last login/activity.
 
 #### Activity tab
