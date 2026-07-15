@@ -23,6 +23,13 @@ import {
 import styles from "../MaintenanceWorkspace.module.css";
 
 type MaintenanceMode = "operator" | "tenant";
+type RequestUpdateOptions = { reload?: boolean };
+type PrioritySubmission = {
+  request: PgMaintenanceRequest;
+  priority: PgMaintenancePriority;
+  reason: string;
+  idempotencyKey: string;
+};
 
 const STATUS_LABEL: Record<PgMaintenanceStatus, string> = {
   open: "Open",
@@ -108,7 +115,8 @@ export default function MaintenanceTicketDetail({
   onSubmitComment,
   onStatusChange,
   onRequestUpdated,
-  onInternalNoteCreated
+  onInternalNoteCreated,
+  onInternalNoteRollback
 }: {
   request: PgMaintenanceRequest;
   mode: MaintenanceMode;
@@ -125,8 +133,9 @@ export default function MaintenanceTicketDetail({
   onRemoveCommentPhoto: (clientUploadId: string) => void;
   onSubmitComment: () => void;
   onStatusChange: (status: PgMaintenanceStatus) => void;
-  onRequestUpdated: (request: PgMaintenanceRequest) => void;
-  onInternalNoteCreated: (note: PgMaintenanceInternalNoteResponse) => void;
+  onRequestUpdated: (request: PgMaintenanceRequest, options?: RequestUpdateOptions) => void;
+  onInternalNoteCreated: (note: PgMaintenanceInternalNoteResponse, replaceId?: string) => void;
+  onInternalNoteRollback: (noteId: string) => void;
 }) {
   const toast = useToast();
   const [showResolution, setShowResolution] = useState(false);
@@ -145,33 +154,59 @@ export default function MaintenanceTicketDetail({
     setPriorityReason("");
     setPriorityPending(false);
     setPriorityError(null);
-  }, [request.id, request.priority]);
+  }, [request.id]);
 
-  async function submitPriority() {
+  useEffect(() => {
+    if (!showPriority && !priorityPending) setPriority(request.priority);
+  }, [priorityPending, request.priority, showPriority]);
+
+  async function submitPriority(retrySubmission?: PrioritySubmission) {
     if (!propertyId || priorityPending) return;
-    const reason = priorityReason.trim();
+    const submission =
+      retrySubmission ??
+      ({
+        request,
+        priority,
+        reason: priorityReason.trim(),
+        idempotencyKey: createMaintenanceUploadId()
+      } satisfies PrioritySubmission);
+    const reason = submission.reason;
     if (!reason) {
       setPriorityError("Enter a priority override reason.");
       return;
     }
     setPriorityPending(true);
     setPriorityError(null);
+    onRequestUpdated(
+      {
+        ...submission.request,
+        priority: submission.priority,
+        priority_source: "operator_override",
+        priority_overridden_at: new Date().toISOString(),
+        priority_override_reason: reason
+      },
+      { reload: false }
+    );
     try {
       onRequestUpdated(
         await overrideMaintenancePriority(
           propertyId,
-          request.id,
-          { priority, reason },
+          submission.request.id,
+          { priority: submission.priority, reason },
           token,
-          createMaintenanceUploadId()
-        )
+          submission.idempotencyKey
+        ),
+        { reload: true }
       );
-      toast.success(`Priority for ticket ${request.id} -> ${PRIORITY_LABEL[priority]}`);
+      toast.success(
+        `Priority for ticket ${submission.request.id} -> ${PRIORITY_LABEL[submission.priority]}`
+      );
       setShowPriority(false);
       setPriorityReason("");
     } catch {
-      toast.error(`Could not override priority for ticket ${request.id}.`, {
-        action: { label: "Retry", onClick: () => void submitPriority() }
+      onRequestUpdated(submission.request, { reload: false });
+      toast.error(`Could not override priority for ticket ${submission.request.id}.`, {
+        action: { label: "Retry", onClick: () => void submitPriority(submission) }
       });
     } finally {
       setPriorityPending(false);
@@ -300,9 +335,11 @@ export default function MaintenanceTicketDetail({
               request={request}
               propertyId={propertyId}
               token={token}
+              onOptimisticResolved={(updated) => onRequestUpdated(updated, { reload: false })}
+              onRollback={(previous) => onRequestUpdated(previous, { reload: false })}
               onResolved={(updated) => {
                 setShowResolution(false);
-                onRequestUpdated(updated);
+                onRequestUpdated(updated, { reload: true });
               }}
             />
           ) : null}
@@ -452,6 +489,7 @@ export default function MaintenanceTicketDetail({
           propertyId={propertyId}
           token={token}
           onCreated={onInternalNoteCreated}
+          onRollback={onInternalNoteRollback}
         />
       ) : null}
 

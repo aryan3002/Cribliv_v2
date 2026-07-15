@@ -354,6 +354,63 @@ describe("MaintenanceWorkspace", () => {
     );
   });
 
+  it("optimistically appends a comment, rolls it back, and retries the original submission", async () => {
+    let rejectComment: (cause: Error) => void = () => undefined;
+    addMaintenanceComment.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectComment = reject;
+        })
+    );
+    render(
+      <MaintenanceWorkspace
+        initialRequests={[ticket()]}
+        mode="operator"
+        propertyId="property-1"
+        token="token-1"
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Add comment"), {
+      target: { value: "  On the way  " }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send comment" }));
+
+    const publicThread = screen.getByRole("region", { name: "Ticket comments" });
+    expect(within(publicThread).getByRole("listitem")).toHaveTextContent("On the way");
+    await waitFor(() => expect(addMaintenanceComment).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      rejectComment(new Error("Network unavailable"));
+    });
+    await waitFor(() =>
+      expect(within(publicThread).queryByRole("listitem")).not.toBeInTheDocument()
+    );
+    expect(toast.error).toHaveBeenCalledWith(
+      "Could not add comment to ticket ticket-1.",
+      expect.objectContaining({ action: expect.objectContaining({ label: "Retry" }) })
+    );
+
+    const retry = toast.error.mock.calls[0][1].action.onClick;
+    addMaintenanceComment.mockResolvedValueOnce({
+      id: "comment-1",
+      request_id: "ticket-1",
+      author_user_id: "operator-1",
+      author_role: "pg_operator",
+      body: "On the way",
+      attachments: [],
+      attachment_urls: [],
+      created_at: "2026-07-14T10:00:00.000Z"
+    });
+    await act(async () => {
+      retry();
+    });
+
+    expect(within(publicThread).getByRole("listitem")).toHaveTextContent("On the way");
+    await waitFor(() => expect(addMaintenanceComment).toHaveBeenCalledTimes(2));
+    expect(toast.success).toHaveBeenCalledWith("Added comment to ticket ticket-1");
+  });
+
   it("uploads selected comment photos as request-scoped attachments", async () => {
     render(
       <MaintenanceWorkspace

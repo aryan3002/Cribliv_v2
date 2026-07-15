@@ -12,44 +12,75 @@ import { useToast } from "@/components/ui/toast/use-toast";
 import { createMaintenanceUploadId } from "./useMaintenancePhotoUpload";
 import styles from "../MaintenanceWorkspace.module.css";
 
+type InternalNoteSubmission = {
+  body: string;
+  idempotencyKey: string;
+  optimisticNote: PgMaintenanceInternalNoteResponse;
+};
+
 export default function MaintenanceInternalNotes({
   request,
   propertyId,
   token,
-  onCreated
+  onCreated,
+  onRollback
 }: {
   request: PgMaintenanceRequest;
   propertyId: string;
   token: string;
-  onCreated: (note: PgMaintenanceInternalNoteResponse) => void;
+  onCreated: (note: PgMaintenanceInternalNoteResponse, replaceId?: string) => void;
+  onRollback: (noteId: string) => void;
 }) {
   const toast = useToast();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit() {
-    const trimmed = body.trim();
+  async function submit(retrySubmission?: InternalNoteSubmission) {
+    if (pending) return;
+    const trimmed = retrySubmission?.body ?? body.trim();
     if (!trimmed) {
       setError("Enter an internal note.");
       return;
     }
+    const idempotencyKey = retrySubmission?.idempotencyKey ?? createMaintenanceUploadId();
+    const optimisticNote =
+      retrySubmission?.optimisticNote ??
+      ({
+        id: `optimistic-note-${idempotencyKey}`,
+        request_id: request.id,
+        author_user_id: null,
+        author_role: "pg_operator",
+        visibility: "operator_internal",
+        body: trimmed,
+        attachments: [],
+        attachment_urls: [],
+        created_at: new Date().toISOString()
+      } satisfies PgMaintenanceInternalNoteResponse);
+    const submission: InternalNoteSubmission = {
+      body: trimmed,
+      idempotencyKey,
+      optimisticNote
+    };
+
     setPending(true);
     setError(null);
+    onCreated(optimisticNote);
     try {
       const created = await addMaintenanceInternalNote(
         propertyId,
         request.id,
         { body: trimmed },
         token,
-        createMaintenanceUploadId()
+        idempotencyKey
       );
       setBody("");
-      onCreated(created);
+      onCreated(created, optimisticNote.id);
       toast.success(`Added internal note to ticket ${request.id}`);
     } catch {
+      onRollback(optimisticNote.id);
       toast.error(`Could not add internal note to ticket ${request.id}.`, {
-        action: { label: "Retry", onClick: () => void submit() }
+        action: { label: "Retry", onClick: () => void submit(submission) }
       });
     } finally {
       setPending(false);

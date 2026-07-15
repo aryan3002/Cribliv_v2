@@ -26,12 +26,16 @@ export default function MaintenanceResolutionSheet({
   request,
   propertyId,
   token,
-  onResolved
+  onResolved,
+  onOptimisticResolved,
+  onRollback
 }: {
   request: PgMaintenanceRequest;
   propertyId: string;
   token: string;
   onResolved: (request: PgMaintenanceRequest) => void;
+  onOptimisticResolved?: (request: PgMaintenanceRequest) => void;
+  onRollback?: (request: PgMaintenanceRequest) => void;
 }) {
   const toast = useToast();
   const [note, setNote] = useState("");
@@ -87,6 +91,18 @@ export default function MaintenanceResolutionSheet({
 
     setPending(true);
     setError(null);
+    onOptimisticResolved?.({
+      ...request,
+      status: "resolved",
+      resolved_at: new Date().toISOString(),
+      resolution_note: trimmedNote,
+      resolution_source: "operator",
+      resolution_cost_paise: costPaise,
+      chargeable_damage: chargeableDamage,
+      fix_photo_urls: photos
+        .map((photo) => photo.previewUrl)
+        .filter((url): url is string => Boolean(url))
+    });
     try {
       const fixPhotoPaths = await photoUpload.uploadForComment(request, photos);
       const updated = await resolveMaintenanceTicket(
@@ -106,6 +122,7 @@ export default function MaintenanceResolutionSheet({
       onResolved(updated);
       toast.success(`Resolved ticket ${request.id}`);
     } catch {
+      onRollback?.(request);
       toast.error(`Could not resolve ticket ${request.id}.`, {
         action: { label: "Retry", onClick: () => void submit() }
       });

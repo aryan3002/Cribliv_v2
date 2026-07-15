@@ -34,6 +34,14 @@ import styles from "./MaintenanceWorkspace.module.css";
 
 type MaintenanceMode = "operator" | "tenant";
 type TicketFilter = "active" | "all" | PgMaintenanceStatus;
+type CommentSubmission = {
+  request: PgMaintenanceRequest;
+  body: string;
+  photos: PendingMaintenancePhoto[];
+  idempotencyKey: string;
+  optimisticComment: PgMaintenanceComment;
+};
+type MergeRequestOptions = { preserveCollections?: boolean };
 const ACTIVE_STATUSES: readonly PgMaintenanceStatus[] = [
   "open",
   "in_progress",
@@ -84,12 +92,19 @@ function failureMessage(cause: unknown, fallback: string): string {
 
 function mergeRequest(
   previous: PgMaintenanceRequest,
-  updated: PgMaintenanceRequest
+  updated: PgMaintenanceRequest,
+  options: MergeRequestOptions = {}
 ): PgMaintenanceRequest {
   return {
     ...updated,
-    comments: updated.comments.length > 0 ? updated.comments : previous.comments,
-    timeline: updated.timeline ?? previous.timeline
+    comments: options.preserveCollections
+      ? previous.comments
+      : updated.comments.length > 0
+        ? updated.comments
+        : previous.comments,
+    timeline: options.preserveCollections
+      ? previous.timeline
+      : (updated.timeline ?? previous.timeline)
   };
 }
 
@@ -162,10 +177,10 @@ export default function MaintenanceWorkspace({
   const transitions = selected && mode === "operator" ? OPERATOR_TRANSITIONS[selected.status] : [];
   const showDetailPane = Boolean(selected) || !compact || visibleRequests.length > 0;
 
-  function replaceRequest(updated: PgMaintenanceRequest) {
+  function replaceRequest(updated: PgMaintenanceRequest, options?: MergeRequestOptions) {
     setRequests((current) =>
       current.map((request) =>
-        request.id === updated.id ? mergeRequest(request, updated) : request
+        request.id === updated.id ? mergeRequest(request, updated, options) : request
       )
     );
   }
@@ -174,33 +189,94 @@ export default function MaintenanceWorkspace({
     setRequests((current) =>
       current.map((request) =>
         request.id === requestId
-          ? { ...request, comments: [...request.comments, nextComment] }
+          ? {
+              ...request,
+              comments: request.comments.some((item) => item.id === nextComment.id)
+                ? request.comments.map((item) => (item.id === nextComment.id ? nextComment : item))
+                : [...request.comments, nextComment]
+            }
           : request
       )
     );
   }
 
-  function appendInternalNote(requestId: string, note: PgMaintenanceInternalNoteResponse) {
+  function replaceComment(
+    requestId: string,
+    optimisticId: string,
+    nextComment?: PgMaintenanceComment
+  ) {
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              comments: request.comments.flatMap((item) =>
+                item.id === optimisticId ? (nextComment ? [nextComment] : []) : [item]
+              )
+            }
+          : request
+      )
+    );
+  }
+
+  function rollbackStatus(
+    requestId: string,
+    previousStatus: PgMaintenanceStatus,
+    optimisticStatus: PgMaintenanceStatus
+  ) {
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId && request.status === optimisticStatus
+          ? {
+              ...request,
+              status: previousStatus
+            }
+          : request
+      )
+    );
+  }
+
+  function appendInternalNote(
+    requestId: string,
+    note: PgMaintenanceInternalNoteResponse,
+    replaceId?: string
+  ) {
+    const nextEvent = {
+      id: note.id,
+      request_id: note.request_id,
+      event_type: "internal_note_added" as const,
+      visibility: note.visibility,
+      actor_user_id: note.author_user_id,
+      actor_role: note.author_role,
+      from_status: null,
+      to_status: null,
+      payload: { body: note.body, attachments: note.attachments },
+      created_at: note.created_at
+    };
     setRequests((current) =>
       current.map((request) =>
         request.id === requestId
           ? {
               ...request,
               timeline: [
-                ...(request.timeline ?? []),
-                {
-                  id: note.id,
-                  request_id: note.request_id,
-                  event_type: "internal_note_added",
-                  visibility: note.visibility,
-                  actor_user_id: note.author_user_id,
-                  actor_role: note.author_role,
-                  from_status: null,
-                  to_status: null,
-                  payload: { body: note.body, attachments: note.attachments },
-                  created_at: note.created_at
-                }
+                ...(request.timeline ?? []).filter(
+                  (event) => event.id !== note.id && event.id !== replaceId
+                ),
+                nextEvent
               ]
+            }
+          : request
+      )
+    );
+  }
+
+  function removeInternalNote(requestId: string, noteId: string) {
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              timeline: (request.timeline ?? []).filter((event) => event.id !== noteId)
             }
           : request
       )
@@ -259,14 +335,14 @@ export default function MaintenanceWorkspace({
     setPending(`status:${status}`);
     setError(null);
     const optimistic = { ...request, status };
-    replaceRequest(optimistic);
+    replaceRequest(optimistic, { preserveCollections: true });
     const label = STATUS_LABEL[status];
     try {
       replaceRequest(await updateMaintenanceStatus(propertyId, request.id, status, token));
       toast.success(`Ticket ${request.id} -> ${label}`);
       router.refresh();
     } catch {
-      replaceRequest(request);
+      rollbackStatus(request.id, request.status, status);
       toast.error(`Could not move ticket ${request.id} to ${label}.`, {
         action: { label: "Retry", onClick: () => void changeStatus(status, request) }
       });
@@ -275,27 +351,53 @@ export default function MaintenanceWorkspace({
     }
   }
 
-  async function submitComment() {
-    if (!selected || pending || readOnly) return;
-    const body = comment.trim();
-    if (!body && commentPhotos.length === 0) {
+  async function submitComment(retrySubmission?: CommentSubmission) {
+    const request = retrySubmission?.request ?? selected;
+    if (!request || pending || readOnly) return;
+    const body = retrySubmission?.body ?? comment.trim();
+    const photos = retrySubmission?.photos ?? commentPhotos;
+    if (!body && photos.length === 0) {
       setError("Enter a comment or add a photo before sending.");
       return;
     }
 
-    setPending("comment");
-    setError(null);
     const savedKey = commentIdempotencyKey.current;
     const idempotencyKey =
-      savedKey?.requestId === selected.id
+      retrySubmission?.idempotencyKey ??
+      (savedKey?.requestId === request.id
         ? savedKey.key
         : (commentIdempotencyKey.current = {
-            requestId: selected.id,
+            requestId: request.id,
             key: createMaintenanceUploadId()
-          }).key;
+          }).key);
+    const optimisticComment =
+      retrySubmission?.optimisticComment ??
+      ({
+        id: `optimistic-comment-${idempotencyKey}`,
+        request_id: request.id,
+        author_user_id: null,
+        author_role: mode === "operator" ? "pg_operator" : "tenant",
+        body,
+        attachments: [],
+        attachment_urls: photos
+          .map((photo) => photo.previewUrl)
+          .filter((url): url is string => Boolean(url)),
+        created_at: new Date().toISOString()
+      } satisfies PgMaintenanceComment);
+    const submission: CommentSubmission = {
+      request,
+      body,
+      photos,
+      idempotencyKey,
+      optimisticComment
+    };
+
+    setPending("comment");
+    setError(null);
+    appendComment(request.id, optimisticComment);
 
     try {
-      const attachments = await photoUpload.uploadForComment(selected, commentPhotos);
+      const attachments = await photoUpload.uploadForComment(request, photos);
       const payload =
         attachments.length > 0
           ? {
@@ -306,20 +408,21 @@ export default function MaintenanceWorkspace({
       const nextComment =
         mode === "operator"
           ? propertyId
-            ? await addMaintenanceComment(propertyId, selected.id, payload, token, idempotencyKey)
+            ? await addMaintenanceComment(propertyId, request.id, payload, token, idempotencyKey)
             : null
-          : await addResidenceMaintenanceComment(selected.id, payload, token, idempotencyKey);
+          : await addResidenceMaintenanceComment(request.id, payload, token, idempotencyKey);
       if (!nextComment) throw new Error("Could not add this maintenance comment.");
-      appendComment(selected.id, nextComment);
+      replaceComment(request.id, optimisticComment.id, nextComment);
       setComment("");
-      commentPhotos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
+      photos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
       setCommentPhotos([]);
       commentIdempotencyKey.current = null;
-      toast.success(`Added comment to ticket ${selected.id}`);
+      toast.success(`Added comment to ticket ${request.id}`);
       router.refresh();
     } catch {
-      toast.error(`Could not add comment to ticket ${selected.id}.`, {
-        action: { label: "Retry", onClick: () => void submitComment() }
+      replaceComment(request.id, optimisticComment.id);
+      toast.error(`Could not add comment to ticket ${request.id}.`, {
+        action: { label: "Retry", onClick: () => void submitComment(submission) }
       });
     } finally {
       setPending(null);
@@ -428,14 +531,15 @@ export default function MaintenanceWorkspace({
                 onRemoveCommentPhoto={removePhoto}
                 onSubmitComment={() => void submitComment()}
                 onStatusChange={(status) => void changeStatus(status)}
-                onRequestUpdated={(updated) => {
-                  replaceRequest(updated);
-                  router.refresh();
+                onRequestUpdated={(updated, options) => {
+                  replaceRequest(updated, { preserveCollections: options?.reload === false });
+                  if (options?.reload !== false) router.refresh();
                 }}
-                onInternalNoteCreated={(note) => {
-                  appendInternalNote(selected.id, note);
-                  router.refresh();
+                onInternalNoteCreated={(note, replaceId) => {
+                  appendInternalNote(selected.id, note, replaceId);
+                  if (replaceId) router.refresh();
                 }}
+                onInternalNoteRollback={(noteId) => removeInternalNote(selected.id, noteId)}
               />
             )}
           </div>

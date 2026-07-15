@@ -118,6 +118,7 @@ function setup() {
 
 describe("MaintenanceKanban", () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     listPropertyMaintenance.mockReset();
     resolveMaintenanceTicket.mockReset();
     updateMaintenanceStatus.mockReset();
@@ -253,5 +254,38 @@ describe("MaintenanceKanban", () => {
         name: "Start work Plumbing"
       })
     ).toBeEnabled();
+  });
+
+  it("does not smooth-scroll column jumps when reduced motion is requested", () => {
+    const scrollIntoView = vi.fn();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockReturnValue({
+        matches: true,
+        media: "(prefers-reduced-motion: reduce)",
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      })
+    );
+    setup();
+    Object.defineProperty(
+      document.getElementById("maintenance-column-resolved"),
+      "scrollIntoView",
+      {
+        configurable: true,
+        value: scrollIntoView
+      }
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolved" }));
+
+    expect(window.matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+    expect(scrollIntoView).toHaveBeenCalledWith(
+      expect.objectContaining({ behavior: "auto", inline: "start", block: "nearest" })
+    );
   });
 });

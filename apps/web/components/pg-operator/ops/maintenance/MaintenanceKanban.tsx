@@ -178,13 +178,39 @@ export default function MaintenanceKanban({
     });
   }
 
+  function rollbackRequest(previous: PgMaintenanceRequest, optimisticStatus: PgMaintenanceStatus) {
+    setColumns((current) => {
+      const currentRequest = COLUMNS.flatMap((column) => current[column.status].rows).find(
+        (request) => request.id === previous.id
+      );
+      if (currentRequest && currentRequest.status !== optimisticStatus) return current;
+
+      const next = { ...current };
+      for (const column of COLUMNS) {
+        next[column.status] = {
+          ...next[column.status],
+          rows: next[column.status].rows.filter((request) => request.id !== previous.id)
+        };
+      }
+      if (COLUMNS.some((column) => column.status === previous.status)) {
+        const target = previous.status as KanbanStatus;
+        next[target] = { ...next[target], rows: [previous, ...next[target].rows] };
+      }
+      return next;
+    });
+  }
+
+  function getColumnScrollBehavior(): ScrollBehavior {
+    if (typeof window === "undefined") return "smooth";
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  }
+
   async function move(request: PgMaintenanceRequest, status: PgMaintenanceStatus) {
     if (!canMove(request, status) || pending) return;
     if (status === "resolved") {
       setResolving(request);
       return;
     }
-    const previousColumns = columns;
     const optimisticRequest = { ...request, status };
     setPending(`${request.id}:${status}`);
     replaceRequest(optimisticRequest);
@@ -195,7 +221,7 @@ export default function MaintenanceKanban({
         `Ticket ${request.id} -> ${COLUMNS.find((column) => column.status === status)?.label ?? status}`
       );
     } catch {
-      setColumns(previousColumns);
+      rollbackRequest(request, status);
       const label = COLUMNS.find((column) => column.status === status)?.label ?? status;
       toast.error(`Could not move ticket ${request.id} to ${label}.`, {
         action: { label: "Retry", onClick: () => void move(request, status) }
@@ -248,7 +274,7 @@ export default function MaintenanceKanban({
             onClick={() => {
               setActiveColumn(column.status);
               document.getElementById(`maintenance-column-${column.status}`)?.scrollIntoView({
-                behavior: "smooth",
+                behavior: getColumnScrollBehavior(),
                 inline: "start",
                 block: "nearest"
               });
@@ -397,6 +423,8 @@ export default function MaintenanceKanban({
               request={resolving}
               propertyId={propertyId}
               token={token ?? ""}
+              onOptimisticResolved={replaceRequest}
+              onRollback={replaceRequest}
               onResolved={(updated) => {
                 replaceRequest(updated);
                 setResolving(null);
