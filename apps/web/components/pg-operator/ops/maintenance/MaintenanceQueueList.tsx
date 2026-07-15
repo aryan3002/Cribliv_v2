@@ -86,6 +86,7 @@ export default function MaintenanceQueueList({
   const [rows, setRows] = useState(initialPage.rows);
   const [nextCursor, setNextCursor] = useState(initialPage.next_cursor);
   const [loading, setLoading] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedQuery, setFailedQuery] = useState<{
     filters: MaintenanceQueueFilterState;
@@ -120,8 +121,13 @@ export default function MaintenanceQueueList({
 
   return (
     <section className={styles.queueShell} aria-label="Maintenance queue">
-      <MaintenanceAnalyticsStrip analytics={analytics} />
-      <MaintenanceQueueFilters categories={categories} value={filters} onChange={updateFilters} />
+      <MaintenanceAnalyticsStrip analytics={analytics} inert={filtersOpen} />
+      <MaintenanceQueueFilters
+        categories={categories}
+        value={filters}
+        onChange={updateFilters}
+        onSheetOpenChange={setFiltersOpen}
+      />
       {error ? (
         <div role="alert" className={styles.inlineError}>
           <span>{error}</span>

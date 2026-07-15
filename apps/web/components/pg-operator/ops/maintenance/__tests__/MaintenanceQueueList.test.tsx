@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -293,5 +295,45 @@ describe("MaintenanceQueueList", () => {
     setup();
 
     expect(screen.getByTestId("maintenance-card-ticket-1")).toBeInTheDocument();
+  });
+
+  it("keeps the desktop filter shell visible", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "components/pg-operator/ops/maintenance/MaintenanceQueue.module.css"),
+      "utf8"
+    );
+
+    expect(css).toMatch(/\.filterShell\s*\{[^}]*display:\s*block;/s);
+  });
+
+  it("treats the mobile filter sheet as a modal and restores trigger focus on escape", () => {
+    setup();
+
+    const trigger = screen.getByRole("button", { name: "Filters" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Filters" });
+    const close = screen.getByRole("button", { name: "Close filters" });
+    const sort = screen.getByRole("combobox", { name: "Sort" });
+
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(close).toHaveFocus();
+    expect(screen.getByRole("region", { name: "Maintenance analytics" })).toHaveAttribute(
+      "inert",
+      ""
+    );
+
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(sort).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "Filters" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(screen.getByRole("region", { name: "Maintenance analytics" })).not.toHaveAttribute(
+      "inert"
+    );
   });
 });

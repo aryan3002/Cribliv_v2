@@ -86,7 +86,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             aria-live="polite"
             aria-atomic="false"
           >
-            {toasts.slice(0, MAX_VISIBLE_TOASTS).map((toast) => (
+            {toasts.slice(-MAX_VISIBLE_TOASTS).map((toast) => (
               <TimedToast key={toast.id} toast={toast} onDismiss={dismiss} />
             ))}
           </div>,

@@ -2,9 +2,11 @@ import type { PgMaintenanceAnalytics } from "@cribliv/shared-types";
 import styles from "./MaintenanceQueue.module.css";
 
 export default function MaintenanceAnalyticsStrip({
-  analytics
+  analytics,
+  inert = false
 }: {
   analytics: PgMaintenanceAnalytics;
+  inert?: boolean;
 }) {
   const metrics = [
     { count: analytics.open, label: "open" },
@@ -16,7 +18,11 @@ export default function MaintenanceAnalyticsStrip({
   ];
 
   return (
-    <section className={styles.analyticsStrip} aria-label="Maintenance analytics">
+    <section
+      className={styles.analyticsStrip}
+      aria-label="Maintenance analytics"
+      inert={inert ? ("" as unknown as boolean) : undefined}
+    >
       {metrics.map((metric) => {
         return (
           <div key={metric.label} className={styles.metric}>

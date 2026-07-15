@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { OverflowMenu } from "../OverflowMenu";
@@ -75,5 +77,15 @@ describe("OverflowMenu", () => {
     expect(edit).toHaveFocus();
     fireEvent.keyDown(menu, { key: "Tab", shiftKey: true });
     expect(archive).toHaveFocus();
+  });
+
+  it("uses intrinsic menu width without retaining a right viewport constraint", () => {
+    const css = readFileSync(
+      resolve(process.cwd(), "components/ui/menu/overflow-menu.module.css"),
+      "utf8"
+    );
+
+    expect(css).toMatch(/\.menu\s*\{[^}]*right:\s*auto;/s);
+    expect(css).toMatch(/\.menu\s*\{[^}]*width:\s*max-content;/s);
   });
 });

@@ -42,6 +42,10 @@
   display: none;
 }
 
+.filterShell {
+  display: block;
+}
+
 .field {
   display: flex;
   flex-direction: column;

@@ -28,7 +28,14 @@ export function Toast({
     >
       <p className={styles.message}>{toast.message}</p>
       {toast.action && (
-        <button type="button" className={styles.action} onClick={toast.action.onClick}>
+        <button
+          type="button"
+          className={styles.action}
+          onClick={() => {
+            toast.action?.onClick();
+            onDismiss(toast.id);
+          }}
+        >
           {toast.action.label}
         </button>
       )}

@@ -61,7 +61,7 @@ describe("ToastProvider", () => {
     vi.useRealTimers();
   });
 
-  it("queues notifications in a polite live region and caps visible toasts at three", () => {
+  it("queues newest notifications in a polite live region and caps visible toasts at three", () => {
     render(
       <ToastProvider>
         <ToastHarness />
@@ -75,9 +75,10 @@ describe("ToastProvider", () => {
       "polite"
     );
     expect(screen.getAllByRole("status")).toHaveLength(3);
-    expect(screen.getByText("One")).toBeInTheDocument();
+    expect(screen.queryByText("One")).not.toBeInTheDocument();
+    expect(screen.getByText("Two")).toBeInTheDocument();
     expect(screen.getByText("Three")).toBeInTheDocument();
-    expect(screen.queryByText("Four")).not.toBeInTheDocument();
+    expect(screen.getByText("Four")).toBeInTheDocument();
   });
 
   it("auto-dismisses a success toast after the default duration", () => {
@@ -109,9 +110,9 @@ describe("ToastProvider", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss notification" }));
     expect(screen.queryByText("Could not update listing")).not.toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: "Dismiss notification" })).not.toBeInTheDocument();
   });
 
   it("keeps a promise loading notification visible until the promise settles", async () => {

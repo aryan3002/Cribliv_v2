@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import type {
   PgMaintenanceCategory,
   PgMaintenancePriority,
@@ -22,6 +22,7 @@ type Props = {
   categories: PgMaintenanceCategory[];
   value: MaintenanceQueueFilterState;
   onChange(next: MaintenanceQueueFilterState): void;
+  onSheetOpenChange?(open: boolean): void;
 };
 
 export const DEFAULT_QUEUE_FILTERS: MaintenanceQueueFilterState = {
@@ -54,8 +55,16 @@ export function toMaintenanceQueueFilters(
   };
 }
 
-export default function MaintenanceQueueFilters({ categories, value, onChange }: Props) {
+export default function MaintenanceQueueFilters({
+  categories,
+  value,
+  onChange,
+  onSheetOpenChange
+}: Props) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const activeCount = useMemo(
     () =>
       Object.entries(value).filter(
@@ -69,15 +78,54 @@ export default function MaintenanceQueueFilters({ categories, value, onChange }:
   ) {
     onChange({ ...value, [key]: nextValue });
   }
+  function openSheet() {
+    setOpen(true);
+    onSheetOpenChange?.(true);
+  }
+  function closeSheet() {
+    setOpen(false);
+    onSheetOpenChange?.(false);
+    triggerRef.current?.focus();
+  }
+  function handleSheetKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSheet();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const focusable = Array.from(
+      sheetRef.current?.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href]"
+      ) ?? []
+    );
+    if (focusable.length === 0) return;
+    event.preventDefault();
+    const current = focusable.indexOf(document.activeElement as HTMLElement);
+    const next = event.shiftKey
+      ? current <= 0
+        ? focusable.length - 1
+        : current - 1
+      : current === focusable.length - 1
+        ? 0
+        : current + 1;
+    focusable[next].focus();
+  }
+
+  useEffect(() => {
+    if (open) closeRef.current?.focus();
+  }, [open]);
 
   return (
     <div className={styles.filterShell}>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.filterTrigger}
         aria-expanded={open}
         aria-controls="maintenance-queue-filters"
-        onClick={() => setOpen(true)}
+        onClick={openSheet}
       >
         Filters{activeCount ? ` (${activeCount})` : ""}
       </button>
@@ -85,20 +133,26 @@ export default function MaintenanceQueueFilters({ categories, value, onChange }:
         <button
           type="button"
           className={styles.sheetBackdrop}
-          aria-label="Close filters"
-          onClick={() => setOpen(false)}
+          aria-label="Dismiss filter sheet"
+          onClick={closeSheet}
         />
       ) : null}
       <div
         id="maintenance-queue-filters"
+        ref={sheetRef}
         className={`${styles.filters} ${open ? styles.filtersOpen : ""}`}
+        role={open ? "dialog" : undefined}
+        aria-label={open ? "Filters" : undefined}
+        aria-modal={open || undefined}
+        onKeyDown={open ? handleSheetKeyDown : undefined}
       >
         <div className={styles.filterSheetHeader}>
           <span>Filters</span>
           <button
+            ref={closeRef}
             type="button"
             className={styles.sheetClose}
-            onClick={() => setOpen(false)}
+            onClick={closeSheet}
             aria-label="Close filters"
           >
             Close
