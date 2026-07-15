@@ -342,6 +342,100 @@ describe("AdminHomesService", () => {
     });
   });
 
+  it("counts only uncalled open leads as needing attention in memory", async () => {
+    (appState as any).leads = new Map([
+      [
+        "active-called",
+        {
+          id: "active-called",
+          listingId: "active-home",
+          ownerUserId: "owner-1",
+          tenantUserId: "tenant-1",
+          status: "contacted",
+          accessState: "unlocked",
+          calledAt: now,
+          createdAt: now - 86_400_000,
+          statusChangedAt: now,
+          updatedAt: now
+        }
+      ]
+    ]);
+
+    const calledOnly = await service.listHomes({
+      status: "active",
+      sort: "updated",
+      page: 1,
+      page_size: 25
+    });
+    expect(calledOnly.items[0].open_leads).toBe(1);
+    expect(calledOnly.summary.needs_attention).toBe(0);
+
+    (appState as any).leads.set("active-uncalled", {
+      id: "active-uncalled",
+      listingId: "active-home",
+      ownerUserId: "owner-1",
+      tenantUserId: "tenant-2",
+      status: "new",
+      accessState: "locked",
+      createdAt: now - 86_400_000,
+      statusChangedAt: now,
+      updatedAt: now
+    });
+
+    const withUncalled = await service.listHomes({
+      status: "active",
+      sort: "updated",
+      page: 1,
+      page_size: 25
+    });
+    expect(withUncalled.items[0].open_leads).toBe(2);
+    expect(withUncalled.summary.needs_attention).toBe(1);
+  });
+
+  it("keeps city facets scoped by status/search but independent of current city", async () => {
+    (appState as any).listings.set("delhi-active-home", {
+      id: "delhi-active-home",
+      ownerUserId: "owner-1",
+      listingType: "flat_house",
+      title: "Gomti Delhi Heights",
+      city: "delhi",
+      locality: "saket",
+      monthlyRent: 18000,
+      verificationStatus: "verified",
+      status: "active",
+      createdAt: now - 4_000,
+      updatedAt: now - 4_000
+    });
+    (appState as any).listings.set("lucknow-paused-home", {
+      id: "lucknow-paused-home",
+      ownerUserId: "owner-1",
+      listingType: "flat_house",
+      title: "Gomti Paused Home",
+      city: "lucknow",
+      locality: "gomti-nagar",
+      monthlyRent: 18000,
+      verificationStatus: "verified",
+      status: "paused",
+      createdAt: now - 5_000,
+      updatedAt: now - 5_000
+    });
+
+    const result = await service.listHomes({
+      status: "active",
+      city: "lucknow",
+      q: "gomti",
+      sort: "updated",
+      page: 1,
+      page_size: 25
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual(["active-home"]);
+    expect(result.available_cities).toEqual([
+      { slug: "delhi", name: "delhi", count: 1 },
+      { slug: "lucknow", name: "lucknow", count: 1 }
+    ]);
+  });
+
   it("paginates the in-memory inventory and reports the unpaged total", async () => {
     installThirtyEligibleHomes(appState);
     const result = await service.listHomes({
@@ -355,6 +449,144 @@ describe("AdminHomesService", () => {
     expect(result.items).toHaveLength(5);
     expect(result.page).toBe(2);
     expect(result.page_size).toBe(25);
+  });
+
+  it("uses the summary total when an out-of-range database page is empty", async () => {
+    database.isEnabled = () => true;
+    database.query.mockImplementation((sql: string) => {
+      if (sql.includes("count(*) OVER ()")) return Promise.resolve({ rows: [] });
+      if (sql.includes("active_homes")) {
+        return Promise.resolve({
+          rows: [
+            {
+              total: "31",
+              active_homes: "31",
+              views_30d: "0",
+              leads_30d: "0",
+              needs_attention: "0"
+            }
+          ]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const result = await service.listHomes({
+      status: "active",
+      sort: "updated",
+      page: 3,
+      page_size: 25
+    });
+
+    expect(result.items).toEqual([]);
+    expect(result.total).toBe(31);
+    expect(database.query).toHaveBeenCalledTimes(3);
+  });
+
+  it("uses a separate uncalled-open aggregate for database attention summaries", async () => {
+    database.isEnabled = () => true;
+    database.query.mockImplementation((sql: string) => {
+      if (sql.includes("count(*) OVER ()")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: "db-home",
+              title: "Database Home",
+              city_slug: "lucknow",
+              city_name: "Lucknow",
+              locality_name: "Gomti Nagar",
+              monthly_rent: "22000",
+              owner_id: "owner-1",
+              owner_name: "Ramesh Kumar",
+              owner_phone: "+919999999901",
+              status: "active",
+              cover_photo_path: null,
+              views_30d: "1",
+              leads_30d: "1",
+              open_leads: "1",
+              conversion_rate: "1",
+              updated_at: "2026-07-15T00:00:00.000Z",
+              total: "1"
+            }
+          ]
+        });
+      }
+      if (sql.includes("active_homes")) {
+        return Promise.resolve({
+          rows: [
+            {
+              total: "1",
+              active_homes: "1",
+              views_30d: "1",
+              leads_30d: "1",
+              needs_attention: "0"
+            }
+          ]
+        });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+
+    const result = await service.listHomes({
+      status: "active",
+      sort: "updated",
+      page: 1,
+      page_size: 25
+    });
+    const summaryCall = database.query.mock.calls.find(([sql]) =>
+      String(sql).includes("active_homes")
+    );
+
+    expect(result.items[0].open_leads).toBe(1);
+    expect(result.summary.needs_attention).toBe(0);
+    expect(summaryCall?.[0]).toContain("ld.called_at IS NULL");
+  });
+
+  it("builds database city facets with status/search but without current-city filter", async () => {
+    database.isEnabled = () => true;
+    database.query.mockImplementation((sql: string) => {
+      if (sql.includes("count(*) OVER ()")) return Promise.resolve({ rows: [] });
+      if (sql.includes("active_homes")) {
+        return Promise.resolve({
+          rows: [
+            {
+              total: "0",
+              active_homes: "0",
+              views_30d: "0",
+              leads_30d: "0",
+              needs_attention: "0"
+            }
+          ]
+        });
+      }
+      return Promise.resolve({
+        rows: [
+          { slug: "delhi", name: "Delhi", count: "1" },
+          { slug: "lucknow", name: "Lucknow", count: "3" }
+        ]
+      });
+    });
+
+    const result = await service.listHomes({
+      status: "active",
+      city: "lucknow",
+      q: "gomti",
+      sort: "updated",
+      page: 3,
+      page_size: 25
+    });
+    const cityCall = database.query.mock.calls.find(([sql]) =>
+      String(sql).includes("SELECT city_slug AS slug")
+    );
+
+    expect(result.available_cities).toEqual([
+      { slug: "delhi", name: "Delhi", count: 1 },
+      { slug: "lucknow", name: "Lucknow", count: 3 }
+    ]);
+    expect(cityCall?.[0]).toContain("l.status = 'active'");
+    expect(cityCall?.[0]).toContain("ILIKE $1");
+    expect(cityCall?.[0]).not.toContain("c.slug =");
+    expect(cityCall?.[1]).toEqual(["%gomti%"]);
   });
 
   it("uses set-based database rows, bound pagination, numeric coercion, and blob URLs", async () => {
@@ -388,7 +620,15 @@ describe("AdminHomesService", () => {
       }
       if (sql.includes("active_homes")) {
         return Promise.resolve({
-          rows: [{ active_homes: "1", views_30d: "12", leads_30d: "3", needs_attention: "1" }]
+          rows: [
+            {
+              total: "1",
+              active_homes: "1",
+              views_30d: "12",
+              leads_30d: "3",
+              needs_attention: "1"
+            }
+          ]
         });
       }
       return Promise.resolve({ rows: [{ slug: "lucknow", name: "Lucknow", count: "1" }] });

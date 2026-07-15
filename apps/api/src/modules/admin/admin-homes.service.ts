@@ -31,6 +31,7 @@ interface HomeSqlRow {
 }
 
 interface SummarySqlRow {
+  total: number | string;
   active_homes: number | string;
   views_30d: number | string;
   leads_30d: number | string;
@@ -71,7 +72,11 @@ export class AdminHomesService {
       return this.listHomesInMemory(params);
     }
 
-    const pageBase = this.baseCte(params, { includeStatus: true, includeCity: true });
+    const pageBase = this.baseCte(params, {
+      includeStatus: true,
+      includeCity: true,
+      includeSearch: true
+    });
     const limitIndex = pageBase.values.length + 1;
     const offsetIndex = limitIndex + 1;
     const pageResult = await this.database.query<HomeSqlRow>(
@@ -90,7 +95,12 @@ export class AdminHomesService {
                 count(*) FILTER (
                   WHERE ld.status IN ('new', 'contacted', 'visit_scheduled')
                     AND ld.access_state <> 'expired'
-                )::int AS open_leads
+                )::int AS open_leads,
+                count(*) FILTER (
+                  WHERE ld.status IN ('new', 'contacted', 'visit_scheduled')
+                    AND ld.access_state <> 'expired'
+                    AND ld.called_at IS NULL
+                )::int AS uncalled_open_leads
          FROM leads ld
          JOIN base b ON b.id = ld.listing_id
          GROUP BY ld.listing_id
@@ -130,7 +140,11 @@ export class AdminHomesService {
       [...pageBase.values, params.page_size, (params.page - 1) * params.page_size]
     );
 
-    const summaryBase = this.baseCte(params, { includeStatus: false, includeCity: true });
+    const summaryBase = this.baseCte(params, {
+      includeStatus: false,
+      includeCity: true,
+      includeSearch: true
+    });
     const selectedStatus = this.selectedStatusClause(params.status, "b.status");
     const summaryResult = await this.database.query<SummarySqlRow>(
       `${summaryBase.sql},
@@ -152,23 +166,33 @@ export class AdminHomesService {
                 count(*) FILTER (
                   WHERE ld.status IN ('new', 'contacted', 'visit_scheduled')
                     AND ld.access_state <> 'expired'
-                )::int AS open_leads
+                )::int AS open_leads,
+                count(*) FILTER (
+                  WHERE ld.status IN ('new', 'contacted', 'visit_scheduled')
+                    AND ld.access_state <> 'expired'
+                    AND ld.called_at IS NULL
+                )::int AS uncalled_open_leads
          FROM leads ld
          JOIN filtered f ON f.id = ld.listing_id
          GROUP BY ld.listing_id
        )
        SELECT
+         count(*)::int AS total,
          (SELECT count(*)::int FROM base WHERE status = 'active') AS active_homes,
          COALESCE(sum(COALESCE(event_agg.views_30d, 0)), 0)::int AS views_30d,
          COALESCE(sum(COALESCE(lead_agg.leads_30d, 0)), 0)::int AS leads_30d,
-         count(*) FILTER (WHERE COALESCE(lead_agg.open_leads, 0) > 0)::int AS needs_attention
+         count(*) FILTER (WHERE COALESCE(lead_agg.uncalled_open_leads, 0) > 0)::int AS needs_attention
        FROM filtered f
        LEFT JOIN event_agg ON event_agg.listing_id = f.id
        LEFT JOIN lead_agg ON lead_agg.listing_id = f.id`,
       summaryBase.values
     );
 
-    const cityBase = this.baseCte(params, { includeStatus: true, includeCity: false });
+    const cityBase = this.baseCte(params, {
+      includeStatus: true,
+      includeCity: false,
+      includeSearch: true
+    });
     const citiesResult = await this.database.query<CitySqlRow>(
       `${cityBase.sql}
        SELECT city_slug AS slug, city_name AS name, count(*)::int AS count
@@ -182,7 +206,7 @@ export class AdminHomesService {
     const summary = summaryResult.rows[0];
     return {
       items: pageResult.rows.map((row) => this.mapSqlRow(row)),
-      total: numberValue(pageResult.rows[0]?.total),
+      total: numberValue(summary?.total),
       page: params.page,
       page_size: params.page_size,
       filters: {
@@ -207,7 +231,7 @@ export class AdminHomesService {
 
   private baseCte(
     params: AdminHomesListParams,
-    options: { includeStatus: boolean; includeCity: boolean }
+    options: { includeStatus: boolean; includeCity: boolean; includeSearch: boolean }
   ): BaseCte {
     const values: unknown[] = [];
     const where = [
@@ -223,7 +247,7 @@ export class AdminHomesService {
       values.push(params.city);
       where.push(`c.slug = $${values.length}`);
     }
-    if (params.q) {
+    if (options.includeSearch && params.q) {
       values.push(`%${params.q}%`);
       const index = values.length;
       where.push(`(
@@ -320,11 +344,13 @@ export class AdminHomesService {
         );
         const views_30d = 0;
         const leads_30d = listingLeads.filter((lead) => lead.createdAt >= cutoff).length;
-        const open_leads = listingLeads.filter(
+        const openLeads = listingLeads.filter(
           (lead) =>
             ["new", "contacted", "visit_scheduled"].includes(lead.status) &&
             lead.accessState !== "expired"
-        ).length;
+        );
+        const open_leads = openLeads.length;
+        const uncalled_open_leads = openLeads.filter((lead) => lead.calledAt == null).length;
         const updatedAt = this.inMemoryUpdatedAt(listing);
 
         return {
@@ -342,6 +368,7 @@ export class AdminHomesService {
           views_30d,
           leads_30d,
           open_leads,
+          uncalled_open_leads,
           conversion_rate: this.ratio(leads_30d, views_30d),
           updated_at: new Date(updatedAt).toISOString(),
           public_path: `/en/listing/${listing.id}`,
@@ -391,7 +418,7 @@ export class AdminHomesService {
     return {
       items: sortedRows
         .slice(offset, offset + params.page_size)
-        .map(({ search: _search, ...row }) => row),
+        .map(({ search: _search, uncalled_open_leads: _uncalledOpenLeads, ...row }) => row),
       total: filteredRows.length,
       page: params.page,
       page_size: params.page_size,
@@ -408,7 +435,7 @@ export class AdminHomesService {
         active_homes: summaryRows.filter((row) => row.status === "active").length,
         views_30d: filteredRows.reduce((total, row) => total + row.views_30d, 0),
         leads_30d: filteredRows.reduce((total, row) => total + row.leads_30d, 0),
-        needs_attention: filteredRows.filter((row) => row.open_leads > 0).length
+        needs_attention: filteredRows.filter((row) => row.uncalled_open_leads > 0).length
       }
     };
   }
