@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgTenantResidence } from "@cribliv/shared-types";
+import { ToastProvider } from "@/components/ui/toast/toast-provider";
 
 const mocks = vi.hoisted(() => ({
   addMaintenanceComment: vi.fn(),
@@ -90,13 +91,15 @@ describe("PgResidenceClient", () => {
 
   it("offers the tenant's own bed, room, and floor when raising maintenance", () => {
     render(
-      <PgResidenceClient
-        initialResidence={activeResidence()}
-        initialMaintenance={[]}
-        maintenanceLoadError={null}
-        maintenanceHistoryEnabled
-        token="token-1"
-      />
+      <ToastProvider>
+        <PgResidenceClient
+          initialResidence={activeResidence()}
+          initialMaintenance={[]}
+          maintenanceLoadError={null}
+          maintenanceHistoryEnabled
+          token="token-1"
+        />
+      </ToastProvider>
     );
 
     const location = screen.getByRole("combobox", { name: "Location" });

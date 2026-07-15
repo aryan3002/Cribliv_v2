@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { LocaleChrome } from "../../components/locale-chrome";
 import { PageviewTracker } from "../../components/analytics/pageview-tracker";
 import { WelcomeCreditsModal } from "../../components/welcome-credits-modal";
+import { ToastProvider } from "../../components/ui/toast/toast-provider";
 import { isValidLocale, type Locale } from "../../lib/i18n";
 import { notFound } from "next/navigation";
 
@@ -41,8 +42,10 @@ export default function LocaleLayout({
       <Suspense fallback={null}>
         <PageviewTracker locale={params.locale} />
       </Suspense>
-      <LocaleChrome locale={params.locale as Locale}>{children}</LocaleChrome>
-      <WelcomeCreditsModal locale={params.locale as Locale} />
+      <ToastProvider>
+        <LocaleChrome locale={params.locale as Locale}>{children}</LocaleChrome>
+        <WelcomeCreditsModal locale={params.locale as Locale} />
+      </ToastProvider>
     </>
   );
 }
