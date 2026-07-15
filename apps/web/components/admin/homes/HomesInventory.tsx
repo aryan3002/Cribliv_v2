@@ -71,6 +71,7 @@ export function HomesInventory({ accessToken, query, onQueryChange, onSelect, on
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setData(null);
 
     const params: {
       status: AdminHomeStatusFilter;
@@ -355,25 +356,19 @@ function HomesDesktopTable({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr
-              key={row.id}
-              data-admin-home-row
-              data-clickable="true"
-              tabIndex={0}
-              onClick={() => onSelect(row.id)}
-              onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelect(row.id);
-                }
-              }}
-            >
+            <tr key={row.id} data-admin-home-row>
               <td>
                 <CoverPhoto row={row} />
               </td>
               <td>
-                <div className="admin-homes-title">{row.title}</div>
+                <button
+                  type="button"
+                  className="admin-homes-open-action"
+                  aria-label={`Open ${row.title} workspace`}
+                  onClick={() => onSelect(row.id)}
+                >
+                  {row.title}
+                </button>
                 <div className="admin-table__id">{shortId(row.id)}</div>
               </td>
               <td>
@@ -419,24 +414,18 @@ function HomesMobileList({
   return (
     <div className="admin-homes-mobile-list">
       {rows.map((row) => (
-        <article
-          key={row.id}
-          className="admin-homes-mobile-record"
-          data-admin-home-row
-          tabIndex={0}
-          onClick={() => onSelect(row.id)}
-          onKeyDown={(event) => {
-            if (event.target !== event.currentTarget) return;
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              onSelect(row.id);
-            }
-          }}
-        >
+        <article key={row.id} className="admin-homes-mobile-record" data-admin-home-row>
           <div className="admin-homes-mobile-record__header">
             <CoverPhoto row={row} />
             <div>
-              <div className="admin-homes-title">{row.title}</div>
+              <button
+                type="button"
+                className="admin-homes-open-action"
+                aria-label={`Open ${row.title} workspace`}
+                onClick={() => onSelect(row.id)}
+              >
+                {row.title}
+              </button>
               <div className="admin-table__id">{shortId(row.id)}</div>
               <div className="admin-homes-muted">
                 {row.locality_name ?? "-"}, {row.city_name ?? "-"}
@@ -476,6 +465,8 @@ function HomesMobileList({
 
 function CoverPhoto({ row }: { row: AdminHomeListItem }) {
   if (row.cover_photo_url) {
+    // Admin photo URLs are dynamic Azure/CDN values not covered by a fixed Next image host.
+    // eslint-disable-next-line @next/next/no-img-element
     return (
       <img className="admin-homes-thumb" src={row.cover_photo_url} alt={`${row.title} cover`} />
     );

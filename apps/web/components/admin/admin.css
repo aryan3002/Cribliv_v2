@@ -884,6 +884,27 @@
   font-weight: 600;
   line-height: 1.35;
 }
+.admin-homes-open-action {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ad-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  text-wrap: pretty;
+}
+.admin-homes-open-action:hover {
+  color: var(--ad-brand);
+}
+.admin-homes-open-action:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--ad-brand);
+  outline-offset: 3px;
+}
 .admin-homes-muted {
   margin-top: 3px;
   color: var(--ad-text-3);

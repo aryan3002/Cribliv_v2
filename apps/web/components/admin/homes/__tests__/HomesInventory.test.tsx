@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AdminHomesListResponse } from "@cribliv/shared-types";
 
 vi.mock("../../../../lib/admin-api", () => ({
   fetchAdminHomes: vi.fn(),
@@ -39,7 +40,7 @@ const homeRow = {
   public_path: "/en/listing/11111111-1111-4111-8111-111111111111"
 };
 
-const homeListFixture = {
+const homeListFixture: AdminHomesListResponse = {
   items: [homeRow],
   total: 1,
   page: 1,
@@ -49,7 +50,7 @@ const homeListFixture = {
   summary: { active_homes: 1, views_30d: 428, leads_30d: 14, needs_attention: 1 }
 };
 
-const emptyActiveHomeListFixture = {
+const emptyActiveHomeListFixture: AdminHomesListResponse = {
   ...homeListFixture,
   items: [],
   total: 0,
@@ -194,6 +195,44 @@ describe("AdminHomesTab", () => {
         ),
       { timeout: 1_000 }
     );
+  });
+
+  it("removes stale rows while a changed query is loading", async () => {
+    let resolveNext: ((value: typeof homeListFixture) => void) | undefined;
+    mockedFetchAdminHomes.mockResolvedValueOnce(homeListFixture).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveNext = resolve;
+        })
+    );
+    renderHomes();
+    await screen.findByText("2BHK in Gomti Nagar");
+
+    fireEvent.change(screen.getByLabelText("Home status"), {
+      target: { value: "archived" }
+    });
+
+    expect(await screen.findByLabelText("Loading verified homes")).toBeInTheDocument();
+    expect(screen.queryByText("2BHK in Gomti Nagar")).not.toBeInTheDocument();
+    resolveNext?.({
+      ...homeListFixture,
+      items: [{ ...homeRow, status: "archived" }],
+      filters: { ...homeListFixture.filters, status: "archived" }
+    });
+    await screen.findByText("2BHK in Gomti Nagar");
+  });
+
+  it("uses explicit named controls to open the workspace", async () => {
+    renderHomes();
+
+    const openWorkspace = await screen.findByRole("button", {
+      name: "Open 2BHK in Gomti Nagar workspace"
+    });
+    fireEvent.click(openWorkspace);
+
+    expect(
+      await screen.findByRole("button", { name: "Back to verified homes" })
+    ).toBeInTheDocument();
   });
 
   it.each(["paused", "archived"] as const)(
