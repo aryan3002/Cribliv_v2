@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Wrench } from "lucide-react";
 import { auth } from "@/auth";
 import MaintenanceWorkspace from "@/components/pg-operator/ops/MaintenanceWorkspace";
+import MaintenanceKanban from "@/components/pg-operator/ops/maintenance/MaintenanceKanban";
+import MaintenanceQueueList from "@/components/pg-operator/ops/maintenance/MaintenanceQueueList";
 import {
+  fetchMaintenanceAnalytics,
+  fetchMaintenanceCategories,
   getManagedProperty,
   listBedMaintenance,
   listPropertyMaintenance
@@ -24,14 +28,68 @@ export default async function Page({
   const token = (session as any)?.accessToken;
   const bedId = typeof searchParams.bedId === "string" ? searchParams.bedId : undefined;
 
-  const data = await Promise.all([
-    getManagedProperty(params.propertyId, token),
-    bedId
-      ? listBedMaintenance(params.propertyId, bedId, token)
-      : listPropertyMaintenance(params.propertyId, token)
-  ])
-    .then(([property, requests]) => (property ? { property, requests } : null))
-    .catch(() => null);
+  const data = bedId
+    ? await Promise.all([
+        getManagedProperty(params.propertyId, token),
+        listBedMaintenance(params.propertyId, bedId, token)
+      ])
+        .then(([property, requests]) =>
+          property ? { mode: "bed" as const, property, requests } : null
+        )
+        .catch(() => null)
+    : await Promise.all([
+        getManagedProperty(params.propertyId, token),
+        fetchMaintenanceCategories(token),
+        fetchMaintenanceAnalytics(params.propertyId, token),
+        listPropertyMaintenance(params.propertyId, token, {
+          sort: "sla_due",
+          view: "list",
+          limit: 25
+        }),
+        listPropertyMaintenance(params.propertyId, token, {
+          status: "open",
+          sort: "sla_due",
+          view: "kanban",
+          limit: 25
+        }),
+        listPropertyMaintenance(params.propertyId, token, {
+          status: "in_progress",
+          sort: "sla_due",
+          view: "kanban",
+          limit: 25
+        }),
+        listPropertyMaintenance(params.propertyId, token, {
+          status: "waiting_on_tenant",
+          sort: "sla_due",
+          view: "kanban",
+          limit: 25
+        }),
+        listPropertyMaintenance(params.propertyId, token, {
+          status: "resolved",
+          sort: "sla_due",
+          view: "kanban",
+          limit: 25
+        })
+      ])
+        .then(
+          ([property, categories, analytics, queuePage, open, inProgress, waiting, resolved]) =>
+            property
+              ? {
+                  mode: "queue" as const,
+                  property,
+                  categories,
+                  analytics,
+                  queuePage,
+                  kanbanPages: {
+                    open,
+                    in_progress: inProgress,
+                    waiting_on_tenant: waiting,
+                    resolved
+                  }
+                }
+              : null
+        )
+        .catch(() => null);
 
   if (!data) {
     return (
@@ -81,12 +139,30 @@ export default async function Page({
             ) : null}
           </div>
         </header>
-        <MaintenanceWorkspace
-          initialRequests={data.requests}
-          mode="operator"
-          propertyId={params.propertyId}
-          token={token}
-        />
+        {data.mode === "bed" ? (
+          <MaintenanceWorkspace
+            initialRequests={data.requests}
+            mode="operator"
+            propertyId={params.propertyId}
+            token={token}
+          />
+        ) : (
+          <>
+            <MaintenanceQueueList
+              propertyId={params.propertyId}
+              token={token}
+              categories={data.categories}
+              analytics={data.analytics}
+              initialPage={data.queuePage}
+            />
+            <MaintenanceKanban
+              propertyId={params.propertyId}
+              token={token}
+              initialPage={data.queuePage}
+              initialColumnPages={data.kanbanPages}
+            />
+          </>
+        )}
       </div>
     </main>
   );
