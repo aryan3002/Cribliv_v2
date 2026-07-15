@@ -266,4 +266,32 @@ describe("MaintenanceQueueList", () => {
     expect(screen.getByRole("row", { name: /Electrical/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
+
+  it("shows an inline retry that replays the failed filters", async () => {
+    listPropertyMaintenance
+      .mockRejectedValueOnce(new Error("Queue unavailable"))
+      .mockResolvedValueOnce(page([ticket({ status: "in_progress" })]));
+    setup();
+
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "in_progress" } });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Queue unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() =>
+      expect(listPropertyMaintenance).toHaveBeenLastCalledWith("property-1", "token-1", {
+        status: "in_progress",
+        sort: "sla_due",
+        view: "list",
+        limit: 25
+      })
+    );
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("exposes card rows for the mobile queue layout", () => {
+    setup();
+
+    expect(screen.getByTestId("maintenance-card-ticket-1")).toBeInTheDocument();
+  });
 });

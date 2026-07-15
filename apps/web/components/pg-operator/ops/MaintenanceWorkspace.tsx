@@ -12,6 +12,7 @@ import type {
   PgMaintenanceStatus
 } from "@cribliv/shared-types";
 import { ClipboardList } from "lucide-react";
+import { useToast } from "@/components/ui/toast/use-toast";
 import {
   addMaintenanceComment,
   addResidenceMaintenanceComment,
@@ -112,6 +113,7 @@ export default function MaintenanceWorkspace({
   readOnly?: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [requests, setRequests] = useState(initialRequests);
   const [selectedId, setSelectedId] = useState<string | null>(initialRequests[0]?.id ?? null);
   const [filter, setFilter] = useState<TicketFilter>("active");
@@ -250,17 +252,24 @@ export default function MaintenanceWorkspace({
     setCommentPhotos((current) => photoUpload.removePhoto(current, clientUploadId));
   }
 
-  async function changeStatus(status: PgMaintenanceStatus) {
-    if (!selected || mode !== "operator" || !propertyId || pending) return;
-    if (!OPERATOR_TRANSITIONS[selected.status].includes(status)) return;
+  async function changeStatus(status: PgMaintenanceStatus, request = selected) {
+    if (!request || mode !== "operator" || !propertyId || pending) return;
+    if (!OPERATOR_TRANSITIONS[request.status].includes(status)) return;
 
     setPending(`status:${status}`);
     setError(null);
+    const optimistic = { ...request, status };
+    replaceRequest(optimistic);
+    const label = STATUS_LABEL[status];
     try {
-      replaceRequest(await updateMaintenanceStatus(propertyId, selected.id, status, token));
+      replaceRequest(await updateMaintenanceStatus(propertyId, request.id, status, token));
+      toast.success(`Ticket ${request.id} -> ${label}`);
       router.refresh();
-    } catch (cause) {
-      setError(failureMessage(cause, "Could not update this maintenance ticket."));
+    } catch {
+      replaceRequest(request);
+      toast.error(`Could not move ticket ${request.id} to ${label}.`, {
+        action: { label: "Retry", onClick: () => void changeStatus(status, request) }
+      });
     } finally {
       setPending(null);
     }
@@ -306,9 +315,12 @@ export default function MaintenanceWorkspace({
       commentPhotos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
       setCommentPhotos([]);
       commentIdempotencyKey.current = null;
+      toast.success(`Added comment to ticket ${selected.id}`);
       router.refresh();
-    } catch (cause) {
-      setError(failureMessage(cause, "Could not add this maintenance comment."));
+    } catch {
+      toast.error(`Could not add comment to ticket ${selected.id}.`, {
+        action: { label: "Retry", onClick: () => void submitComment() }
+      });
     } finally {
       setPending(null);
     }
@@ -407,6 +419,7 @@ export default function MaintenanceWorkspace({
                 token={token}
                 transitions={transitions}
                 pending={pending}
+                detailLoading={selected.timeline === undefined}
                 comment={comment}
                 commentPhotos={commentPhotos}
                 readOnly={readOnly}

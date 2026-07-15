@@ -87,6 +87,10 @@ export default function MaintenanceQueueList({
   const [nextCursor, setNextCursor] = useState(initialPage.next_cursor);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failedQuery, setFailedQuery] = useState<{
+    filters: MaintenanceQueueFilterState;
+    cursor?: string;
+  } | null>(null);
 
   async function query(nextFilters: MaintenanceQueueFilterState, cursor?: string) {
     setLoading(true);
@@ -99,8 +103,10 @@ export default function MaintenanceQueueList({
       );
       setRows((current) => (cursor ? [...current, ...result.rows] : result.rows));
       setNextCursor(result.next_cursor);
+      setFailedQuery(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not load maintenance tickets.");
+      setFailedQuery({ filters: nextFilters, cursor });
     } finally {
       setLoading(false);
     }
@@ -117,9 +123,19 @@ export default function MaintenanceQueueList({
       <MaintenanceAnalyticsStrip analytics={analytics} />
       <MaintenanceQueueFilters categories={categories} value={filters} onChange={updateFilters} />
       {error ? (
-        <p role="alert" className={styles.empty}>
-          {error}
-        </p>
+        <div role="alert" className={styles.inlineError}>
+          <span>{error}</span>
+          {failedQuery ? (
+            <button
+              type="button"
+              className={styles.retryButton}
+              disabled={loading}
+              onClick={() => void query(failedQuery.filters, failedQuery.cursor)}
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {rows.length === 0 ? (
         <div className={styles.empty}>No maintenance tickets match this view.</div>
@@ -139,8 +155,8 @@ export default function MaintenanceQueueList({
             </thead>
             <tbody>
               {rows.map((request) => (
-                <tr key={request.id}>
-                  <td>
+                <tr key={request.id} data-testid={`maintenance-card-${request.id}`}>
+                  <td data-label="Ticket">
                     <div className={styles.primaryCell}>
                       {ticketHrefBase ? (
                         <Link
@@ -156,20 +172,20 @@ export default function MaintenanceQueueList({
                       <span>{request.description}</span>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="SLA">
                     <span className={request.is_overdue ? styles.danger : undefined}>
                       {`Due ${displayDateTime(request.sla_due_at)}`}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Priority">
                     <span className={styles.badge}>{PRIORITY_LABEL[request.priority]}</span>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <span className={styles.badge}>{STATUS_LABEL[request.status]}</span>
                   </td>
-                  <td>{locationLabel(request)}</td>
-                  <td>{tenantLabel(request)}</td>
-                  <td className={styles.cellSubtle}>
+                  <td data-label="Location">{locationLabel(request)}</td>
+                  <td data-label="Tenant">{tenantLabel(request)}</td>
+                  <td data-label="Last update" className={styles.cellSubtle}>
                     {`Updated ${displayDateTime(request.updated_at)}`}
                   </td>
                 </tr>

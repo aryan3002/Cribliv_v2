@@ -11,6 +11,8 @@ import type {
 } from "@cribliv/shared-types";
 import { ImagePlus, Loader2, MessageSquarePlus, X } from "lucide-react";
 import { overrideMaintenancePriority } from "@/lib/pg-operations-api";
+import { useToast } from "@/components/ui/toast/use-toast";
+import { Skeleton } from "@/components/ui/skeleton/Skeleton";
 import MaintenanceInternalNotes from "./MaintenanceInternalNotes";
 import MaintenanceResolutionSheet from "./MaintenanceResolutionSheet";
 import MaintenanceTimeline from "./MaintenanceTimeline";
@@ -96,6 +98,7 @@ export default function MaintenanceTicketDetail({
   token,
   transitions,
   pending,
+  detailLoading,
   comment,
   commentPhotos,
   readOnly = false,
@@ -113,6 +116,7 @@ export default function MaintenanceTicketDetail({
   token: string;
   transitions: PgMaintenanceStatus[];
   pending: string | null;
+  detailLoading: boolean;
   comment: string;
   commentPhotos: PendingMaintenancePhoto[];
   readOnly?: boolean;
@@ -124,6 +128,7 @@ export default function MaintenanceTicketDetail({
   onRequestUpdated: (request: PgMaintenanceRequest) => void;
   onInternalNoteCreated: (note: PgMaintenanceInternalNoteResponse) => void;
 }) {
+  const toast = useToast();
   const [showResolution, setShowResolution] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
   const [priority, setPriority] = useState<PgMaintenancePriority>(request.priority);
@@ -161,10 +166,13 @@ export default function MaintenanceTicketDetail({
           createMaintenanceUploadId()
         )
       );
+      toast.success(`Priority for ticket ${request.id} -> ${PRIORITY_LABEL[priority]}`);
       setShowPriority(false);
       setPriorityReason("");
-    } catch (cause) {
-      setPriorityError(cause instanceof Error ? cause.message : "Could not override priority.");
+    } catch {
+      toast.error(`Could not override priority for ticket ${request.id}.`, {
+        action: { label: "Retry", onClick: () => void submitPriority() }
+      });
     } finally {
       setPriorityPending(false);
     }
@@ -208,7 +216,9 @@ export default function MaintenanceTicketDetail({
       <section className={styles.detailSection} aria-label="Issue">
         <h4>Issue</h4>
         <p className={styles.detailDescription}>{request.description}</p>
-        {request.photo_urls.length > 0 ? (
+        {detailLoading ? (
+          <Skeleton className={styles.detailSkeletonPhoto} label="Loading maintenance photos" />
+        ) : request.photo_urls.length > 0 ? (
           <div className={styles.photoGrid} aria-label="Maintenance photos">
             {request.photo_urls.map((url, index) => (
               // eslint-disable-next-line @next/next/no-img-element
@@ -447,7 +457,15 @@ export default function MaintenanceTicketDetail({
 
       <section className={styles.detailSection} aria-label="Timeline">
         <h4>Timeline</h4>
-        <MaintenanceTimeline events={request.timeline ?? []} mode={mode} />
+        {detailLoading ? (
+          <div className={styles.detailSkeletonRows}>
+            <Skeleton label="Loading maintenance timeline" />
+            <Skeleton />
+            <Skeleton />
+          </div>
+        ) : (
+          <MaintenanceTimeline events={request.timeline ?? []} mode={mode} />
+        )}
       </section>
 
       {request.resolution_note ? (

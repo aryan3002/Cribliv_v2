@@ -5,6 +5,7 @@ import { Button } from "@cribliv/ui";
 import type { PgMaintenanceRequest } from "@cribliv/shared-types";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import { resolveMaintenanceTicket } from "@/lib/pg-operations-api";
+import { useToast } from "@/components/ui/toast/use-toast";
 import {
   createMaintenanceUploadId,
   type PendingMaintenancePhoto,
@@ -32,6 +33,7 @@ export default function MaintenanceResolutionSheet({
   token: string;
   onResolved: (request: PgMaintenanceRequest) => void;
 }) {
+  const toast = useToast();
   const [note, setNote] = useState("");
   const [cost, setCost] = useState("");
   const [chargeableDamage, setChargeableDamage] = useState<boolean | null>(null);
@@ -102,8 +104,11 @@ export default function MaintenanceResolutionSheet({
       photos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
       setPhotos([]);
       onResolved(updated);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not resolve this ticket.");
+      toast.success(`Resolved ticket ${request.id}`);
+    } catch {
+      toast.error(`Could not resolve ticket ${request.id}.`, {
+        action: { label: "Retry", onClick: () => void submit() }
+      });
     } finally {
       setPending(false);
     }

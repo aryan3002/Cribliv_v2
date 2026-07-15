@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgMaintenanceRequest } from "@cribliv/shared-types";
 
@@ -33,6 +33,13 @@ const {
   presignResidenceMaintenancePhotos: vi.fn(),
   completeResidenceMaintenancePhotos: vi.fn()
 }));
+const toast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  promise: vi.fn(),
+  dismiss: vi.fn()
+}));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 vi.mock("@/lib/pg-operations-api", () => ({
@@ -51,6 +58,7 @@ vi.mock("@/lib/pg-operations-api", () => ({
   presignResidenceMaintenancePhotos,
   completeResidenceMaintenancePhotos
 }));
+vi.mock("@/components/ui/toast/use-toast", () => ({ useToast: () => toast }));
 
 import MaintenanceWorkspace from "../MaintenanceWorkspace";
 
@@ -130,6 +138,8 @@ describe("MaintenanceWorkspace", () => {
     completeMaintenancePhotos.mockReset();
     presignResidenceMaintenancePhotos.mockReset();
     completeResidenceMaintenancePhotos.mockReset();
+    toast.success.mockReset();
+    toast.error.mockReset();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200 }));
     updateMaintenanceStatus.mockResolvedValue(ticket({ status: "in_progress" }));
     getMaintenanceTicket.mockImplementation((_propertyId, requestId) =>
@@ -204,6 +214,65 @@ describe("MaintenanceWorkspace", () => {
         "in_progress",
         "token-1"
       )
+    );
+    expect(toast.success).toHaveBeenCalledWith("Ticket ticket-1 -> In progress");
+  });
+
+  it("rolls back an optimistic status move and exposes a retry toast action", async () => {
+    let rejectStatusUpdate: (cause: Error) => void = () => undefined;
+    updateMaintenanceStatus.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectStatusUpdate = reject;
+        })
+    );
+    render(
+      <MaintenanceWorkspace
+        initialRequests={[ticket()]}
+        mode="operator"
+        propertyId="property-1"
+        token="token-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Start work" }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("button", { pressed: true })).getByText("In progress")
+      ).toBeInTheDocument()
+    );
+    await act(async () => {
+      rejectStatusUpdate(new Error("Network unavailable"));
+    });
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Could not move ticket ticket-1 to In progress.",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Retry" }) })
+      )
+    );
+    expect(
+      within(screen.getByRole("button", { pressed: true })).getByText("Open")
+    ).toBeInTheDocument();
+  });
+
+  it("shows detail skeletons while ticket timeline hydrates", async () => {
+    render(
+      <MaintenanceWorkspace
+        initialRequests={[ticket({ timeline: undefined })]}
+        mode="operator"
+        propertyId="property-1"
+        token="token-1"
+      />
+    );
+
+    expect(
+      screen.getByRole("status", { name: "Loading maintenance timeline" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading maintenance photos" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("status", { name: "Loading maintenance timeline" })
+      ).not.toBeInTheDocument()
     );
   });
 

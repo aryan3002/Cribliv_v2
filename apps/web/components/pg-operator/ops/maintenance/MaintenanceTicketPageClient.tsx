@@ -329,6 +329,7 @@ export default function MaintenanceTicketPageClient({
           token={token}
           transitions={transitions}
           pending={pending}
+          detailLoading={false}
           comment={comment}
           commentPhotos={commentPhotos}
           onCommentChange={setComment}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgMaintenanceQueuePage, PgMaintenanceRequest } from "@cribliv/shared-types";
 
@@ -9,12 +9,20 @@ const { listPropertyMaintenance, resolveMaintenanceTicket, updateMaintenanceStat
     updateMaintenanceStatus: vi.fn()
   })
 );
+const toast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  promise: vi.fn(),
+  dismiss: vi.fn()
+}));
 
 vi.mock("@/lib/pg-operations-api", () => ({
   listPropertyMaintenance,
   resolveMaintenanceTicket,
   updateMaintenanceStatus
 }));
+vi.mock("@/components/ui/toast/use-toast", () => ({ useToast: () => toast }));
 
 import MaintenanceKanban from "../MaintenanceKanban";
 
@@ -113,6 +121,8 @@ describe("MaintenanceKanban", () => {
     listPropertyMaintenance.mockReset();
     resolveMaintenanceTicket.mockReset();
     updateMaintenanceStatus.mockReset();
+    toast.success.mockReset();
+    toast.error.mockReset();
     resolveMaintenanceTicket.mockResolvedValue(
       ticket({ id: "work-ticket", status: "resolved", category: "Electrical" })
     );
@@ -186,5 +196,62 @@ describe("MaintenanceKanban", () => {
     expect(
       within(resolvedColumn).getByRole("button", { name: "Start work Cleaning" })
     ).toBeDisabled();
+  });
+
+  it("optimistically moves a ticket, names the new status, and rolls back with retry on failure", async () => {
+    let rejectStatusUpdate: (cause: Error) => void = () => undefined;
+    updateMaintenanceStatus.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectStatusUpdate = reject;
+        })
+    );
+    setup();
+
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Open" })).getByRole("button", {
+        name: "Start work Plumbing"
+      })
+    );
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("region", { name: "In progress" })).getByText("Plumbing")
+      ).toBeInTheDocument()
+    );
+    await act(async () => {
+      rejectStatusUpdate(new Error("Network unavailable"));
+    });
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Could not move ticket open-ticket to In progress.",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Retry" }) })
+      )
+    );
+    expect(
+      within(screen.getByRole("region", { name: "Open" })).getByText("Plumbing")
+    ).toBeInTheDocument();
+
+    const retry = toast.error.mock.calls[0][1].action.onClick;
+    updateMaintenanceStatus.mockResolvedValueOnce(
+      ticket({ id: "open-ticket", status: "in_progress" })
+    );
+    await act(async () => {
+      retry();
+    });
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Ticket open-ticket -> In progress")
+    );
+  });
+
+  it("keeps keyboard-operable status buttons alongside draggable cards", () => {
+    setup();
+
+    expect(screen.getByLabelText("Drag Plumbing ticket")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Open" })).getByRole("button", {
+        name: "Start work Plumbing"
+      })
+    ).toBeEnabled();
   });
 });

@@ -2,6 +2,8 @@
 
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
+import { GripVertical } from "lucide-react";
 import type {
   PgMaintenancePriority,
   PgMaintenanceQueuePage,
@@ -9,6 +11,8 @@ import type {
   PgMaintenanceStatus
 } from "@cribliv/shared-types";
 import { listPropertyMaintenance, updateMaintenanceStatus } from "@/lib/pg-operations-api";
+import { useToast } from "@/components/ui/toast/use-toast";
+import { Skeleton } from "@/components/ui/skeleton/Skeleton";
 import MaintenanceResolutionSheet from "./MaintenanceResolutionSheet";
 import styles from "./MaintenanceQueue.module.css";
 
@@ -103,9 +107,11 @@ export default function MaintenanceKanban({
   initialColumnPages?: KanbanColumnPages;
   ticketHrefBase?: string;
 }) {
+  const toast = useToast();
   const [columns, setColumns] = useState(initialColumns(initialPage, initialColumnPages));
   const [resolving, setResolving] = useState<PgMaintenanceRequest | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [activeColumn, setActiveColumn] = useState<KanbanStatus>("open");
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const byStatus = useMemo(
@@ -178,13 +184,34 @@ export default function MaintenanceKanban({
       setResolving(request);
       return;
     }
+    const previousColumns = columns;
+    const optimisticRequest = { ...request, status };
     setPending(`${request.id}:${status}`);
+    replaceRequest(optimisticRequest);
     try {
       const updated = await updateMaintenanceStatus(propertyId, request.id, status, token);
       replaceRequest(updated);
+      toast.success(
+        `Ticket ${request.id} -> ${COLUMNS.find((column) => column.status === status)?.label ?? status}`
+      );
+    } catch {
+      setColumns(previousColumns);
+      const label = COLUMNS.find((column) => column.status === status)?.label ?? status;
+      toast.error(`Could not move ticket ${request.id} to ${label}.`, {
+        action: { label: "Retry", onClick: () => void move(request, status) }
+      });
     } finally {
       setPending(null);
     }
+  }
+
+  function onDragEnd(result: DropResult) {
+    if (!result.destination || result.source.droppableId === result.destination.droppableId) return;
+    const from = result.source.droppableId as KanbanStatus;
+    const to = result.destination.droppableId as PgMaintenanceStatus;
+    const request = columns[from]?.rows.find((item) => item.id === result.draggableId);
+    if (!request || !canMove(request, to)) return;
+    void move(request, to);
   }
 
   async function loadMore(status: KanbanStatus, cursor: string) {
@@ -211,79 +238,144 @@ export default function MaintenanceKanban({
 
   return (
     <section className={styles.kanbanShell} aria-label="Maintenance kanban">
-      <div className={styles.kanbanBoard}>
-        {byStatus.map((column) => {
-          const nextCursor = column.nextCursor;
-          return (
-            <section key={column.status} className={styles.column} aria-label={column.label}>
-              <div className={styles.columnHeader}>
-                <h3>{column.label}</h3>
-                <span>{column.rows.length}</span>
-              </div>
-              <div className={styles.cardList}>
-                {column.rows.length === 0 ? (
-                  <div className={styles.empty}>No tickets</div>
-                ) : (
-                  column.rows.map((request) => (
-                    <article key={request.id} className={styles.kanbanCard}>
-                      {ticketHrefBase ? (
-                        <Link
-                          href={`${ticketHrefBase}/${request.id}` as any}
-                          className={styles.cardTitleLink}
-                          aria-label={ticketLinkLabel(request)}
-                        >
-                          {request.category}
-                        </Link>
-                      ) : (
-                        <strong className={styles.cardTitle}>{request.category}</strong>
-                      )}
-                      <div className={styles.badgeRow}>
-                        <span className={styles.badge}>{PRIORITY_LABEL[request.priority]}</span>
-                        <span className={request.is_overdue ? styles.danger : styles.cardMeta}>
-                          {`Due ${displayDateTime(request.sla_due_at)}`}
-                        </span>
-                      </div>
-                      <div className={styles.cardActions}>
-                        <button
-                          type="button"
-                          disabled={!canMove(request, "in_progress") || pending !== null}
-                          onClick={() => void move(request, "in_progress")}
-                        >
-                          {ACTION_LABEL.in_progress} {request.category}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!canMove(request, "waiting_on_tenant") || pending !== null}
-                          onClick={() => void move(request, "waiting_on_tenant")}
-                        >
-                          {ACTION_LABEL.waiting_on_tenant} {request.category}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!canMove(request, "resolved") || pending !== null}
-                          onClick={() => void move(request, "resolved")}
-                        >
-                          {ACTION_LABEL.resolved} {request.category}
-                        </button>
-                      </div>
-                    </article>
-                  ))
-                )}
-                {nextCursor ? (
-                  <button
-                    type="button"
-                    className={styles.loadMore}
-                    disabled={pending !== null}
-                    onClick={() => void loadMore(column.status, nextCursor)}
-                  >
-                    Load more
-                  </button>
-                ) : null}
-              </div>
-            </section>
-          );
-        })}
+      <div className={styles.kanbanSwitcher} aria-label="Kanban columns">
+        {COLUMNS.map((column) => (
+          <button
+            key={column.status}
+            type="button"
+            className={activeColumn === column.status ? styles.kanbanSwitcherActive : ""}
+            aria-pressed={activeColumn === column.status}
+            onClick={() => {
+              setActiveColumn(column.status);
+              document.getElementById(`maintenance-column-${column.status}`)?.scrollIntoView({
+                behavior: "smooth",
+                inline: "start",
+                block: "nearest"
+              });
+            }}
+          >
+            {column.label}
+          </button>
+        ))}
       </div>
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className={styles.kanbanBoard}>
+          {byStatus.map((column) => {
+            const nextCursor = column.nextCursor;
+            return (
+              <Droppable droppableId={column.status} key={column.status}>
+                {(provided, snapshot) => (
+                  <section
+                    id={`maintenance-column-${column.status}`}
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`${styles.column} ${snapshot.isDraggingOver ? styles.columnDraggingOver : ""}`}
+                    aria-label={column.label}
+                  >
+                    <div className={styles.columnHeader}>
+                      <h3>{column.label}</h3>
+                      <span>{column.rows.length}</span>
+                    </div>
+                    <div className={styles.cardList}>
+                      {column.rows.length === 0 ? (
+                        <div className={styles.empty}>No tickets</div>
+                      ) : (
+                        column.rows.map((request, index) => (
+                          <Draggable
+                            key={request.id}
+                            draggableId={request.id}
+                            index={index}
+                            isDragDisabled={pending !== null}
+                          >
+                            {(dragProvided) => (
+                              <article
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                className={styles.kanbanCard}
+                              >
+                                <button
+                                  type="button"
+                                  className={styles.dragHandle}
+                                  aria-label={`Drag ${request.category} ticket`}
+                                  {...dragProvided.dragHandleProps}
+                                >
+                                  <GripVertical size={16} aria-hidden="true" />
+                                </button>
+                                {ticketHrefBase ? (
+                                  <Link
+                                    href={`${ticketHrefBase}/${request.id}` as any}
+                                    className={styles.cardTitleLink}
+                                    aria-label={ticketLinkLabel(request)}
+                                  >
+                                    {request.category}
+                                  </Link>
+                                ) : (
+                                  <strong className={styles.cardTitle}>{request.category}</strong>
+                                )}
+                                <div className={styles.badgeRow}>
+                                  <span className={styles.badge}>
+                                    {PRIORITY_LABEL[request.priority]}
+                                  </span>
+                                  <span
+                                    className={request.is_overdue ? styles.danger : styles.cardMeta}
+                                  >
+                                    {`Due ${displayDateTime(request.sla_due_at)}`}
+                                  </span>
+                                </div>
+                                <div className={styles.cardActions}>
+                                  <button
+                                    type="button"
+                                    disabled={!canMove(request, "in_progress") || pending !== null}
+                                    onClick={() => void move(request, "in_progress")}
+                                  >
+                                    {ACTION_LABEL.in_progress} {request.category}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={
+                                      !canMove(request, "waiting_on_tenant") || pending !== null
+                                    }
+                                    onClick={() => void move(request, "waiting_on_tenant")}
+                                  >
+                                    {ACTION_LABEL.waiting_on_tenant} {request.category}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!canMove(request, "resolved") || pending !== null}
+                                    onClick={() => void move(request, "resolved")}
+                                  >
+                                    {ACTION_LABEL.resolved} {request.category}
+                                  </button>
+                                </div>
+                              </article>
+                            )}
+                          </Draggable>
+                        ))
+                      )}
+                      {pending === `load:${column.status}` ? (
+                        <div className={styles.kanbanSkeletons} aria-label="Loading more tickets">
+                          <Skeleton className={styles.kanbanSkeleton} />
+                          <Skeleton className={styles.kanbanSkeleton} />
+                        </div>
+                      ) : null}
+                      {nextCursor ? (
+                        <button
+                          type="button"
+                          className={styles.loadMore}
+                          disabled={pending !== null}
+                          onClick={() => void loadMore(column.status, nextCursor)}
+                        >
+                          Load more
+                        </button>
+                      ) : null}
+                    </div>
+                  </section>
+                )}
+              </Droppable>
+            );
+          })}
+        </div>
+      </DragDropContext>
 
       {resolving ? (
         <div className={styles.dialogBackdrop}>

@@ -8,6 +8,7 @@ import type {
 } from "@cribliv/shared-types";
 import { Loader2 } from "lucide-react";
 import { addMaintenanceInternalNote } from "@/lib/pg-operations-api";
+import { useToast } from "@/components/ui/toast/use-toast";
 import { createMaintenanceUploadId } from "./useMaintenancePhotoUpload";
 import styles from "../MaintenanceWorkspace.module.css";
 
@@ -22,6 +23,7 @@ export default function MaintenanceInternalNotes({
   token: string;
   onCreated: (note: PgMaintenanceInternalNoteResponse) => void;
 }) {
+  const toast = useToast();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,8 +46,11 @@ export default function MaintenanceInternalNotes({
       );
       setBody("");
       onCreated(created);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not add this internal note.");
+      toast.success(`Added internal note to ticket ${request.id}`);
+    } catch {
+      toast.error(`Could not add internal note to ticket ${request.id}.`, {
+        action: { label: "Retry", onClick: () => void submit() }
+      });
     } finally {
       setPending(false);
     }
