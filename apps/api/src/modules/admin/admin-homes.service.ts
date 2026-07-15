@@ -958,7 +958,11 @@ export class AdminHomesService {
         kind: "verification" as const,
         label: `Verification ${attempt.result}`,
         detail: attempt.review_reason,
-        actor_id: null
+        actor_id: this.inMemoryString(
+          this.appState.verificationAttempts.find(
+            (rawAttempt) => String(rawAttempt.id) === attempt.attempt_id
+          )?.user_id
+        )
       })),
       ...this.appState.adminActions
         .filter(
@@ -971,8 +975,13 @@ export class AdminHomesService {
               typeof action.target_id === "string" &&
               leadIds.has(action.target_id))
         )
-        .map((action) => ({
-          id: `admin:${String(action.id)}`,
+        .map((action, index) => ({
+          id: `admin:${String(
+            action.id ??
+              `${action.target_type}:${action.target_id}:${this.inMemoryTimestamp(
+                action.created_at
+              )}:${index}`
+          )}`,
           at: this.inMemoryTimestamp(action.created_at),
           kind: "admin" as const,
           label: String(action.action ?? "Admin action"),

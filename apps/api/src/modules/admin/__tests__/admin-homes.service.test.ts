@@ -804,6 +804,7 @@ describe("AdminHomesService", () => {
         artifact_paths: ["private/old.mp4"],
         submitted_payload: { secret: "omit" },
         provider: "mock",
+        user_id: "owner-1",
         created_at: new Date(createdAt).toISOString()
       },
       {
@@ -816,6 +817,7 @@ describe("AdminHomesService", () => {
         artifact_paths: ["private/new.jpg"],
         submitted_payload: { secret: "omit" },
         provider_payload: { secret: "omit" },
+        user_id: "owner-1",
         created_at: new Date(createdAt + 10_000).toISOString()
       },
       {
@@ -829,7 +831,6 @@ describe("AdminHomesService", () => {
     ];
     (appState as any).adminActions = [
       {
-        id: "listing-action",
         target_type: "listing",
         target_id: "active-home",
         action: "pause",
@@ -837,7 +838,6 @@ describe("AdminHomesService", () => {
         created_at: new Date(createdAt + 11_000).toISOString()
       },
       {
-        id: "attempt-action",
         target_type: "verification_attempt",
         target_id: "attempt-new",
         action: "approve",
@@ -845,7 +845,6 @@ describe("AdminHomesService", () => {
         created_at: new Date(createdAt + 12_000).toISOString()
       },
       {
-        id: "lead-action",
         target_type: "lead",
         target_id: "lead-1",
         action: "mark_team_called",
@@ -853,7 +852,6 @@ describe("AdminHomesService", () => {
         created_at: new Date(createdAt + 12_500).toISOString()
       },
       {
-        id: "other-attempt-action",
         target_type: "verification_attempt",
         target_id: "attempt-other",
         action: "approve",
@@ -895,11 +893,22 @@ describe("AdminHomesService", () => {
       /artifact_paths|submitted_payload|provider_payload|secret/
     );
     expect(detail.activity.map((item: { id: string }) => item.id)).toEqual(
-      expect.arrayContaining(["admin:listing-action", "admin:attempt-action", "admin:lead-action"])
+      expect.arrayContaining([
+        expect.stringMatching(/^admin:listing:active-home:/),
+        expect.stringMatching(/^admin:verification_attempt:attempt-new:/),
+        expect.stringMatching(/^admin:lead:lead-1:/)
+      ])
     );
-    expect(detail.activity.map((item: { id: string }) => item.id)).not.toContain(
-      "admin:other-attempt-action"
+    expect(detail.activity.map((item: { id: string }) => item.id)).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/^admin:verification_attempt:attempt-other:/)])
     );
+    expect(new Set(detail.activity.map((item: { id: string }) => item.id)).size).toBe(
+      detail.activity.length
+    );
+    expect(
+      detail.activity.find((item: { id: string }) => item.id === "verification:attempt-new")
+        ?.actor_id
+    ).toBe("owner-1");
     expect(
       detail.recent_leads.find((lead: { lead_id: string }) => lead.lead_id === "lead-3")
         ?.response_deadline_at
@@ -1145,5 +1154,22 @@ describe("AdminHomesService", () => {
     );
     expect(calls.some((sql) => sql.includes("aa.target_type = 'lead'"))).toBe(true);
     expect(calls.some((sql) => sql.includes("LIMIT 100"))).toBe(true);
+  });
+
+  it("caps in-memory activity at 100 items using producer-shaped admin actions", async () => {
+    (appState as any).adminActions = Array.from({ length: 120 }, (_, index) => ({
+      admin_id: "admin-1",
+      target_type: "listing",
+      target_id: "active-home",
+      action: "pause",
+      reason: `reason-${index}`,
+      created_at: new Date(now + index).toISOString()
+    }));
+
+    const detail = await (service as any).getHome("active-home");
+
+    expect(detail.activity).toHaveLength(100);
+    expect(new Set(detail.activity.map((item: { id: string }) => item.id)).size).toBe(100);
+    expect(detail.activity[0].detail).toBe("reason-119");
   });
 });
