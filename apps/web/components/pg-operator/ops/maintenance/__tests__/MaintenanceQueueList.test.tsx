@@ -175,6 +175,59 @@ describe("MaintenanceQueueList", () => {
     expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 
+  it("uses the active view by default and includes closed rows for all statuses", async () => {
+    listPropertyMaintenance.mockResolvedValue(page([]));
+    setup();
+
+    expect(screen.getByLabelText("Status")).toHaveDisplayValue("Active work");
+
+    fireEvent.change(screen.getByLabelText("Sort"), { target: { value: "newest" } });
+    await waitFor(() =>
+      expect(listPropertyMaintenance).toHaveBeenLastCalledWith("property-1", "token-1", {
+        sort: "newest",
+        view: "list",
+        limit: 25
+      })
+    );
+
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "all" } });
+    await waitFor(() =>
+      expect(listPropertyMaintenance).toHaveBeenLastCalledWith("property-1", "token-1", {
+        include_closed: true,
+        sort: "newest",
+        view: "list",
+        limit: 25
+      })
+    );
+  });
+
+  it("includes closed rows when filtering by closed or cancelled status", async () => {
+    listPropertyMaintenance.mockResolvedValue(page([]));
+    setup();
+
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "closed" } });
+    await waitFor(() =>
+      expect(listPropertyMaintenance).toHaveBeenLastCalledWith("property-1", "token-1", {
+        status: "closed",
+        include_closed: true,
+        sort: "sla_due",
+        view: "list",
+        limit: 25
+      })
+    );
+
+    fireEvent.change(screen.getByLabelText("Status"), { target: { value: "cancelled" } });
+    await waitFor(() =>
+      expect(listPropertyMaintenance).toHaveBeenLastCalledWith("property-1", "token-1", {
+        status: "cancelled",
+        include_closed: true,
+        sort: "sla_due",
+        view: "list",
+        limit: 25
+      })
+    );
+  });
+
   it("loads the next PgMaintenanceQueuePage with the prior next_cursor and appends rows", async () => {
     listPropertyMaintenance.mockResolvedValueOnce(
       page(

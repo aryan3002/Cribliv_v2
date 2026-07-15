@@ -9,7 +9,7 @@ import type {
 import styles from "./MaintenanceQueue.module.css";
 
 export type MaintenanceQueueFilterState = {
-  status: PgMaintenanceStatus | "all";
+  status: PgMaintenanceStatus | "all" | "active";
   priority: PgMaintenancePriority | "";
   category_slug: string;
   sla_state: NonNullable<PgMaintenanceQueueFilters["sla_state"]> | "";
@@ -24,7 +24,7 @@ type Props = {
 };
 
 export const DEFAULT_QUEUE_FILTERS: MaintenanceQueueFilterState = {
-  status: "all",
+  status: "active",
   priority: "",
   category_slug: "",
   sla_state: "",
@@ -37,8 +37,11 @@ export function toMaintenanceQueueFilters(
   view: "list" | "kanban",
   cursor?: string
 ): PgMaintenanceQueueFilters {
+  const includeClosed =
+    value.status === "all" || value.status === "closed" || value.status === "cancelled";
   return {
-    ...(value.status !== "all" ? { status: value.status } : {}),
+    ...(value.status !== "all" && value.status !== "active" ? { status: value.status } : {}),
+    ...(includeClosed ? { include_closed: true } : {}),
     ...(value.priority ? { priority: value.priority } : {}),
     ...(value.category_slug ? { category_slug: value.category_slug } : {}),
     ...(value.sla_state ? { sla_state: value.sla_state } : {}),
@@ -69,6 +72,7 @@ export default function MaintenanceQueueFilters({ categories, value, onChange }:
             update("status", event.target.value as MaintenanceQueueFilterState["status"])
           }
         >
+          <option value="active">Active work</option>
           <option value="all">All statuses</option>
           <option value="open">Open</option>
           <option value="in_progress">In progress</option>
