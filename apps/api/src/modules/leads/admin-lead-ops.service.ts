@@ -31,6 +31,7 @@ import type {
 export interface BoardParams {
   filter?: AdminLeadBoardFilter;
   ownerId?: string;
+  listingId?: string;
   state?: string;
   status?: string;
   q?: string;
@@ -241,6 +242,10 @@ export class AdminLeadOpsService {
       params.push(p.ownerId);
       where.push(`ld.owner_user_id = $${params.length}::uuid`);
     }
+    if (p.listingId && UUID_RE.test(p.listingId)) {
+      params.push(p.listingId);
+      where.push(`ld.listing_id = $${params.length}::uuid`);
+    }
     if (p.state) {
       params.push(p.state);
       where.push(`ld.access_state = $${params.length}`);
@@ -315,7 +320,7 @@ export class AdminLeadOpsService {
       countParams
     );
 
-    const counters = await this.getCounters();
+    const counters = await this.getCounters(p.listingId);
 
     const rows: AdminLeadBoardRow[] = rowsResult.rows.map((r) => ({
       lead_id: r.lead_id,
@@ -439,7 +444,13 @@ export class AdminLeadOpsService {
     return out;
   }
 
-  private async getCounters(): Promise<AdminLeadCounters> {
+  private async getCounters(listingId?: string): Promise<AdminLeadCounters> {
+    const params: unknown[] = [];
+    const where: string[] = [];
+    if (listingId && UUID_RE.test(listingId)) {
+      params.push(listingId);
+      where.push(`ld.listing_id = $${params.length}::uuid`);
+    }
     const result = await this.database.query<AdminLeadCounters>(
       `SELECT
          count(*) FILTER (WHERE ld.called_at IS NULL AND ld.access_state <> 'expired')::int AS in_flight,
@@ -452,7 +463,9 @@ export class AdminLeadOpsService {
          count(*) FILTER (WHERE cu.unlock_status = 'refunded'
                             AND cu.updated_at >= date_trunc('day', now()))::int AS refunded_today
        FROM leads ld
-       LEFT JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id`
+       LEFT JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id
+       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}`,
+      params
     );
     return result.rows[0] ?? { ...EMPTY_COUNTERS };
   }
