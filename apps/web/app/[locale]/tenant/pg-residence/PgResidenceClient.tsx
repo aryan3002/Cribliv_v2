@@ -8,8 +8,7 @@ import type {
   PgMaintenanceRequest,
   PgTenantResidence
 } from "@cribliv/shared-types";
-import { Check, Wrench, X } from "lucide-react";
-import SectionCard from "@/components/pg-operator/wizard/shared/SectionCard";
+import { Check, X } from "lucide-react";
 import MaintenanceWorkspace from "@/components/pg-operator/ops/MaintenanceWorkspace";
 import {
   acceptTenantOperatorMoveOut,
@@ -149,10 +148,13 @@ export default function PgResidenceClient({
           <p>Your tenant account is not mapped to an active or reserved PG bed.</p>
         </section>
         {maintenanceHistoryEnabled ? (
-          <SectionCard
-            title="Past Stays maintenance"
-            icon={<Wrench size={18} aria-hidden="true" />}
+          <section
+            className={`${styles.panel} ${styles.maintenanceHistoryPanel}`}
+            aria-labelledby="past-stay-maintenance-heading"
           >
+            <h2 id="past-stay-maintenance-heading" className={styles.panelHeading}>
+              Past-stay maintenance
+            </h2>
             {maintenanceLoadError ? (
               <p role="alert" className={styles.error}>
                 {maintenanceLoadError}
@@ -171,7 +173,7 @@ export default function PgResidenceClient({
                 available.
               </p>
             )}
-          </SectionCard>
+          </section>
         ) : null}
       </div>
     );
@@ -242,203 +244,196 @@ export default function PgResidenceClient({
         ))}
       </div>
 
-      {activeTab === "Overview" && (
-        <section
-          id={panelId("Overview")}
-          role="tabpanel"
-          aria-labelledby={tabId("Overview")}
-          className={styles.panel}
-        >
-          <dl className={styles.factGrid}>
-            <div>
-              <dt>Property</dt>
-              <dd>{residence.property_name}</dd>
-            </div>
-            <div>
-              <dt>Room</dt>
-              <dd>{residence.room_number}</dd>
-            </div>
-            <div>
-              <dt>Bed</dt>
-              <dd>{residence.bed_label}</dd>
-            </div>
-            <div>
-              <dt>Sharing</dt>
-              <dd>{value(residence.sharing)}</dd>
-            </div>
-            <div>
-              <dt>Move-in</dt>
-              <dd>{value(residence.move_in_date ?? residence.expected_move_in_date)}</dd>
-            </div>
-            <div>
-              <dt>Assignment status</dt>
-              <dd>{title(residence.assignment_status)}</dd>
-            </div>
-            <div>
-              <dt>Monthly rent</dt>
-              <dd>{rupees(residence.monthly_rent_paise)}</dd>
-            </div>
-            <div>
-              <dt>Notice</dt>
-              <dd>{noticeEnd}</dd>
-            </div>
-            <div className={styles.operatorTile}>
-              <dt>Operator</dt>
-              <dd>
-                {value(residence.operator_contact.name)}
-                {residence.operator_contact.phone_e164 ? (
-                  <a href={`tel:${residence.operator_contact.phone_e164}`}>
-                    {residence.operator_contact.phone_e164}
-                  </a>
-                ) : null}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      )}
-
-      {activeTab === "Money" && (
-        <section
-          id={panelId("Money")}
-          role="tabpanel"
-          aria-labelledby={tabId("Money")}
-          className={styles.panel}
-        >
-          <div className={styles.rentEmphasis}>
-            <span>Monthly rent</span>
-            <strong>{rupees(residence.monthly_rent_paise)}</strong>
+      <section
+        id={panelId("Overview")}
+        role="tabpanel"
+        aria-labelledby={tabId("Overview")}
+        className={styles.panel}
+        hidden={activeTab !== "Overview"}
+      >
+        <dl className={styles.factGrid}>
+          <div>
+            <dt>Property</dt>
+            <dd>{residence.property_name}</dd>
           </div>
-          <dl className={styles.secondaryFacts}>
-            <div>
-              <dt>Security deposit</dt>
-              <dd>{rupees(residence.security_deposit_paise)}</dd>
-            </div>
-            <div>
-              <dt>Notice period</dt>
-              <dd>
-                {residence.notice_period_days === null
-                  ? "Not set"
-                  : `${residence.notice_period_days} days`}
-              </dd>
-            </div>
-            <div>
-              <dt>Lock-in period</dt>
-              <dd>
-                {residence.lock_in_months === null
-                  ? "Not set"
-                  : `${residence.lock_in_months} months`}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      )}
-
-      {activeTab === "Food & Rules" && (
-        <section
-          id={panelId("Food & Rules")}
-          role="tabpanel"
-          aria-labelledby={tabId("Food & Rules")}
-          className={styles.panel}
-        >
-          <div className={styles.foodPlan}>
-            <span>Food plan</span>
-            <strong>{foodLabel(residence)}</strong>
+          <div>
+            <dt>Room</dt>
+            <dd>{residence.room_number}</dd>
           </div>
-          <div className={styles.rules}>
-            <span>House rules</span>
-            {rules.length === 0 ? (
-              <strong>Not set</strong>
-            ) : (
-              <ul>
-                {rules.map((rule) => (
-                  <li key={rule}>{rule}</li>
-                ))}
-              </ul>
+          <div>
+            <dt>Bed</dt>
+            <dd>{residence.bed_label}</dd>
+          </div>
+          <div>
+            <dt>Sharing</dt>
+            <dd>{value(residence.sharing)}</dd>
+          </div>
+          <div>
+            <dt>Move-in</dt>
+            <dd>{value(residence.move_in_date ?? residence.expected_move_in_date)}</dd>
+          </div>
+          <div>
+            <dt>Assignment status</dt>
+            <dd>{title(residence.assignment_status)}</dd>
+          </div>
+          <div>
+            <dt>Monthly rent</dt>
+            <dd>{rupees(residence.monthly_rent_paise)}</dd>
+          </div>
+          <div>
+            <dt>Notice</dt>
+            <dd>{noticeEnd}</dd>
+          </div>
+          <div className={styles.operatorTile}>
+            <dt>Operator</dt>
+            <dd>
+              {value(residence.operator_contact.name)}
+              {residence.operator_contact.phone_e164 ? (
+                <a href={`tel:${residence.operator_contact.phone_e164}`}>
+                  {residence.operator_contact.phone_e164}
+                </a>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section
+        id={panelId("Money")}
+        role="tabpanel"
+        aria-labelledby={tabId("Money")}
+        className={styles.panel}
+        hidden={activeTab !== "Money"}
+      >
+        <div className={styles.rentEmphasis}>
+          <span>Monthly rent</span>
+          <strong>{rupees(residence.monthly_rent_paise)}</strong>
+        </div>
+        <dl className={styles.secondaryFacts}>
+          <div>
+            <dt>Security deposit</dt>
+            <dd>{rupees(residence.security_deposit_paise)}</dd>
+          </div>
+          <div>
+            <dt>Notice period</dt>
+            <dd>
+              {residence.notice_period_days === null
+                ? "Not set"
+                : `${residence.notice_period_days} days`}
+            </dd>
+          </div>
+          <div>
+            <dt>Lock-in period</dt>
+            <dd>
+              {residence.lock_in_months === null ? "Not set" : `${residence.lock_in_months} months`}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section
+        id={panelId("Food & Rules")}
+        role="tabpanel"
+        aria-labelledby={tabId("Food & Rules")}
+        className={styles.panel}
+        hidden={activeTab !== "Food & Rules"}
+      >
+        <div className={styles.foodPlan}>
+          <span>Food plan</span>
+          <strong>{foodLabel(residence)}</strong>
+        </div>
+        <div className={styles.rules}>
+          <span>House rules</span>
+          {rules.length === 0 ? (
+            <strong>Not set</strong>
+          ) : (
+            <ul>
+              {rules.map((rule) => (
+                <li key={rule}>{rule}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      <section
+        id={panelId("Notice")}
+        role="tabpanel"
+        aria-labelledby={tabId("Notice")}
+        className={styles.panel}
+        hidden={activeTab !== "Notice"}
+      >
+        <div className={styles.notice}>
+          <div className={styles.noticeState}>
+            <span>Notice status</span>
+            <strong>{title(residence.assignment_status)}</strong>
+            <p>{noticeEnd}</p>
+          </div>
+          <div className={styles.actions}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!canServeNotice || pending !== null}
+              onClick={() => void run("notice")}
+            >
+              Serve notice
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!canRequestMoveOut || pending !== null}
+              onClick={() => void run("request")}
+            >
+              Request move-out
+            </Button>
+            {canRespondToOperator && (
+              <>
+                <Button
+                  type="button"
+                  disabled={pending !== null}
+                  onClick={() => void run("accept")}
+                >
+                  <Check size={16} aria-hidden="true" /> Accept
+                </Button>
+                <Button
+                  type="button"
+                  variant="tertiary"
+                  disabled={pending !== null}
+                  onClick={() => void run("reject")}
+                >
+                  <X size={16} aria-hidden="true" /> Reject
+                </Button>
+              </>
             )}
           </div>
-        </section>
-      )}
-
-      {activeTab === "Notice" && (
-        <section
-          id={panelId("Notice")}
-          role="tabpanel"
-          aria-labelledby={tabId("Notice")}
-          className={styles.panel}
-        >
-          <div className={styles.notice}>
-            <div className={styles.noticeState}>
-              <span>Notice status</span>
-              <strong>{title(residence.assignment_status)}</strong>
-              <p>{noticeEnd}</p>
-            </div>
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!canServeNotice || pending !== null}
-                onClick={() => void run("notice")}
-              >
-                Serve notice
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!canRequestMoveOut || pending !== null}
-                onClick={() => void run("request")}
-              >
-                Request move-out
-              </Button>
-              {canRespondToOperator && (
-                <>
-                  <Button
-                    type="button"
-                    disabled={pending !== null}
-                    onClick={() => void run("accept")}
-                  >
-                    <Check size={16} aria-hidden="true" /> Accept
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="tertiary"
-                    disabled={pending !== null}
-                    onClick={() => void run("reject")}
-                  >
-                    <X size={16} aria-hidden="true" /> Reject
-                  </Button>
-                </>
-              )}
-            </div>
-            {error && (
-              <p role="alert" className={styles.error}>
-                {error}
-              </p>
-            )}
-          </div>
-        </section>
-      )}
-
-      {activeTab === "Maintenance" && (
-        <section
-          id={panelId("Maintenance")}
-          role="tabpanel"
-          aria-labelledby={tabId("Maintenance")}
-          className={`${styles.panel} ${styles.maintenancePanel}`}
-        >
-          {maintenanceLoadError && (
+          {error && (
             <p role="alert" className={styles.error}>
-              {maintenanceLoadError}
+              {error}
             </p>
           )}
-          <MaintenanceWorkspace
-            compact
-            initialRequests={initialMaintenance}
-            mode="tenant"
-            token={token}
-            currentResidenceLocation={maintenanceLocation}
-          />
-        </section>
-      )}
+        </div>
+      </section>
+
+      <section
+        id={panelId("Maintenance")}
+        role="tabpanel"
+        aria-labelledby={tabId("Maintenance")}
+        className={`${styles.panel} ${styles.maintenancePanel}`}
+        hidden={activeTab !== "Maintenance"}
+      >
+        {maintenanceLoadError && (
+          <p role="alert" className={styles.error}>
+            {maintenanceLoadError}
+          </p>
+        )}
+        <MaintenanceWorkspace
+          compact
+          initialRequests={initialMaintenance}
+          mode="tenant"
+          token={token}
+          currentResidenceLocation={maintenanceLocation}
+        />
+      </section>
     </div>
   );
 }

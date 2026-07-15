@@ -108,10 +108,11 @@ describe("PgResidenceClient", () => {
     renderResidence();
 
     const overviewTab = screen.getByRole("tab", { name: "Overview" });
+    const maintenancePanel = document.getElementById("residence-panel-maintenance");
 
     expect(overviewTab).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
-    expect(screen.queryByRole("tabpanel", { name: "Maintenance" })).not.toBeInTheDocument();
+    expect(maintenancePanel).not.toBeVisible();
   });
 
   it("renders the residence tabs in their required order", () => {
@@ -131,6 +132,23 @@ describe("PgResidenceClient", () => {
     }
   });
 
+  it("keeps every tab panel mounted with a valid tab relationship", () => {
+    renderResidence();
+
+    const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
+    const panels = screen.getAllByRole("tabpanel", { hidden: true });
+
+    expect(panels).toHaveLength(5);
+    for (const tab of tabs) {
+      const panel = document.getElementById(tab.getAttribute("aria-controls") ?? "");
+
+      expect(panel).toHaveAttribute("role", "tabpanel");
+      expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+    }
+    expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
+    expect(document.getElementById("residence-panel-maintenance")).not.toBeVisible();
+  });
+
   it("reveals the maintenance form and ticket list only after selecting Maintenance", () => {
     renderResidence();
 
@@ -148,6 +166,22 @@ describe("PgResidenceClient", () => {
     expect(within(location).getByRole("option", { name: "Common area" })).toBeInTheDocument();
     expect(within(location).getByRole("option", { name: "Property wide" })).toBeInTheDocument();
     expect(within(location).getByRole("option", { name: "Other" })).toBeInTheDocument();
+  });
+
+  it("preserves maintenance form state while switching tabs", () => {
+    renderResidence();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Maintenance" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
+      target: { value: "The bathroom tap is leaking." }
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Maintenance" }));
+
+    expect(screen.getByRole("textbox", { name: "Description" })).toHaveValue(
+      "The bathroom tap is leaking."
+    );
   });
 
   it("keeps notice actions available only for active assignments", () => {
@@ -177,5 +211,28 @@ describe("PgResidenceClient", () => {
     expect(within(overview).getByText("active", { exact: false })).toBeVisible();
     expect(within(overview).getByText("Aashiyana Ops")).toBeVisible();
     expect(within(overview).getByText("+911111111111")).toBeVisible();
+  });
+
+  it("renders past-stay maintenance in the redesigned history panel", () => {
+    render(
+      <ToastProvider>
+        <PgResidenceClient
+          initialResidence={null}
+          initialMaintenance={[]}
+          maintenanceLoadError={null}
+          maintenanceHistoryEnabled
+          token="token-1"
+        />
+      </ToastProvider>
+    );
+
+    const history = screen.getByRole("region", { name: "Past-stay maintenance" });
+
+    expect(history).toBeVisible();
+    expect(
+      within(history).getByText(
+        "Past stay maintenance is available for recent stays only. No historical tickets are available."
+      )
+    ).toBeVisible();
   });
 });
