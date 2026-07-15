@@ -315,9 +315,12 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
       try {
         await database.onModuleDestroy();
       } finally {
-        await pool.end();
-        if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
-        else process.env.DATABASE_URL = originalDatabaseUrl;
+        try {
+          await pool.end();
+        } finally {
+          if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+          else process.env.DATABASE_URL = originalDatabaseUrl;
+        }
       }
     }
     if (cleanupError) throw cleanupError;
