@@ -154,6 +154,12 @@
   margin: 6px 0 0;
 }
 
+.historyEmpty {
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+  margin: 0;
+}
+
 @media (max-width: 760px) {
   .inner {
     padding: 16px 14px 40px;

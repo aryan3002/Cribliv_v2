@@ -2,21 +2,26 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, type BadgeTone } from "@cribliv/ui";
+import { Badge, type BadgeTone } from "@cribliv/ui";
 import type {
   PgMaintenanceComment,
   PgMaintenanceCategory,
+  PgMaintenanceInternalNoteResponse,
   PgMaintenanceLocation,
   PgMaintenanceRequest,
   PgMaintenanceStatus
 } from "@cribliv/shared-types";
-import { ClipboardList, ImagePlus, Loader2, MessageSquarePlus, X } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import {
   addMaintenanceComment,
   addResidenceMaintenanceComment,
+  fetchMaintenanceTimeline,
+  getMaintenanceTicket,
+  getResidenceMaintenanceTicket,
   updateMaintenanceStatus
 } from "@/lib/pg-operations-api";
 import MaintenanceCreateForm from "./maintenance/MaintenanceCreateForm";
+import MaintenanceTicketDetail from "./maintenance/MaintenanceTicketDetail";
 import { FALLBACK_MAINTENANCE_CATEGORIES } from "./maintenance/maintenance-constants";
 import {
   createMaintenanceUploadId,
@@ -56,14 +61,6 @@ const OPERATOR_TRANSITIONS: Record<PgMaintenanceStatus, PgMaintenanceStatus[]> =
   cancelled: []
 };
 
-const ACTION_LABEL: Partial<Record<PgMaintenanceStatus, string>> = {
-  in_progress: "Start work",
-  waiting_on_tenant: "Wait for tenant",
-  resolved: "Resolve",
-  closed: "Close ticket",
-  cancelled: "Cancel ticket"
-};
-
 function displayDate(value: string): string {
   return new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
@@ -84,7 +81,8 @@ function mergeRequest(
 ): PgMaintenanceRequest {
   return {
     ...updated,
-    comments: updated.comments.length > 0 ? updated.comments : previous.comments
+    comments: updated.comments.length > 0 ? updated.comments : previous.comments,
+    timeline: updated.timeline ?? previous.timeline
   };
 }
 
@@ -95,7 +93,8 @@ export default function MaintenanceWorkspace({
   token,
   compact = false,
   categories = FALLBACK_MAINTENANCE_CATEGORIES,
-  currentResidenceLocation = null
+  currentResidenceLocation = null,
+  readOnly = false
 }: {
   initialRequests: PgMaintenanceRequest[];
   mode: MaintenanceMode;
@@ -104,6 +103,7 @@ export default function MaintenanceWorkspace({
   compact?: boolean;
   categories?: PgMaintenanceCategory[];
   currentResidenceLocation?: PgMaintenanceLocation | null;
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [requests, setRequests] = useState(initialRequests);
@@ -150,7 +150,6 @@ export default function MaintenanceWorkspace({
   const selected = visibleRequests.find((request) => request.id === selectedId) ?? null;
   const transitions = selected && mode === "operator" ? OPERATOR_TRANSITIONS[selected.status] : [];
   const showDetailPane = Boolean(selected) || !compact || visibleRequests.length > 0;
-  const selectedLocation = selected?.location ?? null;
 
   function replaceRequest(updated: PgMaintenanceRequest) {
     setRequests((current) =>
@@ -169,6 +168,64 @@ export default function MaintenanceWorkspace({
       )
     );
   }
+
+  function appendInternalNote(requestId: string, note: PgMaintenanceInternalNoteResponse) {
+    setRequests((current) =>
+      current.map((request) =>
+        request.id === requestId
+          ? {
+              ...request,
+              timeline: [
+                ...(request.timeline ?? []),
+                {
+                  id: note.id,
+                  request_id: note.request_id,
+                  event_type: "internal_note_added",
+                  visibility: note.visibility,
+                  actor_user_id: note.author_user_id,
+                  actor_role: note.author_role,
+                  from_status: null,
+                  to_status: null,
+                  payload: { body: note.body, attachments: note.attachments },
+                  created_at: note.created_at
+                }
+              ]
+            }
+          : request
+      )
+    );
+  }
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (selected?.timeline !== undefined) return;
+    const requestId = selectedId;
+    let active = true;
+    async function loadDetail() {
+      try {
+        const detail =
+          mode === "operator"
+            ? propertyId
+              ? await getMaintenanceTicket(propertyId, requestId, token)
+              : null
+            : await getResidenceMaintenanceTicket(requestId, token);
+        if (!detail || !active) return;
+        const timeline =
+          mode === "operator" && propertyId
+            ? await fetchMaintenanceTimeline(propertyId, requestId, token)
+            : (detail.timeline ?? []);
+        if (!active) return;
+        replaceRequest({ ...detail, timeline });
+      } catch (cause) {
+        if (!active) return;
+        setError(failureMessage(cause, "Could not load this maintenance ticket."));
+      }
+    }
+    void loadDetail();
+    return () => {
+      active = false;
+    };
+  }, [mode, propertyId, selected?.timeline, selectedId, token]);
 
   function addPhotos(files: FileList | null) {
     if (!files) return;
@@ -201,7 +258,7 @@ export default function MaintenanceWorkspace({
   }
 
   async function submitComment() {
-    if (!selected || pending) return;
+    if (!selected || pending || readOnly) return;
     const body = comment.trim();
     if (!body && commentPhotos.length === 0) {
       setError("Enter a comment or add a photo before sending.");
@@ -250,7 +307,7 @@ export default function MaintenanceWorkspace({
 
   return (
     <div className={`${styles.workspace} ${compact ? styles.compact : ""}`}>
-      {mode === "tenant" && (
+      {mode === "tenant" && !readOnly && (
         <MaintenanceCreateForm
           token={token}
           categories={categories}
@@ -333,174 +390,30 @@ export default function MaintenanceWorkspace({
                 Select a maintenance ticket to view its details.
               </div>
             ) : (
-              <>
-                <div className={styles.ticketDetailHeader}>
-                  <div>
-                    <h3>{selected.category}</h3>
-                    <time dateTime={selected.created_at}>
-                      Raised {displayDate(selected.created_at)}
-                    </time>
-                  </div>
-                  <Badge tone={STATUS_TONE[selected.status]}>{STATUS_LABEL[selected.status]}</Badge>
-                </div>
-                <p className={styles.detailDescription}>{selected.description}</p>
-
-                {selectedLocation && (
-                  <dl className={styles.locationGrid}>
-                    <div>
-                      <dt>Room</dt>
-                      <dd>
-                        Room {selectedLocation.room_number}
-                        {selectedLocation.bed_label ? ` · Bed ${selectedLocation.bed_label}` : ""}
-                      </dd>
-                    </div>
-                    {selectedLocation.floor !== null && selectedLocation.floor !== undefined && (
-                      <div>
-                        <dt>Floor</dt>
-                        <dd>Floor {selectedLocation.floor}</dd>
-                      </div>
-                    )}
-                    {selectedLocation.tenant_name && (
-                      <div>
-                        <dt>Tenant</dt>
-                        <dd>{selectedLocation.tenant_name}</dd>
-                      </div>
-                    )}
-                    {selectedLocation.tenant_phone_e164 && (
-                      <div>
-                        <dt>Phone</dt>
-                        <dd>{selectedLocation.tenant_phone_e164}</dd>
-                      </div>
-                    )}
-                  </dl>
-                )}
-
-                {selected.photo_urls.length > 0 && (
-                  <div className={styles.photoGrid} aria-label="Maintenance photos">
-                    {selected.photo_urls.map((url, index) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={url} src={url} alt={`Maintenance photo ${index + 1}`} />
-                    ))}
-                  </div>
-                )}
-
-                {mode === "operator" && (
-                  <div className={styles.transitionSection}>
-                    <span>Available actions</span>
-                    {transitions.length === 0 ? (
-                      <p>No further status actions are available.</p>
-                    ) : (
-                      <div className={styles.transitionActions}>
-                        {transitions.map((status) => (
-                          <Button
-                            key={status}
-                            type="button"
-                            variant={status === "cancelled" ? "tertiary" : "secondary"}
-                            disabled={pending !== null}
-                            onClick={() => void changeStatus(status)}
-                          >
-                            {pending === `status:${status}` ? (
-                              <Loader2 size={15} className={styles.spin} />
-                            ) : null}
-                            {ACTION_LABEL[status] ?? STATUS_LABEL[status]}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <section className={styles.commentSection} aria-label="Ticket comments">
-                  <div className={styles.commentHeading}>
-                    <h4>Comments</h4>
-                    <MessageSquarePlus size={16} aria-hidden="true" />
-                  </div>
-                  {selected.comments.length === 0 ? (
-                    <p className={styles.noComments}>No comments yet.</p>
-                  ) : (
-                    <ol className={styles.comments}>
-                      {selected.comments.map((item) => (
-                        <li key={item.id}>
-                          <div>
-                            <strong>{item.author_role.replaceAll("_", " ")}</strong>
-                            <time dateTime={item.created_at}>{displayDate(item.created_at)}</time>
-                          </div>
-                          <p>{item.body}</p>
-                          {item.attachment_urls.length > 0 && (
-                            <div className={styles.commentPhotos} aria-label="Comment photos">
-                              {item.attachment_urls.map((url, index) => (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img key={url} src={url} alt={`Comment photo ${index + 1}`} />
-                              ))}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                  <label className={styles.commentForm}>
-                    <span>Add comment</span>
-                    <textarea
-                      value={comment}
-                      onChange={(event) => setComment(event.target.value)}
-                      rows={3}
-                      placeholder="Add an update for this ticket."
-                      disabled={pending !== null}
-                    />
-                  </label>
-                  <div className={styles.photoUpload}>
-                    <label className={styles.photoInput}>
-                      <ImagePlus size={16} aria-hidden="true" />
-                      <span>Add comment photos</span>
-                      <input
-                        aria-label="Add comment photos"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        multiple
-                        disabled={pending !== null}
-                        onChange={(event) => {
-                          addPhotos(event.target.files);
-                          event.target.value = "";
-                        }}
-                      />
-                    </label>
-                    {commentPhotos.length > 0 && (
-                      <ul className={styles.pendingPhotos} aria-label="Selected comment photos">
-                        {commentPhotos.map((photo) => (
-                          <li key={photo.clientUploadId}>
-                            {photo.previewUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={photo.previewUrl} alt="" />
-                            ) : (
-                              <ImagePlus size={16} aria-hidden="true" />
-                            )}
-                            <span>{photo.file.name}</span>
-                            <button
-                              type="button"
-                              aria-label={`Remove ${photo.file.name}`}
-                              onClick={() => removePhoto(photo.clientUploadId)}
-                              disabled={pending !== null}
-                            >
-                              <X size={14} aria-hidden="true" />
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div className={styles.formActions}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={pending !== null}
-                      onClick={() => void submitComment()}
-                    >
-                      {pending === "comment" ? <Loader2 size={16} className={styles.spin} /> : null}
-                      Send comment
-                    </Button>
-                  </div>
-                </section>
-              </>
+              <MaintenanceTicketDetail
+                request={selected}
+                mode={mode}
+                propertyId={propertyId}
+                token={token}
+                transitions={transitions}
+                pending={pending}
+                comment={comment}
+                commentPhotos={commentPhotos}
+                readOnly={readOnly}
+                onCommentChange={setComment}
+                onAddCommentPhotos={addPhotos}
+                onRemoveCommentPhoto={removePhoto}
+                onSubmitComment={() => void submitComment()}
+                onStatusChange={(status) => void changeStatus(status)}
+                onRequestUpdated={(updated) => {
+                  replaceRequest(updated);
+                  router.refresh();
+                }}
+                onInternalNoteCreated={(note) => {
+                  appendInternalNote(selected.id, note);
+                  router.refresh();
+                }}
+              />
             )}
           </div>
         )}

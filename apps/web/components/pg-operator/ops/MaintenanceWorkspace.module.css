@@ -63,8 +63,11 @@
 .fieldGrid input,
 .fieldGrid select,
 .fieldGrid textarea,
+.commentForm input,
 .commentForm textarea,
-.filterField select {
+.filterField select,
+.priorityOverride select,
+.priorityOverride textarea {
   background: var(--surface-sunken, #f5f5f7);
   border: 1px solid var(--border, #e8ecf1);
   border-radius: 7px;
@@ -76,15 +79,19 @@
 }
 
 .fieldGrid textarea,
-.commentForm textarea {
+.commentForm textarea,
+.priorityOverride textarea {
   resize: vertical;
 }
 
 .fieldGrid input:focus,
 .fieldGrid select:focus,
 .fieldGrid textarea:focus,
+.commentForm input:focus,
 .commentForm textarea:focus,
-.filterField select:focus {
+.filterField select:focus,
+.priorityOverride select:focus,
+.priorityOverride textarea:focus {
   border-color: var(--brand, #0066ff);
   outline: 2px solid color-mix(in srgb, var(--brand, #0066ff) 20%, transparent);
   outline-offset: 1px;
@@ -331,6 +338,55 @@
   overflow-wrap: anywhere;
 }
 
+.summaryGrid,
+.resolutionCard {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 14px 0;
+  overflow: hidden;
+}
+
+.summaryGrid div,
+.resolutionCard div {
+  border-bottom: 1px solid var(--border, #e8ecf1);
+  border-right: 1px solid var(--border, #e8ecf1);
+  padding: 10px 12px;
+}
+
+.summaryGrid div:nth-child(3n),
+.resolutionCard div:nth-child(3n) {
+  border-right: 0;
+}
+
+.summaryGrid div:nth-last-child(-n + 3),
+.resolutionCard div:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.summaryGrid dt,
+.resolutionCard dt,
+.timelineMeta dt {
+  color: var(--text-secondary, #64748b);
+  font-size: 11px;
+  font-weight: 700;
+  margin: 0 0 3px;
+}
+
+.summaryGrid dd,
+.resolutionCard dd,
+.timelineMeta dd {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dangerText {
+  color: var(--danger, #dc2626);
+}
+
 .locationGrid {
   border: 1px solid var(--border, #e8ecf1);
   border-radius: 8px;
@@ -408,8 +464,20 @@
   margin-top: 8px;
 }
 
-.commentSection {
+.detailSection,
+.commentSection,
+.internalNotes {
   margin-top: 14px;
+}
+
+.detailSection {
+  border-top: 1px solid var(--border, #e8ecf1);
+  padding-top: 14px;
+}
+
+.detailSection h4 {
+  font-size: 14px;
+  margin: 0 0 10px;
 }
 
 .commentHeading {
@@ -465,6 +533,105 @@
   padding-bottom: 12px;
 }
 
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline li {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.timelineHeader {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timelineHeader strong {
+  font-size: 13px;
+}
+
+.timelineHeader span,
+.timelineHeader time {
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.timeline p {
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.timelineMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 0;
+}
+
+.resolutionSheet,
+.priorityOverride {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.resolutionGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr);
+}
+
+.radioGroup {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.radioGroup legend {
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 4px;
+}
+
+.radioGroup label {
+  align-items: center;
+  display: inline-flex;
+  font-size: 13px;
+  gap: 5px;
+}
+
+.priorityOverride label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.priorityOverride label > span {
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .error {
   background: var(--danger-light, #fee2e2);
   border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 30%, var(--border, #e8ecf1));
@@ -516,8 +683,26 @@
 
 @media (max-width: 760px) {
   .fieldGrid,
+  .summaryGrid,
+  .resolutionCard,
+  .resolutionGrid,
   .ticketTool {
     grid-template-columns: 1fr;
+  }
+
+  .summaryGrid div,
+  .resolutionCard div {
+    border-right: 0;
+  }
+
+  .summaryGrid div:nth-last-child(-n + 3),
+  .resolutionCard div:nth-last-child(-n + 3) {
+    border-bottom: 1px solid var(--border, #e8ecf1);
+  }
+
+  .summaryGrid div:last-child,
+  .resolutionCard div:last-child {
+    border-bottom: 0;
   }
 
   .ticketTool {

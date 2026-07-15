@@ -110,10 +110,32 @@ export default function PgResidenceClient({
 
   if (!residence) {
     return (
-      <section className={styles.empty}>
-        <h2>No active PG residence</h2>
-        <p>Your tenant account is not mapped to an active or reserved PG bed.</p>
-      </section>
+      <div className={styles.stack}>
+        <section className={styles.empty}>
+          <h2>No active PG residence</h2>
+          <p>Your tenant account is not mapped to an active or reserved PG bed.</p>
+        </section>
+        <SectionCard title="Past Stays maintenance" icon={<Wrench size={18} aria-hidden="true" />}>
+          {maintenanceLoadError ? (
+            <p role="alert" className={styles.error}>
+              {maintenanceLoadError}
+            </p>
+          ) : initialMaintenance.length > 0 ? (
+            <MaintenanceWorkspace
+              compact
+              readOnly
+              initialRequests={initialMaintenance}
+              mode="tenant"
+              token={token}
+            />
+          ) : (
+            <p className={styles.historyEmpty}>
+              Past stay maintenance is available for recent stays only. No historical tickets are
+              available.
+            </p>
+          )}
+        </SectionCard>
+      </div>
     );
   }
 
