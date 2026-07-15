@@ -6,13 +6,21 @@ import { LeadAnalytics } from "./LeadAnalytics";
 
 interface Props {
   accessToken: string;
+  initialListingId?: string | null;
+  onOpenHome?: (listingId: string) => void;
   onCountChange?: (count: number) => void;
   onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
 }
 
 type LeadCenterView = "board" | "analytics";
 
-export function LeadCenterTab({ accessToken, onCountChange, onToast }: Props) {
+export function LeadCenterTab({
+  accessToken,
+  initialListingId,
+  onOpenHome,
+  onCountChange,
+  onToast
+}: Props) {
   const [view, setView] = useState<LeadCenterView>("board");
 
   return (
@@ -42,7 +50,13 @@ export function LeadCenterTab({ accessToken, onCountChange, onToast }: Props) {
       </div>
 
       {view === "board" ? (
-        <LeadBoard accessToken={accessToken} onCountChange={onCountChange} onToast={onToast} />
+        <LeadBoard
+          accessToken={accessToken}
+          initialListingId={initialListingId}
+          onOpenHome={onOpenHome}
+          onCountChange={onCountChange}
+          onToast={onToast}
+        />
       ) : (
         <LeadAnalytics accessToken={accessToken} onToast={onToast} />
       )}

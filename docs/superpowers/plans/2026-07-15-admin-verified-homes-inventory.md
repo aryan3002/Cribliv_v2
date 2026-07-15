@@ -2191,7 +2191,7 @@ git commit -m "feat(web): add verified home workspace"
 - `LeadCenterTab.initialListingId?: string | null`.
 - `LeadBoard.initialListingId?: string | null`.
 
-- [ ] **Step 1: Write failing shell and Lead Center handoff tests**
+- [x] **Step 1: Write failing shell and Lead Center handoff tests**
 
 In `AdminShell.crossnav.test.tsx`, mock the homes and Lead Center tabs:
 
@@ -2276,7 +2276,7 @@ it("initializes exact listing mode and allows clearing it", async () => {
 });
 ```
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 pnpm --filter @cribliv/web exec vitest run \
@@ -2286,7 +2286,7 @@ pnpm --filter @cribliv/web exec vitest run \
 
 Expected: FAIL because listing-targeted Lead Center props/state are absent.
 
-- [ ] **Step 3: Implement shell target state**
+- [x] **Step 3: Implement shell target state**
 
 Add:
 
@@ -2310,7 +2310,7 @@ one-shot home/listing-review targets when leaving their tabs. Clear
 `leadCenterListingTarget` when leaving Lead Center; the in-tab removable chip
 clears the active filter without changing tabs.
 
-- [ ] **Step 4: Implement exact-listing Lead Center UX**
+- [x] **Step 4: Implement exact-listing Lead Center UX**
 
 `LeadCenterTab` receives `initialListingId`.
 
@@ -2343,7 +2343,7 @@ Render a visible chip:
 
 Do not add or duplicate lead actions.
 
-- [ ] **Step 5: Add the Playwright workflow**
+- [x] **Step 5: Add the Playwright workflow**
 
 Create `apps/web/tests/admin-verified-homes.spec.ts`:
 
@@ -2385,7 +2385,7 @@ exact listing chip:
 FF_ADMIN_LEAD_CENTER=true pnpm --filter @cribliv/web test:e2e -- admin-verified-homes.spec.ts
 ```
 
-- [ ] **Step 6: Run GREEN focused tests**
+- [x] **Step 6: Run GREEN focused tests**
 
 ```bash
 pnpm --filter @cribliv/web exec vitest run \
@@ -2397,7 +2397,7 @@ pnpm --filter @cribliv/web exec vitest run \
 
 Expected: all focused tests PASS.
 
-- [ ] **Step 7: Run complete verification**
+- [x] **Step 7: Run complete verification**
 
 ```bash
 pnpm --filter @cribliv/shared-types build
@@ -2413,7 +2413,7 @@ Expected: every command exits 0. If a pre-existing unrelated failure appears,
 record the exact command and failure, verify the feature-focused suites remain
 green, and do not hide or relabel the failure.
 
-- [ ] **Step 8: Browser QA**
+- [x] **Step 8: Browser QA**
 
 Start the app:
 
@@ -2461,7 +2461,7 @@ The release gate passes only when the decision is `acceptable without
 migration`. A `migration required before release` decision stops completion and
 requires a separate user-approved migration plan.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/web/components/admin/shell/AdminShell.tsx \

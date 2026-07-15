@@ -25,4 +25,14 @@ describe("AdminShell Verified Homes tab", () => {
 
     expect(await screen.findByTestId("homes-tab")).toHaveTextContent("homes:tok");
   });
+
+  it("offers a mobile section selector that can reach Verified Homes", async () => {
+    render(<AdminShell accessToken="tok" />);
+
+    fireEvent.change(screen.getByLabelText("Admin section"), {
+      target: { value: "homes" }
+    });
+
+    expect(await screen.findByTestId("homes-tab")).toHaveTextContent("homes:tok");
+  });
 });

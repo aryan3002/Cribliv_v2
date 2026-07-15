@@ -22,6 +22,8 @@ import { formatNumber, formatRelativeTime } from "../../../lib/admin/format";
 
 interface Props {
   accessToken: string;
+  initialListingId?: string | null;
+  onOpenHome?: (listingId: string) => void;
   onCountChange?: (count: number) => void;
   onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
 }
@@ -50,12 +52,19 @@ const ACCESS_TONE: Record<LeadAccessState, PillTone> = {
   expired: "danger"
 };
 
-export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
+export function LeadBoard({
+  accessToken,
+  initialListingId,
+  onOpenHome,
+  onCountChange,
+  onToast
+}: Props) {
   const [data, setData] = useState<AdminLeadBoardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [featureDisabled, setFeatureDisabled] = useState(false);
   const [filter, setFilter] = useState<AdminLeadBoardFilter>("all");
-  const [sort, setSort] = useState<AdminLeadBoardSort>("urgency");
+  const [sort, setSort] = useState<AdminLeadBoardSort>(initialListingId ? "newest" : "urgency");
+  const [listingId, setListingId] = useState(initialListingId ?? "");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   // Held as its own snapshot (not derived from `data.rows`) so an action that
@@ -73,7 +82,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
   // Reset to page 1 whenever a filter/search/sort changes.
   useEffect(() => {
     setPage(1);
-  }, [filter, q, sort]);
+  }, [filter, listingId, q, sort]);
 
   // Fetch on filter/search/page change (debounced 300ms), then poll every 30s
   // until the next filter/search/page change tears this effect down.
@@ -87,6 +96,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
         const res = await fetchAdminLeadBoard(accessToken, {
           filter,
           sort,
+          listing_id: listingId || undefined,
           q: q || undefined,
           page,
           page_size: PAGE_SIZE
@@ -129,7 +139,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
     // the same pattern) — depending on them would tear down/restart polling
     // on every unrelated AdminShell re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, filter, sort, q, page, refreshNonce]);
+  }, [accessToken, filter, sort, listingId, q, page, refreshNonce]);
 
   const counters = data?.counters ?? null;
   const total = data?.total ?? 0;
@@ -178,7 +188,21 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
         header: "Listing",
         render: (r) => (
           <div>
-            <div>{r.listing_title}</div>
+            {onOpenHome ? (
+              <button
+                type="button"
+                className="admin-homes-open-action"
+                aria-label={`Open ${r.listing_title} in Verified Homes`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenHome(r.listing_id);
+                }}
+              >
+                {r.listing_title}
+              </button>
+            ) : (
+              <div>{r.listing_title}</div>
+            )}
             <div style={{ color: "var(--ad-text-3)", fontSize: 12 }}>{r.city ?? "-"}</div>
           </div>
         )
@@ -245,7 +269,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
         )
       }
     ],
-    [generatedAt, accessToken, onToast, triggerRefetch]
+    [generatedAt, accessToken, onOpenHome, onToast, triggerRefetch]
   );
 
   if (featureDisabled) {
@@ -296,6 +320,16 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
               {f.label}
             </button>
           ))}
+          {listingId && (
+            <button
+              type="button"
+              className="admin-chip"
+              aria-label="Clear listing filter"
+              onClick={() => setListingId("")}
+            >
+              Listing {listingId.slice(0, 8)} x
+            </button>
+          )}
           <input
             className="admin-input"
             placeholder="Search seeker / owner / listing"

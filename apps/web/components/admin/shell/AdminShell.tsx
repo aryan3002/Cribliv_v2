@@ -57,7 +57,9 @@ export function AdminShell({ accessToken }: Props) {
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(Date.now());
   const [counts, setCounts] = useState<Partial<Record<AdminTab, number>>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [homeTarget, setHomeTarget] = useState<string | null>(null);
   const [listingReviewTarget, setListingReviewTarget] = useState<string | null>(null);
+  const [leadCenterListingTarget, setLeadCenterListingTarget] = useState<string | null>(null);
   const { toast, push, dismiss } = useToast();
 
   // Persist last tab per session
@@ -87,11 +89,23 @@ export function AdminShell({ accessToken }: Props) {
     setTab("listings");
   }, []);
 
-  // Clear the one-shot target after switching away from listings, so
-  // returning to the tab later doesn't force-reopen the old listing.
+  const openHome = useCallback((listingId: string) => {
+    setHomeTarget(listingId);
+    setTab("homes");
+  }, []);
+
+  const openLeadCenterForListing = useCallback((listingId: string) => {
+    setLeadCenterListingTarget(listingId);
+    setTab("lead-center");
+  }, []);
+
+  // Clear one-shot cross-navigation targets after leaving their destination,
+  // so later sidebar visits open the normal unscoped tab state.
   useEffect(() => {
+    if (tab !== "homes" && homeTarget) setHomeTarget(null);
     if (tab !== "listings" && listingReviewTarget) setListingReviewTarget(null);
-  }, [tab, listingReviewTarget]);
+    if (tab !== "lead-center" && leadCenterListingTarget) setLeadCenterListingTarget(null);
+  }, [homeTarget, leadCenterListingTarget, listingReviewTarget, tab]);
 
   const view = useMemo(() => {
     // Force-remount tabs on refresh nonce to re-fetch.
@@ -137,6 +151,8 @@ export function AdminShell({ accessToken }: Props) {
           <LeadCenterTab
             key={`lc-${k}`}
             accessToken={accessToken}
+            initialListingId={leadCenterListingTarget}
+            onOpenHome={openHome}
             onCountChange={handleCount("lead-center")}
             onToast={push}
           />
@@ -156,8 +172,9 @@ export function AdminShell({ accessToken }: Props) {
           <AdminHomesTab
             key={`homes-${k}`}
             accessToken={accessToken}
+            initialListingId={homeTarget}
             onOpenListingReview={openListingReview}
-            onOpenLeadCenter={() => setTab("lead-center")}
+            onOpenLeadCenter={openLeadCenterForListing}
             onToast={push}
           />
         );
@@ -174,7 +191,19 @@ export function AdminShell({ accessToken }: Props) {
       case "security":
         return <AdminTotpPanel key={`security-${k}`} accessToken={accessToken} />;
     }
-  }, [tab, refreshNonce, accessToken, handleCount, push, listingReviewTarget, openListingReview]);
+  }, [
+    tab,
+    refreshNonce,
+    accessToken,
+    handleCount,
+    push,
+    homeTarget,
+    listingReviewTarget,
+    leadCenterListingTarget,
+    openHome,
+    openListingReview,
+    openLeadCenterForListing
+  ]);
 
   return (
     <div className="admin-shell">
@@ -188,6 +217,20 @@ export function AdminShell({ accessToken }: Props) {
             onOpenCommand={() => setPaletteOpen(true)}
             refreshing={refreshing}
           />
+          <label className="admin-mobile-nav">
+            <span>Section</span>
+            <select
+              aria-label="Admin section"
+              value={tab}
+              onChange={(event) => setTab(event.target.value as AdminTab)}
+            >
+              {Object.entries(TAB_TITLES).map(([id, title]) => (
+                <option key={id} value={id}>
+                  {title}
+                </option>
+              ))}
+            </select>
+          </label>
           <main className="admin-main">{view}</main>
         </div>
       </div>

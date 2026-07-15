@@ -46,10 +46,6 @@
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
 }
-@media (max-width: 900px) {
-  .admin-layout { grid-template-columns: 1fr; }
-  .admin-sidebar { display: none; }
-}
 
 .admin-sidebar {
   background: var(--ad-surface);
@@ -131,6 +127,34 @@
 .admin-sidebar__item--signout:hover {
   background: var(--ad-danger-soft);
   color: var(--ad-danger);
+}
+.admin-mobile-nav {
+  display: none;
+}
+@media (max-width: 900px) {
+  .admin-layout { grid-template-columns: 1fr; }
+  .admin-sidebar { display: none; }
+  .admin-mobile-nav {
+    display: grid;
+    gap: 4px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--ad-border);
+    background: var(--ad-surface);
+    color: var(--ad-text-3);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .admin-mobile-nav select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 34px 0 12px;
+    border: 1px solid var(--ad-border);
+    border-radius: 6px;
+    background: var(--ad-surface);
+    color: var(--ad-text);
+    font: inherit;
+    font-size: 13px;
+  }
 }
 
 /* Topbar */
@@ -798,7 +822,7 @@
 }
 .admin-homes-toolbar {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   gap: 8px;
   flex-wrap: wrap;
   padding: 12px 14px;
