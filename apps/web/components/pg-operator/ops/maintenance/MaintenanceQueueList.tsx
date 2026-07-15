@@ -92,6 +92,9 @@ export default function MaintenanceQueueList({
     filters: MaintenanceQueueFilterState;
     cursor?: string;
   } | null>(null);
+  const backgroundInertProps: { inert?: boolean; "aria-hidden"?: true } = filtersOpen
+    ? { inert: "" as unknown as boolean, "aria-hidden": true }
+    : {};
 
   async function query(nextFilters: MaintenanceQueueFilterState, cursor?: string) {
     setLoading(true);
@@ -128,88 +131,95 @@ export default function MaintenanceQueueList({
         onChange={updateFilters}
         onSheetOpenChange={setFiltersOpen}
       />
-      {error ? (
-        <div role="alert" className={styles.inlineError}>
-          <span>{error}</span>
-          {failedQuery ? (
-            <button
-              type="button"
-              className={styles.retryButton}
-              disabled={loading}
-              onClick={() => void query(failedQuery.filters, failedQuery.cursor)}
-            >
-              Retry
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      {rows.length === 0 ? (
-        <div className={styles.empty}>No maintenance tickets match this view.</div>
-      ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Ticket</th>
-                <th>SLA</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th>Location</th>
-                <th>Tenant</th>
-                <th>Last update</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((request) => (
-                <tr key={request.id} data-testid={`maintenance-card-${request.id}`}>
-                  <td data-label="Ticket">
-                    <div className={styles.primaryCell}>
-                      {ticketHrefBase ? (
-                        <Link
-                          href={`${ticketHrefBase}/${request.id}` as any}
-                          className={styles.ticketLink}
-                          aria-label={ticketLinkLabel(request)}
-                        >
-                          {request.category}
-                        </Link>
-                      ) : (
-                        <strong>{request.category}</strong>
-                      )}
-                      <span>{request.description}</span>
-                    </div>
-                  </td>
-                  <td data-label="SLA">
-                    <span className={request.is_overdue ? styles.danger : undefined}>
-                      {`Due ${displayDateTime(request.sla_due_at)}`}
-                    </span>
-                  </td>
-                  <td data-label="Priority">
-                    <span className={styles.badge}>{PRIORITY_LABEL[request.priority]}</span>
-                  </td>
-                  <td data-label="Status">
-                    <span className={styles.badge}>{STATUS_LABEL[request.status]}</span>
-                  </td>
-                  <td data-label="Location">{locationLabel(request)}</td>
-                  <td data-label="Tenant">{tenantLabel(request)}</td>
-                  <td data-label="Last update" className={styles.cellSubtle}>
-                    {`Updated ${displayDateTime(request.updated_at)}`}
-                  </td>
+      <div
+        className={styles.queueResults}
+        role="region"
+        aria-label="Maintenance queue results"
+        {...backgroundInertProps}
+      >
+        {error ? (
+          <div role="alert" className={styles.inlineError}>
+            <span>{error}</span>
+            {failedQuery ? (
+              <button
+                type="button"
+                className={styles.retryButton}
+                disabled={loading}
+                onClick={() => void query(failedQuery.filters, failedQuery.cursor)}
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {rows.length === 0 ? (
+          <div className={styles.empty}>No maintenance tickets match this view.</div>
+        ) : (
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Ticket</th>
+                  <th>SLA</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Location</th>
+                  <th>Tenant</th>
+                  <th>Last update</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {nextCursor ? (
-        <button
-          type="button"
-          className={styles.loadMore}
-          disabled={loading}
-          onClick={() => void query(filters, nextCursor)}
-        >
-          Load more
-        </button>
-      ) : null}
+              </thead>
+              <tbody>
+                {rows.map((request) => (
+                  <tr key={request.id} data-testid={`maintenance-card-${request.id}`}>
+                    <td data-label="Ticket">
+                      <div className={styles.primaryCell}>
+                        {ticketHrefBase ? (
+                          <Link
+                            href={`${ticketHrefBase}/${request.id}` as any}
+                            className={styles.ticketLink}
+                            aria-label={ticketLinkLabel(request)}
+                          >
+                            {request.category}
+                          </Link>
+                        ) : (
+                          <strong>{request.category}</strong>
+                        )}
+                        <span>{request.description}</span>
+                      </div>
+                    </td>
+                    <td data-label="SLA">
+                      <span className={request.is_overdue ? styles.danger : undefined}>
+                        {`Due ${displayDateTime(request.sla_due_at)}`}
+                      </span>
+                    </td>
+                    <td data-label="Priority">
+                      <span className={styles.badge}>{PRIORITY_LABEL[request.priority]}</span>
+                    </td>
+                    <td data-label="Status">
+                      <span className={styles.badge}>{STATUS_LABEL[request.status]}</span>
+                    </td>
+                    <td data-label="Location">{locationLabel(request)}</td>
+                    <td data-label="Tenant">{tenantLabel(request)}</td>
+                    <td data-label="Last update" className={styles.cellSubtle}>
+                      {`Updated ${displayDateTime(request.updated_at)}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {nextCursor ? (
+          <button
+            type="button"
+            className={styles.loadMore}
+            disabled={loading}
+            onClick={() => void query(filters, nextCursor)}
+          >
+            Load more
+          </button>
+        ) : null}
+      </div>
     </section>
   );
 }

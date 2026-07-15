@@ -310,6 +310,7 @@ describe("MaintenanceQueueList", () => {
     setup();
 
     const trigger = screen.getByRole("button", { name: "Filters" });
+    const queueResults = screen.getByRole("region", { name: "Maintenance queue results" });
     trigger.focus();
     fireEvent.click(trigger);
 
@@ -323,6 +324,8 @@ describe("MaintenanceQueueList", () => {
       "inert",
       ""
     );
+    expect(queueResults).toHaveAttribute("inert", "");
+    expect(queueResults).toHaveAttribute("aria-hidden", "true");
 
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
     expect(sort).toHaveFocus();
@@ -335,5 +338,7 @@ describe("MaintenanceQueueList", () => {
     expect(screen.getByRole("region", { name: "Maintenance analytics" })).not.toHaveAttribute(
       "inert"
     );
+    expect(queueResults).not.toHaveAttribute("inert");
+    expect(queueResults).not.toHaveAttribute("aria-hidden");
   });
 });

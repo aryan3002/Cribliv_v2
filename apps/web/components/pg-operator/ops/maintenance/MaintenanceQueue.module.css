@@ -84,6 +84,12 @@
   overflow-x: auto;
 }
 
+.queueResults {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .table {
   background: var(--surface, #fff);
   border-collapse: collapse;

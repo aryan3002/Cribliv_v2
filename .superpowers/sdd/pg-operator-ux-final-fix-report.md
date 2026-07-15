@@ -42,3 +42,15 @@ Final-review recovery limited to the web menu, toast, maintenance filter, and PG
 ## Concerns
 
 - React's installed JSX typing models `inert` as a boolean while the runtime requires the empty-attribute form; the analytics component uses a narrow local cast to emit the native inert attribute without a runtime warning.
+
+## Follow-up: Queue Background Inert Region
+
+### What changed
+
+- Wrapped the maintenance queue results, inline retry, ticket links, and load-more control in a labelled background region.
+- When the mobile filter sheet is open, that queue results region now receives `inert` and `aria-hidden="true"` alongside the analytics strip, so the modal no longer leaves queue controls exposed to assistive technology.
+- Extended the modal regression test to assert both analytics and queue results are inert while open and restored after Escape closes the sheet.
+
+### Verification
+
+- `rtk corepack pnpm --filter @cribliv/web test -- MaintenanceQueueList.test.tsx` - passed, 1 file and 9 tests. Existing Vite CJS deprecation warning only.
