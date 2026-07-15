@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
 }
 
 .ticketPageShell {
@@ -10,6 +11,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
 }
 
 .createForm,
@@ -20,6 +22,7 @@
 .createForm {
   background: var(--surface, #fff);
   border-radius: 8px;
+  min-width: 0;
   padding: 16px;
 }
 
@@ -122,6 +125,7 @@
   flex-direction: column;
   gap: 8px;
   margin-top: 12px;
+  min-width: 0;
 }
 
 .photoInput {
@@ -135,6 +139,8 @@
   font-weight: 700;
   gap: 8px;
   min-height: 40px;
+  max-width: 100%;
+  min-width: 0;
   padding: 0 12px;
   width: fit-content;
 }
@@ -238,6 +244,8 @@
   gap: 8px;
   list-style: none;
   margin: 0;
+  max-width: 100%;
+  min-width: 0;
   padding: 0;
 }
 
@@ -250,7 +258,8 @@
   display: inline-flex;
   gap: 7px;
   min-height: 34px;
-  max-width: 220px;
+  max-width: min(100%, 220px);
+  min-width: 0;
   padding: 4px 6px;
 }
 
@@ -263,6 +272,7 @@
 
 .pendingPhotos span {
   font-size: 12px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -286,6 +296,8 @@
   border-radius: 8px;
   display: grid;
   grid-template-columns: minmax(240px, 0.7fr) minmax(0, 1.3fr);
+  max-width: 100%;
+  min-width: 0;
   min-height: 440px;
 }
 
@@ -385,10 +397,12 @@
   display: flex;
   gap: 8px;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .ticketTopline strong {
   font-size: 14px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -515,11 +529,13 @@
 .commentPhotos {
   display: grid;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .photoGrid {
   border-bottom: 1px solid var(--border, #e8ecf1);
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   margin-bottom: 14px;
   padding-bottom: 14px;
 }
@@ -531,6 +547,8 @@
   border: 1px solid var(--border, #e8ecf1);
   border-radius: 7px;
   object-fit: cover;
+  max-width: 100%;
+  min-width: 0;
   width: 100%;
 }
 
@@ -624,7 +642,7 @@
 }
 
 .commentPhotos {
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   margin-top: 8px;
 }
 

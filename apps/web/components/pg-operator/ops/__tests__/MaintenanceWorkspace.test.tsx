@@ -627,7 +627,7 @@ describe("MaintenanceWorkspace", () => {
       expect(screen.getByRole("heading", { name: "Plumbing" })).toBeInTheDocument()
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Ticket raised, but photos could not be uploaded. Upload URL expired."
+      "Ticket raised, but photos could not be uploaded. The same photos can be added from the ticket public thread. Upload URL expired."
     );
   });
 });

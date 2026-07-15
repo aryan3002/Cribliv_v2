@@ -124,6 +124,7 @@ export default function MaintenanceCreateForm({
   });
   const idempotencyKeyRef = useRef<string | null>(null);
   const photosRef = useRef<PendingMaintenancePhoto[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     photosRef.current = photos;
@@ -165,6 +166,16 @@ export default function MaintenanceCreateForm({
     } catch (cause) {
       setError(failureMessage(cause, "Could not add these photos."));
     }
+  }
+
+  function resetPhotoInput() {
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  function clearPhotos() {
+    photos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
+    setPhotos([]);
+    resetPhotoInput();
   }
 
   function removePhoto(clientUploadId: string) {
@@ -230,10 +241,9 @@ export default function MaintenanceCreateForm({
         try {
           created = await photoUpload.uploadForRequest(createdBase, photos);
         } catch (cause) {
-          photoUploadError = `Ticket raised, but photos could not be uploaded. ${failureMessage(
-            cause,
-            "Add them in a comment."
-          )}`;
+          photoUploadError =
+            "Ticket raised, but photos could not be uploaded. The same photos can be added from the ticket public thread. " +
+            failureMessage(cause, "Add them in a comment.");
         }
       }
 
@@ -244,13 +254,13 @@ export default function MaintenanceCreateForm({
       setLocationKind(currentResidenceLocation ? "" : "property_wide");
       setCommonArea("");
       setLocationDetail("");
-      photos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
-      setPhotos([]);
+      clearPhotos();
       idempotencyKeyRef.current = null;
       if (photoUploadError) setError(photoUploadError);
     } catch (cause) {
       setError(failureMessage(cause, "Could not raise this maintenance ticket."));
     } finally {
+      resetPhotoInput();
       setPending(false);
     }
   }
@@ -354,6 +364,7 @@ export default function MaintenanceCreateForm({
           <ImagePlus size={16} aria-hidden="true" />
           <span>Add photos</span>
           <input
+            ref={photoInputRef}
             aria-label="Add photos"
             type="file"
             accept="image/jpeg,image/png,image/webp"
@@ -361,7 +372,7 @@ export default function MaintenanceCreateForm({
             disabled={pending}
             onChange={(event) => {
               addPhotos(event.target.files);
-              event.target.value = "";
+              resetPhotoInput();
             }}
           />
         </label>

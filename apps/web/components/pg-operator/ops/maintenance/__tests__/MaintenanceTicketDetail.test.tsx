@@ -188,6 +188,25 @@ describe("MaintenanceTicketDetail", () => {
     expect(screen.getByLabelText("Internal note")).toHaveValue("");
   });
 
+  it("resets the comment photo input when pending comment photos are cleared", () => {
+    const pendingPhoto = {
+      clientUploadId: "comment-photo-1",
+      file: new File(["proof"], "proof.png", { type: "image/png" }),
+      previewUrl: null
+    };
+    const { rerender } = renderDetail(ticket(), { commentPhotos: [pendingPhoto] });
+    const input = screen.getByLabelText("Add comment photos") as HTMLInputElement;
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      value: "stale-selection.png",
+      writable: true
+    });
+
+    rerender(<MaintenanceTicketDetail {...detailProps(ticket(), { commentPhotos: [] })} />);
+
+    expect(input).toHaveValue("");
+  });
+
   it("optimistically overrides priority, rolls it back, and retries with the same reason", async () => {
     let rejectPriority: (cause: Error) => void = () => undefined;
     const onRequestUpdated = vi.fn();

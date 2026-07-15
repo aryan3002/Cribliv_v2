@@ -139,10 +139,17 @@ export default function MaintenanceTicketDetail({
 }) {
   const toast = useToast();
   const latestRequestRef = useRef(request);
+  const commentPhotoInputRef = useRef<HTMLInputElement>(null);
   const [showResolution, setShowResolution] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
   const [priority, setPriority] = useState<PgMaintenancePriority>(request.priority);
   const [priorityReason, setPriorityReason] = useState("");
+
+  useEffect(() => {
+    if (commentPhotos.length === 0 && commentPhotoInputRef.current) {
+      commentPhotoInputRef.current.value = "";
+    }
+  }, [commentPhotos.length]);
   const [priorityPending, setPriorityPending] = useState(false);
   const [priorityError, setPriorityError] = useState<string | null>(null);
   const selectedLocation = request.location;
@@ -519,6 +526,7 @@ export default function MaintenanceTicketDetail({
                 <ImagePlus size={16} aria-hidden="true" />
                 <span>Add comment photos</span>
                 <input
+                  ref={commentPhotoInputRef}
                   aria-label="Add comment photos"
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -526,7 +534,7 @@ export default function MaintenanceTicketDetail({
                   disabled={pending !== null}
                   onChange={(event) => {
                     onAddCommentPhotos(event.target.files);
-                    event.target.value = "";
+                    if (commentPhotoInputRef.current) commentPhotoInputRef.current.value = "";
                   }}
                 />
               </label>

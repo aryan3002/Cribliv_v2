@@ -298,5 +298,41 @@ describe("MaintenanceCreateForm", () => {
         photo_paths: ["pg-maintenance/property-1/ticket-2/photo-1.jpg"]
       })
     );
+    expect(screen.getByLabelText("Add photos")).toHaveValue("");
+    expect(screen.queryByRole("list", { name: "Selected ticket photos" })).not.toBeInTheDocument();
+  });
+
+  it("accepts the same photo again after it is removed", () => {
+    setup();
+    const photo = new File(["photo"], "tap.jpg", { type: "image/jpeg" });
+
+    fireEvent.change(screen.getByLabelText("Add photos"), { target: { files: [photo] } });
+    fireEvent.click(screen.getByRole("button", { name: "Remove tap.jpg" }));
+    fireEvent.change(screen.getByLabelText("Add photos"), { target: { files: [photo] } });
+
+    expect(screen.getByRole("list", { name: "Selected ticket photos" })).toHaveTextContent(
+      "tap.jpg"
+    );
+  });
+
+  it("keeps the raised ticket and directs the tenant to the public thread when photo upload fails", async () => {
+    const { onCreated } = setup();
+    presignResidenceMaintenancePhotos.mockRejectedValueOnce(new Error("Upload URL expired."));
+    fillRequiredExceptLocation();
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "bed" } });
+    fireEvent.change(screen.getByLabelText("Add photos"), {
+      target: {
+        files: [new File(["photo"], "tap.jpg", { type: "image/jpeg" })]
+      }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Raise ticket" }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(request({ id: "ticket-2" })));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Ticket raised, but photos could not be uploaded. The same photos can be added from the ticket public thread."
+    );
+    expect(screen.getByLabelText("Add photos")).toHaveValue("");
+    expect(screen.queryByRole("list", { name: "Selected ticket photos" })).not.toBeInTheDocument();
   });
 });
