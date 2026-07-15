@@ -73,6 +73,7 @@ describe("AdminHomesTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedFetchAdminHomes.mockResolvedValue(homeListFixture);
+    mockedFetchAdminHomeDetail.mockImplementation(() => new Promise<never>(() => undefined));
   });
 
   afterEach(() => {
