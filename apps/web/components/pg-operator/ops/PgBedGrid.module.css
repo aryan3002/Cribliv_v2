@@ -4,7 +4,6 @@
 .floorField > span, .statusFilter > span { color: var(--d-text-soft, #64748b); font-size: 12px; font-weight: 650; }
 .floorField select { background: var(--d-surface, #fff); border: 1px solid var(--d-border-strong, #cbd5e1); border-radius: 6px; color: var(--d-text, #1a1a2e); font: inherit; height: 34px; padding: 0 28px 0 9px; }
 .statusFilter :global([role="group"]) { flex-wrap: wrap; }
-.error { color: var(--d-danger, #dc2626); font-size: 13px; margin: 0 0 12px; }
 .empty { border: 1px dashed var(--d-border-strong, #cbd5e1); border-radius: 6px; color: var(--d-text-soft, #64748b); font-size: 13px; padding: 22px; text-align: center; }
 .floorGroups { display: flex; flex-direction: column; gap: 18px; }
 .floorGroup { border-top: 1px solid var(--d-border, #e8ecf1); padding-top: 11px; }
@@ -14,5 +13,5 @@
 .roomHeading { align-items: baseline; display: flex; gap: 8px; justify-content: space-between; margin-bottom: 9px; }
 .roomHeading strong { color: var(--d-text, #1a1a2e); font-size: 13px; }
 .roomHeading span { color: var(--d-text-soft, #64748b); font-size: 11px; }
-.beds { display: grid; gap: 7px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.beds { display: grid; gap: 7px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 @media (max-width: 700px) { .toolbar { align-items: stretch; flex-direction: column; gap: 12px; } }

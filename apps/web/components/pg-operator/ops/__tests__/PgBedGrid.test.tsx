@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgRoom } from "@cribliv/shared-types";
 import PgBedGrid from "../PgBedGrid";
@@ -8,9 +8,11 @@ const { updateBedStatus, relistBed, refresh } = vi.hoisted(() => ({
   relistBed: vi.fn(),
   refresh: vi.fn()
 }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 
 vi.mock("@/lib/pg-operations-api", () => ({ updateBedStatus, relistBed }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("@/components/ui/toast/use-toast", () => ({ useToast: () => toast }));
 
 const rooms: PgRoom[] = [
   {
@@ -56,19 +58,24 @@ describe("PgBedGrid", () => {
     vi.clearAllMocks();
   });
 
-  it("renders floor inventory and updates a blocked bed to vacant", async () => {
-    updateBedStatus.mockResolvedValue({ ...rooms[0].beds[0], status: "vacant" });
-    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
-
-    expect(screen.getByLabelText("Floor 1")).toBeInTheDocument();
-    expect(screen.getByText("Bed A")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Mark Bed A vacant" }));
-
-    await waitFor(() =>
-      expect(updateBedStatus).toHaveBeenCalledWith("property-1", "bed-a", "vacant", "token-1")
+  it("renders a vacant bed with one Assign action and secondary actions in the overflow menu", () => {
+    render(
+      <PgBedGrid
+        propertyId="property-1"
+        token="token-1"
+        rooms={rooms}
+        assignmentHrefBase="/assign"
+        bedDetailHrefBase="/beds"
+      />
     );
-    expect(await screen.findByRole("button", { name: "Block Bed A" })).toBeInTheDocument();
-    expect(refresh).toHaveBeenCalledTimes(1);
+
+    const bed = screen.getByText("Bed B").closest("article")!;
+    expect(within(bed).getByRole("link", { name: "Assign" })).toBeInTheDocument();
+    expect(within(bed).queryByRole("button", { name: /Block Bed B/ })).not.toBeInTheDocument();
+    fireEvent.click(within(bed).getByRole("button", { name: "More actions for Bed B" }));
+
+    expect(screen.getByRole("menu")).toHaveTextContent("Block");
+    expect(screen.getByRole("menu")).toHaveTextContent("Bed record");
   });
 
   it("renders beds whose room has no assigned floor", () => {
@@ -90,14 +97,19 @@ describe("PgBedGrid", () => {
     expect(screen.getByText("Bed A")).toBeInTheDocument();
   });
 
-  it("refreshes occupancy data after relisting a bed", async () => {
+  it("renders a blocked bed with Relist primary action and Bed record in its overflow menu", async () => {
     relistBed.mockResolvedValue({ ...rooms[0].beds[0], status: "vacant" });
-    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+    render(
+      <PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} bedDetailHrefBase="/beds" />
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "Relist Bed A" }));
+    const bed = screen.getByText("Bed A").closest("article")!;
+    fireEvent.click(within(bed).getByRole("button", { name: "Relist Bed A" }));
 
     await waitFor(() => expect(relistBed).toHaveBeenCalledWith("property-1", "bed-a", "token-1"));
     expect(refresh).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(bed).getByRole("button", { name: "More actions for Bed A" }));
+    expect(screen.getByRole("menu")).toHaveTextContent("Bed record");
   });
 
   it("offers inactive as a status filter", () => {
@@ -120,22 +132,89 @@ describe("PgBedGrid", () => {
     expect(screen.getByText("Bed A").closest('[data-status="inactive"]')).toBeInTheDocument();
   });
 
-  it("hides manual actions for reserved and occupied beds", () => {
+  it("renders Manage for occupied beds and keeps reserved beds non-mutating", () => {
     const assignedRooms: PgRoom[] = [
       {
         ...rooms[0],
         beds: [
           { ...rooms[0].beds[0], id: "bed-reserved", bed_label: "R", status: "reserved" },
-          { ...rooms[0].beds[1], id: "bed-occupied", bed_label: "O", status: "occupied" }
+          {
+            ...rooms[0].beds[1],
+            id: "bed-occupied",
+            bed_label: "O",
+            status: "occupied",
+            metadata: { occupant_name: "Asha" }
+          }
         ]
       }
     ];
 
-    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={assignedRooms} />);
+    render(
+      <PgBedGrid
+        propertyId="property-1"
+        token="token-1"
+        rooms={assignedRooms}
+        assignmentHrefBase="/assign"
+      />
+    );
 
     expect(screen.queryByRole("button", { name: "Block Bed R" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Relist Bed R" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Block Bed O" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Relist Bed O" })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByText("Bed O").closest("article")!).getByRole("link", { name: "Manage" })
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByText("Bed O").closest("article")!).getByText("Asha")
+    ).toBeInTheDocument();
+  });
+
+  it("normalizes room labels and omits vacant context without an available date", () => {
+    const vacantWithoutDate: PgRoom[] = [
+      {
+        ...rooms[0],
+        beds: [{ ...rooms[0].beds[1], available_from: null }]
+      }
+    ];
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={vacantWithoutDate} />);
+
+    expect(screen.getByText("Room 101")).toBeInTheDocument();
+    expect(screen.queryByText("101", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("No available date")).not.toBeInTheDocument();
+  });
+
+  it("optimistically blocks a bed, then rolls back and exposes Retry when the API fails", async () => {
+    let rejectStatusUpdate!: (error: Error) => void;
+    updateBedStatus.mockImplementation(
+      () => new Promise((_, reject) => (rejectStatusUpdate = reject))
+    );
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+
+    const bed = screen.getByText("Bed B").closest("article")!;
+    fireEvent.click(within(bed).getByRole("button", { name: "Block Bed B" }));
+
+    expect(bed).toHaveAttribute("data-status", "blocked");
+    rejectStatusUpdate(new Error("Network unavailable"));
+
+    await waitFor(() => expect(bed).toHaveAttribute("data-status", "vacant"));
+    expect(toast.error).toHaveBeenCalledWith(
+      "Could not block Bed B.",
+      expect.objectContaining({ action: expect.objectContaining({ label: "Retry" }) })
+    );
+  });
+
+  it("optimistically relists a blocked bed and confirms the specific toast", async () => {
+    let resolveRelist!: (bed: (typeof rooms)[number]["beds"][number]) => void;
+    relistBed.mockImplementation(() => new Promise((resolve) => (resolveRelist = resolve)));
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+
+    const bed = screen.getByText("Bed A").closest("article")!;
+    fireEvent.click(within(bed).getByRole("button", { name: "Relist Bed A" }));
+    expect(bed).toHaveAttribute("data-status", "vacant");
+
+    resolveRelist({ ...rooms[0].beds[0], status: "vacant" });
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Bed A relisted"));
   });
 });

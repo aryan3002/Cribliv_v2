@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PgBed, PgBedStatus, PgRoom } from "@cribliv/shared-types";
+import { useToast } from "@/components/ui/toast/use-toast";
 import SegmentedControl from "@/components/pg-operator/wizard/shared/SegmentedControl";
 import { relistBed, updateBedStatus } from "@/lib/pg-operations-api";
 import PgBedChip from "./PgBedChip";
@@ -47,11 +48,11 @@ export default function PgBedGrid({
   bedDetailHrefBase?: string;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [currentRooms, setCurrentRooms] = useState(rooms);
   const [floor, setFloor] = useState<string>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [pendingBedId, setPendingBedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => setCurrentRooms(rooms), [rooms]);
 
@@ -86,26 +87,37 @@ export default function PgBedGrid({
   }
 
   async function changeStatus(bed: PgBed, nextStatus: "blocked" | "vacant") {
+    const optimisticBed = { ...bed, status: nextStatus };
     setPendingBedId(bed.id);
-    setError(null);
+    replaceBed(optimisticBed);
     try {
       replaceBed(await updateBedStatus(propertyId, bed.id, nextStatus, token));
+      toast.success(`Bed ${bed.bed_label} ${nextStatus === "blocked" ? "blocked" : "unblocked"}`);
       router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not update the bed status.");
+    } catch {
+      replaceBed(bed);
+      const action = nextStatus === "blocked" ? "block" : "unblock";
+      toast.error(`Could not ${action} Bed ${bed.bed_label}.`, {
+        action: { label: "Retry", onClick: () => void changeStatus(bed, nextStatus) }
+      });
     } finally {
       setPendingBedId(null);
     }
   }
 
   async function relist(bed: PgBed) {
+    const optimisticBed = { ...bed, status: "vacant" as const };
     setPendingBedId(bed.id);
-    setError(null);
+    replaceBed(optimisticBed);
     try {
       replaceBed(await relistBed(propertyId, bed.id, token));
+      toast.success(`Bed ${bed.bed_label} relisted`);
       router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not relist the bed.");
+    } catch {
+      replaceBed(bed);
+      toast.error(`Could not relist Bed ${bed.bed_label}.`, {
+        action: { label: "Retry", onClick: () => void relist(bed) }
+      });
     } finally {
       setPendingBedId(null);
     }
@@ -130,11 +142,6 @@ export default function PgBedGrid({
           <SegmentedControl value={status} options={STATUS_OPTIONS} onChange={setStatus} />
         </div>
       </div>
-      {error && (
-        <p role="alert" className={styles.error}>
-          {error}
-        </p>
-      )}
       {visibleRooms.length === 0 ? (
         <div className={styles.empty}>No beds match these filters.</div>
       ) : (
@@ -155,7 +162,7 @@ export default function PgBedGrid({
                     {floorRooms.map((room) => (
                       <div key={room.id} className={styles.room}>
                         <div className={styles.roomHeading}>
-                          <strong>{room.display_label || room.room_number}</strong>
+                          <strong>{room.display_label || `Room ${room.room_number}`}</strong>
                           <span>{room.beds.length} beds</span>
                         </div>
                         <div className={styles.beds}>

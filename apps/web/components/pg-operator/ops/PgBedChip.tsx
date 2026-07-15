@@ -2,6 +2,7 @@
 
 import { Button, Badge } from "@cribliv/ui";
 import type { PgBed, PgBedStatus } from "@cribliv/shared-types";
+import { OverflowMenu } from "@/components/ui/menu/OverflowMenu";
 import styles from "./PgBedChip.module.css";
 
 const TONE_BY_STATUS: Record<PgBedStatus, "verified" | "pending" | "brand" | "neutral" | "danger"> =
@@ -17,9 +18,16 @@ function title(status: PgBedStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function occupantName(bed: PgBed): string | null {
+  for (const key of ["tenant_name", "occupant_name", "tenantName", "occupantName"]) {
+    const value = bed.metadata[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return null;
+}
+
 export default function PgBedChip({
   bed,
-  roomNumber,
   onSetStatus,
   onRelist,
   assignmentHref,
@@ -36,59 +44,74 @@ export default function PgBedChip({
 }) {
   const isBlocked = bed.status === "blocked";
   const canAct = bed.status === "vacant" || bed.status === "blocked";
+  const tenantName = bed.status === "occupied" ? occupantName(bed) : null;
 
   return (
     <article className={styles.chip} data-status={bed.status}>
       <div className={styles.head}>
-        <div>
-          <span className={styles.room}>{roomNumber}</span>
-          <strong>Bed {bed.bed_label}</strong>
-        </div>
+        <strong>Bed {bed.bed_label}</strong>
         <Badge tone={TONE_BY_STATUS[bed.status]}>{title(bed.status)}</Badge>
       </div>
-      <p className={styles.date}>
-        {bed.available_from ? `Available ${bed.available_from}` : "No available date"}
-      </p>
-      {(canAct || assignmentHref || detailHref) && (
+      {tenantName ? <p className={styles.context}>{tenantName}</p> : null}
+      {!tenantName && bed.status === "vacant" && bed.available_from ? (
+        <p className={styles.context}>Available {bed.available_from}</p>
+      ) : null}
+      {canAct || assignmentHref || detailHref ? (
         <div className={styles.actions}>
-          {canAct && (
-            <>
+          {bed.status === "vacant" &&
+            (assignmentHref ? (
+              <a className={styles.primaryAction} href={assignmentHref}>
+                Assign
+              </a>
+            ) : (
               <Button
                 type="button"
                 variant="tertiary"
-                className={styles.actionButton}
+                className={styles.primaryAction}
                 disabled={pending}
-                aria-label={
-                  isBlocked ? `Mark Bed ${bed.bed_label} vacant` : `Block Bed ${bed.bed_label}`
-                }
-                onClick={() => onSetStatus(isBlocked ? "vacant" : "blocked")}
+                aria-label={`Block Bed ${bed.bed_label}`}
+                onClick={() => onSetStatus("blocked")}
               >
-                {isBlocked ? "Vacant" : "Block"}
+                Block
               </Button>
-              <Button
-                type="button"
-                variant="tertiary"
-                className={styles.actionButton}
-                disabled={pending}
-                aria-label={`Relist Bed ${bed.bed_label}`}
-                onClick={onRelist}
-              >
-                Relist
-              </Button>
-            </>
+            ))}
+          {isBlocked && (
+            <Button
+              type="button"
+              variant="tertiary"
+              className={styles.primaryAction}
+              disabled={pending}
+              aria-label={`Relist Bed ${bed.bed_label}`}
+              onClick={onRelist}
+            >
+              Relist
+            </Button>
           )}
-          {assignmentHref && (
-            <a className={styles.actionButton} href={assignmentHref}>
-              Tenants
+          {bed.status === "occupied" && assignmentHref ? (
+            <a className={styles.primaryAction} href={assignmentHref}>
+              Manage
             </a>
-          )}
-          {detailHref && (
-            <a className={styles.actionButton} href={detailHref}>
-              Bed record
+          ) : null}
+          {(bed.status === "reserved" || bed.status === "inactive") && assignmentHref ? (
+            <a className={styles.primaryAction} href={assignmentHref}>
+              Manage
             </a>
+          ) : null}
+          {((bed.status === "vacant" && assignmentHref) || isBlocked || detailHref) && (
+            <OverflowMenu
+              ariaLabel={`More actions for Bed ${bed.bed_label}`}
+              items={[
+                ...(bed.status === "vacant"
+                  ? [{ label: "Block", onSelect: () => onSetStatus("blocked"), disabled: pending }]
+                  : []),
+                ...(detailHref
+                  ? [{ label: "Bed record", onSelect: () => window.location.assign(detailHref) }]
+                  : [])
+              ]}
+            />
           )}
         </div>
-      )}
+      ) : null}
     </article>
   );
 }
