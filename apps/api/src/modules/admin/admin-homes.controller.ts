@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Inject, Param, Query, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
 import { ok } from "../../common/response";
 import { Roles } from "../../common/roles.decorator";
@@ -26,5 +26,10 @@ export class AdminHomesController {
         sanitizeAdminHomesParams({ status, city, q, sort, page, page_size: pageSize })
       )
     );
+  }
+
+  @Get(":listing_id")
+  async detail(@Param("listing_id") listingId: string) {
+    return ok(await this.homes.getHome(listingId));
   }
 }

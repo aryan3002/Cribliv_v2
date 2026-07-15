@@ -18,4 +18,15 @@ describe("AdminHomesController", () => {
     });
     expect(result).toMatchObject({ data: { items: [], total: 0 } });
   });
+
+  it("delegates GET /admin/homes/:id", async () => {
+    const listingId = "11111111-1111-4111-8111-111111111111";
+    const getHome = vi.fn().mockResolvedValue({ listing: { id: listingId } });
+    const controller = new AdminHomesController({ getHome } as any);
+
+    expect(await (controller as any).detail(listingId)).toMatchObject({
+      data: { listing: { id: listingId } }
+    });
+    expect(getHome).toHaveBeenCalledWith(listingId);
+  });
 });

@@ -666,4 +666,457 @@ describe("AdminHomesService", () => {
       needs_attention: 1
     });
   });
+
+  it.each([
+    ["pg", "verified", "active"],
+    ["flat_house", "pending", "active"],
+    ["flat_house", "verified", "draft"],
+    ["flat_house", "verified", "pending_review"],
+    ["flat_house", "verified", "rejected"]
+  ] as const)(
+    "rejects out-of-scope detail %s/%s/%s",
+    async (listingType, verificationStatus, status) => {
+      (appState as any).listings = new Map([
+        [
+          "target",
+          {
+            id: "target",
+            ownerUserId: "owner-1",
+            listingType,
+            title: "Target home",
+            city: "lucknow",
+            monthlyRent: 15000,
+            verificationStatus,
+            status,
+            createdAt: now
+          }
+        ]
+      ]);
+
+      await expect((service as any).getHome("target")).rejects.toMatchObject({
+        response: expect.objectContaining({ code: "home_not_found" })
+      });
+    }
+  );
+
+  it("rejects missing and malformed database listing ids without querying Postgres", async () => {
+    const query = vi.fn();
+    const dbBacked = new AdminHomesService({ isEnabled: () => true, query } as any, appState);
+
+    await expect((dbBacked as any).getHome("malformed")).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "home_not_found" })
+    });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("returns a complete in-memory detail with scoped data, newest leads, and no seeker phones", async () => {
+    const createdAt = now - 5 * 60_000;
+    const targetLeads: Array<[string, any]> = Array.from({ length: 11 }, (_, index) => {
+      const tenantId = `tenant-${index + 1}`;
+      (appState as any).users.set(tenantId, {
+        id: tenantId,
+        phone: `+919999999${String(index).padStart(3, "0")}`,
+        role: "tenant",
+        preferred_language: "en",
+        full_name: `Seeker ${index + 1}`
+      });
+      return [
+        `lead-${index + 1}`,
+        {
+          id: `lead-${index + 1}`,
+          listingId: "active-home",
+          ownerUserId: "owner-1",
+          tenantUserId: tenantId,
+          contactUnlockId: index === 2 ? "unlock-refunded" : undefined,
+          status: ["new", "contacted", "visit_scheduled", "deal_done", "lost"][index % 5],
+          accessState: ["free", "locked", "unlocked", "expired"][index % 4],
+          calledAt: index % 3 === 0 ? createdAt + index * 1_000 + 300 : null,
+          calledBy: index % 3 === 0 ? "team" : null,
+          callDeadlineAt: createdAt + index * 1_000 + 3_600_000,
+          createdAt: createdAt + index * 1_000,
+          statusChangedAt: createdAt + index * 1_000,
+          updatedAt: createdAt + index * 1_000
+        }
+      ];
+    });
+    targetLeads.push([
+      "lead-old-open",
+      {
+        id: "lead-old-open",
+        listingId: "active-home",
+        ownerUserId: "owner-1",
+        tenantUserId: "tenant-1",
+        status: "new",
+        accessState: "free",
+        calledAt: null,
+        calledBy: null,
+        callDeadlineAt: null,
+        createdAt: now - 31 * 86_400_000,
+        statusChangedAt: now - 31 * 86_400_000,
+        updatedAt: now - 31 * 86_400_000
+      }
+    ]);
+    (appState as any).leads = new Map(targetLeads);
+    (appState as any).unlocks = new Map([
+      [
+        "unlock-refunded",
+        {
+          id: "unlock-refunded",
+          tenantUserId: "tenant-3",
+          listingId: "active-home",
+          idempotencyKey: "unlock-refunded",
+          ownerResponseStatus: "timeout_refunded",
+          unlockStatus: "refunded",
+          responseDeadlineAt: now - 1_000
+        }
+      ]
+    ]);
+    (appState as any).listings.set("owner-paused", {
+      id: "owner-paused",
+      ownerUserId: "owner-1",
+      listingType: "flat_house",
+      title: "Owner Paused",
+      city: "lucknow",
+      monthlyRent: 18000,
+      verificationStatus: "unverified",
+      status: "paused",
+      createdAt
+    });
+    (appState as any).listings.set("owner-archived", {
+      id: "owner-archived",
+      ownerUserId: "owner-1",
+      listingType: "flat_house",
+      title: "Owner Archived",
+      city: "lucknow",
+      monthlyRent: 17000,
+      verificationStatus: "failed",
+      status: "archived",
+      createdAt
+    });
+    (appState as any).verificationAttempts = [
+      {
+        id: "attempt-old",
+        listing_id: "active-home",
+        verification_type: "video_liveness",
+        result: "pass",
+        liveness_score: 91,
+        threshold: 85,
+        artifact_paths: ["private/old.mp4"],
+        submitted_payload: { secret: "omit" },
+        provider: "mock",
+        created_at: new Date(createdAt).toISOString()
+      },
+      {
+        id: "attempt-new",
+        listing_id: "active-home",
+        verification_type: "electricity_bill_match",
+        result: "pass",
+        address_match_score: 96,
+        threshold: 85,
+        artifact_paths: ["private/new.jpg"],
+        submitted_payload: { secret: "omit" },
+        provider_payload: { secret: "omit" },
+        created_at: new Date(createdAt + 10_000).toISOString()
+      },
+      {
+        id: "attempt-other",
+        listing_id: "paused-home",
+        verification_type: "video_liveness",
+        result: "pass",
+        threshold: 85,
+        created_at: new Date(createdAt + 20_000).toISOString()
+      }
+    ];
+    (appState as any).adminActions = [
+      {
+        id: "listing-action",
+        target_type: "listing",
+        target_id: "active-home",
+        action: "pause",
+        admin_id: "admin-1",
+        created_at: new Date(createdAt + 11_000).toISOString()
+      },
+      {
+        id: "attempt-action",
+        target_type: "verification_attempt",
+        target_id: "attempt-new",
+        action: "approve",
+        admin_id: "admin-1",
+        created_at: new Date(createdAt + 12_000).toISOString()
+      },
+      {
+        id: "other-attempt-action",
+        target_type: "verification_attempt",
+        target_id: "attempt-other",
+        action: "approve",
+        admin_id: "admin-1",
+        created_at: new Date(createdAt + 13_000).toISOString()
+      }
+    ];
+
+    const detail = await (service as any).getHome("active-home");
+
+    expect(detail).toMatchObject({
+      listing: { id: "active-home", verification_status: "verified" },
+      metrics_30d: { views: 0, leads: 11 },
+      owner: {
+        active_homes: 2,
+        paused_homes: 2,
+        archived_homes: 2,
+        lead_health: expect.objectContaining({
+          leads_30d: 11,
+          refund_rate_30d: expect.any(Number)
+        })
+      },
+      public_path: "/en/listing/active-home"
+    });
+    expect(detail.lead_summary.open).toBeGreaterThan(0);
+    expect(detail.lead_summary.uncalled).toBeGreaterThan(0);
+    expect(detail.lead_summary.refunded).toBe(1);
+    expect(detail.recent_leads).toHaveLength(10);
+    expect(detail.recent_leads.map((lead: { created_at: string }) => lead.created_at)).toEqual(
+      [...detail.recent_leads.map((lead: { created_at: string }) => lead.created_at)]
+        .sort()
+        .reverse()
+    );
+    expect(detail.recent_leads.every((lead: object) => !("seeker_phone" in lead))).toBe(true);
+    expect(
+      detail.verification_attempts.map((attempt: { attempt_id: string }) => attempt.attempt_id)
+    ).toEqual(["attempt-new", "attempt-old"]);
+    expect(JSON.stringify(detail)).not.toMatch(
+      /artifact_paths|submitted_payload|provider_payload|secret/
+    );
+    expect(detail.activity.map((item: { id: string }) => item.id)).toEqual(
+      expect.arrayContaining(["admin:listing-action", "admin:attempt-action"])
+    );
+    expect(detail.activity.map((item: { id: string }) => item.id)).not.toContain(
+      "admin:other-attempt-action"
+    );
+  });
+
+  it("maps a complete database detail without sensitive verification payloads", async () => {
+    const listingId = "11111111-1111-4111-8111-111111111111";
+    database.isEnabled = () => true;
+    database.query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: listingId,
+            title_en: "Database Home",
+            title_hi: null,
+            description_en: "Verified home",
+            description_hi: null,
+            status: "active",
+            verification_status: "verified",
+            monthly_rent: "22000",
+            security_deposit: "44000",
+            available_from: "2026-08-01",
+            furnishing: "fully_furnished",
+            bhk: "2",
+            bathrooms: "2",
+            area_sqft: "1050",
+            preferred_tenant: "family",
+            whatsapp_available: true,
+            amenities: ["parking"],
+            rules: { pets: false },
+            created_at: "2026-07-01T00:00:00.000Z",
+            updated_at: "2026-07-15T00:00:00.000Z",
+            last_owner_activity_at: "2026-07-15T01:00:00.000Z",
+            address_line1: "Vibhuti Khand",
+            landmark: "Near metro",
+            pincode: "226010",
+            lat: "26.8467",
+            lng: "80.9462",
+            masked_address: "Gomti Nagar, Lucknow",
+            locality_name: "Gomti Nagar",
+            city_slug: "lucknow",
+            city_name: "Lucknow",
+            owner_id: "22222222-2222-4222-8222-222222222222",
+            owner_name: "Ramesh Kumar",
+            owner_phone: "+919999999901",
+            owner_whatsapp_opt_in: true,
+            owner_preferred_language: "en",
+            owner_role: "owner",
+            owner_is_blocked: false,
+            owner_member_since: "2026-01-01T00:00:00.000Z",
+            owner_last_login_at: "2026-07-15T02:00:00.000Z",
+            report_count: "2"
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            active_homes: "2",
+            paused_homes: "1",
+            archived_homes: "3",
+            leads_30d: "12",
+            called_rate_30d: "0.5",
+            refund_rate_30d: "0.25",
+            median_response_minutes_30d: "42",
+            report_count: "0",
+            health_avg_response_minutes: "20",
+            health_unlocks_60d: "10",
+            health_deals_60d: "9"
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "photo-cover",
+            blob_path: "homes/cover.jpg",
+            is_cover: true,
+            sort_order: "0",
+            moderation_status: "approved"
+          },
+          {
+            id: "photo-second",
+            blob_path: "homes/second.jpg",
+            is_cover: false,
+            sort_order: "1",
+            moderation_status: "pending"
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        rows: [{ views: "20", leads: "10", open_leads: "4", conversion_rate: "0.5" }]
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            new_count: "2",
+            contacted_count: "2",
+            visit_scheduled_count: "1",
+            deal_done_count: "3",
+            lost_count: "2",
+            free_count: "2",
+            locked_count: "3",
+            unlocked_count: "4",
+            expired_count: "1",
+            called: "5",
+            uncalled: "4",
+            refunded: "2",
+            open: "4",
+            median_response_minutes: "35"
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        rows: Array.from({ length: 10 }, (_, index) => ({
+          lead_id: `lead-${index + 1}`,
+          seeker_name: `Seeker ${index + 1}`,
+          access_state: "locked",
+          status: "new",
+          called_at: null,
+          called_by: null,
+          response_deadline_at: null,
+          refund_state: "pending",
+          created_at: `2026-07-${String(20 - index).padStart(2, "0")}T00:00:00.000Z`
+        }))
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            attempt_id: "attempt-new",
+            kind: "video_liveness",
+            result: "pass",
+            liveness_score: "96",
+            address_match_score: null,
+            threshold: "85",
+            provider: "mock",
+            provider_result_code: "PASS",
+            review_reason: null,
+            artifact_available: true,
+            reviewed_by: "admin-1",
+            reviewed_at: "2026-07-20T00:00:00.000Z",
+            created_at: "2026-07-20T00:00:00.000Z"
+          },
+          {
+            attempt_id: "attempt-old",
+            kind: "electricity_bill_match",
+            result: "pass",
+            liveness_score: null,
+            address_match_score: "90",
+            threshold: "85",
+            provider: "mock",
+            provider_result_code: "PASS",
+            review_reason: null,
+            artifact_available: false,
+            reviewed_by: null,
+            reviewed_at: null,
+            created_at: "2026-07-19T00:00:00.000Z"
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "admin:decision",
+            at: "2026-07-20T01:00:00.000Z",
+            kind: "admin",
+            label: "approve",
+            detail: null,
+            actor_id: "admin-1"
+          }
+        ]
+      });
+
+    const detail = await (service as any).getHome(listingId);
+    const calls = database.query.mock.calls.map(([sql]) => String(sql));
+
+    expect(detail).toMatchObject({
+      listing: {
+        monthly_rent: 22000,
+        security_deposit: 44000,
+        bhk: 2,
+        bathrooms: 2,
+        area_sqft: 1050
+      },
+      location: { lat: 26.8467, lng: 80.9462 },
+      owner: {
+        active_homes: 2,
+        paused_homes: 1,
+        archived_homes: 3,
+        lead_health: {
+          health_score: 86,
+          health_grade: "B",
+          called_rate_30d: 0.5,
+          refund_rate_30d: 0.25,
+          median_response_minutes_30d: 42
+        }
+      },
+      metrics_30d: { views: 20, leads: 10, open_leads: 4, conversion_rate: 0.5 }
+    });
+    expect(detail.recent_leads).toHaveLength(10);
+    expect(detail.recent_leads.map((lead: { created_at: string }) => lead.created_at)).toEqual(
+      [...detail.recent_leads.map((lead: { created_at: string }) => lead.created_at)]
+        .sort()
+        .reverse()
+    );
+    expect(
+      detail.photos.every(
+        (photo: { moderation_status: string }) => photo.moderation_status !== "rejected"
+      )
+    ).toBe(true);
+    expect(detail.photos[0].is_cover).toBe(true);
+    expect(
+      detail.verification_attempts.map((attempt: { created_at: string }) => attempt.created_at)
+    ).toEqual(
+      [...detail.verification_attempts.map((attempt: { created_at: string }) => attempt.created_at)]
+        .sort()
+        .reverse()
+    );
+    expect(JSON.stringify(detail)).not.toMatch(
+      /artifact_paths|submitted_payload|request_payload|response_payload/
+    );
+    expect(calls[0]).toContain("l.listing_type = 'flat_house'");
+    expect(calls[0]).toContain("l.verification_status = 'verified'");
+    expect(
+      calls.some((sql) => sql.includes("ORDER BY ld.created_at DESC") && sql.includes("LIMIT 10"))
+    ).toBe(true);
+    expect(calls.some((sql) => sql.includes("p.moderation_status <> 'rejected'"))).toBe(true);
+    expect(calls.some((sql) => sql.includes("ORDER BY va.created_at DESC"))).toBe(true);
+    expect(calls.some((sql) => sql.includes("LIMIT 100"))).toBe(true);
+  });
 });

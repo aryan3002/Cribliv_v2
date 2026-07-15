@@ -8,8 +8,12 @@ const TEST_DB = process.env.TEST_DATABASE_URL;
 describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
   let pool: Pool;
   let database: DatabaseService;
-  let service: { listHomes: (params: any) => Promise<any> };
+  let service: {
+    listHomes: (params: any) => Promise<any>;
+    getHome: (listingId: string) => Promise<any>;
+  };
   let ownerId: string;
+  let adminId: string;
   let cityAId: number;
   let cityBId: number;
   let cityPageId: number;
@@ -21,13 +25,22 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
   let archivedHomeId: string;
   let cityBHomeId: string;
   let cityBCalledOnlyHomeId: string;
+  let pgHomeId: string;
+  let unverifiedHomeId: string;
+  let pendingHomeId: string;
+  let rejectedHomeId: string;
   let originalDatabaseUrl: string | undefined;
   const listingIds: string[] = [];
   const userIds: string[] = [];
+  const leadIds: string[] = [];
+  const verificationAttemptIds: string[] = [];
+  const adminActionIds: string[] = [];
+  const contactUnlockIds: string[] = [];
+  const walletTxnIds: string[] = [];
 
   const suffix = `${Date.now()}${Math.floor(Math.random() * 10_000)}`;
 
-  async function createUser(role: "owner" | "tenant", label: string) {
+  async function createUser(role: "owner" | "tenant" | "admin", label: string) {
     const phoneSeed = String(
       (Number.parseInt(suffix.slice(-8), 10) + userIds.length) % 100_000_000
     ).padStart(8, "0");
@@ -118,18 +131,20 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
     status: "new" | "contacted" | "visit_scheduled" | "deal_done" | "lost";
     accessState: "free" | "locked" | "unlocked" | "expired";
     ageDays: number;
+    ageMinutes?: number;
     called?: boolean;
   }) {
     const tenantId = await createUser("tenant", "Homes Tenant");
-    await pool.query(
+    const lead = await pool.query<{ id: string }>(
       `INSERT INTO leads (
          listing_id, owner_user_id, tenant_user_id, status, access_state, called_at, created_at
        )
        VALUES (
          $1::uuid, $2::uuid, $3::uuid, $4::lead_status, $5,
          CASE WHEN $6::boolean THEN now() ELSE NULL END,
-         now() - ($7::int * interval '1 day')
-       )`,
+         now() - ($7::int * interval '1 day') - ($8::int * interval '1 minute')
+       )
+       RETURNING id::text`,
       [
         input.listingId,
         ownerId,
@@ -137,9 +152,12 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
         input.status,
         input.accessState,
         input.called ?? false,
-        input.ageDays
+        input.ageDays,
+        input.ageMinutes ?? 0
       ]
     );
+    leadIds.push(lead.rows[0].id);
+    return { leadId: lead.rows[0].id, tenantId };
   }
 
   beforeAll(async () => {
@@ -152,6 +170,7 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
     await pool.query("SELECT 1");
 
     ownerId = await createUser("owner", "Homes Owner");
+    adminId = await createUser("admin", "Homes Admin");
     cityASlug = `homes-a-${suffix}`;
     cityBSlug = `homes-b-${suffix}`;
     cityPageSlug = `homes-page-${suffix}`;
@@ -198,28 +217,28 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
       updatedOffsetMinutes: 2
     });
 
-    await createHome({
+    pgHomeId = await createHome({
       title: "Verified PG",
       cityId: cityAId,
       citySlug: cityASlug,
       listingType: "pg",
       monthlyRent: 8000
     });
-    await createHome({
+    unverifiedHomeId = await createHome({
       title: "Unverified Flat",
       cityId: cityAId,
       citySlug: cityASlug,
       verification: "unverified",
       monthlyRent: 9000
     });
-    await createHome({
+    pendingHomeId = await createHome({
       title: "Pending Review Flat",
       cityId: cityAId,
       citySlug: cityASlug,
       status: "pending_review",
       monthlyRent: 9000
     });
-    await createHome({
+    rejectedHomeId = await createHome({
       title: "Rejected Flat",
       cityId: cityAId,
       citySlug: cityASlug,
@@ -236,51 +255,124 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
     await addViews(activeHomeId, 1, 31);
     await addViews(pausedHomeId, 2, 1);
     await addViews(archivedHomeId, 1, 1);
-    await addLead({ listingId: activeHomeId, status: "new", accessState: "locked", ageDays: 1 });
+    const refundedLead = await addLead({
+      listingId: activeHomeId,
+      status: "new",
+      accessState: "locked",
+      ageDays: 1,
+      ageMinutes: 1
+    });
     await addLead({
       listingId: activeHomeId,
       status: "contacted",
       accessState: "unlocked",
       ageDays: 2,
+      ageMinutes: 2,
       called: true
     });
     await addLead({
       listingId: activeHomeId,
       status: "deal_done",
       accessState: "unlocked",
-      ageDays: 3
+      ageDays: 3,
+      ageMinutes: 3
     });
     await addLead({
       listingId: activeHomeId,
       status: "new",
       accessState: "free",
-      ageDays: 31
+      ageDays: 31,
+      ageMinutes: 4
     });
     await addLead({
       listingId: pausedHomeId,
       status: "visit_scheduled",
       accessState: "free",
-      ageDays: 1
+      ageDays: 1,
+      ageMinutes: 5
     });
     await addLead({
       listingId: archivedHomeId,
       status: "lost",
       accessState: "expired",
-      ageDays: 1
+      ageDays: 1,
+      ageMinutes: 6
     });
     await addLead({
       listingId: cityBHomeId,
       status: "new",
       accessState: "locked",
-      ageDays: 1
+      ageDays: 1,
+      ageMinutes: 7
     });
     await addLead({
       listingId: cityBCalledOnlyHomeId,
       status: "contacted",
       accessState: "unlocked",
       ageDays: 1,
+      ageMinutes: 8,
       called: true
     });
+
+    const wallet = await pool.query<{ id: string }>(
+      `INSERT INTO wallets (user_id) VALUES ($1::uuid) ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
+       RETURNING user_id::text AS id`,
+      [refundedLead.tenantId]
+    );
+    const walletTxn = await pool.query<{ id: string }>(
+      `INSERT INTO wallet_transactions (wallet_user_id, txn_type, credits_delta)
+       VALUES ($1::uuid, 'refund_no_response', 1)
+       RETURNING id::text`,
+      [wallet.rows[0].id]
+    );
+    walletTxnIds.push(walletTxn.rows[0].id);
+    const unlock = await pool.query<{ id: string }>(
+      `INSERT INTO contact_unlocks (
+         tenant_user_id, listing_id, wallet_txn_id, idempotency_key, unlock_status,
+         owner_response_status, response_deadline_at
+       )
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, 'refunded', 'timeout_refunded', now() - interval '1 hour')
+       RETURNING id::text`,
+      [refundedLead.tenantId, activeHomeId, walletTxn.rows[0].id, `homes-refund-${suffix}`]
+    );
+    contactUnlockIds.push(unlock.rows[0].id);
+    await pool.query(`UPDATE leads SET contact_unlock_id = $2::uuid WHERE id = $1::uuid`, [
+      refundedLead.leadId,
+      unlock.rows[0].id
+    ]);
+
+    await pool.query(
+      `INSERT INTO listing_photos (listing_id, blob_path, is_cover, sort_order, moderation_status)
+       VALUES
+         ($1::uuid, 'homes/active-first.jpg', false, 0, 'approved'),
+         ($1::uuid, 'homes/active-rejected.jpg', false, 1, 'rejected')`,
+      [activeHomeId]
+    );
+    const attempts = await pool.query<{ id: string }>(
+      `INSERT INTO verification_attempts (
+         user_id, listing_id, verification_type, result, threshold, liveness_score, artifact_paths, created_at
+       )
+       VALUES
+         ($1::uuid, $2::uuid, 'video_liveness', 'pass', 85, 92, '["private/old.mp4"]'::jsonb, now() - interval '2 days'),
+         ($1::uuid, $2::uuid, 'electricity_bill_match', 'pass', 85, 88, '["private/new.jpg"]'::jsonb, now() - interval '1 day')
+       RETURNING id::text`,
+      [ownerId, activeHomeId]
+    );
+    verificationAttemptIds.push(...attempts.rows.map((row) => row.id));
+    const actions = await pool.query<{ id: string }>(
+      `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action, reason)
+       VALUES
+         ($1::uuid, 'listing', $2::uuid, 'pause', 'detail activity fixture'),
+         ($1::uuid, 'verification_attempt', $3::uuid, 'approve', 'detail verification decision')
+       RETURNING id::text`,
+      [adminId, activeHomeId, attempts.rows[1].id]
+    );
+    adminActionIds.push(...actions.rows.map((row) => row.id));
+    await pool.query(
+      `INSERT INTO lead_events (lead_id, to_status, actor_user_id, notes)
+       VALUES ($1::uuid, 'new', $2::uuid, 'detail activity fixture')`,
+      [refundedLead.leadId, adminId]
+    );
 
     for (let index = 0; index < 26; index += 1) {
       await createHome({
@@ -297,7 +389,13 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
     let cleanupError: unknown;
     const cleanupQueries: Array<[string, unknown[]]> = [
       [`DELETE FROM listing_events WHERE listing_id = ANY($1::uuid[])`, [listingIds]],
+      [`DELETE FROM lead_events WHERE lead_id = ANY($1::uuid[])`, [leadIds]],
+      [`DELETE FROM admin_actions WHERE id = ANY($1::uuid[])`, [adminActionIds]],
+      [`DELETE FROM verification_attempts WHERE id = ANY($1::uuid[])`, [verificationAttemptIds]],
       [`DELETE FROM leads WHERE listing_id = ANY($1::uuid[])`, [listingIds]],
+      [`DELETE FROM contact_unlocks WHERE id = ANY($1::uuid[])`, [contactUnlockIds]],
+      [`DELETE FROM wallet_transactions WHERE id = ANY($1::uuid[])`, [walletTxnIds]],
+      [`DELETE FROM wallets WHERE user_id = ANY($1::uuid[])`, [userIds]],
       [`DELETE FROM listings WHERE id = ANY($1::uuid[])`, [listingIds]],
       [`DELETE FROM localities WHERE city_id = ANY($1::int[])`, [[cityAId, cityBId, cityPageId]]],
       [`DELETE FROM cities WHERE id = ANY($1::int[])`, [[cityAId, cityBId, cityPageId]]],
@@ -567,5 +665,58 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
 
     expect(explain.rows[0]?.["QUERY PLAN"]).toBeDefined();
     expect(Array.isArray(explain.rows[0]?.["QUERY PLAN"])).toBe(true);
+  });
+
+  it("returns the scoped verified-home detail with privacy, ordering, and lead-health guarantees", async () => {
+    const detail = await service.getHome(activeHomeId);
+
+    expect(detail.listing.id).toBe(activeHomeId);
+    expect(detail.recent_leads[0]).not.toHaveProperty("seeker_phone");
+    expect(detail.recent_leads).toHaveLength(4);
+    expect(detail.recent_leads.map((lead: any) => lead.created_at)).toEqual(
+      [...detail.recent_leads.map((lead: any) => lead.created_at)].sort().reverse()
+    );
+    expect(detail.photos.every((photo: any) => photo.moderation_status !== "rejected")).toBe(true);
+    expect(detail.photos[0]).toMatchObject({ is_cover: true, sort_order: 0 });
+    expect(detail.verification_attempts).toHaveLength(2);
+    expect(detail.verification_attempts.map((attempt: any) => attempt.created_at)).toEqual(
+      [...detail.verification_attempts.map((attempt: any) => attempt.created_at)].sort().reverse()
+    );
+    expect(detail.verified_at).toBe(detail.verification_attempts[0].created_at);
+    expect(detail.lead_summary.refunded).toBe(1);
+    expect(detail.owner).toMatchObject({
+      active_homes: expect.any(Number),
+      paused_homes: expect.any(Number),
+      archived_homes: expect.any(Number),
+      lead_health: {
+        health_score: expect.any(Number),
+        health_grade: expect.stringMatching(/^[ABCDF]$/),
+        leads_30d: expect.any(Number),
+        called_rate_30d: expect.any(Number),
+        refund_rate_30d: expect.any(Number)
+      }
+    });
+    expect(detail.activity).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: `admin:${adminActionIds[0]}` }),
+        expect.objectContaining({ id: `admin:${adminActionIds[1]}` })
+      ])
+    );
+    expect(detail.activity.length).toBeLessThanOrEqual(100);
+    expect(JSON.stringify(detail)).not.toMatch(
+      /artifact_paths|submitted_payload|request_payload|response_payload/
+    );
+  });
+
+  it.each([
+    pgHomeId,
+    unverifiedHomeId,
+    pendingHomeId,
+    rejectedHomeId,
+    "11111111-1111-4111-8111-111111111111"
+  ])("returns home_not_found for an out-of-scope or missing detail id", async (listingId) => {
+    await expect(service.getHome(listingId)).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "home_not_found" })
+    });
   });
 });
