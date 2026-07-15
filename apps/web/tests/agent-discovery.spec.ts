@@ -4,7 +4,8 @@ const WELL_KNOWN_ROUTES = [
   { path: "/robots.txt", contentType: /text\/plain/ },
   { path: "/.well-known/api-catalog", contentType: /application\/linkset\+json/ },
   { path: "/.well-known/agent-skills/index.json", contentType: /application\/json/ },
-  { path: "/.well-known/mcp/server-card.json", contentType: /application\/json/ }
+  { path: "/.well-known/mcp/server-card.json", contentType: /application\/json/ },
+  { path: "/.well-known/agent-card.json", contentType: /application\/json/ }
 ];
 
 test.describe("agent discovery surface", () => {
@@ -57,6 +58,18 @@ test.describe("agent discovery surface", () => {
     expect(res.headers()["x-content-sha256"]).toBe(first.sha256);
     const body = await res.text();
     expect(body.length).toBeGreaterThan(50);
+  });
+
+  test("agent-card is the DNS-AID entry point linking the discovery surface", async ({
+    request
+  }) => {
+    const res = await request.get("/.well-known/agent-card.json");
+    const body = await res.json();
+    expect(body.name).toBe("Cribliv");
+    expect(body.discovery?.apiCatalog).toMatch(/\/\.well-known\/api-catalog$/);
+    expect(body.discovery?.mcpServerCard).toMatch(/\/\.well-known\/mcp\/server-card\.json$/);
+    expect(body.discovery?.agentSkills).toMatch(/\/\.well-known\/agent-skills\/index\.json$/);
+    expect(Array.isArray(body.capabilities?.tools)).toBe(true);
   });
 
   test("mcp server card declares webmcp transport", async ({ request }) => {
