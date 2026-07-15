@@ -437,6 +437,7 @@ export default function MaintenanceTicketDetail({
 
       {mode === "operator" && propertyId ? (
         <MaintenanceInternalNotes
+          key={request.id}
           request={request}
           propertyId={propertyId}
           token={token}

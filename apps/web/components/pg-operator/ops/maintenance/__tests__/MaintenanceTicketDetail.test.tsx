@@ -147,4 +147,39 @@ describe("MaintenanceTicketDetail", () => {
     expect(screen.getByLabelText("Priority")).toHaveDisplayValue("Normal");
     expect(screen.getByLabelText("Reason")).toHaveValue("");
   });
+
+  it("does not carry an internal note draft or error across selected tickets", () => {
+    const { rerender } = renderDetail(ticket({ id: "ticket-1" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Add internal note" }));
+    fireEvent.change(screen.getByLabelText("Internal note"), {
+      target: { value: "Ticket one private follow-up." }
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter an internal note.");
+    expect(screen.getByLabelText("Internal note")).toHaveValue("Ticket one private follow-up.");
+
+    rerender(
+      <MaintenanceTicketDetail
+        request={ticket({ id: "ticket-2" })}
+        mode="operator"
+        propertyId="property-1"
+        token="token-1"
+        transitions={["resolved"]}
+        pending={null}
+        comment=""
+        commentPhotos={[]}
+        onCommentChange={vi.fn()}
+        onAddCommentPhotos={vi.fn()}
+        onRemoveCommentPhoto={vi.fn()}
+        onSubmitComment={vi.fn()}
+        onStatusChange={vi.fn()}
+        onRequestUpdated={vi.fn()}
+        onInternalNoteCreated={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Internal note")).toHaveValue("");
+  });
 });
