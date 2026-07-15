@@ -71,6 +71,14 @@ afterEach(() => {
 });
 
 describe("PgLeadsBoard", () => {
+  it("keeps a keyboard-operable drag handle for each lead", () => {
+    vi.stubGlobal("fetch", routeFetch([]));
+
+    const { container } = render(<PgLeadsBoard leads={[baseLead()]} token="tok" locale="en" />);
+
+    expect(container.querySelector('article[role="button"][tabindex="0"]')).toBeInTheDocument();
+  });
+
   it("callback flag off: retains the legacy dev-reveal path via pg-operator/leads/:id/open", async () => {
     flagState.ff_callback_leads = false;
     vi.stubGlobal(
