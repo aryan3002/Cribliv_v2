@@ -52,7 +52,7 @@ export default function PgBedGrid({
   const [currentRooms, setCurrentRooms] = useState(rooms);
   const [floor, setFloor] = useState<string>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
-  const [pendingBedId, setPendingBedId] = useState<string | null>(null);
+  const [pendingBedIds, setPendingBedIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => setCurrentRooms(rooms), [rooms]);
 
@@ -86,9 +86,18 @@ export default function PgBedGrid({
     );
   }
 
+  function setBedPending(bedId: string, pending: boolean) {
+    setPendingBedIds((previous) => {
+      const next = new Set(previous);
+      if (pending) next.add(bedId);
+      else next.delete(bedId);
+      return next;
+    });
+  }
+
   async function changeStatus(bed: PgBed, nextStatus: "blocked" | "vacant") {
     const optimisticBed = { ...bed, status: nextStatus };
-    setPendingBedId(bed.id);
+    setBedPending(bed.id, true);
     replaceBed(optimisticBed);
     try {
       replaceBed(await updateBedStatus(propertyId, bed.id, nextStatus, token));
@@ -101,13 +110,13 @@ export default function PgBedGrid({
         action: { label: "Retry", onClick: () => void changeStatus(bed, nextStatus) }
       });
     } finally {
-      setPendingBedId(null);
+      setBedPending(bed.id, false);
     }
   }
 
   async function relist(bed: PgBed) {
     const optimisticBed = { ...bed, status: "vacant" as const };
-    setPendingBedId(bed.id);
+    setBedPending(bed.id, true);
     replaceBed(optimisticBed);
     try {
       replaceBed(await relistBed(propertyId, bed.id, token));
@@ -119,7 +128,7 @@ export default function PgBedGrid({
         action: { label: "Retry", onClick: () => void relist(bed) }
       });
     } finally {
-      setPendingBedId(null);
+      setBedPending(bed.id, false);
     }
   }
 
@@ -171,7 +180,7 @@ export default function PgBedGrid({
                               key={bed.id}
                               bed={bed}
                               roomNumber={room.room_number}
-                              pending={pendingBedId === bed.id}
+                              pending={pendingBedIds.has(bed.id)}
                               onSetStatus={(nextStatus) => void changeStatus(bed, nextStatus)}
                               onRelist={() => void relist(bed)}
                               assignmentHref={

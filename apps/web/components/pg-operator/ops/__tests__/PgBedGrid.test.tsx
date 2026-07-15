@@ -237,6 +237,31 @@ describe("PgBedGrid", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Bed A relisted"));
   });
 
+  it("keeps a second bed disabled when the first bed action finishes", async () => {
+    let resolveRelist!: (bed: (typeof rooms)[number]["beds"][number]) => void;
+    let resolveBlock!: (bed: (typeof rooms)[number]["beds"][number]) => void;
+    relistBed.mockImplementation(() => new Promise((resolve) => (resolveRelist = resolve)));
+    updateBedStatus.mockImplementation(() => new Promise((resolve) => (resolveBlock = resolve)));
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+
+    const bedA = screen.getByText("Bed A").closest("article")!;
+    const bedB = screen.getByText("Bed B").closest("article")!;
+    fireEvent.click(within(bedA).getByRole("button", { name: "Relist Bed A" }));
+    fireEvent.click(within(bedB).getByRole("button", { name: "Block Bed B" }));
+
+    await act(async () => {
+      resolveRelist({ ...rooms[0].beds[0], status: "vacant" });
+    });
+
+    await waitFor(() =>
+      expect(within(bedB).getByRole("button", { name: "Relist Bed B" })).toBeDisabled()
+    );
+
+    await act(async () => {
+      resolveBlock({ ...rooms[0].beds[1], status: "blocked" });
+    });
+  });
+
   it("rolls back a failed relist and retries the mutation", async () => {
     let rejectRelist!: (error: Error) => void;
     relistBed.mockImplementation(() => new Promise((_, reject) => (rejectRelist = reject)));
