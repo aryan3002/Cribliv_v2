@@ -363,9 +363,10 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
       `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action, reason)
        VALUES
          ($1::uuid, 'listing', $2::uuid, 'pause', 'detail activity fixture'),
-         ($1::uuid, 'verification_attempt', $3::uuid, 'approve', 'detail verification decision')
+         ($1::uuid, 'verification_attempt', $3::uuid, 'approve', 'detail verification decision'),
+         ($1::uuid, 'lead', $4::uuid, 'mark_team_called', 'detail lead action')
        RETURNING id::text`,
-      [adminId, activeHomeId, attempts.rows[1].id]
+      [adminId, activeHomeId, attempts.rows[1].id, refundedLead.leadId]
     );
     adminActionIds.push(...actions.rows.map((row) => row.id));
     await pool.query(
@@ -699,7 +700,8 @@ describe.runIf(!!TEST_DB)("AdminHomesService (DB)", () => {
     expect(detail.activity).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: `admin:${adminActionIds[0]}` }),
-        expect.objectContaining({ id: `admin:${adminActionIds[1]}` })
+        expect.objectContaining({ id: `admin:${adminActionIds[1]}` }),
+        expect.objectContaining({ id: `admin:${adminActionIds[2]}` })
       ])
     );
     expect(detail.activity.length).toBeLessThanOrEqual(100);

@@ -110,6 +110,8 @@ interface OwnerAggregateSqlRow {
   health_avg_response_minutes: number | string | null;
   health_unlocks_60d: number | string;
   health_deals_60d: number | string;
+  health_listings_active: number | string;
+  health_listings_paused: number | string;
 }
 
 interface PhotoSqlRow {
@@ -444,8 +446,8 @@ export class AdminHomesService {
         this.loadActivity(listingId)
       ]);
     const health = computeOwnerHealth({
-      listings_active: numberValue(ownerAggregate.active_homes),
-      listings_paused: numberValue(ownerAggregate.paused_homes),
+      listings_active: numberValue(ownerAggregate.health_listings_active),
+      listings_paused: numberValue(ownerAggregate.health_listings_paused),
       avg_response_minutes: nullableNumber(ownerAggregate.health_avg_response_minutes),
       unlocks_60d: numberValue(ownerAggregate.health_unlocks_60d),
       deals_done_60d: numberValue(ownerAggregate.health_deals_60d),
@@ -547,28 +549,39 @@ export class AdminHomesService {
          SELECT ld.id,
                 ld.called_at,
                 ld.created_at,
+                cu.id AS unlock_id,
                 cu.unlock_status
          FROM leads ld
          LEFT JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id
          WHERE ld.owner_user_id = $1::uuid
            AND ld.created_at >= now() - interval '30 days'
        ),
-       health_60d AS (
-         SELECT ld.id,
-                ld.status,
-                ld.created_at,
-                cu.id AS unlock_id,
-                cu.owner_responded_at,
-                cu.created_at AS unlock_created_at
-         FROM leads ld
-         LEFT JOIN contact_unlocks cu ON cu.id = ld.contact_unlock_id
-         WHERE ld.owner_user_id = $1::uuid
-           AND ld.created_at >= now() - interval '60 days'
+       health_listing_agg AS (
+         SELECT count(*) FILTER (WHERE status = 'active')::int AS listings_active,
+                count(*) FILTER (WHERE status = 'paused')::int AS listings_paused,
+                COALESCE(sum(report_count), 0)::int AS report_count
+         FROM listings
+         WHERE owner_user_id = $1::uuid
+       ),
+       health_unlock_agg AS (
+         SELECT count(cu.id)::int AS unlocks_60d,
+                AVG(EXTRACT(EPOCH FROM (cu.owner_responded_at - cu.created_at)) / 60.0)
+                  FILTER (WHERE cu.owner_responded_at IS NOT NULL) AS avg_response_minutes
+         FROM contact_unlocks cu
+         JOIN listings l ON l.id = cu.listing_id
+         WHERE cu.created_at >= now() - interval '60 days'
+           AND l.owner_user_id = $1::uuid
+       ),
+       health_deal_agg AS (
+         SELECT count(*) FILTER (WHERE status = 'deal_done')::int AS deals_done_60d
+         FROM leads
+         WHERE owner_user_id = $1::uuid
+           AND created_at >= now() - interval '60 days'
        )
        SELECT COALESCE((SELECT active_homes FROM portfolio), 0)::int AS active_homes,
               COALESCE((SELECT paused_homes FROM portfolio), 0)::int AS paused_homes,
               COALESCE((SELECT archived_homes FROM portfolio), 0)::int AS archived_homes,
-              COALESCE((SELECT report_count FROM portfolio), 0)::int AS report_count,
+              COALESCE((SELECT report_count FROM health_listing_agg), 0)::int AS report_count,
               (SELECT count(*)::int FROM leads_30d) AS leads_30d,
               COALESCE(
                 (SELECT count(*) FILTER (WHERE called_at IS NOT NULL)::numeric / NULLIF(count(*), 0)
@@ -576,7 +589,8 @@ export class AdminHomesService {
                 0
               ) AS called_rate_30d,
               COALESCE(
-                (SELECT count(*) FILTER (WHERE unlock_status = 'refunded')::numeric / NULLIF(count(*), 0)
+                (SELECT count(*) FILTER (WHERE unlock_status = 'refunded')::numeric /
+                        NULLIF(count(unlock_id), 0)
                  FROM leads_30d),
                 0
               ) AS refund_rate_30d,
@@ -585,13 +599,16 @@ export class AdminHomesService {
                )
                FROM leads_30d
                WHERE called_at IS NOT NULL) AS median_response_minutes_30d,
-              (SELECT AVG(EXTRACT(EPOCH FROM (owner_responded_at - unlock_created_at)) / 60.0)
-               FROM health_60d
-               WHERE owner_responded_at IS NOT NULL) AS health_avg_response_minutes,
-              (SELECT count(DISTINCT unlock_id)::int FROM health_60d WHERE unlock_id IS NOT NULL)
+              (SELECT avg_response_minutes FROM health_unlock_agg)
+                AS health_avg_response_minutes,
+              COALESCE((SELECT unlocks_60d FROM health_unlock_agg), 0)::int
                 AS health_unlocks_60d,
-              (SELECT count(*) FILTER (WHERE status = 'deal_done')::int FROM health_60d)
-                AS health_deals_60d`,
+              COALESCE((SELECT deals_done_60d FROM health_deal_agg), 0)::int
+                AS health_deals_60d,
+              COALESCE((SELECT listings_active FROM health_listing_agg), 0)::int
+                AS health_listings_active,
+              COALESCE((SELECT listings_paused FROM health_listing_agg), 0)::int
+                AS health_listings_paused`,
       [ownerId]
     );
     return (
@@ -606,7 +623,9 @@ export class AdminHomesService {
         median_response_minutes_30d: null,
         health_avg_response_minutes: null,
         health_unlocks_60d: 0,
-        health_deals_60d: 0
+        health_deals_60d: 0,
+        health_listings_active: 0,
+        health_listings_paused: 0
       }
     );
   }
@@ -738,7 +757,8 @@ export class AdminHomesService {
               ld.status::text AS status,
               ld.called_at::text,
               ld.called_by,
-              cu.response_deadline_at::text,
+              COALESCE(ld.call_deadline_at, cu.response_deadline_at)::text
+                AS response_deadline_at,
               CASE
                 WHEN cu.unlock_status = 'refunded' THEN 'refunded'
                 WHEN cu.owner_response_status = 'responded' THEN 'responded'
@@ -767,7 +787,11 @@ export class AdminHomesService {
               vpl.provider,
               vpl.provider_result_code,
               COALESCE(vpl.review_reason, va.failure_reason) AS review_reason,
-              jsonb_array_length(va.artifact_paths) > 0 AS artifact_available,
+              CASE
+                WHEN jsonb_typeof(va.artifact_paths) = 'array'
+                  THEN jsonb_array_length(va.artifact_paths) > 0
+                ELSE false
+              END AS artifact_available,
               va.reviewed_by::text,
               va.reviewed_at::text,
               va.created_at::text
@@ -838,6 +862,17 @@ export class AdminHomesService {
          WHERE aa.target_type = 'verification_attempt'
            AND va.listing_id = $1::uuid
          UNION ALL
+         SELECT 'admin:' || aa.id::text AS id,
+                aa.created_at::text AS at,
+                'admin'::text AS kind,
+                aa.action::text AS label,
+                aa.reason AS detail,
+                aa.admin_user_id::text AS actor_id
+         FROM admin_actions aa
+         JOIN leads ld ON ld.id = aa.target_id
+         WHERE aa.target_type = 'lead'
+           AND ld.listing_id = $1::uuid
+         UNION ALL
          SELECT 'lead:' || ld.id::text AS id,
                 ld.created_at::text AS at,
                 'lead'::text AS kind,
@@ -893,6 +928,7 @@ export class AdminHomesService {
       .map((attempt) => this.mapInMemoryVerificationAttempt(attempt))
       .sort((left, right) => right.created_at.localeCompare(left.created_at));
     const attemptIds = new Set(attempts.map((attempt) => attempt.attempt_id));
+    const leadIds = new Set(allLeads.map((lead) => lead.id));
     const ownerPortfolio = [...this.appState.listings.values()].filter(
       (home) =>
         home.ownerUserId === listing.ownerUserId &&
@@ -925,12 +961,15 @@ export class AdminHomesService {
         actor_id: null
       })),
       ...this.appState.adminActions
-        .filter((action) =>
-          action.target_type === "listing"
-            ? action.target_id === listing.id
-            : action.target_type === "verification_attempt" &&
+        .filter(
+          (action) =>
+            (action.target_type === "listing" && action.target_id === listing.id) ||
+            (action.target_type === "verification_attempt" &&
               typeof action.target_id === "string" &&
-              attemptIds.has(action.target_id)
+              attemptIds.has(action.target_id)) ||
+            (action.target_type === "lead" &&
+              typeof action.target_id === "string" &&
+              leadIds.has(action.target_id))
         )
         .map((action) => ({
           id: `admin:${String(action.id)}`,
@@ -1015,7 +1054,7 @@ export class AdminHomesService {
           ),
           refund_rate_30d: this.ratio(
             ownerRecentLeads.filter((lead) => this.isRefundedInMemory(lead)).length,
-            ownerRecentLeads.length
+            ownerRecentLeads.filter((lead) => Boolean(lead.contactUnlockId)).length
           ),
           median_response_minutes_30d: this.medianResponseMinutes(ownerRecentLeads)
         }
@@ -1132,10 +1171,10 @@ export class AdminHomesService {
       status: lead.status,
       called_at: lead.calledAt ? new Date(lead.calledAt).toISOString() : null,
       called_by: lead.calledBy ?? null,
-      response_deadline_at: unlock?.responseDeadlineAt
-        ? new Date(unlock.responseDeadlineAt).toISOString()
-        : lead.callDeadlineAt
-          ? new Date(lead.callDeadlineAt).toISOString()
+      response_deadline_at: lead.callDeadlineAt
+        ? new Date(lead.callDeadlineAt).toISOString()
+        : unlock?.responseDeadlineAt
+          ? new Date(unlock.responseDeadlineAt).toISOString()
           : null,
       refund_state:
         unlock?.unlockStatus === "refunded"

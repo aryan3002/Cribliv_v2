@@ -845,6 +845,14 @@ describe("AdminHomesService", () => {
         created_at: new Date(createdAt + 12_000).toISOString()
       },
       {
+        id: "lead-action",
+        target_type: "lead",
+        target_id: "lead-1",
+        action: "mark_team_called",
+        admin_id: "admin-1",
+        created_at: new Date(createdAt + 12_500).toISOString()
+      },
+      {
         id: "other-attempt-action",
         target_type: "verification_attempt",
         target_id: "attempt-other",
@@ -865,7 +873,7 @@ describe("AdminHomesService", () => {
         archived_homes: 2,
         lead_health: expect.objectContaining({
           leads_30d: 11,
-          refund_rate_30d: expect.any(Number)
+          refund_rate_30d: 1
         })
       },
       public_path: "/en/listing/active-home"
@@ -887,11 +895,15 @@ describe("AdminHomesService", () => {
       /artifact_paths|submitted_payload|provider_payload|secret/
     );
     expect(detail.activity.map((item: { id: string }) => item.id)).toEqual(
-      expect.arrayContaining(["admin:listing-action", "admin:attempt-action"])
+      expect.arrayContaining(["admin:listing-action", "admin:attempt-action", "admin:lead-action"])
     );
     expect(detail.activity.map((item: { id: string }) => item.id)).not.toContain(
       "admin:other-attempt-action"
     );
+    expect(
+      detail.recent_leads.find((lead: { lead_id: string }) => lead.lead_id === "lead-3")
+        ?.response_deadline_at
+    ).toBe(new Date(createdAt + 2_000 + 3_600_000).toISOString());
   });
 
   it("maps a complete database detail without sensitive verification payloads", async () => {
@@ -957,7 +969,9 @@ describe("AdminHomesService", () => {
             report_count: "0",
             health_avg_response_minutes: "20",
             health_unlocks_60d: "10",
-            health_deals_60d: "9"
+            health_deals_60d: "9",
+            health_listings_active: "2",
+            health_listings_paused: "1"
           }
         ]
       })
@@ -1115,8 +1129,21 @@ describe("AdminHomesService", () => {
     expect(
       calls.some((sql) => sql.includes("ORDER BY ld.created_at DESC") && sql.includes("LIMIT 10"))
     ).toBe(true);
+    expect(
+      calls.some((sql) =>
+        sql.includes("COALESCE(ld.call_deadline_at, cu.response_deadline_at)::text")
+      )
+    ).toBe(true);
+    expect(calls[1]).toContain("count(cu.id)");
+    expect(calls[1]).toContain("cu.created_at >= now() - interval '60 days'");
+    expect(calls[1]).toContain("health_listings_active");
+    expect(calls[1]).toContain("health_listing_agg AS");
     expect(calls.some((sql) => sql.includes("p.moderation_status <> 'rejected'"))).toBe(true);
     expect(calls.some((sql) => sql.includes("ORDER BY va.created_at DESC"))).toBe(true);
+    expect(calls.some((sql) => sql.includes("jsonb_typeof(va.artifact_paths) = 'array'"))).toBe(
+      true
+    );
+    expect(calls.some((sql) => sql.includes("aa.target_type = 'lead'"))).toBe(true);
     expect(calls.some((sql) => sql.includes("LIMIT 100"))).toBe(true);
   });
 });
