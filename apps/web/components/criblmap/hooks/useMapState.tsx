@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useReducer, type Dispatch, type ReactNode } from "react";
+import { cityCentroid } from "../../../lib/city-bboxes";
 
 /* ── Types ────────────────────────────────────────────────────────── */
 
@@ -219,7 +220,7 @@ export type MapAction =
 export const initialMapState: MapState = {
   viewport: null,
   zoom: 11,
-  center: { lat: 28.6139, lng: 77.209 },
+  center: cityCentroid("lucknow")!,
   pins: [],
   selectedPinId: null,
   filters: {},
@@ -237,7 +238,7 @@ export const initialMapState: MapState = {
   seekerRadiusM: 1000,
   alertZones: [],
   commuteOrigin: null,
-  city: "delhi",
+  city: "lucknow",
   originatingListingId: null,
   commuteMaxMinutes: 45,
   commuteReachability: null,
