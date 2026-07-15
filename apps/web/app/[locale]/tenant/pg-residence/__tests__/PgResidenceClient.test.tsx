@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgTenantResidence } from "@cribliv/shared-types";
 import { ToastProvider } from "@/components/ui/toast/toast-provider";
@@ -52,7 +52,7 @@ vi.mock("@/lib/pg-operations-api", () => ({
 
 import PgResidenceClient from "../PgResidenceClient";
 
-function activeResidence(): PgTenantResidence {
+function residence(overrides: Partial<PgTenantResidence> = {}): PgTenantResidence {
   return {
     assignment_id: "assignment-1",
     property_id: "property-1",
@@ -80,8 +80,23 @@ function activeResidence(): PgTenantResidence {
     notice_served_date: null,
     notice_end_date: null,
     notice_days_remaining: null,
-    operator_move_out_request_id: null
+    operator_move_out_request_id: null,
+    ...overrides
   };
+}
+
+function renderResidence(initialResidence = residence()) {
+  return render(
+    <ToastProvider>
+      <PgResidenceClient
+        initialResidence={initialResidence}
+        initialMaintenance={[]}
+        maintenanceLoadError={null}
+        maintenanceHistoryEnabled
+        token="token-1"
+      />
+    </ToastProvider>
+  );
 }
 
 describe("PgResidenceClient", () => {
@@ -89,18 +104,41 @@ describe("PgResidenceClient", () => {
     vi.clearAllMocks();
   });
 
-  it("offers the tenant's own bed, room, and floor when raising maintenance", () => {
-    render(
-      <ToastProvider>
-        <PgResidenceClient
-          initialResidence={activeResidence()}
-          initialMaintenance={[]}
-          maintenanceLoadError={null}
-          maintenanceHistoryEnabled
-          token="token-1"
-        />
-      </ToastProvider>
-    );
+  it("renders the stay overview as the default active tab", () => {
+    renderResidence();
+
+    const overviewTab = screen.getByRole("tab", { name: "Overview" });
+
+    expect(overviewTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
+    expect(screen.queryByRole("tabpanel", { name: "Maintenance" })).not.toBeInTheDocument();
+  });
+
+  it("renders the residence tabs in their required order", () => {
+    renderResidence();
+
+    const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
+
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      "Overview",
+      "Money",
+      "Food & Rules",
+      "Notice",
+      "Maintenance"
+    ]);
+    for (const tab of tabs) {
+      expect(tab).toHaveAttribute("aria-controls");
+    }
+  });
+
+  it("reveals the maintenance form and ticket list only after selecting Maintenance", () => {
+    renderResidence();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Maintenance" }));
+
+    expect(screen.getByRole("tabpanel", { name: "Maintenance" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Raise a maintenance ticket" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Tickets" })).toBeVisible();
 
     const location = screen.getByRole("combobox", { name: "Location" });
 
@@ -110,5 +148,34 @@ describe("PgResidenceClient", () => {
     expect(within(location).getByRole("option", { name: "Common area" })).toBeInTheDocument();
     expect(within(location).getByRole("option", { name: "Property wide" })).toBeInTheDocument();
     expect(within(location).getByRole("option", { name: "Other" })).toBeInTheDocument();
+  });
+
+  it("keeps notice actions available only for active assignments", () => {
+    const { unmount } = renderResidence();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Notice" }));
+    expect(screen.getByRole("button", { name: "Serve notice" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Request move-out" })).toBeEnabled();
+
+    unmount();
+    renderResidence(residence({ assignment_status: "reserved" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Notice" }));
+
+    expect(screen.getByRole("button", { name: "Serve notice" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Request move-out" })).toBeDisabled();
+  });
+
+  it("shows property, room, bed, rent, status, and operator contact in the overview", () => {
+    renderResidence();
+
+    const overview = screen.getByRole("tabpanel", { name: "Overview" });
+
+    expect(within(overview).getByText("Aashiyana PG")).toBeVisible();
+    expect(within(overview).getByText("P5-101")).toBeVisible();
+    expect(within(overview).getByText("A")).toBeVisible();
+    expect(within(overview).getByText("₹12,000")).toBeVisible();
+    expect(within(overview).getByText("active", { exact: false })).toBeVisible();
+    expect(within(overview).getByText("Aashiyana Ops")).toBeVisible();
+    expect(within(overview).getByText("+911111111111")).toBeVisible();
   });
 });

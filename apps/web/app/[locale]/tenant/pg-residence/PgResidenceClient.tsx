@@ -8,7 +8,7 @@ import type {
   PgMaintenanceRequest,
   PgTenantResidence
 } from "@cribliv/shared-types";
-import { CalendarDays, Check, Home, IndianRupee, Utensils, Wrench, X } from "lucide-react";
+import { Check, Wrench, X } from "lucide-react";
 import SectionCard from "@/components/pg-operator/wizard/shared/SectionCard";
 import MaintenanceWorkspace from "@/components/pg-operator/ops/MaintenanceWorkspace";
 import {
@@ -28,6 +28,17 @@ const STATUS_TONE: Record<PgTenantResidence["assignment_status"], BadgeTone> = {
   moved_out: "neutral",
   cancelled: "neutral"
 };
+
+const TABS = ["Overview", "Money", "Food & Rules", "Notice", "Maintenance"] as const;
+type ResidenceTab = (typeof TABS)[number];
+
+function tabId(tab: ResidenceTab): string {
+  return `residence-tab-${tab.toLowerCase().replaceAll(/[^a-z]+/g, "-")}`;
+}
+
+function panelId(tab: ResidenceTab): string {
+  return `residence-panel-${tab.toLowerCase().replaceAll(/[^a-z]+/g, "-")}`;
+}
 
 function rupees(value: number | null): string {
   if (value === null) return "Not set";
@@ -102,6 +113,7 @@ export default function PgResidenceClient({
 }) {
   const router = useRouter();
   const [residence, setResidence] = useState(initialResidence);
+  const [activeTab, setActiveTab] = useState<ResidenceTab>("Overview");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -170,85 +182,169 @@ export default function PgResidenceClient({
   const canServeNotice = residence.assignment_status === "active";
   const canRequestMoveOut = residence.assignment_status === "active";
   const canRespondToOperator = Boolean(residence.operator_move_out_request_id);
+  const noticeEnd = residence.notice_end_date
+    ? `Ends ${residence.notice_end_date}${
+        residence.notice_days_remaining !== null
+          ? ` / ${residence.notice_days_remaining} days remaining`
+          : ""
+      }`
+    : "Not served";
 
   return (
     <div className={styles.stack}>
-      <SectionCard
-        title="My Stay"
-        icon={<Home size={18} aria-hidden="true" />}
-        action={
+      <section className={styles.commandStrip} aria-label="Current residence">
+        <div className={styles.propertySummary}>
+          <span>Current residence</span>
+          <strong>{residence.property_name}</strong>
+          <p>
+            Room {residence.room_number} / Bed {residence.bed_label}
+          </p>
+        </div>
+        <div className={styles.commandFact}>
+          <span>Status</span>
           <Badge tone={STATUS_TONE[residence.assignment_status]}>
             {title(residence.assignment_status)}
           </Badge>
-        }
-      >
-        <dl className={styles.grid}>
-          <div>
-            <dt>Property</dt>
-            <dd>{residence.property_name}</dd>
-          </div>
-          <div>
-            <dt>Room</dt>
-            <dd>{residence.room_number}</dd>
-          </div>
-          <div>
-            <dt>Bed</dt>
-            <dd>{residence.bed_label}</dd>
-          </div>
-          <div>
-            <dt>Sharing</dt>
-            <dd>{value(residence.sharing)}</dd>
-          </div>
-          <div>
-            <dt>Move-in</dt>
-            <dd>{value(residence.move_in_date ?? residence.expected_move_in_date)}</dd>
-          </div>
-          <div>
-            <dt>Operator</dt>
-            <dd>
-              {value(residence.operator_contact.name)}
-              {residence.operator_contact.phone_e164 ? (
-                <span className={styles.subValue}>{residence.operator_contact.phone_e164}</span>
-              ) : null}
-            </dd>
-          </div>
-        </dl>
-      </SectionCard>
+        </div>
+        <div className={styles.commandFact}>
+          <span>Monthly rent</span>
+          <strong>{rupees(residence.monthly_rent_paise)}</strong>
+        </div>
+        <div className={styles.commandFact}>
+          <span>Notice</span>
+          <strong>{noticeEnd}</strong>
+        </div>
+        <div className={`${styles.commandFact} ${styles.operatorCommand}`}>
+          <span>Operator</span>
+          <strong>{value(residence.operator_contact.name)}</strong>
+          {residence.operator_contact.phone_e164 ? (
+            <a href={`tel:${residence.operator_contact.phone_e164}`}>
+              {residence.operator_contact.phone_e164}
+            </a>
+          ) : null}
+        </div>
+      </section>
 
-      <SectionCard title="Money" icon={<IndianRupee size={18} aria-hidden="true" />}>
-        <dl className={styles.grid}>
-          <div>
-            <dt>Monthly rent</dt>
-            <dd>{rupees(residence.monthly_rent_paise)}</dd>
-          </div>
-          <div>
-            <dt>Security deposit</dt>
-            <dd>{rupees(residence.security_deposit_paise)}</dd>
-          </div>
-          <div>
-            <dt>Notice period</dt>
-            <dd>
-              {residence.notice_period_days === null
-                ? "Not set"
-                : `${residence.notice_period_days} days`}
-            </dd>
-          </div>
-          <div>
-            <dt>Lock-in</dt>
-            <dd>
-              {residence.lock_in_months === null ? "Not set" : `${residence.lock_in_months} months`}
-            </dd>
-          </div>
-        </dl>
-      </SectionCard>
+      <div className={styles.tabBar} role="tablist" aria-label="Residence sections">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            id={tabId(tab)}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab}
+            aria-controls={panelId(tab)}
+            className={styles.tab}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-      <SectionCard title="Food & Rules" icon={<Utensils size={18} aria-hidden="true" />}>
-        <div className={styles.rules}>
-          <div>
+      {activeTab === "Overview" && (
+        <section
+          id={panelId("Overview")}
+          role="tabpanel"
+          aria-labelledby={tabId("Overview")}
+          className={styles.panel}
+        >
+          <dl className={styles.factGrid}>
+            <div>
+              <dt>Property</dt>
+              <dd>{residence.property_name}</dd>
+            </div>
+            <div>
+              <dt>Room</dt>
+              <dd>{residence.room_number}</dd>
+            </div>
+            <div>
+              <dt>Bed</dt>
+              <dd>{residence.bed_label}</dd>
+            </div>
+            <div>
+              <dt>Sharing</dt>
+              <dd>{value(residence.sharing)}</dd>
+            </div>
+            <div>
+              <dt>Move-in</dt>
+              <dd>{value(residence.move_in_date ?? residence.expected_move_in_date)}</dd>
+            </div>
+            <div>
+              <dt>Assignment status</dt>
+              <dd>{title(residence.assignment_status)}</dd>
+            </div>
+            <div>
+              <dt>Monthly rent</dt>
+              <dd>{rupees(residence.monthly_rent_paise)}</dd>
+            </div>
+            <div>
+              <dt>Notice</dt>
+              <dd>{noticeEnd}</dd>
+            </div>
+            <div className={styles.operatorTile}>
+              <dt>Operator</dt>
+              <dd>
+                {value(residence.operator_contact.name)}
+                {residence.operator_contact.phone_e164 ? (
+                  <a href={`tel:${residence.operator_contact.phone_e164}`}>
+                    {residence.operator_contact.phone_e164}
+                  </a>
+                ) : null}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
+
+      {activeTab === "Money" && (
+        <section
+          id={panelId("Money")}
+          role="tabpanel"
+          aria-labelledby={tabId("Money")}
+          className={styles.panel}
+        >
+          <div className={styles.rentEmphasis}>
+            <span>Monthly rent</span>
+            <strong>{rupees(residence.monthly_rent_paise)}</strong>
+          </div>
+          <dl className={styles.secondaryFacts}>
+            <div>
+              <dt>Security deposit</dt>
+              <dd>{rupees(residence.security_deposit_paise)}</dd>
+            </div>
+            <div>
+              <dt>Notice period</dt>
+              <dd>
+                {residence.notice_period_days === null
+                  ? "Not set"
+                  : `${residence.notice_period_days} days`}
+              </dd>
+            </div>
+            <div>
+              <dt>Lock-in period</dt>
+              <dd>
+                {residence.lock_in_months === null
+                  ? "Not set"
+                  : `${residence.lock_in_months} months`}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
+
+      {activeTab === "Food & Rules" && (
+        <section
+          id={panelId("Food & Rules")}
+          role="tabpanel"
+          aria-labelledby={tabId("Food & Rules")}
+          className={styles.panel}
+        >
+          <div className={styles.foodPlan}>
             <span>Food plan</span>
             <strong>{foodLabel(residence)}</strong>
           </div>
-          <div>
+          <div className={styles.rules}>
             <span>House rules</span>
             {rules.length === 0 ? (
               <strong>Not set</strong>
@@ -260,78 +356,89 @@ export default function PgResidenceClient({
               </ul>
             )}
           </div>
-        </div>
-      </SectionCard>
+        </section>
+      )}
 
-      <SectionCard title="Notice / Move-out" icon={<CalendarDays size={18} aria-hidden="true" />}>
-        <div className={styles.notice}>
-          <div className={styles.noticeState}>
-            <span>Notice status</span>
-            <strong>{title(residence.assignment_status)}</strong>
-            {residence.notice_end_date ? (
-              <span>
-                Ends {residence.notice_end_date}
-                {residence.notice_days_remaining !== null
-                  ? ` · ${residence.notice_days_remaining} days remaining`
-                  : ""}
-              </span>
-            ) : null}
-          </div>
-          <div className={styles.actions}>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={!canServeNotice || pending !== null}
-              onClick={() => void run("notice")}
-            >
-              Serve notice
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={!canRequestMoveOut || pending !== null}
-              onClick={() => void run("request")}
-            >
-              Request move-out
-            </Button>
-            {canRespondToOperator && (
-              <>
-                <Button
-                  type="button"
-                  disabled={pending !== null}
-                  onClick={() => void run("accept")}
-                >
-                  <Check size={16} aria-hidden="true" /> Accept
-                </Button>
-                <Button
-                  type="button"
-                  variant="tertiary"
-                  disabled={pending !== null}
-                  onClick={() => void run("reject")}
-                >
-                  <X size={16} aria-hidden="true" /> Reject
-                </Button>
-              </>
+      {activeTab === "Notice" && (
+        <section
+          id={panelId("Notice")}
+          role="tabpanel"
+          aria-labelledby={tabId("Notice")}
+          className={styles.panel}
+        >
+          <div className={styles.notice}>
+            <div className={styles.noticeState}>
+              <span>Notice status</span>
+              <strong>{title(residence.assignment_status)}</strong>
+              <p>{noticeEnd}</p>
+            </div>
+            <div className={styles.actions}>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!canServeNotice || pending !== null}
+                onClick={() => void run("notice")}
+              >
+                Serve notice
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!canRequestMoveOut || pending !== null}
+                onClick={() => void run("request")}
+              >
+                Request move-out
+              </Button>
+              {canRespondToOperator && (
+                <>
+                  <Button
+                    type="button"
+                    disabled={pending !== null}
+                    onClick={() => void run("accept")}
+                  >
+                    <Check size={16} aria-hidden="true" /> Accept
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="tertiary"
+                    disabled={pending !== null}
+                    onClick={() => void run("reject")}
+                  >
+                    <X size={16} aria-hidden="true" /> Reject
+                  </Button>
+                </>
+              )}
+            </div>
+            {error && (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
             )}
           </div>
-          {error && <p className={styles.error}>{error}</p>}
-        </div>
-      </SectionCard>
+        </section>
+      )}
 
-      <SectionCard title="Maintenance" icon={<Wrench size={18} aria-hidden="true" />}>
-        {maintenanceLoadError && (
-          <p role="alert" className={styles.error}>
-            {maintenanceLoadError}
-          </p>
-        )}
-        <MaintenanceWorkspace
-          compact
-          initialRequests={initialMaintenance}
-          mode="tenant"
-          token={token}
-          currentResidenceLocation={maintenanceLocation}
-        />
-      </SectionCard>
+      {activeTab === "Maintenance" && (
+        <section
+          id={panelId("Maintenance")}
+          role="tabpanel"
+          aria-labelledby={tabId("Maintenance")}
+          className={`${styles.panel} ${styles.maintenancePanel}`}
+        >
+          {maintenanceLoadError && (
+            <p role="alert" className={styles.error}>
+              {maintenanceLoadError}
+            </p>
+          )}
+          <MaintenanceWorkspace
+            compact
+            initialRequests={initialMaintenance}
+            mode="tenant"
+            token={token}
+            currentResidenceLocation={maintenanceLocation}
+          />
+        </section>
+      )}
     </div>
   );
 }
