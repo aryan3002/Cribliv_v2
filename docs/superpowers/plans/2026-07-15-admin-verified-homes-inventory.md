@@ -684,7 +684,10 @@ private ratio(numerator: number, denominator: number): number;
 ```
 
 In-memory sorting uses the same six sort choices and stable `updated_at/id`
-fallback ordering.
+fallback ordering. Before sorting, derive each row's `leads_30d` and
+`open_leads` from `appState.leads` using the same 30-day/current-state
+definitions as Postgres; only `views_30d` is zero because AppState has no
+listing-event store.
 
 - [ ] **Step 4: Add controller tests and verify RED**
 
@@ -752,10 +755,13 @@ pnpm --filter @cribliv/api exec vitest run \
   src/modules/admin/__tests__/admin-homes.params.test.ts \
   src/modules/admin/__tests__/admin-homes.service.test.ts \
   src/modules/admin/__tests__/admin-homes.controller.test.ts
+TEST_DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @cribliv/api exec vitest run \
+  test/admin-homes.integration.test.ts
 pnpm --filter @cribliv/api typecheck
 ```
 
-Expected: all focused tests PASS and API typecheck exits 0.
+Expected: all focused tests PASS, DB integration PASS when configured (self-skip
+otherwise), and API typecheck exits 0.
 
 - [ ] **Step 7: Commit**
 
@@ -960,7 +966,9 @@ Query requirements:
 
 - Listing created/updated synthetic rows.
 - Listing-targeted `admin_actions`.
-- Verification attempts.
+- Verification attempts and verification-decision `admin_actions` whose
+  `target_type='verification_attempt'` and `target_id` belongs to a verification
+  attempt for this listing.
 - Leads and `lead_events`.
 
 Order by timestamp descending and `LIMIT 100`.
@@ -973,9 +981,10 @@ Use `AppStateService` maps and arrays:
 
 - Return listing/owner fields that exist.
 - Derive lead counts from `appState.leads`.
+- Sort matching in-memory recent leads by `createdAt DESC` and cap them at 10.
 - Use zero views.
-- Map verification attempts/admin actions only when their `listing_id` or
-  `target_id` matches.
+- Map listing-targeted admin actions plus verification-decision actions whose
+  target attempt belongs to this listing.
 - Set unavailable location/photo/last-login fields to null/empty.
 - Use `createdAt` as the `updated_at` and updated-sort fallback.
 - Owner portfolio counts include every `flat_house` listing in
@@ -991,6 +1000,9 @@ Add in-memory assertions for:
 - 30-day status/access/called/refunded summaries.
 - Current lifetime open/uncalled counts.
 - Listing-scoped verification attempts and admin activity only.
+- Recent leads ordered newest-first and capped at 10.
+- Verification-decision activity excluded when its attempt belongs to another
+  listing.
 
 - [ ] **Step 5: Add and test the detail route**
 
@@ -2169,6 +2181,7 @@ git commit -m "feat(web): add verified home workspace"
 - Modify: `apps/web/components/admin/shell/__tests__/AdminShell.crossnav.test.tsx`
 - Modify: `apps/web/components/admin/lead-center/__tests__/LeadCenterTab.test.tsx`
 - Create: `apps/web/tests/admin-verified-homes.spec.ts`
+- Create: `docs/superpowers/reports/2026-07-15-admin-homes-explain-review.md`
 - Modify: `docs/superpowers/plans/2026-07-15-admin-verified-homes-inventory.md` only to check completed boxes during execution.
 
 **Interfaces:**
@@ -2336,9 +2349,17 @@ Do not add or duplicate lead actions.
 Create `apps/web/tests/admin-verified-homes.spec.ts`:
 
 ```ts
-test("admin can inspect a verified home and open its public page and leads", async ({ page }) => {
-  // Reuse the repository's existing admin session injection helper/pattern.
+import { expect, test } from "@playwright/test";
+import { loginAsRole, setSessionOnPage } from "./utils/auth";
+
+test("admin can inspect a verified home and open its public page and leads", async ({
+  page,
+  request
+}) => {
+  const admin = await loginAsRole(request, "admin");
+  await setSessionOnPage(page, admin);
   await page.goto("/en/admin");
+  await expect(page.getByRole("heading", { name: /admin dashboard/i })).toBeVisible();
   await page.getByRole("button", { name: "Verified Homes" }).click();
   await expect(page.getByRole("heading", { name: "Verified Homes" })).toBeVisible();
   await page.locator("[data-admin-home-row]").first().click();
@@ -2356,8 +2377,14 @@ test("admin can inspect a verified home and open its public page and leads", asy
 });
 ```
 
-If the existing web E2E harness cannot guarantee seeded verified homes, intercept
-`/v1/admin/homes*` and `/v1/admin/leads/board*` with deterministic fixtures.
+The in-memory `AppStateService` seed already contains one active verified
+`flat_house`, so this workflow runs without Postgres. Invoke this E2E with
+`FF_ADMIN_LEAD_CENTER=true` so the empty in-memory Lead Center still renders the
+exact listing chip:
+
+```bash
+FF_ADMIN_LEAD_CENTER=true pnpm --filter @cribliv/web test:e2e -- admin-verified-homes.spec.ts
+```
 
 - [ ] **Step 6: Run GREEN focused tests**
 
@@ -2380,7 +2407,7 @@ pnpm --filter @cribliv/web test
 pnpm typecheck
 pnpm lint
 pnpm build
-pnpm --filter @cribliv/web test:e2e -- admin-verified-homes.spec.ts
+FF_ADMIN_LEAD_CENTER=true pnpm --filter @cribliv/web test:e2e -- admin-verified-homes.spec.ts
 ```
 
 Expected: every command exits 0. If a pre-existing unrelated failure appears,
@@ -2419,7 +2446,7 @@ inventory query. Without `TEST_DATABASE_URL`, report those gates as skipped
 rather than claiming Postgres query correctness or performance evidence.
 
 Record a manual performance verdict in
-`.superpowers/sdd/admin-homes-explain-review.md` containing:
+`docs/superpowers/reports/2026-07-15-admin-homes-explain-review.md` containing:
 
 ```text
 Database dataset size:
@@ -2444,6 +2471,7 @@ git add apps/web/components/admin/shell/AdminShell.tsx \
   apps/web/components/admin/shell/__tests__/AdminShell.crossnav.test.tsx \
   apps/web/components/admin/lead-center/__tests__/LeadCenterTab.test.tsx \
   apps/web/tests/admin-verified-homes.spec.ts \
+  docs/superpowers/reports/2026-07-15-admin-homes-explain-review.md \
   docs/superpowers/plans/2026-07-15-admin-verified-homes-inventory.md
 git commit -m "test(admin): verify homes workspace integration"
 ```
