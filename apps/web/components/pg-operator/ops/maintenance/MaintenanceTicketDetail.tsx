@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge, Button, type BadgeTone } from "@cribliv/ui";
 import type {
   PgMaintenanceComment,
@@ -138,6 +138,7 @@ export default function MaintenanceTicketDetail({
   onInternalNoteRollback: (noteId: string) => void;
 }) {
   const toast = useToast();
+  const latestRequestRef = useRef(request);
   const [showResolution, setShowResolution] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
   const [priority, setPriority] = useState<PgMaintenancePriority>(request.priority);
@@ -146,6 +147,10 @@ export default function MaintenanceTicketDetail({
   const [priorityError, setPriorityError] = useState<string | null>(null);
   const selectedLocation = request.location;
   const operatorCanResolve = mode === "operator" && propertyId && transitions.includes("resolved");
+
+  useEffect(() => {
+    latestRequestRef.current = request;
+  }, [request]);
 
   useEffect(() => {
     setShowResolution(false);
@@ -159,6 +164,84 @@ export default function MaintenanceTicketDetail({
   useEffect(() => {
     if (!showPriority && !priorityPending) setPriority(request.priority);
   }, [priorityPending, request.priority, showPriority]);
+
+  function latestRequestFor(requestId: string) {
+    return latestRequestRef.current.id === requestId ? latestRequestRef.current : request;
+  }
+
+  function emitRequestUpdated(nextRequest: PgMaintenanceRequest, options?: RequestUpdateOptions) {
+    latestRequestRef.current = nextRequest;
+    onRequestUpdated(nextRequest, options);
+  }
+
+  function applyPriorityFields(
+    current: PgMaintenanceRequest,
+    source: Pick<
+      PgMaintenanceRequest,
+      | "priority"
+      | "priority_source"
+      | "priority_overridden_by"
+      | "priority_overridden_at"
+      | "priority_override_reason"
+      | "updated_at"
+    >
+  ): PgMaintenanceRequest {
+    return {
+      ...current,
+      priority: source.priority,
+      priority_source: source.priority_source,
+      priority_overridden_by: source.priority_overridden_by,
+      priority_overridden_at: source.priority_overridden_at,
+      priority_override_reason: source.priority_override_reason,
+      updated_at: source.updated_at
+    };
+  }
+
+  function rollbackPriority(submission: PrioritySubmission) {
+    const current = latestRequestFor(submission.request.id);
+    if (current.priority !== submission.priority) return;
+    emitRequestUpdated(applyPriorityFields(current, submission.request), { reload: false });
+  }
+
+  function applyResolutionFields(
+    current: PgMaintenanceRequest,
+    source: Pick<
+      PgMaintenanceRequest,
+      | "status"
+      | "resolved_at"
+      | "resolution_note"
+      | "resolution_source"
+      | "resolution_cost_paise"
+      | "chargeable_damage"
+      | "fix_photo_paths"
+      | "fix_photo_urls"
+      | "updated_at"
+    >
+  ): PgMaintenanceRequest {
+    return {
+      ...current,
+      status: source.status,
+      resolved_at: source.resolved_at,
+      resolution_note: source.resolution_note,
+      resolution_source: source.resolution_source,
+      resolution_cost_paise: source.resolution_cost_paise,
+      chargeable_damage: source.chargeable_damage,
+      fix_photo_paths: source.fix_photo_paths,
+      fix_photo_urls: source.fix_photo_urls,
+      updated_at: source.updated_at
+    };
+  }
+
+  function rollbackResolution(previous: PgMaintenanceRequest, optimistic: PgMaintenanceRequest) {
+    const current = latestRequestFor(previous.id);
+    if (
+      current.status !== optimistic.status ||
+      current.resolution_note !== optimistic.resolution_note
+    ) {
+      return;
+    }
+    emitRequestUpdated(applyResolutionFields(current, previous), { reload: false });
+  }
 
   async function submitPriority(retrySubmission?: PrioritySubmission) {
     if (!propertyId || priorityPending) return;
@@ -177,9 +260,9 @@ export default function MaintenanceTicketDetail({
     }
     setPriorityPending(true);
     setPriorityError(null);
-    onRequestUpdated(
+    emitRequestUpdated(
       {
-        ...submission.request,
+        ...latestRequestFor(submission.request.id),
         priority: submission.priority,
         priority_source: "operator_override",
         priority_overridden_at: new Date().toISOString(),
@@ -188,23 +271,23 @@ export default function MaintenanceTicketDetail({
       { reload: false }
     );
     try {
-      onRequestUpdated(
-        await overrideMaintenancePriority(
-          propertyId,
-          submission.request.id,
-          { priority: submission.priority, reason },
-          token,
-          submission.idempotencyKey
-        ),
-        { reload: true }
+      const updated = await overrideMaintenancePriority(
+        propertyId,
+        submission.request.id,
+        { priority: submission.priority, reason },
+        token,
+        submission.idempotencyKey
       );
+      emitRequestUpdated(applyPriorityFields(latestRequestFor(submission.request.id), updated), {
+        reload: true
+      });
       toast.success(
         `Priority for ticket ${submission.request.id} -> ${PRIORITY_LABEL[submission.priority]}`
       );
       setShowPriority(false);
       setPriorityReason("");
     } catch {
-      onRequestUpdated(submission.request, { reload: false });
+      rollbackPriority(submission);
       toast.error(`Could not override priority for ticket ${submission.request.id}.`, {
         action: { label: "Retry", onClick: () => void submitPriority(submission) }
       });
@@ -335,11 +418,15 @@ export default function MaintenanceTicketDetail({
               request={request}
               propertyId={propertyId}
               token={token}
-              onOptimisticResolved={(updated) => onRequestUpdated(updated, { reload: false })}
-              onRollback={(previous) => onRequestUpdated(previous, { reload: false })}
+              onOptimisticResolved={(updated) =>
+                emitRequestUpdated(applyResolutionFields(latestRequestFor(updated.id), updated), {
+                  reload: false
+                })
+              }
+              onRollback={rollbackResolution}
               onResolved={(updated) => {
                 setShowResolution(false);
-                onRequestUpdated(updated, { reload: true });
+                emitRequestUpdated(updated, { reload: true });
               }}
             />
           ) : null}

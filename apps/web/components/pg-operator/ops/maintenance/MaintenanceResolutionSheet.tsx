@@ -22,6 +22,15 @@ function paiseFromRupees(value: string): number | null {
   return Math.round(numeric * 100);
 }
 
+type ResolutionSubmission = {
+  note: string;
+  costPaise: number | null;
+  chargeableDamage: boolean;
+  photos: PendingMaintenancePhoto[];
+  idempotencyKey: string;
+  optimisticRequest: PgMaintenanceRequest;
+};
+
 export default function MaintenanceResolutionSheet({
   request,
   propertyId,
@@ -35,7 +44,7 @@ export default function MaintenanceResolutionSheet({
   token: string;
   onResolved: (request: PgMaintenanceRequest) => void;
   onOptimisticResolved?: (request: PgMaintenanceRequest) => void;
-  onRollback?: (request: PgMaintenanceRequest) => void;
+  onRollback?: (request: PgMaintenanceRequest, optimisticRequest: PgMaintenanceRequest) => void;
 }) {
   const toast = useToast();
   const [note, setNote] = useState("");
@@ -45,6 +54,7 @@ export default function MaintenanceResolutionSheet({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const idempotencyKey = useRef(createMaintenanceUploadId());
+  const pendingRef = useRef(false);
   const photosRef = useRef<PendingMaintenancePhoto[]>([]);
   const photoUpload = useMaintenancePhotoUpload({ mode: "operator", propertyId, token });
 
@@ -73,60 +83,76 @@ export default function MaintenanceResolutionSheet({
     setPhotos((current) => photoUpload.removePhoto(current, clientUploadId));
   }
 
-  async function submit() {
-    const trimmedNote = note.trim();
+  async function submit(retrySubmission?: ResolutionSubmission) {
+    if (pendingRef.current) return;
+    const trimmedNote = retrySubmission?.note ?? note.trim();
     if (!trimmedNote) {
       setError("Enter a resolution note.");
       return;
     }
-    const costPaise = paiseFromRupees(cost);
+    const costPaise = retrySubmission ? retrySubmission.costPaise : paiseFromRupees(cost);
     if (Number.isNaN(costPaise) || (costPaise !== null && costPaise < 0)) {
       setError("Enter a cost of 0 or more.");
       return;
     }
-    if (chargeableDamage === null) {
+    const nextChargeableDamage = retrySubmission?.chargeableDamage ?? chargeableDamage;
+    if (nextChargeableDamage === null) {
       setError("Select whether this was chargeable damage.");
       return;
     }
+    const nextPhotos = retrySubmission?.photos ?? photos;
+    const optimisticRequest =
+      retrySubmission?.optimisticRequest ??
+      ({
+        ...request,
+        status: "resolved",
+        resolved_at: new Date().toISOString(),
+        resolution_note: trimmedNote,
+        resolution_source: "operator",
+        resolution_cost_paise: costPaise,
+        chargeable_damage: nextChargeableDamage,
+        fix_photo_urls: nextPhotos
+          .map((photo) => photo.previewUrl)
+          .filter((url): url is string => Boolean(url))
+      } satisfies PgMaintenanceRequest);
+    const submission: ResolutionSubmission = {
+      note: trimmedNote,
+      costPaise,
+      chargeableDamage: nextChargeableDamage,
+      photos: nextPhotos,
+      idempotencyKey: retrySubmission?.idempotencyKey ?? idempotencyKey.current,
+      optimisticRequest
+    };
 
+    pendingRef.current = true;
     setPending(true);
     setError(null);
-    onOptimisticResolved?.({
-      ...request,
-      status: "resolved",
-      resolved_at: new Date().toISOString(),
-      resolution_note: trimmedNote,
-      resolution_source: "operator",
-      resolution_cost_paise: costPaise,
-      chargeable_damage: chargeableDamage,
-      fix_photo_urls: photos
-        .map((photo) => photo.previewUrl)
-        .filter((url): url is string => Boolean(url))
-    });
+    onOptimisticResolved?.(submission.optimisticRequest);
     try {
-      const fixPhotoPaths = await photoUpload.uploadForComment(request, photos);
+      const fixPhotoPaths = await photoUpload.uploadForComment(request, submission.photos);
       const updated = await resolveMaintenanceTicket(
         propertyId,
         request.id,
         {
-          note: trimmedNote,
-          chargeable_damage: chargeableDamage,
-          ...(costPaise !== null ? { cost_paise: costPaise } : {}),
+          note: submission.note,
+          chargeable_damage: submission.chargeableDamage,
+          ...(submission.costPaise !== null ? { cost_paise: submission.costPaise } : {}),
           ...(fixPhotoPaths.length > 0 ? { fix_photo_paths: fixPhotoPaths } : {})
         },
         token,
-        idempotencyKey.current
+        submission.idempotencyKey
       );
-      photos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
+      submission.photos.forEach((photo) => releaseMaintenancePhotoPreview(photo.previewUrl));
       setPhotos([]);
       onResolved(updated);
       toast.success(`Resolved ticket ${request.id}`);
     } catch {
-      onRollback?.(request);
+      onRollback?.(request, submission.optimisticRequest);
       toast.error(`Could not resolve ticket ${request.id}.`, {
-        action: { label: "Retry", onClick: () => void submit() }
+        action: { label: "Retry", onClick: () => void submit(submission) }
       });
     } finally {
+      pendingRef.current = false;
       setPending(false);
     }
   }

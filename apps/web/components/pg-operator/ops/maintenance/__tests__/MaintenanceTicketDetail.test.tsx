@@ -381,4 +381,44 @@ describe("MaintenanceTicketDetail", () => {
       { reload: true }
     );
   });
+
+  it("does not double-submit a failed resolution when the retry action is clicked twice", async () => {
+    let rejectResolution: (cause: Error) => void = () => undefined;
+    resolveMaintenanceTicket.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectResolution = reject;
+        })
+    );
+    renderDetail(ticket({ status: "in_progress" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolve" }));
+    fireEvent.change(screen.getByLabelText("Resolution note"), {
+      target: { value: "Fixed the leak and checked pressure." }
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "No" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resolve ticket" }));
+
+    await waitFor(() => expect(resolveMaintenanceTicket).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      rejectResolution(new Error("Network unavailable"));
+    });
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Could not resolve ticket ticket-1.",
+        expect.objectContaining({ action: expect.objectContaining({ label: "Retry" }) })
+      )
+    );
+
+    resolveMaintenanceTicket.mockImplementation(
+      () => new Promise<PgMaintenanceRequest>(() => undefined)
+    );
+    const retry = toast.error.mock.calls[0][1].action.onClick;
+    await act(async () => {
+      retry();
+      retry();
+    });
+
+    expect(resolveMaintenanceTicket).toHaveBeenCalledTimes(2);
+  });
 });

@@ -255,6 +255,53 @@ describe("MaintenanceWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not let a failed priority rollback overwrite a newer status change", async () => {
+    let rejectPriority: (cause: Error) => void = () => undefined;
+    overrideMaintenancePriority.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectPriority = reject;
+        })
+    );
+    updateMaintenanceStatus.mockResolvedValueOnce(
+      ticket({ status: "waiting_on_tenant", priority: "high" })
+    );
+    render(
+      <MaintenanceWorkspace
+        initialRequests={[ticket({ status: "in_progress", priority: "low" })]}
+        mode="operator"
+        propertyId="property-1"
+        token="token-1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Override priority" }));
+    fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "high" } });
+    fireEvent.change(screen.getByLabelText("Reason"), {
+      target: { value: "Water is spreading into another room." }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save priority" }));
+    await waitFor(() => expect(overrideMaintenancePriority).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Wait for tenant" }));
+    await waitFor(() =>
+      expect(updateMaintenanceStatus).toHaveBeenCalledWith(
+        "property-1",
+        "ticket-1",
+        "waiting_on_tenant",
+        "token-1"
+      )
+    );
+
+    await act(async () => {
+      rejectPriority(new Error("Network unavailable"));
+    });
+
+    expect(
+      within(screen.getByRole("button", { pressed: true })).getByText("Waiting on tenant")
+    ).toBeInTheDocument();
+  });
+
   it("shows detail skeletons while ticket timeline hydrates", async () => {
     render(
       <MaintenanceWorkspace
