@@ -23,6 +23,7 @@ import { SearchPerformanceTab } from "../tabs/SearchPerformanceTab";
 import { BlogReviewTab } from "../tabs/BlogReviewTab";
 import { SystemTab } from "../tabs/SystemTab";
 import { AdminTotpPanel } from "../security/AdminTotpPanel";
+import { AdminHomesTab } from "../homes/AdminHomesTab";
 
 interface Props {
   accessToken: string;
@@ -40,6 +41,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   "rent-agreements": "Rent Agreements",
   "pg-listings": "PG Overview",
   "pg-properties": "PG Listings",
+  homes: "Verified Homes",
   fraud: "Fraud Intelligence",
   seo: "Programmatic SEO",
   "search-performance": "Search Performance",
@@ -149,6 +151,16 @@ export function AdminShell({ accessToken }: Props) {
         return <PgListingsTab key={`pg-${k}`} accessToken={accessToken} />;
       case "pg-properties":
         return <PgPropertiesTab key={`pgp-${k}`} accessToken={accessToken} />;
+      case "homes":
+        return (
+          <AdminHomesTab
+            key={`homes-${k}`}
+            accessToken={accessToken}
+            onOpenListingReview={openListingReview}
+            onOpenLeadCenter={() => setTab("lead-center")}
+            onToast={push}
+          />
+        );
       case "fraud":
         return <FraudTab key={`fr-${k}`} accessToken={accessToken} onToast={push} />;
       case "seo":
