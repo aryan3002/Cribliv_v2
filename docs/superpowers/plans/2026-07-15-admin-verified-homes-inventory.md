@@ -529,6 +529,30 @@ it("applies city, search, paging, and deterministic fallback metrics", async () 
     conversion_rate: 0
   });
 });
+
+it("searches in-memory title, id, owner name, owner phone, locality, and city", async () => {
+  for (const q of ["gomti", "active-home", "ramesh", "9999901", "gomti-nagar", "lucknow"]) {
+    const result = await service.listHomes({
+      status: "all",
+      q,
+      sort: "updated",
+      page: 1,
+      page_size: 25
+    });
+    expect(result.items.map((row) => row.id)).toContain("active-home");
+  }
+});
+
+it("masks inventory owner phones on the server", async () => {
+  const result = await service.listHomes({
+    status: "active",
+    sort: "updated",
+    page: 1,
+    page_size: 25
+  });
+  expect(result.items[0].owner_phone_masked).toMatch(/X/);
+  expect(result.items[0].owner_phone_masked).not.toContain("+919999999901");
+});
 ```
 
 Add a database-mode mapping test with a fake `query` router. It must assert:
@@ -780,13 +804,23 @@ Add a database-mode mapping test whose fake query results cover:
 - Verification attempts.
 - Activity.
 
+Create the `TEST_DATABASE_URL`-gated
+`apps/api/test/admin-homes.integration.test.ts` before implementation. Seed the
+eligible/ineligible listings, current/old view events, lead states, refunded
+unlock, verification attempts, photos, and activity described below. Its first
+run must fail because `getHome` and the complete detail SQL do not yet satisfy
+the assertions.
+
 - [ ] **Step 2: Run the detail tests and verify RED**
 
 ```bash
 pnpm --filter @cribliv/api exec vitest run src/modules/admin/__tests__/admin-homes.service.test.ts
+TEST_DATABASE_URL="$TEST_DATABASE_URL" pnpm --filter @cribliv/api exec vitest run \
+  test/admin-homes.integration.test.ts
 ```
 
-Expected: FAIL because `getHome` is missing.
+Expected: unit test FAIL because `getHome` is missing; DB suite FAIL when
+configured and self-skip otherwise.
 
 - [ ] **Step 3: Implement database detail read model**
 
@@ -878,10 +912,14 @@ Test:
 
 ```ts
 it("delegates GET /admin/homes/:id", async () => {
-  const getHome = vi.fn().mockResolvedValue({ listing: { id: "H1" } });
+  const getHome = vi
+    .fn()
+    .mockResolvedValue({ listing: { id: "11111111-1111-4111-8111-111111111111" } });
   const controller = new AdminHomesController({ getHome } as any);
-  expect(await controller.detail("H1")).toMatchObject({ data: { listing: { id: "H1" } } });
-  expect(getHome).toHaveBeenCalledWith("H1");
+  expect(await controller.detail("11111111-1111-4111-8111-111111111111")).toMatchObject({
+    data: { listing: { id: "11111111-1111-4111-8111-111111111111" } }
+  });
+  expect(getHome).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
 });
 ```
 
@@ -896,10 +934,10 @@ pnpm --filter @cribliv/api typecheck
 
 Expected: all focused tests PASS and API typecheck exits 0.
 
-- [ ] **Step 7: Add the DB-backed integration suite**
+- [ ] **Step 7: Complete and verify the DB-backed integration suite**
 
-Create `apps/api/test/admin-homes.integration.test.ts` using the repository's
-`describe.runIf(!!TEST_DATABASE_URL)` pattern. Seed:
+The integration file created in Step 1 uses the repository's
+`describe.runIf(!!TEST_DATABASE_URL)` pattern and seeds:
 
 - One eligible active verified `flat_house`.
 - One eligible paused verified `flat_house`.
@@ -1129,21 +1167,39 @@ expect(mockedFetchApi).toHaveBeenCalledWith(
 );
 ```
 
-Also assert `fetchAdminHomeDetail("tok", "H1")` requests
-`/admin/homes/H1`.
+Also assert `fetchAdminHomeDetail("tok", "11111111-1111-4111-8111-111111111111")` requests
+`/admin/homes/11111111-1111-4111-8111-111111111111`.
 
 - [ ] **Step 2: Write failing URL/clipboard tests**
 
 ```ts
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  if (originalClipboard) {
+    Object.defineProperty(navigator, "clipboard", originalClipboard);
+  } else {
+    Reflect.deleteProperty(navigator, "clipboard");
+  }
+  if (originalSiteUrl === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+  else process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+});
+
 it("builds an absolute production URL without using window.location", () => {
-  expect(adminHomePublicUrl("/en/listing/H1")).toBe("https://cribliv.com/en/listing/H1");
+  expect(adminHomePublicUrl("/en/listing/11111111-1111-4111-8111-111111111111")).toBe(
+    "https://cribliv.com/en/listing/11111111-1111-4111-8111-111111111111"
+  );
 });
 
 it("copies with navigator.clipboard when available", async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
-  await copyAdminHomeUrl("/en/listing/H1");
-  expect(writeText).toHaveBeenCalledWith("https://cribliv.com/en/listing/H1");
+  await copyAdminHomeUrl("/en/listing/11111111-1111-4111-8111-111111111111");
+  expect(writeText).toHaveBeenCalledWith(
+    "https://cribliv.com/en/listing/11111111-1111-4111-8111-111111111111"
+  );
 });
 
 it("falls back to a temporary textarea and execCommand", async () => {
@@ -1152,7 +1208,7 @@ it("falls back to a temporary textarea and execCommand", async () => {
     configurable: true
   });
   const execCommand = vi.spyOn(document, "execCommand").mockReturnValue(true);
-  await copyAdminHomeUrl("/en/listing/H1");
+  await copyAdminHomeUrl("/en/listing/11111111-1111-4111-8111-111111111111");
   expect(execCommand).toHaveBeenCalledWith("copy");
   expect(document.querySelector("textarea")).toBeNull();
 });
@@ -1160,7 +1216,9 @@ it("falls back to a temporary textarea and execCommand", async () => {
 it("throws when both clipboard strategies fail", async () => {
   Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
   vi.spyOn(document, "execCommand").mockReturnValue(false);
-  await expect(copyAdminHomeUrl("/en/listing/H1")).rejects.toThrow("copy_failed");
+  await expect(
+    copyAdminHomeUrl("/en/listing/11111111-1111-4111-8111-111111111111")
+  ).rejects.toThrow("copy_failed");
   expect(document.querySelector("textarea")).toBeNull();
 });
 ```
@@ -1224,9 +1282,13 @@ export async function copyAdminHomeUrl(publicPath: string): Promise<void> {
   textarea.style.position = "fixed";
   textarea.style.opacity = "0";
   document.body.appendChild(textarea);
-  textarea.select();
-  const copied = document.execCommand("copy");
-  textarea.remove();
+  let copied = false;
+  try {
+    textarea.select();
+    copied = document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
   if (!copied) throw new Error("copy_failed");
 }
 ```
@@ -1284,7 +1346,7 @@ Mock `fetchAdminHomes`, `fetchAdminHomeDetail`, and `copyAdminHomeUrl`. Define:
 
 ```ts
 const homeRow = {
-  id: "H1",
+  id: "11111111-1111-4111-8111-111111111111",
   title: "2BHK in Gomti Nagar",
   city_slug: "lucknow",
   city_name: "Lucknow",
@@ -1300,7 +1362,7 @@ const homeRow = {
   open_leads: 4,
   conversion_rate: 14 / 428,
   updated_at: "2026-07-15T08:00:00.000Z",
-  public_path: "/en/listing/H1"
+  public_path: "/en/listing/11111111-1111-4111-8111-111111111111"
 };
 
 const homeListFixture = {
@@ -1354,7 +1416,7 @@ it("renders agreed columns and copies without opening the workspace", async () =
   expect(screen.getByText("Views 30d")).toBeInTheDocument();
   expect(screen.getByText("Leads 30d")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /copy public url/i }));
-  expect(copyAdminHomeUrl).toHaveBeenCalledWith("/en/listing/H1");
+  expect(copyAdminHomeUrl).toHaveBeenCalledWith("/en/listing/11111111-1111-4111-8111-111111111111");
   expect(fetchAdminHomeDetail).not.toHaveBeenCalled();
 });
 
@@ -1441,6 +1503,11 @@ Use Lucide `Copy`, `ExternalLink`, `House`, and `Search`.
 
 Add `"homes"` to `AdminTab`, title `"Verified Homes"`, sidebar item under
 Understand, command-palette item, and shell view.
+
+At this task boundary, pass the existing `openListingReview` callback and a
+temporary `onOpenLeadCenter={() => setTab("lead-center")}` callback so the new
+tab compiles. Task 8 replaces the temporary callback with the exact-listing
+target state and proves the full handoff.
 
 Test:
 
@@ -1561,7 +1628,7 @@ Use this complete `AdminHomeDetail` fixture:
 ```ts
 const homeDetailFixture = {
   listing: {
-    id: "H1",
+    id: "11111111-1111-4111-8111-111111111111",
     title_en: "2BHK in Gomti Nagar",
     title_hi: null,
     description_en: "Furnished verified home",
@@ -1653,14 +1720,20 @@ const homeDetailFixture = {
     }
   ],
   activity: [],
-  public_path: "/en/listing/H1"
+  public_path: "/en/listing/11111111-1111-4111-8111-111111111111"
 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockedFetchAdminHomeDetail.mockResolvedValue(homeDetailFixture);
+  vi.spyOn(window, "open").mockReturnValue(null);
+});
 
 it("loads the selected home and exposes all six tabs", async () => {
   render(
     <AdminHomeWorkspace
       accessToken="tok"
-      listingId="H1"
+      listingId="11111111-1111-4111-8111-111111111111"
       onBack={vi.fn()}
       onOpenListingReview={vi.fn()}
       onOpenLeadCenter={vi.fn()}
@@ -1678,7 +1751,7 @@ it("copies, opens the active public page, and delegates moderation to Listing Re
   render(
     <AdminHomeWorkspace
       accessToken="tok"
-      listingId="H1"
+      listingId="11111111-1111-4111-8111-111111111111"
       onBack={vi.fn()}
       onOpenListingReview={onOpenListingReview}
       onOpenLeadCenter={vi.fn()}
@@ -1687,15 +1760,15 @@ it("copies, opens the active public page, and delegates moderation to Listing Re
   );
   await screen.findByText("2BHK in Gomti Nagar");
   fireEvent.click(screen.getByRole("button", { name: "Copy public URL" }));
-  expect(copyAdminHomeUrl).toHaveBeenCalledWith("/en/listing/H1");
+  expect(copyAdminHomeUrl).toHaveBeenCalledWith("/en/listing/11111111-1111-4111-8111-111111111111");
   fireEvent.click(screen.getByRole("button", { name: "Open public page" }));
   expect(window.open).toHaveBeenCalledWith(
-    "https://cribliv.com/en/listing/H1",
+    "https://cribliv.com/en/listing/11111111-1111-4111-8111-111111111111",
     "_blank",
     "noopener,noreferrer"
   );
   fireEvent.click(screen.getByRole("button", { name: "Open in Listing Review" }));
-  expect(onOpenListingReview).toHaveBeenCalledWith("H1");
+  expect(onOpenListingReview).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
 });
 
 it("hides public actions for paused and archived homes", async () => {
@@ -1706,7 +1779,7 @@ it("hides public actions for paused and archived homes", async () => {
   render(
     <AdminHomeWorkspace
       accessToken="tok"
-      listingId="H1"
+      listingId="11111111-1111-4111-8111-111111111111"
       onBack={vi.fn()}
       onOpenListingReview={vi.fn()}
       onOpenLeadCenter={vi.fn()}
@@ -1719,14 +1792,37 @@ it("hides public actions for paused and archived homes", async () => {
 });
 
 it("shows recent lead metrics but delegates actions to Lead Center", async () => {
+  const onOpenLeadCenter = vi.fn();
+  render(
+    <AdminHomeWorkspace
+      accessToken="tok"
+      listingId="11111111-1111-4111-8111-111111111111"
+      onBack={vi.fn()}
+      onOpenListingReview={vi.fn()}
+      onOpenLeadCenter={onOpenLeadCenter}
+      onToast={vi.fn()}
+    />
+  );
+  await screen.findByText("2BHK in Gomti Nagar");
   fireEvent.click(screen.getByRole("button", { name: "Leads" }));
   expect(screen.getByText("Seeker One")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: /call/i })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /manage in lead center/i }));
-  expect(onOpenLeadCenter).toHaveBeenCalledWith("H1");
+  expect(onOpenLeadCenter).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
 });
 
 it("reuses secure verification evidence loading", async () => {
+  render(
+    <AdminHomeWorkspace
+      accessToken="tok"
+      listingId="11111111-1111-4111-8111-111111111111"
+      onBack={vi.fn()}
+      onOpenListingReview={vi.fn()}
+      onOpenLeadCenter={vi.fn()}
+      onToast={vi.fn()}
+    />
+  );
+  await screen.findByText("2BHK in Gomti Nagar");
   fireEvent.click(screen.getByRole("button", { name: "Verification" }));
   expect(screen.getByRole("button", { name: /play liveness video/i })).toBeInTheDocument();
 });
@@ -1873,6 +1969,38 @@ git commit -m "feat(web): add verified home workspace"
 
 - [ ] **Step 1: Write failing shell and Lead Center handoff tests**
 
+In `AdminShell.crossnav.test.tsx`, mock the homes and Lead Center tabs:
+
+```ts
+vi.mock("../../homes/AdminHomesTab", () => ({
+  AdminHomesTab: ({
+    onOpenLeadCenter,
+    onOpenListingReview
+  }: {
+    onOpenLeadCenter: (id: string) => void;
+    onOpenListingReview: (id: string) => void;
+  }) => (
+    <div>
+      <button onClick={() => onOpenLeadCenter("11111111-1111-4111-8111-111111111111")}>
+        open-home-leads
+      </button>
+      <button onClick={() => onOpenListingReview("11111111-1111-4111-8111-111111111111")}>
+        open-home-review
+      </button>
+    </div>
+  )
+}));
+
+vi.mock("../../lead-center/LeadCenterTab", () => ({
+  LeadCenterTab: ({ initialListingId }: { initialListingId?: string | null }) => (
+    <div>lead-center:{initialListingId ?? "none"}</div>
+  )
+}));
+```
+
+Extend the existing `AdminSidebar` mock with a `go-homes` button that invokes
+`onChange("homes")`.
+
 Shell:
 
 ```ts
@@ -1880,14 +2008,14 @@ it("opens Lead Center with the listing selected from Verified Homes", async () =
   render(<AdminShell accessToken="tok" />);
   fireEvent.click(screen.getByText("go-homes"));
   fireEvent.click(await screen.findByText("open-home-leads"));
-  expect(await screen.findByText("lead-center:H1")).toBeInTheDocument();
+  expect(await screen.findByText("lead-center:11111111-1111-4111-8111-111111111111")).toBeInTheDocument();
 });
 
 it("opens Listing Review with the listing selected from Verified Homes", async () => {
   render(<AdminShell accessToken="tok" />);
   fireEvent.click(screen.getByText("go-homes"));
   fireEvent.click(await screen.findByText("open-home-review"));
-  expect(await screen.findByText("listing-tab:H1")).toBeInTheDocument();
+  expect(await screen.findByText("listing-tab:11111111-1111-4111-8111-111111111111")).toBeInTheDocument();
 });
 ```
 
@@ -1898,22 +2026,27 @@ it("initializes exact listing mode and allows clearing it", async () => {
   render(
     <LeadCenterTab
       accessToken="tok"
-      initialListingId="H1"
+      initialListingId="11111111-1111-4111-8111-111111111111"
       onCountChange={vi.fn()}
       onToast={vi.fn()}
     />
   );
-  expect(fetchAdminLeadBoard).toHaveBeenCalledWith("tok", expect.objectContaining({
-    filter: "all",
-    sort: "newest",
-    listing_id: "H1",
-    page: 1
-  }));
-  fireEvent.click(screen.getByRole("button", { name: /clear listing filter/i }));
+  await waitFor(() =>
+    expect(fetchAdminLeadBoard).toHaveBeenCalledWith(
+      "tok",
+      expect.objectContaining({
+        filter: "all",
+        sort: "newest",
+        listing_id: "11111111-1111-4111-8111-111111111111",
+        page: 1
+      })
+    )
+  );
+  fireEvent.click(await screen.findByRole("button", { name: /clear listing filter/i }));
   await waitFor(() =>
     expect(fetchAdminLeadBoard).toHaveBeenLastCalledWith(
       "tok",
-      expect.not.objectContaining({ listing_id: "H1" })
+      expect.not.objectContaining({ listing_id: "11111111-1111-4111-8111-111111111111" })
     )
   );
 });
