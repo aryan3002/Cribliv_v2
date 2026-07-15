@@ -1,9 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Eye, EyeOff, Archive, Pencil, Loader2 } from "lucide-react";
 import { setPgListingStatus, type PgListingVisibility } from "@/lib/pg-operator-api";
+import { useToast } from "@/components/ui/toast/use-toast";
 import styles from "./pg-listing-manage.module.css";
 
 export default function PgListingControls({
@@ -20,14 +21,7 @@ export default function PgListingControls({
   const router = useRouter();
   const [cur, setCur] = useState(status);
   const [busy, setBusy] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = (msg: string, err = false) => {
-    setToast({ msg, err });
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 2800);
-  };
+  const toast = useToast();
 
   const apply = async (next: PgListingVisibility, label: string) => {
     if (next === cur || busy) return;
@@ -36,11 +30,11 @@ export default function PgListingControls({
     setCur(next);
     try {
       await setPgListingStatus(listingId, next, token);
-      showToast(label);
+      toast.success(label);
       router.refresh();
     } catch (e) {
       setCur(prev);
-      showToast(e instanceof Error ? e.message : "Couldn't update status", true);
+      toast.error(e instanceof Error ? e.message : "Couldn't update status");
     } finally {
       setBusy(null);
     }
@@ -115,12 +109,6 @@ export default function PgListingControls({
           </button>
         )}
       </div>
-
-      {toast && (
-        <div role="status" className={`${styles.toast} ${toast.err ? styles.toastErr : ""}`}>
-          {toast.msg}
-        </div>
-      )}
     </div>
   );
 }
