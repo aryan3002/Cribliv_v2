@@ -109,12 +109,18 @@ function request(overrides: Partial<PgMaintenanceRequest> = {}): PgMaintenanceRe
   };
 }
 
-function setup(onCreated = vi.fn()) {
+function setup({
+  onCreated = vi.fn(),
+  location = currentResidenceLocation
+}: {
+  onCreated?: ReturnType<typeof vi.fn>;
+  location?: PgMaintenanceLocation | null;
+} = {}) {
   render(
     <MaintenanceCreateForm
       token="token-1"
       categories={categories}
-      currentResidenceLocation={currentResidenceLocation}
+      currentResidenceLocation={location}
       onCreated={onCreated}
     />
   );
@@ -205,6 +211,34 @@ describe("MaintenanceCreateForm", () => {
     fireEvent.change(screen.getByLabelText("Category"), { target: { value: "plumbing" } });
 
     expect(screen.getByText("High · due in 24h")).toBeInTheDocument();
+  });
+
+  it("submits the new create contract with property-wide location when residence location is missing", async () => {
+    setup({ location: null });
+    fireEvent.change(screen.getByLabelText("Category"), {
+      target: {
+        value: screen.getByRole("option", { name: "Plumbing" }).getAttribute("value") ?? "plumbing"
+      }
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "The bathroom tap has been leaking since this morning." }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Raise ticket" }));
+
+    await waitFor(() =>
+      expect(createResidenceMaintenance).toHaveBeenCalledWith(
+        {
+          category_slug: "plumbing",
+          description: "The bathroom tap has been leaking since this morning.",
+          location: {
+            kind: "property_wide"
+          }
+        },
+        "token-1",
+        expect.any(String)
+      )
+    );
   });
 
   it("uploads selected photos after creating the ticket", async () => {

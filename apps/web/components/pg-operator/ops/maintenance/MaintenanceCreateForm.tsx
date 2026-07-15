@@ -148,7 +148,6 @@ export default function MaintenanceCreateForm({
     () => buildLocationOptions(currentResidenceLocation),
     [currentResidenceLocation]
   );
-  const legacyPayload = currentResidenceLocation === null;
 
   function normalizeCategory(value: string): string {
     return (
@@ -187,15 +186,15 @@ export default function MaintenanceCreateForm({
       setError(`Describe the issue in at least ${MINIMUM_DESCRIPTION_LENGTH} characters.`);
       return;
     }
-    if (!legacyPayload && !locationKind) {
+    if (!locationKind) {
       setError("Choose where the issue is happening.");
       return;
     }
-    if (!legacyPayload && locationKind === "common_area" && !commonArea) {
+    if (locationKind === "common_area" && !commonArea) {
       setError("Choose the common area.");
       return;
     }
-    if (!legacyPayload && locationKind === "other" && !nextDetail) {
+    if (locationKind === "other" && !nextDetail) {
       setError("Enter the location detail.");
       return;
     }
@@ -207,28 +206,20 @@ export default function MaintenanceCreateForm({
       idempotencyKeyRef.current ?? (idempotencyKeyRef.current = createMaintenanceUploadId());
     try {
       const createdBase = await createResidenceMaintenance(
-        legacyPayload
-          ? {
-              category:
-                selectedCategory?.slug === "other"
-                  ? customCategory.trim()
-                  : (selectedCategory?.display_name ?? categorySlug),
-              description: nextDescription
-            }
-          : {
-              category_slug: categorySlug,
-              category:
-                selectedCategory?.slug === "other" && customCategory.trim()
-                  ? customCategory.trim()
-                  : undefined,
-              description: nextDescription,
-              location: buildLocationInput({
-                kind: nextLocationKind,
-                commonArea,
-                detail: nextDetail,
-                currentResidenceLocation
-              })
-            },
+        {
+          category_slug: categorySlug,
+          category:
+            selectedCategory?.slug === "other" && customCategory.trim()
+              ? customCategory.trim()
+              : undefined,
+          description: nextDescription,
+          location: buildLocationInput({
+            kind: nextLocationKind,
+            commonArea,
+            detail: nextDetail,
+            currentResidenceLocation
+          })
+        },
         token,
         idempotencyKey
       );
@@ -284,10 +275,7 @@ export default function MaintenanceCreateForm({
           >
             <option value="">Choose category</option>
             {activeCategories.map((category) => (
-              <option
-                key={category.slug}
-                value={legacyPayload ? category.display_name : category.slug}
-              >
+              <option key={category.slug} value={category.slug}>
                 {category.display_name}
               </option>
             ))}
@@ -303,28 +291,26 @@ export default function MaintenanceCreateForm({
             />
           </label>
         )}
-        {!legacyPayload && (
-          <label>
-            <span>Location</span>
-            <select
-              value={locationKind}
-              onChange={(event) => {
-                const value = event.target.value as PgMaintenanceLocationKind | "";
-                setLocationKind(value);
-                if (value !== "common_area") setCommonArea("");
-                if (value !== "other") setLocationDetail("");
-              }}
-              disabled={pending}
-            >
-              <option value="">Choose location</option>
-              {locationOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <label>
+          <span>Location</span>
+          <select
+            value={locationKind}
+            onChange={(event) => {
+              const value = event.target.value as PgMaintenanceLocationKind | "";
+              setLocationKind(value);
+              if (value !== "common_area") setCommonArea("");
+              if (value !== "other") setLocationDetail("");
+            }}
+            disabled={pending}
+          >
+            <option value="">Choose location</option>
+            {locationOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
         {locationKind === "common_area" && (
           <label>
             <span>Common area</span>

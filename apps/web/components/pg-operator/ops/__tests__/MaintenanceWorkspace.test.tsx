@@ -270,7 +270,7 @@ describe("MaintenanceWorkspace", () => {
   it("uses guided categories and requires an Other label when selected", async () => {
     render(<MaintenanceWorkspace initialRequests={[]} mode="tenant" token="token-1" />);
 
-    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Other" } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "other" } });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "The lift has stopped on the third floor." }
     });
@@ -283,8 +283,12 @@ describe("MaintenanceWorkspace", () => {
     await waitFor(() =>
       expect(createResidenceMaintenance).toHaveBeenCalledWith(
         {
+          category_slug: "other",
           category: "Lift",
-          description: "The lift has stopped on the third floor."
+          description: "The lift has stopped on the third floor.",
+          location: {
+            kind: "property_wide"
+          }
         },
         "token-1",
         expect.any(String)
@@ -295,7 +299,7 @@ describe("MaintenanceWorkspace", () => {
   it("uploads selected tenant photos after creating the ticket", async () => {
     render(<MaintenanceWorkspace initialRequests={[]} mode="tenant" token="token-1" />);
 
-    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Plumbing" } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "plumbing" } });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "  The bathroom tap has been leaking since this morning. " }
     });
@@ -309,8 +313,11 @@ describe("MaintenanceWorkspace", () => {
     await waitFor(() =>
       expect(createResidenceMaintenance).toHaveBeenCalledWith(
         {
-          category: "Plumbing",
-          description: "The bathroom tap has been leaking since this morning."
+          category_slug: "plumbing",
+          description: "The bathroom tap has been leaking since this morning.",
+          location: {
+            kind: "property_wide"
+          }
         },
         "token-1",
         expect.any(String)
@@ -343,7 +350,7 @@ describe("MaintenanceWorkspace", () => {
     presignResidenceMaintenancePhotos.mockRejectedValueOnce(new Error("Upload URL expired."));
     render(<MaintenanceWorkspace initialRequests={[]} mode="tenant" token="token-1" />);
 
-    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Plumbing" } });
+    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "plumbing" } });
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "The bathroom tap has been leaking since this morning." }
     });
