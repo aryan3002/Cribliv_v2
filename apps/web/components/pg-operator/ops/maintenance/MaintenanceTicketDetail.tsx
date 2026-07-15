@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Button, type BadgeTone } from "@cribliv/ui";
 import type {
   PgMaintenanceComment,
@@ -132,6 +132,15 @@ export default function MaintenanceTicketDetail({
   const [priorityError, setPriorityError] = useState<string | null>(null);
   const selectedLocation = request.location;
   const operatorCanResolve = mode === "operator" && propertyId && transitions.includes("resolved");
+
+  useEffect(() => {
+    setShowResolution(false);
+    setShowPriority(false);
+    setPriority(request.priority);
+    setPriorityReason("");
+    setPriorityPending(false);
+    setPriorityError(null);
+  }, [request.id, request.priority]);
 
   async function submitPriority() {
     if (!propertyId || priorityPending) return;

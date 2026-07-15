@@ -165,4 +165,28 @@ describe("MaintenanceResolutionSheet", () => {
     );
     expect(onResolved).toHaveBeenCalledWith(ticket({ status: "resolved" }));
   });
+
+  it("omits optional cost when the cost field is blank", async () => {
+    renderSheet();
+
+    fireEvent.change(screen.getByLabelText("Resolution note"), {
+      target: { value: "Resolved without paid materials." }
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "No" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resolve ticket" }));
+
+    await waitFor(() =>
+      expect(resolveMaintenanceTicket).toHaveBeenCalledWith(
+        "property-1",
+        "ticket-1",
+        {
+          note: "Resolved without paid materials.",
+          chargeable_damage: false,
+          fix_photo_paths: ["pg-maintenance/property-1/ticket-1/fix-photo.jpg"]
+        },
+        "token-1",
+        "idem-resolution"
+      )
+    );
+  });
 });

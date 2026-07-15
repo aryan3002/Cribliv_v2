@@ -92,8 +92,8 @@ export default function MaintenanceResolutionSheet({
         request.id,
         {
           note: trimmedNote,
-          cost_paise: costPaise,
           chargeable_damage: chargeableDamage,
+          ...(costPaise !== null ? { cost_paise: costPaise } : {}),
           ...(fixPhotoPaths.length > 0 ? { fix_photo_paths: fixPhotoPaths } : {})
         },
         token,
