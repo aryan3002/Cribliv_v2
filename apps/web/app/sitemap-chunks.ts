@@ -24,18 +24,41 @@ function altLanguages(baseUrl: string, path: string): Record<(typeof LOCALES)[nu
 export function entry(
   baseUrl: string,
   path: string,
-  options: { priority?: number; freq?: ChangeFrequency } = {}
+  options: { priority?: number; freq?: ChangeFrequency; lastModified?: Date } = {}
 ): MetadataRoute.Sitemap {
   const priority = options.priority ?? 0.5;
   const changeFrequency = options.freq ?? "weekly";
 
-  return LOCALES.map((locale) => ({
-    url: `${baseUrl}/${locale}${path}`,
-    lastModified: new Date(),
-    changeFrequency,
-    priority,
-    alternates: { languages: altLanguages(baseUrl, path) }
-  }));
+  return LOCALES.map((locale) => {
+    const row: MetadataRoute.Sitemap[number] = {
+      url: `${baseUrl}/${locale}${path}`,
+      changeFrequency,
+      priority,
+      alternates: { languages: altLanguages(baseUrl, path) }
+    };
+    // Only emit lastmod when we have a real content-change date. A per-request
+    // `new Date()` marks every URL "changed just now" on every crawl, which
+    // teaches Google to ignore our lastmod entirely — worse than omitting it.
+    if (options.lastModified) row.lastModified = options.lastModified;
+    return row;
+  });
+}
+
+/**
+ * Renders the `<sitemapindex>` that points at each generated child sitemap
+ * (`/sitemap/0.xml` … `/sitemap/{count-1}.xml`).
+ *
+ * Intentionally emits no `<lastmod>`: the child list is derived per request, so
+ * any timestamp here would be "now" on every fetch — an unreliable signal that
+ * Google discards. Omission is the honest default.
+ */
+export function buildSitemapIndexXml(baseUrl: string, count: number): string {
+  const entries = Array.from(
+    { length: count },
+    (_, id) => `  <sitemap><loc>${baseUrl}/sitemap/${id}.xml</loc></sitemap>`
+  ).join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</sitemapindex>`;
 }
 
 /** Byte-identical to the template link + API resolver rule — NO hyphen trim. */
