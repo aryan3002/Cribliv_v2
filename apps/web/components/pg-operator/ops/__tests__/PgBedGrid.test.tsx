@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgRoom } from "@cribliv/shared-types";
 import PgBedGrid from "../PgBedGrid";
@@ -112,6 +112,15 @@ describe("PgBedGrid", () => {
     expect(screen.getByRole("menu")).toHaveTextContent("Bed record");
   });
 
+  it("does not render an empty overflow menu for a blocked bed without a record URL", () => {
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+
+    const bed = screen.getByText("Bed A").closest("article")!;
+    expect(
+      within(bed).queryByRole("button", { name: "More actions for Bed A" })
+    ).not.toBeInTheDocument();
+  });
+
   it("offers inactive as a status filter", () => {
     const inactiveRooms: PgRoom[] = [
       {
@@ -202,6 +211,14 @@ describe("PgBedGrid", () => {
       "Could not block Bed B.",
       expect.objectContaining({ action: expect.objectContaining({ label: "Retry" }) })
     );
+
+    updateBedStatus.mockResolvedValue({ ...rooms[0].beds[1], status: "blocked" });
+    const retry = toast.error.mock.calls[0][1].action.onClick;
+    await act(async () => {
+      retry();
+    });
+
+    await waitFor(() => expect(updateBedStatus).toHaveBeenCalledTimes(2));
   });
 
   it("optimistically relists a blocked bed and confirms the specific toast", async () => {
@@ -216,5 +233,31 @@ describe("PgBedGrid", () => {
     resolveRelist({ ...rooms[0].beds[0], status: "vacant" });
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Bed A relisted"));
+  });
+
+  it("rolls back a failed relist and retries the mutation", async () => {
+    let rejectRelist!: (error: Error) => void;
+    relistBed.mockImplementation(() => new Promise((_, reject) => (rejectRelist = reject)));
+    render(<PgBedGrid propertyId="property-1" token="token-1" rooms={rooms} />);
+
+    const bed = screen.getByText("Bed A").closest("article")!;
+    fireEvent.click(within(bed).getByRole("button", { name: "Relist Bed A" }));
+    expect(bed).toHaveAttribute("data-status", "vacant");
+
+    rejectRelist(new Error("Network unavailable"));
+
+    await waitFor(() => expect(bed).toHaveAttribute("data-status", "blocked"));
+    expect(toast.error).toHaveBeenCalledWith(
+      "Could not relist Bed A.",
+      expect.objectContaining({ action: expect.objectContaining({ label: "Retry" }) })
+    );
+
+    relistBed.mockResolvedValue({ ...rooms[0].beds[0], status: "vacant" });
+    const retry = toast.error.mock.calls[0][1].action.onClick;
+    await act(async () => {
+      retry();
+    });
+
+    await waitFor(() => expect(relistBed).toHaveBeenCalledTimes(2));
   });
 });

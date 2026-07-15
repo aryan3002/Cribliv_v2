@@ -2,7 +2,7 @@
 
 import { Button, Badge } from "@cribliv/ui";
 import type { PgBed, PgBedStatus } from "@cribliv/shared-types";
-import { OverflowMenu } from "@/components/ui/menu/OverflowMenu";
+import { OverflowMenu, type OverflowMenuItem } from "@/components/ui/menu/OverflowMenu";
 import styles from "./PgBedChip.module.css";
 
 const TONE_BY_STATUS: Record<PgBedStatus, "verified" | "pending" | "brand" | "neutral" | "danger"> =
@@ -45,6 +45,14 @@ export default function PgBedChip({
   const isBlocked = bed.status === "blocked";
   const canAct = bed.status === "vacant" || bed.status === "blocked";
   const tenantName = bed.status === "occupied" ? occupantName(bed) : null;
+  const overflowItems: OverflowMenuItem[] = [
+    ...(bed.status === "vacant"
+      ? [{ label: "Block", onSelect: () => onSetStatus("blocked"), disabled: pending }]
+      : []),
+    ...(detailHref
+      ? [{ label: "Bed record", onSelect: () => window.location.assign(detailHref) }]
+      : [])
+  ];
 
   return (
     <article className={styles.chip} data-status={bed.status}>
@@ -97,17 +105,10 @@ export default function PgBedChip({
               Manage
             </a>
           ) : null}
-          {((bed.status === "vacant" && assignmentHref) || isBlocked || detailHref) && (
+          {overflowItems.length > 0 && (
             <OverflowMenu
               ariaLabel={`More actions for Bed ${bed.bed_label}`}
-              items={[
-                ...(bed.status === "vacant"
-                  ? [{ label: "Block", onSelect: () => onSetStatus("blocked"), disabled: pending }]
-                  : []),
-                ...(detailHref
-                  ? [{ label: "Bed record", onSelect: () => window.location.assign(detailHref) }]
-                  : [])
-              ]}
+              items={overflowItems}
             />
           )}
         </div>
