@@ -164,6 +164,7 @@ describe("PgBedGrid", () => {
         token="token-1"
         rooms={assignedRooms}
         assignmentHrefBase="/assign"
+        bedDetailHrefBase="/beds"
       />
     );
 
@@ -171,12 +172,11 @@ describe("PgBedGrid", () => {
     expect(screen.queryByRole("button", { name: "Relist Bed R" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Block Bed O" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Relist Bed O" })).not.toBeInTheDocument();
-    expect(
-      within(screen.getByText("Bed O").closest("article")!).getByRole("link", { name: "Manage" })
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByText("Bed O").closest("article")!).getByText("Asha")
-    ).toBeInTheDocument();
+    const occupiedBed = screen.getByText("Bed O").closest("article")!;
+    expect(within(occupiedBed).getByRole("link", { name: "Manage" })).toBeInTheDocument();
+    expect(within(occupiedBed).getByText("Asha")).toBeInTheDocument();
+    fireEvent.click(within(occupiedBed).getByRole("button", { name: "More actions for Bed O" }));
+    expect(screen.getByRole("menu")).toHaveTextContent("Bed record");
   });
 
   it("normalizes room labels and omits vacant context without an available date", () => {
@@ -219,6 +219,8 @@ describe("PgBedGrid", () => {
     });
 
     await waitFor(() => expect(updateBedStatus).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bed).toHaveAttribute("data-status", "blocked"));
+    expect(toast.success).toHaveBeenCalledWith("Bed B blocked");
   });
 
   it("optimistically relists a blocked bed and confirms the specific toast", async () => {
