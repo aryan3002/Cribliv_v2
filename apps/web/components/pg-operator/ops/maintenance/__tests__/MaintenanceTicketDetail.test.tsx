@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import type {
   PgMaintenanceInternalNoteResponse,
   PgMaintenanceRequest
@@ -135,6 +135,26 @@ function renderDetail(request: PgMaintenanceRequest, overrides: Partial<DetailPr
   return render(<MaintenanceTicketDetail {...detailProps(request, overrides)} />);
 }
 
+function CommentPhotoHarness() {
+  const [commentPhotos, setCommentPhotos] = useState<DetailProps["commentPhotos"]>([]);
+
+  return (
+    <MaintenanceTicketDetail
+      {...detailProps(ticket(), {
+        commentPhotos,
+        onAddCommentPhotos: (files) => {
+          const nextPhotos = Array.from(files ?? []).map((file, index) => ({
+            clientUploadId: `comment-photo-${commentPhotos.length + index + 1}`,
+            file,
+            previewUrl: null
+          }));
+          setCommentPhotos((current) => [...current, ...nextPhotos]);
+        }
+      })}
+    />
+  );
+}
+
 describe("MaintenanceTicketDetail", () => {
   beforeEach(() => {
     addMaintenanceInternalNote.mockReset();
@@ -188,23 +208,55 @@ describe("MaintenanceTicketDetail", () => {
     expect(screen.getByLabelText("Internal note")).toHaveValue("");
   });
 
-  it("resets the comment photo input when pending comment photos are cleared", () => {
-    const pendingPhoto = {
-      clientUploadId: "comment-photo-1",
-      file: new File(["proof"], "proof.png", { type: "image/png" }),
-      previewUrl: null
-    };
-    const { rerender } = renderDetail(ticket(), { commentPhotos: [pendingPhoto] });
+  it("resets the public-thread photo input and adds the same file twice", () => {
+    render(<CommentPhotoHarness />);
     const input = screen.getByLabelText("Add comment photos") as HTMLInputElement;
     Object.defineProperty(input, "value", {
       configurable: true,
-      value: "stale-selection.png",
+      value: "C:\\fakepath\\proof.png",
       writable: true
     });
+    const photo = new File(["proof"], "proof.png", { type: "image/png" });
 
-    rerender(<MaintenanceTicketDetail {...detailProps(ticket(), { commentPhotos: [] })} />);
+    fireEvent.change(input, { target: { files: [photo] } });
 
     expect(input).toHaveValue("");
+
+    fireEvent.change(input, { target: { files: [photo] } });
+
+    expect(input).toHaveValue("");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("keeps long ticket content in the wrapping and bounded photo containers", () => {
+    const longTicketId = `ticket-${"x".repeat(180)}`;
+    const longDescription = "leak".repeat(160);
+    renderDetail(
+      ticket({
+        id: longTicketId,
+        description: longDescription,
+        photo_urls: ["https://cdn.test/request.jpg"],
+        comments: [
+          {
+            id: "comment-1",
+            request_id: longTicketId,
+            author_user_id: "tenant-1",
+            author_role: "tenant",
+            body: longDescription,
+            attachments: ["pg-maintenance/request.jpg"],
+            attachment_urls: ["https://cdn.test/comment.jpg"],
+            created_at: "2026-07-14T10:00:00.000Z"
+          }
+        ]
+      })
+    );
+
+    expect(screen.getByText(longTicketId).closest("dl")?.className).toMatch(/summaryGrid/);
+    const longDescriptions = screen.getAllByText(longDescription, { selector: "p" });
+    expect(longDescriptions).toHaveLength(2);
+    expect(longDescriptions[0].className).toMatch(/detailDescription/);
+    expect(screen.getByLabelText("Maintenance photos").className).toMatch(/photoGrid/);
+    expect(screen.getByLabelText("Comment photos").className).toMatch(/commentPhotos/);
   });
 
   it("optimistically overrides priority, rolls it back, and retries with the same reason", async () => {

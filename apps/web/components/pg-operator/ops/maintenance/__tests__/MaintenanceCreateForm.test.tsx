@@ -302,17 +302,41 @@ describe("MaintenanceCreateForm", () => {
     expect(screen.queryByRole("list", { name: "Selected ticket photos" })).not.toBeInTheDocument();
   });
 
-  it("accepts the same photo again after it is removed", () => {
+  it("resets the create photo input and adds the same file twice", () => {
     setup();
     const photo = new File(["photo"], "tap.jpg", { type: "image/jpeg" });
+    const input = screen.getByLabelText("Add photos") as HTMLInputElement;
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      value: "C:\\fakepath\\tap.jpg",
+      writable: true
+    });
 
-    fireEvent.change(screen.getByLabelText("Add photos"), { target: { files: [photo] } });
-    fireEvent.click(screen.getByRole("button", { name: "Remove tap.jpg" }));
-    fireEvent.change(screen.getByLabelText("Add photos"), { target: { files: [photo] } });
+    fireEvent.change(input, { target: { files: [photo] } });
 
-    expect(screen.getByRole("list", { name: "Selected ticket photos" })).toHaveTextContent(
-      "tap.jpg"
-    );
+    expect(input).toHaveValue("");
+
+    fireEvent.change(input, { target: { files: [photo] } });
+
+    expect(input).toHaveValue("");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("reuses the create idempotency key when a failed create is retried", async () => {
+    const { onCreated } = setup();
+    createResidenceMaintenance.mockRejectedValueOnce(new Error("Network unavailable"));
+    fillRequiredExceptLocation();
+    fireEvent.change(screen.getByLabelText("Location"), { target: { value: "bed" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Raise ticket" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Network unavailable"));
+    fireEvent.click(screen.getByRole("button", { name: "Raise ticket" }));
+
+    await waitFor(() => expect(createResidenceMaintenance).toHaveBeenCalledTimes(2));
+    const firstKey = createResidenceMaintenance.mock.calls[0][2];
+    expect(createResidenceMaintenance.mock.calls[1][2]).toBe(firstKey);
+    expect(onCreated).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the raised ticket and directs the tenant to the public thread when photo upload fails", async () => {
