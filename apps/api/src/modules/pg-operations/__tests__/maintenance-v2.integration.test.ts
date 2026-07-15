@@ -265,6 +265,34 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
     }
   }, 30_000);
 
+  it("returns the maintenance category catalog for operator pages", async () => {
+    await request(app.getHttpServer())
+      .get("/v1/pg-operator/maintenance/categories")
+      .set("x-test-identity", "operator")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).toEqual(
+          expect.arrayContaining([
+            {
+              slug: "plumbing",
+              display_name: "Plumbing",
+              default_priority: "high",
+              active: true,
+              sort_order: 10
+            },
+            {
+              slug: "other",
+              display_name: "Other",
+              default_priority: "normal",
+              active: true,
+              sort_order: 150
+            }
+          ])
+        );
+        expect(body.data[0]).toMatchObject({ slug: "plumbing", sort_order: 10 });
+      });
+  });
+
   it("returns a keyset-paginated operator queue with filters and empty comments", async () => {
     const fixture = await createFixture();
     const matching = await createTicket(fixture, {

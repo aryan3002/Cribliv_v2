@@ -6,7 +6,10 @@ import { AzureBlobPhotoStorageService } from "../owner/azure-blob-photo-storage.
 import { PgOperatorModule } from "../pg-operator/pg-operator.module";
 import { PgAssignmentController } from "./pg-assignment.controller";
 import { PgAdminManageController } from "./pg-admin-manage.controller";
-import { PgMaintenanceController } from "./pg-maintenance.controller";
+import {
+  PgMaintenanceCatalogController,
+  PgMaintenanceController
+} from "./pg-maintenance.controller";
 import { PgManageRequestController } from "./pg-manage-request.controller";
 import { PgPropertyOpsController } from "./pg-property-ops.controller";
 import { PgResidenceController } from "./pg-residence.controller";
@@ -24,6 +27,7 @@ import { PgResidenceService } from "./services/pg-residence.service";
     PgAdminManageController,
     PgPropertyOpsController,
     PgAssignmentController,
+    PgMaintenanceCatalogController,
     PgMaintenanceController,
     PgResidenceController
   ],

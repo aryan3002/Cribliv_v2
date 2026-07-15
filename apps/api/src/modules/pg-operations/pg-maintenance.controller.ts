@@ -31,6 +31,18 @@ import { RolesGuard } from "../../common/roles.guard";
 import type { UserContext } from "../../common/types";
 import { PgMaintenanceService } from "./services/pg-maintenance.service";
 
+@Controller("pg-operator/maintenance")
+@UseGuards(AuthGuard, RolesGuard)
+@Roles("pg_operator")
+export class PgMaintenanceCatalogController {
+  constructor(@Inject(PgMaintenanceService) private readonly maintenance: PgMaintenanceService) {}
+
+  @Get("categories")
+  async listCategories() {
+    return ok(await this.maintenance.listCategories());
+  }
+}
+
 @Controller("pg-operator/properties")
 @UseGuards(AuthGuard, RolesGuard)
 @Roles("pg_operator")

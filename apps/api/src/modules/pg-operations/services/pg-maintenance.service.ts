@@ -151,6 +151,114 @@ type ResidenceAssignmentRow = {
 
 type MaintenanceResidenceScope = "current" | "history" | "all";
 
+const DEFAULT_MAINTENANCE_CATEGORIES: readonly CategoryRow[] = [
+  {
+    slug: "plumbing",
+    display_name: "Plumbing",
+    default_priority: "high",
+    active: true,
+    sort_order: 10
+  },
+  {
+    slug: "electrical",
+    display_name: "Electrical",
+    default_priority: "emergency",
+    active: true,
+    sort_order: 20
+  },
+  {
+    slug: "internet_wifi",
+    display_name: "Internet/Wi-Fi",
+    default_priority: "high",
+    active: true,
+    sort_order: 30
+  },
+  {
+    slug: "appliance",
+    display_name: "Appliance",
+    default_priority: "normal",
+    active: true,
+    sort_order: 40
+  },
+  {
+    slug: "furniture",
+    display_name: "Furniture",
+    default_priority: "normal",
+    active: true,
+    sort_order: 50
+  },
+  {
+    slug: "cleaning",
+    display_name: "Cleaning",
+    default_priority: "normal",
+    active: true,
+    sort_order: 60
+  },
+  {
+    slug: "pest_control",
+    display_name: "Pest control",
+    default_priority: "normal",
+    active: true,
+    sort_order: 70
+  },
+  {
+    slug: "water_supply",
+    display_name: "Water supply",
+    default_priority: "emergency",
+    active: true,
+    sort_order: 80
+  },
+  {
+    slug: "power_backup",
+    display_name: "Power backup",
+    default_priority: "high",
+    active: true,
+    sort_order: 90
+  },
+  {
+    slug: "food_mess",
+    display_name: "Food/Mess",
+    default_priority: "normal",
+    active: true,
+    sort_order: 100
+  },
+  {
+    slug: "security",
+    display_name: "Security",
+    default_priority: "emergency",
+    active: true,
+    sort_order: 110
+  },
+  {
+    slug: "room_access_keys",
+    display_name: "Room access/keys",
+    default_priority: "high",
+    active: true,
+    sort_order: 120
+  },
+  {
+    slug: "noise_roommate",
+    display_name: "Noise/roommate",
+    default_priority: "low",
+    active: true,
+    sort_order: 130
+  },
+  {
+    slug: "billing",
+    display_name: "Billing",
+    default_priority: "low",
+    active: true,
+    sort_order: 140
+  },
+  {
+    slug: "other",
+    display_name: "Other",
+    default_priority: "normal",
+    active: true,
+    sort_order: 150
+  }
+];
+
 const OPEN_MAINTENANCE_STATUSES: PgMaintenanceStatus[] = [
   "open",
   "in_progress",
@@ -419,6 +527,19 @@ export class PgMaintenanceService {
       code: "operations_requires_db",
       message: "PG operations require a database"
     });
+  }
+
+  async listCategories(): Promise<PgMaintenanceCategory[]> {
+    if (!this.db.isEnabled()) {
+      return DEFAULT_MAINTENANCE_CATEGORIES.map(toCategory);
+    }
+
+    const result = await this.db.query<CategoryRow>(
+      `SELECT slug, display_name, default_priority::text AS default_priority, active, sort_order
+         FROM pg_maintenance_categories
+        ORDER BY sort_order ASC, display_name ASC`
+    );
+    return result.rows.map(toCategory);
   }
 
   private async assertManagedOwnership(operatorId: string, propertyId: string): Promise<void> {
