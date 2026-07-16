@@ -273,11 +273,13 @@ export async function fetchSeoCopy(input: {
   };
 }): Promise<SeoCopy | null> {
   try {
-    return await fetchApi<SeoCopy | null>(
-      "/seo/copy",
-      { method: "POST", body: JSON.stringify(input) },
-      { server: true }
-    );
+    // Public read only — the batch generator (admin) pre-populates copy; the
+    // render never triggers the LLM and needs no auth. Only path + locale are
+    // used; the rest of the input stays for the caller's own convenience.
+    const params = new URLSearchParams({ path: input.pagePath, locale: input.locale });
+    return await fetchApi<SeoCopy | null>(`/seo/copy?${params.toString()}`, undefined, {
+      server: true
+    });
   } catch {
     return null;
   }
