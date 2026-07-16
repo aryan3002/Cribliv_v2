@@ -6,6 +6,7 @@ import { PgDetailClient } from "../../../../../components/pg/PgDetailClient";
 import { jsonLdSafe } from "../../../../../lib/jsonld";
 import { buildListing } from "../../../../../lib/structured-data";
 import { toTitleCase } from "../../../../../lib/utils";
+import { ogImageFor } from "../../../../../lib/og-image";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 const PHOTO_BASE = (process.env.NEXT_PUBLIC_PHOTO_BASE_URL || "").replace(/\/+$/, "");
@@ -33,16 +34,38 @@ export async function generateMetadata({
   if (!detail) return { title: "PG not found" };
   const citySlug = detail.city_slug ?? params.city;
   const cityTitle = citySlug.charAt(0).toUpperCase() + citySlug.slice(1);
+  const localityLabel = detail.locality_slug
+    ? toTitleCase(detail.locality_slug.replace(/-/g, " "))
+    : cityTitle;
+  const gender = detail.pg_details?.gender_policy;
+  const genderLabel =
+    gender === "boys" ? "Boys " : gender === "girls" ? "Girls " : gender === "coed" ? "Co-ed " : "";
+  const price = detail.monthly_rent;
+  const title = `${detail.title ?? "PG"}: PG in ${cityTitle}`;
+  const description = `Verified ${genderLabel}PG in ${localityLabel}, ${cityTitle}${price ? ` from ₹${price.toLocaleString("en-IN")}/mo` : ""} — sharing, meals & amenities. Unlock owner contact on Cribliv.`;
+  const url = `${BASE_URL}/${params.locale}/pg/${citySlug}/${params.id}`;
+  const cover = detail.photos.find((p) => p.is_cover) ?? detail.photos[0];
+  const ogImage = ogImageFor(cover ? [photoUrl(cover.blob_path)] : [], `${BASE_URL}/cribliv.png`);
   return {
-    title: `${detail.title ?? "PG"}: PG in ${cityTitle}`,
-    description: `Verified PG${detail.monthly_rent ? ` from ₹${detail.monthly_rent.toLocaleString("en-IN")}/mo` : ""}. Sharing, food and amenities on Cribliv.`,
+    title,
+    description,
     alternates: {
-      canonical: `${BASE_URL}/${params.locale}/pg/${citySlug}/${params.id}`,
+      canonical: url,
       languages: {
         en: `${BASE_URL}/en/pg/${citySlug}/${params.id}`,
         hi: `${BASE_URL}/hi/pg/${citySlug}/${params.id}`
       }
-    }
+    },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: "Cribliv",
+      locale: params.locale === "hi" ? "hi_IN" : "en_IN",
+      type: "website",
+      images: [ogImage]
+    },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] }
   };
 }
 

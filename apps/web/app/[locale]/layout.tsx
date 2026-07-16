@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { LocaleChrome } from "../../components/locale-chrome";
 import { PageviewTracker } from "../../components/analytics/pageview-tracker";
 import { WelcomeCreditsModal } from "../../components/welcome-credits-modal";
+import { WhatsappFab } from "../../components/whatsapp-fab";
 import { isValidLocale, type Locale } from "../../lib/i18n";
 import { notFound } from "next/navigation";
 
@@ -53,6 +54,7 @@ export default function LocaleLayout({
       </Suspense>
       <LocaleChrome locale={params.locale as Locale}>{children}</LocaleChrome>
       <WelcomeCreditsModal locale={params.locale as Locale} />
+      <WhatsappFab />
     </>
   );
 }
