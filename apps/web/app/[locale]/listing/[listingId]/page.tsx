@@ -4,6 +4,7 @@ import { fetchApi } from "../../../../lib/api";
 import { toTitleCase } from "../../../../lib/utils";
 import { buildListing } from "../../../../lib/structured-data";
 import { jsonLdSafe } from "../../../../lib/jsonld";
+import { ogImageFor } from "../../../../lib/og-image";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
 import { ListingGallery } from "../../../../components/listing/listing-gallery";
 import { ListingHighlights } from "../../../../components/listing/listing-highlights";
@@ -119,6 +120,8 @@ export async function generateMetadata({
     ? listing.description.slice(0, 160)
     : `${typeLabel} for rent in ${listing.city}${listing.locality ? `, ${listing.locality}` : ""} at ₹${listing.monthly_rent.toLocaleString("en-IN")}/month. Verified on Cribliv.`;
 
+  const ogImage = ogImageFor(listing.photos, `${BASE_URL}/cribliv.png`);
+
   return {
     title,
     description,
@@ -135,9 +138,10 @@ export async function generateMetadata({
       url: `${BASE_URL}/${params.locale}/listing/${params.listingId}`,
       siteName: "Cribliv",
       locale: params.locale === "hi" ? "hi_IN" : "en_IN",
-      type: "website"
+      type: "website",
+      images: [ogImage]
     },
-    twitter: { card: "summary", title, description }
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] }
   };
 }
 

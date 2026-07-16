@@ -22587,3 +22587,52 @@ a.feature-card:hover .icon-circle {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Floating WhatsApp support CTA — mounted site-wide from the locale layout,
+   hidden on dashboards via shouldShowWhatsappFab().
+--------------------------------------------------------------------------- */
+.wa-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.wa-fab:hover {
+  transform: scale(1.06);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+}
+.wa-fab:focus-visible {
+  outline: 3px solid rgba(37, 211, 102, 0.55);
+  outline-offset: 3px;
+}
+/* Listing/PG pages show a fixed bottom CTA bar (.cta-bar) at <=1024px — lift the
+   button above it so the two never overlap. */
+@media (max-width: 1024px) {
+  .wa-fab {
+    right: 16px;
+    bottom: 88px;
+    width: 52px;
+    height: 52px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wa-fab {
+    transition: none;
+  }
+  .wa-fab:hover {
+    transform: none;
+  }
+}
