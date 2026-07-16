@@ -165,6 +165,7 @@ export default async function MetroHubPage({
     <ProgrammaticPage
       locale={locale}
       h1={merged.h1}
+      placeName={stationName}
       intro={merged.intro}
       aggregates={data.aggregates}
       listings={listingsRes.items}

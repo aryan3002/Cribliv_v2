@@ -145,8 +145,8 @@ export default async function LocalityHubPage({
         : `Verified Rentals in ${placeName}, ${cityName}`,
     intro:
       locale === "hi"
-        ? `${placeName} में ${data.aggregates.listing_count} सक्रिय लिस्टिंग: PG, 1BHK, 2BHK, 3BHK फ्लैट। सीधे मालिकों से संपर्क करें, कोई दलाली नहीं।`
-        : `${placeName} has ${data.aggregates.listing_count} active rentals on Cribliv: PGs, 1/2/3 BHK flats, and houses. Contact verified owners directly, no broker fees.`,
+        ? `${cityName} के ${placeName} में Cribliv पर ${data.aggregates.listing_count} सत्यापित किराये — PG, 1/2/3 BHK फ्लैट और स्वतंत्र मकान।${data.aggregates.median_rent_1bhk ? ` यहाँ 1BHK का किराया लगभग ₹${data.aggregates.median_rent_1bhk.toLocaleString("en-IN")}/माह${data.aggregates.median_rent_2bhk ? `, 2BHK लगभग ₹${data.aggregates.median_rent_2bhk.toLocaleString("en-IN")}/माह` : ""} है।` : ""} हर मालिक सत्यापित है, कोई ब्रोकरेज नहीं।`
+        : `${placeName} in ${cityName} has ${data.aggregates.listing_count} verified ${data.aggregates.listing_count === 1 ? "rental" : "rentals"} on Cribliv — PGs, 1/2/3 BHK flats and independent houses.${data.aggregates.median_rent_1bhk ? ` 1BHK homes here rent for around ₹${data.aggregates.median_rent_1bhk.toLocaleString("en-IN")}/mo${data.aggregates.median_rent_2bhk ? `, 2BHKs around ₹${data.aggregates.median_rent_2bhk.toLocaleString("en-IN")}/mo` : ""}.` : ""} Every owner is verified and you pay zero brokerage.`,
     faqs: [
       {
         q:
@@ -221,6 +221,7 @@ export default async function LocalityHubPage({
       locale={locale}
       h1={merged.h1}
       intro={merged.intro}
+      placeName={placeName}
       nearbyBlurb={merged.nearbyBlurb}
       aggregates={data.aggregates}
       listings={listings.items}
