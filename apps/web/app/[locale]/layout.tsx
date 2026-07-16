@@ -38,6 +38,16 @@ export default function LocaleLayout({
 
   return (
     <>
+      {/* The <html lang> attribute lives in the root layout (outside the
+          [locale] segment) and defaults to "en". Correct it to the active
+          locale here so /hi pages announce Hindi to assistive tech and
+          crawlers. Done via an inline script rather than headers() so pages
+          stay statically rendered / ISR. */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `document.documentElement.lang=${JSON.stringify(params.locale)}`
+        }}
+      />
       <Suspense fallback={null}>
         <PageviewTracker locale={params.locale} />
       </Suspense>
