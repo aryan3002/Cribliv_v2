@@ -20,6 +20,37 @@ export const BANNED_PHRASES = [
 const PROGRAMMATIC_PREFIXES = ["/city/", "/rent-in/", "/pg/", "/blog/"];
 const GAP_WORDS = new Set(["in", "at", "near", "for", "the", "a", "an"]);
 
+// Every real top-level route segment under apps/web/app/[locale]/. An internal
+// link whose first path segment is not in this set points at a route that does
+// not exist (typically an LLM hallucination like `/pg-for-girls-in-lucknow`)
+// and will 404. Keep in sync with KNOWN_ROUTES in apps/web/lib/blog-body.ts.
+const KNOWN_ROUTE_SEGMENTS = new Set([
+  "about",
+  "admin",
+  "auth",
+  "become-owner",
+  "blog",
+  "city",
+  "contact",
+  "faq",
+  "how-it-works",
+  "listing",
+  "map",
+  "owner",
+  "pg",
+  "pg-operator",
+  "pricing",
+  "privacy",
+  "rent-agreement",
+  "rent-in",
+  "search",
+  "settings",
+  "shortlist",
+  "tenant",
+  "terms"
+]);
+const LOCALE_SEGMENTS = new Set(["en", "hi"]);
+
 export interface QualityInput {
   title: string;
   h1: string;
@@ -104,6 +135,20 @@ export function countProgrammaticLinks(html: string): number {
   ).length;
 }
 
+// Internal links whose first path segment is not a real route — these 404 in
+// production. Locale prefixes (`/en`, `/hi`) are stripped before checking so a
+// link stays valid whether or not it carries one.
+export function unresolvableInternalLinks(html: string): string[] {
+  return extractHrefs(html).filter((href) => {
+    if (!href.startsWith("/") || href.startsWith("//") || href.startsWith("/#")) return false;
+    const segments = href.replace(/^\//, "").split(/[/?#]/).filter(Boolean);
+    let first = segments[0] ?? "";
+    if (LOCALE_SEGMENTS.has(first)) first = segments[1] ?? "";
+    if (first === "") return false; // bare `/` or `/en` — the home page, valid
+    return !KNOWN_ROUTE_SEGMENTS.has(first);
+  });
+}
+
 export function countCitedDataPoints(html: string, sources: BlogSource[]): number {
   if (sources.length === 0) return 0;
   const text = stripHtml(html);
@@ -150,6 +195,7 @@ export function qualityScore(input: QualityInput): QualityBreakdown {
   const minWords = input.isDataPost ? MIN_WORDS_DATA : MIN_WORDS;
   const internalLinks = countInternalLinks(input.bodyHtml);
   const programmaticLinks = countProgrammaticLinks(input.bodyHtml);
+  const brokenLinks = unresolvableInternalLinks(input.bodyHtml);
   const density = keywordDensity(plain, input.targetKeyword);
   const banned = BANNED_PHRASES.filter((phrase) => lower.includes(phrase));
   const intro = firstWords(input.bodyHtml, 100);
@@ -172,6 +218,14 @@ export function qualityScore(input: QualityInput): QualityBreakdown {
       `${internalLinks} internal links, ${programmaticLinks} programmatic links`,
       internalLinks,
       MIN_INTERNAL_LINKS
+    ),
+    check(
+      "no_broken_links",
+      "No internal links to non-existent routes",
+      brokenLinks.length === 0,
+      brokenLinks.length === 0 ? "All internal links resolve" : `Broken: ${brokenLinks.join(", ")}`,
+      brokenLinks.length,
+      0
     ),
     check(
       "data_points",

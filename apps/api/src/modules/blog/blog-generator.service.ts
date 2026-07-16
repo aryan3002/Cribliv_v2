@@ -233,7 +233,7 @@ export class BlogGeneratorService {
       body_hi: string;
     }>({
       system:
-        "You are an SEO + readability editor. Given the body HTML and keyword, produce title, H1, meta, excerpt, a 3-5 item FAQ, and a faithful Hindi (Devanagari) rendering of the body. Keyword must appear naturally in title, H1, and the first 100 words. Reply JSON only.",
+        "You are an SEO + readability editor. Given the body HTML and keyword, produce title, H1, meta, excerpt, a 3-5 item FAQ, and a faithful Hindi (Devanagari) rendering of the body. Keyword must appear naturally in title, H1, and the first 100 words. Keep title and meta_title concise — aim for 50-55 characters (a ' | Cribliv' suffix is appended) — and meta_description to 140-155 characters, so both display in full in search results without truncation. Reply JSON only.",
       user:
         `Keyword: ${brief.target_keyword}\nBODY:\n${bodyAfterCheck}\n\n` +
         'Return {"title","h1","meta_title","meta_description","excerpt","faq_items":[{"q","a"}],"body_hi"}.',
