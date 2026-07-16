@@ -1,5 +1,12 @@
 import { ApiError, fetchApi, buildSearchQuery, getApiBaseUrl } from "./api";
-import type { ListingType, VerificationType, VerificationResult } from "@cribliv/shared-types";
+import type {
+  AdminHomeDetail,
+  AdminHomesListParams,
+  AdminHomesListResponse,
+  ListingType,
+  VerificationType,
+  VerificationResult
+} from "@cribliv/shared-types";
 
 export interface AdminListingVm {
   id: string;
@@ -48,6 +55,25 @@ function authHeaders(accessToken: string) {
   return {
     Authorization: `Bearer ${accessToken}`
   };
+}
+
+export async function fetchAdminHomes(
+  accessToken: string,
+  params: Partial<AdminHomesListParams> = {}
+): Promise<AdminHomesListResponse> {
+  const qs = buildSearchQuery(params as Record<string, string | number | boolean | undefined>);
+  return fetchApi<AdminHomesListResponse>(`/admin/homes${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminHomeDetail(
+  accessToken: string,
+  listingId: string
+): Promise<AdminHomeDetail> {
+  return fetchApi<AdminHomeDetail>(`/admin/homes/${listingId}`, {
+    headers: authHeaders(accessToken)
+  });
 }
 
 export async function fetchAdminListings(accessToken: string) {
@@ -1921,6 +1947,7 @@ import type {
 export interface AdminLeadBoardParams {
   filter?: AdminLeadBoardFilter;
   owner_id?: string;
+  listing_id?: string;
   state?: string;
   status?: string;
   q?: string;

@@ -12,6 +12,7 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getBoard (DB)", () => {
   let ownerId: string;
   let tenantId: string;
   let listingId: string;
+  let secondListingId: string;
 
   beforeAll(async () => {
     process.env.DATABASE_URL = TEST_DB;
@@ -37,6 +38,12 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getBoard (DB)", () => {
       [ownerId]
     );
     listingId = listing.rows[0].id;
+    const secondListing = await pool.query<{ id: string }>(
+      `INSERT INTO listings (owner_user_id, listing_type, title_en, monthly_rent, status, city_slug)
+       VALUES ($1::uuid, 'flat_house', 'Board Test Flat Two', 10000, 'active', 'mumbai') RETURNING id::text`,
+      [ownerId]
+    );
+    secondListingId = secondListing.rows[0].id;
 
     // Uncalled lead, ~4h to deadline (expiring). Seeker phone must come back full.
     await pool.query(
@@ -45,15 +52,27 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getBoard (DB)", () => {
        VALUES ($1::uuid, $2::uuid, $3::uuid, 'new', 'locked', now() + interval '4 hours', now())`,
       [listingId, ownerId, tenantId]
     );
+    await pool.query(
+      `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, status, access_state,
+                          call_deadline_at, created_at)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'new', 'locked', now() + interval '4 hours', now())`,
+      [secondListingId, ownerId, tenantId]
+    );
   }, 60_000);
 
   afterAll(async () => {
     await pool.query(
-      `DELETE FROM lead_events WHERE lead_id IN (SELECT id FROM leads WHERE listing_id = $1::uuid)`,
-      [listingId]
+      `DELETE FROM lead_events WHERE lead_id IN (
+         SELECT id FROM leads WHERE listing_id = ANY($1::uuid[])
+       )`,
+      [[listingId, secondListingId]]
     );
-    await pool.query(`DELETE FROM leads WHERE listing_id = $1::uuid`, [listingId]);
-    await pool.query(`DELETE FROM listings WHERE id = $1::uuid`, [listingId]);
+    await pool.query(`DELETE FROM leads WHERE listing_id = ANY($1::uuid[])`, [
+      [listingId, secondListingId]
+    ]);
+    await pool.query(`DELETE FROM listings WHERE id = ANY($1::uuid[])`, [
+      [listingId, secondListingId]
+    ]);
     await pool.query(`DELETE FROM users WHERE id IN ($1::uuid, $2::uuid)`, [ownerId, tenantId]);
     await db.onModuleDestroy();
     await pool.end();
@@ -77,6 +96,18 @@ describe.runIf(!!TEST_DB)("AdminLeadOpsService.getBoard (DB)", () => {
   it("the expiring_6h filter includes the ~4h lead", async () => {
     const res = await svc.getBoard({ filter: "expiring_6h", ownerId });
     expect(res.rows.some((r) => r.owner.user_id === ownerId)).toBe(true);
+  });
+
+  it("filters board rows, total, and counters to an exact listing", async () => {
+    const result = await svc.getBoard({
+      filter: "all",
+      sort: "newest",
+      listingId,
+      range: "30 days"
+    });
+    expect(result.rows.every((row) => row.listing_id === listingId)).toBe(true);
+    expect(result.total).toBe(1);
+    expect(result.counters.uncalled).toBe(1);
   });
 
   it("getTimeline returns the lead's events in time order", async () => {

@@ -20,12 +20,33 @@ describe("AdminLeadsController.board query wiring", () => {
     const getBoard = vi.fn().mockResolvedValue(emptyBoard);
     const controller = makeController(getBoard);
 
-    // board(filter, ownerId, state, status, q, range, sort, page, pageSize)
+    // board(filter, ownerId, state, status, q, range, sort, page, pageSize, listingId)
     await controller.board("all", undefined, undefined, undefined, undefined, undefined, "newest");
 
     expect(getBoard).toHaveBeenCalledWith(
       expect.objectContaining({ filter: "all", sort: "newest" })
     );
+  });
+
+  it("forwards listing_id through to getBoard", async () => {
+    const getBoard = vi.fn().mockResolvedValue(emptyBoard);
+    const controller = makeController(getBoard);
+    const listingId = "11111111-1111-4111-8111-111111111111";
+
+    await controller.board(
+      "all",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      "newest",
+      undefined,
+      undefined,
+      listingId
+    );
+
+    expect(getBoard).toHaveBeenCalledWith(expect.objectContaining({ listingId }));
   });
 
   it("defaults sort to 'urgency' when the param is absent", async () => {

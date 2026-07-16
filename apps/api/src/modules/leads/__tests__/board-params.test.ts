@@ -52,6 +52,12 @@ describe("sanitizeBoardParams", () => {
     expect(sanitizeBoardParams({ owner_id: "xyz" }).ownerId).toBeUndefined();
   });
 
+  it("accepts a valid exact listing id and rejects malformed ids", () => {
+    const valid = "11111111-1111-4111-8111-111111111111";
+    expect(sanitizeBoardParams({ listing_id: valid }).listingId).toBe(valid);
+    expect(sanitizeBoardParams({ listing_id: "not-a-uuid" }).listingId).toBeUndefined();
+  });
+
   it("defaults sort to 'urgency' and only accepts the known sorts", () => {
     expect(sanitizeBoardParams({}).sort).toBe("urgency");
     expect(sanitizeBoardParams({ sort: "newest" }).sort).toBe("newest");

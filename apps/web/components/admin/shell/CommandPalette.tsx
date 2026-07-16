@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Coins,
   Globe,
+  House,
   LayoutDashboard,
   RefreshCw,
   ShieldCheck,
@@ -33,6 +34,7 @@ const TAB_ITEMS: Array<{ id: AdminTab; label: string; icon: typeof Activity; gro
   { id: "revenue", label: "Revenue", icon: Coins, group: "Navigate" },
   { id: "fraud", label: "Fraud Feed", icon: AlertTriangle, group: "Navigate" },
   { id: "seo", label: "Programmatic SEO", icon: Globe, group: "Navigate" },
+  { id: "homes", label: "Verified Homes", icon: House, group: "Navigate" },
   { id: "system", label: "System", icon: Wrench, group: "Navigate" }
 ];
 

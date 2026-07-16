@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AdminLeadAnalytics,
@@ -123,5 +123,52 @@ describe("LeadCenterTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Analytics" }));
 
     expect(await screen.findByText("Engagement funnel")).toBeInTheDocument();
+  });
+
+  it("initializes exact listing mode and allows clearing it", async () => {
+    render(
+      <LeadCenterTab
+        accessToken="tok"
+        initialListingId="11111111-1111-4111-8111-111111111111"
+        onCountChange={vi.fn()}
+        onToast={vi.fn()}
+      />
+    );
+
+    await waitFor(() =>
+      expect(mockedBoard).toHaveBeenCalledWith(
+        "tok",
+        expect.objectContaining({
+          filter: "all",
+          sort: "newest",
+          listing_id: "11111111-1111-4111-8111-111111111111",
+          page: 1
+        })
+      )
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /clear listing filter/i }));
+
+    await waitFor(() =>
+      expect(mockedBoard).toHaveBeenLastCalledWith(
+        "tok",
+        expect.not.objectContaining({
+          listing_id: "11111111-1111-4111-8111-111111111111"
+        })
+      )
+    );
+  });
+
+  it("delegates listing navigation back to Verified Homes", async () => {
+    const onOpenHome = vi.fn();
+    render(<LeadCenterTab accessToken="tok" onOpenHome={onOpenHome} onToast={vi.fn()} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Open 2BHK near Sector 62 in Verified Homes"
+      })
+    );
+
+    expect(onOpenHome).toHaveBeenCalledWith("listing-1");
   });
 });
