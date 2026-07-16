@@ -120,6 +120,30 @@ export class SeoCopyService {
     return null;
   }
 
+  /**
+   * Read-only: return stored copy (manual override, else cached) without ever
+   * generating. This is what the PUBLIC render path uses — no LLM, no auth —
+   * so anonymous SSR can serve AI copy the batch generator pre-populated.
+   */
+  async getStored(pagePath: string, locale: string): Promise<GeneratedCopy | null> {
+    const override = await this.readOverride(pagePath, locale);
+    if (override) return override;
+    const cached = await this.readCache(pagePath, locale);
+    return cached ? cachedToCopy(cached) : null;
+  }
+
+  /**
+   * True when the page already has non-expired stored copy (or a manual
+   * override). The batch generator uses this to skip pages that don't need
+   * regeneration, so it only spends LLM calls on missing/expired copy.
+   */
+  async hasFreshCopy(pagePath: string, locale: string): Promise<boolean> {
+    const override = await this.readOverride(pagePath, locale);
+    if (override) return true;
+    const cached = await this.readCache(pagePath, locale);
+    return !!cached && new Date(cached.expires_at) > new Date();
+  }
+
   private async readOverride(pagePath: string, locale: string): Promise<GeneratedCopy | null> {
     if (!this.database.isEnabled()) return null;
     const { rows } = await this.database.query<{
