@@ -6,6 +6,7 @@ import { Masthead } from "../_components/Masthead";
 import { formatDate, cityLabel, deskLabel, formatRent } from "../_components/blog-format";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { fetchBlogPost } from "../../../../lib/blog-api";
+import { prepareBlogBody } from "../../../../lib/blog-body";
 import { EDITORIAL_AUTHOR, authorPath } from "../../../../lib/blog-author";
 import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/structured-data";
 
@@ -90,7 +91,11 @@ export default async function BlogDetailPage({
     }
   }
 
-  const body = (hi && post.body_hi) || post.body_en || "";
+  // Render-time prep of the LLM-generated body: drop the embedded duplicate H1
+  // (the page renders post.title as the sole H1) and localize internal links,
+  // whose stored hrefs are locale-relative (`/rent-in/lucknow`) and would 404
+  // without a `/{locale}` segment. See lib/blog-body.ts.
+  const body = prepareBlogBody((hi && post.body_hi) || post.body_en || "", locale);
   const dateLabel = formatDate(post.published_at ?? post.updated_at, locale);
   const authorIsPersona = post.author === EDITORIAL_AUTHOR.name;
   const sourceLabels = (post.sources || []).map((s) => s.label).filter(Boolean);

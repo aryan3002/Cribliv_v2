@@ -4,7 +4,8 @@ import {
   countInternalLinks,
   countWords,
   keywordDensity,
-  qualityScore
+  qualityScore,
+  unresolvableInternalLinks
 } from "../src/modules/blog/quality-gate";
 import type { QualityInput } from "../src/modules/blog/quality-gate";
 
@@ -64,6 +65,18 @@ describe("quality-gate helpers", () => {
     expect(d).toBeGreaterThan(0);
     expect(d).toBeLessThan(1);
   });
+
+  it("unresolvableInternalLinks flags only links to non-existent routes", () => {
+    const html =
+      '<a href="/rent-in/lucknow">known route</a>' +
+      '<a href="/en/pg/delhi">known route w/ locale</a>' +
+      '<a href="/city/lucknow/gomti-nagar">known nested route</a>' +
+      '<a href="/pg-for-girls-in-lucknow">hallucinated</a>' +
+      '<a href="/pg-in-lucknow">hallucinated 2</a>' +
+      '<a href="https://x.com">external</a>' +
+      '<a href="#top">hash</a>';
+    expect(unresolvableInternalLinks(html)).toEqual(["/pg-for-girls-in-lucknow", "/pg-in-lucknow"]);
+  });
 });
 
 describe("qualityScore - good post passes", () => {
@@ -105,6 +118,17 @@ describe("qualityScore - golden slop set (each must fail)", () => {
     const out = qualityScore(input);
     expect(out.passed).toBe(false);
     expect(out.checks.find((c) => c.id === "internal_links")?.passed).toBe(false);
+  });
+
+  it("fails when the body links to a non-existent route (LLM hallucination)", () => {
+    const input = goodInput();
+    input.bodyHtml = input.bodyHtml.replace(
+      "</p>",
+      ' See <a href="/pg-for-girls-in-lucknow">girls PG in Lucknow</a>. </p>'
+    );
+    const out = qualityScore(input);
+    expect(out.passed).toBe(false);
+    expect(out.checks.find((c) => c.id === "no_broken_links")?.passed).toBe(false);
   });
 
   it("fails a data post with too few cited data points", () => {
