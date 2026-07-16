@@ -46,23 +46,22 @@ export interface GeneratedCopy {
   faq_items: Array<{ q: string; a: string }>;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
+/**
+ * Normalize generated copy to PLAIN text (trim only). We deliberately do NOT
+ * HTML-escape here: the copy is rendered as React text (safe via textContent)
+ * and embedded in JSON-LD through `jsonLdSafe` on the web. Escaping at this
+ * layer only double-encoded entities on the page — e.g. an ampersand showed as
+ * "&amp;amp;" (escaped once on write, again on read).
+ */
 function sanitizeGeneratedCopy(copy: GeneratedCopy): GeneratedCopy {
+  const t = (v: string) => v.trim();
   return {
-    h1: escapeHtml(copy.h1),
-    meta_title: escapeHtml(copy.meta_title),
-    meta_description: escapeHtml(copy.meta_description),
-    intro_paragraph: escapeHtml(copy.intro_paragraph),
-    nearby_blurb: copy.nearby_blurb ? escapeHtml(copy.nearby_blurb) : null,
-    faq_items: copy.faq_items.map((item) => ({ q: escapeHtml(item.q), a: escapeHtml(item.a) }))
+    h1: t(copy.h1),
+    meta_title: t(copy.meta_title),
+    meta_description: t(copy.meta_description),
+    intro_paragraph: t(copy.intro_paragraph),
+    nearby_blurb: copy.nearby_blurb ? t(copy.nearby_blurb) : null,
+    faq_items: copy.faq_items.map((item) => ({ q: t(item.q), a: t(item.a) }))
   };
 }
 
@@ -142,6 +141,16 @@ export class SeoCopyService {
     if (override) return true;
     const cached = await this.readCache(pagePath, locale);
     return !!cached && new Date(cached.expires_at) > new Date();
+  }
+
+  /** Drop cached copy for a page so the next generate call re-creates it. Used
+   *  by the batch's `force` mode to refresh stored copy in place. */
+  async deleteCopy(pagePath: string, locale: string): Promise<void> {
+    if (!this.database.isEnabled()) return;
+    await this.database.query(`DELETE FROM seo_page_copy WHERE page_path = $1 AND locale = $2`, [
+      pagePath,
+      locale
+    ]);
   }
 
   private async readOverride(pagePath: string, locale: string): Promise<GeneratedCopy | null> {
