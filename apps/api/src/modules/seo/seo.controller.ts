@@ -82,8 +82,11 @@ export class SeoController {
    */
   @UseGuards(AuthGuard)
   @Post("copy/generate-batch")
-  async generateBatch(@Query("limit") limitRaw?: string) {
+  async generateBatch(@Query("limit") limitRaw?: string, @Query("force") forceRaw?: string) {
     const limit = Math.min(Math.max(Number(limitRaw) || 10, 1), 50);
+    // force=1 regenerates pages that already have fresh copy — used to refresh
+    // stored copy after a generation-logic change.
+    const force = forceRaw === "1" || forceRaw === "true";
     const locales = ["en", "hi"] as const;
     let generated = 0;
     let skipped = 0;
@@ -102,9 +105,12 @@ export class SeoController {
         for (const locale of locales) {
           if (generated >= limit) break;
           const pagePath = `/city/${city.city_slug}/${loc.slug}`;
-          if (await this.copy.hasFreshCopy(pagePath, locale)) {
+          if (!force && (await this.copy.hasFreshCopy(pagePath, locale))) {
             skipped++;
             continue;
+          }
+          if (force) {
+            await this.copy.deleteCopy(pagePath, locale);
           }
           if (!agg) {
             agg = await this.aggregates.aggregatesForLocality(city.city_slug, loc.slug);

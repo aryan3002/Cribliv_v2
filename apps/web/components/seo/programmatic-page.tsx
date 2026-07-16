@@ -7,6 +7,7 @@ import { ListingsGrid } from "./listings-grid";
 import { RelatedLinks } from "./related-links";
 import { FaqSection } from "./faq-section";
 import type { PageAggregates, ListingCard, SeoCopy } from "../../lib/seo-api";
+import { jsonLdSafe } from "../../lib/jsonld";
 
 export interface ProgrammaticPageProps {
   locale: "en" | "hi";
@@ -47,7 +48,7 @@ export function ProgrammaticPage(props: ProgrammaticPageProps) {
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(node) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdSafe(node) }}
         />
       ))}
 
