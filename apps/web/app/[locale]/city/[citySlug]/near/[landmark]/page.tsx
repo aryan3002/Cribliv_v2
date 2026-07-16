@@ -197,6 +197,7 @@ export default async function LandmarkHubPage({
     <ProgrammaticPage
       locale={locale}
       h1={merged.h1}
+      placeName={name}
       intro={merged.intro}
       nearbyBlurb={merged.nearbyBlurb}
       aggregates={aggregates}

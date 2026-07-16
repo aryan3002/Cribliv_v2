@@ -1,50 +1,53 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { intentsByCategory } from "../../lib/intent-filters";
+import { intentsFor } from "../../lib/intent-filters";
 
 /**
- * Grid of internal links to every intent for a given surface (locality /
- * metro / landmark). The heart of programmatic-SEO internal linking — gives
- * crawlers a clean, consistent anchor-text path into every intent page.
+ * Compact "popular searches" row — a single tight band of internal links to
+ * every intent for a surface (locality / metro / landmark). Every link stays in
+ * the server-rendered HTML so crawlers still get the full anchor-text path into
+ * each intent page; it's just visually condensed and lives below the listings
+ * rather than dominating the top of the page.
  */
 export function IntentGrid({
   baseHref,
   surface,
-  locale
+  locale,
+  placeName
 }: {
   /** Base URL (no trailing slash). Intent slug is appended as /{intent}. */
   baseHref: string;
   surface: "locality" | "metro" | "landmark";
   locale: "en" | "hi";
+  /** Optional place name for the heading. */
+  placeName?: string | null;
 }) {
-  const groups = intentsByCategory(surface);
+  const intents = intentsFor(surface);
+  if (intents.length === 0) return null;
+
+  const heading =
+    locale === "hi"
+      ? placeName
+        ? `${placeName} में लोकप्रिय खोज`
+        : "लोकप्रिय खोज"
+      : placeName
+        ? `Popular searches in ${placeName}`
+        : "Popular searches";
+
   return (
-    <section
-      aria-label={locale === "hi" ? "श्रेणी के अनुसार ब्राउज़ करें" : "Browse by category"}
-      style={{ marginBottom: "var(--space-10)" }}
-    >
-      {groups.map((group) => (
-        <div key={group.category.slug} style={{ marginBottom: "var(--space-6)" }}>
-          <h3 style={{ marginBottom: "var(--space-3)" }}>
-            {locale === "hi" ? group.category.label_hi : group.category.label_en}
-          </h3>
-          <div
-            className="chip-row"
-            style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}
+    <section className="seo-popular" aria-label={heading}>
+      <h2 className="seo-popular__title">{heading}</h2>
+      <div className="chip-row">
+        {intents.map((intent) => (
+          <Link
+            key={intent.slug}
+            href={`${baseHref}/${intent.slug}` as Route}
+            className="chip-btn chip-btn--sm"
           >
-            {group.intents.map((intent) => (
-              <Link
-                key={intent.slug}
-                href={`${baseHref}/${intent.slug}` as Route}
-                className="chip-btn"
-                style={{ textDecoration: "none" }}
-              >
-                {locale === "hi" ? intent.label_hi : intent.label_en}
-              </Link>
-            ))}
-          </div>
-        </div>
-      ))}
+            {locale === "hi" ? intent.label_hi : intent.label_en}
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }

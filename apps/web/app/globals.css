@@ -2840,6 +2840,86 @@ h4,
   color: var(--brand);
   background: var(--brand-light);
 }
+.chip-btn--sm {
+  height: 28px;
+  font-size: 12px;
+}
+
+/* ── Programmatic SEO page (locality / metro / landmark) ─────────────── */
+.seo-hero {
+  margin-bottom: var(--space-8);
+}
+.seo-hero__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.seo-hero__pin {
+  flex-shrink: 0;
+  color: var(--brand);
+}
+.seo-hero__intro {
+  max-width: 680px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.65;
+  margin-bottom: var(--space-5);
+}
+.seo-hero__nearby {
+  max-width: 680px;
+  margin-top: var(--space-4);
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.seo-hero__cta {
+  margin-top: var(--space-5);
+}
+
+.seo-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+}
+.seo-stat {
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.seo-stat__value {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.seo-stat__label {
+  margin-top: var(--space-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.seo-popular {
+  margin: var(--space-10) 0;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+}
+.seo-popular__title {
+  margin-bottom: var(--space-4);
+  font-size: 16px;
+}
+.seo-cta-band {
+  margin-top: var(--space-10);
+  padding: var(--space-8);
+  text-align: center;
+  background: var(--brand-light);
+  border-radius: var(--radius-lg);
+}
 
 /* ── Inputs ──────────────────────────────────────────────────────────── */
 .input {
