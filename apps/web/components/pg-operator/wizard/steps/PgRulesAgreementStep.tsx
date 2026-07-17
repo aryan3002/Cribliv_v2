@@ -118,6 +118,15 @@ export default function PgRulesAgreementStep({
         </div>
 
         <Disclosure summary="Add payment & lock-in details">
+          <SegmentedControl
+            label="Lock-in period"
+            value={d.lock_in_months != null ? String(d.lock_in_months) : undefined}
+            options={["0", "1", "2", "3", "6"].map((value) => ({
+              value,
+              label: value === "0" ? "None" : `${value} mo`
+            }))}
+            onChange={(v) => setF("pg_details.lock_in_months", Number(v))}
+          />
           <ChipMultiSelect
             label="Payment modes"
             value={(d.payment_modes as string[]) ?? []}
@@ -127,6 +136,25 @@ export default function PgRulesAgreementStep({
               { value: "cash", label: "Cash" }
             ]}
             onChange={(v) => setF("pg_details.payment_modes", v)}
+          />
+          <SegmentedControl
+            label="Rent due day"
+            value={d.rent_due_day != null ? String(d.rent_due_day) : undefined}
+            options={[
+              { value: "1", label: "1st" },
+              { value: "5", label: "5th" },
+              { value: "10", label: "10th" }
+            ]}
+            onChange={(v) => setF("pg_details.rent_due_day", Number(v))}
+          />
+          <SegmentedControl
+            label="Rent negotiable?"
+            value={d.price_negotiable ? "yes" : "no"}
+            options={[
+              { value: "no", label: "Fixed" },
+              { value: "yes", label: "Negotiable" }
+            ]}
+            onChange={(v) => setF("pg_details.price_negotiable", v === "yes")}
           />
         </Disclosure>
       </SectionCard>

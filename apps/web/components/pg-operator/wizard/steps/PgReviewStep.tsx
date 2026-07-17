@@ -406,6 +406,8 @@ export default function PgReviewStep({
           <Row label="Notice period">
             {d.notice_period_days != null ? `${d.notice_period_days} days` : "-"}
           </Row>
+          <Row label="Lock-in">{d.lock_in_months != null ? `${d.lock_in_months} mo` : "-"}</Row>
+          <Row label="Payment modes">{(d.payment_modes ?? []).join(", ") || "-"}</Row>
           <Row label="Electricity">{ELEC[d.electricity_mode] ?? "-"}</Row>
         </div>
       </SectionCard>
