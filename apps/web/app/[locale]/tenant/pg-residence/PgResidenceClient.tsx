@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, type BadgeTone } from "@cribliv/ui";
 import type {
@@ -112,6 +112,11 @@ export default function PgResidenceClient({
 }) {
   const router = useRouter();
   const [residence, setResidence] = useState(initialResidence);
+
+  useEffect(() => {
+    setResidence(initialResidence);
+  }, [initialResidence]);
+
   const [activeTab, setActiveTab] = useState<ResidenceTab>("Overview");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

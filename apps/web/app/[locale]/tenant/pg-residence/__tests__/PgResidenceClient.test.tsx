@@ -115,6 +115,26 @@ describe("PgResidenceClient", () => {
     expect(maintenancePanel).not.toBeVisible();
   });
 
+  it("resyncs residence details when refreshed server props arrive", () => {
+    const { rerender } = renderResidence();
+
+    rerender(
+      <ToastProvider>
+        <PgResidenceClient
+          initialResidence={residence({ property_name: "Refreshed PG" })}
+          initialMaintenance={[]}
+          maintenanceLoadError={null}
+          maintenanceHistoryEnabled
+          token="token-1"
+        />
+      </ToastProvider>
+    );
+
+    // property_name renders in two places (header + overview list), so use getAllByText.
+    expect(screen.getAllByText(/Refreshed PG/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Aashiyana PG/)).not.toBeInTheDocument();
+  });
+
   it("renders the residence tabs in their required order", () => {
     renderResidence();
 
