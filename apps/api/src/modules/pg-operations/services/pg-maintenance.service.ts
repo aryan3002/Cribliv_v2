@@ -278,7 +278,7 @@ const MAX_MAINTENANCE_PHOTOS = 6;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const PG_MAINTENANCE_LOCATION_KINDS: readonly PgMaintenanceLocationKind[] = [
+export const PG_MAINTENANCE_LOCATION_KINDS: readonly PgMaintenanceLocationKind[] = [
   "bed",
   "room",
   "floor",
@@ -287,7 +287,7 @@ const PG_MAINTENANCE_LOCATION_KINDS: readonly PgMaintenanceLocationKind[] = [
   "other"
 ];
 
-const PG_MAINTENANCE_COMMON_AREAS: readonly PgMaintenanceCommonArea[] = [
+export const PG_MAINTENANCE_COMMON_AREAS: readonly PgMaintenanceCommonArea[] = [
   "kitchen",
   "common_bathroom",
   "lift",
@@ -304,11 +304,25 @@ const PG_MAINTENANCE_COMMON_AREAS: readonly PgMaintenanceCommonArea[] = [
   "other"
 ];
 
-const PG_MAINTENANCE_PRIORITIES: readonly PgMaintenancePriority[] = [
+export const PG_MAINTENANCE_PRIORITIES: readonly PgMaintenancePriority[] = [
   "emergency",
   "high",
   "normal",
   "low"
+];
+
+export const PG_MAINTENANCE_EVENT_TYPES: readonly PgMaintenanceEventType[] = [
+  "created",
+  "status_changed",
+  "priority_set",
+  "priority_overridden",
+  "comment_added",
+  "internal_note_added",
+  "photo_added",
+  "resolution_recorded",
+  "reopened",
+  "auto_closed",
+  "cancelled"
 ];
 
 const MAINTENANCE_REQUEST_SELECT = `
@@ -790,7 +804,18 @@ export class PgMaintenanceService {
          JOIN pg_bed_assignments a
            ON (
              a.tenant_user_id = caller.id
-             OR (a.tenant_user_id IS NULL AND a.occupant_phone_e164 = caller.phone_e164)
+             OR (
+               $2::text IN ('current', 'all')
+               AND a.tenant_user_id IS NULL
+               AND a.occupant_phone_e164 = caller.phone_e164
+               AND a.status IN (
+                 'reserved',
+                 'active',
+                 'notice_served',
+                 'move_out_requested',
+                 'move_out_pending_confirmation'
+               )
+             )
            )
         WHERE (
           $2::text IN ('current', 'all')
@@ -1098,6 +1123,11 @@ export class PgMaintenanceService {
     return role;
   }
 
+  private maintenanceActorRole(role: Role): PgMaintenanceTimelineEvent["actor_role"] {
+    if (role === "tenant" || role === "pg_operator" || role === "admin") return role;
+    throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
+  }
+
   private async requestForAccess(requestId: string): Promise<MaintenanceRow> {
     const result = await this.db.query<MaintenanceRow>(
       `SELECT ${MAINTENANCE_REQUEST_SELECT}
@@ -1195,39 +1225,59 @@ export class PgMaintenanceService {
     );
     const slaHours = this.priorityHours(category.default_priority);
 
-    const result = await this.db.query<{ id: string }>(
-      `INSERT INTO pg_maintenance_requests
-         (pg_property_id, assignment_id, created_by_user_id, category, category_slug,
-          category_label_snapshot, description, photo_paths, priority, priority_source,
-          sla_hours, sla_due_at, location_kind, room_id, bed_id, floor, common_area,
-          location_detail, location_snapshot)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::jsonb,
-               $9::pg_maintenance_priority, 'category_default', $10,
-               now() + make_interval(hours => $11::integer), $12::pg_maintenance_location_kind,
-               $13::uuid, $14::uuid, $15, $16::pg_maintenance_common_area, $17, $18::jsonb)
-       RETURNING id::text`,
-      [
-        residence.property_id,
-        residence.assignment_id,
-        callerUserId,
-        legacyCategory,
-        category.slug,
-        category.display_name,
-        description,
-        JSON.stringify(photoPaths),
-        category.default_priority,
-        slaHours,
-        slaHours,
-        location.kind,
-        location.roomId,
-        location.bedId,
-        location.floor,
-        location.commonArea,
-        location.detail,
-        JSON.stringify(location.snapshot)
-      ]
-    );
-    const requests = await this.withComments([await this.requestForAccess(result.rows[0].id)]);
+    const requestId = await transaction(this.db, async (client) => {
+      const result = await client.query<{ id: string }>(
+        `INSERT INTO pg_maintenance_requests
+           (pg_property_id, assignment_id, created_by_user_id, category, category_slug,
+            category_label_snapshot, description, photo_paths, priority, priority_source,
+            sla_hours, sla_due_at, location_kind, room_id, bed_id, floor, common_area,
+            location_detail, location_snapshot)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8::jsonb,
+                 $9::pg_maintenance_priority, 'category_default', $10,
+                 now() + make_interval(hours => $11::integer), $12::pg_maintenance_location_kind,
+                 $13::uuid, $14::uuid, $15, $16::pg_maintenance_common_area, $17, $18::jsonb)
+         RETURNING id::text`,
+        [
+          residence.property_id,
+          residence.assignment_id,
+          callerUserId,
+          legacyCategory,
+          category.slug,
+          category.display_name,
+          description,
+          JSON.stringify(photoPaths),
+          category.default_priority,
+          slaHours,
+          slaHours,
+          location.kind,
+          location.roomId,
+          location.bedId,
+          location.floor,
+          location.commonArea,
+          location.detail,
+          JSON.stringify(location.snapshot)
+        ]
+      );
+      const id = result.rows[0].id;
+      await client.query(
+        `INSERT INTO pg_maintenance_events
+           (request_id, event_type, visibility, actor_user_id, actor_role,
+            to_status, payload, created_at)
+         VALUES ($1::uuid, 'created', 'public', $2::uuid, 'tenant',
+                 'open', $3::jsonb, clock_timestamp())`,
+        [
+          id,
+          callerUserId,
+          JSON.stringify({
+            category_slug: category.slug,
+            priority: category.default_priority,
+            location_kind: location.kind
+          })
+        ]
+      );
+      return id;
+    });
+    const requests = await this.withComments([await this.requestForAccess(requestId)]);
     return requests[0];
   }
 
@@ -1291,7 +1341,10 @@ export class PgMaintenanceService {
     }
     const limit = this.cleanQueueLimit(filters.limit);
     const floor = this.cleanQueueFloor(filters.floor);
-    const includeClosed = this.cleanQueueBoolean(filters.include_closed);
+    const includeClosed =
+      this.cleanQueueBoolean(filters.include_closed) ||
+      status === "closed" ||
+      status === "cancelled";
     const cursor = this.decodeQueueCursor(filters.cursor, sort);
 
     await this.assertManagedOwnership(operatorId, propertyId);
@@ -2015,6 +2068,20 @@ export class PgMaintenanceService {
           to_status: status
         });
       }
+      await client.query(
+        `INSERT INTO pg_maintenance_events
+           (request_id, event_type, visibility, actor_user_id, actor_role,
+            from_status, to_status, payload, created_at)
+         VALUES ($1::uuid, $2::pg_maintenance_event_type, 'public', $3::uuid, 'pg_operator',
+                 $4, $5, '{}'::jsonb, clock_timestamp())`,
+        [
+          requestId,
+          status === "cancelled" ? "cancelled" : "status_changed",
+          operatorId,
+          request.status,
+          status
+        ]
+      );
       return result.rows[0].id;
     });
     const requests = await this.withComments([await this.requestForAccess(updatedRequestId)]);
@@ -2044,6 +2111,7 @@ export class PgMaintenanceService {
       });
     }
     const role = await this.callerRole(callerUserId);
+    const actorRole = this.maintenanceActorRole(role);
     const request = await this.requestForAccess(requestId);
     if (expectedPropertyId && request.pg_property_id !== expectedPropertyId) {
       throw new NotFoundException({
@@ -2072,14 +2140,60 @@ export class PgMaintenanceService {
       );
     }
 
-    const result = await this.db.query<CommentRow>(
-      `INSERT INTO pg_maintenance_comments
-         (request_id, author_user_id, author_role, body, attachments)
-       VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb)
-       RETURNING id::text, request_id::text, author_user_id::text, author_role,
-                 body, attachments, created_at`,
-      [requestId, callerUserId, role, commentBody, JSON.stringify(attachments)]
-    );
+    const result = await transaction(this.db, async (client) => {
+      const current = await client.query<{ id: string }>(
+        `SELECT id::text
+           FROM pg_maintenance_requests
+          WHERE id = $1::uuid
+          FOR UPDATE`,
+        [requestId]
+      );
+      if (!current.rows[0]) {
+        throw new NotFoundException({
+          code: "maintenance_request_not_found",
+          message: "Maintenance request not found"
+        });
+      }
+      const comment = await client.query<CommentRow>(
+        `INSERT INTO pg_maintenance_comments
+           (request_id, author_user_id, author_role, body, attachments)
+         VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb)
+         RETURNING id::text, request_id::text, author_user_id::text, author_role,
+                   body, attachments, created_at`,
+        [requestId, callerUserId, actorRole, commentBody, JSON.stringify(attachments)]
+      );
+      await client.query(
+        `UPDATE pg_maintenance_requests
+            SET last_tenant_activity_at = CASE
+                  WHEN $2 = 'tenant' THEN now()
+                  ELSE last_tenant_activity_at
+                END,
+                last_operator_activity_at = CASE
+                  WHEN $2 IN ('pg_operator', 'admin') THEN now()
+                  ELSE last_operator_activity_at
+                END,
+                auto_close_after = CASE
+                  WHEN $2 = 'tenant' AND status = 'resolved' AND auto_close_after > now()
+                    THEN NULL
+                  ELSE auto_close_after
+                END,
+                updated_at = now()
+          WHERE id = $1::uuid`,
+        [requestId, actorRole]
+      );
+      await client.query(
+        `INSERT INTO pg_maintenance_events
+           (request_id, event_type, visibility, actor_user_id, actor_role, payload, created_at)
+         VALUES ($1::uuid, 'comment_added', 'public', $2::uuid, $3, $4::jsonb, clock_timestamp())`,
+        [
+          requestId,
+          callerUserId,
+          actorRole,
+          JSON.stringify({ comment_id: comment.rows[0].id, attachments })
+        ]
+      );
+      return comment;
+    });
     return toComment(result.rows[0], this.photoBaseUrl());
   }
 
@@ -2122,6 +2236,7 @@ export class PgMaintenanceService {
     if (!this.db.isEnabled()) throw this.unavailable();
     const request = await this.requestForAccess(requestId);
     await this.assertCallerCanAccessRequest(callerUserId, request, expectedPropertyId);
+    const actorRole = this.maintenanceActorRole(await this.callerRole(callerUserId));
     const validated = this.validateCompletedPhotos(photos);
     const storage = this.requirePhotoStorage();
 
@@ -2147,8 +2262,12 @@ export class PgMaintenanceService {
       }
       const existing = stringArray(current.rows[0].photo_paths);
       const merged = [...existing];
+      const addedPaths: string[] = [];
       for (const photo of validated) {
-        if (!merged.includes(photo.blobPath)) merged.push(photo.blobPath);
+        if (!merged.includes(photo.blobPath)) {
+          merged.push(photo.blobPath);
+          addedPaths.push(photo.blobPath);
+        }
       }
       if (merged.length > MAX_MAINTENANCE_PHOTOS) {
         throw new BadRequestException({
@@ -2160,10 +2279,26 @@ export class PgMaintenanceService {
       await client.query(
         `UPDATE pg_maintenance_requests
             SET photo_paths = $2::jsonb,
+                last_tenant_activity_at = CASE
+                  WHEN $3 = 'tenant' THEN now()
+                  ELSE last_tenant_activity_at
+                END,
+                last_operator_activity_at = CASE
+                  WHEN $3 IN ('pg_operator', 'admin') THEN now()
+                  ELSE last_operator_activity_at
+                END,
                 updated_at = now()
           WHERE id = $1::uuid`,
-        [requestId, JSON.stringify(merged)]
+        [requestId, JSON.stringify(merged), actorRole]
       );
+      if (addedPaths.length > 0) {
+        await client.query(
+          `INSERT INTO pg_maintenance_events
+             (request_id, event_type, visibility, actor_user_id, actor_role, payload, created_at)
+           VALUES ($1::uuid, 'photo_added', 'public', $2::uuid, $3, $4::jsonb, clock_timestamp())`,
+          [requestId, callerUserId, actorRole, JSON.stringify({ photo_paths: addedPaths })]
+        );
+      }
     });
     const requests = await this.withComments([await this.requestForAccess(requestId)]);
     return requests[0];

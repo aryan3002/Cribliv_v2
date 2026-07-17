@@ -543,6 +543,53 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
       .expect(403);
   });
 
+  it("does not expose historical legacy tickets by phone-only assignment matches", async () => {
+    const fixture = await createFixture(operatorId, [otherTenantId, foreignTenantId]);
+    const tenantPhone = await db.query<{ phone_e164: string }>(
+      `SELECT phone_e164
+         FROM users
+        WHERE id = $1::uuid`,
+      [tenantId]
+    );
+    await db.query(
+      `UPDATE pg_bed_assignments
+          SET tenant_user_id = NULL,
+              status = 'moved_out',
+              move_out_date = CURRENT_DATE,
+              occupant_phone_e164 = $2
+        WHERE id = $1::uuid`,
+      [fixture.assignmentIds[0], tenantPhone.rows[0].phone_e164]
+    );
+    const legacyTicket = await db.query<{ id: string }>(
+      `INSERT INTO pg_maintenance_requests
+         (pg_property_id, assignment_id, created_by_user_id, category, description)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'old', 'Legacy phone-only prior ticket')
+       RETURNING id::text`,
+      [fixture.propertyId, fixture.assignmentIds[0], otherTenantId]
+    );
+    await db.query(
+      `INSERT INTO pg_bed_assignments
+         (pg_property_id, bed_id, tenant_user_id, occupant_name, occupant_phone_e164,
+          status, created_by)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'Current recycled tenant', $4, 'active', $5::uuid)`,
+      [fixture.propertyId, fixture.bedIds[0], tenantId, tenantPhone.rows[0].phone_e164, operatorId]
+    );
+
+    await request(app.getHttpServer())
+      .get("/v1/tenant/pg-residence/maintenance?scope=all")
+      .set("x-test-identity", "tenant")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: legacyTicket.rows[0].id })])
+        );
+      });
+    await request(app.getHttpServer())
+      .get(`/v1/tenant/pg-residence/maintenance/${legacyTicket.rows[0].id}`)
+      .set("x-test-identity", "tenant")
+      .expect(403);
+  });
+
   it("reopens a resolved current ticket transactionally and replays the controller key", async () => {
     const fixture = await createFixture();
     const ticket = await createTenantTicket(fixture);
@@ -593,6 +640,7 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
       [ticket.id]
     );
     expect(events.rows).toEqual([
+      { event_type: "created", from_status: null, to_status: "open" },
       { event_type: "reopened", from_status: "resolved", to_status: "in_progress" },
       { event_type: "comment_added", from_status: null, to_status: null }
     ]);
@@ -624,7 +672,29 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
         WHERE request_id = $1::uuid`,
       [ticket.id]
     );
-    expect(events.rows).toEqual([{ event_type: "reopened" }]);
+    expect(events.rows).toEqual([{ event_type: "created" }, { event_type: "reopened" }]);
+  });
+
+  it("clears resolved ticket auto-close when the tenant comments before the deadline", async () => {
+    const fixture = await createFixture();
+    const ticket = await createTenantTicket(fixture);
+    await db.query(
+      `UPDATE pg_maintenance_requests
+          SET status = 'resolved', resolved_at = now(), auto_close_after = now() + INTERVAL '1 day'
+        WHERE id = $1::uuid`,
+      [ticket.id]
+    );
+
+    const comment = await maintenance.addComment(tenantId, ticket.id, "This is still not fixed");
+
+    expect(comment.author_role).toBe("tenant");
+    const state = await db.query<{ status: string; auto_close_after: Date | null }>(
+      `SELECT status::text, auto_close_after
+         FROM pg_maintenance_requests
+        WHERE id = $1::uuid`,
+      [ticket.id]
+    );
+    expect(state.rows[0]).toEqual({ status: "resolved", auto_close_after: null });
   });
 
   it("rejects tenant reopen for closed, expired, and historical tickets", async () => {
@@ -886,6 +956,58 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
     expect(operatorComment.author_role).toBe("pg_operator");
     expect(tenantComment.author_role).toBe("tenant");
     expect(closed).toMatchObject({ status: "closed", closed_at: expect.any(String) });
+  });
+
+  it("records timeline events for live create, status, comment, and photo writes", async () => {
+    const fixture = await createFixture();
+    const ticket = await createTenantTicket(fixture);
+    await maintenance.updateStatus(operatorId, ticket.id, "in_progress");
+    const comment = await maintenance.addComment(operatorId, ticket.id, "Plumber booked for noon");
+    const photoPath = `pg-maintenance/${fixture.propertyId}/${ticket.id}/tenant-photo.jpg`;
+    await maintenance.completeRequestPhotos(tenantId, ticket.id, [
+      { client_upload_id: "photo-1", blob_path: photoPath }
+    ]);
+
+    const events = await db.query<{
+      event_type: string;
+      actor_role: string;
+      from_status: string | null;
+      to_status: string | null;
+      payload: Record<string, unknown>;
+    }>(
+      `SELECT event_type::text, actor_role, from_status, to_status, payload
+         FROM pg_maintenance_events
+        WHERE request_id = $1::uuid
+        ORDER BY created_at, id`,
+      [ticket.id]
+    );
+
+    expect(events.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: "created",
+          actor_role: "tenant",
+          from_status: null,
+          to_status: "open"
+        }),
+        expect.objectContaining({
+          event_type: "status_changed",
+          actor_role: "pg_operator",
+          from_status: "open",
+          to_status: "in_progress"
+        }),
+        expect.objectContaining({
+          event_type: "comment_added",
+          actor_role: "pg_operator",
+          payload: expect.objectContaining({ comment_id: comment.id })
+        }),
+        expect.objectContaining({
+          event_type: "photo_added",
+          actor_role: "tenant",
+          payload: expect.objectContaining({ photo_paths: [photoPath] })
+        })
+      ])
+    );
   });
 
   it("returns comment threads in creation order", async () => {

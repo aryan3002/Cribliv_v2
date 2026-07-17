@@ -11,7 +11,14 @@ import { DatabaseService } from "../../../common/database.service";
 import type { Role } from "../../../common/types";
 import { autoCloseResolvedMaintenance } from "../../../worker/maintenance-sweeps";
 import { AzureBlobPhotoStorageService } from "../../owner/azure-blob-photo-storage.service";
-import { PgMaintenanceService } from "../services/pg-maintenance.service";
+import {
+  PG_MAINTENANCE_COMMON_AREAS,
+  PG_MAINTENANCE_EVENT_TYPES,
+  PG_MAINTENANCE_LOCATION_KINDS,
+  PG_MAINTENANCE_PRIORITIES,
+  PG_MAINTENANCE_STATUSES,
+  PgMaintenanceService
+} from "../services/pg-maintenance.service";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 const testRunId = randomUUID().replace(/-/g, "");
@@ -265,6 +272,32 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
     }
   }, 30_000);
 
+  it("keeps TypeScript maintenance enums in sync with Postgres enums", async () => {
+    async function enumValues(typeName: string): Promise<string[]> {
+      const result = await db.query<{ enumlabel: string }>(
+        `SELECT e.enumlabel
+           FROM pg_enum e
+           JOIN pg_type t ON t.oid = e.enumtypid
+          WHERE t.typname = $1
+          ORDER BY e.enumsortorder`,
+        [typeName]
+      );
+      return result.rows.map((row) => row.enumlabel);
+    }
+
+    await expect(enumValues("pg_maintenance_status")).resolves.toEqual(PG_MAINTENANCE_STATUSES);
+    await expect(enumValues("pg_maintenance_priority")).resolves.toEqual(PG_MAINTENANCE_PRIORITIES);
+    await expect(enumValues("pg_maintenance_location_kind")).resolves.toEqual(
+      PG_MAINTENANCE_LOCATION_KINDS
+    );
+    await expect(enumValues("pg_maintenance_common_area")).resolves.toEqual(
+      PG_MAINTENANCE_COMMON_AREAS
+    );
+    await expect(enumValues("pg_maintenance_event_type")).resolves.toEqual(
+      PG_MAINTENANCE_EVENT_TYPES
+    );
+  });
+
   it("returns the maintenance category catalog for operator pages", async () => {
     await request(app.getHttpServer())
       .get("/v1/pg-operator/maintenance/categories")
@@ -441,6 +474,31 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
     expect(newestSecondPage.body.data.rows.map((row: { id: string }) => row.id)).toEqual([
       olderSameSla
     ]);
+  });
+
+  it("returns closed and cancelled rows when filtered by those statuses", async () => {
+    const fixture = await createFixture();
+    const closed = await createTicket(fixture, { status: "closed" });
+    const cancelled = await createTicket(fixture, { status: "cancelled" });
+    await createTicket(fixture, { status: "open" });
+
+    await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance`)
+      .query({ status: "closed" })
+      .set("x-test-identity", "operator")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data.rows.map((row: { id: string }) => row.id)).toEqual([closed]);
+      });
+
+    await request(app.getHttpServer())
+      .get(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance`)
+      .query({ status: "cancelled" })
+      .set("x-test-identity", "operator")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.data.rows.map((row: { id: string }) => row.id)).toEqual([cancelled]);
+      });
   });
 
   it("overrides priority transactionally and records the timeline event", async () => {
