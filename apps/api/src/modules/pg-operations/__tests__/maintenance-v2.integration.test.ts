@@ -8,6 +8,7 @@ import request from "supertest";
 import { AppModule } from "../../../app.module";
 import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
+import { transaction } from "../../../common/transaction";
 import type { Role } from "../../../common/types";
 import { autoCloseResolvedMaintenance } from "../../../worker/maintenance-sweeps";
 import { AzureBlobPhotoStorageService } from "../../owner/azure-blob-photo-storage.service";
@@ -245,16 +246,20 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
   afterEach(async () => {
     const ids = propertyIds.splice(0);
     if (ids.length > 0) {
-      await db.query(
-        `ALTER TABLE pg_maintenance_events DISABLE TRIGGER pg_maintenance_events_immutable`
-      );
-      try {
-        await db.query(`DELETE FROM pg_properties WHERE id = ANY($1::uuid[])`, [ids]);
-      } finally {
-        await db.query(
+      await transaction(db, async (client) => {
+        // The disable/delete/enable must commit atomically on one connection.
+        // ALTER TABLE ... DISABLE TRIGGER is database-global and holds ACCESS
+        // EXCLUSIVE until commit, so wrapping it serializes this cleanup against
+        // the sibling maintenance suite in a parallel worker; in autocommit the
+        // sibling's ENABLE lands mid-DELETE and the immutable trigger fires.
+        await client.query(
+          `ALTER TABLE pg_maintenance_events DISABLE TRIGGER pg_maintenance_events_immutable`
+        );
+        await client.query(`DELETE FROM pg_properties WHERE id = ANY($1::uuid[])`, [ids]);
+        await client.query(
           `ALTER TABLE pg_maintenance_events ENABLE TRIGGER pg_maintenance_events_immutable`
         );
-      }
+      });
     }
   });
 
