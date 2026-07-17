@@ -141,6 +141,7 @@ export default function MaintenanceTicketDetail({
   const latestRequestRef = useRef(request);
   const commentPhotoInputRef = useRef<HTMLInputElement>(null);
   const [showResolution, setShowResolution] = useState(false);
+  const [resolutionPending, setResolutionPending] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
   const [priority, setPriority] = useState<PgMaintenancePriority>(request.priority);
   const [priorityReason, setPriorityReason] = useState("");
@@ -390,7 +391,7 @@ export default function MaintenanceTicketDetail({
                     key={status}
                     type="button"
                     variant="secondary"
-                    disabled={pending !== null}
+                    disabled={pending !== null || resolutionPending}
                     onClick={() => setShowResolution((current) => !current)}
                   >
                     Resolve
@@ -425,6 +426,7 @@ export default function MaintenanceTicketDetail({
               request={request}
               propertyId={propertyId}
               token={token}
+              onPendingChange={setResolutionPending}
               onOptimisticResolved={(updated) =>
                 emitRequestUpdated(applyResolutionFields(latestRequestFor(updated.id), updated), {
                   reload: false

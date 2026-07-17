@@ -110,6 +110,7 @@ export default function MaintenanceKanban({
   const toast = useToast();
   const [columns, setColumns] = useState(initialColumns(initialPage, initialColumnPages));
   const [resolving, setResolving] = useState<PgMaintenanceRequest | null>(null);
+  const [resolutionPending, setResolutionPending] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [activeColumn, setActiveColumn] = useState<KanbanStatus>("open");
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -140,7 +141,7 @@ export default function MaintenanceKanban({
 
   function handleDialogKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
-      setResolving(null);
+      if (!resolutionPending) setResolving(null);
       return;
     }
     if (event.key !== "Tab") return;
@@ -415,7 +416,7 @@ export default function MaintenanceKanban({
           >
             <h2>Resolve ticket</h2>
             <div className={styles.dialogActions}>
-              <button type="button" onClick={() => setResolving(null)}>
+              <button type="button" disabled={resolutionPending} onClick={() => setResolving(null)}>
                 Cancel
               </button>
             </div>
@@ -425,8 +426,10 @@ export default function MaintenanceKanban({
               token={token ?? ""}
               onOptimisticResolved={replaceRequest}
               onRollback={replaceRequest}
+              onPendingChange={setResolutionPending}
               onResolved={(updated) => {
                 replaceRequest(updated);
+                setResolutionPending(false);
                 setResolving(null);
               }}
             />

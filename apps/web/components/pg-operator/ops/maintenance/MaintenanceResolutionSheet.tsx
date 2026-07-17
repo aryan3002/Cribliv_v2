@@ -37,7 +37,8 @@ export default function MaintenanceResolutionSheet({
   token,
   onResolved,
   onOptimisticResolved,
-  onRollback
+  onRollback,
+  onPendingChange
 }: {
   request: PgMaintenanceRequest;
   propertyId: string;
@@ -45,6 +46,7 @@ export default function MaintenanceResolutionSheet({
   onResolved: (request: PgMaintenanceRequest) => void;
   onOptimisticResolved?: (request: PgMaintenanceRequest) => void;
   onRollback?: (request: PgMaintenanceRequest, optimisticRequest: PgMaintenanceRequest) => void;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const toast = useToast();
   const [note, setNote] = useState("");
@@ -126,6 +128,7 @@ export default function MaintenanceResolutionSheet({
 
     pendingRef.current = true;
     setPending(true);
+    onPendingChange?.(true);
     setError(null);
     onOptimisticResolved?.(submission.optimisticRequest);
     try {
@@ -154,6 +157,7 @@ export default function MaintenanceResolutionSheet({
     } finally {
       pendingRef.current = false;
       setPending(false);
+      onPendingChange?.(false);
     }
   }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgMaintenanceRequest } from "@cribliv/shared-types";
 
@@ -196,5 +196,34 @@ describe("MaintenanceResolutionSheet", () => {
         "idem-resolution"
       )
     );
+  });
+
+  it("reports pending state to the parent while submitting", async () => {
+    let finishRequest: (value: PgMaintenanceRequest) => void = () => {};
+    resolveMaintenanceTicket.mockImplementation(
+      () => new Promise<PgMaintenanceRequest>((resolve) => (finishRequest = resolve))
+    );
+    const onPendingChange = vi.fn();
+    render(
+      <MaintenanceResolutionSheet
+        request={ticket()}
+        propertyId="property-1"
+        token="token-1"
+        onResolved={vi.fn()}
+        onPendingChange={onPendingChange}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText("Resolution note"), {
+      target: { value: "Replaced the tap washer." }
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "No" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resolve ticket" }));
+
+    await waitFor(() => expect(onPendingChange).toHaveBeenCalledWith(true));
+    await act(async () => {
+      finishRequest(ticket({ status: "resolved" }));
+    });
+    await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(false));
   });
 });
