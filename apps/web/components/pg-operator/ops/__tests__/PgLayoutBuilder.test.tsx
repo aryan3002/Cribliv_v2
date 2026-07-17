@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PgLayoutDraft, PgRoom } from "@cribliv/shared-types";
-import PgLayoutBuilder from "../PgLayoutBuilder";
+import type { PgLayoutDraft, PgLayoutRoomInput, PgRoom } from "@cribliv/shared-types";
+import PgLayoutBuilder, { nextManualRoomNumber } from "../PgLayoutBuilder";
 
 const { generateLayoutDraft, savePropertyLayout } = vi.hoisted(() => ({
   generateLayoutDraft: vi.fn(),
@@ -106,5 +106,21 @@ describe("PgLayoutBuilder", () => {
     await waitFor(() => expect(screen.getAllByLabelText("Room number")).toHaveLength(2));
     expect(screen.getByDisplayValue("101")).toBeInTheDocument();
     expect(screen.getByDisplayValue("102")).toBeInTheDocument();
+  });
+
+  it("never suggests a room number that already exists", () => {
+    const existing = [
+      {
+        room_type_id: null,
+        floor: 1,
+        room_number: "102",
+        display_label: null,
+        bed_count: 1,
+        beds: [{ bed_label: "A", status: "vacant", sort_order: 1, metadata: {} }]
+      }
+    ] as PgLayoutRoomInput[];
+
+    expect(nextManualRoomNumber(existing, 1)).toBe("103");
+    expect(nextManualRoomNumber([], 1)).toBe("101");
   });
 });

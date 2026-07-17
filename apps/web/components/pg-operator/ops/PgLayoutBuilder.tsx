@@ -50,6 +50,17 @@ function generatedRoomNumber(floor: number | null | undefined, sequence: number)
     : `${floor}${String(sequence).padStart(2, "0")}`;
 }
 
+export function nextManualRoomNumber(rooms: PgLayoutRoomInput[], floor: number): string {
+  const used = new Set(rooms.map((room) => room.room_number.trim()));
+  let sequence = rooms.length + 1;
+  let candidate = generatedRoomNumber(floor, sequence);
+  while (used.has(candidate)) {
+    sequence += 1;
+    candidate = generatedRoomNumber(floor, sequence);
+  }
+  return candidate;
+}
+
 function appendGeneratedRooms(
   current: PgLayoutRoomInput[],
   generated: PgLayoutRoomInput[]
@@ -282,7 +293,10 @@ export default function PgLayoutBuilder({
             onClick={() =>
               setRooms((previous) => [
                 ...previous,
-                blankRoom(previous.length, floor, selectedRoomTypeId || undefined)
+                {
+                  ...blankRoom(previous.length, floor, selectedRoomTypeId || undefined),
+                  room_number: nextManualRoomNumber(previous, floor)
+                }
               ])
             }
           >
