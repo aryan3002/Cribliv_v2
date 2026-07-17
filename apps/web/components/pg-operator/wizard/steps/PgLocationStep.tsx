@@ -6,7 +6,7 @@ import { useGooglePlaces } from "@/lib/google-places";
 import { ensureMapsLoaded } from "@/lib/google-maps";
 import { CRIBLMAP_DARK_STYLE } from "@/lib/map-styles";
 import { trackPgFunnel } from "@/lib/pg-funnel";
-import { listCityLocalities, type PgCityLocality } from "@/lib/pg-operator-api";
+import { getPgNearby, listCityLocalities, type PgCityLocality } from "@/lib/pg-operator-api";
 import { CITIES } from "@/components/listing-wizard/types";
 import SectionCard from "../shared/SectionCard";
 import styles from "../shared/pg-wizard.module.css";
@@ -166,6 +166,10 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const nearbyCache = useRef(
+    new Map<string, { metro: string[]; college: string[]; office: string[] }>()
+  );
+  const nearbyTimer = useRef<ReturnType<typeof setTimeout>>();
 
   // City select → update city_slug
   const onCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -309,6 +313,32 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lng]);
 
+  useEffect(() => {
+    if (lat == null || lng == null || !accessToken) return;
+    const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+    clearTimeout(nearbyTimer.current);
+    nearbyTimer.current = setTimeout(async () => {
+      let nearby = nearbyCache.current.get(key);
+      if (!nearby) {
+        nearby = await getPgNearby(accessToken, lat, lng);
+        nearbyCache.current.set(key, nearby);
+      }
+      const current = state.draft.pg_details?.nearby ?? {};
+      const keep = (existing: string[] | undefined, found: string[]) =>
+        existing?.length ? existing : found;
+      dispatch({
+        type: "SET_FIELD",
+        path: "pg_details.nearby",
+        value: {
+          metro: keep(current.metro, nearby.metro),
+          college: keep(current.college, nearby.college),
+          office: keep(current.office, nearby.office)
+        }
+      });
+    }, 700);
+    return () => clearTimeout(nearbyTimer.current);
+  }, [accessToken, lat, lng, state.draft.pg_details?.nearby, dispatch]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <SectionCard
@@ -413,6 +443,7 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
         subtitle="Landmarks help tenants find you, optional but recommended."
         icon={<Navigation size={20} />}
       >
+        <p className={styles.mapHint}>Auto-filled from map — edit as needed.</p>
         <NearbyTags
           label="metro"
           fieldKey="metro"

@@ -244,6 +244,13 @@ export async function listCityLocalities(citySlug: string): Promise<{ items: PgC
   return result;
 }
 
+export function getPgNearby(token: string, lat: number, lng: number) {
+  return fetchApi<{ metro: string[]; college: string[]; office: string[] }>(
+    `/pg-operator/listings/nearby?lat=${lat}&lng=${lng}`,
+    { headers: authHeaders(token) }
+  ).catch(() => ({ metro: [], college: [], office: [] }));
+}
+
 // ─── Draft persistence (§6.2) ─────────────────────────────────────────────────
 
 export interface PgDraftSummary {
