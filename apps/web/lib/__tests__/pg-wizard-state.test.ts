@@ -88,8 +88,9 @@ describe("pgWizardReducer", () => {
         vacancy_count: 2
       }
     });
-    // cellKey: sharing|ac|bathroom_kind|furnishing — defaults attached_western|semi_furnished
-    const key = "double|true|attached_western|semi_furnished";
+    // cellKey: sharing|ac|bathroom_kind|furnishing|has_balcony — defaults
+    // attached_western|semi_furnished|0 (no balcony).
+    const key = "double|true|attached_western|semi_furnished|0";
     const s3 = pgWizardReducer(s2, { type: "REMOVE_ROOM_TYPE", key });
     expect(s3.draft.room_types).toHaveLength(1);
     expect(s3.draft.room_types![0].sharing).toBe("single");
