@@ -263,6 +263,18 @@ export class PgBedAssignmentService {
     if (!/^\+[1-9]\d{7,14}$/.test(input.occupant_phone_e164 ?? "")) {
       throw new BadRequestException({ code: "invalid_occupant_phone" });
     }
+    for (const field of ["expected_move_in_date", "move_in_date"] as const) {
+      const value = input[field];
+      if (value != null && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new BadRequestException({ code: "invalid_assignment_date" });
+      }
+    }
+    for (const field of ["monthly_rent_paise", "security_deposit_paise"] as const) {
+      const value = input[field];
+      if (value != null && (!Number.isSafeInteger(value) || value < 0)) {
+        throw new BadRequestException({ code: "invalid_assignment_amount" });
+      }
+    }
   }
 
   private assertTransition(

@@ -358,6 +358,46 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
     ]);
   });
 
+  it("rejects malformed occupant amounts and dates with 400s", async () => {
+    const fixture = await createFixture();
+
+    await expect(
+      service.reserve(
+        operatorId,
+        fixture.propertyId,
+        fixture.bedIds[0],
+        occupant({ monthly_rent_paise: -1 })
+      )
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_amount" } });
+
+    await expect(
+      service.reserve(
+        operatorId,
+        fixture.propertyId,
+        fixture.bedIds[0],
+        occupant({ security_deposit_paise: 12.5 })
+      )
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_amount" } });
+
+    await expect(
+      service.reserve(
+        operatorId,
+        fixture.propertyId,
+        fixture.bedIds[0],
+        occupant({ expected_move_in_date: "15-01-2099" })
+      )
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_date" } });
+
+    await expect(
+      service.moveIn(
+        operatorId,
+        fixture.propertyId,
+        fixture.bedIds[0],
+        occupant({ move_in_date: "not-a-date" })
+      )
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_date" } });
+  });
+
   it("exposes reserve through a property-scoped idempotent controller endpoint", async () => {
     const fixture = await createFixture();
     const key = `reserve-${testRunId}`;
