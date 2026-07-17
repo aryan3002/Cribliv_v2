@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { defaultFeatureFlags } from "../feature-flags";
+import { afterEach, describe, it, expect } from "vitest";
+import { defaultFeatureFlags, readFeatureFlags } from "../feature-flags";
+
+afterEach(() => {
+  delete process.env.FF_PG_MAINTENANCE_OPS_V2;
+});
 
 describe("defaultFeatureFlags", () => {
   describe("PG Operator V1 flags", () => {
@@ -23,12 +27,21 @@ describe("defaultFeatureFlags", () => {
 
     it("ships every cross-version (V2+) PG flag OFF", () => {
       expect(defaultFeatureFlags.ff_pg_bed_mgmt).toBe(false);
+      expect(defaultFeatureFlags.ff_pg_maintenance_ops_v2).toBe(false);
       expect(defaultFeatureFlags.ff_pg_tenant_portal).toBe(false);
       expect(defaultFeatureFlags.ff_pg_rent_collection).toBe(false);
       expect(defaultFeatureFlags.ff_pg_food).toBe(false);
       expect(defaultFeatureFlags.ff_pg_ops_full).toBe(false);
       expect(defaultFeatureFlags.ff_pg_agreement).toBe(false);
       expect(defaultFeatureFlags.ff_pg_comms).toBe(false);
+    });
+
+    it("reads FF_PG_MAINTENANCE_OPS_V2 only when explicitly enabled", () => {
+      expect(readFeatureFlags().ff_pg_maintenance_ops_v2).toBe(false);
+
+      process.env.FF_PG_MAINTENANCE_OPS_V2 = "true";
+
+      expect(readFeatureFlags().ff_pg_maintenance_ops_v2).toBe(true);
     });
   });
 });

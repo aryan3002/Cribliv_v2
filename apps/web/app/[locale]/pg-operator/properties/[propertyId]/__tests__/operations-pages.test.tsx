@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -67,6 +68,7 @@ import MaintenancePage from "../maintenance/page";
 import MaintenanceTicketPage from "../maintenance/[ticketId]/page";
 import LayoutPage from "../layout/page";
 import TenantsPage from "../tenants/page";
+import { ToastProvider } from "@/components/ui/toast/toast-provider";
 
 const property = {
   id: "property-1",
@@ -184,6 +186,10 @@ const maintenanceTimeline = [
   }
 ];
 
+function renderPage(ui: ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
+
 describe("PG operations route error states", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -227,7 +233,7 @@ describe("PG operations route error states", () => {
   it("renders a dashboard error instead of fabricated occupancy data", async () => {
     mocks.getOccupancySummary.mockRejectedValue(new Error("API unavailable"));
 
-    render(await DashboardPage({ params: { locale: "en", propertyId: "property-1" } }));
+    renderPage(await DashboardPage({ params: { locale: "en", propertyId: "property-1" } }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(/could not load/i);
     expect(screen.queryByLabelText("Occupancy summary")).not.toBeInTheDocument();
@@ -236,7 +242,7 @@ describe("PG operations route error states", () => {
   it("renders a disabled layout builder when the layout fetch fails", async () => {
     mocks.getPropertyLayout.mockRejectedValue(new Error("API unavailable"));
 
-    render(await LayoutPage({ params: { locale: "en", propertyId: "property-1" } }));
+    renderPage(await LayoutPage({ params: { locale: "en", propertyId: "property-1" } }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(/could not load/i);
     expect(screen.getByRole("button", { name: /save layout/i })).toBeDisabled();
@@ -246,14 +252,14 @@ describe("PG operations route error states", () => {
   it("renders a layout error without showing the builder when the property fetch fails", async () => {
     mocks.getManagedProperty.mockRejectedValue(new Error("API unavailable"));
 
-    render(await LayoutPage({ params: { locale: "en", propertyId: "property-1" } }));
+    renderPage(await LayoutPage({ params: { locale: "en", propertyId: "property-1" } }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(/could not load/i);
     expect(screen.queryByRole("button", { name: /save layout/i })).not.toBeInTheDocument();
   });
 
   it("loads assignments and inventory for the tenants page", async () => {
-    render(await TenantsPage({ params: { locale: "en", propertyId: "property-1" } }));
+    renderPage(await TenantsPage({ params: { locale: "en", propertyId: "property-1" } }));
 
     expect(mocks.listAssignments).toHaveBeenCalledWith("property-1", "token-1");
     expect(mocks.getPropertyInventory).toHaveBeenCalledWith("property-1", "token-1");
@@ -263,7 +269,7 @@ describe("PG operations route error states", () => {
   it("loads closed rows for the flag-off legacy maintenance workspace", async () => {
     delete process.env.NEXT_PUBLIC_FF_PG_MAINTENANCE_OPS_V2;
 
-    render(
+    renderPage(
       await MaintenancePage({
         params: { locale: "en", propertyId: "property-1" },
         searchParams: {}
@@ -279,7 +285,7 @@ describe("PG operations route error states", () => {
   });
 
   it("renders the canonical maintenance ticket page with latest detail and timeline", async () => {
-    render(
+    renderPage(
       await MaintenanceTicketPage({
         params: { locale: "en", propertyId: "property-1", ticketId: "ticket-1" }
       })
@@ -316,7 +322,7 @@ describe("PG operations route error states", () => {
   it("renders ticket detail when the timeline endpoint fails", async () => {
     mocks.fetchMaintenanceTimeline.mockRejectedValueOnce(new Error("Timeline unavailable"));
 
-    render(
+    renderPage(
       await MaintenanceTicketPage({
         params: { locale: "en", propertyId: "property-1", ticketId: "ticket-1" }
       })
