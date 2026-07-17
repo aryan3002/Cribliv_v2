@@ -1,11 +1,18 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../../lib/admin-api", () => ({
   listCityLocalities: vi.fn(),
   listCityLandmarks: vi.fn(),
   listCityMetro: vi.fn(),
-  setSeoCityEnabled: vi.fn()
+  setSeoCityEnabled: vi.fn(),
+  fetchSeoCopyStatus: vi.fn(),
+  generateSeoCopyOne: vi.fn(),
+  generateSeoCopyBatchForCity: vi.fn(),
+  revalidateSeoPaths: vi.fn(),
+  fetchSeoCopyForPath: vi.fn(),
+  upsertSeoCopyOverride: vi.fn(),
+  deleteSeoCopyOverride: vi.fn()
 }));
 
 import { SeoCityReviewDrawer } from "../SeoCityReviewDrawer";
@@ -14,6 +21,11 @@ import {
   listCityLandmarks,
   listCityMetro,
   setSeoCityEnabled,
+  fetchSeoCopyStatus,
+  generateSeoCopyOne,
+  generateSeoCopyBatchForCity,
+  revalidateSeoPaths,
+  fetchSeoCopyForPath,
   type SeoCityConfigVm
 } from "../../../../lib/admin-api";
 
@@ -21,6 +33,11 @@ const mockedLocalities = vi.mocked(listCityLocalities);
 const mockedLandmarks = vi.mocked(listCityLandmarks);
 const mockedMetro = vi.mocked(listCityMetro);
 const mockedToggle = vi.mocked(setSeoCityEnabled);
+const mockedCopyStatus = vi.mocked(fetchSeoCopyStatus);
+const mockedGenerateOne = vi.mocked(generateSeoCopyOne);
+const mockedBatch = vi.mocked(generateSeoCopyBatchForCity);
+const mockedRevalidate = vi.mocked(revalidateSeoPaths);
+const mockedCopyForPath = vi.mocked(fetchSeoCopyForPath);
 
 const CITY: SeoCityConfigVm = {
   citySlug: "noida",
@@ -76,6 +93,11 @@ beforeEach(() => {
   mockedLocalities.mockResolvedValue(LOCALITIES);
   mockedLandmarks.mockResolvedValue(LANDMARKS);
   mockedMetro.mockResolvedValue(METRO);
+  mockedCopyStatus.mockResolvedValue([]);
+  mockedGenerateOne.mockResolvedValue({ en: null, hi: null });
+  mockedBatch.mockResolvedValue({ generated: 0, skipped: 0 });
+  mockedRevalidate.mockResolvedValue();
+  mockedCopyForPath.mockResolvedValue(null);
 });
 
 describe("SeoCityReviewDrawer", () => {
@@ -314,5 +336,104 @@ describe("SeoCityReviewDrawer", () => {
 
     await screen.findByText("Sector 18");
     expect(screen.getByRole("button", { name: /close/i })).toBeInTheDocument();
+  });
+
+  it("renders per-locality copy-status chips from fetchSeoCopyStatus", async () => {
+    mockedCopyStatus.mockResolvedValue([
+      { slug: "sector-18", en: "override", hi: "ai" },
+      { slug: "sector-62", en: "template", hi: "template" }
+    ]);
+
+    render(
+      <SeoCityReviewDrawer
+        city={CITY}
+        accessToken="tok"
+        onClose={noop}
+        onToast={noop}
+        onChanged={noop}
+      />
+    );
+
+    await screen.findByText("Sector 18");
+    await waitFor(() => expect(mockedCopyStatus).toHaveBeenCalledWith("tok", "noida"));
+
+    await waitFor(() => {
+      const s18 = screen.getAllByRole("row").find((r) => r.textContent?.includes("Sector 18"));
+      expect(s18?.textContent).toContain("Override");
+      expect(s18?.textContent).toContain("AI");
+    });
+    const s62 = screen.getAllByRole("row").find((r) => r.textContent?.includes("Sector 62"));
+    expect(s62?.textContent).toContain("Template");
+  });
+
+  it("Generate on a row calls generateSeoCopyOne, revalidates, and refetches status", async () => {
+    mockedCopyStatus.mockResolvedValue([
+      { slug: "sector-18", en: "override", hi: "ai" },
+      { slug: "sector-62", en: "template", hi: "template" }
+    ]);
+
+    render(
+      <SeoCityReviewDrawer
+        city={CITY}
+        accessToken="tok"
+        onClose={noop}
+        onToast={noop}
+        onChanged={noop}
+      />
+    );
+
+    await screen.findByText("Sector 18");
+    // sector-62 has no copy yet -> the button reads "Generate"
+    const s62 = () => screen.getAllByRole("row").find((r) => r.textContent?.includes("Sector 62"))!;
+    await waitFor(() =>
+      expect(within(s62()).getByRole("button", { name: /^generate$/i })).toBeInTheDocument()
+    );
+
+    fireEvent.click(within(s62()).getByRole("button", { name: /^generate$/i }));
+
+    await waitFor(() =>
+      expect(mockedGenerateOne).toHaveBeenCalledWith("tok", "noida", "sector-62")
+    );
+    expect(mockedRevalidate).toHaveBeenCalled();
+    // initial load + refetch after generation
+    await waitFor(() => expect(mockedCopyStatus).toHaveBeenCalledTimes(2));
+  });
+
+  it("Generate all missing runs the city batch and shows the counts", async () => {
+    mockedBatch.mockResolvedValue({ generated: 5, skipped: 2 });
+
+    render(
+      <SeoCityReviewDrawer
+        city={CITY}
+        accessToken="tok"
+        onClose={noop}
+        onToast={noop}
+        onChanged={noop}
+      />
+    );
+
+    await screen.findByText("Sector 18");
+    fireEvent.click(screen.getByRole("button", { name: /generate all missing/i }));
+
+    await waitFor(() => expect(mockedBatch).toHaveBeenCalledWith("tok", "noida"));
+    expect(await screen.findByText(/5 generated/i)).toBeInTheDocument();
+  });
+
+  it("Edit opens the copy editor modal for that locality", async () => {
+    render(
+      <SeoCityReviewDrawer
+        city={CITY}
+        accessToken="tok"
+        onClose={noop}
+        onToast={noop}
+        onChanged={noop}
+      />
+    );
+
+    await screen.findByText("Sector 18");
+    const s18 = screen.getAllByRole("row").find((r) => r.textContent?.includes("Sector 18"))!;
+    fireEvent.click(within(s18).getByRole("button", { name: /^edit$/i }));
+
+    expect(await screen.findByRole("dialog", { name: /edit copy/i })).toBeInTheDocument();
   });
 });

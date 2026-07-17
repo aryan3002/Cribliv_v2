@@ -3,7 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../api", () => ({ fetchApi: vi.fn() }));
 
 import { fetchApi } from "../api";
-import { listSeoCities, setSeoCityEnabled } from "../admin-api";
+import {
+  deleteSeoCopyOverride,
+  fetchSeoCopyForPath,
+  fetchSeoCopyStatus,
+  generateSeoCopyBatchForCity,
+  generateSeoCopyOne,
+  listSeoCities,
+  revalidateSeoPaths,
+  setSeoCityEnabled,
+  upsertSeoCopyOverride
+} from "../admin-api";
 
 const mockedFetch = vi.mocked(fetchApi);
 
@@ -112,5 +122,146 @@ describe("admin SEO city API", () => {
       headers: { Authorization: "Bearer tok" },
       body: JSON.stringify({ programmatic_enabled: true })
     });
+  });
+});
+
+describe("admin SEO copy control API", () => {
+  it("fetchSeoCopyStatus GETs copy-status with citySlug + auth", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      items: [{ slug: "gomti-nagar", en: "ai", hi: "template" }]
+    });
+
+    const rows = await fetchSeoCopyStatus("tok", "lucknow");
+
+    expect(mockedFetch).toHaveBeenCalledWith("/admin/seo/copy-status?citySlug=lucknow", {
+      headers: { Authorization: "Bearer tok" }
+    });
+    expect(rows).toEqual([{ slug: "gomti-nagar", en: "ai", hi: "template" }]);
+  });
+
+  it("fetchSeoCopyStatus returns [] when items missing", async () => {
+    mockedFetch.mockResolvedValueOnce({});
+    await expect(fetchSeoCopyStatus("tok", "lucknow")).resolves.toEqual([]);
+  });
+
+  it("generateSeoCopyOne POSTs generate-one with slugs + auth", async () => {
+    mockedFetch.mockResolvedValueOnce({ en: null, hi: null });
+
+    await generateSeoCopyOne("tok", "lucknow", "gomti-nagar");
+
+    expect(mockedFetch).toHaveBeenCalledWith("/admin/seo/copy/generate-one", {
+      method: "POST",
+      headers: { Authorization: "Bearer tok" },
+      body: JSON.stringify({ citySlug: "lucknow", localitySlug: "gomti-nagar" })
+    });
+  });
+
+  it("upsertSeoCopyOverride PUTs the override payload", async () => {
+    mockedFetch.mockResolvedValueOnce({ page_path: "/city/lucknow/gomti-nagar", locale: "en" });
+    const copy = {
+      h1: "H",
+      meta_title: "T",
+      meta_description: "D",
+      intro_paragraph: "I",
+      nearby_blurb: null,
+      faq_items: []
+    };
+
+    await upsertSeoCopyOverride("tok", {
+      citySlug: "lucknow",
+      localitySlug: "gomti-nagar",
+      locale: "en",
+      copy,
+      notes: "n"
+    });
+
+    expect(mockedFetch).toHaveBeenCalledWith("/admin/seo/copy/override", {
+      method: "PUT",
+      headers: { Authorization: "Bearer tok" },
+      body: JSON.stringify({
+        citySlug: "lucknow",
+        localitySlug: "gomti-nagar",
+        locale: "en",
+        copy,
+        notes: "n"
+      })
+    });
+  });
+
+  it("deleteSeoCopyOverride DELETEs with path + locale query", async () => {
+    mockedFetch.mockResolvedValueOnce({ page_path: "/city/lucknow/gomti-nagar", locale: "en" });
+
+    await deleteSeoCopyOverride("tok", "/city/lucknow/gomti-nagar", "en");
+
+    const [path, init] = mockedFetch.mock.calls[0];
+    expect(String(path)).toContain("/admin/seo/copy/override?");
+    expect(String(path)).toContain("path=%2Fcity%2Flucknow%2Fgomti-nagar");
+    expect(String(path)).toContain("locale=en");
+    expect(init).toMatchObject({ method: "DELETE", headers: { Authorization: "Bearer tok" } });
+  });
+
+  it("generateSeoCopyBatchForCity POSTs the city batch and returns counts", async () => {
+    mockedFetch.mockResolvedValueOnce({ generated: 4, skipped: 1 });
+
+    const res = await generateSeoCopyBatchForCity("tok", "lucknow");
+
+    expect(mockedFetch).toHaveBeenCalledWith("/admin/seo/copy/generate-batch", {
+      method: "POST",
+      headers: { Authorization: "Bearer tok" },
+      body: JSON.stringify({ citySlug: "lucknow" })
+    });
+    expect(res).toEqual({ generated: 4, skipped: 1 });
+  });
+
+  it("fetchSeoCopyForPath GETs the public copy endpoint with path + locale", async () => {
+    mockedFetch.mockResolvedValueOnce({
+      h1: "H",
+      meta_title: "T",
+      meta_description: "D",
+      intro_paragraph: "I",
+      nearby_blurb: null,
+      faq_items: []
+    });
+
+    const copy = await fetchSeoCopyForPath("/city/lucknow/gomti-nagar", "en");
+
+    const [path] = mockedFetch.mock.calls[0];
+    expect(String(path)).toContain("/seo/copy?");
+    expect(String(path)).toContain("path=%2Fcity%2Flucknow%2Fgomti-nagar");
+    expect(String(path)).toContain("locale=en");
+    expect(copy?.h1).toBe("H");
+  });
+});
+
+describe("revalidateSeoPaths", () => {
+  it("POSTs paths to the Next /api/revalidate route with bearer auth", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await revalidateSeoPaths("tok", ["/en/city/lucknow/x", "/hi/city/lucknow/x"]);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/revalidate",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer tok" }),
+        body: JSON.stringify({ paths: ["/en/city/lucknow/x", "/hi/city/lucknow/x"] })
+      })
+    );
+    fetchSpy.mockRestore();
+  });
+
+  it("does nothing for an empty path list", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await revalidateSeoPaths("tok", []);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("swallows fetch errors (best-effort)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network"));
+    await expect(revalidateSeoPaths("tok", ["/en/x"])).resolves.toBeUndefined();
+    fetchSpy.mockRestore();
   });
 });

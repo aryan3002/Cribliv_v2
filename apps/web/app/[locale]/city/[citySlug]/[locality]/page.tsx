@@ -55,9 +55,24 @@ export async function generateMetadata({
     locale === "hi"
       ? `${placeName}, ${cityName} में ${data.aggregates.listing_count}+ सत्यापित PG और फ्लैट। मासिक किराये और लोकप्रिय इलाके।`
       : `${data.aggregates.listing_count}+ verified PGs and flats in ${placeName}, ${cityName}. Median rents, nearby metros, and direct-owner contact.`;
+
+  // Prefer admin-controlled meta (override, else AI) over the template so edits
+  // in the SEO admin actually change the page <title>/<meta description>.
+  const stored = await fetchSeoCopy({
+    pagePath: `/city/${params.citySlug}/${params.locality}`,
+    locale,
+    placeName: { en: data.locality.name_en, hi: data.locality.name_hi },
+    placeKind: "locality",
+    aggregates: {
+      ...data.aggregates,
+      nearest_metro: null,
+      parent_locality: data.locality.parent_locality_slug
+    }
+  });
+
   return buildPageMetadata({
-    title,
-    description: desc,
+    title: stored?.meta_title?.trim() || title,
+    description: stored?.meta_description?.trim() || desc,
     pathname: `/city/${params.citySlug}/${params.locality}`,
     locale,
     noindex: data.aggregates.listing_count < 3

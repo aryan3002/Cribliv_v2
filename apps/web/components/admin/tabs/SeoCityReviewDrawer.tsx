@@ -10,11 +10,17 @@ import {
   listCityLandmarks,
   listCityMetro,
   setSeoCityEnabled,
+  fetchSeoCopyStatus,
+  generateSeoCopyOne,
+  generateSeoCopyBatchForCity,
+  revalidateSeoPaths,
   type SeoCityConfigVm,
   type SeoLocalityRow,
   type SeoLandmarkRow,
-  type SeoMetroRow
+  type SeoMetroRow,
+  type SeoCopyProvenance
 } from "../../../lib/admin-api";
+import { SeoCopyEditModal } from "./SeoCopyEditModal";
 
 interface Props {
   city: SeoCityConfigVm | null;
@@ -61,6 +67,45 @@ function PreviewLink({ href }: { href: string }) {
   );
 }
 
+const PROVENANCE_LABEL: Record<SeoCopyProvenance, string> = {
+  override: "Override",
+  ai: "AI",
+  template: "Template"
+};
+const PROVENANCE_TONE: Record<SeoCopyProvenance, "brand" | "trust" | "muted"> = {
+  override: "brand",
+  ai: "trust",
+  template: "muted"
+};
+
+function CopyStatusChips({
+  status
+}: {
+  status?: { en: SeoCopyProvenance; hi: SeoCopyProvenance };
+}) {
+  if (!status) return <span className="admin-table__id">—</span>;
+  return (
+    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+      <StatusPill
+        status={status.en}
+        tone={PROVENANCE_TONE[status.en]}
+        label={`EN · ${PROVENANCE_LABEL[status.en]}`}
+        noDot
+      />
+      <StatusPill
+        status={status.hi}
+        tone={PROVENANCE_TONE[status.hi]}
+        label={`HI · ${PROVENANCE_LABEL[status.hi]}`}
+        noDot
+      />
+    </div>
+  );
+}
+
+function localizedLocalityPaths(citySlug: string, slug: string): string[] {
+  return [`/en/city/${citySlug}/${slug}`, `/hi/city/${citySlug}/${slug}`];
+}
+
 export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onChanged }: Props) {
   const [tab, setTab] = useState<TabKey>("localities");
   const [search, setSearch] = useState("");
@@ -69,6 +114,15 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
   const [localities, setLocalities] = useState<TabState<SeoLocalityRow>>(IDLE);
   const [landmarks, setLandmarks] = useState<TabState<SeoLandmarkRow>>(IDLE);
   const [metro, setMetro] = useState<TabState<SeoMetroRow>>(IDLE);
+  const [copyStatus, setCopyStatus] = useState<
+    Record<string, { en: SeoCopyProvenance; hi: SeoCopyProvenance }>
+  >({});
+  const [generatingSlug, setGeneratingSlug] = useState<string | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchResult, setBatchResult] = useState<{ generated: number; skipped: number } | null>(
+    null
+  );
+  const [editing, setEditing] = useState<SeoLocalityRow | null>(null);
 
   const citySlug = city?.citySlug ?? null;
 
@@ -80,6 +134,9 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
     setNotes(city?.notes ?? "");
     setLandmarks(IDLE);
     setMetro(IDLE);
+    setCopyStatus({});
+    setBatchResult(null);
+    setEditing(null);
 
     let cancelled = false;
     setLocalities({ status: "loading", rows: [], error: null });
@@ -89,6 +146,17 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
       })
       .catch((err) => {
         if (!cancelled) setLocalities({ status: "error", rows: [], error: errMsg(err) });
+      });
+    // Copy-status drives the per-locality chips; best-effort (chips show "—").
+    fetchSeoCopyStatus(accessToken, citySlug)
+      .then((rows) => {
+        if (cancelled) return;
+        const map: Record<string, { en: SeoCopyProvenance; hi: SeoCopyProvenance }> = {};
+        for (const r of rows) map[r.slug] = { en: r.en, hi: r.hi };
+        setCopyStatus(map);
+      })
+      .catch(() => {
+        if (!cancelled) setCopyStatus({});
       });
     return () => {
       cancelled = true;
@@ -141,6 +209,50 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
     }
   }
 
+  async function refreshCopyStatus() {
+    if (!citySlug) return;
+    try {
+      const rows = await fetchSeoCopyStatus(accessToken, citySlug);
+      const map: Record<string, { en: SeoCopyProvenance; hi: SeoCopyProvenance }> = {};
+      for (const r of rows) map[r.slug] = { en: r.en, hi: r.hi };
+      setCopyStatus(map);
+    } catch {
+      // Keep the existing chips on a transient failure.
+    }
+  }
+
+  async function handleGenerate(r: SeoLocalityRow) {
+    if (!citySlug) return;
+    setGeneratingSlug(r.slug);
+    try {
+      await generateSeoCopyOne(accessToken, citySlug, r.slug);
+      await revalidateSeoPaths(accessToken, localizedLocalityPaths(citySlug, r.slug));
+      onToast(`Generated copy for ${r.name_en}`, "trust");
+      await refreshCopyStatus();
+    } catch (err) {
+      onToast(errMsg(err) || "Generation failed", "danger");
+    } finally {
+      setGeneratingSlug(null);
+    }
+  }
+
+  async function handleBatch() {
+    if (!citySlug) return;
+    setBatchRunning(true);
+    setBatchResult(null);
+    try {
+      const res = await generateSeoCopyBatchForCity(accessToken, citySlug);
+      setBatchResult(res);
+      onToast(`Generated ${res.generated}, skipped ${res.skipped}`, "trust");
+      await revalidateSeoPaths(accessToken, [`/en/city/${citySlug}`, `/hi/city/${citySlug}`]);
+      await refreshCopyStatus();
+    } catch (err) {
+      onToast(errMsg(err) || "Batch generation failed", "danger");
+    } finally {
+      setBatchRunning(false);
+    }
+  }
+
   if (!city) return null;
 
   const enabled = city.programmaticEnabled;
@@ -165,12 +277,41 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
       align: "center",
       render: (r) => (r.listing_count >= 3 ? "✓" : "✗")
     },
-    { key: "coords", header: "Coords", render: (r) => coords(r.lat, r.lng) },
     {
-      key: "preview",
+      key: "copy",
+      header: "Copy",
+      render: (r) => <CopyStatusChips status={copyStatus[r.slug]} />
+    },
+    {
+      key: "actions",
       header: "",
       align: "right",
-      render: (r) => <PreviewLink href={`${previewBase}/${r.slug}?adminPreview=1`} />
+      render: (r) => {
+        const st = copyStatus[r.slug];
+        const hasCopy = st ? st.en !== "template" || st.hi !== "template" : false;
+        return (
+          <div
+            style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}
+          >
+            <button
+              type="button"
+              className="admin-btn admin-btn--ghost admin-btn--sm"
+              onClick={() => void handleGenerate(r)}
+              disabled={generatingSlug === r.slug}
+            >
+              {generatingSlug === r.slug ? "Generating…" : hasCopy ? "Regenerate" : "Generate"}
+            </button>
+            <button
+              type="button"
+              className="admin-btn admin-btn--ghost admin-btn--sm"
+              onClick={() => setEditing(r)}
+            >
+              Edit
+            </button>
+            <PreviewLink href={`${previewBase}/${r.slug}?adminPreview=1`} />
+          </div>
+        );
+      }
     }
   ];
 
@@ -228,116 +369,154 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
   ];
 
   return (
-    <Drawer
-      open
-      onClose={onClose}
-      title={city.nameEn}
-      subtitle={city.citySlug}
-      footer={
-        <div style={{ display: "flex", gap: 8, width: "100%", alignItems: "flex-end" }}>
-          <textarea
-            aria-label="Notes"
-            placeholder="Approval notes (audited)…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            style={{ flex: 1, resize: "vertical", font: "inherit", padding: "6px 8px" }}
-          />
-          <button
-            type="button"
-            className={`admin-btn ${enabled ? "admin-btn--danger" : "admin-btn--primary"}`}
-            onClick={() => void approve()}
-            disabled={saving}
-            aria-label={`${enabled ? "Disable" : "Enable"} ${city.nameEn}`}
-          >
-            {saving ? "Saving…" : enabled ? "Disable" : "Enable"}
-          </button>
-        </div>
-      }
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <StatusPill
-          status={enabled ? "active" : "draft"}
-          label={enabled ? "Live" : "Draft"}
-          tone={enabled ? "trust" : "muted"}
-        />
-        <span className="admin-table__id">Enabled {formatDate(city.enabledAt)}</span>
-      </div>
-
-      <dl
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 10,
-          margin: "0 0 16px"
-        }}
-      >
-        {[
-          { label: "Localities", value: city.localityCount },
-          { label: "Landmarks", value: city.landmarkCount },
-          { label: "Metro", value: city.metroCount },
-          { label: "Indexable", value: city.indexableCount }
-        ].map((s) => (
-          <div key={s.label}>
-            <dt className="admin-table__id">{s.label}</dt>
-            <dd style={{ margin: 0, fontWeight: 700, fontSize: 18 }}>{s.value}</dd>
+    <>
+      <Drawer
+        open
+        onClose={onClose}
+        title={city.nameEn}
+        subtitle={city.citySlug}
+        footer={
+          <div style={{ display: "flex", gap: 8, width: "100%", alignItems: "flex-end" }}>
+            <textarea
+              aria-label="Notes"
+              placeholder="Approval notes (audited)…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              style={{ flex: 1, resize: "vertical", font: "inherit", padding: "6px 8px" }}
+            />
+            <button
+              type="button"
+              className={`admin-btn ${enabled ? "admin-btn--danger" : "admin-btn--primary"}`}
+              onClick={() => void approve()}
+              disabled={saving}
+              aria-label={`${enabled ? "Disable" : "Enable"} ${city.nameEn}`}
+            >
+              {saving ? "Saving…" : enabled ? "Disable" : "Enable"}
+            </button>
           </div>
-        ))}
-      </dl>
-
-      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            aria-pressed={tab === t.key}
-            className={`admin-btn admin-btn--sm ${tab === t.key ? "admin-btn--primary" : "admin-btn--ghost"}`}
-            onClick={() => selectTab(t.key)}
-          >
-            {t.label} {t.count}
-          </button>
-        ))}
-      </div>
-
-      <input
-        type="search"
-        placeholder={`Search ${tab}…`}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        aria-label={`Search ${tab}`}
-        style={{ width: "100%", marginBottom: 10, padding: "6px 10px", font: "inherit" }}
-      />
-
-      {active.status === "loading" && <div className="admin-table__id">Loading…</div>}
-      {active.status === "error" && (
-        <div className="admin-error" role="alert">
-          {active.error}
+        }
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+          <StatusPill
+            status={enabled ? "active" : "draft"}
+            label={enabled ? "Live" : "Draft"}
+            tone={enabled ? "trust" : "muted"}
+          />
+          <span className="admin-table__id">Enabled {formatDate(city.enabledAt)}</span>
         </div>
-      )}
-      {active.status === "loaded" && tab === "localities" && (
-        <DataTable
-          columns={localityCols}
-          rows={filteredLocalities}
-          rowKey={(r) => r.slug}
-          emptyState="No localities"
+
+        <dl
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 10,
+            margin: "0 0 16px"
+          }}
+        >
+          {[
+            { label: "Localities", value: city.localityCount },
+            { label: "Landmarks", value: city.landmarkCount },
+            { label: "Metro", value: city.metroCount },
+            { label: "Indexable", value: city.indexableCount }
+          ].map((s) => (
+            <div key={s.label}>
+              <dt className="admin-table__id">{s.label}</dt>
+              <dd style={{ margin: 0, fontWeight: 700, fontSize: 18 }}>{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              aria-pressed={tab === t.key}
+              className={`admin-btn admin-btn--sm ${tab === t.key ? "admin-btn--primary" : "admin-btn--ghost"}`}
+              onClick={() => selectTab(t.key)}
+            >
+              {t.label} {t.count}
+            </button>
+          ))}
+        </div>
+
+        {tab === "localities" && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 10,
+              flexWrap: "wrap"
+            }}
+          >
+            <button
+              type="button"
+              className="admin-btn admin-btn--primary admin-btn--sm"
+              onClick={() => void handleBatch()}
+              disabled={batchRunning}
+            >
+              {batchRunning ? "Generating…" : "Generate all missing (≥3 listings)"}
+            </button>
+            {batchResult && (
+              <span className="admin-table__id">
+                {batchResult.generated} generated · {batchResult.skipped} skipped
+              </span>
+            )}
+          </div>
+        )}
+
+        <input
+          type="search"
+          placeholder={`Search ${tab}…`}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label={`Search ${tab}`}
+          style={{ width: "100%", marginBottom: 10, padding: "6px 10px", font: "inherit" }}
+        />
+
+        {active.status === "loading" && <div className="admin-table__id">Loading…</div>}
+        {active.status === "error" && (
+          <div className="admin-error" role="alert">
+            {active.error}
+          </div>
+        )}
+        {active.status === "loaded" && tab === "localities" && (
+          <DataTable
+            columns={localityCols}
+            rows={filteredLocalities}
+            rowKey={(r) => r.slug}
+            emptyState="No localities"
+          />
+        )}
+        {active.status === "loaded" && tab === "landmarks" && (
+          <DataTable
+            columns={landmarkCols}
+            rows={filteredLandmarks}
+            rowKey={(r) => r.slug}
+            emptyState="No landmarks"
+          />
+        )}
+        {active.status === "loaded" && tab === "metro" && (
+          <DataTable
+            columns={metroCols}
+            rows={filteredMetro}
+            rowKey={(r) => `${r.line_name}::${r.station_name}`}
+            emptyState="No metro stations"
+          />
+        )}
+      </Drawer>
+      {editing && citySlug && (
+        <SeoCopyEditModal
+          accessToken={accessToken}
+          citySlug={citySlug}
+          locality={{ slug: editing.slug, name_en: editing.name_en, name_hi: editing.name_hi }}
+          onClose={() => setEditing(null)}
+          onSaved={() => void refreshCopyStatus()}
+          onToast={onToast}
         />
       )}
-      {active.status === "loaded" && tab === "landmarks" && (
-        <DataTable
-          columns={landmarkCols}
-          rows={filteredLandmarks}
-          rowKey={(r) => r.slug}
-          emptyState="No landmarks"
-        />
-      )}
-      {active.status === "loaded" && tab === "metro" && (
-        <DataTable
-          columns={metroCols}
-          rows={filteredMetro}
-          rowKey={(r) => `${r.line_name}::${r.station_name}`}
-          emptyState="No metro stations"
-        />
-      )}
-    </Drawer>
+    </>
   );
 }
