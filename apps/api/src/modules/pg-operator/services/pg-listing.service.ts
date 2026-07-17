@@ -1269,12 +1269,14 @@ export class PgListingService {
       // sends it as a JS number which fits; vacancy_count is smallint, ditto.
       await exec.query(
         `INSERT INTO pg_room_types
-           (listing_id, sharing, ac, bathroom_kind, furnishing, room_size_sqft,
-            monthly_rent_paise, vacancy_count, available_from)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         ON CONFLICT (listing_id, sharing, ac, bathroom_kind, furnishing) DO UPDATE SET
+           (listing_id, sharing, ac, bathroom_kind, furnishing, has_balcony, room_size_sqft,
+            monthly_rent_paise, vacancy_count, security_deposit_paise, deposit_refundable_pct, available_from)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         ON CONFLICT (listing_id, sharing, ac, bathroom_kind, furnishing, has_balcony) DO UPDATE SET
             monthly_rent_paise = EXCLUDED.monthly_rent_paise,
             vacancy_count = EXCLUDED.vacancy_count,
+            security_deposit_paise = EXCLUDED.security_deposit_paise,
+            deposit_refundable_pct = EXCLUDED.deposit_refundable_pct,
             available_from = EXCLUDED.available_from`,
         [
           listingId,
@@ -1282,9 +1284,12 @@ export class PgListingService {
           rt.ac,
           rt.bathroom_kind ?? "attached_western",
           rt.furnishing ?? "semi_furnished",
+          rt.has_balcony ?? false,
           null,
           rt.monthly_rent_paise,
           rt.vacancy_count,
+          rt.security_deposit_paise ?? null,
+          rt.deposit_refundable_pct ?? null,
           rt.available_from ?? null
         ]
       );
