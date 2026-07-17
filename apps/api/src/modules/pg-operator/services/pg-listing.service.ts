@@ -66,6 +66,7 @@ export interface PgListingDetail {
   id: string;
   status: string;
   title: string | null;
+  description: string | null;
   monthly_rent: number | null;
   created_at: string | null;
   city_slug: string | null;
@@ -777,6 +778,7 @@ export class PgListingService {
         pl.id::text               AS id,
         pl.status::text           AS status,
         pl.title                  AS title,
+        lst.description_en        AS description,
         pl.starting_rent_paise    AS starting_rent_paise,
         pl.created_at::text       AS created_at,
         c.slug                    AS city_slug,
@@ -862,6 +864,7 @@ export class PgListingService {
       id: String(h.id),
       status: String(h.status),
       title: (h.title as string) ?? null,
+      description: (h.description as string) ?? null,
       monthly_rent:
         h.starting_rent_paise == null ? null : Math.round(Number(h.starting_rent_paise) / 100),
       created_at: (h.created_at as string) ?? null,

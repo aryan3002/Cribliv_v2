@@ -45,6 +45,7 @@ export interface PgPublicDetail {
   id: string;
   status: string;
   title: string | null;
+  description: string | null;
   monthly_rent: number | null;
   created_at: string | null;
   city_slug: string | null;

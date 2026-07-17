@@ -32,6 +32,7 @@ function makeDetail(over: Partial<PgPublicDetail> = {}): PgPublicDetail {
     id: "L1",
     status: "active",
     title: "Sunrise PG",
+    description: null,
     monthly_rent: 7000,
     created_at: null,
     city_slug: "pune",
@@ -84,6 +85,17 @@ beforeEach(() => {
 });
 
 describe("PgDetailClient", () => {
+  it("renders the public listing description below the hero title", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({ description: "Quiet PG near the metro." })}
+        city="pune"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("Quiet PG near the metro.")).toBeTruthy();
+  });
+
   it("styles the PG detail bottom CTA as a direct card jump", () => {
     const styles = readFileSync("app/globals.css", "utf8");
 

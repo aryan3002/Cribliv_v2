@@ -759,6 +759,9 @@ export function PgDetailClient({
               </button>
             </div>
             <h1 className="pg-hero__title">{detail.title ?? "PG"}</h1>
+            {detail.description ? (
+              <p className="pg-hero__description">{detail.description}</p>
+            ) : null}
             <div className="pg-hero__meta">
               <MapPin size={15} aria-hidden="true" />
               {locationLabel}
