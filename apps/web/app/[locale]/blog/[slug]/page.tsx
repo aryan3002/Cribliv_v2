@@ -7,6 +7,8 @@ import { formatDate, cityLabel, deskLabel, formatRent } from "../_components/blo
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { fetchBlogPost } from "../../../../lib/blog-api";
 import { prepareBlogBody } from "../../../../lib/blog-body";
+import { hasBlogEmbeds } from "../../../../lib/blog-embeds";
+import { BlogBody } from "../../../../components/blog/BlogBody";
 import { EDITORIAL_AUTHOR, authorPath } from "../../../../lib/blog-author";
 import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/structured-data";
 
@@ -153,7 +155,13 @@ export default async function BlogDetailPage({
           <img className={styles.hero} src={post.hero_image_path} alt={post.title} />
         ) : null}
 
-        <div className={styles.articleBody} dangerouslySetInnerHTML={{ __html: body }} />
+        {hasBlogEmbeds(body) ? (
+          <div className={styles.articleBody}>
+            <BlogBody html={body} locale={locale} slug={post.slug} />
+          </div>
+        ) : (
+          <div className={styles.articleBody} dangerouslySetInnerHTML={{ __html: body }} />
+        )}
 
         {sourceLabels.length > 0 ? (
           <p className={styles.sourceLine}>
