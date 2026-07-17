@@ -251,8 +251,16 @@ export const authConfig: NextAuthConfig = {
 
   session: {
     strategy: "jwt",
-    // 1 hour — tokens rotate at 30 min via the jwt callback
-    maxAge: 60 * 60
+    // 24h idle ceiling. updateAge must stay below maxAge or Auth.js never
+    // re-signs the cookie's `exp` and the session hard-expires at maxAge
+    // regardless of activity (that was the bug: maxAge=1h with the default
+    // 24h updateAge meant the slide condition never triggered).
+    maxAge: 60 * 60 * 24,
+    // Client polls /api/auth/session every 30s (session-provider.tsx), so a
+    // 15-minute updateAge reliably re-signs well before the maxAge cliff for
+    // any user with the tab open — sessions now extend while active instead
+    // of dying on a fixed 1-hour clock.
+    updateAge: 60 * 15
   },
 
   cookies: {
