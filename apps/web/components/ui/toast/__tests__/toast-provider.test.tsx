@@ -81,6 +81,24 @@ describe("ToastProvider", () => {
     expect(screen.getByText("Four")).toBeInTheDocument();
   });
 
+  it("drops overflowed queued toasts instead of resurrecting them later", () => {
+    render(
+      <ToastProvider>
+        <ToastHarness />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }));
+    expect(screen.queryByText("One")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(2800);
+    });
+
+    expect(screen.queryByText("One")).not.toBeInTheDocument();
+    expect(screen.queryByText("Two")).not.toBeInTheDocument();
+  });
+
   it("auto-dismisses a success toast after the default duration", () => {
     render(
       <ToastProvider>

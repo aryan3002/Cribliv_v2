@@ -33,16 +33,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
   const push = useCallback((tone: ToastTone, message: string, options: ToastOptions = {}) => {
     const id = crypto.randomUUID();
-    setToasts((current) => [
-      ...current,
-      {
-        id,
-        message,
-        tone,
-        action: options.action,
-        duration: options.duration ?? (tone === "error" ? undefined : DEFAULT_DURATION)
-      }
-    ]);
+    setToasts((current) =>
+      [
+        ...current,
+        {
+          id,
+          message,
+          tone,
+          action: options.action,
+          duration: options.duration ?? (tone === "error" ? undefined : DEFAULT_DURATION)
+        }
+      ].slice(-MAX_VISIBLE_TOASTS)
+    );
     return id;
   }, []);
   const value = useMemo<ToastContextValue>(
