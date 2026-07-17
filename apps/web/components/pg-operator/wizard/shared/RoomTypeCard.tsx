@@ -11,6 +11,8 @@ export interface DraftRoom {
   ac: boolean;
   monthly_rent_paise: number;
   vacancy_count: number;
+  security_deposit_paise?: number;
+  has_balcony?: boolean;
 }
 
 const SHARING: { value: PgSharingKind; label: string }[] = [
@@ -75,6 +77,23 @@ export default function RoomTypeCard({
           value={room.vacancy_count}
           min={0}
           onChange={(v) => onChange({ ...room, vacancy_count: v })}
+        />
+      </div>
+
+      <div className={styles.roomCardRow}>
+        <RupeeInput
+          label="Security deposit"
+          valuePaise={room.security_deposit_paise ?? null}
+          onChangePaise={(p) => onChange({ ...room, security_deposit_paise: p ?? undefined })}
+        />
+        <SegmentedControl
+          label="Balcony"
+          value={room.has_balcony ? "yes" : "no"}
+          options={[
+            { value: "no", label: "No balcony" },
+            { value: "yes", label: "Balcony" }
+          ]}
+          onChange={(v) => onChange({ ...room, has_balcony: v === "yes" })}
         />
       </div>
 

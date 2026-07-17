@@ -22,7 +22,10 @@ export default function PgRoomsPricingStep({
     dispatch({ type: "SET_FIELD", path: "room_types", value: next });
 
   const addRoom = () =>
-    setRooms([...rooms, { sharing: "single", ac: false, monthly_rent_paise: 0, vacancy_count: 1 }]);
+    setRooms([
+      ...rooms,
+      { sharing: "single", ac: false, monthly_rent_paise: 0, vacancy_count: 1, has_balcony: false }
+    ]);
 
   const editRoom = (index: number, next: DraftRoom) =>
     setRooms(rooms.map((r, i) => (i === index ? next : r)));
