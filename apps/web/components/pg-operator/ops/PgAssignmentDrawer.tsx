@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@cribliv/ui";
@@ -155,6 +155,14 @@ export default function PgAssignmentDrawer({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const reserveKey = useRef<string | null>(null);
+  const moveInKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    reserveKey.current = null;
+    moveInKey.current = null;
+  }, [bedId, mode, selectedAssignmentId]);
+
   const selected = assignments.find((item) => item.id === selectedAssignmentId) ?? null;
   const selectedBed = useMemo(
     () => (selected ? findBed(rooms, selected.bed_id) : null),
@@ -229,9 +237,13 @@ export default function PgAssignmentDrawer({
     setError(null);
     try {
       if (mode === "reserve") {
-        await reserveBed(propertyId, bedId, body, token, key("reserve"));
+        reserveKey.current ??= key("reserve");
+        await reserveBed(propertyId, bedId, body, token, reserveKey.current);
+        reserveKey.current = null;
       } else {
-        await moveInBed(propertyId, bedId, body, token, key("move-in"));
+        moveInKey.current ??= key("move-in");
+        await moveInBed(propertyId, bedId, body, token, moveInKey.current);
+        moveInKey.current = null;
       }
       router.refresh();
     } catch (cause) {
@@ -248,7 +260,9 @@ export default function PgAssignmentDrawer({
     setPending(true);
     setError(null);
     try {
-      await moveInBed(propertyId, selected.bed_id, body, token, key("move-in"));
+      moveInKey.current ??= key("move-in");
+      await moveInBed(propertyId, selected.bed_id, body, token, moveInKey.current);
+      moveInKey.current = null;
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not confirm move-in.");

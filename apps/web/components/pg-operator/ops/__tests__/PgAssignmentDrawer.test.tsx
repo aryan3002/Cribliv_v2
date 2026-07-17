@@ -296,4 +296,33 @@ describe("PgAssignmentDrawer", () => {
     );
     expect(mocks.refresh).toHaveBeenCalled();
   });
+
+  it("reuses one idempotency key across a failed move-in retry", async () => {
+    mocks.moveInBed.mockRejectedValueOnce(new Error("network down"));
+    mocks.moveInBed.mockResolvedValueOnce(assignment("assignment-b", "bed-b", "active"));
+
+    render(
+      <PgAssignmentDrawer
+        propertyId="property-1"
+        token="token-1"
+        rooms={rooms}
+        assignments={[
+          assignment("assignment-a", "bed-a", "active"),
+          assignment("assignment-b", "bed-b", "reserved")
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Bina/i }));
+    fireEvent.click(screen.getByRole("button", { name: /confirm move-in/i }));
+    await waitFor(() => expect(mocks.moveInBed).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /confirm move-in/i }));
+    await waitFor(() => expect(mocks.moveInBed).toHaveBeenCalledTimes(2));
+
+    const firstKey = mocks.moveInBed.mock.calls[0][4];
+    const secondKey = mocks.moveInBed.mock.calls[1][4];
+    expect(typeof firstKey).toBe("string");
+    expect(secondKey).toBe(firstKey);
+  });
 });
