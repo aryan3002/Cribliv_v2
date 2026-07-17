@@ -17697,6 +17697,18 @@ a.feature-card:hover .icon-circle {
   align-items: center;
   gap: 3px;
 }
+.pg-room-card__deposit {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pg-room-feat--balcony {
+  background: #f5f3ff;
+  color: #7c3aed;
+}
 
 /* ── Meals Card ───────────────────────────────────────────── */
 .pg-meals-card {

@@ -77,8 +77,11 @@ export interface PgPublicDetail {
     ac: boolean;
     bathroom_kind: string | null;
     furnishing: string | null;
+    has_balcony: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
+    security_deposit_paise: number | null;
+    deposit_refundable_pct: number | null;
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;

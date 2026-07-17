@@ -103,8 +103,11 @@ export interface PgListingDetail {
     ac: boolean;
     bathroom_kind: string | null;
     furnishing: string | null;
+    has_balcony: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
+    security_deposit_paise: number | null;
+    deposit_refundable_pct: number | null;
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;
@@ -652,7 +655,8 @@ export class PgListingService {
     );
     const rooms = await this.db.query<Record<string, unknown>>(
       `SELECT sharing::text AS sharing, ac, bathroom_kind::text AS bathroom_kind,
-              furnishing::text AS furnishing, monthly_rent_paise, vacancy_count,
+              furnishing::text AS furnishing, has_balcony, monthly_rent_paise, vacancy_count,
+              security_deposit_paise, deposit_refundable_pct,
               available_from::text AS available_from
          FROM pg_room_types WHERE listing_id = $1::uuid
         ORDER BY monthly_rent_paise ASC`,
@@ -708,8 +712,13 @@ export class PgListingService {
       ac: Boolean(r.ac),
       bathroom_kind: (r.bathroom_kind as PgBathroomKind) ?? undefined,
       furnishing: (r.furnishing as PgFurnishing) ?? undefined,
+      has_balcony: Boolean(r.has_balcony),
       monthly_rent_paise: Number(r.monthly_rent_paise),
       vacancy_count: Number(r.vacancy_count),
+      security_deposit_paise:
+        r.security_deposit_paise == null ? undefined : Number(r.security_deposit_paise),
+      deposit_refundable_pct:
+        r.deposit_refundable_pct == null ? undefined : Number(r.deposit_refundable_pct),
       available_from: (r.available_from as string) ?? null
     };
   }
@@ -834,7 +843,8 @@ export class PgListingService {
     const rooms = await this.db.query<Record<string, unknown>>(
       `
       SELECT sharing::text AS sharing, ac, bathroom_kind::text AS bathroom_kind,
-             furnishing::text AS furnishing, monthly_rent_paise, vacancy_count,
+             furnishing::text AS furnishing, has_balcony, monthly_rent_paise, vacancy_count,
+             security_deposit_paise, deposit_refundable_pct,
              available_from::text AS available_from
       FROM pg_room_types
       WHERE listing_id = $1::uuid
@@ -910,8 +920,13 @@ export class PgListingService {
         ac: Boolean(r.ac),
         bathroom_kind: (r.bathroom_kind as string) ?? null,
         furnishing: (r.furnishing as string) ?? null,
+        has_balcony: Boolean(r.has_balcony),
         monthly_rent_paise: Number(r.monthly_rent_paise),
         vacancy_count: Number(r.vacancy_count),
+        security_deposit_paise:
+          r.security_deposit_paise == null ? null : Number(r.security_deposit_paise),
+        deposit_refundable_pct:
+          r.deposit_refundable_pct == null ? null : Number(r.deposit_refundable_pct),
         available_from: (r.available_from as string) ?? null
       })),
       photos: photos.rows.map((p) => ({ blob_path: p.blob_path, is_cover: Boolean(p.is_cover) })),

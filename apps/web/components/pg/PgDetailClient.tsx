@@ -355,6 +355,7 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
         {furnishingLabel && (
           <span className="pg-room-feat pg-room-feat--furnished">{furnishingLabel}</span>
         )}
+        {rt.has_balcony && <span className="pg-room-feat pg-room-feat--balcony">Balcony</span>}
       </div>
 
       <div className="pg-room-card__footer">
@@ -362,6 +363,9 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
           <Calendar size={11} aria-hidden="true" />
           {isAvailableNow ? "Available now" : `From ${availLabel}`}
         </span>
+        {rt.security_deposit_paise != null && rt.security_deposit_paise > 0 && (
+          <span className="pg-room-card__deposit">{rupees(rt.security_deposit_paise)} deposit</span>
+        )}
       </div>
     </div>
   );

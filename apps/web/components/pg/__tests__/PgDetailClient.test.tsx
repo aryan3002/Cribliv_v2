@@ -65,8 +65,11 @@ function makeDetail(over: Partial<PgPublicDetail> = {}): PgPublicDetail {
         ac: true,
         bathroom_kind: "attached",
         furnishing: "full",
+        has_balcony: true,
         monthly_rent_paise: 700000,
         vacancy_count: 1,
+        security_deposit_paise: 1400000,
+        deposit_refundable_pct: 100,
         available_from: null
       }
     ],
@@ -231,8 +234,11 @@ describe("PgDetailClient", () => {
               ac: true,
               bathroom_kind: null,
               furnishing: null,
+              has_balcony: false,
               monthly_rent_paise: 700000,
               vacancy_count: 50,
+              security_deposit_paise: null,
+              deposit_refundable_pct: null,
               available_from: null
             }
           ]
