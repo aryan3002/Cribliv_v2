@@ -6,10 +6,18 @@ const { resolveMaintenanceTicket, uploadForComment } = vi.hoisted(() => ({
   resolveMaintenanceTicket: vi.fn(),
   uploadForComment: vi.fn()
 }));
+const toast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  promise: vi.fn(),
+  dismiss: vi.fn()
+}));
 
 vi.mock("@/lib/pg-operations-api", () => ({
   resolveMaintenanceTicket
 }));
+vi.mock("@/components/ui/toast/use-toast", () => ({ useToast: () => toast }));
 
 vi.mock("../useMaintenancePhotoUpload", () => ({
   createMaintenanceUploadId: () => "idem-resolution",
