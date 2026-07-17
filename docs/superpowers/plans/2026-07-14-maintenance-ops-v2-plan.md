@@ -4,14 +4,14 @@
 
 **Goal:** Build a production-grade PG maintenance operations system with persisted SLA, structured location, dense queue + kanban, internal notes, immutable timeline, resolution records, auto-close, tenant historical read access, and basic analytics.
 
-**Architecture:** Evolve the existing `pg_maintenance_requests` and `pg_maintenance_comments` baseline from `0061_pg_maintenance.sql`; do not replace it. Add normalized columns, enums, lookup categories, and a dedicated `pg_maintenance_events` audit/timeline table so queue filtering, SLA sweeps, analytics, access rules, and historical display use real persisted data rather than inferred JSON state. Split the current frontend maintenance workspace into focused tenant/operator/detail/timeline/resolution units instead of expanding one large component.
+**Architecture:** Evolve the existing `pg_maintenance_requests` and `pg_maintenance_comments` baseline from `0063_pg_maintenance.sql`; do not replace it. Add normalized columns, enums, lookup categories, and a dedicated `pg_maintenance_events` audit/timeline table so queue filtering, SLA sweeps, analytics, access rules, and historical display use real persisted data rather than inferred JSON state. Split the current frontend maintenance workspace into focused tenant/operator/detail/timeline/resolution units instead of expanding one large component.
 
 **Tech Stack:** NestJS modular monolith, Postgres raw SQL migrations, `pg` transactions, Next.js 14 App Router, React, TypeScript, Vitest integration/unit tests, Playwright only if final browser proof is requested, Azure Blob photo upload flow already under `pg-maintenance/<propertyId>/<requestId>/...`.
 
 ## Global Constraints
 
-- Current migration baseline after master sync is `0058_pg_manage_requests.sql`, `0059_pg_bed_status_inactive.sql`, `0060_pg_bed_operations.sql`, and `0061_pg_maintenance.sql`; Maintenance Ops V2 must start at `0062_pg_maintenance_ops_v2.sql`.
-- Do not revert or renumber the user's current migration changes; treat the deleted old `0055`-`0058` PG migration files and new `0058`-`0061` files as owner-managed worktree changes.
+- Current migration baseline after master sync is `0060_pg_manage_requests.sql`, `0061_pg_bed_status_inactive.sql`, `0062_pg_bed_operations.sql`, and `0063_pg_maintenance.sql`; Maintenance Ops V2 must start at `0064_pg_maintenance_ops_v2.sql`.
+- Do not revert or renumber the user's current migration changes; treat the deleted old `0055`-`0058` PG migration files and new `0060`-`0063` files as owner-managed worktree changes.
 - No new staff, vendor, or assignment roles. Maintenance ownership is property/operator-owned only.
 - Priority is auto-selected from category by default and can be overridden by the operator with persisted actor, timestamp, and reason.
 - SLA timings are exact: emergency 4h, high 24h, normal 72h, low 168h.
@@ -36,29 +36,29 @@ The user has already updated prior PG migrations to align with `master`.
 
 Current relevant migration files:
 
-- `infra/migrations/0058_pg_manage_requests.sql`
-- `infra/migrations/0058_pg_manage_requests.rollback.sql`
-- `infra/migrations/0059_pg_bed_status_inactive.sql`
-- `infra/migrations/0059_pg_bed_status_inactive.rollback.sql`
-- `infra/migrations/0060_pg_bed_operations.sql`
-- `infra/migrations/0060_pg_bed_operations.rollback.sql`
-- `infra/migrations/0061_pg_maintenance.sql`
-- `infra/migrations/0061_pg_maintenance.rollback.sql`
+- `infra/migrations/0060_pg_manage_requests.sql`
+- `infra/migrations/0060_pg_manage_requests.rollback.sql`
+- `infra/migrations/0061_pg_bed_status_inactive.sql`
+- `infra/migrations/0061_pg_bed_status_inactive.rollback.sql`
+- `infra/migrations/0062_pg_bed_operations.sql`
+- `infra/migrations/0062_pg_bed_operations.rollback.sql`
+- `infra/migrations/0063_pg_maintenance.sql`
+- `infra/migrations/0063_pg_maintenance.rollback.sql`
 
 The next migration pair for this plan is:
 
-- Create: `infra/migrations/0062_pg_maintenance_ops_v2.sql`
-- Create: `infra/migrations/0062_pg_maintenance_ops_v2.rollback.sql`
+- Create: `infra/migrations/0064_pg_maintenance_ops_v2.sql`
+- Create: `infra/migrations/0064_pg_maintenance_ops_v2.rollback.sql`
 
-Do not edit `0061_pg_maintenance.sql` unless the owner explicitly asks. V2 must be additive over it.
+Do not edit `0063_pg_maintenance.sql` unless the owner explicitly asks. V2 must be additive over it.
 
 ## File Structure
 
 ### Database
 
-- Create `infra/migrations/0062_pg_maintenance_ops_v2.sql`
+- Create `infra/migrations/0064_pg_maintenance_ops_v2.sql`
   - Adds enums, categories table, request columns, event table, indexes, backfill, and constraints.
-- Create `infra/migrations/0062_pg_maintenance_ops_v2.rollback.sql`
+- Create `infra/migrations/0064_pg_maintenance_ops_v2.rollback.sql`
   - Drops new indexes/table/columns/types in safe reverse order.
 
 ### Shared Types
@@ -292,14 +292,14 @@ export interface PgMaintenanceAnalytics {
 
 **Files:**
 
-- Create: `infra/migrations/0062_pg_maintenance_ops_v2.sql`
-- Create: `infra/migrations/0062_pg_maintenance_ops_v2.rollback.sql`
+- Create: `infra/migrations/0064_pg_maintenance_ops_v2.sql`
+- Create: `infra/migrations/0064_pg_maintenance_ops_v2.rollback.sql`
 - Test: migration round trip with local DB
 
 **Interfaces:**
 
 - Produces persisted columns and tables consumed by all later tasks.
-- Existing `0061_pg_maintenance.sql` remains the baseline.
+- Existing `0063_pg_maintenance.sql` remains the baseline.
 
 - [ ] **Step 1: Write the migration with enums and categories**
 
@@ -657,14 +657,14 @@ Run:
 rtk env DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2 PATH=/opt/homebrew/bin:$PATH corepack pnpm db:migrate
 ```
 
-Expected: migration `0062_pg_maintenance_ops_v2.sql` applies with no errors.
+Expected: migration `0064_pg_maintenance_ops_v2.sql` applies with no errors.
 
 Then run rollback manually only if the repo migration runner supports targeted rollback; otherwise verify rollback SQL with a disposable DB. Do not run destructive rollback against a shared local DB containing work-in-progress data.
 
 - [ ] **Step 10: Commit**
 
 ```bash
-git add infra/migrations/0062_pg_maintenance_ops_v2.sql infra/migrations/0062_pg_maintenance_ops_v2.rollback.sql
+git add infra/migrations/0064_pg_maintenance_ops_v2.sql infra/migrations/0064_pg_maintenance_ops_v2.rollback.sql
 git commit -m "feat(pg-ops): add maintenance ops v2 schema"
 ```
 
@@ -1632,7 +1632,7 @@ git commit -m "docs(pg-ops): update maintenance ops v2 handoff"
 ## Self-Review Notes
 
 - Spec coverage: user-approved choices 1, 3, 4, 5, 6, 7 are covered by Tasks 1-10.
-- Migration numbering: plan uses `0062` because current worktree has `0061_pg_maintenance.sql` after master-aligned renumbering.
+- Migration numbering: plan uses `0064` because current worktree has `0063_pg_maintenance.sql` after master-aligned renumbering.
 - No new roles: no staff/vendor role, no vendor portal, no assignee table.
 - Data persistence: SLA, location, resolution, timeline, internal notes, analytics, and historical access all use persisted DB state.
 - Existing photo upload namespace remains request-scoped under Blob and is reused for fix photos.
@@ -1653,6 +1653,6 @@ For the next session, start by reading:
 1. `docs/superpowers/prompts/00-EXECUTION-CONTEXT.md`
 2. `docs/superpowers/prompts/phase-5-maintenance.md`
 3. `docs/superpowers/plans/2026-07-14-maintenance-ops-v2-plan.md`
-4. `infra/migrations/0061_pg_maintenance.sql`
+4. `infra/migrations/0063_pg_maintenance.sql`
 5. `apps/api/src/modules/pg-operations/services/pg-maintenance.service.ts`
 6. `apps/web/components/pg-operator/ops/MaintenanceWorkspace.tsx`
