@@ -129,8 +129,9 @@ export function cellKey(rt: {
   ac: boolean;
   bathroom_kind?: string;
   furnishing?: string;
+  has_balcony?: boolean;
 }): string {
-  return `${rt.sharing}|${rt.ac}|${rt.bathroom_kind ?? "attached_western"}|${rt.furnishing ?? "semi_furnished"}`;
+  return `${rt.sharing}|${rt.ac}|${rt.bathroom_kind ?? "attached_western"}|${rt.furnishing ?? "semi_furnished"}|${rt.has_balcony ? 1 : 0}`;
 }
 
 function deepMerge<T>(a: T, b: T): T {
@@ -397,6 +398,14 @@ export function buildSubmitPayload(state: PgWizardState): PgListingPayload {
 
   // Per-listing title (its own field) — kept distinct from the building name.
   const title = typeof d.title === "string" && d.title.trim() ? d.title.trim() : undefined;
+  const description =
+    typeof d.description === "string" && d.description.trim() ? d.description.trim() : undefined;
 
-  return { ...(title ? { title } : {}), property, pg_details, room_types } as PgListingPayload;
+  return {
+    ...(title ? { title } : {}),
+    ...(description ? { description } : {}),
+    property,
+    pg_details,
+    room_types
+  } as PgListingPayload;
 }
