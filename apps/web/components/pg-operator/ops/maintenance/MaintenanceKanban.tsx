@@ -258,6 +258,10 @@ export default function MaintenanceKanban({
           nextCursor: page.next_cursor
         }
       }));
+    } catch {
+      toast.error("Could not load more tickets.", {
+        action: { label: "Retry", onClick: () => void loadMore(status, cursor) }
+      });
     } finally {
       setPending(null);
     }
