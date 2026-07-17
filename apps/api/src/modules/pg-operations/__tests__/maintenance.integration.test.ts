@@ -303,23 +303,23 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
   it("allows only the maintenance status workflow", async () => {
     const fixture = await createFixture();
     const ticket = await createTenantTicket(fixture);
-    const legalStatuses = [
-      "in_progress",
-      "waiting_on_tenant",
-      "in_progress",
-      "resolved",
-      "closed"
-    ] as const;
+    const legalStatuses = ["in_progress", "waiting_on_tenant", "in_progress"] as const;
 
     let current = ticket;
     for (const status of legalStatuses) {
       current = await maintenance.updateStatus(operatorId, current.id, status);
       expect(current.status).toBe(status);
     }
+    current = await maintenance.resolve(operatorId, fixture.propertyId, current.id, {
+      note: "Plumber replaced the washer.",
+      chargeable_damage: false
+    });
+    expect(current.status).toBe("resolved");
+    current = await maintenance.updateStatus(operatorId, current.id, "closed");
+    expect(current.status).toBe("closed");
     expect(current.closed_at).not.toBeNull();
 
     const invalidTransitions = [
-      ["open", "resolved"],
       ["waiting_on_tenant", "closed"],
       ["resolved", "in_progress"],
       ["closed", "cancelled"],
@@ -337,6 +337,17 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
         maintenance.updateStatus(operatorId, invalid.rows[0].id, targetStatus)
       ).rejects.toMatchObject({ response: { code: "invalid_maintenance_transition" } });
     }
+
+    const openForResolveGuard = await db.query<{ id: string }>(
+      `INSERT INTO pg_maintenance_requests
+         (pg_property_id, assignment_id, created_by_user_id, category, description, status)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'test', 'guard resolved', 'open')
+       RETURNING id::text`,
+      [fixture.propertyId, fixture.assignmentIds[0], tenantId]
+    );
+    await expect(
+      maintenance.updateStatus(operatorId, openForResolveGuard.rows[0].id, "resolved")
+    ).rejects.toMatchObject({ response: { code: "maintenance_use_resolve_endpoint" } });
   });
 
   it("scopes tenant maintenance creates and listings to the caller residence", async () => {
@@ -950,7 +961,10 @@ describe.skipIf(!HAS_DB)("PG maintenance (real Postgres integration)", () => {
       ticket.id,
       "Please call before arriving"
     );
-    await maintenance.updateStatus(operatorId, ticket.id, "resolved");
+    await maintenance.resolve(operatorId, fixture.propertyId, ticket.id, {
+      note: "Plumber replaced the washer.",
+      chargeable_damage: false
+    });
     const closed = await maintenance.updateStatus(operatorId, ticket.id, "closed");
 
     expect(operatorComment.author_role).toBe("pg_operator");

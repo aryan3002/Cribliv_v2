@@ -2043,6 +2043,15 @@ export class PgMaintenanceService {
       if (!ownership.rows[0]) {
         throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
       }
+      if (status === "resolved") {
+        // Resolution must go through resolve(): it records the note, resolver,
+        // and auto_close_after; a bare status flip leaves the ticket in a state
+        // the sweep and tenant reopen can never act on.
+        throw new BadRequestException({
+          code: "maintenance_use_resolve_endpoint",
+          message: "Use the resolve endpoint to resolve a ticket"
+        });
+      }
       if (!STATUS_TRANSITIONS[request.status].includes(status)) {
         throw new ConflictException({
           code: "invalid_maintenance_transition",

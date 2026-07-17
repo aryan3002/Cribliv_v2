@@ -501,6 +501,20 @@ describe.skipIf(!HAS_DB)("PG maintenance V2 operator queue and timeline", () => 
       });
   });
 
+  it("rejects PATCH status=resolved in favour of the resolve endpoint", async () => {
+    const fixture = await createFixture();
+    const ticketId = await createTicket(fixture, { status: "in_progress" });
+
+    await request(app.getHttpServer())
+      .patch(`/v1/pg-operator/properties/${fixture.propertyId}/maintenance/${ticketId}`)
+      .set("x-test-identity", "operator")
+      .send({ status: "resolved" })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.code).toBe("maintenance_use_resolve_endpoint");
+      });
+  });
+
   it("overrides priority transactionally and records the timeline event", async () => {
     const fixture = await createFixture();
     const ticketId = await createTicket(fixture, {
