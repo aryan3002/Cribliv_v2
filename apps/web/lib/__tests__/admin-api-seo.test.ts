@@ -7,6 +7,7 @@ import {
   deleteSeoCopyOverride,
   fetchSeoCopyForPath,
   fetchSeoCopyStatus,
+  fetchSeoTemplateCopy,
   generateSeoCopyBatchForCity,
   generateSeoCopyOne,
   listSeoCities,
@@ -262,6 +263,34 @@ describe("revalidateSeoPaths", () => {
   it("swallows fetch errors (best-effort)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network"));
     await expect(revalidateSeoPaths("tok", ["/en/x"])).resolves.toBeUndefined();
+    fetchSpy.mockRestore();
+  });
+});
+
+describe("fetchSeoTemplateCopy", () => {
+  it("GETs the /api/seo-template route and unwraps data", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: { h1: "Template H1" } }), { status: 200 })
+      );
+
+    const copy = await fetchSeoTemplateCopy("lucknow", "gomti-nagar", "en");
+
+    const [url] = fetchSpy.mock.calls[0];
+    expect(String(url)).toContain("/api/seo-template?");
+    expect(String(url)).toContain("city=lucknow");
+    expect(String(url)).toContain("locality=gomti-nagar");
+    expect(String(url)).toContain("locale=en");
+    expect(copy?.h1).toBe("Template H1");
+    fetchSpy.mockRestore();
+  });
+
+  it("returns null on a non-ok response or error", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("nope", { status: 500 }));
+    await expect(fetchSeoTemplateCopy("lucknow", "x", "en")).resolves.toBeNull();
     fetchSpy.mockRestore();
   });
 });

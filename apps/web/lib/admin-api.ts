@@ -1533,6 +1533,31 @@ export async function generateSeoCopyBatchForCity(
 }
 
 /**
+ * Fetch the built-in template copy for a locality (what the page renders when
+ * no AI/override copy exists) via the app's own /api/seo-template route. Used
+ * to prefill the override editor. Returns null on failure.
+ */
+export async function fetchSeoTemplateCopy(
+  citySlug: string,
+  localitySlug: string,
+  locale: "en" | "hi"
+): Promise<SeoCopyFields | null> {
+  try {
+    const query = new URLSearchParams({
+      city: citySlug,
+      locality: localitySlug,
+      locale
+    }).toString();
+    const res = await fetch(`/api/seo-template?${query}`);
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => null)) as { data?: SeoCopyFields | null } | null;
+    return payload?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Ask the Next app to on-demand revalidate the given (already localized) SEO
  * paths so a copy change shows immediately instead of waiting for ISR. This
  * hits the app's own /api/revalidate route (not the API), which re-checks that

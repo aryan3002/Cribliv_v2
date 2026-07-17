@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../../lib/admin-api", () => ({
   fetchSeoCopyForPath: vi.fn(),
+  fetchSeoTemplateCopy: vi.fn(),
   upsertSeoCopyOverride: vi.fn(),
   deleteSeoCopyOverride: vi.fn(),
   revalidateSeoPaths: vi.fn()
@@ -12,11 +13,13 @@ import { SeoCopyEditModal } from "../SeoCopyEditModal";
 import {
   deleteSeoCopyOverride,
   fetchSeoCopyForPath,
+  fetchSeoTemplateCopy,
   revalidateSeoPaths,
   upsertSeoCopyOverride
 } from "../../../../lib/admin-api";
 
 const mockedFetch = vi.mocked(fetchSeoCopyForPath);
+const mockedTemplate = vi.mocked(fetchSeoTemplateCopy);
 const mockedUpsert = vi.mocked(upsertSeoCopyOverride);
 const mockedDelete = vi.mocked(deleteSeoCopyOverride);
 const mockedRevalidate = vi.mocked(revalidateSeoPaths);
@@ -33,6 +36,7 @@ beforeEach(() => {
     nearby_blurb: "Live nearby",
     faq_items: [{ q: "Q1", a: "A1" }]
   });
+  mockedTemplate.mockResolvedValue(null);
   mockedUpsert.mockResolvedValue({ page_path: "/city/lucknow/gomti-nagar", locale: "en" });
   mockedDelete.mockResolvedValue({ page_path: "/city/lucknow/gomti-nagar", locale: "en" });
   mockedRevalidate.mockResolvedValue();
@@ -93,6 +97,27 @@ describe("SeoCopyEditModal", () => {
       expect(mockedDelete).toHaveBeenCalledWith("tok", "/city/lucknow/gomti-nagar", "en")
     );
     expect(props.onSaved).toHaveBeenCalled();
+  });
+
+  it("prefills from the live template when there is no saved copy", async () => {
+    mockedFetch.mockResolvedValue(null);
+    mockedTemplate.mockResolvedValue({
+      h1: "Template H1 for Gomti Nagar",
+      meta_title: "T",
+      meta_description: "D",
+      intro_paragraph: "template intro",
+      nearby_blurb: "",
+      faq_items: []
+    });
+
+    renderModal();
+
+    await waitFor(() =>
+      expect(mockedTemplate).toHaveBeenCalledWith("lucknow", "gomti-nagar", "en")
+    );
+    const h1 = (await screen.findByLabelText(/^h1$/i)) as HTMLInputElement;
+    expect(h1.value).toBe("Template H1 for Gomti Nagar");
+    expect(screen.getByText(/prefilled from the current template/i)).toBeInTheDocument();
   });
 
   it("loads the Hindi copy when the HI locale is selected", async () => {

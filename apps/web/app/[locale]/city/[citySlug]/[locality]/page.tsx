@@ -13,6 +13,10 @@ import {
 import { buildBreadcrumb, buildPlace } from "../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../lib/seo";
 import { isAdminPreview } from "../../../../../lib/admin-preview";
+import {
+  buildLocalityTemplateCopy,
+  nearestMetroForLocality
+} from "../../../../../lib/seo-template-copy";
 
 // ISR: revalidate every 24h. On-demand revalidation triggered when listings change.
 export const revalidate = 86400;
@@ -45,16 +49,14 @@ export async function generateMetadata({
       noindex: true
     });
   }
-  const placeName = locale === "hi" ? data.locality.name_hi : data.locality.name_en;
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
-  const title =
-    locale === "hi"
-      ? `${cityName} के ${placeName} में किराये · Cribliv`
-      : `Rentals in ${placeName}, ${cityName} · Cribliv`;
-  const desc =
-    locale === "hi"
-      ? `${placeName}, ${cityName} में ${data.aggregates.listing_count}+ सत्यापित PG और फ्लैट। मासिक किराये और लोकप्रिय इलाके।`
-      : `${data.aggregates.listing_count}+ verified PGs and flats in ${placeName}, ${cityName}. Median rents, nearby metros, and direct-owner contact.`;
+  const template = buildLocalityTemplateCopy({
+    locale,
+    placeName: { en: data.locality.name_en, hi: data.locality.name_hi },
+    cityName,
+    aggregates: data.aggregates,
+    nearestMetro: null
+  });
 
   // Prefer admin-controlled meta (override, else AI) over the template so edits
   // in the SEO admin actually change the page <title>/<meta description>.
@@ -71,8 +73,8 @@ export async function generateMetadata({
   });
 
   return buildPageMetadata({
-    title: stored?.meta_title?.trim() || title,
-    description: stored?.meta_description?.trim() || desc,
+    title: stored?.meta_title?.trim() || template.meta_title,
+    description: stored?.meta_description?.trim() || template.meta_description,
     pathname: `/city/${params.citySlug}/${params.locality}`,
     locale,
     noindex: data.aggregates.listing_count < 3
@@ -153,63 +155,18 @@ export default async function LocalityHubPage({
     }
   });
 
+  const templateCopy = buildLocalityTemplateCopy({
+    locale,
+    placeName: { en: data.locality.name_en, hi: data.locality.name_hi },
+    cityName,
+    aggregates: data.aggregates,
+    nearestMetro: nearestMetroForLocality(nearbyMetros, here.lat, here.lng)
+  });
   const defaults = {
-    h1:
-      locale === "hi"
-        ? `${placeName} में किराये के लिए घर`
-        : `Verified Rentals in ${placeName}, ${cityName}`,
-    intro:
-      locale === "hi"
-        ? `${cityName} के ${placeName} में Cribliv पर ${data.aggregates.listing_count} सत्यापित किराये — PG, 1/2/3 BHK फ्लैट और स्वतंत्र मकान।${data.aggregates.median_rent_1bhk ? ` यहाँ 1BHK का किराया लगभग ₹${data.aggregates.median_rent_1bhk.toLocaleString("en-IN")}/माह${data.aggregates.median_rent_2bhk ? `, 2BHK लगभग ₹${data.aggregates.median_rent_2bhk.toLocaleString("en-IN")}/माह` : ""} है।` : ""} हर मालिक सत्यापित है, कोई ब्रोकरेज नहीं।`
-        : `${placeName} in ${cityName} has ${data.aggregates.listing_count} verified ${data.aggregates.listing_count === 1 ? "rental" : "rentals"} on Cribliv — PGs, 1/2/3 BHK flats and independent houses.${data.aggregates.median_rent_1bhk ? ` 1BHK homes here rent for around ₹${data.aggregates.median_rent_1bhk.toLocaleString("en-IN")}/mo${data.aggregates.median_rent_2bhk ? `, 2BHKs around ₹${data.aggregates.median_rent_2bhk.toLocaleString("en-IN")}/mo` : ""}.` : ""} Every owner is verified and you pay zero brokerage.`,
-    faqs: [
-      {
-        q:
-          locale === "hi"
-            ? `${placeName} में 1BHK फ्लैट का औसत किराया क्या है?`
-            : `What's the average rent for a 1BHK in ${placeName}?`,
-        a: data.aggregates.median_rent_1bhk
-          ? locale === "hi"
-            ? `${placeName} में 1BHK फ्लैट का औसत मासिक किराया लगभग ₹${data.aggregates.median_rent_1bhk.toLocaleString("en-IN")} है।`
-            : `The median rent for a 1BHK in ${placeName} is around ₹${data.aggregates.median_rent_1bhk.toLocaleString("en-IN")} per month.`
-          : locale === "hi"
-            ? `${placeName} में अभी 1BHK डेटा उपलब्ध नहीं है।`
-            : `Not enough 1BHK data for ${placeName} yet. Check the listings tab.`
-      },
-      {
-        q:
-          locale === "hi"
-            ? `${placeName} में PG किस बजट से शुरू होते हैं?`
-            : `What do PGs in ${placeName} cost?`,
-        a: data.aggregates.median_rent_pg
-          ? locale === "hi"
-            ? `${placeName} में PG का औसत मासिक किराया लगभग ₹${data.aggregates.median_rent_pg.toLocaleString("en-IN")} है।`
-            : `The median PG rent in ${placeName} is around ₹${data.aggregates.median_rent_pg.toLocaleString("en-IN")} per month, with budget options often available from ₹3,500.`
-          : locale === "hi"
-            ? `${placeName} में अभी PG डेटा सीमित है।`
-            : `PG data for ${placeName} is still being aggregated.`
-      },
-      {
-        q:
-          locale === "hi"
-            ? `${placeName} के पास सबसे नजदीकी मेट्रो स्टेशन कौन सा है?`
-            : `What's the nearest metro station to ${placeName}?`,
-        a: nearbyMetros[0]
-          ? locale === "hi"
-            ? `सबसे नजदीकी मेट्रो ${nearbyMetros[0].station_name} है (${nearbyMetros[0].line_name}), लगभग ${nearbyMetros[0].dist.toFixed(1)} किमी की दूरी पर।`
-            : `The nearest metro is ${nearbyMetros[0].station_name} on the ${nearbyMetros[0].line_name}, about ${nearbyMetros[0].dist.toFixed(1)} km away.`
-          : locale === "hi"
-            ? `${placeName} के पास अभी कोई मेट्रो डेटा उपलब्ध नहीं है।`
-            : `No metro data within range of ${placeName} yet.`
-      },
-      {
-        q: locale === "hi" ? "क्या ब्रोकर फीस है?" : "Are there any broker fees?",
-        a:
-          locale === "hi"
-            ? `नहीं। Cribliv पर सभी लिस्टिंग सीधे मालिक की होती हैं, कोई ब्रोकरेज नहीं।`
-            : `No, every Cribliv listing connects you directly to a verified owner with zero brokerage.`
-      }
-    ]
+    h1: templateCopy.h1,
+    intro: templateCopy.intro_paragraph,
+    faqs: templateCopy.faq_items,
+    nearbyBlurb: templateCopy.nearby_blurb || null
   };
   const merged = coalesceCopy(copy, defaults);
 

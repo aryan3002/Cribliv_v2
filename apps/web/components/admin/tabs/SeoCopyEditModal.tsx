@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import {
   deleteSeoCopyOverride,
   fetchSeoCopyForPath,
+  fetchSeoTemplateCopy,
   revalidateSeoPaths,
   upsertSeoCopyOverride,
   type SeoCopyFields
@@ -53,20 +54,36 @@ export function SeoCopyEditModal({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [live, setLive] = useState<SeoCopyFields | null>(null);
+  const [fromTemplate, setFromTemplate] = useState(false);
   const [form, setForm] = useState<SeoCopyFields>(EMPTY);
   const [notes, setNotes] = useState("");
 
   const pagePath = `/city/${citySlug}/${locality.slug}`;
 
   // Load the currently stored copy whenever the locale (or locality) changes.
+  // If there's no saved override/AI copy, prefill from the live template so the
+  // admin edits the real current text instead of a blank slate.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setFromTemplate(false);
     fetchSeoCopyForPath(pagePath, locale)
-      .then((copy) => {
+      .then(async (copy) => {
         if (cancelled) return;
-        setLive(copy);
-        setForm(copy ? { ...EMPTY, ...copy, nearby_blurb: copy.nearby_blurb ?? "" } : EMPTY);
+        if (copy) {
+          setLive(copy);
+          setForm({ ...EMPTY, ...copy, nearby_blurb: copy.nearby_blurb ?? "" });
+          return;
+        }
+        setLive(null);
+        const tpl = await fetchSeoTemplateCopy(citySlug, locality.slug, locale);
+        if (cancelled) return;
+        if (tpl) {
+          setForm({ ...EMPTY, ...tpl, nearby_blurb: tpl.nearby_blurb ?? "" });
+          setFromTemplate(true);
+        } else {
+          setForm(EMPTY);
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -80,7 +97,7 @@ export function SeoCopyEditModal({
     return () => {
       cancelled = true;
     };
-  }, [pagePath, locale]);
+  }, [pagePath, locale, citySlug, locality.slug]);
 
   // Escape closes the modal.
   useEffect(() => {
@@ -220,6 +237,21 @@ export function SeoCopyEditModal({
               <div className="admin-table__id">Currently live</div>
               <div style={{ fontWeight: 600 }}>{live.h1 || "—"}</div>
               <div style={{ color: "var(--ad-text-2)" }}>{live.intro_paragraph || "—"}</div>
+            </div>
+          )}
+
+          {!live && fromTemplate && (
+            <div
+              style={{
+                background: "var(--ad-warning-soft)",
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 12,
+                color: "var(--ad-text-2)"
+              }}
+            >
+              No saved copy yet — prefilled from the current template. Edit and Save to create an
+              override.
             </div>
           )}
 
