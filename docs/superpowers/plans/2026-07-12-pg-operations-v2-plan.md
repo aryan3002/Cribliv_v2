@@ -67,7 +67,7 @@ pg_manage_requests ──approve──▶ pg_properties  (+ manage_enabled, layo
 
 All migrations follow the runner rules ([`infra/migrations/run-migrations.js`](infra/migrations/run-migrations.js)): filename `^\d+_.*\.sql$`, no substring `rollback`, idempotent (`IF NOT EXISTS` / `DO $$ … EXCEPTION WHEN duplicate_object`), one `BEGIN…COMMIT` per file. These migrations start at **0058** because current `origin/master` already owns `0057_signup_credit_expiry.sql`. Reuse the existing `trigger_set_updated_at()` function for `updated_at` triggers (pattern in 0031). Each migration ships a paired `*.rollback.sql`.
 
-### `0058_pg_manage_requests.sql` — Phase 1 (unlock gate)
+### `0060_pg_manage_requests.sql` — Phase 1 (unlock gate)
 
 ```sql
 DO $$ BEGIN
@@ -133,7 +133,7 @@ CREATE TRIGGER set_updated_at BEFORE UPDATE ON pg_manage_requests
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 ```
 
-### `0059_pg_bed_status_inactive.sql` — Phase 2 (enum value, isolated)
+### `0061_pg_bed_status_inactive.sql` — Phase 2 (enum value, isolated)
 
 Isolated on purpose: `ALTER TYPE … ADD VALUE` is safe on Azure PG (12+) but the new value cannot be _used_ in the same transaction, so it gets its own migration before any table uses it.
 
@@ -141,7 +141,7 @@ Isolated on purpose: `ALTER TYPE … ADD VALUE` is safe on Azure PG (12+) but th
 ALTER TYPE pg_bed_status ADD VALUE IF NOT EXISTS 'inactive';
 ```
 
-### `0060_pg_bed_operations.sql` — Phase 2/3 (layout + assignments)
+### `0062_pg_bed_operations.sql` — Phase 2/3 (layout + assignments)
 
 ```sql
 -- extend existing physical-inventory tables (do NOT create pg_managed_rooms/beds)
@@ -217,7 +217,7 @@ CREATE TABLE IF NOT EXISTS pg_assignment_events (
 CREATE INDEX IF NOT EXISTS idx_pg_assignment_events_assignment ON pg_assignment_events(assignment_id, created_at);
 ```
 
-### `0061_pg_maintenance.sql` — Phase 5 (maintenance)
+### `0063_pg_maintenance.sql` — Phase 5 (maintenance)
 
 ```sql
 DO $$ BEGIN

@@ -12,10 +12,10 @@ Evolve existing tables. The ops aggregate is the `pg_property` **already linked 
 
 ## Execution slices (do in order, TDD each)
 
-### Slice 1.1 — Migration `0058_pg_manage_requests.sql` (+ rollback)
+### Slice 1.1 — Migration `0060_pg_manage_requests.sql` (+ rollback)
 
-- Create `infra/migrations/0058_pg_manage_requests.sql` using the **verbatim DDL in plan §4** (`0058` block): enum `pg_manage_request_status`; `ALTER TABLE pg_properties ADD manage_enabled/layout_status/managed_activated_at`; table `pg_manage_requests` (with the two partial unique indexes `uq_pg_manage_pending_per_listing`, `uq_pg_manage_approved_per_listing`); shell table `pg_manage_payment_orders`; the `payment_order_id` FK; the `set_updated_at` trigger.
-- Create `infra/migrations/0058_pg_manage_requests.rollback.sql` that drops them in reverse dependency order.
+- Create `infra/migrations/0060_pg_manage_requests.sql` using the **verbatim DDL in plan §4** (`0060` block): enum `pg_manage_request_status`; `ALTER TABLE pg_properties ADD manage_enabled/layout_status/managed_activated_at`; table `pg_manage_requests` (with the two partial unique indexes `uq_pg_manage_pending_per_listing`, `uq_pg_manage_approved_per_listing`); shell table `pg_manage_payment_orders`; the `payment_order_id` FK; the `set_updated_at` trigger.
+- Create `infra/migrations/0060_pg_manage_requests.rollback.sql` that drops them in reverse dependency order.
 - Apply: `DATABASE_URL="postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" pnpm db:migrate`. Verify with `\d pg_manage_requests` and `\d pg_properties`. Then apply the rollback manually once (`psql … -f`), confirm clean, re-apply forward. Leave the DB in the forward (migrated) state.
 - **Do NOT touch** `pg_rooms`/`pg_beds`/`pg_bed_status` here — that's Phase 2.
 
