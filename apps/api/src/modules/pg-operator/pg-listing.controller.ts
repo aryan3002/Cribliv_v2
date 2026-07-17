@@ -12,6 +12,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Put,
   UseGuards
 } from "@nestjs/common";
@@ -31,6 +32,7 @@ import { PgListingCreateSchema } from "./dto/pg-listing.dto";
 import { PgDraftUpsertSchema } from "./dto/pg-draft.dto";
 import { UpdatePgListingStatusSchema } from "./dto/pg-listing-status.dto";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { PgNearbyService } from "./services/pg-nearby.service";
 
 @Controller("pg-operator/listings")
 @UseGuards(AuthGuard, RolesGuard)
@@ -41,7 +43,8 @@ export class PgListingController {
     @Inject(PgPropertiesService) private readonly properties: PgPropertiesService,
     @Inject(PgDraftService) private readonly draftService: PgDraftService,
     @Optional() @Inject(IdempotencyService) private readonly idem: IdempotencyService | undefined,
-    @Optional() @Inject(PgAiAssistService) private readonly aiAssist?: PgAiAssistService
+    @Optional() @Inject(PgAiAssistService) private readonly aiAssist?: PgAiAssistService,
+    @Inject(PgNearbyService) private readonly nearby: PgNearbyService
   ) {}
 
   @Post()
@@ -129,6 +132,15 @@ export class PgListingController {
   @HttpCode(204)
   async deleteDraft(@AuthUser() user: UserContext, @Param("id") id: string) {
     await this.draftService.remove(user.id, id);
+  }
+
+  @Get("nearby")
+  async nearbyPois(
+    @Query("lat") lat: string,
+    @Query("lng") lng: string,
+    @Query("radiusKm") radiusKm?: string
+  ) {
+    return this.nearby.nearby(Number(lat), Number(lng), radiusKm ? Number(radiusKm) : undefined);
   }
 
   @Get(":id")
