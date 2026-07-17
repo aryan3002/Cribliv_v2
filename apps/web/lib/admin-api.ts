@@ -1430,6 +1430,152 @@ export async function listCityMetro(citySlug: string): Promise<SeoMetroRow[]> {
   );
 }
 
+// ── Admin SEO copy control (Feature 1) ─────────────────────────────────────
+
+/** Which source drives a page's copy right now (for the status chips). */
+export type SeoCopyProvenance = "override" | "ai" | "template";
+
+export interface SeoCopyStatusRow {
+  slug: string;
+  en: SeoCopyProvenance;
+  hi: SeoCopyProvenance;
+}
+
+/** The editable copy fields — mirrors the API GeneratedCopy shape. */
+export interface SeoCopyFields {
+  h1: string;
+  meta_title: string;
+  meta_description: string;
+  intro_paragraph: string;
+  nearby_blurb: string | null;
+  faq_items: Array<{ q: string; a: string }>;
+}
+
+/** Per-locality copy provenance for every locality in a city. */
+export async function fetchSeoCopyStatus(
+  accessToken: string,
+  citySlug: string
+): Promise<SeoCopyStatusRow[]> {
+  const raw = await fetchApi<{ items?: SeoCopyStatusRow[] }>(
+    `/admin/seo/copy-status?citySlug=${encodeURIComponent(citySlug)}`,
+    { headers: authHeaders(accessToken) }
+  );
+  return raw.items ?? [];
+}
+
+/** Force-(re)generate AI copy for one locality, both locales. */
+export async function generateSeoCopyOne(
+  accessToken: string,
+  citySlug: string,
+  localitySlug: string
+): Promise<{ en: SeoCopyFields | null; hi: SeoCopyFields | null }> {
+  return fetchApi("/admin/seo/copy/generate-one", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ citySlug, localitySlug })
+  });
+}
+
+/** Save a hand-written override for a locality page + locale. */
+export async function upsertSeoCopyOverride(
+  accessToken: string,
+  params: {
+    citySlug: string;
+    localitySlug: string;
+    locale: "en" | "hi";
+    copy: SeoCopyFields;
+    notes?: string | null;
+  }
+): Promise<{ page_path: string; locale: string }> {
+  return fetchApi("/admin/seo/copy/override", {
+    method: "PUT",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params)
+  });
+}
+
+/** Remove an override (revert to AI copy, else template). */
+export async function deleteSeoCopyOverride(
+  accessToken: string,
+  path: string,
+  locale: "en" | "hi"
+): Promise<{ page_path: string; locale: string }> {
+  const query = new URLSearchParams({ path, locale }).toString();
+  return fetchApi(`/admin/seo/copy/override?${query}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
+  });
+}
+
+/**
+ * Read the currently stored copy for a page + locale (override else AI, else
+ * null) — public endpoint, used to prefill / preview the override editor.
+ */
+export async function fetchSeoCopyForPath(
+  path: string,
+  locale: "en" | "hi"
+): Promise<SeoCopyFields | null> {
+  const query = new URLSearchParams({ path, locale }).toString();
+  return fetchApi<SeoCopyFields | null>(`/seo/copy?${query}`);
+}
+
+/** City-scoped "generate all missing (>= 3 listings)". Returns live counts. */
+export async function generateSeoCopyBatchForCity(
+  accessToken: string,
+  citySlug: string,
+  opts?: { limit?: number; force?: boolean }
+): Promise<{ generated: number; skipped: number }> {
+  return fetchApi("/admin/seo/copy/generate-batch", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ citySlug, ...opts })
+  });
+}
+
+/**
+ * Fetch the built-in template copy for a locality (what the page renders when
+ * no AI/override copy exists) via the app's own /api/seo-template route. Used
+ * to prefill the override editor. Returns null on failure.
+ */
+export async function fetchSeoTemplateCopy(
+  citySlug: string,
+  localitySlug: string,
+  locale: "en" | "hi"
+): Promise<SeoCopyFields | null> {
+  try {
+    const query = new URLSearchParams({
+      city: citySlug,
+      locality: localitySlug,
+      locale
+    }).toString();
+    const res = await fetch(`/api/seo-template?${query}`);
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => null)) as { data?: SeoCopyFields | null } | null;
+    return payload?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ask the Next app to on-demand revalidate the given (already localized) SEO
+ * paths so a copy change shows immediately instead of waiting for ISR. This
+ * hits the app's own /api/revalidate route (not the API), which re-checks that
+ * the caller is an admin. Best-effort — never throws.
+ */
+export async function revalidateSeoPaths(accessToken: string, paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  try {
+    await fetch("/api/revalidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ paths })
+    });
+  } catch {
+    // ISR will catch up within the revalidate window.
+  }
+}
+
 // ── Search Performance (Slice 2 — Indexing + Measurement) ──────────────────
 
 export interface SearchPerformanceRowVm {
