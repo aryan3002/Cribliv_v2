@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PgBedAssignment, PgRoom } from "@cribliv/shared-types";
 
@@ -55,6 +55,17 @@ const rooms: PgRoom[] = [
         status: "reserved",
         available_from: null,
         sort_order: 2,
+        metadata: {},
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z"
+      },
+      {
+        id: "bed-c",
+        room_id: "room-1",
+        bed_label: "C",
+        status: "vacant",
+        available_from: null,
+        sort_order: 3,
         metadata: {},
         created_at: "2026-01-01T00:00:00.000Z",
         updated_at: "2026-01-01T00:00:00.000Z"
@@ -156,6 +167,67 @@ describe("PgAssignmentDrawer", () => {
     expect(screen.getByLabelText("Deposit (paise)")).toHaveValue("2500000");
     expect(screen.getByLabelText("Notes")).toHaveValue("Arrives after 8 PM");
     expect(screen.getByRole("button", { name: /confirm move-in/i })).toBeEnabled();
+  });
+
+  it("marks selected assignments and exposes responsive cell labels", () => {
+    render(
+      <PgAssignmentDrawer
+        propertyId="property-1"
+        token="token-1"
+        rooms={rooms}
+        assignments={[
+          assignment("assignment-a", "bed-a", "active"),
+          assignment("assignment-b", "bed-b", "reserved")
+        ]}
+      />
+    );
+
+    const ashaRow = screen.getByRole("button", { name: /Asha/i });
+    expect(ashaRow).toHaveAttribute("aria-pressed", "true");
+    expect(ashaRow).toHaveAttribute("data-selected", "true");
+    expect(within(ashaRow).getByText("101 / Bed A").closest("[data-label]")).toHaveAttribute(
+      "data-label",
+      "Bed"
+    );
+    expect(within(ashaRow).getByText("moved in").closest("[data-label]")).toHaveAttribute(
+      "data-label",
+      "Status"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Bina/i }));
+
+    expect(ashaRow).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /Bina/i })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("clears saved occupant details when the operator switches to a vacant bed", () => {
+    render(
+      <PgAssignmentDrawer
+        propertyId="property-1"
+        token="token-1"
+        rooms={rooms}
+        assignments={[
+          assignment("assignment-a", "bed-a", "active"),
+          assignment("assignment-b", "bed-b", "reserved")
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Bina/i }));
+    expect(screen.getByLabelText("Name")).toHaveValue("Bina");
+    expect(screen.getByLabelText("Phone")).toHaveValue("+919999999902");
+    expect(screen.getByLabelText("Monthly rent (paise)")).toHaveValue("1250000");
+
+    fireEvent.change(screen.getByLabelText("Bed"), { target: { value: "bed-c" } });
+
+    expect(screen.getByLabelText("Bed")).toHaveValue("bed-c");
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Phone")).toHaveValue("");
+    expect(screen.getByLabelText("Move-in date")).toHaveValue("");
+    expect(screen.getByLabelText("Monthly rent (paise)")).toHaveValue("");
+    expect(screen.getByLabelText("Deposit (paise)")).toHaveValue("");
+    expect(screen.getByLabelText("Notes")).toHaveValue("");
+    expect(screen.queryByText(/Bina is currently reserved/i)).not.toBeInTheDocument();
   });
 
   it("confirms a reserved tenant move-in with the selected assignment details", async () => {

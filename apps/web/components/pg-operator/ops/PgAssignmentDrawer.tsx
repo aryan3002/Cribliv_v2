@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@cribliv/ui";
@@ -109,6 +109,20 @@ function formFromAssignment(assignment: PgBedAssignment): AssignmentForm {
   };
 }
 
+function currentAssignmentForBed(
+  assignments: PgBedAssignment[],
+  bedId: string
+): PgBedAssignment | null {
+  return (
+    assignments.find(
+      (assignment) =>
+        assignment.bed_id === bedId &&
+        assignment.status !== "moved_out" &&
+        assignment.status !== "cancelled"
+    ) ?? null
+  );
+}
+
 export default function PgAssignmentDrawer({
   propertyId,
   token,
@@ -141,7 +155,7 @@ export default function PgAssignmentDrawer({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selected = assignments.find((item) => item.id === selectedAssignmentId) ?? assignments[0];
+  const selected = assignments.find((item) => item.id === selectedAssignmentId) ?? null;
   const selectedBed = useMemo(
     () => (selected ? findBed(rooms, selected.bed_id) : null),
     [rooms, selected]
@@ -152,11 +166,32 @@ export default function PgAssignmentDrawer({
   }, [selectable, selectedBed]);
   const canSubmitForm = selectable.some((bed) => bed.id === bedId);
 
+  const applyBedSelection = useCallback(
+    (nextBedId: string) => {
+      setBedId(nextBedId);
+      setError(null);
+
+      const assignment = currentAssignmentForBed(assignments, nextBedId);
+      if (assignment) {
+        setSelectedAssignmentId(assignment.id);
+        setForm(formFromAssignment(assignment));
+        if (assignment.status === "reserved") {
+          setMode("move-in");
+        }
+        return;
+      }
+
+      setSelectedAssignmentId("");
+      setForm(emptyForm());
+    },
+    [assignments]
+  );
+
   useEffect(() => {
     if (!beds.some((bed) => bed.id === bedId)) {
-      setBedId(beds[0]?.id ?? "");
+      applyBedSelection(beds[0]?.id ?? "");
     }
-  }, [bedId, beds]);
+  }, [applyBedSelection, bedId, beds]);
 
   function selectAssignment(assignment: PgBedAssignment) {
     setSelectedAssignmentId(assignment.id);
@@ -256,22 +291,36 @@ export default function PgAssignmentDrawer({
         {assignments.length === 0 ? (
           <div className={styles.empty}>No occupants assigned yet.</div>
         ) : (
-          assignments.map((assignment) => (
-            <button
-              key={assignment.id}
-              type="button"
-              className={styles.assignment}
-              onClick={() => selectAssignment(assignment)}
-            >
-              <span>
-                <strong>{assignment.occupant_name}</strong>
-                <span>{assignment.occupant_phone_e164}</span>
-              </span>
-              <span>{bedLabel(rooms, assignment.bed_id)}</span>
-              <Badge tone={STATUS_TONE[assignment.status]}>{statusLabel(assignment.status)}</Badge>
-              <span>{selected?.id === assignment.id ? "Selected" : "Review"}</span>
-            </button>
-          ))
+          assignments.map((assignment) => {
+            const isSelected = selected?.id === assignment.id;
+
+            return (
+              <button
+                key={assignment.id}
+                type="button"
+                className={styles.assignment}
+                data-selected={isSelected ? "true" : "false"}
+                aria-pressed={isSelected}
+                onClick={() => selectAssignment(assignment)}
+              >
+                <span className={styles.personCell} data-label="Occupant">
+                  <strong>{assignment.occupant_name}</strong>
+                  <span>{assignment.occupant_phone_e164}</span>
+                </span>
+                <span className={styles.bedCell} data-label="Bed">
+                  {bedLabel(rooms, assignment.bed_id)}
+                </span>
+                <span className={styles.statusCell} data-label="Status">
+                  <Badge tone={STATUS_TONE[assignment.status]} style={{ borderRadius: 7 }}>
+                    {statusLabel(assignment.status)}
+                  </Badge>
+                </span>
+                <span className={styles.reviewCell} data-label="Action">
+                  {isSelected ? "Selected" : "Review"}
+                </span>
+              </button>
+            );
+          })
         )}
       </section>
 
@@ -284,7 +333,7 @@ export default function PgAssignmentDrawer({
               {selected.occupant_name} is currently {statusLabel(selected.status)} on{" "}
               {bedLabel(rooms, selected.bed_id)}.
             </p>
-            <div className={styles.actions}>
+            <div className={styles.noticeActions}>
               {bedDetailBase && (
                 <Link
                   className={styles.detailLink}
@@ -297,6 +346,8 @@ export default function PgAssignmentDrawer({
                 <Button
                   type="button"
                   variant="secondary"
+                  className={styles.secondaryAction}
+                  style={{ borderRadius: 8 }}
                   disabled={pending}
                   onClick={() => void confirmReservedMoveIn()}
                 >
@@ -307,6 +358,8 @@ export default function PgAssignmentDrawer({
                 <Button
                   type="button"
                   variant="secondary"
+                  className={styles.secondaryAction}
+                  style={{ borderRadius: 8 }}
                   disabled={pending}
                   onClick={() => void runAssignmentAction("request")}
                 >
@@ -322,6 +375,8 @@ export default function PgAssignmentDrawer({
                 <Button
                   type="button"
                   variant="secondary"
+                  className={styles.secondaryAction}
+                  style={{ borderRadius: 8 }}
                   disabled={pending}
                   onClick={() => void runAssignmentAction("direct")}
                 >
@@ -333,6 +388,8 @@ export default function PgAssignmentDrawer({
                   <Button
                     type="button"
                     variant="secondary"
+                    className={styles.secondaryAction}
+                    style={{ borderRadius: 8 }}
                     disabled={pending}
                     onClick={() => void runAssignmentAction("confirm")}
                   >
@@ -341,6 +398,8 @@ export default function PgAssignmentDrawer({
                   <Button
                     type="button"
                     variant="secondary"
+                    className={styles.secondaryAction}
+                    style={{ borderRadius: 8 }}
                     disabled={pending}
                     onClick={() => void runAssignmentAction("cancel")}
                   >
@@ -376,90 +435,94 @@ export default function PgAssignmentDrawer({
           </button>
         </div>
         <div className={styles.form}>
-          <label className={styles.field}>
-            <span>Bed</span>
-            <select value={bedId} onChange={(event) => setBedId(event.target.value)}>
-              {beds.map((bed) => (
-                <option key={bed.id} value={bed.id}>
-                  {bed.room_number} / Bed {bed.bed_label} ({bed.status})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.field}>
-            <span>Name</span>
-            <input
-              value={form.occupant_name}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, occupant_name: event.target.value }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Phone</span>
-            <input
-              value={form.occupant_phone_e164}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, occupant_phone_e164: event.target.value }))
-              }
-              placeholder="+919999999902"
-            />
-          </label>
-          <label className={styles.field}>
-            <span>{mode === "reserve" ? "Expected move-in" : "Move-in date"}</span>
-            <input
-              type="date"
-              value={
-                mode === "reserve"
-                  ? dateValue(form.expected_move_in_date)
-                  : dateValue(form.move_in_date)
-              }
-              onChange={(event) =>
-                setForm((value) => ({
-                  ...value,
-                  [mode === "reserve" ? "expected_move_in_date" : "move_in_date"]:
-                    event.target.value
-                }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Monthly rent (paise)</span>
-            <input
-              inputMode="numeric"
-              value={form.monthly_rent_paise}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, monthly_rent_paise: event.target.value }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Deposit (paise)</span>
-            <input
-              inputMode="numeric"
-              value={form.security_deposit_paise}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, security_deposit_paise: event.target.value }))
-              }
-            />
-          </label>
-          <label className={styles.field}>
-            <span>Notes</span>
-            <textarea
-              value={form.operator_notes}
-              onChange={(event) =>
-                setForm((value) => ({ ...value, operator_notes: event.target.value }))
-              }
-            />
-          </label>
+          <div className={styles.formGrid}>
+            <label className={`${styles.field} ${styles.fieldFull}`}>
+              <span>Bed</span>
+              <select value={bedId} onChange={(event) => applyBedSelection(event.target.value)}>
+                {beds.map((bed) => (
+                  <option key={bed.id} value={bed.id}>
+                    {bed.room_number} / Bed {bed.bed_label} ({bed.status})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>Name</span>
+              <input
+                value={form.occupant_name}
+                onChange={(event) =>
+                  setForm((value) => ({ ...value, occupant_name: event.target.value }))
+                }
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Phone</span>
+              <input
+                value={form.occupant_phone_e164}
+                onChange={(event) =>
+                  setForm((value) => ({ ...value, occupant_phone_e164: event.target.value }))
+                }
+                placeholder="+919999999902"
+              />
+            </label>
+            <label className={styles.field}>
+              <span>{mode === "reserve" ? "Expected move-in" : "Move-in date"}</span>
+              <input
+                type="date"
+                value={
+                  mode === "reserve"
+                    ? dateValue(form.expected_move_in_date)
+                    : dateValue(form.move_in_date)
+                }
+                onChange={(event) =>
+                  setForm((value) => ({
+                    ...value,
+                    [mode === "reserve" ? "expected_move_in_date" : "move_in_date"]:
+                      event.target.value
+                  }))
+                }
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Monthly rent (paise)</span>
+              <input
+                inputMode="numeric"
+                value={form.monthly_rent_paise}
+                onChange={(event) =>
+                  setForm((value) => ({ ...value, monthly_rent_paise: event.target.value }))
+                }
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Deposit (paise)</span>
+              <input
+                inputMode="numeric"
+                value={form.security_deposit_paise}
+                onChange={(event) =>
+                  setForm((value) => ({ ...value, security_deposit_paise: event.target.value }))
+                }
+              />
+            </label>
+            <label className={`${styles.field} ${styles.fieldFull}`}>
+              <span>Notes</span>
+              <textarea
+                value={form.operator_notes}
+                onChange={(event) =>
+                  setForm((value) => ({ ...value, operator_notes: event.target.value }))
+                }
+              />
+            </label>
+          </div>
           {error && (
             <p role="alert" className={styles.error}>
               {error}
             </p>
           )}
-          <div className={styles.actions}>
+          <div className={styles.submitActions}>
             <Button
               type="button"
+              className={styles.primaryAction}
+              style={{ borderRadius: 8 }}
               disabled={pending || !bedId || !canSubmitForm}
               onClick={() => void submit()}
             >
