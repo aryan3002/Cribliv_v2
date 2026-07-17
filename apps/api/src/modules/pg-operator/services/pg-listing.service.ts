@@ -322,16 +322,17 @@ export class PgListingService {
 
     await exec.query(
       `INSERT INTO listings(
-         id, owner_user_id, listing_type, title_en, status, verification_status,
+         id, owner_user_id, listing_type, title_en, description_en, status, verification_status,
          monthly_rent, amenities, pg_property_id, contact_phone_encrypted, whatsapp_available
        )
-       VALUES ($1::uuid, $2::uuid, 'pg', $3, $8::listing_status, 'unverified', $4, '[]'::jsonb, $5::uuid, $6, $7)
+       VALUES ($1::uuid, $2::uuid, 'pg', $3, $9, $8::listing_status, 'unverified', $4, '[]'::jsonb, $5::uuid, $6, $7)
        -- NOTE: verification_status is set on INSERT ('unverified') but deliberately
        -- NOT in the conflict clause. Verification is owned solely by the admin flow;
        -- an operator edit (the only path that hits this conflict) must never re-stamp
        -- it — a non-material edit on a verified+active listing has to stay verified.
        ON CONFLICT (id) DO UPDATE SET
          title_en = EXCLUDED.title_en,
+         description_en = EXCLUDED.description_en,
          monthly_rent = EXCLUDED.monthly_rent,
          status = EXCLUDED.status,
          updated_at = now()`,
@@ -343,7 +344,8 @@ export class PgListingService {
         prop.id,
         contact.rows[0]?.phone_e164 ?? null,
         contact.rows[0]?.whatsapp_opt_in ?? false,
-        status
+        status,
+        this.listingDescription(payload)
       ]
     );
 
@@ -1181,6 +1183,11 @@ export class PgListingService {
   private listingTitle(p: PgListingPayload): string {
     const t = typeof p.title === "string" ? p.title.trim() : "";
     return t.length > 0 ? t : p.property.display_name;
+  }
+
+  private listingDescription(p: PgListingPayload): string | null {
+    const description = typeof p.description === "string" ? p.description.trim() : "";
+    return description.length > 0 ? description : null;
   }
 
   /** Cheapest room-type rent, in paise (pg_listings.starting_rent_paise — money rule). */
