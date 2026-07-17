@@ -20,6 +20,7 @@ export const PgListingCreateSchema = z
     // Per-listing public title. Optional for back-compat (voice/older clients);
     // the service falls back to property.display_name when absent.
     title: z.string().trim().min(2).max(120).optional(),
+    description: z.string().trim().max(2000).optional(),
     property: PropertyBasicsSchema.extend({
       city_slug: z.string().min(1),
       locality_slug: z.string().optional(),

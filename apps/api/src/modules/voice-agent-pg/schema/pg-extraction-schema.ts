@@ -46,6 +46,7 @@ export const PricingMatrixSchema = z
     ac: z.boolean(),
     bathroom_kind: z.enum(PG_BATHROOM).optional().default("attached_western"),
     furnishing: z.enum(PG_FURNISHING).optional().default("semi_furnished"),
+    has_balcony: z.boolean().optional().default(false),
     monthly_rent_paise: PaiseSchema.refine((v) => v >= 200_000 && v <= 5_000_000, {
       message: "monthly_rent_paise must be between ₹2,000 (200000) and ₹50,000 (5000000)"
     }),
