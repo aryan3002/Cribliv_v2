@@ -33,20 +33,6 @@ export default function PgPropertyBasicsStep({ state, dispatch }: Props) {
         icon={<Building2 size={20} />}
       >
         <div>
-          <span className={styles.fieldLabel}>Listing title</span>
-          <input
-            className={styles.textInput}
-            aria-label="listing title"
-            value={d.title ?? ""}
-            onChange={(e) => setF("title", e.target.value)}
-            placeholder="e.g. Sunrise Residency: Boys PG near XYZ College"
-          />
-          <span className={styles.fieldHint}>
-            Shown on cards and search. Make it specific. Each listing gets its own title.
-          </span>
-        </div>
-
-        <div>
           <span className={styles.fieldLabel}>Property name</span>
           <input
             className={styles.textInput}

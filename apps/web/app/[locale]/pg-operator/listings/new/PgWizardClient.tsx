@@ -313,7 +313,7 @@ export default function PgWizardClient({
       // Only persist a draft once the operator has named the listing. Gating on
       // the per-listing title (not the pre-seeded building name) stops a blank,
       // building-named draft from being created the moment the wizard opens.
-      if (!payload.title) return;
+      if (!payload.property?.display_name) return;
       savingRef.current = true;
       try {
         const res = await putPgDraft(accessToken, {
