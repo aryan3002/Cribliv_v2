@@ -4,7 +4,7 @@ import { PgListingService } from "../services/pg-listing.service";
 
 function makeService() {
   const client = {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, _params?: unknown[]) => {
       if (/INSERT INTO listings/i.test(sql)) {
         return { rows: [{ id: "listing-1", status: "draft" }], rowCount: 1 };
       }
@@ -58,7 +58,7 @@ describe("PgListingService room-type writes", () => {
       ]
     });
 
-    const roomInsert = client.query.mock.calls.find(([sql]: [string]) =>
+    const roomInsert = client.query.mock.calls.find(([sql]) =>
       /INSERT INTO pg_room_types/i.test(sql)
     );
 

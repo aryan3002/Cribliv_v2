@@ -5,7 +5,7 @@ import { PgListingService } from "../services/pg-listing.service";
 describe("PgListingService description projection", () => {
   it("persists a trimmed description to listings.description_en", async () => {
     const client = {
-      query: vi.fn(async (sql: string) => {
+      query: vi.fn(async (sql: string, _params?: unknown[]) => {
         if (/INSERT INTO listings/i.test(sql)) {
           return { rows: [{ id: "listing-1", status: "draft" }], rowCount: 1 };
         }
@@ -42,9 +42,7 @@ describe("PgListingService description projection", () => {
       room_types: [{ sharing: "double", ac: true, monthly_rent_paise: 900_000, vacancy_count: 3 }]
     });
 
-    const projection = client.query.mock.calls.find(([sql]: [string]) =>
-      /INSERT INTO listings/i.test(sql)
-    );
+    const projection = client.query.mock.calls.find(([sql]) => /INSERT INTO listings/i.test(sql));
 
     expect(projection?.[0]).toContain("description_en");
     expect(projection?.[1]).toContain("Quiet, verified PG near Gomti Nagar metro.");

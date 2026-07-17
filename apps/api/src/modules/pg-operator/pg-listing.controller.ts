@@ -42,9 +42,9 @@ export class PgListingController {
     @Inject(PgListingService) private readonly listings: PgListingService,
     @Inject(PgPropertiesService) private readonly properties: PgPropertiesService,
     @Inject(PgDraftService) private readonly draftService: PgDraftService,
+    @Inject(PgNearbyService) private readonly nearby: PgNearbyService,
     @Optional() @Inject(IdempotencyService) private readonly idem: IdempotencyService | undefined,
-    @Optional() @Inject(PgAiAssistService) private readonly aiAssist?: PgAiAssistService,
-    @Inject(PgNearbyService) private readonly nearby: PgNearbyService
+    @Optional() @Inject(PgAiAssistService) private readonly aiAssist?: PgAiAssistService
   ) {}
 
   @Post()
