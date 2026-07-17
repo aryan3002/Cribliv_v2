@@ -91,6 +91,7 @@ interface LeadRecord {
   calledAt?: number | null;
   calledBy?: "owner" | "team" | null;
   ownerNotes?: string | null;
+  preferredSharing?: string | null;
   createdAt: number;
   statusChangedAt: number;
   updatedAt: number;
@@ -470,6 +471,7 @@ export class AppStateService {
     contactUnlockId?: string;
     tenantPhoneMasked?: string | null;
     callDeadlineAt?: number | null;
+    preferredSharing?: string | null;
   }) {
     const dedupeKey = `${input.listingId}:${input.tenantUserId}`;
     const existingId = this.leadByListingTenant.get(dedupeKey);
@@ -479,6 +481,8 @@ export class AppStateService {
     if (existing && now - existing.createdAt < 7 * 24 * 60 * 60 * 1000) {
       existing.contactUnlockId = existing.contactUnlockId ?? input.contactUnlockId;
       existing.callDeadlineAt = existing.callDeadlineAt ?? input.callDeadlineAt ?? null;
+      // Mirror the DB COALESCE: a specific pick updates; "Any" (null) never wipes.
+      existing.preferredSharing = input.preferredSharing ?? existing.preferredSharing ?? null;
       existing.updatedAt = now;
       return { lead: existing, created: false };
     }
@@ -499,6 +503,7 @@ export class AppStateService {
       calledAt: null,
       calledBy: null,
       ownerNotes: null,
+      preferredSharing: input.preferredSharing ?? null,
       createdAt: now,
       statusChangedAt: now,
       updatedAt: now
@@ -548,6 +553,7 @@ export class AppStateService {
         call_deadline_at: lead.callDeadlineAt ? new Date(lead.callDeadlineAt).toISOString() : null,
         called_at: lead.calledAt ? new Date(lead.calledAt).toISOString() : null,
         called_by: lead.calledBy ?? null,
+        preferred_sharing: lead.preferredSharing ?? null,
         tenant_phone: tenantPhone
       };
     });

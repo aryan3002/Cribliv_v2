@@ -316,6 +316,8 @@ export interface PgDashboardLead {
   called_by: string | null;
   tenant_name: string;
   tenant_phone?: string | null;
+  /** Sharing type the tenant asked about when expressing interest (null = "Any"). */
+  preferred_sharing?: string | null;
 }
 
 export interface PgPortfolioSummary {

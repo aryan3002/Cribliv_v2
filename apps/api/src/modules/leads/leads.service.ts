@@ -43,6 +43,8 @@ export class LeadsService {
     contact_unlock_id?: string;
     tenant_phone_masked?: string;
     call_deadline_at?: string;
+    /** Sharing type the tenant expressed interest in (null = "Any"). */
+    preferred_sharing?: string | null;
   }): Promise<{ lead_id: string; created: boolean }> {
     const flags = readFeatureFlags();
     if (!flags.ff_lead_management_enabled) {
@@ -60,7 +62,8 @@ export class LeadsService {
         tenantUserId: params.tenant_user_id,
         contactUnlockId: params.contact_unlock_id,
         tenantPhoneMasked: params.tenant_phone_masked,
-        callDeadlineAt: Number.isFinite(callDeadlineAt) ? callDeadlineAt : null
+        callDeadlineAt: Number.isFinite(callDeadlineAt) ? callDeadlineAt : null,
+        preferredSharing: params.preferred_sharing ?? null
       });
       return { lead_id: lead.id, created };
     }
@@ -90,11 +93,15 @@ export class LeadsService {
 
       const result = await this.database.query<{ id: string }>(
         `INSERT INTO leads (listing_id, owner_user_id, tenant_user_id, contact_unlock_id,
-                            tenant_phone_masked, status, access_state, call_deadline_at)
-         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'new', $6, $7::timestamptz)
+                            tenant_phone_masked, status, access_state, call_deadline_at,
+                            preferred_sharing)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, 'new', $6, $7::timestamptz, $8)
          ON CONFLICT (listing_id, tenant_user_id) DO UPDATE SET
            contact_unlock_id = COALESCE(EXCLUDED.contact_unlock_id, leads.contact_unlock_id),
            call_deadline_at = COALESCE(EXCLUDED.call_deadline_at, leads.call_deadline_at),
+           -- a fresh specific pick updates; re-expressing as "Any" (null) never
+           -- wipes a previously recorded sharing preference.
+           preferred_sharing = COALESCE(EXCLUDED.preferred_sharing, leads.preferred_sharing),
            updated_at = now()
          RETURNING id::text`,
         [
@@ -104,7 +111,8 @@ export class LeadsService {
           params.contact_unlock_id ?? null,
           params.tenant_phone_masked ?? null,
           accessState,
-          params.call_deadline_at ?? null
+          params.call_deadline_at ?? null,
+          params.preferred_sharing ?? null
         ]
       );
 
@@ -178,6 +186,7 @@ export class LeadsService {
       called_at: string | null;
       called_by: string | null;
       tenant_phone: string | null;
+      preferred_sharing: string | null;
     }>(
       `SELECT
          ld.id::text,
@@ -194,6 +203,7 @@ export class LeadsService {
          ld.call_deadline_at::text,
          ld.called_at::text,
          ld.called_by,
+         ld.preferred_sharing,
          ${tenantPhoneSelect} AS tenant_phone
        FROM leads ld
        JOIN listings l ON l.id = ld.listing_id

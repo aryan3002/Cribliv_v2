@@ -104,10 +104,12 @@ export function getPgPublicListing(
 
 export function expressPgInterest(
   id: string,
-  token: string
+  token: string,
+  preferredSharing?: string | null
 ): Promise<{ interested: boolean; created: boolean; lead_id?: string; reason?: string }> {
   return fetchApi(`/pg/listings/${id}/interest`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ preferred_sharing: preferredSharing ?? null })
   });
 }

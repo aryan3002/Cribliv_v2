@@ -9,12 +9,21 @@ import { Heart, Check } from "lucide-react";
 import { readAuthSession } from "../../lib/client-auth";
 import { expressPgInterest } from "../../lib/pg-public-api";
 
+const SHARING_LABEL: Record<string, string> = {
+  single: "Single sharing",
+  double: "Double sharing",
+  triple: "Triple sharing",
+  quad: "Quad sharing",
+  dorm: "Dormitory"
+};
+
 export function PgInterestButton({
   listingId,
   locale,
   variant = "rail",
   className,
   children,
+  sharingOptions,
   onBefore,
   onSuccess
 }: {
@@ -23,6 +32,9 @@ export function PgInterestButton({
   variant?: "rail" | "mobile";
   className?: string;
   children?: ReactNode;
+  /** Distinct sharing kinds this listing offers — lets the tenant say which
+   *  room they want, so the operator's lead carries that preference. */
+  sharingOptions?: string[];
   onBefore?: () => void;
   onSuccess?: () => void;
 }) {
@@ -35,6 +47,9 @@ export function PgInterestButton({
     null;
 
   const [state, setState] = useState<"idle" | "loading" | "done" | "self" | "error">("idle");
+  // "" = "Any room" (no specific preference). Only shown when >1 sharing exists.
+  const [sharing, setSharing] = useState<string>("");
+  const showPicker = (sharingOptions?.length ?? 0) >= 2;
   const label = children ?? (state === "loading" ? "Sending..." : "I'm interested");
   const interestClassName = `pg-interest pg-interest--${variant}`;
   const buttonClassName = `btn btn--primary ${variant === "mobile" ? "btn--lg pg-interest__mobile-button" : "btn--lg"} ${className ?? ""}`;
@@ -75,7 +90,7 @@ export function PgInterestButton({
     onBefore?.();
     setState("loading");
     try {
-      const res = await expressPgInterest(listingId, token as string);
+      const res = await expressPgInterest(listingId, token as string, sharing || undefined);
       if (res.interested === false) {
         // Operator viewing their own listing — no lead, neutral message.
         setState("self");
@@ -94,6 +109,24 @@ export function PgInterestButton({
 
   return (
     <div className={interestClassName}>
+      {showPicker && (
+        <label className="pg-interest__sharing">
+          <span className="pg-interest__sharing-label">Which room are you interested in?</span>
+          <select
+            className="pg-interest__sharing-select"
+            aria-label="preferred room type"
+            value={sharing}
+            onChange={(e) => setSharing(e.target.value)}
+          >
+            <option value="">Any room</option>
+            {sharingOptions!.map((opt) => (
+              <option key={opt} value={opt}>
+                {SHARING_LABEL[opt] ?? opt}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <button
         type="button"
         className={buttonClassName}

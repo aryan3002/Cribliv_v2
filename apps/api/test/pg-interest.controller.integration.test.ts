@@ -57,8 +57,30 @@ describe("POST /pg/listings/:id/interest (integration)", () => {
     expect(createLead).toHaveBeenCalledWith({
       listing_id: "11111111-1111-1111-1111-111111111111",
       owner_user_id: "op-9",
-      tenant_user_id: "tenant-1"
+      tenant_user_id: "tenant-1",
+      preferred_sharing: null
     });
+    await app.close();
+  });
+
+  it("forwards a valid sharing preference and nulls an invalid one", async () => {
+    createLead.mockClear();
+    const { TestModule, allowUser } = buildApp({ operatorId: "op-9", userId: "tenant-1" });
+    app = await start(TestModule, allowUser);
+    await request(app.getHttpServer())
+      .post("/pg/listings/11111111-1111-1111-1111-111111111111/interest")
+      .send({ preferred_sharing: "double" })
+      .expect(201);
+    expect(createLead).toHaveBeenLastCalledWith(
+      expect.objectContaining({ preferred_sharing: "double" })
+    );
+    await request(app.getHttpServer())
+      .post("/pg/listings/11111111-1111-1111-1111-111111111111/interest")
+      .send({ preferred_sharing: "penthouse" })
+      .expect(201);
+    expect(createLead).toHaveBeenLastCalledWith(
+      expect.objectContaining({ preferred_sharing: null })
+    );
     await app.close();
   });
 

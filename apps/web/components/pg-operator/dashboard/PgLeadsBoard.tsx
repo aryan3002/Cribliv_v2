@@ -21,7 +21,8 @@ import {
   Eye,
   Loader2,
   GripVertical,
-  MessageSquare
+  MessageSquare,
+  BedDouble
 } from "lucide-react";
 import type { PgDashboardLead } from "@cribliv/shared-types";
 import { openPgLead, updatePgLeadStatus, type PgLeadStatus } from "@/lib/pg-operator-api";
@@ -55,6 +56,16 @@ const LABEL: Record<PgLeadStatus, string> = COLUMNS.reduce(
   (a, c) => ({ ...a, [c.status]: c.label }),
   {} as Record<PgLeadStatus, string>
 );
+
+// Sharing type the tenant asked about, shown on the lead card so the operator
+// knows which room to pitch.
+const SHARING_LABEL: Record<string, string> = {
+  single: "Single",
+  double: "Double",
+  triple: "Triple",
+  quad: "Quad",
+  dorm: "Dorm"
+};
 
 function normStatus(s: string): PgLeadStatus {
   return (["new", "contacted", "visit_scheduled", "deal_done", "lost"] as const).includes(
@@ -300,6 +311,13 @@ export default function PgLeadsBoard({
                                     <span className={styles.kbMetaItem}>
                                       <Clock size={11} /> {fmtDate(lead.created_at)}
                                     </span>
+                                    {lead.preferred_sharing && (
+                                      <span className={styles.kbMetaItem}>
+                                        <BedDouble size={11} /> Wants{" "}
+                                        {SHARING_LABEL[lead.preferred_sharing] ??
+                                          lead.preferred_sharing}
+                                      </span>
+                                    )}
                                   </div>
 
                                   {callbackMode ? (

@@ -89,6 +89,9 @@ const SHARING_COLORS: Record<string, string> = {
   dorm: "dorm"
 };
 
+// Canonical ordering for the "which room?" interest picker.
+const SHARING_ORDER = ["single", "double", "triple", "quad", "dorm"] as const;
+
 // FIX: real enum keys (attached_western | attached_indian | shared_western | shared_indian).
 const BATHROOM_LABEL: Record<string, string> = {
   attached_western: "Attached · Western",
@@ -1092,6 +1095,9 @@ export function PgDetailClient({
                 <PgInterestButton
                   listingId={detail.id}
                   locale={locale}
+                  sharingOptions={SHARING_ORDER.filter((s) =>
+                    detail.room_types.some((r) => r.sharing === s)
+                  )}
                   onBefore={() => trackPgInterestClicked(detail.id, "logged_in")}
                   onSuccess={() => trackPgInterestSubmitted(detail.id)}
                 />

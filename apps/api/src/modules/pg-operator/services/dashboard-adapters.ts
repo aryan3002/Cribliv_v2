@@ -94,6 +94,7 @@ export class LeadsSliceAdapter {
       called_by: string | null;
       tenant_name: string;
       tenant_phone?: string | null;
+      preferred_sharing?: string | null;
     }>
   > {
     const { items } = await this.leads.getOwnerLeads(operatorId);
@@ -118,7 +119,8 @@ export class LeadsSliceAdapter {
       called_at: r.called_at ? String(r.called_at) : null,
       called_by: r.called_by ? String(r.called_by) : null,
       tenant_name: String(r.tenant_name ?? "Tenant"),
-      tenant_phone: r.tenant_phone ? String(r.tenant_phone) : null
+      tenant_phone: r.tenant_phone ? String(r.tenant_phone) : null,
+      preferred_sharing: r.preferred_sharing ? String(r.preferred_sharing) : null
     }));
   }
 }
