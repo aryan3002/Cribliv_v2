@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Mail, Phone, MapPin, Clock, MessageCircle, ArrowRight, HelpCircle } from "lucide-react";
 
+import { waLink } from "../../../lib/contact";
+
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
 export async function generateMetadata({
@@ -62,7 +64,7 @@ const CHANNELS = [
     icon: MessageCircle,
     title: "WhatsApp",
     value: "+91 80621 79562",
-    href: "https://wa.me/918062179562",
+    href: waLink(),
     desc: "Quick questions and refund status checks."
   },
   {

@@ -1,3 +1,5 @@
+import { jsonLdSafe } from "../../lib/jsonld";
+
 /**
  * Renders an FAQ list and emits the matching FAQPage JSON-LD via a script
  * tag. Same data drives both, which keeps schema and visible copy in sync.
@@ -21,10 +23,7 @@ export function FaqSection({
   };
   return (
     <section style={{ marginBottom: "var(--space-10)" }} aria-label={title}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdSafe(jsonLd) }} />
       <h3 style={{ marginBottom: "var(--space-4)" }}>{title}</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         {items.map((faq) => (

@@ -1,5 +1,12 @@
 import { ApiError, fetchApi, buildSearchQuery, getApiBaseUrl } from "./api";
-import type { ListingType, VerificationType, VerificationResult } from "@cribliv/shared-types";
+import type {
+  AdminHomeDetail,
+  AdminHomesListParams,
+  AdminHomesListResponse,
+  ListingType,
+  VerificationType,
+  VerificationResult
+} from "@cribliv/shared-types";
 
 export interface AdminListingVm {
   id: string;
@@ -48,6 +55,25 @@ function authHeaders(accessToken: string) {
   return {
     Authorization: `Bearer ${accessToken}`
   };
+}
+
+export async function fetchAdminHomes(
+  accessToken: string,
+  params: Partial<AdminHomesListParams> = {}
+): Promise<AdminHomesListResponse> {
+  const qs = buildSearchQuery(params as Record<string, string | number | boolean | undefined>);
+  return fetchApi<AdminHomesListResponse>(`/admin/homes${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminHomeDetail(
+  accessToken: string,
+  listingId: string
+): Promise<AdminHomeDetail> {
+  return fetchApi<AdminHomeDetail>(`/admin/homes/${listingId}`, {
+    headers: authHeaders(accessToken)
+  });
 }
 
 export async function fetchAdminListings(accessToken: string) {
@@ -1404,6 +1430,152 @@ export async function listCityMetro(citySlug: string): Promise<SeoMetroRow[]> {
   );
 }
 
+// ── Admin SEO copy control (Feature 1) ─────────────────────────────────────
+
+/** Which source drives a page's copy right now (for the status chips). */
+export type SeoCopyProvenance = "override" | "ai" | "template";
+
+export interface SeoCopyStatusRow {
+  slug: string;
+  en: SeoCopyProvenance;
+  hi: SeoCopyProvenance;
+}
+
+/** The editable copy fields — mirrors the API GeneratedCopy shape. */
+export interface SeoCopyFields {
+  h1: string;
+  meta_title: string;
+  meta_description: string;
+  intro_paragraph: string;
+  nearby_blurb: string | null;
+  faq_items: Array<{ q: string; a: string }>;
+}
+
+/** Per-locality copy provenance for every locality in a city. */
+export async function fetchSeoCopyStatus(
+  accessToken: string,
+  citySlug: string
+): Promise<SeoCopyStatusRow[]> {
+  const raw = await fetchApi<{ items?: SeoCopyStatusRow[] }>(
+    `/admin/seo/copy-status?citySlug=${encodeURIComponent(citySlug)}`,
+    { headers: authHeaders(accessToken) }
+  );
+  return raw.items ?? [];
+}
+
+/** Force-(re)generate AI copy for one locality, both locales. */
+export async function generateSeoCopyOne(
+  accessToken: string,
+  citySlug: string,
+  localitySlug: string
+): Promise<{ en: SeoCopyFields | null; hi: SeoCopyFields | null }> {
+  return fetchApi("/admin/seo/copy/generate-one", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ citySlug, localitySlug })
+  });
+}
+
+/** Save a hand-written override for a locality page + locale. */
+export async function upsertSeoCopyOverride(
+  accessToken: string,
+  params: {
+    citySlug: string;
+    localitySlug: string;
+    locale: "en" | "hi";
+    copy: SeoCopyFields;
+    notes?: string | null;
+  }
+): Promise<{ page_path: string; locale: string }> {
+  return fetchApi("/admin/seo/copy/override", {
+    method: "PUT",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(params)
+  });
+}
+
+/** Remove an override (revert to AI copy, else template). */
+export async function deleteSeoCopyOverride(
+  accessToken: string,
+  path: string,
+  locale: "en" | "hi"
+): Promise<{ page_path: string; locale: string }> {
+  const query = new URLSearchParams({ path, locale }).toString();
+  return fetchApi(`/admin/seo/copy/override?${query}`, {
+    method: "DELETE",
+    headers: authHeaders(accessToken)
+  });
+}
+
+/**
+ * Read the currently stored copy for a page + locale (override else AI, else
+ * null) — public endpoint, used to prefill / preview the override editor.
+ */
+export async function fetchSeoCopyForPath(
+  path: string,
+  locale: "en" | "hi"
+): Promise<SeoCopyFields | null> {
+  const query = new URLSearchParams({ path, locale }).toString();
+  return fetchApi<SeoCopyFields | null>(`/seo/copy?${query}`);
+}
+
+/** City-scoped "generate all missing (>= 3 listings)". Returns live counts. */
+export async function generateSeoCopyBatchForCity(
+  accessToken: string,
+  citySlug: string,
+  opts?: { limit?: number; force?: boolean }
+): Promise<{ generated: number; skipped: number }> {
+  return fetchApi("/admin/seo/copy/generate-batch", {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ citySlug, ...opts })
+  });
+}
+
+/**
+ * Fetch the built-in template copy for a locality (what the page renders when
+ * no AI/override copy exists) via the app's own /api/seo-template route. Used
+ * to prefill the override editor. Returns null on failure.
+ */
+export async function fetchSeoTemplateCopy(
+  citySlug: string,
+  localitySlug: string,
+  locale: "en" | "hi"
+): Promise<SeoCopyFields | null> {
+  try {
+    const query = new URLSearchParams({
+      city: citySlug,
+      locality: localitySlug,
+      locale
+    }).toString();
+    const res = await fetch(`/api/seo-template?${query}`);
+    if (!res.ok) return null;
+    const payload = (await res.json().catch(() => null)) as { data?: SeoCopyFields | null } | null;
+    return payload?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ask the Next app to on-demand revalidate the given (already localized) SEO
+ * paths so a copy change shows immediately instead of waiting for ISR. This
+ * hits the app's own /api/revalidate route (not the API), which re-checks that
+ * the caller is an admin. Best-effort — never throws.
+ */
+export async function revalidateSeoPaths(accessToken: string, paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  try {
+    await fetch("/api/revalidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ paths })
+    });
+  } catch {
+    // ISR will catch up within the revalidate window.
+  }
+}
+
 // ── Search Performance (Slice 2 — Indexing + Measurement) ──────────────────
 
 export interface SearchPerformanceRowVm {
@@ -1912,6 +2084,7 @@ export async function generateNextBlogBrief(accessToken: string): Promise<Genera
 import type {
   AdminLeadBoardResponse,
   AdminLeadBoardFilter,
+  AdminLeadBoardSort,
   AdminLeadAnalytics,
   AdminLeadOwnerDetail,
   AdminLeadTimelineResponse
@@ -1920,10 +2093,12 @@ import type {
 export interface AdminLeadBoardParams {
   filter?: AdminLeadBoardFilter;
   owner_id?: string;
+  listing_id?: string;
   state?: string;
   status?: string;
   q?: string;
   range?: string;
+  sort?: AdminLeadBoardSort;
   page?: number;
   page_size?: number;
 }
@@ -2006,4 +2181,130 @@ export async function resetAdminTotp(accessToken: string): Promise<{ reset: bool
     method: "POST",
     headers: authHeaders(accessToken)
   });
+}
+
+// ── Admin review detail VMs + fetchers (Task 6) ─────────────────────────────
+// These payloads are large; VMs keep the server's snake_case field names
+// verbatim (no camelCase mapping layer) to avoid duplicating the shape.
+
+export interface AdminReviewOwnerVm {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  whatsapp_opt_in: boolean;
+  preferred_language: string | null;
+  role: string;
+  is_blocked: boolean;
+  member_since: string | null;
+  active_listings: number;
+  report_count: number;
+}
+
+export interface AdminListingPhotoVm {
+  url: string | null;
+  is_cover: boolean;
+  sort_order: number;
+  moderation_status: string;
+}
+
+export interface AdminReviewEvidenceVm {
+  attempt_id: string;
+  kind: string;
+  result: string;
+  liveness_score: number | null;
+  address_match_score: number | null;
+  threshold: number;
+  provider: string | null;
+  provider_result_code: string | null;
+  review_reason: string | null;
+  artifact_available: boolean;
+  created_at: string;
+}
+
+export interface AdminListingDetailVm {
+  listing: {
+    id: string;
+    listing_type: "flat_house" | "pg";
+    title_en: string | null;
+    title_hi: string | null;
+    description_en: string | null;
+    description_hi: string | null;
+    status: string;
+    verification_status: string;
+    monthly_rent: number | null;
+    security_deposit: number | null;
+    available_from: string | null;
+    furnishing: string | null;
+    bhk: number | null;
+    bathrooms: number | null;
+    area_sqft: number | null;
+    preferred_tenant: string | null;
+    whatsapp_available: boolean;
+    amenities: string[];
+    rules: Record<string, unknown>;
+    created_at: string;
+  };
+  location: {
+    address_line1?: string | null;
+    landmark?: string | null;
+    pincode?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+    masked_address?: string | null;
+    locality_name?: string | null;
+    city_slug?: string | null;
+    city_name?: string | null;
+  } | null;
+  owner: AdminReviewOwnerVm;
+  photos: AdminListingPhotoVm[];
+  pg: { details: Record<string, unknown> | null; rooms: Record<string, unknown>[] } | null;
+  verification: AdminReviewEvidenceVm[];
+}
+
+export interface AdminVerificationDetailVm {
+  attempt_id: string;
+  kind: string;
+  result: string;
+  liveness_score: number | null;
+  address_match_score: number | null;
+  threshold: number;
+  provider: string | null;
+  provider_reference: string | null;
+  provider_result_code: string | null;
+  review_reason: string | null;
+  retryable: boolean | null;
+  artifact_available: boolean;
+  created_at: string;
+  listing: { id: string | null; title: string | null; address: string | null };
+  owner: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    whatsapp_opt_in: boolean;
+    member_since: string | null;
+  };
+}
+
+export async function fetchAdminListingDetail(accessToken: string, listingId: string) {
+  return fetchApi<AdminListingDetailVm>(`/admin/review/listings/${listingId}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchAdminVerificationDetail(accessToken: string, attemptId: string) {
+  return fetchApi<AdminVerificationDetailVm>(`/admin/review/verifications/${attemptId}`, {
+    headers: authHeaders(accessToken)
+  });
+}
+
+export async function fetchVerificationArtifactLink(
+  accessToken: string,
+  attemptId: string,
+  kind: "video_liveness" | "electricity_bill"
+) {
+  const res = await fetchApi<{ url: string; expires_at: string } | null>(
+    `/admin/review/verifications/${attemptId}/artifact-link?kind=${kind}`,
+    { headers: authHeaders(accessToken) }
+  );
+  return res ? { url: res.url, expiresAt: res.expires_at } : null;
 }

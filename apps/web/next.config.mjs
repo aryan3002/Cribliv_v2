@@ -54,7 +54,11 @@ const nextConfig = {
       ["sushantgolf", "sushant-golf-city"],
       ["vibhutikhand", "vibhuti-khand"],
       ["vijaykhand", "vijay-khand"],
-      ["vipulkhand", "vipul-khand"]
+      ["vipulkhand", "vipul-khand"],
+      // Typo fix: seed slug was "ldai-colony" for "LDA Colony". 301 the old
+      // slug to the corrected one. MUST deploy only AFTER the DB row is
+      // renamed to "lda-colony", else this redirects to a 404.
+      ["ldai-colony", "lda-colony"]
     ];
     const redirects = [];
     for (const [bad, good] of SOURCES) {

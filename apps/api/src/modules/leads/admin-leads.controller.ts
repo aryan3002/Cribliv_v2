@@ -24,8 +24,10 @@ export class AdminLeadsController {
     @Query("status") status?: string,
     @Query("q") q?: string,
     @Query("range") range?: string,
+    @Query("sort") sort?: string,
     @Query("page") page?: string,
-    @Query("page_size") pageSize?: string
+    @Query("page_size") pageSize?: string,
+    @Query("listing_id") listingId?: string
   ) {
     return ok(
       await this.ops.getBoard(
@@ -36,8 +38,10 @@ export class AdminLeadsController {
           status,
           q,
           range,
+          sort,
           page,
-          page_size: pageSize
+          page_size: pageSize,
+          listing_id: listingId
         })
       )
     );

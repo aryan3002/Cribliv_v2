@@ -24,6 +24,7 @@ import { SearchPerformanceTab } from "../tabs/SearchPerformanceTab";
 import { BlogReviewTab } from "../tabs/BlogReviewTab";
 import { SystemTab } from "../tabs/SystemTab";
 import { AdminTotpPanel } from "../security/AdminTotpPanel";
+import { AdminHomesTab } from "../homes/AdminHomesTab";
 
 interface Props {
   accessToken: string;
@@ -42,6 +43,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   "pg-listings": "PG Overview",
   "pg-properties": "PG Listings",
   "manage-pg-requests": "Manage PG Requests",
+  homes: "Verified Homes",
   fraud: "Fraud Intelligence",
   seo: "Programmatic SEO",
   "search-performance": "Search Performance",
@@ -57,6 +59,9 @@ export function AdminShell({ accessToken }: Props) {
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(Date.now());
   const [counts, setCounts] = useState<Partial<Record<AdminTab, number>>>({});
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [homeTarget, setHomeTarget] = useState<string | null>(null);
+  const [listingReviewTarget, setListingReviewTarget] = useState<string | null>(null);
+  const [leadCenterListingTarget, setLeadCenterListingTarget] = useState<string | null>(null);
   const { toast, push, dismiss } = useToast();
 
   // Persist last tab per session
@@ -81,6 +86,29 @@ export function AdminShell({ accessToken }: Props) {
     };
   }, []);
 
+  const openListingReview = useCallback((listingId: string) => {
+    setListingReviewTarget(listingId);
+    setTab("listings");
+  }, []);
+
+  const openHome = useCallback((listingId: string) => {
+    setHomeTarget(listingId);
+    setTab("homes");
+  }, []);
+
+  const openLeadCenterForListing = useCallback((listingId: string) => {
+    setLeadCenterListingTarget(listingId);
+    setTab("lead-center");
+  }, []);
+
+  // Clear one-shot cross-navigation targets after leaving their destination,
+  // so later sidebar visits open the normal unscoped tab state.
+  useEffect(() => {
+    if (tab !== "homes" && homeTarget) setHomeTarget(null);
+    if (tab !== "listings" && listingReviewTarget) setListingReviewTarget(null);
+    if (tab !== "lead-center" && leadCenterListingTarget) setLeadCenterListingTarget(null);
+  }, [homeTarget, leadCenterListingTarget, listingReviewTarget, tab]);
+
   const view = useMemo(() => {
     // Force-remount tabs on refresh nonce to re-fetch.
     const k = refreshNonce;
@@ -96,6 +124,7 @@ export function AdminShell({ accessToken }: Props) {
           <ListingReviewTab
             key={`li-${k}`}
             accessToken={accessToken}
+            initialListingId={listingReviewTarget}
             onCountChange={handleCount("listings")}
             onToast={push}
           />
@@ -107,6 +136,7 @@ export function AdminShell({ accessToken }: Props) {
             accessToken={accessToken}
             onCountChange={handleCount("verifications")}
             onToast={push}
+            onOpenListing={openListingReview}
           />
         );
       case "leads":
@@ -123,6 +153,8 @@ export function AdminShell({ accessToken }: Props) {
           <LeadCenterTab
             key={`lc-${k}`}
             accessToken={accessToken}
+            initialListingId={leadCenterListingTarget}
+            onOpenHome={openHome}
             onCountChange={handleCount("lead-center")}
             onToast={push}
           />
@@ -139,6 +171,17 @@ export function AdminShell({ accessToken }: Props) {
         return <PgPropertiesTab key={`pgp-${k}`} accessToken={accessToken} />;
       case "manage-pg-requests":
         return <ManagePgRequestsTab key={`pgm-${k}`} accessToken={accessToken} onToast={push} />;
+      case "homes":
+        return (
+          <AdminHomesTab
+            key={`homes-${k}`}
+            accessToken={accessToken}
+            initialListingId={homeTarget}
+            onOpenListingReview={openListingReview}
+            onOpenLeadCenter={openLeadCenterForListing}
+            onToast={push}
+          />
+        );
       case "fraud":
         return <FraudTab key={`fr-${k}`} accessToken={accessToken} onToast={push} />;
       case "seo":
@@ -152,7 +195,19 @@ export function AdminShell({ accessToken }: Props) {
       case "security":
         return <AdminTotpPanel key={`security-${k}`} accessToken={accessToken} />;
     }
-  }, [tab, refreshNonce, accessToken, handleCount, push]);
+  }, [
+    tab,
+    refreshNonce,
+    accessToken,
+    handleCount,
+    push,
+    homeTarget,
+    listingReviewTarget,
+    leadCenterListingTarget,
+    openHome,
+    openListingReview,
+    openLeadCenterForListing
+  ]);
 
   return (
     <div className="admin-shell">
@@ -166,6 +221,20 @@ export function AdminShell({ accessToken }: Props) {
             onOpenCommand={() => setPaletteOpen(true)}
             refreshing={refreshing}
           />
+          <label className="admin-mobile-nav">
+            <span>Section</span>
+            <select
+              aria-label="Admin section"
+              value={tab}
+              onChange={(event) => setTab(event.target.value as AdminTab)}
+            >
+              {Object.entries(TAB_TITLES).map(([id, title]) => (
+                <option key={id} value={id}>
+                  {title}
+                </option>
+              ))}
+            </select>
+          </label>
           <main className="admin-main">{view}</main>
         </div>
       </div>

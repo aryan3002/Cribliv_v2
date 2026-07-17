@@ -283,32 +283,77 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
     .sort((a, b) => a - b);
   const heroLowRent = liveRents[0] ? formatCompactCount(liveRents[0]) : null;
   const heroHighRent = liveRents.at(-1) ? formatCompactCount(liveRents.at(-1) ?? 0) : null;
-  const liveMarketStats = [
+  // Two live listings (with photos) power the hero visual cluster. If we can't
+  // get two with cover photos, the hero falls back to a centered layout so it
+  // never renders an empty right column.
+  // Prefer listings with photos, but fall back to any live listing (rendered
+  // with a branded placeholder) so the cluster still shows when photos are
+  // sparse. Only the genuinely empty market falls back to the centered hero.
+  const heroPhotoListings = [...furnishedHomes, ...popularHomes, ...trendingPgs].filter(
+    (listing) => listing.id && listing.cover_photo
+  );
+  const heroAnyListings = [...popularHomes, ...furnishedHomes, ...trendingPgs].filter(
+    (listing) => listing.id
+  );
+  const heroListings = Array.from(
+    new Map(
+      [...heroPhotoListings, ...heroAnyListings].map((listing) => [listing.id, listing])
+    ).values()
+  ).slice(0, 2);
+  const heroHasVisual = heroListings.length >= 2;
+  const listingHref = (listing: ListingCardData) =>
+    listing.listing_type === "pg" && listing.city
+      ? `/${params.locale}/pg/${listing.city}/${listing.id}`
+      : `/${params.locale}/listing/${listing.id}`;
+
+  // Stat band: only ever surface non-zero, non-duplicate proof numbers.
+  const listingsTotal = allLucknowBucket.total;
+  const verifiedTotal = verifiedLucknowBucket.total;
+  const verifiedPct = listingsTotal > 0 ? Math.round((verifiedTotal / listingsTotal) * 100) : null;
+  const distinctLocalities = new Set(
+    [...popularHomes, ...furnishedHomes, ...trendingPgs]
+      .map((listing) => (listing.locality ?? "").trim().toLowerCase())
+      .filter(Boolean)
+  ).size;
+  const localitiesCount = distinctLocalities || visibleLocalities.length;
+  const marketStatCandidates = [
     {
       icon: ShieldCheck,
-      value: formatCompactCount(allLucknowBucket.total),
+      raw: listingsTotal,
+      value: formatCompactCount(listingsTotal),
       label: isHindi ? "लखनऊ लिस्टिंग" : "Live Lucknow listings",
       note: isHindi ? "बैकएंड से लाइव" : "Pulled from the search API"
     },
     {
-      icon: Home,
-      value: formatCompactCount(verifiedLucknowBucket.total),
-      label: isHindi ? "वेरिफाइड मैच" : "Verified matches",
-      note: isHindi ? "लाइव वेरिफिकेशन स्टेटस" : "Using live verification status"
+      icon: CheckCircle2,
+      raw: verifiedTotal,
+      value: verifiedPct != null ? `${verifiedPct}%` : formatCompactCount(verifiedTotal),
+      label: isHindi ? "वेरिफाइड इन्वेंट्री" : "Verified inventory",
+      note: isHindi ? "हर लाइव लिस्टिंग जांची गई" : "Every live listing, checked"
     },
     {
-      icon: Sofa,
-      value: formatCompactCount(visibleLocalities.length),
-      label: isHindi ? "लोकैलिटी" : "Active localities",
-      note: isHindi ? "लोकैलिटी API से" : "From locality demand data"
+      icon: MapPin,
+      raw: localitiesCount,
+      value: formatCompactCount(localitiesCount),
+      label: isHindi ? "लोकैलिटी कवर" : "Localities covered",
+      note: isHindi ? "लाइव लखनऊ डेटा से" : "From live Lucknow data"
     },
     {
       icon: TrendingUp,
+      raw: activeCityCount,
       value: formatCompactCount(activeCityCount),
-      label: isHindi ? "लाइव शहर" : "Cities with inventory",
-      note: isHindi ? "शहरों के लाइव परिणाम" : "No hardcoded city counts"
+      label: isHindi ? "लाइव शहर" : "Cities live",
+      note: isHindi ? "कोई हार्डकोड नहीं" : "Real inventory, not hardcoded"
+    },
+    {
+      icon: Sofa,
+      raw: furnishedHomesBucket.total,
+      value: formatCompactCount(furnishedHomesBucket.total),
+      label: isHindi ? "फर्निश्ड घर" : "Furnished homes",
+      note: isHindi ? "मूव-इन रेडी" : "Move-in ready"
     }
   ];
+  const liveMarketStats = marketStatCandidates.filter((stat) => stat.raw > 0).slice(0, 4);
   const impactStats = [
     {
       value: allLucknowBucket.total,
@@ -377,22 +422,13 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
       />
 
       {/* ── Claude design-system homepage hero ── */}
-      <section className="hero--landing hero--home-prototype">
-        <div className="home-hero__street" aria-hidden="true" />
-        <div className="home-hero__road" aria-hidden="true" />
+      <section
+        className={`hero--landing hero--home-prototype ${
+          heroHasVisual ? "hero--has-visual" : "hero--centered"
+        }`}
+      >
         <div className="home-hero__wash" aria-hidden="true" />
-        <div className="home-hero__land home-hero__land--brand" aria-hidden="true" />
-        <div className="home-hero__land home-hero__land--trust" aria-hidden="true" />
-        {heroLowRent && (
-          <div className="home-hero__pin home-hero__pin--primary" aria-hidden="true">
-            <span />₹{heroLowRent}
-          </div>
-        )}
-        {heroHighRent && heroHighRent !== heroLowRent && (
-          <div className="home-hero__pin home-hero__pin--accent" aria-hidden="true">
-            <span />₹{heroHighRent}
-          </div>
-        )}
+        <div className="home-hero__glow" aria-hidden="true" />
 
         <div className="container home-hero__inner">
           <div className="home-hero__copy">
@@ -458,6 +494,91 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
               </span>
             </div>
           </div>
+
+          {heroHasVisual && (
+            <aside
+              className="home-hero__visual"
+              aria-label={isHindi ? "लखनऊ में लाइव घर" : "Live homes in Lucknow"}
+            >
+              <div className="home-hero__visual-head">
+                <span>{isHindi ? "लखनऊ में लाइव घर" : "Live homes in Lucknow"}</span>
+                <Link
+                  href={`/${params.locale}/search?city=lucknow` as Route}
+                  className="home-hero__visual-all"
+                >
+                  {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={13} />
+                </Link>
+              </div>
+              <div className="home-hero__cards">
+                {heroListings.map((listing) => {
+                  const verified = listing.verification_status === "verified";
+                  const rent =
+                    listing.monthly_rent && listing.monthly_rent > 0
+                      ? `₹${listing.monthly_rent.toLocaleString("en-IN")}`
+                      : isHindi
+                        ? "किराया पूछें"
+                        : "On request";
+                  const cityLabel = listing.city_name ?? listing.city ?? "Lucknow";
+                  const typeLabel =
+                    listing.listing_type === "pg"
+                      ? isHindi
+                        ? "पीजी"
+                        : "PG"
+                      : listing.bhk
+                        ? `${listing.bhk} BHK`
+                        : isHindi
+                          ? "घर"
+                          : "Home";
+                  const CardIcon = listing.listing_type === "pg" ? Home : Building2;
+                  return (
+                    <Link
+                      key={listing.id}
+                      href={listingHref(listing) as Route}
+                      className="home-hero__card"
+                    >
+                      <span
+                        className={`home-hero__card-media${
+                          listing.cover_photo ? "" : " home-hero__card-media--empty"
+                        }`}
+                        style={
+                          listing.cover_photo
+                            ? { backgroundImage: `url('${listing.cover_photo}')` }
+                            : undefined
+                        }
+                        aria-hidden="true"
+                      >
+                        {!listing.cover_photo && <CardIcon size={26} aria-hidden="true" />}
+                        {verified && (
+                          <span className="home-hero__card-badge">
+                            <CheckCircle2 size={11} aria-hidden="true" />
+                            {isHindi ? "वेरिफाइड" : "Verified"}
+                          </span>
+                        )}
+                      </span>
+                      <span className="home-hero__card-body">
+                        <span className="home-hero__card-rent">{rent}</span>
+                        <span className="home-hero__card-title">{typeLabel}</span>
+                        <span className="home-hero__card-loc">
+                          <MapPin size={11} aria-hidden="true" />
+                          {[listing.locality, cityLabel].filter(Boolean).join(", ")}
+                        </span>
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+              {heroLowRent && (
+                <span className="home-hero__price home-hero__price--low" aria-hidden="true">
+                  <span />₹{heroLowRent}
+                </span>
+              )}
+              {heroHighRent && heroHighRent !== heroLowRent && (
+                <span className="home-hero__price home-hero__price--high" aria-hidden="true">
+                  ₹{heroHighRent}
+                </span>
+              )}
+            </aside>
+          )}
         </div>
       </section>
 

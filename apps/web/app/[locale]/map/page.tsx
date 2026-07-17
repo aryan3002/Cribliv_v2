@@ -18,8 +18,8 @@ export async function generateMetadata({
       ? "CriblMap: सत्यापित किराये का नक्शा"
       : "CriblMap: Verified Rent Intelligence Map",
     description: isHindi
-      ? "दिल्ली NCR में सत्यापित किराये की लिस्टिंग का मानचित्र। क्षेत्र के हिसाब से किराया, मेट्रो, और बाजार अंतर्दृष्टि देखें।"
-      : "Explore verified rental listings on a live map. See area-level rent data, metro proximity, and market insights across Delhi NCR.",
+      ? "लखनऊ में सत्यापित किराये की लिस्टिंग का मानचित्र। क्षेत्र के हिसाब से किराया, मेट्रो, और बाजार अंतर्दृष्टि देखें।"
+      : "Explore verified rental listings on a live map. See area-level rent data, metro proximity, and market insights across Lucknow.",
     openGraph: {
       title: "CriblMap: Verified Rent Intelligence",
       description:
@@ -62,12 +62,12 @@ export default function MapPage({
   const lngParam = typeof searchParams.lng === "string" ? Number(searchParams.lng) : NaN;
   const zoomParam = typeof searchParams.zoom === "string" ? Number(searchParams.zoom) : NaN;
   // City slug (?city=lucknow) drives city-aware overlays (metro lines, etc.).
-  // Defaults to "delhi" when absent so the existing experience is unchanged.
+  // Defaults to "lucknow" when absent — most listings on the platform are there.
   const initialCity =
     typeof searchParams.city === "string" && /^[a-z][a-z0-9_-]{1,32}$/i.test(searchParams.city)
       ? searchParams.city.toLowerCase()
-      : undefined;
-  const cityCenter = initialCity ? cityCentroid(initialCity) : null;
+      : "lucknow";
+  const cityCenter = cityCentroid(initialCity);
   const initialCenter =
     Number.isFinite(latParam) && Number.isFinite(lngParam)
       ? { lat: latParam, lng: lngParam }

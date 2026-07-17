@@ -12,6 +12,15 @@ import { SearchResultsMap } from "../../search/SearchResultsMap";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
+// ISR. This page has generateStaticParams (so Next prerenders it static) but
+// fetches live PG inventory with a no-store request (searchPgListings ->
+// fetchApi { server: true }). Without a revalidate/dynamic declaration, Next
+// throws "Page changed from static to dynamic at runtime" and serves a 500 for
+// every /pg/{city} URL. Declaring revalidate reconciles the two — identical to
+// the working /city/[citySlug] page, which pairs the same no-store fetch with
+// `export const revalidate = 3600`.
+export const revalidate = 3600;
+
 export function generateStaticParams() {
   return Object.keys(PG_CITY_CONTENT).map((city) => ({ city }));
 }
@@ -143,7 +152,11 @@ export default async function PgCityPage({ params }: { params: { locale: string;
       >
         {/* Available PGs (Moved up for better UX) */}
         {listings.items.length > 0 && (
-          <section className="ld-section" style={{ borderTop: 0, paddingTop: 0 }}>
+          <section
+            className="ld-section"
+            aria-label={`Available PGs in ${c.name}`}
+            style={{ borderTop: 0, paddingTop: 0 }}
+          >
             <div
               style={{
                 display: "flex",
@@ -160,31 +173,33 @@ export default async function PgCityPage({ params }: { params: { locale: string;
                 View all PGs
               </Link>
             </div>
-            <div className="listing-grid">
-              {listings.items.map((it, idx) => (
-                <PgListingCard
-                  key={it.id}
-                  listing={it}
+            <div className="pg-city-inventory">
+              <div className="listing-grid">
+                {listings.items.map((it, idx) => (
+                  <PgListingCard
+                    key={it.id}
+                    listing={it}
+                    locale={params.locale}
+                    position={idx}
+                    surface="pg_city"
+                    filters={{}}
+                  />
+                ))}
+              </div>
+              <aside className="tenant-results-map-panel" aria-label="PG map preview">
+                <SearchResultsMap
                   locale={params.locale}
-                  position={idx}
-                  surface="pg_city"
-                  filters={{}}
+                  city={c.slug}
+                  listings={listings.items.map(pgCardToSearchMapListing)}
+                  mapHref={
+                    `/${params.locale}/map?${buildSearchQuery({
+                      city: c.slug,
+                      listing_type: "pg"
+                    })}` as Route
+                  }
                 />
-              ))}
+              </aside>
             </div>
-            <aside className="tenant-results-map-panel" aria-label="PG map preview">
-              <SearchResultsMap
-                locale={params.locale}
-                city={c.slug}
-                listings={listings.items.map(pgCardToSearchMapListing)}
-                mapHref={
-                  `/${params.locale}/map?${buildSearchQuery({
-                    city: c.slug,
-                    listing_type: "pg"
-                  })}` as Route
-                }
-              />
-            </aside>
           </section>
         )}
 

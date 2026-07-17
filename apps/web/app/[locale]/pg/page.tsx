@@ -115,7 +115,10 @@ export default async function PgSearchPage({
         </div>
       )}
 
-      <section className="container tenant-results-content tenant-results-map-shell">
+      <section
+        className="container tenant-results-content tenant-results-map-shell"
+        aria-label="PG results"
+      >
         <div className="tenant-results-list-panel">
           {!error && response.items.length === 0 ? (
             <div className="empty-state" style={{ marginTop: "var(--space-8)" }}>

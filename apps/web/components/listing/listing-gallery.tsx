@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import type { Route } from "next";
 import { Camera, Grid3x3, X } from "lucide-react";
 import { t, type Locale } from "../../lib/i18n";
 import { useFlag } from "../../lib/feature-flags";
@@ -14,6 +15,12 @@ interface ListingGalleryProps {
   locale: Locale;
   onPhotoClick?: (index: number) => void;
   isGuest?: boolean;
+  returnPath?: string;
+}
+
+function safeReturnPath(path: string | undefined): string | null {
+  if (!path || !path.startsWith("/") || path.startsWith("//")) return null;
+  return path;
 }
 
 export function ListingGallery({
@@ -21,7 +28,8 @@ export function ListingGallery({
   title,
   locale,
   onPhotoClick,
-  isGuest
+  isGuest,
+  returnPath
 }: ListingGalleryProps) {
   const [open, setOpen] = useState(false);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
@@ -38,6 +46,10 @@ export function ListingGallery({
     setHasLocalSession(Boolean(readAuthSession()?.access_token));
   }, []);
   const gated = Boolean(isGuest) && gatingOn && !hasLocalSession;
+  const safePath = safeReturnPath(returnPath);
+  const signupHref = safePath
+    ? `/${locale}/auth/login?tab=signup&from=${encodeURIComponent(safePath)}`
+    : `/${locale}/auth/login?tab=signup`;
 
   const openLightbox = useCallback(() => {
     previousFocusRef.current = (document.activeElement as HTMLElement) ?? null;
@@ -104,7 +116,7 @@ export function ListingGallery({
             onClick={() => {
               if (gated) {
                 trackEvent("guest_gate_viewed", { surface: "gallery" });
-                window.location.href = `/${locale}/auth/login?tab=signup`;
+                window.location.href = signupHref;
                 return;
               }
               onPhotoClick?.(i + 1);
@@ -117,7 +129,7 @@ export function ListingGallery({
                 e.preventDefault();
                 if (gated) {
                   trackEvent("guest_gate_viewed", { surface: "gallery" });
-                  window.location.href = `/${locale}/auth/login?tab=signup`;
+                  window.location.href = signupHref;
                   return;
                 }
                 onPhotoClick?.(i + 1);
@@ -146,7 +158,7 @@ export function ListingGallery({
         </button>
         {gated ? (
           <Link
-            href={`/${locale}/auth/login?tab=signup`}
+            href={signupHref as Route}
             className="btn btn--primary btn--sm"
             data-testid="gallery-gate-cta"
             style={{

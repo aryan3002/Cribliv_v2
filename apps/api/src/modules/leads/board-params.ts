@@ -10,7 +10,11 @@ export interface RawBoardParams {
   range?: string;
   page?: string;
   page_size?: string;
+  sort?: string;
+  listing_id?: string;
 }
+
+const VALID_SORTS = new Set(["urgency", "newest"]);
 
 const VALID_FILTERS: ReadonlySet<AdminLeadBoardFilter> = new Set([
   "needs_call",
@@ -54,10 +58,12 @@ export function sanitizeBoardParams(raw: RawBoardParams): BoardParams {
   return {
     filter,
     ownerId: raw.owner_id && UUID_RE.test(raw.owner_id) ? raw.owner_id : undefined,
+    listingId: raw.listing_id && UUID_RE.test(raw.listing_id) ? raw.listing_id : undefined,
     state: raw.state || undefined, // access_state is a text column — a bad value just returns 0 rows
     status,
     q: raw.q || undefined,
     range,
+    sort: raw.sort && VALID_SORTS.has(raw.sort) ? (raw.sort as "urgency" | "newest") : "urgency",
     page: toPositiveInt(raw.page, 1),
     pageSize: toPositiveInt(raw.page_size, 50, 100)
   };

@@ -447,11 +447,15 @@ h4,
 }
 
 .logo-font {
-  height: 22px;
+  height: 16px;
   width: auto;
   display: block;
   object-fit: contain;
   margin-left: var(--space-1);
+  /* Optical alignment: the mark's visual focal point (window cutout) sits
+     slightly below its bounding-box center, so the wordmark is nudged down
+     to match rather than aligning both boxes' raw geometric centers. */
+  transform: translateY(2px);
 }
 
 .logo-wordmark {
@@ -713,15 +717,55 @@ h4,
   background: var(--surface-sunken);
 }
 
+/* Short label hidden by default; shown only on the compact mobile pill. */
+.nav-host-link__short {
+  display: none;
+}
+
 @media (max-width: 640px) {
-  .nav-host-link span {
+  /* Post Property becomes a labeled brand pill (not a bare + icon) so the
+     action stays obvious; the language switch moves into the hamburger menu. */
+  .nav-host-link {
+    width: auto;
+    height: auto;
+    padding: 7px 10px;
+    gap: 4px;
+    background: var(--brand-light);
+    color: var(--brand);
+    font-weight: 700;
+  }
+  .nav-host-link:hover {
+    background: var(--brand-light);
+  }
+  .nav-host-link__full {
     display: none;
   }
-  .nav-host-link {
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    justify-content: center;
+  .nav-host-link__short {
+    display: inline;
+  }
+  /* Language stays visible on the top bar as a compact "हिंदी" chip — Hindi
+     discovery matters for the audience. Drop the globe on mobile to save width;
+     the label alone is self-explanatory, and the border reads as tappable. */
+  .nav-actions .lang-pill {
+    padding: 6px 11px;
+    gap: 0;
+    border: 1px solid var(--border);
+  }
+  .nav-actions .lang-pill svg {
+    display: none;
+  }
+  /* Free horizontal room so the profile pill sits a comfortable margin from the
+     edge on small phones: tighten the action gap, the logo wordmark, and the
+     profile pill's internal padding. */
+  .nav-actions {
+    gap: 6px;
+  }
+  .header .brand-lockup--md .logo-font {
+    height: 16px;
+  }
+  .profile-pill {
+    gap: 6px;
+    padding-left: 9px;
   }
 }
 
@@ -747,11 +791,10 @@ h4,
 }
 
 @media (max-width: 480px) {
-  .lang-pill__label {
-    display: none;
-  }
+  /* Keep the हिंदी label visible even on small phones so language discovery
+     stays obvious; just tighten padding. */
   .lang-pill {
-    padding: 8px;
+    padding: 7px 9px;
   }
 }
 
@@ -1496,6 +1539,98 @@ h4,
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+.role-avatar {
+  --role-avatar-ring: #246bfd;
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.88),
+    0 0 0 1px var(--role-avatar-ring),
+    0 4px 10px rgba(32, 55, 110, 0.18);
+}
+
+.role-avatar[data-role-avatar="owner"] {
+  --role-avatar-ring: #8a43c9;
+}
+
+.role-avatar[data-role-avatar="pg_operator"] {
+  --role-avatar-ring: #008a78;
+}
+
+.role-avatar[data-role-avatar="admin"] {
+  --role-avatar-ring: #31384d;
+}
+
+.role-avatar[data-role-avatar="fallback"] {
+  box-shadow: none;
+}
+
+.role-avatar--compact {
+  width: 30px;
+  height: 30px;
+}
+
+.role-avatar--menu {
+  width: 42px;
+  height: 42px;
+}
+
+.role-avatar__portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.role-avatar__seal {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  z-index: 1;
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--role-avatar-ring);
+  color: #fff;
+  box-shadow: 0 2px 5px rgba(22, 30, 51, 0.24);
+}
+
+.role-avatar--menu .role-avatar__seal {
+  width: 17px;
+  height: 17px;
+}
+
+.role-avatar__seal svg {
+  width: 7px;
+  height: 7px;
+  stroke-width: 2.5;
+}
+
+.role-avatar--menu .role-avatar__seal svg {
+  width: 9px;
+  height: 9px;
+}
+
+.role-avatar__fallback-icon {
+  width: 14px;
+  height: 14px;
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -1749,18 +1884,8 @@ h4,
 }
 
 .menu-header__avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--brand) 0%, #4f8fff 100%);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
 }
 
@@ -2714,6 +2839,86 @@ h4,
   border-color: var(--brand);
   color: var(--brand);
   background: var(--brand-light);
+}
+.chip-btn--sm {
+  height: 28px;
+  font-size: 12px;
+}
+
+/* ── Programmatic SEO page (locality / metro / landmark) ─────────────── */
+.seo-hero {
+  margin-bottom: var(--space-8);
+}
+.seo-hero__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.seo-hero__pin {
+  flex-shrink: 0;
+  color: var(--brand);
+}
+.seo-hero__intro {
+  max-width: 680px;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.65;
+  margin-bottom: var(--space-5);
+}
+.seo-hero__nearby {
+  max-width: 680px;
+  margin-top: var(--space-4);
+  color: var(--text-tertiary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.seo-hero__cta {
+  margin-top: var(--space-5);
+}
+
+.seo-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-3);
+}
+.seo-stat {
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.seo-stat__value {
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.seo-stat__label {
+  margin-top: var(--space-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.seo-popular {
+  margin: var(--space-10) 0;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+}
+.seo-popular__title {
+  margin-bottom: var(--space-4);
+  font-size: 16px;
+}
+.seo-cta-band {
+  margin-top: var(--space-10);
+  padding: var(--space-8);
+  text-align: center;
+  background: var(--brand-light);
+  border-radius: var(--radius-lg);
 }
 
 /* ── Inputs ──────────────────────────────────────────────────────────── */
@@ -6938,7 +7143,7 @@ a.feature-card:hover .icon-circle {
   height: 20px;
 }
 .brand-lockup--sm .logo-font {
-  height: 16px;
+  height: 11px;
   margin-left: 4px;
 }
 /* md = default: inherits global .logo-img/.logo-font (30 / 22) */
@@ -6949,8 +7154,9 @@ a.feature-card:hover .icon-circle {
   height: 40px;
 }
 .brand-lockup--lg .logo-font {
-  height: 32px;
+  height: 22px;
   margin-left: 6px;
+  transform: translateY(3px);
 }
 
 /* Auth dark-portal glow — keeps the wordmark legible on dark canvas without
@@ -12026,14 +12232,16 @@ a.feature-card:hover .icon-circle {
   transition: filter 200ms ease;
 }
 .cmap-brand__wordmark {
-  height: 18px;
+  height: 13px;
   width: auto;
   display: block;
   /* The source PNG is dark-on-light; brighten for the dark map chrome. */
   filter: brightness(0) invert(1);
   opacity: 0.96;
-  /* Optical lift — image baselines often sit ~1px below text caps. */
-  transform: translateY(-1px);
+  /* Optical alignment: the mark's focal point sits below its box center,
+     so the wordmark is nudged down to match rather than centering both
+     boxes' raw geometric centers. */
+  transform: translateY(2px);
 }
 .cmap-brand__sep {
   width: 1px;
@@ -13155,7 +13363,7 @@ a.feature-card:hover .icon-circle {
     height: 20px;
   }
   .cmap-brand__wordmark {
-    height: 14px;
+    height: 11px;
   }
   .cmap-brand__sep {
     height: 12px;
@@ -16898,6 +17106,78 @@ a.feature-card:hover .icon-circle {
   background: #f1f5f9;
   color: #334155;
 }
+.pg-badge--trust {
+  background: #ecfdf5;
+  color: #047857;
+}
+.pg-card-strip-shell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.pg-card__strip {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.pg-card__strip::-webkit-scrollbar {
+  display: none;
+}
+.pg-card__strip .pg-badge {
+  flex: 0 0 auto;
+}
+.pg-card-strip-button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.pg-card-strip-button:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.pg-card__body-top {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.pg-card__body-top > div:first-child {
+  min-width: 0;
+}
+.pg-card__price-stack {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.pg-card__trust-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.pg-card__body-link {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
 
 /* ── PG filters bar ── */
 .pg-filters {
@@ -17175,11 +17455,11 @@ a.feature-card:hover .icon-circle {
   align-items: center;
   gap: var(--space-2);
   margin: var(--space-5) 0 var(--space-6);
-  padding: var(--space-4) var(--space-5);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .pg-fact {
   display: inline-flex;
@@ -17874,14 +18154,14 @@ a.feature-card:hover .icon-circle {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-  padding: 6px 10px;
-  background: var(--amber-light);
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-sm);
-  margin-top: calc(-1 * var(--space-2));
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  margin-top: var(--space-1);
 }
 .pg-rail-deposit svg {
-  color: var(--amber);
+  color: var(--brand);
   flex-shrink: 0;
 }
 .pg-rail-divider {
@@ -18729,7 +19009,7 @@ a.feature-card:hover .icon-circle {
 }
 
 .brand-lockup--md .logo-font {
-  height: 25px;
+  height: 18px;
 }
 
 .nav-tab,
@@ -19157,6 +19437,18 @@ a.feature-card:hover .icon-circle {
   min-width: 0;
 }
 
+.pg-city-inventory {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.pg-city-inventory .listing-grid,
+.pg-city-inventory .tenant-results-map-panel {
+  min-width: 0;
+}
+
 .tenant-results-map-panel {
   position: sticky;
   top: calc(var(--header-height) + var(--space-4));
@@ -19283,7 +19575,7 @@ a.feature-card:hover .icon-circle {
   }
 
   .brand-lockup--md .logo-font {
-    height: 22px;
+    height: 16px;
   }
 
   .hero--home-prototype {
@@ -19351,7 +19643,7 @@ a.feature-card:hover .icon-circle {
   height: 30px;
 }
 .brand-lockup--md .logo-font {
-  height: 22px;
+  height: 16px;
 }
 
 .hero--home-prototype {
@@ -19943,6 +20235,22 @@ a.feature-card:hover .icon-circle {
     gap: var(--space-4);
   }
 
+  .pg-city-inventory {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+
+  .tenant-results-page .listing-grid,
+  .pg-city-inventory .listing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tenant-results-page .listing-card,
+  .pg-city-inventory .listing-card {
+    width: 100%;
+    min-width: 0;
+  }
+
   .tenant-results-toolbar .segbar,
   .tenant-results-filter-card {
     overflow: hidden;
@@ -20046,7 +20354,7 @@ a.feature-card:hover .icon-circle {
   filter: drop-shadow(0 5px 12px rgba(0, 102, 255, 0.22));
 }
 .cmap-brand__wordmark {
-  height: 18px;
+  height: 15px;
   filter: none;
   opacity: 1;
 }
@@ -21602,7 +21910,7 @@ a.feature-card:hover .icon-circle {
    earlier .tenant-detail-page rules. Tokens only.
    ============================================================ */
 
-/* Hero header with above-the-fold price */
+/* Hero header */
 .tenant-detail-page .pg-hero {
   display: flex;
   align-items: flex-start;
@@ -21611,13 +21919,21 @@ a.feature-card:hover .icon-circle {
   margin-bottom: var(--space-4);
 }
 .pg-hero__main {
+  width: 100%;
   min-width: 0;
+}
+.pg-hero__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 .pg-hero__badges {
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-bottom: var(--space-2);
+  margin-bottom: 0;
 }
 .pg-hero__title {
   margin: 0;
@@ -21643,57 +21959,47 @@ a.feature-card:hover .icon-circle {
   align-items: flex-end;
   gap: var(--space-2);
   flex-shrink: 0;
+  padding-top: 2px;
 }
 .pg-hero__share {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(203, 213, 225, 0.88);
+  border-radius: var(--radius-full);
   color: var(--text-primary);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  transition: background var(--transition-fast);
+  text-decoration: none;
+  box-shadow: var(--shadow-xs);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 .pg-hero__share:hover {
-  background: var(--surface-sunken);
+  background: var(--brand-50);
+  border-color: var(--brand-100);
+  color: var(--brand);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
   text-decoration: none;
 }
-.pg-hero__pricecard {
-  text-align: right;
-  background: linear-gradient(135deg, var(--brand-50), var(--surface));
-  border: 1px solid rgba(0, 102, 255, 0.16);
-  border-radius: var(--radius-lg);
-  padding: var(--space-3) var(--space-5);
-  box-shadow: var(--shadow-xs);
-}
-.pg-hero__price {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.pg-hero__price span {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-.pg-hero__price strong {
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 30px;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-  line-height: 1;
-}
-.pg-hero__pricesub {
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  margin-top: 3px;
+
+.tenant-detail-page--pg .gallery {
+  width: calc(100% - (var(--space-4) * 2));
+  margin-inline: var(--space-4);
+  gap: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
 @media (max-width: 640px) {
@@ -21704,14 +22010,174 @@ a.feature-card:hover .icon-circle {
   .pg-hero__aside {
     flex-direction: row;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
+    justify-content: flex-start;
+    width: auto;
+    padding-top: 0;
   }
-  .pg-hero__pricecard {
-    padding: var(--space-2) var(--space-4);
+}
+
+@media (max-width: 559px) {
+  .pg-hero__topline {
+    align-items: flex-start;
   }
-  .pg-hero__price strong {
-    font-size: 24px;
+
+  .pg-hero__badges {
+    flex: 1 1 auto;
+  }
+
+  .pg-hero__share {
+    width: 40px;
+    min-width: 40px;
+    padding-inline: 0;
+  }
+
+  .pg-hero__share-label {
+    display: none;
+  }
+}
+
+/* Room carousel and mobile overflow guards */
+.tenant-detail-page--pg {
+  max-width: min(calc(100% - clamp(48px, 6vw, 96px)), 1320px);
+  margin-inline: auto;
+  overflow-x: clip;
+}
+
+.tenant-detail-page--pg .detail-layout,
+.tenant-detail-page--pg .tenant-cost-strip,
+.tenant-detail-page--pg .pg-fact-strip,
+.tenant-detail-page--pg .amenity-tile-grid,
+.pg-detail__cta {
+  min-width: 0;
+}
+
+.pg-detail__cta-price {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.pg-detail__cta-jump {
+  flex: 1;
+  min-width: 150px;
+  min-height: 52px;
+  border-radius: 16px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.pg-room-carousel-shell {
+  min-width: 0;
+}
+
+.pg-carousel-toolbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.pg-carousel-toolbar__label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pg-carousel-actions {
+  display: none;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.pg-carousel-button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pg-carousel-button:hover {
+  background: var(--surface-sunken);
+}
+
+.pg-room-card {
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+@media (max-width: 1024px) {
+  .pg-carousel-toolbar {
+    display: flex;
+  }
+
+  .pg-carousel-actions {
+    display: flex;
+  }
+
+  .pg-rooms-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+    padding-bottom: var(--space-3);
+    margin-inline: calc(-1 * var(--space-4));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pg-rooms-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pg-room-card {
+    flex: 0 0 min(46vw, 340px);
+  }
+}
+
+@media (max-width: 720px) {
+  .tenant-detail-page--pg {
+    max-width: 100%;
+  }
+
+  .tenant-detail-page--pg .detail-layout,
+  .tenant-detail-page--pg .tenant-cost-strip,
+  .tenant-detail-page--pg .amenity-tile-grid {
+    max-width: 100%;
+  }
+
+  .pg-detail__cta {
+    max-width: 100vw;
+  }
+
+  .pg-detail__cta-price {
+    max-width: calc(100vw - 210px);
+  }
+
+  .pg-rooms-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: var(--space-3);
+    padding-inline: var(--space-4);
+    padding-bottom: var(--space-3);
+    margin-inline: calc(-1 * var(--space-4));
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .pg-rooms-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pg-room-card {
+    flex: 0 0 min(86vw, 340px);
   }
 }
 
@@ -21879,4 +22345,374 @@ a.feature-card:hover .icon-circle {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Homepage hero rework (authoritative — appended last to win the cascade)
+   Two-column hero: copy + live-listing cluster, with a centered fallback.
+   Quiet, intentional backdrop replaces the old street/road/grid noise.
+   ════════════════════════════════════════════════════════════════════ */
+.hero--home-prototype {
+  /* clip horizontally (contains the rotated cards + background) but keep
+     vertical overflow visible so the search dropdown can float downward
+     over the sections below, exactly as the original hero did. */
+  overflow-x: clip;
+  overflow-y: visible;
+  background: linear-gradient(176deg, #f6f9fd 0%, #eaf1f9 60%, #e6eef7 100%);
+}
+
+/* Soft brand glow, weighted to the right where the visual sits. */
+.home-hero__wash {
+  background: radial-gradient(
+    120% 92% at 50% -12%,
+    rgba(255, 255, 255, 0.92),
+    rgba(255, 255, 255, 0) 55%
+  );
+}
+
+.home-hero__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(44% 58% at 84% 20%, rgba(0, 102, 255, 0.13), transparent 62%),
+    radial-gradient(38% 52% at 92% 82%, rgba(255, 90, 95, 0.08), transparent 60%);
+}
+
+/* Crisp, faded dot texture (replaces the muddy graph-paper grid). */
+.hero--home-prototype::before {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(82% 74% at 72% 30%, #000 0%, transparent 76%);
+  mask-image: radial-gradient(82% 74% at 72% 30%, #000 0%, transparent 76%);
+}
+
+/* ── Two-column layout ── */
+.hero--has-visual .home-hero__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 34%, 400px);
+  gap: clamp(28px, 4.5vw, 68px);
+  align-items: center;
+}
+
+.hero--has-visual .home-hero__copy {
+  width: 100%;
+  /* Fill the grid cell so the search box + its dropdown get prod-like width.
+     The headline (max 720) and subtitle (max 560) self-limit; only the wide
+     search shell benefits. */
+  max-width: 860px;
+}
+
+/* ── Centered fallback (no listings with photos) ── */
+.hero--centered .home-hero__copy {
+  margin-inline: auto;
+  max-width: 720px;
+  text-align: center;
+}
+
+.hero--centered .home-hero__eyebrow,
+.hero--centered .home-hero__intelligence,
+.hero--centered .home-hero__trust {
+  justify-content: center;
+}
+
+.hero--centered .home-hero__title,
+.hero--centered .home-hero__subtitle,
+.hero--centered .home-hero__search-shell {
+  margin-inline: auto;
+}
+
+/* ── Listing cluster visual ── */
+.home-hero__visual {
+  position: relative;
+  align-self: center;
+  min-height: 320px;
+  animation: heroVisualIn 0.7s 0.18s both cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.home-hero__visual-head {
+  display: none;
+}
+
+.home-hero__cards {
+  position: relative;
+  height: 320px;
+}
+
+.home-hero__card {
+  position: absolute;
+  width: 226px;
+  display: block;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 24px 52px -24px rgba(15, 23, 42, 0.5);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform 0.32s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.32s ease;
+}
+
+.home-hero__card:nth-child(1) {
+  top: 0;
+  left: 0;
+  z-index: 1;
+  transform: rotate(-5deg);
+}
+
+.home-hero__card:nth-child(2) {
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  transform: rotate(4deg);
+}
+
+.home-hero__card:hover,
+.home-hero__card:focus-visible {
+  transform: translateY(-6px) rotate(0deg) scale(1.03);
+  box-shadow: 0 30px 64px -22px rgba(15, 23, 42, 0.58);
+  z-index: 5;
+}
+
+.home-hero__card-media {
+  display: block;
+  height: 122px;
+  position: relative;
+  background-color: #dbe7f5;
+  background-size: cover;
+  background-position: center;
+}
+
+.home-hero__card-media--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--brand-light) 0%, #e7eef9 100%);
+  color: rgba(0, 102, 255, 0.45);
+}
+
+.home-hero__card-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--trust);
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.home-hero__card-body {
+  display: block;
+  padding: 10px 12px 12px;
+}
+
+.home-hero__card-rent {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.home-hero__card-title {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.home-hero__card-loc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.home-hero__card-loc svg {
+  flex: none;
+  color: var(--brand);
+}
+
+/* Rent pins — map-style accents attached to the cluster. */
+.home-hero__price {
+  position: absolute;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: var(--radius-full);
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 12px 26px -8px rgba(15, 23, 42, 0.42);
+}
+
+.home-hero__price span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.home-hero__price--low {
+  top: -8px;
+  right: 20px;
+  padding: 6px 11px;
+  background: var(--surface);
+  color: var(--brand);
+  font-size: 12.5px;
+}
+
+.home-hero__price--high {
+  bottom: 2px;
+  right: -4px;
+  padding: 7px 13px;
+  background: var(--accent);
+  color: #fff;
+  border: 2px solid var(--surface);
+  font-size: 13px;
+  box-shadow: 0 12px 26px -6px rgba(255, 90, 95, 0.5);
+}
+
+@keyframes heroVisualIn {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+}
+
+/* ── Stat band: adapt to 3 or 4 honest cards ── */
+.home-market-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+/* ── Tablet / mobile: stack, and turn the cluster into a scroll strip ── */
+@media (max-width: 900px) {
+  .hero--has-visual .home-hero__inner {
+    display: block;
+  }
+
+  .hero--has-visual .home-hero__copy {
+    max-width: 640px;
+  }
+
+  /* Hide the listing cluster on phones/tablets: on a narrow single column it
+     would just repeat the "Live homes in Lucknow" carousel further down the
+     page. Desktop keeps the side-by-side cluster where it balances the layout. */
+  .home-hero__visual {
+    display: none;
+  }
+
+  .home-market-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Phone: compact the trust strip into inline chips ── */
+@media (max-width: 640px) {
+  .home-hero__trust {
+    display: flex;
+    flex-flow: row wrap;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+    gap: 6px 8px;
+    margin: 16px 0 8px;
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .home-hero__trust .trust-strip__item {
+    width: auto;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: rgba(255, 255, 255, 0.66);
+    font-size: 12px;
+  }
+
+  .home-hero__trust-dot {
+    display: none;
+  }
+
+  /* Give the search button its label back now that the placeholder is short. */
+  .hero--home-prototype .hero-search__btn {
+    width: auto;
+    padding: 0 14px;
+  }
+
+  .hero--home-prototype .hero-search__btn .search-btn-label {
+    display: inline;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero__visual {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Floating WhatsApp support CTA — mounted site-wide from the locale layout,
+   hidden on dashboards via shouldShowWhatsappFab().
+--------------------------------------------------------------------------- */
+.wa-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.wa-fab:hover {
+  transform: scale(1.06);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+}
+.wa-fab:focus-visible {
+  outline: 3px solid rgba(37, 211, 102, 0.55);
+  outline-offset: 3px;
+}
+/* Listing/PG pages show a fixed bottom CTA bar (.cta-bar) at <=1024px — lift the
+   button above it so the two never overlap. */
+@media (max-width: 1024px) {
+  .wa-fab {
+    right: 16px;
+    bottom: 88px;
+    width: 52px;
+    height: 52px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wa-fab {
+    transition: none;
+  }
+  .wa-fab:hover {
+    transform: none;
+  }
 }

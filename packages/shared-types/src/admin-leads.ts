@@ -12,6 +12,16 @@ export type AdminLeadBoardFilter =
 /** Where the refund promise stands for a lead's linked callback. */
 export type AdminLeadRefundState = "pending" | "responded" | "refunded";
 
+/**
+ * "callback" = a paid contact unlock with a refund clock (the guarantee model).
+ * "interest" = a free lead with no unlock/deadline (e.g. the PG "I'm interested"
+ * button) — it has no refund countdown, so the board must not treat it as one.
+ */
+export type AdminLeadKind = "callback" | "interest";
+
+/** Board row ordering. */
+export type AdminLeadBoardSort = "urgency" | "newest";
+
 export interface AdminLeadBoardOwner {
   user_id: string;
   name: string;
@@ -41,6 +51,7 @@ export interface AdminLeadBoardRow {
   response_deadline_at: string | null; // the refund timer
   seconds_remaining: number | null; // server-computed; client ticks down
   refund_state: AdminLeadRefundState;
+  lead_kind: AdminLeadKind;
   source: string | null;
   created_at: string;
 }

@@ -22,7 +22,7 @@ describe("PgInterestButton", () => {
   it("shows a login link when logged out", () => {
     render(<PgInterestButton listingId="abc" locale="en" />);
     const link = screen.getByRole("link", { name: /log in/i });
-    expect(link.getAttribute("href")).toContain("/en/auth/login");
+    expect(link.getAttribute("href")).toBe("/en/auth/login?from=%2Fen%2Fpg%2Flucknow%2Fabc");
   });
 
   it("posts interest and shows success copy when logged in", async () => {
@@ -31,6 +31,22 @@ describe("PgInterestButton", () => {
     render(<PgInterestButton listingId="abc" locale="en" />);
     fireEvent.click(screen.getByRole("button", { name: /i'?m interested/i }));
     await waitFor(() => expect(screen.getByText(/has your interest/i)).toBeTruthy());
+    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1");
+  });
+
+  it("allows mobile CTA copy while preserving interest submission", async () => {
+    __session = { access_token: "tok_1" };
+    expressPgInterest.mockResolvedValue({ interested: true, created: true, lead_id: "lead_1" });
+
+    render(
+      <PgInterestButton listingId="abc" locale="en" variant="mobile">
+        Show Interest
+      </PgInterestButton>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /show interest/i }));
+
+    await waitFor(() => expect(screen.getByText(/owner has your interest/i)).toBeTruthy());
     expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1");
   });
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
 import type { PgPublicDetail } from "../../../lib/pg-public-api";
 
 const detailView = vi.fn();
@@ -18,7 +19,11 @@ vi.mock("../../../lib/pg-public-api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/pg-public-api")>()),
   searchPgListings: vi.fn(async () => ({ items: [], total: 0, page: 1, page_size: 4 }))
 }));
-vi.mock("../PgInterestButton", () => ({ PgInterestButton: () => <button>interested</button> }));
+vi.mock("../PgInterestButton", () => ({
+  PgInterestButton: ({ children }: { children?: React.ReactNode }) => (
+    <button>{children ?? "interested"}</button>
+  )
+}));
 
 import { PgDetailClient } from "../PgDetailClient";
 
@@ -79,6 +84,51 @@ beforeEach(() => {
 });
 
 describe("PgDetailClient", () => {
+  it("styles the PG detail bottom CTA as a direct card jump", () => {
+    const styles = readFileSync("app/globals.css", "utf8");
+
+    expect(styles).toMatch(/\.pg-detail__cta-jump\s*\{[^}]*flex:\s*1/);
+    expect(styles).toMatch(/\.pg-detail__cta-jump\s*\{[^}]*min-height:\s*52px/);
+  });
+
+  it("keeps desktop gallery inset and only shows room carousel arrows on touch-width screens", () => {
+    const styles = readFileSync("app/globals.css", "utf8");
+
+    expect(styles).toMatch(
+      /\.tenant-detail-page--pg\s*\{[^}]*max-width:\s*min\(calc\(100% - clamp\(48px,\s*6vw,\s*96px\)\),\s*1320px\)/
+    );
+    expect(styles).toMatch(
+      /@media \(max-width:\s*720px\)[\s\S]*\.tenant-detail-page--pg\s*\{[^}]*max-width:\s*100%/
+    );
+    expect(styles).toMatch(
+      /\.tenant-detail-page--pg \.gallery\s*\{[^}]*margin-inline:\s*var\(--space-4\)/
+    );
+    expect(styles).toMatch(/\.tenant-detail-page--pg \.gallery\s*\{[^}]*gap:\s*0/);
+    expect(styles).toMatch(/\.tenant-detail-page--pg \.gallery\s*\{[^}]*border:\s*0/);
+    expect(styles).toMatch(/\.pg-fact-strip\s*\{[^}]*background:\s*transparent/);
+    expect(styles).toMatch(/\.pg-fact-strip\s*\{[^}]*border:\s*0/);
+    expect(styles).toMatch(/\.pg-fact-strip\s*\{[^}]*box-shadow:\s*none/);
+    expect(styles).toMatch(/\.pg-carousel-actions\s*\{[^}]*display:\s*none/);
+    expect(styles).toMatch(
+      /@media \(max-width:\s*1024px\)[\s\S]*\.pg-carousel-actions\s*\{[^}]*display:\s*flex/
+    );
+    expect(styles).toMatch(/\.pg-rail-deposit\s*\{[^}]*background:\s*transparent/);
+    expect(styles).toMatch(/\.pg-rail-deposit\s*\{[^}]*border:\s*0/);
+  });
+
+  it("places share beside PG badges and collapses its label below 560px", () => {
+    const { container } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+    const styles = readFileSync("app/globals.css", "utf8");
+
+    const heroTopline = container.querySelector(".pg-hero__topline");
+    expect(heroTopline).toBeTruthy();
+    expect(heroTopline?.querySelector(".badge--verified")).toBeTruthy();
+    expect(within(heroTopline as HTMLElement).getByRole("button", { name: /share/i })).toBeTruthy();
+    expect(styles).toMatch(
+      /@media \(max-width:\s*559px\)[\s\S]*\.pg-hero__share-label\s*\{[^}]*display:\s*none/
+    );
+  });
+
   it("fires pg_detail_viewed + view once on mount", () => {
     const { rerender } = render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
     rerender(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
@@ -100,23 +150,63 @@ describe("PgDetailClient", () => {
     expect(screen.queryByText(/beds left/i)).toBeNull();
   });
 
-  it("emphasizes starting rent and keeps total monthly cost secondary", () => {
+  it("keeps visible pricing to rent and move-in terms without all-in monthly copy", () => {
     render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
 
     const pricing = screen.getByRole("region", { name: /pg pricing and trust summary/i });
-    expect(within(pricing).getByText(/starting rent/i)).toBeTruthy();
+    expect(within(pricing).getByText(/^rent$/i)).toBeTruthy();
     expect(within(pricing).getByText("from ₹7,000")).toBeTruthy();
-    expect(within(pricing).getByText("Total monthly cost ₹8,364/mo all-in")).toBeTruthy();
+    expect(within(pricing).getByText("per person / month")).toBeTruthy();
+    expect(pricing.querySelector(".tenant-cost-card--price")).toBeNull();
     expect(within(pricing).queryByText(/^total monthly cost$/i)).toBeNull();
+    expect(screen.queryByText(/Total monthly cost/i)).toBeNull();
+    expect(screen.queryByText(/all-in/i)).toBeNull();
   });
 
-  it("uses rent first in the sticky rail and mobile cta", () => {
+  it("uses one interest action in the sticky price card and a mobile jump to it", () => {
+    const originalRaf = window.requestAnimationFrame;
+    window.requestAnimationFrame = (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    };
+
     render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
 
-    expect(screen.getAllByText("from ₹7,000")).toHaveLength(3);
-    expect(screen.getAllByText("/mo rent")).toHaveLength(2);
-    expect(screen.getAllByText("Total monthly cost ₹8,364/mo all-in")).toHaveLength(3);
-    expect(screen.queryByText("/mo all-in")).toBeNull();
+    try {
+      const interestCard = screen.getByTestId("pg-interest-card");
+      const scrollIntoView = vi.fn();
+      const focus = vi.fn();
+      interestCard.scrollIntoView = scrollIntoView;
+      interestCard.focus = focus;
+
+      const cta = document.querySelector(".pg-detail__cta") as HTMLElement;
+      expect(cta).toBeTruthy();
+      expect(cta.querySelector('a[href="#main-content"]')).toBeNull();
+      expect(screen.getAllByText("from ₹7,000")).toHaveLength(3);
+      expect(screen.getAllByText("/mo rent")).toHaveLength(2);
+      expect(screen.getAllByRole("button", { name: /show interest/i })).toHaveLength(1);
+
+      fireEvent.click(within(cta).getByRole("button", { name: /show interest/i }));
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "center" });
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    } finally {
+      window.requestAnimationFrame = originalRaf;
+    }
+  });
+
+  it("shows free-interest reassurance in the rail without charge or refund copy", () => {
+    render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+    const interestCard = screen.getByTestId("pg-interest-card");
+
+    expect(within(interestCard).getByText("₹15,000 security deposit")).toBeTruthy();
+    expect(
+      within(interestCard).getByText(/The PG operator will contact you shortly/i)
+    ).toBeTruthy();
+    expect(within(interestCard).getByText(/Showing interest is free/i)).toBeTruthy();
+    expect(within(interestCard).queryByText(/won't be charged/i)).toBeNull();
+    expect(within(interestCard).queryByText(/Auto-refund/i)).toBeNull();
   });
 
   it("hides vacancy urgency when plenty available", () => {
@@ -221,19 +311,59 @@ describe("PgDetailClient", () => {
     );
   });
 
-  it("shows the starting price in the hero (above the gallery)", () => {
+  it("renders room options in a labelled carousel with previous and next controls", () => {
     render(
       <PgDetailClient
         detail={makeDetail({
-          room_types: [{ ...makeDetail().room_types[0], monthly_rent_paise: 350000 }]
+          room_types: [
+            { ...makeDetail().room_types[0], sharing: "single", monthly_rent_paise: 900000 },
+            { ...makeDetail().room_types[0], sharing: "double", monthly_rent_paise: 700000 },
+            { ...makeDetail().room_types[0], sharing: "triple", monthly_rent_paise: 600000 }
+          ]
         })}
-        city="lucknow"
+        city="pune"
         locale="en"
       />
     );
-    const hero = screen.getByTestId("pg-hero-price");
-    expect(hero).toHaveTextContent("from");
-    expect(hero.textContent).toMatch(/₹\s?3,500/);
+
+    expect(screen.getByTestId("pg-room-carousel")).toBeTruthy();
+    expect(screen.getByTestId("pg-room-carousel")).toHaveAttribute(
+      "aria-labelledby",
+      "pg-room-carousel-label"
+    );
+    expect(screen.getByRole("button", { name: /previous room type/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /next room type/i })).toBeTruthy();
+  });
+
+  it("scrolls room options in response to carousel controls", () => {
+    const scrollBy = vi.fn();
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollBy");
+    Object.defineProperty(HTMLElement.prototype, "scrollBy", {
+      configurable: true,
+      value: scrollBy
+    });
+
+    try {
+      render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+      fireEvent.click(screen.getByRole("button", { name: /previous room type/i }));
+      fireEvent.click(screen.getByRole("button", { name: /next room type/i }));
+
+      expect(scrollBy).toHaveBeenNthCalledWith(1, { left: -280, behavior: "smooth" });
+      expect(scrollBy).toHaveBeenNthCalledWith(2, { left: 280, behavior: "smooth" });
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(HTMLElement.prototype, "scrollBy", descriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollBy");
+      }
+    }
+  });
+
+  it("does not render the hero price card when the sticky/mobile price surfaces own conversion", () => {
+    render(<PgDetailClient detail={makeDetail()} city="pune" locale="en" />);
+
+    expect(screen.queryByTestId("pg-hero-price")).toBeNull();
   });
 
   it("renders human bathroom labels, not raw enum values", () => {
@@ -250,7 +380,7 @@ describe("PgDetailClient", () => {
     expect(screen.getByText("Shared · Western")).toBeTruthy();
   });
 
-  it("shows room vacancy when low", () => {
+  it("does not show room vacancy when low", () => {
     render(
       <PgDetailClient
         detail={makeDetail({
@@ -260,7 +390,7 @@ describe("PgDetailClient", () => {
         locale="en"
       />
     );
-    expect(screen.getByText("2 beds left")).toBeTruthy();
+    expect(screen.queryByText("2 beds left")).toBeNull();
   });
 
   it("renders the What's nearby section from nearby data", () => {

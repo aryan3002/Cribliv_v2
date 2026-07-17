@@ -2,6 +2,9 @@ import type { Metadata, Route } from "next";
 import { auth } from "../../../../auth";
 import { fetchApi } from "../../../../lib/api";
 import { toTitleCase } from "../../../../lib/utils";
+import { buildListing } from "../../../../lib/structured-data";
+import { jsonLdSafe } from "../../../../lib/jsonld";
+import { ogImageFor } from "../../../../lib/og-image";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
 import { ListingGallery } from "../../../../components/listing/listing-gallery";
 import { ListingHighlights } from "../../../../components/listing/listing-highlights";
@@ -117,6 +120,8 @@ export async function generateMetadata({
     ? listing.description.slice(0, 160)
     : `${typeLabel} for rent in ${listing.city}${listing.locality ? `, ${listing.locality}` : ""} at ₹${listing.monthly_rent.toLocaleString("en-IN")}/month. Verified on Cribliv.`;
 
+  const ogImage = ogImageFor(listing.photos, `${BASE_URL}/cribliv.png`);
+
   return {
     title,
     description,
@@ -133,9 +138,10 @@ export async function generateMetadata({
       url: `${BASE_URL}/${params.locale}/listing/${params.listingId}`,
       siteName: "Cribliv",
       locale: params.locale === "hi" ? "hi_IN" : "en_IN",
-      type: "website"
+      type: "website",
+      images: [ogImage]
     },
-    twitter: { card: "summary", title, description }
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] }
   };
 }
 
@@ -204,26 +210,18 @@ export default async function ListingDetailPage({
     }
   }
 
-  // JSON-LD
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "RealEstateListing",
+  // JSON-LD — RealEstateListing carries photos, geo and a per-month Offer.
+  const jsonLd = buildListing({
+    url: `${BASE_URL}/${locale}/listing/${params.listingId}`,
     name: listing.title,
     description: listing.description || `${typeLabel} for rent in ${listing.city}`,
-    url: `${BASE_URL}/${locale}/listing/${params.listingId}`,
-    address: {
-      "@type": "PostalAddress",
-      addressLocality: listing.locality || listing.city,
-      addressRegion: listing.city,
-      addressCountry: "IN"
-    },
-    offers: {
-      "@type": "Offer",
-      price: listing.monthly_rent,
-      priceCurrency: "INR",
-      availability: "https://schema.org/InStock"
-    }
-  };
+    price: listing.monthly_rent,
+    images: photos,
+    addressLocality: listing.locality || listing.city,
+    addressRegion: toTitleCase(listing.city),
+    lat: listing.lat,
+    lng: listing.lng
+  });
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -252,13 +250,10 @@ export default async function ListingDetailPage({
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdSafe(jsonLd) }} />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdSafe(breadcrumbJsonLd) }}
       />
 
       <div className="container ld-page tenant-detail-page">
@@ -329,7 +324,13 @@ export default async function ListingDetailPage({
         </div>
 
         {/* Gallery */}
-        <ListingGallery photos={photos} title={listing.title} locale={locale} isGuest={isGuest} />
+        <ListingGallery
+          photos={photos}
+          title={listing.title}
+          locale={locale}
+          isGuest={isGuest}
+          returnPath={`/${locale}/listing/${params.listingId}`}
+        />
 
         {/* Highlight chips */}
         <ListingHighlights

@@ -57,6 +57,7 @@ describe("PG city landing", () => {
     const ui = await PgCityPage({ params: { locale: "en", city: "lucknow" } });
     render(ui);
 
+    expect(screen.getByRole("region", { name: /available pgs in lucknow/i })).toBeTruthy();
     const link = screen.getByRole("link", { name: /open full criblmap/i });
     expect(link.getAttribute("href")).toContain("/en/map?");
     expect(link.getAttribute("href")).toContain("city=lucknow");

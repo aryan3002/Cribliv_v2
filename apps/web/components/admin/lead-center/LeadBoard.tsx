@@ -5,6 +5,7 @@ import type {
   AdminLeadBoardFilter,
   AdminLeadBoardResponse,
   AdminLeadBoardRow,
+  AdminLeadBoardSort,
   LeadAccessState
 } from "@cribliv/shared-types";
 import { StatCard } from "../primitives/StatCard";
@@ -21,6 +22,8 @@ import { formatNumber, formatRelativeTime } from "../../../lib/admin/format";
 
 interface Props {
   accessToken: string;
+  initialListingId?: string | null;
+  onOpenHome?: (listingId: string) => void;
   onCountChange?: (count: number) => void;
   onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
 }
@@ -35,6 +38,11 @@ const FILTERS: Array<{ id: AdminLeadBoardFilter; label: string }> = [
   { id: "refunded_today", label: "Refunded today" }
 ];
 
+const SORTS: Array<{ id: AdminLeadBoardSort; label: string }> = [
+  { id: "urgency", label: "Expiring first" },
+  { id: "newest", label: "Newest first" }
+];
+
 // StatusPill's default tone map has no entries for these lead access states,
 // so every pill would otherwise render flat grey ("muted").
 const ACCESS_TONE: Record<LeadAccessState, PillTone> = {
@@ -44,11 +52,19 @@ const ACCESS_TONE: Record<LeadAccessState, PillTone> = {
   expired: "danger"
 };
 
-export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
+export function LeadBoard({
+  accessToken,
+  initialListingId,
+  onOpenHome,
+  onCountChange,
+  onToast
+}: Props) {
   const [data, setData] = useState<AdminLeadBoardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [featureDisabled, setFeatureDisabled] = useState(false);
   const [filter, setFilter] = useState<AdminLeadBoardFilter>("all");
+  const [sort, setSort] = useState<AdminLeadBoardSort>(initialListingId ? "newest" : "urgency");
+  const [listingId, setListingId] = useState(initialListingId ?? "");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   // Held as its own snapshot (not derived from `data.rows`) so an action that
@@ -63,10 +79,10 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
   const [refreshNonce, setRefreshNonce] = useState(0);
   const triggerRefetch = useCallback(() => setRefreshNonce((n) => n + 1), []);
 
-  // Reset to page 1 whenever a filter/search changes.
+  // Reset to page 1 whenever a filter/search/sort changes.
   useEffect(() => {
     setPage(1);
-  }, [filter, q]);
+  }, [filter, listingId, q, sort]);
 
   // Fetch on filter/search/page change (debounced 300ms), then poll every 30s
   // until the next filter/search/page change tears this effect down.
@@ -79,6 +95,8 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
       try {
         const res = await fetchAdminLeadBoard(accessToken, {
           filter,
+          sort,
+          listing_id: listingId || undefined,
           q: q || undefined,
           page,
           page_size: PAGE_SIZE
@@ -121,7 +139,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
     // the same pattern) — depending on them would tear down/restart polling
     // on every unrelated AdminShell re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, filter, q, page, refreshNonce]);
+  }, [accessToken, filter, sort, listingId, q, page, refreshNonce]);
 
   const counters = data?.counters ?? null;
   const total = data?.total ?? 0;
@@ -170,7 +188,21 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
         header: "Listing",
         render: (r) => (
           <div>
-            <div>{r.listing_title}</div>
+            {onOpenHome ? (
+              <button
+                type="button"
+                className="admin-homes-open-action"
+                aria-label={`Open ${r.listing_title} in Verified Homes`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenHome(r.listing_id);
+                }}
+              >
+                {r.listing_title}
+              </button>
+            ) : (
+              <div>{r.listing_title}</div>
+            )}
             <div style={{ color: "var(--ad-text-3)", fontSize: 12 }}>{r.city ?? "-"}</div>
           </div>
         )
@@ -201,13 +233,19 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
       {
         key: "refund_in",
         header: "Refund in",
-        render: (r) => (
-          <LeadCountdown
-            secondsRemaining={r.seconds_remaining}
-            generatedAt={generatedAt ?? new Date().toISOString()}
-            refundState={r.refund_state}
-          />
-        ),
+        // Free "I'm interested" leads have no unlock/deadline — there's no
+        // refund clock to show, so tag them instead of rendering an empty
+        // countdown (which used to mislabel as "Expired").
+        render: (r) =>
+          r.lead_kind === "interest" ? (
+            <StatusPill status="Interest" tone="muted" noDot />
+          ) : (
+            <LeadCountdown
+              secondsRemaining={r.seconds_remaining}
+              generatedAt={generatedAt ?? new Date().toISOString()}
+              refundState={r.refund_state}
+            />
+          ),
         sortValue: (r) => r.seconds_remaining ?? Number.MAX_SAFE_INTEGER
       },
       {
@@ -231,7 +269,7 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
         )
       }
     ],
-    [generatedAt, accessToken, onToast, triggerRefetch]
+    [generatedAt, accessToken, onOpenHome, onToast, triggerRefetch]
   );
 
   if (featureDisabled) {
@@ -282,6 +320,16 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
               {f.label}
             </button>
           ))}
+          {listingId && (
+            <button
+              type="button"
+              className="admin-chip"
+              aria-label="Clear listing filter"
+              onClick={() => setListingId("")}
+            >
+              Listing {listingId.slice(0, 8)} x
+            </button>
+          )}
           <input
             className="admin-input"
             placeholder="Search seeker / owner / listing"
@@ -290,6 +338,19 @@ export function LeadBoard({ accessToken, onCountChange, onToast }: Props) {
             style={{ flex: 1, minWidth: 200 }}
             aria-label="Search leads"
           />
+          <div style={{ display: "flex", gap: 8 }} role="group" aria-label="Sort leads">
+            {SORTS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="admin-chip"
+                aria-pressed={s.id === sort}
+                onClick={() => setSort(s.id)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
         <DataTable
           columns={columns}

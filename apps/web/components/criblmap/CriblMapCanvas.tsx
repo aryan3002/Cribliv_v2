@@ -3,8 +3,10 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useGoogleMap } from "../../lib/google-maps";
 import { CRIBLMAP_LIGHT_STYLE } from "../../lib/map-styles";
-import { detectCityFromCoord } from "../../lib/city-bboxes";
+import { cityCentroid, detectCityFromCoord } from "../../lib/city-bboxes";
 import { useMapDispatch, useMapState } from "./hooks/useMapState";
+
+const DEFAULT_MAP_CENTER = cityCentroid("lucknow")!;
 
 interface CriblMapCanvasProps {
   onMapReady?: (map: google.maps.Map) => void;
@@ -25,7 +27,7 @@ export function CriblMapCanvas({
 }: CriblMapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { map, ready } = useGoogleMap(containerRef, {
-    center: initialCenter ?? { lat: 28.6139, lng: 77.209 },
+    center: initialCenter ?? DEFAULT_MAP_CENTER,
     zoom: initialZoom ?? 11,
     styles: CRIBLMAP_LIGHT_STYLE,
     colorScheme: "LIGHT"
@@ -48,9 +50,7 @@ export function CriblMapCanvas({
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const center = map.getCenter();
-    const centerLatLng = center
-      ? { lat: center.lat(), lng: center.lng() }
-      : { lat: 28.6139, lng: 77.209 };
+    const centerLatLng = center ? { lat: center.lat(), lng: center.lng() } : DEFAULT_MAP_CENTER;
     const zoom = map.getZoom() ?? 11;
     const viewportKey = [
       roundViewportCoord(sw.lat()),

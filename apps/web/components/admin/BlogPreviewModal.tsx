@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   fetchAdminBlogPost,
@@ -8,6 +8,8 @@ import {
   updateBlogPost,
   type AdminBlogFullVm
 } from "../../lib/admin-api";
+import { insertAtRange } from "../../lib/blog-embeds";
+import { BlogEmbedPicker } from "./BlogEmbedPicker";
 
 interface Props {
   accessToken: string;
@@ -81,6 +83,21 @@ export function BlogPreviewModal({ accessToken, id, onClose, onSaved }: Props) {
   const [revising, setRevising] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Insert an embed token at the body textarea's caret (append if unfocused).
+  const insertToken = useCallback((token: string) => {
+    const el = bodyRef.current;
+    const start = el ? el.selectionStart : null;
+    const end = el ? el.selectionEnd : null;
+    setBody((prev) => insertAtRange(prev, token, start ?? prev.length, end ?? prev.length));
+    requestAnimationFrame(() => {
+      if (!el || start == null) return;
+      const pos = start + token.length;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -355,7 +372,9 @@ export function BlogPreviewModal({ accessToken, id, onClose, onSaved }: Props) {
 
               <div>
                 <label style={label}>Body (HTML)</label>
+                <BlogEmbedPicker onInsert={insertToken} />
                 <textarea
+                  ref={bodyRef}
                   style={{
                     ...input,
                     minHeight: 320,

@@ -46,23 +46,22 @@ export interface GeneratedCopy {
   faq_items: Array<{ q: string; a: string }>;
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
+/**
+ * Normalize generated copy to PLAIN text (trim only). We deliberately do NOT
+ * HTML-escape here: the copy is rendered as React text (safe via textContent)
+ * and embedded in JSON-LD through `jsonLdSafe` on the web. Escaping at this
+ * layer only double-encoded entities on the page — e.g. an ampersand showed as
+ * "&amp;amp;" (escaped once on write, again on read).
+ */
 function sanitizeGeneratedCopy(copy: GeneratedCopy): GeneratedCopy {
+  const t = (v: string) => v.trim();
   return {
-    h1: escapeHtml(copy.h1),
-    meta_title: escapeHtml(copy.meta_title),
-    meta_description: escapeHtml(copy.meta_description),
-    intro_paragraph: escapeHtml(copy.intro_paragraph),
-    nearby_blurb: copy.nearby_blurb ? escapeHtml(copy.nearby_blurb) : null,
-    faq_items: copy.faq_items.map((item) => ({ q: escapeHtml(item.q), a: escapeHtml(item.a) }))
+    h1: t(copy.h1),
+    meta_title: t(copy.meta_title),
+    meta_description: t(copy.meta_description),
+    intro_paragraph: t(copy.intro_paragraph),
+    nearby_blurb: copy.nearby_blurb ? t(copy.nearby_blurb) : null,
+    faq_items: copy.faq_items.map((item) => ({ q: t(item.q), a: t(item.a) }))
   };
 }
 
@@ -118,6 +117,135 @@ export class SeoCopyService {
     // 4. Stale cache is better than nothing
     if (cached) return cachedToCopy(cached);
     return null;
+  }
+
+  /**
+   * Read-only: return stored copy (manual override, else cached) without ever
+   * generating. This is what the PUBLIC render path uses — no LLM, no auth —
+   * so anonymous SSR can serve AI copy the batch generator pre-populated.
+   */
+  async getStored(pagePath: string, locale: string): Promise<GeneratedCopy | null> {
+    const override = await this.readOverride(pagePath, locale);
+    if (override) return override;
+    const cached = await this.readCache(pagePath, locale);
+    return cached ? cachedToCopy(cached) : null;
+  }
+
+  /**
+   * True when the page already has non-expired stored copy (or a manual
+   * override). The batch generator uses this to skip pages that don't need
+   * regeneration, so it only spends LLM calls on missing/expired copy.
+   */
+  async hasFreshCopy(pagePath: string, locale: string): Promise<boolean> {
+    const override = await this.readOverride(pagePath, locale);
+    if (override) return true;
+    const cached = await this.readCache(pagePath, locale);
+    return !!cached && new Date(cached.expires_at) > new Date();
+  }
+
+  /** Drop cached copy for a page so the next generate call re-creates it. Used
+   *  by the batch's `force` mode to refresh stored copy in place. */
+  async deleteCopy(pagePath: string, locale: string): Promise<void> {
+    if (!this.database.isEnabled()) return;
+    await this.database.query(`DELETE FROM seo_page_copy WHERE page_path = $1 AND locale = $2`, [
+      pagePath,
+      locale
+    ]);
+  }
+
+  /**
+   * Which source is currently driving this page's copy, for the admin
+   * copy-status chip:
+   *   - "override": a manual override row exists (always wins on render)
+   *   - "ai": non-expired generated copy is cached
+   *   - "template": neither — the page shows built-in template defaults
+   */
+  async getProvenance(pagePath: string, locale: string): Promise<"override" | "ai" | "template"> {
+    if (await this.hasOverrideRow(pagePath, locale)) return "override";
+    const cached = await this.readCache(pagePath, locale);
+    if (cached && new Date(cached.expires_at) > new Date()) return "ai";
+    return "template";
+  }
+
+  /**
+   * Force-generate fresh AI copy and upsert it into the cache, BYPASSING the
+   * override-first short-circuit in getOrGenerate. Used by the admin
+   * "Regenerate" action so the AI cache refreshes even when a manual override
+   * is live (the override still wins on render; this keeps the AI copy warm
+   * underneath). Returns null on generation failure WITHOUT clobbering any
+   * existing cached copy.
+   */
+  async generateAndCache(inputs: CopyInputs): Promise<GeneratedCopy | null> {
+    const fresh = await this.generate(inputs);
+    if (!fresh) return null;
+    await this.writeCache(inputs, fresh, this.hashAggregates(inputs.aggregates)).catch((err) =>
+      this.logger.warn(`SEO copy cache write failed: ${err instanceof Error ? err.message : err}`)
+    );
+    return fresh;
+  }
+
+  /**
+   * Insert or update a manual override. Overrides always win on render and
+   * never expire. First writer to seo_page_overrides; mirrors writeCache's
+   * upsert shape (faq_items cast to jsonb, updated_at bumped on conflict).
+   * notes are preserved on conflict when not provided.
+   */
+  async upsertOverride(
+    pagePath: string,
+    locale: string,
+    copy: GeneratedCopy,
+    notes?: string | null
+  ): Promise<void> {
+    if (!this.database.isEnabled()) return;
+    await this.database.query(
+      `INSERT INTO seo_page_overrides
+         (page_path, locale, h1, meta_title, meta_description, intro_paragraph,
+          nearby_blurb, faq_items, notes, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, now(), now())
+       ON CONFLICT (page_path, locale) DO UPDATE SET
+         h1 = EXCLUDED.h1,
+         meta_title = EXCLUDED.meta_title,
+         meta_description = EXCLUDED.meta_description,
+         intro_paragraph = EXCLUDED.intro_paragraph,
+         nearby_blurb = EXCLUDED.nearby_blurb,
+         faq_items = EXCLUDED.faq_items,
+         notes = COALESCE(EXCLUDED.notes, seo_page_overrides.notes),
+         updated_at = now()`,
+      [
+        pagePath,
+        locale,
+        copy.h1,
+        copy.meta_title,
+        copy.meta_description,
+        copy.intro_paragraph,
+        copy.nearby_blurb ?? null,
+        JSON.stringify(copy.faq_items ?? []),
+        notes ?? null
+      ]
+    );
+  }
+
+  /** Remove a manual override so the page reverts to AI copy (or template). */
+  async deleteOverride(pagePath: string, locale: string): Promise<void> {
+    if (!this.database.isEnabled()) return;
+    await this.database.query(
+      `DELETE FROM seo_page_overrides WHERE page_path = $1 AND locale = $2`,
+      [pagePath, locale]
+    );
+  }
+
+  /**
+   * Existence check for an override row — distinct from readOverride, which
+   * returns null for a partial (e.g. meta-only) override. The admin chip
+   * reflects "an override was saved", so it keys off existence.
+   */
+  private async hasOverrideRow(pagePath: string, locale: string): Promise<boolean> {
+    if (!this.database.isEnabled()) return false;
+    const { rows } = await this.database.query(
+      `SELECT 1 FROM seo_page_overrides WHERE page_path = $1 AND locale = $2 LIMIT 1`,
+      [pagePath, locale]
+    );
+    return rows.length > 0;
   }
 
   private async readOverride(pagePath: string, locale: string): Promise<GeneratedCopy | null> {

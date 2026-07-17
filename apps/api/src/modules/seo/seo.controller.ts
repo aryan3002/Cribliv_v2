@@ -51,6 +51,17 @@ export class SeoController {
     return ok({ items: await this.cityConfig.listEnabled() });
   }
 
+  /**
+   * PUBLIC read of stored copy — no auth, no LLM. The SSR render path calls
+   * this; it returns whatever the batch generator pre-populated, or null (the
+   * page then falls back to its template).
+   */
+  @Get("copy")
+  async getCopy(@Query("path") path?: string, @Query("locale") locale?: string) {
+    if (!path) return ok(null);
+    return ok(await this.copy.getStored(path, locale === "hi" ? "hi" : "en"));
+  }
+
   @UseGuards(AuthGuard)
   @Post("copy")
   async generateCopy(@Body() body: CopyInputsDto) {
@@ -61,5 +72,64 @@ export class SeoController {
   @Post("copy/regenerate-expired")
   async regenerate() {
     return ok({ cleared: await this.copy.regenerateExpired(50) });
+  }
+
+  /**
+   * Admin batch: generate + store AI copy for enabled localities with >= 3
+   * listings that lack fresh copy. Bounded to `limit` new generations per call
+   * (default 10, max 50) so LLM cost stays predictable; run it repeatedly to
+   * work through the backlog. The public GET /seo/copy then serves the result.
+   */
+  @UseGuards(AuthGuard)
+  @Post("copy/generate-batch")
+  async generateBatch(@Query("limit") limitRaw?: string, @Query("force") forceRaw?: string) {
+    const limit = Math.min(Math.max(Number(limitRaw) || 10, 1), 50);
+    // force=1 regenerates pages that already have fresh copy — used to refresh
+    // stored copy after a generation-logic change.
+    const force = forceRaw === "1" || forceRaw === "true";
+    const locales = ["en", "hi"] as const;
+    let generated = 0;
+    let skipped = 0;
+
+    const cities = await this.cityConfig.listEnabled();
+    for (const city of cities) {
+      if (generated >= limit) break;
+      const localities = await this.aggregates.localitiesForCity(city.city_slug);
+      for (const loc of localities) {
+        if (generated >= limit) break;
+        // localitiesForCity is ordered by listing_count DESC — once we reach a
+        // thin locality the rest are thinner, so stop scanning this city.
+        if (loc.listing_count < 3) break;
+
+        let agg: Awaited<ReturnType<SeoAggregatesService["aggregatesForLocality"]>> | null = null;
+        for (const locale of locales) {
+          if (generated >= limit) break;
+          const pagePath = `/city/${city.city_slug}/${loc.slug}`;
+          if (!force && (await this.copy.hasFreshCopy(pagePath, locale))) {
+            skipped++;
+            continue;
+          }
+          if (force) {
+            await this.copy.deleteCopy(pagePath, locale);
+          }
+          if (!agg) {
+            agg = await this.aggregates.aggregatesForLocality(city.city_slug, loc.slug);
+          }
+          const copy = await this.copy.getOrGenerate({
+            pagePath,
+            locale,
+            placeName: { en: loc.name_en, hi: loc.name_hi },
+            placeKind: "locality",
+            aggregates: {
+              ...agg,
+              nearest_metro: null,
+              parent_locality: loc.parent_locality_slug ?? null
+            }
+          });
+          if (copy) generated++;
+        }
+      }
+    }
+    return ok({ generated, skipped });
   }
 }

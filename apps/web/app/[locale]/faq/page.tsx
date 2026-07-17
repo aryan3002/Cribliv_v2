@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { waLink } from "../../../lib/contact";
+
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
 const FAQ_DATA = [
@@ -312,7 +314,7 @@ export default function FAQPage({ params }: { params: { locale: string } }) {
               Email Us
             </a>
             <a
-              href="https://wa.me/911203251801"
+              href={waLink()}
               target="_blank"
               rel="noopener noreferrer"
               style={{

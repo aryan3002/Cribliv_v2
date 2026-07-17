@@ -27,6 +27,7 @@ import {
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { getPgDashboardLinks } from "./pg-operator/dashboard-links";
+import { RoleAvatar } from "./role-avatar";
 
 function formatPhone(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(-10);
@@ -283,17 +284,13 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
     );
   }
 
-  const initial = phone
-    ? phone.replace(/\D/g, "").slice(-2, -1) || "U"
-    : session?.user?.name?.charAt(0)?.toUpperCase() || "U";
-
   const menuOverlay = open && (
     <>
       <div className="menu-popover-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />
       <div className="menu-popover" role="menu">
         {isLoggedIn && (
           <div className="menu-header">
-            <div className="menu-header__avatar">{initial}</div>
+            <RoleAvatar role={role} size="menu" className="menu-header__avatar" />
             <div className="menu-header__text">
               <span className="menu-header__name">
                 {phone ? formatPhone(phone) : session?.user?.name || "Account"}
@@ -332,15 +329,17 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
         aria-label={t(locale, "menuOpen")}
       >
         <Menu size={16} className="profile-pill__hamburger" aria-hidden="true" />
-        <span className="profile-pill__avatar" aria-hidden="true">
-          {isLoading ? (
+        {isLoading ? (
+          <span className="profile-pill__avatar" aria-hidden="true">
             <span className="profile-pill__avatar-loading" />
-          ) : isLoggedIn ? (
-            initial
-          ) : (
+          </span>
+        ) : isLoggedIn ? (
+          <RoleAvatar role={role} size="compact" className="profile-pill__avatar" />
+        ) : (
+          <span className="profile-pill__avatar" aria-hidden="true">
             <User size={14} />
-          )}
-        </span>
+          </span>
+        )}
       </button>
 
       {menuOverlay &&

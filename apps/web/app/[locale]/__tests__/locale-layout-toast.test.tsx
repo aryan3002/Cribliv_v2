@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import LocaleLayout from "../layout";
 import { useToast } from "@/components/ui/toast/use-toast";
 
-vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  notFound: vi.fn(),
+  usePathname: () => "/en"
+}));
 vi.mock("../../../components/locale-chrome", () => ({
   LocaleChrome: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }));

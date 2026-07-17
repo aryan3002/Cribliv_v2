@@ -92,6 +92,77 @@ export function buildAggregateOffer(input: AggregateOfferInput): JsonLd {
   };
 }
 
+export interface ListingInput {
+  /** Canonical page URL — absolute, or a path resolved against SITE_URL. */
+  url: string;
+  name: string;
+  description?: string | null;
+  /** Monthly rent, in rupees. Omit to render a listing with no Offer. */
+  price?: number | null;
+  /** Photo URLs. Only absolute http(s) URLs are emitted (schema.org requires them). */
+  images?: string[] | null;
+  addressLocality?: string | null;
+  /** City — mapped to addressRegion. */
+  addressRegion?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  /** Defaults to available (InStock). */
+  available?: boolean;
+}
+
+/**
+ * schema.org RealEstateListing for a single rental/PG detail page.
+ *
+ * The Offer carries a per-month UnitPriceSpecification (unitCode "MON") so the
+ * rent reads as a recurring monthly price rather than a one-off sale price, plus
+ * PostalAddress + GeoCoordinates for local-search understanding. Every optional
+ * field is omitted when its source data is missing rather than emitted empty.
+ */
+export function buildListing(input: ListingInput): JsonLd {
+  const abs = (p: string) => (p.startsWith("http") ? p : `${SITE_URL}${p}`);
+
+  const out: JsonLd = {
+    "@context": "https://schema.org",
+    "@type": "RealEstateListing",
+    name: input.name,
+    url: abs(input.url)
+  };
+
+  if (input.description) out.description = input.description;
+
+  const images = (input.images ?? []).filter((url) => /^https?:\/\//i.test(url));
+  if (images.length > 0) out.image = images;
+
+  if (input.addressLocality || input.addressRegion) {
+    const address: JsonLd = { "@type": "PostalAddress", addressCountry: "IN" };
+    if (input.addressLocality) address.addressLocality = input.addressLocality;
+    if (input.addressRegion) address.addressRegion = input.addressRegion;
+    out.address = address;
+  }
+
+  if (input.lat != null && input.lng != null) {
+    out.geo = { "@type": "GeoCoordinates", latitude: input.lat, longitude: input.lng };
+  }
+
+  if (input.price != null) {
+    out.offers = {
+      "@type": "Offer",
+      price: input.price,
+      priceCurrency: "INR",
+      availability:
+        input.available === false ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      priceSpecification: {
+        "@type": "UnitPriceSpecification",
+        price: input.price,
+        priceCurrency: "INR",
+        unitCode: "MON"
+      }
+    };
+  }
+
+  return out;
+}
+
 export function buildOrganization(): JsonLd {
   return {
     "@context": "https://schema.org",
@@ -141,7 +212,7 @@ export function buildArticle(input: ArticleInput): JsonLd {
       "@type": "Organization",
       name: "Cribliv",
       url: SITE_URL,
-      logo: { "@type": "ImageObject", url: `${SITE_URL}/images/logo.png` }
+      logo: { "@type": "ImageObject", url: `${SITE_URL}/cribliv.png` }
     }
   };
   if (input.description) out.description = input.description;

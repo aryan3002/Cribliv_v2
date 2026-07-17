@@ -7,6 +7,7 @@ import { ListingsGrid } from "./listings-grid";
 import { RelatedLinks } from "./related-links";
 import { FaqSection } from "./faq-section";
 import type { PageAggregates, ListingCard, SeoCopy } from "../../lib/seo-api";
+import { jsonLdSafe } from "../../lib/jsonld";
 
 export interface ProgrammaticPageProps {
   locale: "en" | "hi";
@@ -14,6 +15,8 @@ export interface ProgrammaticPageProps {
   h1: string;
   /** Optional intro paragraph above the stats card. */
   intro?: string | null;
+  /** Place name, used for the "Popular searches in {place}" heading. */
+  placeName?: string | null;
   /** Optional secondary paragraph after stats. */
   nearbyBlurb?: string | null;
   aggregates: PageAggregates;
@@ -45,7 +48,7 @@ export function ProgrammaticPage(props: ProgrammaticPageProps) {
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(node) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdSafe(node) }}
         />
       ))}
 
@@ -84,41 +87,26 @@ export function ProgrammaticPage(props: ProgrammaticPageProps) {
           ))}
         </nav>
 
-        <header style={{ marginBottom: "var(--space-6)" }}>
-          <h1 style={{ marginBottom: "var(--space-3)" }}>
-            <MapPin
-              size={22}
-              style={{ display: "inline", marginRight: 8, color: "var(--brand)" }}
-              aria-hidden="true"
-            />
-            {props.h1}
+        {/* Hero — lead with the place, the numbers and a CTA, not filters. */}
+        <header className="seo-hero">
+          <h1 className="seo-hero__title">
+            <MapPin size={20} className="seo-hero__pin" aria-hidden="true" />
+            <span>{props.h1}</span>
           </h1>
-          {props.intro && (
-            <p className="body-md text-secondary" style={{ maxWidth: 720 }}>
-              {props.intro}
-            </p>
-          )}
+          {props.intro && <p className="seo-hero__intro">{props.intro}</p>}
+
+          <StatsCard aggregates={props.aggregates} locale={locale} />
+
+          {props.nearbyBlurb && <p className="seo-hero__nearby">{props.nearbyBlurb}</p>}
+
+          <div className="seo-hero__cta">
+            <Link href={props.viewAllHref as Route} className="btn btn--primary btn--lg">
+              {props.ctaLabel} <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+          </div>
         </header>
 
-        <StatsCard aggregates={props.aggregates} locale={locale} />
-
-        {props.nearbyBlurb && (
-          <p
-            className="body-sm text-secondary"
-            style={{ maxWidth: 720, marginBottom: "var(--space-6)" }}
-          >
-            {props.nearbyBlurb}
-          </p>
-        )}
-
-        {props.intentBaseHref && (
-          <IntentGrid
-            baseHref={props.intentBaseHref}
-            surface={props.intentSurface}
-            locale={locale}
-          />
-        )}
-
+        {/* Listings first — real inventory above the fold, not the filter wall. */}
         <ListingsGrid
           title={locale === "hi" ? "उपलब्ध लिस्टिंग" : "Available listings"}
           items={props.listings}
@@ -130,6 +118,16 @@ export function ProgrammaticPage(props: ProgrammaticPageProps) {
           viewAllHref={props.viewAllHref}
           locale={locale}
         />
+
+        {/* Popular searches — compact internal-linking band, below the listings. */}
+        {props.intentBaseHref && (
+          <IntentGrid
+            baseHref={props.intentBaseHref}
+            surface={props.intentSurface}
+            locale={locale}
+            placeName={props.placeName}
+          />
+        )}
 
         {props.relatedSections.map((section) => (
           <RelatedLinks
@@ -146,9 +144,9 @@ export function ProgrammaticPage(props: ProgrammaticPageProps) {
           items={props.faqItems}
         />
 
-        <section style={{ marginTop: "var(--space-8)", textAlign: "center" }}>
+        <section className="seo-cta-band">
           <Link href={props.ctaHref as Route} className="btn btn--primary btn--lg">
-            {props.ctaLabel} <ArrowRight size={18} />
+            {props.ctaLabel} <ArrowRight size={18} aria-hidden="true" />
           </Link>
         </section>
       </div>

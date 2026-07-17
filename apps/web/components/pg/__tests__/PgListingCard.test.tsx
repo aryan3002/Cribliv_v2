@@ -38,6 +38,18 @@ describe("PgListingCard", () => {
     expect(screen.getByText(/verified/i)).toBeTruthy();
   });
 
+  it("renders a horizontally scrollable PG feature strip with controls", () => {
+    render(<PgListingCard listing={base} locale="en" />);
+
+    const strip = screen.getByTestId("pg-card-strip");
+    expect(strip).toHaveTextContent(/single/i);
+    expect(strip).toHaveTextContent(/double/i);
+    expect(strip).toHaveTextContent(/girls/i);
+    expect(strip).toHaveTextContent(/food/i);
+    expect(screen.getByRole("button", { name: /previous pg feature/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /next pg feature/i })).toBeTruthy();
+  });
+
   it("links to /[locale]/pg/[city]/[id] and shows no BHK/area", () => {
     const { container } = render(<PgListingCard listing={base} locale="en" />);
     const link = container.querySelector('a[href="/en/pg/lucknow/abc"]');
