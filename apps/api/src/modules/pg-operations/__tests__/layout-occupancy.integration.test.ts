@@ -960,4 +960,37 @@ describe.skipIf(!HAS_DB)("PG layout and occupancy (integration)", () => {
       status: "occupied"
     });
   });
+
+  it("soft-retires beds and rooms referenced by maintenance tickets instead of hard-deleting", async () => {
+    const fixture = await createFixture();
+    const saved = await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("901", 1, ["vacant"])]
+    });
+    const roomId = saved[0].id;
+    const bedId = saved[0].beds[0].id;
+    await db.query(
+      `INSERT INTO pg_maintenance_requests
+         (pg_property_id, category, category_slug, category_label_snapshot, description,
+          priority, sla_hours, sla_due_at, location_kind, bed_id, room_id, floor)
+       VALUES ($1::uuid, 'plumbing', 'plumbing', 'Plumbing', 'Leak reported at this bed',
+               'high'::pg_maintenance_priority, 24, now() + interval '24 hours',
+               'bed'::pg_maintenance_location_kind, $2::uuid, $3::uuid, 1)`,
+      [fixture.propertyId, bedId, roomId]
+    );
+
+    await layout.putLayout(operatorId, fixture.propertyId, {
+      rooms: [roomInput("902", 1, ["vacant"])]
+    });
+
+    const bed = await db.query<{ status: string }>(
+      `SELECT status::text FROM pg_beds WHERE id = $1::uuid`,
+      [bedId]
+    );
+    const room = await db.query<{ status: string }>(
+      `SELECT status FROM pg_rooms WHERE id = $1::uuid`,
+      [roomId]
+    );
+    expect(bed.rows[0]).toEqual({ status: "inactive" });
+    expect(room.rows[0]).toEqual({ status: "inactive" });
+  });
 });

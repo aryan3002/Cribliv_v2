@@ -354,14 +354,18 @@ export class PgLayoutService {
       `UPDATE pg_beds b
           SET status = 'inactive'::pg_bed_status
         WHERE b.id = ANY($1::uuid[])
-          AND EXISTS (SELECT 1 FROM pg_bed_assignments a WHERE a.bed_id = b.id)`,
+          AND (
+            EXISTS (SELECT 1 FROM pg_bed_assignments a WHERE a.bed_id = b.id)
+            OR EXISTS (SELECT 1 FROM pg_maintenance_requests r WHERE r.bed_id = b.id)
+          )`,
       [bedIds]
     );
     await client.query(
       `DELETE FROM pg_beds b
         WHERE b.id = ANY($1::uuid[])
           AND b.status <> 'inactive'::pg_bed_status
-          AND NOT EXISTS (SELECT 1 FROM pg_bed_assignments a WHERE a.bed_id = b.id)`,
+          AND NOT EXISTS (SELECT 1 FROM pg_bed_assignments a WHERE a.bed_id = b.id)
+          AND NOT EXISTS (SELECT 1 FROM pg_maintenance_requests r WHERE r.bed_id = b.id)`,
       [bedIds]
     );
   }
@@ -528,11 +532,20 @@ export class PgLayoutService {
           beds.rows.map((bed) => bed.id)
         );
         const history = await client.query<{ has_history: boolean }>(
-          `SELECT EXISTS (
-             SELECT 1
-               FROM pg_beds b
-               JOIN pg_bed_assignments a ON a.bed_id = b.id
-              WHERE b.room_id = $1::uuid
+          `SELECT (
+             EXISTS (
+               SELECT 1
+                 FROM pg_beds b
+                 JOIN pg_bed_assignments a ON a.bed_id = b.id
+                WHERE b.room_id = $1::uuid
+             )
+             OR EXISTS (SELECT 1 FROM pg_maintenance_requests r WHERE r.room_id = $1::uuid)
+             OR EXISTS (
+               SELECT 1
+                 FROM pg_maintenance_requests r
+                 JOIN pg_beds b ON b.id = r.bed_id
+                WHERE b.room_id = $1::uuid
+             )
            ) AS has_history`,
           [room.id]
         );
