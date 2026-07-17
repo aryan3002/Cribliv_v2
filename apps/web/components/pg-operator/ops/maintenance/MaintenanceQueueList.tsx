@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type {
   PgMaintenanceAnalytics,
@@ -96,7 +96,18 @@ export default function MaintenanceQueueList({
     ? { inert: "" as unknown as boolean, "aria-hidden": true }
     : {};
 
+  const querySeq = useRef(0);
+  const searchDebounce = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (searchDebounce.current !== null) window.clearTimeout(searchDebounce.current);
+    },
+    []
+  );
+
   async function query(nextFilters: MaintenanceQueueFilterState, cursor?: string) {
+    const seq = ++querySeq.current;
     setLoading(true);
     setError(null);
     try {
@@ -105,21 +116,32 @@ export default function MaintenanceQueueList({
         token,
         toMaintenanceQueueFilters(nextFilters, "list", cursor)
       );
+      if (seq !== querySeq.current) return;
       setRows((current) => (cursor ? [...current, ...result.rows] : result.rows));
       setNextCursor(result.next_cursor);
       setFailedQuery(null);
     } catch (cause) {
+      if (seq !== querySeq.current) return;
       setError(cause instanceof Error ? cause.message : "Could not load maintenance tickets.");
       setFailedQuery({ filters: nextFilters, cursor });
     } finally {
-      setLoading(false);
+      if (seq === querySeq.current) setLoading(false);
     }
   }
 
   function updateFilters(nextFilters: MaintenanceQueueFilterState) {
+    const isSearchTyping = nextFilters.tenant_query !== filters.tenant_query;
     setFilters(nextFilters);
     setNextCursor(null);
-    void query(nextFilters);
+    if (searchDebounce.current !== null) window.clearTimeout(searchDebounce.current);
+    if (isSearchTyping) {
+      searchDebounce.current = window.setTimeout(() => {
+        searchDebounce.current = null;
+        void query(nextFilters);
+      }, 300);
+    } else {
+      void query(nextFilters);
+    }
   }
 
   return (
