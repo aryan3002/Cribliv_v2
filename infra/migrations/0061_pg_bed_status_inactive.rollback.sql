@@ -1,0 +1,1 @@
+-- No-op: PostgreSQL cannot cleanly remove an enum value once added.

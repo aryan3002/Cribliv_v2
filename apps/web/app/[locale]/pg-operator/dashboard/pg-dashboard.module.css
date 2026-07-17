@@ -1,22 +1,15 @@
 /* PG operator dashboard: light product theme, scoped to this route. */
 .dashboardPage {
-  --d-brand: var(--brand, #0066ff);
-  --d-brand-dark: var(--brand-dark, #0052cc);
-  --d-brand-soft: var(--brand-light, #ebf3ff);
-  --d-warning: var(--warning, #e88c00);
-  --d-warning-soft: var(--warning-light, #fff8e1);
-  --d-danger: var(--accent, #ff5a5f);
-  --d-danger-soft: var(--accent-light, #fff1f0);
-  --d-success: var(--trust, #0d9f4f);
-  --d-success-soft: var(--trust-light, #ecfdf5);
-  --d-page: var(--surface-raised, #fafbfc);
-  --d-surface: var(--surface, #fff);
-  --d-surface-raised: var(--surface-sunken, #f5f5f7);
-  --d-border: var(--border, #e8ecf1);
-  --d-border-strong: var(--border-strong, #cbd5e1);
-  --d-text: var(--text-primary, #1a1a2e);
-  --d-text-soft: var(--text-secondary, #64748b);
-  --d-text-mute: var(--text-tertiary, #6b7280);
+  /* Core --d-* values come from the operator theme's .pgo-dark wrapper. */
+  --d-brand-dark: color-mix(in srgb, var(--d-brand) 80%, #000);
+  --d-brand-soft: color-mix(in srgb, var(--d-brand) 10%, var(--d-surface));
+  --d-warning-soft: color-mix(in srgb, var(--d-warning) 12%, var(--d-surface));
+  --d-danger-soft: color-mix(in srgb, var(--d-danger) 8%, var(--d-surface));
+  --d-success-soft: color-mix(in srgb, var(--d-success) 8%, var(--d-surface));
+  --d-page: var(--d-raised);
+  --d-surface-raised: var(--d-raised);
+  --d-text-soft: var(--d-secondary);
+  --d-text-mute: var(--d-secondary);
   --d-radius: 12px;
 
   min-height: calc(100vh - var(--header-height, 72px));
@@ -242,6 +235,12 @@
 .dashboardPage :global(.pgo-glass) {
   color: var(--d-text);
   padding: 22px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dashboardPage :global(.pgo-glass)::before {
+  content: none;
 }
 
 .dashboardPage :global(.pgo-glass--interactive) {
@@ -253,10 +252,14 @@
 .dashboardPage :global(.pgo-glass--interactive):hover {
   border-color: var(--d-brand);
   background: var(--d-surface);
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.05));
+  transform: none;
 }
 
 .dashboardPage :global(.pgo-heading) {
+  font-family: var(--font-heading);
   color: var(--d-text);
+  letter-spacing: 0;
 }
 
 .dashboardPage :global(.pgo-desc) {
@@ -616,12 +619,14 @@
   font-weight: 750;
   color: var(--d-text);
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .draftSub {
   font-size: 12px;
   color: var(--d-text-soft);
   margin-top: 2px;
+  overflow-wrap: anywhere;
 }
 
 .draftResume {
@@ -734,9 +739,11 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
   font-size: 12px;
   color: var(--d-text-soft);
   margin-top: 3px;
+  overflow-wrap: anywhere;
 }
 
 .lupdated {
@@ -945,6 +952,7 @@
 .kbMeta {
   font-size: 12px;
   color: var(--d-text-soft);
+  overflow-wrap: anywhere;
 }
 
 .kbMeta {
@@ -972,6 +980,8 @@
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  max-width: 100%;
+  white-space: normal;
 }
 
 .kbReveal:hover {
@@ -1058,9 +1068,23 @@
   }
 
   .dashboardPage :global(.pgo-kpi-strip),
+  .dashboardPage :global(.pgo-bento),
   .kbBoard,
-  .insights {
+  .insights,
+  .siPanel {
     grid-template-columns: 1fr;
+  }
+
+  .trendHead {
+    flex-direction: column;
+  }
+
+  .rangeToggle {
+    align-self: stretch;
+  }
+
+  .rangeBtn {
+    flex: 1;
   }
 
   .funnelRow {
@@ -1072,16 +1096,37 @@
     grid-column: 1 / -1;
   }
 
+  .funnelLeak {
+    align-items: flex-start;
+  }
+
   .lmetrics {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .lspark {
-    display: none;
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 24px;
+  }
+
+  .draftCard {
+    flex-wrap: wrap;
   }
 
   .draftResume {
-    display: none;
+    flex: 1 0 100%;
+    justify-content: center;
+  }
+
+  .kbColTitle {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .kbReveal {
+    width: 100%;
   }
 }
 

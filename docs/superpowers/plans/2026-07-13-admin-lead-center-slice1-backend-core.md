@@ -39,15 +39,18 @@
 ### Task 1: Migration 0055 — enum values + board indexes
 
 **Files:**
+
 - Create: `infra/migrations/0055_admin_lead_center.sql`
 - Create: `infra/migrations/0055_admin_lead_center.rollback.sql`
 
 **Interfaces:**
+
 - Produces: enum values `admin_target_type += 'lead'`; `admin_action_type += 'nudge_owner','lead_manual_refund','mark_team_called'`; `wallet_txn_type += 'refund_admin'`; indexes `idx_leads_owner_created`, `idx_leads_access_state`, `idx_leads_created_at`.
 
 - [ ] **Step 1: Write the forward migration**
 
 Create `infra/migrations/0055_admin_lead_center.sql`:
+
 ```sql
 -- 0055_admin_lead_center.sql
 -- Admin Lead Center: audit enum values for admin lead actions, a ledger txn_type
@@ -69,6 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_leads_created_at    ON leads (created_at DESC);
 - [ ] **Step 2: Write the rollback migration**
 
 Create `infra/migrations/0055_admin_lead_center.rollback.sql`:
+
 ```sql
 -- 0055_admin_lead_center.rollback.sql
 -- Enum ADD VALUE is not reversible in Postgres; the added values are harmless
@@ -86,9 +90,11 @@ Expected: completes without error; log shows `0055_admin_lead_center` applied.
 - [ ] **Step 4: Verify the enum values landed**
 
 Run:
+
 ```bash
 pnpm --filter @cribliv/api exec node -e "const{Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});(async()=>{const a=await p.query(\"SELECT unnest(enum_range(NULL::admin_action_type))::text v\");const w=await p.query(\"SELECT unnest(enum_range(NULL::wallet_txn_type))::text v\");console.log('actions',a.rows.map(r=>r.v));console.log('txn',w.rows.map(r=>r.v));await p.end();})();"
 ```
+
 Expected: `actions` includes `nudge_owner`, `lead_manual_refund`, `mark_team_called`; `txn` includes `refund_admin`.
 
 - [ ] **Step 5: Commit**
@@ -105,15 +111,18 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 2: Feature flag `ff_admin_lead_center`
 
 **Files:**
+
 - Modify: `apps/api/src/config/feature-flags.ts` (3 spots)
 - Test: `apps/api/src/config/__tests__/feature-flags-lead-center.test.ts`
 
 **Interfaces:**
+
 - Produces: `readFeatureFlags().ff_admin_lead_center: boolean` (default false; env `FF_ADMIN_LEAD_CENTER`).
 
 - [ ] **Step 1: Write the failing test**
 
 Create `apps/api/src/config/__tests__/feature-flags-lead-center.test.ts`:
+
 ```ts
 import { describe, it, expect, afterEach } from "vitest";
 import { readFeatureFlags, defaultFeatureFlags } from "../feature-flags";
@@ -143,16 +152,21 @@ Expected: FAIL — `ff_admin_lead_center` does not exist on the flags object.
 - [ ] **Step 3: Add the flag in all three spots**
 
 In `apps/api/src/config/feature-flags.ts`, add to the `FeatureFlags` interface (after `ff_callback_leads: boolean;`, line ~87):
+
 ```ts
-  /** Admin Lead Center — platform-wide lead ops board + analytics (ships dark). */
-  ff_admin_lead_center: boolean;
+/** Admin Lead Center — platform-wide lead ops board + analytics (ships dark). */
+ff_admin_lead_center: boolean;
 ```
+
 Add to `defaultFeatureFlags` (after `ff_callback_leads: false`, line ~171 — add a comma to the prior line):
+
 ```ts
   ff_callback_leads: false,
   ff_admin_lead_center: false
 ```
+
 Add to the `readFeatureFlags()` return (after the `ff_callback_leads` entry, line ~428 — add a comma to the prior line):
+
 ```ts
     ff_callback_leads: parseBooleanEnv("FF_CALLBACK_LEADS", defaultFeatureFlags.ff_callback_leads),
     ff_admin_lead_center: parseBooleanEnv(
@@ -180,16 +194,19 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 3: Shared types — `admin-leads.ts`
 
 **Files:**
+
 - Create: `packages/shared-types/src/admin-leads.ts`
 - Modify: `packages/shared-types/src/index.ts` (1 export line)
 
 **Interfaces:**
+
 - Consumes: `LeadStatus`, `LeadAccessState`, `LeadCalledBy` from `packages/shared-types/src/types.ts`.
 - Produces: `AdminLeadBoardRow`, `AdminLeadCounters`, `AdminLeadBoardResponse`, `AdminLeadBoardFilter`, `AdminLeadTimelineEvent`, `AdminLeadTimelineResponse`.
 
 - [ ] **Step 1: Write the types file**
 
 Create `packages/shared-types/src/admin-leads.ts`:
+
 ```ts
 import type { LeadStatus, LeadAccessState, LeadCalledBy } from "./types";
 
@@ -270,6 +287,7 @@ export interface AdminLeadTimelineResponse {
 - [ ] **Step 2: Export it from the barrel**
 
 In `packages/shared-types/src/index.ts`, add after the existing type-only `export *` lines (after line 6, `export * from "./pg-listing-score";`):
+
 ```ts
 export * from "./admin-leads";
 ```
@@ -293,11 +311,13 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 4: `refundUnlock` shared routine + sweep refactor
 
 **Files:**
+
 - Create: `apps/api/src/modules/contacts/refund-unlock.ts`
 - Modify: `apps/api/src/worker/callback-sweeps.ts` (`runRefundSweepDb` calls the shared routine)
 - Test: `apps/api/test/refund-unlock.integration.test.ts`
 
 **Interfaces:**
+
 - Produces: `refundUnlock(client: PoolClient, unlockId: string, opts: RefundUnlockOptions): Promise<RefundUnlockResult>` where
   `RefundUnlockOptions = { txnType: "refund_no_response" | "refund_admin"; actorRole: "system" | "admin"; expireLockedLead: boolean; metadata?: Record<string, unknown> }`
   and `RefundUnlockResult = { refunded: boolean; tenantUserId: string | null; refundTxnId: string | null }`.
@@ -306,6 +326,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - [ ] **Step 1: Write the failing test**
 
 Create `apps/api/test/refund-unlock.integration.test.ts`:
+
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Pool } from "pg";
@@ -374,7 +395,10 @@ describe.runIf(!!TEST_DB)("refundUnlock (DB)", () => {
       [listingId]
     );
     await pool.query(`DELETE FROM leads WHERE listing_id = $1::uuid`, [listingId]);
-    await pool.query(`UPDATE contact_unlocks SET refund_txn_id = NULL WHERE listing_id = $1::uuid`, [listingId]);
+    await pool.query(
+      `UPDATE contact_unlocks SET refund_txn_id = NULL WHERE listing_id = $1::uuid`,
+      [listingId]
+    );
     await pool.query(`DELETE FROM contact_unlocks WHERE listing_id = $1::uuid`, [listingId]);
     await pool.query(`DELETE FROM wallet_transactions WHERE wallet_user_id = $1::uuid`, [tenantId]);
     await pool.query(`DELETE FROM wallets WHERE user_id = $1::uuid`, [tenantId]);
@@ -389,7 +413,9 @@ describe.runIf(!!TEST_DB)("refundUnlock (DB)", () => {
     let result;
     try {
       await client.query("BEGIN");
-      await client.query(`SELECT 1 FROM contact_unlocks WHERE id = $1::uuid FOR UPDATE`, [unlockId]);
+      await client.query(`SELECT 1 FROM contact_unlocks WHERE id = $1::uuid FOR UPDATE`, [
+        unlockId
+      ]);
       result = await refundUnlock(client, unlockId, {
         txnType: "refund_admin",
         actorRole: "admin",
@@ -435,7 +461,9 @@ describe.runIf(!!TEST_DB)("refundUnlock (DB)", () => {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        await client.query(`SELECT 1 FROM contact_unlocks WHERE id = $1::uuid FOR UPDATE`, [unlockId]);
+        await client.query(`SELECT 1 FROM contact_unlocks WHERE id = $1::uuid FOR UPDATE`, [
+          unlockId
+        ]);
         const r = await refundUnlock(client, unlockId, {
           txnType: "refund_admin",
           actorRole: "admin",
@@ -469,6 +497,7 @@ Expected: FAIL — cannot resolve `../src/modules/contacts/refund-unlock` (modul
 - [ ] **Step 3: Implement `refundUnlock`**
 
 Create `apps/api/src/modules/contacts/refund-unlock.ts`:
+
 ```ts
 import type { PoolClient } from "pg";
 
@@ -564,20 +593,24 @@ Expected: PASS (both cases).
 - [ ] **Step 5: Refactor the worker sweep to call the shared routine**
 
 In `apps/api/src/worker/callback-sweeps.ts`, add the import at the top (after line 2):
+
 ```ts
 import { refundUnlock } from "../modules/contacts/refund-unlock";
 ```
+
 Replace the per-unlock body of the `for (const unlock of dueUnlocks.rows)` loop (current lines 34–101) with:
+
 ```ts
-      for (const unlock of dueUnlocks.rows) {
-        const res = await refundUnlock(client, unlock.id, {
-          txnType: "refund_no_response",
-          actorRole: "system",
-          expireLockedLead: true
-        });
-        if (res.refunded) refundedCount += 1;
-      }
+for (const unlock of dueUnlocks.rows) {
+  const res = await refundUnlock(client, unlock.id, {
+    txnType: "refund_no_response",
+    actorRole: "system",
+    expireLockedLead: true
+  });
+  if (res.refunded) refundedCount += 1;
+}
 ```
+
 Leave the surrounding `while (true)` batch loop, the `BEGIN`/`COMMIT`, the `FOR UPDATE SKIP LOCKED` selection, the `dueUnlocks.rowCount` break, and the `catch`/`finally` exactly as they are.
 
 - [ ] **Step 6: Run the existing sweep test (regression / parity guard)**
@@ -599,11 +632,13 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 5: `AdminLeadOpsService.getBoard`
 
 **Files:**
+
 - Create: `apps/api/src/modules/leads/admin-lead-ops.service.ts`
 - Modify: `apps/api/src/modules/leads/leads.module.ts` (register provider)
 - Test: `apps/api/test/admin-lead-board.integration.test.ts`
 
 **Interfaces:**
+
 - Consumes: `DatabaseService`; `readFeatureFlags().ff_admin_lead_center`; shared type `AdminLeadBoardResponse`.
 - Produces: `AdminLeadOpsService.getBoard(params: BoardParams): Promise<AdminLeadBoardResponse>` where
   `BoardParams = { filter?: AdminLeadBoardFilter; ownerId?: string; state?: string; status?: string; q?: string; range?: string; page?: number; pageSize?: number }`.
@@ -611,6 +646,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 - [ ] **Step 1: Write the failing test**
 
 Create `apps/api/test/admin-lead-board.integration.test.ts`:
+
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Pool } from "pg";
@@ -699,6 +735,7 @@ Expected: FAIL — cannot resolve `AdminLeadOpsService`.
 - [ ] **Step 3: Implement the service**
 
 Create `apps/api/src/modules/leads/admin-lead-ops.service.ts`:
+
 ```ts
 import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
@@ -932,6 +969,7 @@ export class AdminLeadOpsService {
 - [ ] **Step 4: Register the provider**
 
 In `apps/api/src/modules/leads/leads.module.ts`, import and add `AdminLeadOpsService` to `providers` (and `exports`):
+
 ```ts
 import { Module } from "@nestjs/common";
 import { LeadsController } from "./leads.controller";
@@ -966,40 +1004,45 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 6: `AdminLeadOpsService.getTimeline`
 
 **Files:**
+
 - Modify: `apps/api/src/modules/leads/admin-lead-ops.service.ts` (add method)
 - Test: extend `apps/api/test/admin-lead-board.integration.test.ts` with a timeline case
 
 **Interfaces:**
+
 - Consumes: `AdminLeadTimelineResponse` from `@cribliv/shared-types`.
 - Produces: `AdminLeadOpsService.getTimeline(leadId: string): Promise<AdminLeadTimelineResponse>`.
 
 - [ ] **Step 1: Write the failing test (append to the board integration file)**
 
 Append this `it(...)` inside the existing `describe.runIf(...)` block in `apps/api/test/admin-lead-board.integration.test.ts` (it reuses the seeded lead; capture its id by querying):
+
 ```ts
-  it("getTimeline returns the lead's events in time order", async () => {
-    const lead = await pool.query<{ id: string }>(
-      `SELECT id::text FROM leads WHERE owner_user_id = $1::uuid LIMIT 1`,
-      [ownerId]
-    );
-    const leadId = lead.rows[0].id;
-    // seed one lead_event so there is at least one row
-    await pool.query(
-      `INSERT INTO lead_events (lead_id, to_status, notes) VALUES ($1::uuid, 'new'::lead_status, 'seeded_event')`,
-      [leadId]
-    );
-    const timeline = await svc.getTimeline(leadId);
-    expect(timeline.lead_id).toBe(leadId);
-    expect(timeline.events.length).toBeGreaterThanOrEqual(1);
-    expect(timeline.events.some((e) => e.source === "lead" && e.kind === "seeded_event")).toBe(true);
-  });
+it("getTimeline returns the lead's events in time order", async () => {
+  const lead = await pool.query<{ id: string }>(
+    `SELECT id::text FROM leads WHERE owner_user_id = $1::uuid LIMIT 1`,
+    [ownerId]
+  );
+  const leadId = lead.rows[0].id;
+  // seed one lead_event so there is at least one row
+  await pool.query(
+    `INSERT INTO lead_events (lead_id, to_status, notes) VALUES ($1::uuid, 'new'::lead_status, 'seeded_event')`,
+    [leadId]
+  );
+  const timeline = await svc.getTimeline(leadId);
+  expect(timeline.lead_id).toBe(leadId);
+  expect(timeline.events.length).toBeGreaterThanOrEqual(1);
+  expect(timeline.events.some((e) => e.source === "lead" && e.kind === "seeded_event")).toBe(true);
+});
 ```
+
 Also extend `afterAll` cleanup to delete lead_events first (add as the first delete):
+
 ```ts
-    await pool.query(
-      `DELETE FROM lead_events WHERE lead_id IN (SELECT id FROM leads WHERE listing_id = $1::uuid)`,
-      [listingId]
-    );
+await pool.query(
+  `DELETE FROM lead_events WHERE lead_id IN (SELECT id FROM leads WHERE listing_id = $1::uuid)`,
+  [listingId]
+);
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -1010,6 +1053,7 @@ Expected: FAIL — `svc.getTimeline` is not a function.
 - [ ] **Step 3: Implement `getTimeline`**
 
 Add to `AdminLeadOpsService` (in `admin-lead-ops.service.ts`), and import the type at the top:
+
 ```ts
 import type {
   AdminLeadBoardFilter,
@@ -1020,6 +1064,7 @@ import type {
   AdminLeadTimelineResponse
 } from "@cribliv/shared-types";
 ```
+
 ```ts
   async getTimeline(leadId: string): Promise<AdminLeadTimelineResponse> {
     this.ensureEnabled();
@@ -1070,17 +1115,20 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ### Task 7: Controller endpoints + team-called audit
 
 **Files:**
+
 - Modify: `apps/api/src/modules/leads/admin-leads.controller.ts` (add `GET /board`, `GET /:id/timeline`; pass admin id to `team-called`)
 - Modify: `apps/api/src/modules/leads/leads.service.ts` (`teamMarkCalled` writes an `admin_actions` audit row)
 - Test: `apps/api/test/admin-lead-center.controller.integration.test.ts`
 
 **Interfaces:**
+
 - Consumes: `AdminLeadOpsService.getBoard`, `AdminLeadOpsService.getTimeline`; `LeadsService.teamMarkCalled`.
 - Produces: routes `GET /v1/admin/leads/board`, `GET /v1/admin/leads/:id/timeline`; `teamMarkCalled(leadId, adminUserId?)` now writes an audit row when `adminUserId` is given.
 
 - [ ] **Step 1: Write the failing test**
 
 Create `apps/api/test/admin-lead-center.controller.integration.test.ts`:
+
 ```ts
 import "reflect-metadata";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -1229,6 +1277,7 @@ Expected: FAIL — `GET /v1/admin/leads/board` returns 404 (route not defined).
 - [ ] **Step 3: Add the controller routes**
 
 Rewrite `apps/api/src/modules/leads/admin-leads.controller.ts`:
+
 ```ts
 import { Controller, Get, Post, Param, Query, Req, Inject, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
@@ -1288,23 +1337,27 @@ export class AdminLeadsController {
   }
 }
 ```
+
 (Import paths are exactly those in the current controller: `AuthGuard` from `../../common/auth.guard`, `RolesGuard` from `../../common/roles.guard`, `Roles` from `../../common/roles.decorator`, `ok` from `../../common/response`.)
 
 - [ ] **Step 4: Add the audit write to `teamMarkCalled`**
 
 In `apps/api/src/modules/leads/leads.service.ts`, change the signature and add the audit insert. Replace the method header:
+
 ```ts
   async teamMarkCalled(leadId: string, adminUserId?: string) {
 ```
+
 and, immediately after the existing `team_called` `lead_events` insert (current lines 591–595), before re-reading `called_at`, add:
+
 ```ts
-      if (adminUserId) {
-        await client.query(
-          `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action, after_state)
+if (adminUserId) {
+  await client.query(
+    `INSERT INTO admin_actions (admin_user_id, target_type, target_id, action, after_state)
            VALUES ($1::uuid, 'lead', $2::uuid, 'mark_team_called', $3::jsonb)`,
-          [adminUserId, leadId, JSON.stringify({ called_by: "team" })]
-        );
-      }
+    [adminUserId, leadId, JSON.stringify({ called_by: "team" })]
+  );
+}
 ```
 
 - [ ] **Step 5: Run to verify it passes**
@@ -1315,10 +1368,12 @@ Expected: PASS (board returns rows + counters; non-admin gets 401/403).
 - [ ] **Step 6: Typecheck the whole API + run the lead suites**
 
 Run:
+
 ```bash
 pnpm --filter @cribliv/api typecheck
 TEST_DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/cribliv_test' pnpm --filter @cribliv/api exec vitest run test/refund-unlock.integration.test.ts test/admin-lead-board.integration.test.ts test/worker-callback-sweeps.integration.test.ts
 ```
+
 Expected: typecheck clean; all three files green (run individually if the threaded-pool race bites — see Global Constraints).
 
 - [ ] **Step 7: Commit**

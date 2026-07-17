@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import PgLeadsBoard from "../PgLeadsBoard";
 import type { PgDashboardLead } from "@cribliv/shared-types";
+
+const dashboardCss = readFileSync(
+  join(process.cwd(), "app/[locale]/pg-operator/dashboard/pg-dashboard.module.css"),
+  "utf8"
+);
+const operatorThemeCss = readFileSync(
+  join(process.cwd(), "app/[locale]/pg-operator/pg-operator.css"),
+  "utf8"
+);
 
 const { flagState } = vi.hoisted(() => ({
   flagState: { ff_callback_leads: false } as Record<string, boolean>
@@ -71,6 +82,50 @@ afterEach(() => {
 });
 
 describe("PgLeadsBoard", () => {
+  it("uses the operator theme as the source of dashboard light tokens", () => {
+    const taskOneTokens = {
+      "--d-text": "#1a1a2e",
+      "--d-secondary": "#64748b",
+      "--d-surface": "#fff",
+      "--d-raised": "#f5f5f7",
+      "--d-border": "#e8ecf1",
+      "--d-border-strong": "#cbd5e1",
+      "--d-brand": "#0066ff",
+      "--d-success": "#0d9f4f",
+      "--d-warning": "#e88c00",
+      "--d-danger": "#dc2626"
+    };
+
+    for (const [token, value] of Object.entries(taskOneTokens)) {
+      expect(operatorThemeCss).toContain(`${token}: ${value};`);
+      expect(dashboardCss).not.toContain(`${token}: ${value};`);
+    }
+
+    expect(dashboardCss).not.toMatch(
+      /--d-(?:text|secondary|surface|raised|border|border-strong|brand|success|warning|danger)\s*:/
+    );
+
+    expect(dashboardCss).toContain("--d-page: var(--d-raised);");
+    expect(dashboardCss).toContain("--d-surface-raised: var(--d-raised);");
+    expect(dashboardCss).toContain("--d-text-soft: var(--d-secondary);");
+  });
+
+  it("keeps dashboard labels visible in the mobile layout", () => {
+    expect(dashboardCss).not.toMatch(/\.draftResume\s*\{\s*display:\s*none;/);
+    expect(dashboardCss).not.toMatch(/\.lspark\s*\{\s*display:\s*none;/);
+    expect(dashboardCss).toContain(".draftResume {\n    flex: 1 0 100%;");
+    expect(dashboardCss).toContain(".lspark {\n    grid-column: 1 / -1;");
+    expect(dashboardCss).toContain(".kbColTitle {\n    overflow: visible;");
+  });
+
+  it("keeps a keyboard-operable drag handle for each lead", () => {
+    vi.stubGlobal("fetch", routeFetch([]));
+
+    const { container } = render(<PgLeadsBoard leads={[baseLead()]} token="tok" locale="en" />);
+
+    expect(container.querySelector('article[role="button"][tabindex="0"]')).toBeInTheDocument();
+  });
+
   it("callback flag off: retains the legacy dev-reveal path via pg-operator/leads/:id/open", async () => {
     flagState.ff_callback_leads = false;
     vi.stubGlobal(

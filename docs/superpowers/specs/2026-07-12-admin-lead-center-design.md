@@ -9,11 +9,11 @@
 
 ## 1. Summary
 
-Give admins a single **god-view command center** over every lead across all owners and PG operators — both to *watch and act* (the operational job) and to *understand* (the analytics job). One new admin tab, **Lead Center**, with three surfaces behind one shell:
+Give admins a single **god-view command center** over every lead across all owners and PG operators — both to _watch and act_ (the operational job) and to _understand_ (the analytics job). One new admin tab, **Lead Center**, with three surfaces behind one shell:
 
-1. **Live board** — every in-flight lead across the whole platform: **who requested it** (the seeker, full number for admin), **which owner/operator** owns it, **whether the owner has called yet** (`called_at` / `called_by`), and a **live countdown to the auto-refund** (`response_deadline_at`). So the team can step in and call the seeker *before* the credit refunds and the connection is lost.
+1. **Live board** — every in-flight lead across the whole platform: **who requested it** (the seeker, full number for admin), **which owner/operator** owns it, **whether the owner has called yet** (`called_at` / `called_by`), and a **live countdown to the auto-refund** (`response_deadline_at`). So the team can step in and call the seeker _before_ the credit refunds and the connection is lost.
 2. **Analytics** — the lead/callback money funnel plus the upstream engagement funnel (searches → views → signups → callbacks → calls), volume trends, response/refund rates, and a per-owner/operator rollup — i.e. the owner-side analytics owners see, aggregated for admin.
-3. **Per-owner/operator drill-down** — click any owner to see their analytics *exactly as they see it* (the simple lead funnel for `owner`, the rich `PgDashboardData` for `pg_operator`), plus their in-flight leads and response performance.
+3. **Per-owner/operator drill-down** — click any owner to see their analytics _exactly as they see it_ (the simple lead funnel for `owner`, the rich `PgDashboardData` for `pg_operator`), plus their in-flight leads and response performance.
 
 Admin can act on any lead: **call the seeker and mark it handled** (stops the refund clock), **nudge the owner** (WhatsApp + SMS reminder), and **manually refund** the seeker early. Separately, the immediate **new-lead alert to the owner** (already sent on WhatsApp) is extended to **also send SMS**.
 
@@ -22,12 +22,13 @@ Almost all data already exists (`leads`, `contact_unlocks`, `lead_events`, `wall
 ## 2. Goal & business context
 
 - Cribliv's monetization is the **callback-guarantee model** ([[lead-monetization-program]], spec `2026-07-10-lead-monetization-design.md`): a seeker spends a credit to request a callback; the owner (or the Cribliv team) must call within **24 hours** or the credit auto-refunds. The team already does assisted calling; this center points that muscle at every at-risk lead, not just the last-6-hours rescue slice that exists today.
-- The 2026-05-02 admin rebuild explicitly deferred *"Owner-side analytics in admin — different audience."* This spec delivers that, unified with the operational layer.
+- The 2026-05-02 admin rebuild explicitly deferred _"Owner-side analytics in admin — different audience."_ This spec delivers that, unified with the operational layer.
 - **Why it matters to admin:** admin can see, in one place, exactly what's happening on the money path — how much demand is coming in (callbacks requested), whether owners are converting it (unlock + call), where the promise is at risk (uncalled + expiring), and which owners are unresponsive (rescue/refund rates) — and act on each of those without leaving the page.
 
 ## 3. What already exists (build on, don't duplicate)
 
 **Data model (all implemented):**
+
 - `leads`: `access_state` (`free|locked|unlocked|expired`), `called_at`, `called_by` (`owner|team`), `call_deadline_at`, `unlocked_at`, `tenant_confirmed_at`, `disputed_at`, plus CRM `status`, `owner_notes`, `tenant_phone_masked`. Real seeker phone is **never** stored on the lead — always joined live from `users` (`leads.service.ts:127-131`).
 - `contact_unlocks`: **the refund timer** — `response_deadline_at` (now + 24h under `ff_callback_leads`, else 12h), `owner_response_status` (`pending|responded|timeout_refunded`), `owner_responded_at`, `unlock_status`, `source`.
 - `lead_events`, `contact_events`: audit logs. `wallet_transactions`: the credit ledger (refunds are `+1` rows). `admin_actions`: admin audit.
@@ -43,21 +44,27 @@ Almost all data already exists (`leads`, `contact_unlocks`, `lead_events`, `wall
 ## 4. Architecture decisions
 
 ### 4.1 One new tab, three surfaces (not scattered widgets)
-A single `lead-center` tab in the **Operate** sidebar section (next to Live Ops), because the user wants a *center*, not features spread across Live Ops / Users / rescue. The three surfaces are sub-views inside it (a segmented control: **Board · Analytics**, with drill-down as a Drawer). The existing `leads` tab (sales CRM) is a different concept and is untouched.
+
+A single `lead-center` tab in the **Operate** sidebar section (next to Live Ops), because the user wants a _center_, not features spread across Live Ops / Users / rescue. The three surfaces are sub-views inside it (a segmented control: **Board · Analytics**, with drill-down as a Drawer). The existing `leads` tab (sales CRM) is a different concept and is untouched.
 
 ### 4.2 Polling, not realtime
+
 30–60s polling of the board/analytics endpoints (consistent with Live Ops; the 2026-05-02 spec deliberately rejected realtime pub/sub as unnecessary at this scale). Refund **countdowns tick client-side** between refetches from the server-provided deadline — no server load, no clock-skew games (server also returns `generated_at` and `seconds_remaining` so the client anchors correctly).
 
 ### 4.3 New focused service, not more bloat in `LeadsService`
+
 `LeadsService` is already large. Add `AdminLeadOpsService` (in the leads module, injected into `AdminLeadsController`) owning the board query, analytics aggregate, nudge, and manual-refund orchestration. It reuses `LeadsService.getLeadStats`/`getOwnerLeads`, `PgDashboardService`, owner-health, and `AdminAnalyticsService`. Keeps units small and independently testable (per brainstorming's isolation principle).
 
 ### 4.4 Shared refund routine — admin and the sweep must never diverge
+
 Extract the per-unlock refund writes into a **plain, `client`-taking function** `refundUnlock(client, unlockId, opts)` (mirroring `LeadsService.markLeadCalled(client, …)`), because the worker runs **outside NestJS DI** (it builds a raw `pg.Pool`). Both the worker sweep and the admin manual-refund endpoint call it inside their own transaction, having already locked the row. This guarantees the admin refund produces byte-identical state to the auto-sweep — proven by a parity test. See §7.
 
 ### 4.5 Multi-channel notifications — SMS (D7) available first, WhatsApp joining
-Today the platform is **WhatsApp-only in code** (`NotificationService` → `WhatsAppClient`), but per the owner the **WhatsApp Business API is still being provisioned** (not reliably live in prod yet), while **D7 SMS is available now** (it already sends OTPs). So the design treats WhatsApp and SMS as **independently gated channels** and assumes neither is always up. Add a per-type `channels` config; `send()` dispatches to every channel that is both configured for that type *and* currently enabled (WhatsApp gated on live WA creds; SMS gated on `SMS_PROVIDER=d7`). A new **D7 transactional-SMS client** — distinct from the endpoint-locked OTP client — reuses the existing D7 account. Net effect: the new-lead + nudge alerts can go live on **SMS first** and pick up WhatsApp automatically once its API lands, **no code change**. Indian transactional SMS still needs **DLT template registration** per message type, but the D7 sender/entity is already established from OTP, so this is template approval — not a new vendor. See §8.
+
+Today the platform is **WhatsApp-only in code** (`NotificationService` → `WhatsAppClient`), but per the owner the **WhatsApp Business API is still being provisioned** (not reliably live in prod yet), while **D7 SMS is available now** (it already sends OTPs). So the design treats WhatsApp and SMS as **independently gated channels** and assumes neither is always up. Add a per-type `channels` config; `send()` dispatches to every channel that is both configured for that type _and_ currently enabled (WhatsApp gated on live WA creds; SMS gated on `SMS_PROVIDER=d7`). A new **D7 transactional-SMS client** — distinct from the endpoint-locked OTP client — reuses the existing D7 account. Net effect: the new-lead + nudge alerts can go live on **SMS first** and pick up WhatsApp automatically once its API lands, **no code change**. Indian transactional SMS still needs **DLT template registration** per message type, but the D7 sender/entity is already established from OTP, so this is template approval — not a new vendor. See §8.
 
 ### 4.6 Audit everything; reuse `admin_actions`
+
 Every admin action (`team_called`, `nudge_owner`, `lead_manual_refund`) writes an `admin_actions` row and a `lead_events` row, surfaced in the lead's timeline drawer. New enum values via `ALTER TYPE … ADD VALUE IF NOT EXISTS` (target_type `lead`; actions `nudge_owner`, `lead_manual_refund`, `mark_team_called`).
 
 ## 5. Data model / migration
@@ -86,56 +93,82 @@ CREATE INDEX IF NOT EXISTS idx_leads_created_at     ON leads(created_at DESC);
 
 All routes `/v1/admin/leads/*`, class-guarded `AuthGuard + RolesGuard + @Roles("admin")`, responses wrapped by `ok()`.
 
-| Method | Route | Purpose |
-|---|---|---|
-| `GET` | `/board?filter&owner_id&state&status&range&q&page&page_size&sort` | The live ops table (see row shape below) + summary counters. `filter` presets: `all_in_flight` (default), `uncalled`, `expiring_6h` (= the old rescue query), `expired_today`, `refunded_today`. |
-| `GET` | `/analytics?range=7d\|30d\|90d` | Aggregate funnel + engagement funnel + trends + response/refund rates + per-owner rollup (see §10). |
-| `GET` | `/by-owner/:owner_id?range=` | Drill-down: the owner's own analytics + in-flight leads + response perf (see §10). |
-| `GET` | `/:id/timeline` | Full event timeline for one lead (`lead_events` + `contact_events` + `admin_actions`), for the row drawer. |
-| `POST` | `/:id/team-called` | **Exists** — mark handled (`called_by=team`), stops the clock. Extended to also write an `admin_actions` row (`mark_team_called`). |
-| `POST` | `/:id/nudge-owner` | **New** — WhatsApp+SMS reminder to the owner; rate-limited (once per lead per 3h, `lead_events` dedup); writes `lead_events` + `admin_actions`. |
-| `POST` | `/:id/refund` | **New** — early manual refund to the seeker; body `{ reason }`; calls the shared `refundUnlock` routine (§7) with `txn_type='refund_admin'`; writes `admin_actions`. |
+| Method | Route                                                             | Purpose                                                                                                                                                                                          |
+| ------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`  | `/board?filter&owner_id&state&status&range&q&page&page_size&sort` | The live ops table (see row shape below) + summary counters. `filter` presets: `all_in_flight` (default), `uncalled`, `expiring_6h` (= the old rescue query), `expired_today`, `refunded_today`. |
+| `GET`  | `/analytics?range=7d\|30d\|90d`                                   | Aggregate funnel + engagement funnel + trends + response/refund rates + per-owner rollup (see §10).                                                                                              |
+| `GET`  | `/by-owner/:owner_id?range=`                                      | Drill-down: the owner's own analytics + in-flight leads + response perf (see §10).                                                                                                               |
+| `GET`  | `/:id/timeline`                                                   | Full event timeline for one lead (`lead_events` + `contact_events` + `admin_actions`), for the row drawer.                                                                                       |
+| `POST` | `/:id/team-called`                                                | **Exists** — mark handled (`called_by=team`), stops the clock. Extended to also write an `admin_actions` row (`mark_team_called`).                                                               |
+| `POST` | `/:id/nudge-owner`                                                | **New** — WhatsApp+SMS reminder to the owner; rate-limited (once per lead per 3h, `lead_events` dedup); writes `lead_events` + `admin_actions`.                                                  |
+| `POST` | `/:id/refund`                                                     | **New** — early manual refund to the seeker; body `{ reason }`; calls the shared `refundUnlock` routine (§7) with `txn_type='refund_admin'`; writes `admin_actions`.                             |
 
 The existing `GET rescue-queue` and its `getRescueQueue()` (which throws `feature_disabled` when `ff_callback_leads` is off) stay **as-is** for any current caller; the new `/board?filter=expiring_6h` supersedes it in the UI and is the one that degrades gracefully across the flag.
 
 **Board row shape** (`AdminLeadBoardRow`, new in `packages/shared-types`, snake_case):
+
 ```ts
 interface AdminLeadBoardRow {
-  lead_id: string; listing_id: string; listing_title: string; city: string | null;
-  owner: { user_id: string; name: string; phone_masked: string; role: "owner" | "pg_operator";
-           health_score: number | null; health_grade: "A"|"B"|"C"|"D"|"F" | null };
-  seeker: { user_id: string; name: string; phone_e164: string };   // admin sees full number
+  lead_id: string;
+  listing_id: string;
+  listing_title: string;
+  city: string | null;
+  owner: {
+    user_id: string;
+    name: string;
+    phone_masked: string;
+    role: "owner" | "pg_operator";
+    health_score: number | null;
+    health_grade: "A" | "B" | "C" | "D" | "F" | null;
+  };
+  seeker: { user_id: string; name: string; phone_e164: string }; // admin sees full number
   access_state: "free" | "locked" | "unlocked" | "expired";
-  status: LeadStatus;                                              // CRM funnel
-  called_at: string | null; called_by: "owner" | "team" | null;
-  response_deadline_at: string | null;                            // the refund timer
-  seconds_remaining: number | null;                               // server-computed, client ticks
-  refund_state: "pending" | "responded" | "refunded";             // from contact_unlocks
-  source: string | null; created_at: string;
+  status: LeadStatus; // CRM funnel
+  called_at: string | null;
+  called_by: "owner" | "team" | null;
+  response_deadline_at: string | null; // the refund timer
+  seconds_remaining: number | null; // server-computed, client ticks
+  refund_state: "pending" | "responded" | "refunded"; // from contact_unlocks
+  source: string | null;
+  created_at: string;
 }
 interface AdminLeadBoardResponse {
-  rows: AdminLeadBoardRow[]; total: number; generated_at: string;
-  counters: { in_flight: number; uncalled: number; expiring_6h: number;
-              expired_today: number; refunded_today: number };
+  rows: AdminLeadBoardRow[];
+  total: number;
+  generated_at: string;
+  counters: {
+    in_flight: number;
+    uncalled: number;
+    expiring_6h: number;
+    expired_today: number;
+    refunded_today: number;
+  };
 }
 ```
-The board query is a **single batched query** (leads ⨝ listings ⨝ users[owner] ⨝ users[seeker] ⨝ contact_unlocks), paginated, using the new indexes — no N+1. Counters computed in the same round-trip (a `COUNT(*) FILTER (WHERE …)` block or a small parallel query). **Owner health** (`health_score`/`grade`) is a heavier multi-component aggregate, so it is *not* joined per-row: it's fetched in one batched lookup keyed by the page's distinct `owner_user_id`s (reusing the owner-health calculator), and left `null` if unavailable — the row shape already makes it nullable. Full seeker phone is admin-only and intentional (matches the existing rescue-queue behavior).
+
+The board query is a **single batched query** (leads ⨝ listings ⨝ users[owner] ⨝ users[seeker] ⨝ contact_unlocks), paginated, using the new indexes — no N+1. Counters computed in the same round-trip (a `COUNT(*) FILTER (WHERE …)` block or a small parallel query). **Owner health** (`health_score`/`grade`) is a heavier multi-component aggregate, so it is _not_ joined per-row: it's fetched in one batched lookup keyed by the page's distinct `owner_user_id`s (reusing the owner-health calculator), and left `null` if unavailable — the row shape already makes it nullable. Full seeker phone is admin-only and intentional (matches the existing rescue-queue behavior).
 
 **Flag behavior:** `ff_callback_leads` **on** → full called/refund semantics (24h). **Off** → the board degrades to the legacy view (reads `contact_unlocks` `owner_response_status`/`response_deadline_at` at 12h; no `called_by`), clearly labeled; the analytics/engagement surfaces still render (they read `contact_unlocks`/`listing_events`/`pg_search_events` regardless). The whole tab additionally sits behind `ff_admin_lead_center` (default off) so it ships dark.
 
 ## 7. Shared refund routine (the careful extraction)
 
 New plain module `apps/api/src/modules/contacts/refund-unlock.ts`:
+
 ```ts
 // Assumes the caller opened a transaction AND locked the contact_unlocks row.
 // Returns whether a refund actually happened (idempotent via the guarded UPDATE).
 export async function refundUnlock(
   client: PoolClient,
   unlockId: string,
-  opts: { txnType: "refund_no_response" | "refund_admin"; actorRole: "system" | "admin";
-          expireLockedLead: boolean; metadata?: Record<string, unknown> }
-): Promise<{ refunded: boolean; tenantUserId: string | null; refundTxnId: string | null }>
+  opts: {
+    txnType: "refund_no_response" | "refund_admin";
+    actorRole: "system" | "admin";
+    expireLockedLead: boolean;
+    metadata?: Record<string, unknown>;
+  }
+): Promise<{ refunded: boolean; tenantUserId: string | null; refundTxnId: string | null }>;
 ```
+
 Body = exactly the sweep's per-unlock writes (`callback-sweeps.ts:35-100`): ensure wallet → `+1` balance → insert `wallet_transactions` (`credits_delta=1`, `reference_type='contact_unlock'`, `reference_id=unlockId`, `txn_type=opts.txnType`) → **guarded** `UPDATE contact_unlocks SET owner_response_status='timeout_refunded', unlock_status='refunded', refund_txn_id=… WHERE id=$1 AND owner_response_status='pending' AND unlock_status='active'` → only if `rowCount=1`: insert `contact_events` (`actor_role=opts.actorRole`, `event_type='refund_issued'`) and, if `expireLockedLead`, `UPDATE leads SET access_state='expired' WHERE contact_unlock_id=$1 AND access_state='locked'`.
 
 - **Worker sweep** refactors to loop calling `refundUnlock(client, id, { txnType:'refund_no_response', actorRole:'system', expireLockedLead:true })` — keeping its batch `BEGIN/COMMIT` and `FOR UPDATE SKIP LOCKED` selection outside the helper.
@@ -152,7 +185,7 @@ Body = exactly the sweep's per-unlock writes (`callback-sweeps.ts:35-100`): ensu
 - **New `apps/api/src/modules/notifications/sms.client.ts`** — a thin transactional-SMS client on the **D7 Networks Messaging API** (the owner's existing SMS vendor — already used for OTP), reusing the same D7 account/credentials but a different endpoint than the OTP client (which is endpoint-locked to `/verify/v1/otp/send-otp`). Registered in `notifications.module.ts`. Env: `SMS_PROVIDER` (`d7|mock`, default `mock`), `D7_SMS_*` (API token, DLT sender/entity + template IDs). `mock` logs and no-ops (dev/CI).
 - **WhatsApp availability gate:** since the WA Business API is still being provisioned, `WhatsAppClient` dispatch is treated as best-effort and gated on live WA credentials; a WhatsApp failure never blocks the SMS send (and vice-versa) — `send()` attempts each configured+enabled channel independently and logs per-channel outcome to `notification_log`.
 - **Worker:** `runOutboundDispatchDb` gains an `notification.sms.*` branch calling its own `SmsClient` instance (the worker builds vendor clients directly, like `WhatsAppClient`).
-- **Copy (callback model):** new-lead → *"New Cribliv lead! {seeker} wants a callback for {listing}. Call within 24h or the lead expires. Open: {link}"*. Nudge → *"Reminder: your Cribliv lead {seeker} for {listing} is still uncalled — {hours}h left before it's refunded. Call now: {link}"*. Hindi variants alongside (i18n parity, matching the WhatsApp templates' `hi` convention).
+- **Copy (callback model):** new-lead → _"New Cribliv lead! {seeker} wants a callback for {listing}. Call within 24h or the lead expires. Open: {link}"_. Nudge → _"Reminder: your Cribliv lead {seeker} for {listing} is still uncalled — {hours}h left before it's refunded. Call now: {link}"_. Hindi variants alongside (i18n parity, matching the WhatsApp templates' `hi` convention).
 - **External dependency (rollout gate, not code):** DLT-registered SMS templates per message type + `SMS_PROVIDER=d7` + D7 messaging creds (account/sender already exist from OTP). WhatsApp delivery additionally depends on the WA Business API being provisioned. Because `send()` degrades to whichever channel is live, alerts flow as soon as **either** D7 transactional SMS **or** WhatsApp is ready — and D7 SMS is the nearer of the two. Documented in §11.
 
 ## 9. Web — the Lead Center tab
@@ -160,6 +193,7 @@ Body = exactly the sweep's per-unlock writes (`callback-sweeps.ts:35-100`): ensu
 **Registration (compile-forced, three spots):** add `"lead-center"` to the `AdminTab` union (`AdminSidebar.tsx:23-38`), a `{ id:"lead-center", label:"Lead Center", icon }` entry in the `operate` array, a `case "lead-center"` in `AdminShell.tsx`'s `view` switch, and a `TAB_TITLES["lead-center"]` entry. Optional Cmd+K entry in `CommandPalette.tsx`. The sidebar badge (`onCountChange`) reports the **uncalled** count — a red number that tells admin at a glance how many leads need attention.
 
 **Components (`apps/web/components/admin/`):**
+
 - `tabs/LeadCenterTab.tsx` — shell + segmented control (Board · Analytics), polling (30–60s), toast wiring.
 - `lead-center/LeadBoard.tsx` — KPI strip (`StatCard` + sparkline: in-flight, uncalled, expiring <6h, refund rate) + preset filter chips + `DataTable` of `AdminLeadBoardRow`. Columns: **Seeker** (name + full phone, click-to-call `tel:`), **Owner** (name + `HealthBadge` → drill-down), Listing, **State** (`StatusPill`), **Called?** (✓ owner / ✓ team / ✗ not-called), **Refund countdown** (`LeadCountdown`), Created, Actions menu.
 - `lead-center/LeadCountdown.tsx` — a `useCountdown(seconds_remaining, generated_at)` hook ticking every second; green → amber (<6h) → red (<1h) → "Refunded"/"Expired" after refetch.
@@ -174,6 +208,7 @@ Follow the existing admin design system (`admin.css`, primitives). No new design
 ## 10. Analytics & per-owner drill-down
 
 **`GET /admin/leads/analytics?range`** → `AdminLeadAnalytics`:
+
 - **Funnel** (money path): `callbacks_requested`, `leads_created`, `leads_unlocked`, `leads_called`, `deals_done`, `leads_refunded`, `leads_disputed` — each with a WoW delta.
 - **Engagement funnel** (the "what users are doing" breadth): `searches` (`pg_search_events` + listing search events), `listing_views` (`listing_events`), `signups` (`users.created_at`), `callbacks_requested`, `calls_made`. Reuses/extends `AdminAnalyticsService.getConversionFunnel`.
 - **Response/refund rates:** `median_response_minutes` (lead created → `called_at`), `called_within_24h_rate`, `team_rescue_rate` (`called_by='team'` / all called), `refund_rate`, `dispute_rate`.
@@ -181,18 +216,19 @@ Follow the existing admin design system (`admin.css`, primitives). No new design
 - **Per-owner/operator rollup:** `by_owner: [{ owner_user_id, name, role, leads, called, called_rate, median_response_min, unlock_rate, refund_rate, revenue_paise, health_score, health_grade }]` — sortable `DataTable`, batched (`Promise.all`), row → drill-down.
 
 **`GET /admin/leads/by-owner/:owner_id?range`** → drill-down:
+
 - `role='owner'` → their lead funnel exactly as they see it (`LeadsService.getLeadStats`) + their in-flight board subset + response perf.
 - `role='pg_operator'` → the **full `PgDashboardData`** (`PgDashboardService.getDashboard`) — views, CTR, conversion, `trend_30d`, `search_insights` — the same numbers the operator sees (respecting the existing `analytics_status` masking is **not** applied here; admin always sees unmasked, per the PG command center principle). Plus in-flight leads + response perf.
 - Rendered in `OwnerDrillDrawer.tsx`; the Users-tab `HealthBadge` links here too (unifying owner visibility). Quick actions: nudge all uncalled, adjust wallet, open owner-health.
 
 ## 11. Feature flags & rollout
 
-| Flag / env | Default | Purpose |
-|---|---|---|
-| `ff_admin_lead_center` (`FF_ADMIN_LEAD_CENTER`) | off | The whole tab + endpoints. Ships dark; flip to reveal. Add to `FeatureFlags` interface, `defaultFeatureFlags`, and `readFeatureFlags()` (the standard three spots). |
-| `ff_callback_leads` (existing) | off | When on, the board shows full 24h called/refund semantics; when off, the legacy 12h view. Not owned by this spec. |
-| `SMS_PROVIDER` (`d7\|mock`) | `mock` | Turns real SMS on. `mock` = no-op/log. |
-| `D7_SMS_*` | — | SMS credentials + DLT sender/template IDs. |
+| Flag / env                                      | Default | Purpose                                                                                                                                                             |
+| ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ff_admin_lead_center` (`FF_ADMIN_LEAD_CENTER`) | off     | The whole tab + endpoints. Ships dark; flip to reveal. Add to `FeatureFlags` interface, `defaultFeatureFlags`, and `readFeatureFlags()` (the standard three spots). |
+| `ff_callback_leads` (existing)                  | off     | When on, the board shows full 24h called/refund semantics; when off, the legacy 12h view. Not owned by this spec.                                                   |
+| `SMS_PROVIDER` (`d7\|mock`)                     | `mock`  | Turns real SMS on. `mock` = no-op/log.                                                                                                                              |
+| `D7_SMS_*`                                      | —       | SMS credentials + DLT sender/template IDs.                                                                                                                          |
 
 **Rollout order:** (1) ship dark behind `ff_admin_lead_center=off`; (2) flip on for admin — board/analytics work immediately against live data (richest once `ff_callback_leads` is on); (3) enable **D7 transactional SMS** (`SMS_PROVIDER=d7`) once its DLT templates are approved, and enable WhatsApp for these types once the WA Business API is provisioned — `send()` uses whichever channels are live, and D7 SMS is the one reachable first. **PostHog events:** `admin_lead_nudged`, `admin_lead_refunded`, `admin_lead_team_called`, `admin_lead_center_viewed`.
 
@@ -209,6 +245,7 @@ Follow the existing admin design system (`admin.css`, primitives). No new design
 ## 13. Testing (TDD, red-green-refactor)
 
 **API (Vitest integration):**
+
 - Board: filter presets (uncalled/expiring/expired/refunded), pagination, counters correctness, admin-role rejection, flag-on vs flag-off row shape.
 - Analytics: funnel + engagement funnel + rates aggregation correctness; per-owner rollup mapping; range windows.
 - Drill-down: owner funnel vs pg-operator `PgDashboardData` branch.

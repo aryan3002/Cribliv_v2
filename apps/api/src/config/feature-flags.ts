@@ -66,6 +66,7 @@ export interface FeatureFlags {
   ff_pg_multi_property_enabled: boolean;
   /** Phase H+ – PG Operator V2..V8 (declared early for compile-time awareness, all OFF in V1) */
   ff_pg_bed_mgmt: boolean;
+  ff_pg_maintenance_ops_v2: boolean;
   ff_pg_tenant_portal: boolean;
   ff_pg_rent_collection: boolean;
   ff_pg_food: boolean;
@@ -158,6 +159,7 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_pg_multi_property_enabled: false,
   /** Phase H+ – PG Operator V2..V8 (default OFF; unlocked per future version cycle) */
   ff_pg_bed_mgmt: false,
+  ff_pg_maintenance_ops_v2: false,
   ff_pg_tenant_portal: false,
   ff_pg_rent_collection: false,
   ff_pg_food: false,
@@ -399,6 +401,10 @@ export function readFeatureFlags(): FeatureFlags {
       defaultFeatureFlags.ff_pg_multi_property_enabled
     ),
     ff_pg_bed_mgmt: parseBooleanEnv("FF_PG_BED_MGMT", defaultFeatureFlags.ff_pg_bed_mgmt),
+    ff_pg_maintenance_ops_v2: parseBooleanEnv(
+      "FF_PG_MAINTENANCE_OPS_V2",
+      defaultFeatureFlags.ff_pg_maintenance_ops_v2
+    ),
     ff_pg_tenant_portal: parseBooleanEnv(
       "FF_PG_TENANT_PORTAL",
       defaultFeatureFlags.ff_pg_tenant_portal

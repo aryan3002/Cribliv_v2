@@ -6,6 +6,7 @@ import {
   BarChart3,
   Building2,
   ClipboardList,
+  ClipboardCheck,
   Coins,
   FileText,
   Globe,
@@ -36,6 +37,7 @@ export type AdminTab =
   | "rent-agreements"
   | "pg-listings"
   | "pg-properties"
+  | "manage-pg-requests"
   | "homes"
   | "fraud"
   | "seo"
@@ -75,6 +77,7 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "rent-agreements", label: "Rent Agreements", icon: FileText },
     { id: "pg-listings", label: "PG Overview", icon: BarChart3 },
     { id: "pg-properties", label: "PG Listings", icon: Building2 },
+    { id: "manage-pg-requests", label: "Manage PG Requests", icon: ClipboardCheck },
     { id: "homes", label: "Verified Homes", icon: House },
     { id: "users", label: "Users", icon: Users },
     { id: "seo", label: "Programmatic SEO", icon: Globe },

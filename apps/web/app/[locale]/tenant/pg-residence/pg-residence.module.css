@@ -1,0 +1,379 @@
+.page {
+  --residence-ink: var(--text-primary, #172033);
+  --residence-slate: var(--text-secondary, #64748b);
+  --residence-mist: var(--surface-raised, #f4f7fa);
+  --residence-porcelain: var(--surface, #ffffff);
+  --residence-blue: var(--brand, #1f6fff);
+  --residence-amber: var(--warning, #f59e0b);
+  --residence-red: var(--danger, #ef4444);
+  --residence-border: var(--border, #dfe6ee);
+  background: var(--residence-mist);
+  color: var(--residence-ink);
+  min-height: calc(100vh - var(--header-height, 72px));
+  overflow-x: clip;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0 auto;
+  max-width: 980px;
+  min-width: 0;
+  padding: 24px;
+}
+
+.back {
+  align-items: center;
+  color: var(--residence-slate);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 5px;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.back:hover {
+  color: var(--residence-blue);
+}
+
+.header h1 {
+  font-family: var(--font-heading, ui-sans-serif, system-ui, sans-serif);
+  font-size: 24px;
+  margin: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.commandStrip {
+  align-items: stretch;
+  background: var(--residence-porcelain);
+  border: 1px solid var(--residence-border);
+  border-radius: 8px;
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(190px, 1.5fr) repeat(3, minmax(120px, 1fr)) minmax(165px, 1.2fr);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.propertySummary,
+.commandFact {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.commandFact {
+  border-left: 1px solid var(--residence-border);
+}
+
+.propertySummary span,
+.commandFact > span,
+.factGrid dt,
+.secondaryFacts dt,
+.rentEmphasis span,
+.foodPlan span,
+.rules > span,
+.noticeState span {
+  color: var(--residence-slate);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.propertySummary strong {
+  color: var(--residence-ink);
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.propertySummary p,
+.noticeState p {
+  color: var(--residence-slate);
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.commandFact strong,
+.commandFact a {
+  color: var(--residence-ink);
+  font-size: 14px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.commandFact a,
+.operatorTile a {
+  color: var(--residence-blue);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.tabBar {
+  border-bottom: 1px solid var(--residence-border);
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--residence-slate);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  min-height: 40px;
+  padding: 9px 14px 7px;
+}
+
+.tab[aria-selected="true"] {
+  border-bottom-color: var(--residence-blue);
+  color: var(--residence-blue);
+}
+
+.tab:focus-visible,
+.commandFact a:focus-visible,
+.operatorTile a:focus-visible {
+  outline: 2px solid var(--residence-blue);
+  outline-offset: 2px;
+}
+
+.panel {
+  background: var(--residence-porcelain);
+  border: 1px solid var(--residence-border);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.factGrid,
+.secondaryFacts {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  min-width: 0;
+}
+
+.factGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.secondaryFacts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.factGrid > div,
+.secondaryFacts > div,
+.foodPlan,
+.rules,
+.noticeState,
+.rentEmphasis {
+  background: var(--residence-mist);
+  border: 1px solid var(--residence-border);
+  border-radius: 6px;
+  min-width: 0;
+  padding: 13px;
+}
+
+.factGrid dd,
+.secondaryFacts dd,
+.foodPlan strong,
+.rules strong,
+.noticeState strong {
+  color: var(--residence-ink);
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 5px;
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.operatorTile {
+  background: var(--residence-porcelain) !important;
+  border-color: var(--residence-blue) !important;
+}
+
+.rentEmphasis {
+  background: var(--residence-porcelain);
+  border-color: var(--residence-blue);
+}
+
+.rentEmphasis strong {
+  color: var(--residence-ink);
+  display: block;
+  font-size: 28px;
+  line-height: 1.2;
+  margin-top: 5px;
+}
+
+.foodPlan,
+.rules,
+.noticeState {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rules ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 5px 0 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.rules li {
+  background: var(--residence-porcelain);
+  border: 1px solid var(--residence-border);
+  border-radius: 6px;
+  color: var(--residence-ink);
+  font-size: 12px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 5px 8px;
+}
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.noticeState {
+  border-color: var(--residence-amber);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.actions button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.error {
+  background: #fef2f2;
+  border: 1px solid var(--residence-red);
+  border-radius: 6px;
+  color: var(--residence-red);
+  font-size: 13px;
+  margin: 0;
+  overflow-wrap: anywhere;
+  padding: 10px 12px;
+}
+
+.maintenancePanel {
+  padding: 14px;
+}
+
+.maintenanceHistoryPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panelHeading {
+  color: var(--residence-ink);
+  font-size: 16px;
+  margin: 0;
+}
+
+.empty {
+  background: var(--residence-porcelain);
+  border: 1px solid var(--residence-border);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.empty h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.empty p,
+.historyEmpty {
+  color: var(--residence-slate);
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
+@media (max-width: 900px) {
+  .commandStrip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .propertySummary {
+    grid-column: span 2;
+  }
+
+  .operatorCommand {
+    border-left: 0;
+    border-top: 1px solid var(--residence-border);
+    grid-column: span 3;
+  }
+
+  .factGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .inner {
+    padding: 16px 14px 40px;
+  }
+
+  .commandStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .propertySummary {
+    border-bottom: 1px solid var(--residence-border);
+    grid-column: span 2;
+  }
+
+  .commandFact:nth-of-type(2) {
+    border-left: 0;
+  }
+
+  .operatorCommand {
+    grid-column: span 2;
+  }
+
+  .factGrid,
+  .secondaryFacts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel {
+    padding: 14px;
+  }
+}

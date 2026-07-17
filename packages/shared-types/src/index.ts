@@ -4,6 +4,7 @@ export * from "./voice-agent";
 export * from "./pg-operator";
 export * from "./voice-agent-pg";
 export * from "./pg-listing-score";
+export * from "./pg-operations";
 export * from "./admin-leads";
 export * from "./admin-homes";
 

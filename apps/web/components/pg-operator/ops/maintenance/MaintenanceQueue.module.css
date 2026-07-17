@@ -1,0 +1,572 @@
+.analyticsStrip {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.metric {
+  background: var(--surface, #fff);
+  border-right: 1px solid var(--border, #e8ecf1);
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.metric:last-child {
+  border-right: 0;
+}
+
+.queueShell,
+.kanbanShell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.filters {
+  align-items: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+}
+
+.filterShell,
+.filterSheetHeader,
+.filterTrigger,
+.sheetBackdrop,
+.kanbanSwitcher {
+  display: none;
+}
+
+.filterShell {
+  display: block;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field span {
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field input,
+.field select {
+  background: var(--surface-sunken, #f5f5f7);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 7px;
+  color: var(--text-primary, #1a1a2e);
+  font: inherit;
+  font-size: 13px;
+  min-height: 36px;
+  min-width: 0;
+  padding: 7px 9px;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: var(--brand, #0066ff);
+  outline: 2px solid color-mix(in srgb, var(--brand, #0066ff) 18%, transparent);
+  outline-offset: 1px;
+}
+
+.tableWrap {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.queueResults {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.table {
+  background: var(--surface, #fff);
+  border-collapse: collapse;
+  min-width: 920px;
+  width: 100%;
+}
+
+.table th {
+  background: var(--surface-sunken, #f5f5f7);
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--border, #e8ecf1);
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.primaryCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.primaryCell strong,
+.cardTitle,
+.ticketLink,
+.cardTitleLink {
+  color: var(--text-primary, #1a1a2e);
+  font-size: 13px;
+}
+
+.ticketLink,
+.cardTitleLink {
+  font-weight: 700;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.ticketLink:hover,
+.cardTitleLink:hover,
+.ticketLink:focus-visible,
+.cardTitleLink:focus-visible {
+  color: var(--brand, #0066ff);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ticketLink:focus-visible,
+.cardTitleLink:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid color-mix(in srgb, var(--brand, #0066ff) 20%, transparent);
+  outline-offset: 2px;
+}
+
+.primaryCell span,
+.cellSubtle,
+.cardMeta {
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+}
+
+.badgeRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  background: var(--surface-sunken, #f5f5f7);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 6px;
+  color: var(--text-primary, #1a1a2e);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 6px;
+}
+
+.danger {
+  color: var(--danger, #dc2626);
+}
+
+.loadMore {
+  align-self: flex-start;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 7px;
+  color: var(--text-primary, #1a1a2e);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.loadMore:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.loadMore:focus-visible,
+.retryButton:focus-visible,
+.filterTrigger:focus-visible,
+.sheetClose:focus-visible,
+.kanbanSwitcher button:focus-visible,
+.dragHandle:focus-visible,
+.cardActions button:focus-visible,
+.dialogActions button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand, #0066ff) 30%, transparent);
+  outline-offset: 2px;
+}
+
+.inlineError {
+  align-items: center;
+  background: var(--danger-light, #fee2e2);
+  border: 1px solid color-mix(in srgb, var(--danger, #dc2626) 30%, var(--border, #e8ecf1));
+  border-radius: 8px;
+  color: var(--danger, #dc2626);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.retryButton {
+  background: var(--surface, #fff);
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.empty {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  color: var(--text-secondary, #64748b);
+  font-size: 13px;
+  padding: 14px;
+}
+
+.kanbanBoard {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(190px, 1fr));
+  overflow-x: auto;
+}
+
+.kanbanSwitcher {
+  gap: 7px;
+}
+
+.column {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  min-width: 190px;
+}
+
+.columnDraggingOver {
+  border-color: var(--brand, #0066ff);
+}
+
+.columnHeader {
+  align-items: center;
+  border-bottom: 1px solid var(--border, #e8ecf1);
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.columnHeader h3 {
+  font-size: 14px;
+  margin: 0;
+}
+
+.columnHeader span {
+  color: var(--text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.kanbanCard {
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.dragHandle {
+  align-items: center;
+  align-self: flex-end;
+  background: transparent;
+  border: 0;
+  color: var(--text-secondary, #64748b);
+  cursor: grab;
+  display: inline-flex;
+  min-height: 24px;
+  padding: 0;
+}
+
+.kanbanSkeletons {
+  display: grid;
+  gap: 8px;
+}
+
+.kanbanSkeleton {
+  height: 118px;
+}
+
+.cardActions {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cardActions button,
+.dialogActions button {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 7px;
+  color: var(--text-primary, #1a1a2e);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 0 8px;
+}
+
+.cardActions button:disabled,
+.dialogActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.dialogBackdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.28);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 8px;
+  max-height: min(720px, calc(100vh - 40px));
+  max-width: 420px;
+  overflow-y: auto;
+  padding: 16px;
+  width: 100%;
+}
+
+.dialog h2 {
+  font-size: 16px;
+  margin: 0 0 10px;
+}
+
+.dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialog textarea {
+  background: var(--surface-sunken, #f5f5f7);
+  border: 1px solid var(--border, #e8ecf1);
+  border-radius: 7px;
+  color: var(--text-primary, #1a1a2e);
+  font: inherit;
+  min-height: 96px;
+  padding: 8px 10px;
+}
+
+.dialogActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+@media (max-width: 900px) {
+  .analyticsStrip,
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric:nth-child(2n) {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .filterShell {
+    display: block;
+  }
+
+  .filterTrigger {
+    align-items: center;
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e8ecf1);
+    border-radius: 7px;
+    color: var(--text-primary, #1a1a2e);
+    cursor: pointer;
+    display: inline-flex;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  .sheetBackdrop {
+    background: rgba(15, 23, 42, 0.3);
+    border: 0;
+    display: block;
+    inset: 0;
+    position: fixed;
+    z-index: 40;
+  }
+
+  .filters {
+    background: var(--surface, #fff);
+    border-radius: 8px 8px 0 0;
+    bottom: 0;
+    display: none;
+    gap: 10px;
+    grid-template-columns: 1fr;
+    left: 0;
+    max-height: min(78vh, 620px);
+    overflow-y: auto;
+    padding: 16px;
+    position: fixed;
+    right: 0;
+    z-index: 41;
+  }
+
+  .filtersOpen {
+    display: grid;
+  }
+
+  .filterSheetHeader {
+    align-items: center;
+    display: flex;
+    font-size: 14px;
+    font-weight: 700;
+    justify-content: space-between;
+  }
+
+  .sheetClose {
+    background: transparent;
+    border: 0;
+    color: var(--brand, #0066ff);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    min-height: 32px;
+    padding: 0 4px;
+  }
+
+  .tableWrap {
+    border: 0;
+    overflow: visible;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .table tr {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e8ecf1);
+    border-radius: 8px;
+    padding: 10px;
+  }
+
+  .table td {
+    border: 0;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(88px, 0.6fr) minmax(0, 1fr);
+    padding: 5px 0;
+  }
+
+  .table td::before {
+    color: var(--text-secondary, #64748b);
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .kanbanSwitcher {
+    background: var(--surface, #fff);
+    display: flex;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .kanbanSwitcher button {
+    background: var(--surface-sunken, #f5f5f7);
+    border: 1px solid var(--border, #e8ecf1);
+    border-radius: 999px;
+    color: var(--text-primary, #1a1a2e);
+    cursor: pointer;
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    min-height: 32px;
+    padding: 0 10px;
+  }
+
+  .kanbanSwitcher button.kanbanSwitcherActive {
+    background: var(--brand, #0066ff);
+    border-color: var(--brand, #0066ff);
+    color: #fff;
+  }
+
+  .kanbanBoard {
+    display: grid;
+    gap: 12px;
+    grid-auto-columns: 85vw;
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .column {
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+}

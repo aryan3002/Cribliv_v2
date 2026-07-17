@@ -437,23 +437,6 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--m-text-strong);
-  color: #fff;
-  padding: 10px 18px;
-  border-radius: 9999px;
-  font-size: 13px;
-  font-weight: 600;
-  box-shadow: var(--m-sh2);
-  z-index: 60;
-}
-.toastErr {
-  background: var(--m-danger);
-}
 
 @media (max-width: 640px) {
   .gallery {

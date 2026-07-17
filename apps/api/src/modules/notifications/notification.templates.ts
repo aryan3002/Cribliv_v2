@@ -20,7 +20,10 @@ export type NotificationType =
   | "owner.listing_submitted"
   | "owner.lead_nudge"
   | "tenant.contact_unlocked"
-  | "tenant.alert_zone_match";
+  | "tenant.alert_zone_match"
+  | "operator.pg_notice_served"
+  | "operator.pg_move_out_requested"
+  | "tenant.pg_move_out_requested";
 
 export interface NotificationTemplate {
   type: NotificationType;
@@ -146,5 +149,36 @@ export const TEMPLATES: Record<NotificationType, NotificationTemplate> = {
     channels: ["whatsapp", "sms"],
     buildSmsBody: (payload) =>
       `Reminder: your Cribliv lead ${String(payload.tenant_name ?? "a seeker")} for ${String(payload.listing_title ?? "your listing")} is still uncalled — ${String(payload.hours_left ?? "24 घंटे")} left before refund. Call now. cribliv.com`
+  },
+
+  "operator.pg_notice_served": {
+    type: "operator.pg_notice_served",
+    templateName: "operator_pg_notice_served_hi",
+    languageCode: "hi",
+    description:
+      "Sent to a PG operator when an occupant serves notice. Params: occupant_name, notice_end_date",
+    buildBodyParams: (payload) => [
+      String(payload.occupant_name ?? "एक निवासी"),
+      String(payload.notice_end_date ?? "")
+    ],
+    channels: ["whatsapp"]
+  },
+
+  "operator.pg_move_out_requested": {
+    type: "operator.pg_move_out_requested",
+    templateName: "operator_pg_move_out_requested_hi",
+    languageCode: "hi",
+    description: "Sent to a PG operator when an occupant requests move-out. Params: occupant_name",
+    buildBodyParams: (payload) => [String(payload.occupant_name ?? "एक निवासी")],
+    channels: ["whatsapp"]
+  },
+
+  "tenant.pg_move_out_requested": {
+    type: "tenant.pg_move_out_requested",
+    templateName: "tenant_pg_move_out_requested_hi",
+    languageCode: "hi",
+    description: "Sent to a tenant when the PG operator requests move-out. Params: property_name",
+    buildBodyParams: (payload) => [String(payload.property_name ?? "आपकी PG प्रॉपर्टी")],
+    channels: ["whatsapp"]
   }
 };
