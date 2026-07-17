@@ -8,6 +8,7 @@ import { PgListingController } from "../src/modules/pg-operator/pg-listing.contr
 import { PgListingService } from "../src/modules/pg-operator/services/pg-listing.service";
 import { PgPropertiesService } from "../src/modules/pg-operator/services/pg-properties.service";
 import { PgDraftService } from "../src/modules/pg-operator/services/pg-draft.service";
+import { PgNearbyService } from "../src/modules/pg-operator/services/pg-nearby.service";
 import { DatabaseService } from "../src/common/database.service";
 import { AppStateService } from "../src/common/app-state.service";
 import { AuthGuard } from "../src/common/auth.guard";
@@ -28,7 +29,8 @@ const allowAllGuard = {
     PgDraftService,
     AppStateService,
     // No OwnerService: PG owns its write end-to-end after the split.
-    { provide: DatabaseService, useValue: fakeDb }
+    { provide: DatabaseService, useValue: fakeDb },
+    { provide: PgNearbyService, useValue: { nearby: vi.fn() } }
   ]
 })
 class TestPgListingModule {}

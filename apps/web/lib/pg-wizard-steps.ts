@@ -84,8 +84,8 @@ export function validatePgStep(step: PgStep, draft: any, photoCount = 0): PgStep
   const rooms = draft?.room_types ?? [];
   switch (step) {
     case 1:
-      if (!draft?.title || String(draft.title).trim().length < 2)
-        return { ok: false, hint: "Add a listing title to continue." };
+      // Title is no longer entered here — it is AI-generated (and editable) on the
+      // Review step, so Step 1 gates only on the building name + basics.
       if (!p.display_name || String(p.display_name).trim().length < 2)
         return { ok: false, hint: "Add a property (building) name to continue." };
       if (!d.gender_policy) return { ok: false, hint: "Pick who the PG is for." };
@@ -106,8 +106,8 @@ export function validatePgStep(step: PgStep, draft: any, photoCount = 0): PgStep
     case 4:
       return { ok: true }; // food & amenities are optional
     case 5:
-      if (!((d.security_deposit_paise ?? 0) > 0))
-        return { ok: false, hint: "Add a security deposit amount." };
+      // Security deposit is captured per room type (Step 3), not as a single
+      // property-wide value here, so Step 5 gates only on the notice period.
       if (d.notice_period_days == null) return { ok: false, hint: "Choose a notice period." };
       return { ok: true };
     case 6:

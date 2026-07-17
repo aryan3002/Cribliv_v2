@@ -140,7 +140,10 @@ export class PgListingController {
     @Query("lng") lng: string,
     @Query("radiusKm") radiusKm?: string
   ) {
-    return this.nearby.nearby(Number(lat), Number(lng), radiusKm ? Number(radiusKm) : undefined);
+    // ok() wraps the payload in the { data } envelope the web `fetchApi` unwraps.
+    return ok(
+      await this.nearby.nearby(Number(lat), Number(lng), radiusKm ? Number(radiusKm) : undefined)
+    );
   }
 
   @Get(":id")
@@ -219,7 +222,7 @@ export class PgListingController {
     if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
       throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
     }
-    return this.aiAssist.generateContent(body.payload as never);
+    return ok(await this.aiAssist.generateContent(body.payload as never));
   }
 
   @Post("pricing-suggestions")
@@ -229,11 +232,13 @@ export class PgListingController {
     if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
       throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
     }
-    return this.aiAssist.pricingSuggestions({
-      city_slug: body.city_slug,
-      locality_slug: body.locality_slug,
-      sharings: body.sharings as never
-    });
+    return ok(
+      await this.aiAssist.pricingSuggestions({
+        city_slug: body.city_slug,
+        locality_slug: body.locality_slug,
+        sharings: body.sharings as never
+      })
+    );
   }
 
   @Post("amenity-suggestions")
@@ -241,6 +246,6 @@ export class PgListingController {
     if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
       throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
     }
-    return this.aiAssist.amenitySuggestions(body.payload as never);
+    return ok(await this.aiAssist.amenitySuggestions(body.payload as never));
   }
 }

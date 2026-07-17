@@ -343,7 +343,10 @@ export default function PgReviewStep({
     }
   };
 
-  const canGenerate = !!payload.property.city_slug && payload.room_types.length > 0;
+  // Gate on the live draft (not the strictly-filtered submit payload) so a room
+  // whose rent is still being typed doesn't wrongly disable "Draft with AI".
+  const canGenerate =
+    !!state.draft.property?.city_slug && (state.draft.room_types?.length ?? 0) > 0;
   const handleGenerate = async () => {
     if (!accessToken || !canGenerate) return;
     const signature = JSON.stringify({
@@ -357,8 +360,19 @@ export default function PgReviewStep({
     try {
       const generated = await generatePgContent(accessToken, payload);
       lastGeneratedRef.current = signature;
-      dispatch({ type: "SET_FIELD", path: "title", value: generated.title });
-      dispatch({ type: "SET_FIELD", path: "description", value: generated.description });
+      const typewriter = (path: "title" | "description", value: string) => {
+        let index = 0;
+        const step = () => {
+          if (index <= value.length) {
+            dispatch({ type: "SET_FIELD", path, value: value.slice(0, index) });
+            index += 1;
+            requestAnimationFrame(step);
+          }
+        };
+        requestAnimationFrame(step);
+      };
+      typewriter("title", generated.title);
+      window.setTimeout(() => typewriter("description", generated.description), 400);
     } catch (error) {
       setGenerateError(error instanceof Error ? error.message : "Could not draft listing copy.");
     } finally {
@@ -433,8 +447,14 @@ export default function PgReviewStep({
         <div className={styles.reviewRows}>
           {rooms.length === 0 && <Row label="Rooms">None added</Row>}
           {rooms.map((rt: any, i: number) => (
-            <Row key={i} label={`${titleCase(rt.sharing)} ${rt.ac ? "· AC" : "· Non-AC"}`}>
+            <Row
+              key={i}
+              label={`${titleCase(rt.sharing)} ${rt.ac ? "· AC" : "· Non-AC"}${
+                rt.has_balcony ? " · Balcony" : ""
+              }`}
+            >
               {rupees(rt.monthly_rent_paise)}/mo · {rt.vacancy_count ?? 0} vac
+              {rt.security_deposit_paise ? ` · ${rupees(rt.security_deposit_paise)} deposit` : ""}
             </Row>
           ))}
         </div>
@@ -472,7 +492,6 @@ export default function PgReviewStep({
               "Strict"
             )}
           </Row>
-          <Row label="Security deposit">{rupees(d.security_deposit_paise)}</Row>
           <Row label="Notice period">
             {d.notice_period_days != null ? `${d.notice_period_days} days` : "-"}
           </Row>

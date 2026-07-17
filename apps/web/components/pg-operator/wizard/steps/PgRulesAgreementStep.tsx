@@ -16,7 +16,6 @@ import SegmentedControl from "../shared/SegmentedControl";
 import ChipMultiSelect from "../shared/ChipMultiSelect";
 import TimeRange from "../shared/TimeRange";
 import Disclosure from "../shared/Disclosure";
-import RupeeInput from "../shared/RupeeInput";
 
 const RULE_FLAGS = [
   { value: "smoking", label: "Smoking", icon: <Cigarette size={15} /> },
@@ -81,15 +80,9 @@ export default function PgRulesAgreementStep({
 
       <SectionCard
         title="Agreement & payment"
-        subtitle="Deposit, notice period and billing."
+        subtitle="Notice period and billing. Security deposit is set per room in Rooms & Pricing."
         icon={<FileSignature size={20} />}
       >
-        <RupeeInput
-          label="Security deposit"
-          valuePaise={d.security_deposit_paise ?? null}
-          onChangePaise={(p) => setF("pg_details.security_deposit_paise", p)}
-        />
-
         <SegmentedControl
           label="Notice period"
           value={d.notice_period_days != null ? String(d.notice_period_days) : undefined}

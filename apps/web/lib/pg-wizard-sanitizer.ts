@@ -8,6 +8,8 @@ import type { PgListingPayload } from "@cribliv/shared-types";
 export type DraftPartial = {
   /** Per-listing public title (distinct from the building/property name). */
   title?: string | null;
+  /** AI-generated, operator-editable listing copy. */
+  description?: string | null;
   property?: Partial<PgListingPayload["property"]>;
   pg_details?: Partial<PgListingPayload["pg_details"]>;
   room_types?: Array<Partial<PgListingPayload["room_types"][number]>>;
@@ -35,6 +37,9 @@ export function sanitizePartialDraft(d: DraftPartial): DraftPartial {
   const out: DraftPartial = {};
   // Preserve the per-listing title (≥2 chars) so server-side draft resume keeps it.
   if (typeof d.title === "string" && d.title.trim().length >= 2) out.title = d.title.trim();
+  if (typeof d.description === "string" && d.description.trim()) {
+    out.description = d.description.trim();
+  }
   if (d.property) {
     const p: Record<string, unknown> = { ...d.property };
     if (typeof p.display_name === "string" && p.display_name.trim().length < 2)

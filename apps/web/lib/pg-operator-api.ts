@@ -165,8 +165,11 @@ export interface PgListingDetail {
     ac: boolean;
     bathroom_kind: string | null;
     furnishing: string | null;
+    has_balcony: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
+    security_deposit_paise: number | null;
+    deposit_refundable_pct: number | null;
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;
@@ -244,11 +247,30 @@ export async function listCityLocalities(citySlug: string): Promise<{ items: PgC
   return result;
 }
 
-export function getPgNearby(token: string, lat: number, lng: number) {
-  return fetchApi<{ metro: string[]; college: string[]; office: string[] }>(
-    `/pg-operator/listings/nearby?lat=${lat}&lng=${lng}`,
-    { headers: authHeaders(token) }
-  ).catch(() => ({ metro: [], college: [], office: [] }));
+export async function getPgNearby(
+  token: string,
+  lat: number,
+  lng: number
+): Promise<{ metro: string[]; college: string[]; office: string[] }> {
+  // Always resolve to a fully-shaped result — a missing/partial body (or any
+  // network error) must never leave a category `undefined`, which previously
+  // crashed the location step (`postgisNearby[category]` on undefined).
+  try {
+    const res = await fetchApi<{
+      metro?: string[];
+      college?: string[];
+      office?: string[];
+    } | null>(`/pg-operator/listings/nearby?lat=${lat}&lng=${lng}`, {
+      headers: authHeaders(token)
+    });
+    return {
+      metro: res?.metro ?? [],
+      college: res?.college ?? [],
+      office: res?.office ?? []
+    };
+  } catch {
+    return { metro: [], college: [], office: [] };
+  }
 }
 
 // ─── Draft persistence (§6.2) ─────────────────────────────────────────────────
@@ -319,15 +341,24 @@ function handleAiUnavailable(err: unknown): never {
   throw err;
 }
 
-export function generatePgContent(token: string, payload: PgListingPayload) {
-  return fetchApi<{ title: string; description: string }>(
-    "/pg-operator/listings/generate-content",
-    {
-      method: "POST",
-      headers: { ...authHeaders(token), "Content-Type": "application/json" },
-      body: JSON.stringify({ payload })
-    }
-  ).catch(handleAiUnavailable);
+export function generatePgContent(
+  token: string,
+  payload: PgListingPayload
+): Promise<{ title: string; description: string }> {
+  return (
+    fetchApi<{ title?: string; description?: string } | null>(
+      "/pg-operator/listings/generate-content",
+      {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ payload })
+      }
+    )
+      // Normalize before the caller reads .title/.description so an unexpected
+      // empty/partial body can't throw "reading 'title' of undefined".
+      .then((res) => ({ title: res?.title ?? "", description: res?.description ?? "" }))
+      .catch(handleAiUnavailable)
+  );
 }
 
 export function getPgPricingSuggestions(

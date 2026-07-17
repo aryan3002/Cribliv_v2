@@ -8,6 +8,7 @@ import { PgListingController } from "../src/modules/pg-operator/pg-listing.contr
 import { PgListingService } from "../src/modules/pg-operator/services/pg-listing.service";
 import { PgPropertiesService } from "../src/modules/pg-operator/services/pg-properties.service";
 import { PgDraftService } from "../src/modules/pg-operator/services/pg-draft.service";
+import { PgNearbyService } from "../src/modules/pg-operator/services/pg-nearby.service";
 import { PgAiAssistService } from "../src/modules/pg-operator/services/pg-ai-assist.service";
 import { DatabaseService } from "../src/common/database.service";
 import { AppStateService } from "../src/common/app-state.service";
@@ -47,6 +48,10 @@ class FakeAiAssistService {
     PgDraftService,
     AppStateService,
     { provide: DatabaseService, useValue: fakeDb },
+    {
+      provide: PgNearbyService,
+      useValue: { nearby: async () => ({ metro: [], college: [], office: [] }) }
+    },
     { provide: PgAiAssistService, useClass: FakeAiAssistService }
   ]
 })
@@ -85,8 +90,8 @@ describe("PgListingController AI assist endpoints", () => {
         .post("/pg-operator/listings/generate-content")
         .send({ payload: pgPayload });
       expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty("title");
-      expect(res.body).toHaveProperty("description");
+      expect(res.body.data).toHaveProperty("title");
+      expect(res.body.data).toHaveProperty("description");
     });
 
     it("returns 404 feature_disabled when ff_pg_ai_assist=false", async () => {
@@ -106,7 +111,7 @@ describe("PgListingController AI assist endpoints", () => {
         .post("/pg-operator/listings/pricing-suggestions")
         .send({ city_slug: "hyderabad", sharings: ["double"] });
       expect(res.status).toBe(201);
-      expect(res.body).toHaveProperty("suggestions");
+      expect(res.body.data).toHaveProperty("suggestions");
     });
 
     it("returns 404 when flag is off", async () => {
@@ -125,8 +130,8 @@ describe("PgListingController AI assist endpoints", () => {
         .post("/pg-operator/listings/amenity-suggestions")
         .send({ payload: pgPayload });
       expect(res.status).toBe(201);
-      expect(Array.isArray(res.body.amenities)).toBe(true);
-      expect(Array.isArray(res.body.house_rules)).toBe(true);
+      expect(Array.isArray(res.body.data.amenities)).toBe(true);
+      expect(Array.isArray(res.body.data.house_rules)).toBe(true);
     });
   });
 });
