@@ -112,8 +112,8 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
 
   const [addressInput, setAddressInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [snapHint, setSnapHint] = useState<string | null>(null);
   const geocodedRef = useRef(false);
 
   // Canonical localities for the selected city — the SAME set used by locality
@@ -150,7 +150,10 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
         best = loc;
       }
     }
-    if (best) setF("property.locality_slug", best.slug);
+    if (best && best.slug !== localitySlug) {
+      if (!localitySlug) setF("property.locality_slug", best.slug);
+      setSnapHint(best.name_en);
+    }
   }
 
   // NOTE: Google's getPlacePredictions rejects mixing `establishment` with
@@ -277,6 +280,27 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !citySlug) return;
+    const centroid = CITY_CENTROIDS[citySlug];
+    if (centroid) {
+      map.panTo(centroid);
+      map.setZoom(12);
+    }
+  }, [citySlug]);
+
+  useEffect(() => {
+    if (!localitySlug) return;
+    const locality = localities.find((item) => item.slug === localitySlug);
+    if (!locality || locality.lat == null || locality.lng == null) return;
+    setF("property.lat", locality.lat);
+    setF("property.lng", locality.lng);
+    placePin(locality.lat, locality.lng);
+    mapInstanceRef.current?.setZoom(14);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localitySlug]);
+
   // Sync marker when lat/lng change externally (autocomplete select, draft
   // hydration, drag). Moves the marker only — never commits — so no loop.
   useEffect(() => {
@@ -370,6 +394,11 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
         ) : (
           <p className={styles.mapHint}>
             <Navigation size={13} /> Tap the map or search above to drop your pin.
+          </p>
+        )}
+        {snapHint && (
+          <p className={styles.mapHint}>
+            <MapPin size={13} /> Nearest locality: {snapHint}
           </p>
         )}
         {error && (

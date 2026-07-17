@@ -220,8 +220,28 @@ export interface PgCityLocality {
   lng: number | null;
 }
 
-export function listCityLocalities(citySlug: string) {
-  return fetchApi<{ items: PgCityLocality[] }>(`/seo/localities/${encodeURIComponent(citySlug)}`);
+const localityCache = new Map<string, { items: PgCityLocality[] }>();
+
+export async function listCityLocalities(citySlug: string): Promise<{ items: PgCityLocality[] }> {
+  if (localityCache.has(citySlug)) return localityCache.get(citySlug)!;
+
+  if (typeof window !== "undefined") {
+    const raw = window.sessionStorage.getItem(`pg:loc:${citySlug}`);
+    if (raw) {
+      const cached = { items: JSON.parse(raw) as PgCityLocality[] };
+      localityCache.set(citySlug, cached);
+      return cached;
+    }
+  }
+
+  const result = await fetchApi<{ items: PgCityLocality[] }>(
+    `/seo/localities/${encodeURIComponent(citySlug)}`
+  );
+  localityCache.set(citySlug, result);
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(`pg:loc:${citySlug}`, JSON.stringify(result.items));
+  }
+  return result;
 }
 
 // ─── Draft persistence (§6.2) ─────────────────────────────────────────────────
