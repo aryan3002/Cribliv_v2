@@ -220,6 +220,8 @@ export interface PgListingPayload {
    * (voice drafts / older clients) — backend falls back to property.display_name.
    */
   title?: string | null;
+  /** AI-generated, SEO-optimized, operator-editable body copy. Persisted to listings.description_en. */
+  description?: string | null;
   property: {
     display_name: string;
     internal_code?: string | null;
@@ -251,6 +253,7 @@ export interface PgListingPayload {
     ac: boolean;
     bathroom_kind?: PgBathroomKind;
     furnishing?: PgFurnishing;
+    has_balcony?: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
     security_deposit_paise?: number;
