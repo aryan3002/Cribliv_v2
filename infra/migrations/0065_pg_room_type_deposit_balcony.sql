@@ -10,6 +10,13 @@ ALTER TABLE pg_room_types
 -- Rebuild the uniqueness to include has_balcony. Old auto-named constraint:
 ALTER TABLE pg_room_types
   DROP CONSTRAINT IF EXISTS pg_room_types_listing_id_sharing_ac_bathroom_kind_furnishing_key;
-ALTER TABLE pg_room_types
-  ADD CONSTRAINT pg_room_types_identity_uniq
-  UNIQUE (listing_id, sharing, ac, bathroom_kind, furnishing, has_balcony);
+-- Idempotent add: only create the identity constraint if it isn't present (re-run safe).
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'pg_room_types_identity_uniq'
+  ) THEN
+    ALTER TABLE pg_room_types
+      ADD CONSTRAINT pg_room_types_identity_uniq
+      UNIQUE (listing_id, sharing, ac, bathroom_kind, furnishing, has_balcony);
+  END IF;
+END $$;
