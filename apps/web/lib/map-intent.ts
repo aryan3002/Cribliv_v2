@@ -27,7 +27,7 @@ export interface MapIntent {
 // extracted here always agree with what parseQuery would have produced.
 const SPOKEN_NUM_TOKEN =
   "(\\d{1,6}|ek|do|teen|char|paanch|panch|chhe|che|saat|aath|nau|das|[०-९]+)";
-const SPOKEN_UNIT_TOKEN = "(k|lakh|lac|crore|thousand|हजार|hazar|hazaar|jar|yaar|लाख)?";
+const SPOKEN_UNIT_TOKEN = "(k|lakh|lac|thousand|हजार|hazar|hazaar|jar|yaar|लाख)?";
 const SPOKEN_RENT_RE = new RegExp(`${SPOKEN_NUM_TOKEN}\\s*${SPOKEN_UNIT_TOKEN}`, "gi");
 
 // A number only counts as a rent candidate when it carries a MONEY SIGNAL, so
@@ -37,7 +37,14 @@ const SPOKEN_RENT_RE = new RegExp(`${SPOKEN_NUM_TOKEN}\\s*${SPOKEN_UNIT_TOKEN}`,
 // a budget/currency cue word sitting immediately before (e.g. "under 20000",
 // "budget ₹200000") or a trailing money word right after (e.g. "20000 rent").
 // A bare number with neither signal is ignored.
-const CUE_BEFORE_RE = /(?:under|below|upto|up\s*to|within|max|budget|rent|rupees?|rs\.?|₹)\s*$/i;
+//
+// The cue words are `\b`-anchored so a word that merely *ends* in a cue
+// substring ("diffe-rent", "cur-rent", "wonder", "thunder") can't false-match.
+// The ₹ symbol is a non-word char that may be space-separated from its number
+// ("budget ₹200000"), so it sits OUTSIDE the `\b` group where a boundary rule
+// would wrongly reject it.
+const CUE_BEFORE_RE =
+  /(?:\b(?:under|below|upto|up\s*to|within|max|budget|rent|rupees?|rs\.?)|₹)\s*$/i;
 const CUE_AFTER_RE = /^\s*(?:rent|rupees?|budget)\b/i;
 
 /**

@@ -38,6 +38,12 @@ describe("guardRent", () => {
   it("snaps to the money-signalled candidate, not a bare sector number", () => {
     expect(guardRent(200000, "3 bhk under 20k near sector 20")).toBe(20000);
   });
+  it("does not treat a word ending in a cue substring ('different') as a cue", () => {
+    expect(guardRent(200000, "rent 200000 for a different 2000 sq ft house")).toBe(200000);
+  });
+  it("does not treat 'current' as the cue 'rent'", () => {
+    expect(guardRent(200000, "rent 200000 for a current 2000 sq ft house")).toBe(200000);
+  });
 });
 
 describe("buildMapIntent rent guard", () => {
