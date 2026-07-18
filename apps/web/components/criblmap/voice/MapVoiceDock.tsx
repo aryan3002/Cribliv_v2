@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMapState, useMapDispatch, type MapPin } from "../hooks/useMapState";
 import { useMapCamera } from "../MapCameraController";
 import { useHoldToTalk } from "./useHoldToTalk";
@@ -11,17 +12,24 @@ import { IntentChips } from "./IntentChips";
 import { MapResultsSheet, type Snap } from "./MapResultsSheet";
 import { NegotiationDoors } from "./NegotiationDoors";
 import { DemandCaptureSheet } from "./DemandCaptureSheet";
+import { ListingReasonCard } from "./ListingReasonCard";
 import { VoiceOrb } from "../../listing-wizard/VoiceOrb";
 import { mapVoice } from "../../../lib/map-voice-analytics";
 import { fetchApi, buildSearchQuery } from "../../../lib/api";
+import { listingHref } from "../../../lib/listing-href";
 import { t, type Locale } from "../../../lib/i18n";
 import "./orb-tokens.css";
 import "./voice-map.css";
 
+// How many matched listings to render as cards. The sheet scrolls, but a hard
+// cap keeps the DOM light and the ledger scannable on a phone.
+const MAX_CARDS = 12;
+
 // Mirrors useMapPins.ts's private MapPinResponse shape (that interface isn't
 // exported). Task 19 correction F: the negotiation-door fetch below
-// deliberately queries WITHOUT max_rent/verified_only, so it needs its own
-// copy of the raw API row shape rather than reusing useMapPins' internals.
+// deliberately queries WITHOUT max_rent (but keeps verified_only/near_metro —
+// final-review fix A), so it needs its own copy of the raw API row shape
+// rather than reusing useMapPins' internals.
 interface MapPinResponse {
   id: string;
   lat: number;
@@ -46,6 +54,7 @@ export function MapVoiceDock({ locale }: { locale: Locale }) {
   const { pins, filters, viewport } = useMapState();
   const dispatch = useMapDispatch();
   const camera = useMapCamera();
+  const router = useRouter();
 
   const [caption, setCaption] = useState("");
   const [chips, setChips] = useState<IntentChip[]>([]);
@@ -107,12 +116,20 @@ export function MapVoiceDock({ locale }: { locale: Locale }) {
 
   // Negotiation doors (Task 19 correction F — "critical honesty fix").
   // `pins` above is whatever useMapPins last fetched, and that fetch sends
-  // max_rent/verified_only as HARD server filters — so listings above the
-  // current rent cap never reach `pins` at all. Feeding that same set into
+  // max_rent as a HARD server filter — so listings above the current rent
+  // cap never reach `pins` at all. Feeding that same set into
   // computeNegotiationDoors would make "stretch budget" silently always
   // compute a 0 gain. So once the honest match count is truthfully zero, do
-  // a SEPARATE fetch of this viewport with max_rent/verified_only dropped,
-  // purely to power the doors (never written back into state.pins).
+  // a SEPARATE fetch of this viewport with ONLY max_rent dropped, purely to
+  // power the doors (never written back into state.pins).
+  //
+  // IMPORTANT (final-review fix A): drop *only* max_rent. verified_only and
+  // near_metro must be KEPT — computeNegotiationDoors re-applies max_rent
+  // internally but NOT those two, so if the fetched set included unverified /
+  // non-metro listings, "Stretch to ₹Xk → +N homes" would count listings the
+  // still-active filter excludes on the real refetch, delivering +0 and
+  // violating spec §8 ("only show doors that yield +N > 0").
+  //
   // negotiationKeyRef guards against refiring the fetch on every render —
   // it only refires when the actual query (filters/clientFilters/viewport)
   // changes, not merely when `partition` gets a new object identity.
@@ -144,7 +161,10 @@ export function MapVoiceDock({ locale }: { locale: Locale }) {
             ne_lng: roundCoord(viewport.ne_lng),
             limit: 500,
             ...(filters.bhk && { bhk: filters.bhk }),
-            ...(filters.listing_type && { listing_type: filters.listing_type })
+            ...(filters.listing_type && { listing_type: filters.listing_type }),
+            // Keep these two (drop only max_rent) — see the effect header.
+            ...(filters.verified_only && { verified_only: "true" }),
+            ...(filters.near_metro && { near_metro: "true" })
           });
           const data = await fetchApi<MapPinResponse[]>(`/listings/search/map?${query}`, {
             signal: controller.signal
@@ -223,6 +243,22 @@ export function MapVoiceDock({ locale }: { locale: Locale }) {
     <>
       <MapResultsSheet mayaLine={mayaLine} snap={snap} onSnapChange={setSnap}>
         {chips.length > 0 && <IntentChips chips={chips} onBell={setCaptureFor} />}
+        {/* Matched listings → the conversion surface (quoted-reason ledger +
+            volunteered flaw). Cards and doors are mutually exclusive by count:
+            the door-effect clears `doors` whenever count > 0, so when cards
+            show, `doors` is empty and vice-versa. */}
+        {partition && partition.count > 0 && (
+          <div className="mv-cardlist">
+            {partition.matched.slice(0, MAX_CARDS).map((pin) => (
+              <ListingReasonCard
+                key={pin.id}
+                pin={pin}
+                chips={chips}
+                onUnlock={() => router.push(listingHref(locale, pin))}
+              />
+            ))}
+          </div>
+        )}
         {doors.length > 0 && <NegotiationDoors doors={localizedDoors} onPick={handleDoorPick} />}
         {captureFor && (
           <DemandCaptureSheet
