@@ -53,7 +53,7 @@ export function ListingReasonCard({
         ))}
       </ul>
       <button type="button" className="mv-card__cta" onClick={onUnlock}>
-        Unlock owner's number
+        Unlock owner’s number
       </button>
     </div>
   );

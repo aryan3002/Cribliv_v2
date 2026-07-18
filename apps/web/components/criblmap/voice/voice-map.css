@@ -40,3 +40,4 @@
 .mv-capture { padding: 12px; }
 .mv-capture__lead { font-size: 13px; color: var(--text-primary, #1a1a2e); font-weight: 600; margin: 0 0 8px; }
 .mv-capture__input { width: 100%; padding: 10px; border: 1px solid var(--border, #e8ecf1); border-radius: 9px; font-size: 14px; margin-bottom: 8px; }
+.mv-capture__error { color: var(--accent, #ff5a5f); font-size: 12px; font-weight: 700; margin: 8px 0 0; }

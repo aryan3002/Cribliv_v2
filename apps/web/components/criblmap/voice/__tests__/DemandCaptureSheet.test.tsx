@@ -30,4 +30,23 @@ describe("DemandCaptureSheet", () => {
       )
     );
   });
+
+  it("surfaces an error and does not confirm when the post fails", async () => {
+    postDemandSignalMock.mockRejectedValueOnce(new Error("boom"));
+    const onDone = vi.fn();
+    render(
+      <DemandCaptureSheet
+        prefill={{
+          city: "lucknow",
+          locality: "Gomti Nagar",
+          filters: { bhk: 2 },
+          unmet: "parking"
+        }}
+        onDone={onDone}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: /notify me/i }));
+    await screen.findByText(/couldn.t save/i);
+    expect(screen.queryByText(/got it/i)).not.toBeInTheDocument();
+  });
 });

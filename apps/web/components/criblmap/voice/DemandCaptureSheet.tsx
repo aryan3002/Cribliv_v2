@@ -14,12 +14,16 @@ export function DemandCaptureSheet({
   const [phone, setPhone] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
 
   async function submit() {
     setBusy(true);
+    setError(false);
     try {
       await postDemandSignal({ ...prefill, phone: phone.trim() || undefined, source: "voice_map" });
       setDone(true);
+    } catch {
+      setError(true);
     } finally {
       setBusy(false);
     }
@@ -28,7 +32,7 @@ export function DemandCaptureSheet({
   if (done) {
     return (
       <div className="mv-capture">
-        <p>Got it — we'll text you when a match lists.</p>
+        <p>Got it — we’ll text you when a match lists.</p>
         <button type="button" className="mv-card__cta" onClick={onDone}>
           Done
         </button>
@@ -37,7 +41,7 @@ export function DemandCaptureSheet({
   }
   return (
     <div className="mv-capture">
-      <p className="mv-capture__lead">We don't have that yet. Want a text when one lists?</p>
+      <p className="mv-capture__lead">We don’t have that yet. Want a text when one lists?</p>
       <input
         className="mv-capture__input"
         inputMode="tel"
@@ -48,6 +52,7 @@ export function DemandCaptureSheet({
       <button type="button" className="mv-card__cta" disabled={busy} onClick={submit}>
         Notify me
       </button>
+      {error && <p className="mv-capture__error">Couldn’t save that — try again.</p>}
     </div>
   );
 }
