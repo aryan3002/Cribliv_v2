@@ -15,22 +15,22 @@ export interface Door {
   id: DoorId;
   label: string;
   gain: number;
+  // gain is a placeholder, not an exact count — UI must not render it as a literal number.
+  isEstimate?: boolean;
   relaxed?: { serverFilters: MapFilters; clientFilters: ClientFilter[] };
 }
 
 const rupees = (n: number) => `₹${Math.round(n / 1000)}k`;
 
-// baseline matched count under the current constraints
-function matchedCount(args: NegotiationArgs): number {
-  return partitionPins(applyMaxRent(args.pins, args.serverFilters.max_rent), args.clientFilters)
-    .count;
-}
 function applyMaxRent(pins: MapPin[], maxRent?: number): MapPin[] {
   return maxRent ? pins.filter((p) => p.monthly_rent <= maxRent) : pins;
 }
 
 export function computeNegotiationDoors(args: NegotiationArgs): Door[] {
-  const base = matchedCount(args);
+  // pins that clear the current server max_rent cap — shared by the baseline
+  // count and the furnishing door so the filter is applied only once.
+  const withinBudget = applyMaxRent(args.pins, args.serverFilters.max_rent);
+  const base = partitionPins(withinBudget, args.clientFilters).count;
   const doors: Door[] = [];
 
   // 1. Stretch budget by 10%
@@ -53,9 +53,7 @@ export function computeNegotiationDoors(args: NegotiationArgs): Door[] {
   // 2. Loosen furnishing (drop the furnishing client filter)
   if (args.clientFilters.some((f) => f.kind === "furnishing")) {
     const relaxedClient = args.clientFilters.filter((f) => f.kind !== "furnishing");
-    const gain =
-      partitionPins(applyMaxRent(args.pins, args.serverFilters.max_rent), relaxedClient).count -
-      base;
+    const gain = partitionPins(withinBudget, relaxedClient).count - base;
     if (gain > 0) {
       doors.push({
         id: "loosen_furnishing",
@@ -73,6 +71,7 @@ export function computeNegotiationDoors(args: NegotiationArgs): Door[] {
       id: "allow_unverified",
       label: "Include unverified",
       gain: 1, // sentinel: "some" — UI refetches to get the real number
+      isEstimate: true, // gain is a placeholder, not an exact count
       relaxed: {
         serverFilters: { ...args.serverFilters, verified_only: false },
         clientFilters: args.clientFilters

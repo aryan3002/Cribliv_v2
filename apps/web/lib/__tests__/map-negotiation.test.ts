@@ -50,4 +50,25 @@ describe("computeNegotiationDoors", () => {
     });
     expect(doors.filter((d) => d.id !== "subscribe")).toHaveLength(0);
   });
+
+  it("surfaces an allow_unverified door flagged as an estimate when verified_only is on", () => {
+    const doors = computeNegotiationDoors({
+      pins: [],
+      serverFilters: { verified_only: true },
+      clientFilters: []
+    });
+    const unverified = doors.find((d) => d.id === "allow_unverified");
+    expect(unverified).toBeDefined();
+    // gain is a placeholder sentinel, so the door must be machine-flagged as an estimate
+    expect(unverified?.isEstimate).toBe(true);
+  });
+
+  it("omits the allow_unverified door when verified_only is not set", () => {
+    const doors = computeNegotiationDoors({
+      pins: [],
+      serverFilters: { max_rent: 20000 },
+      clientFilters: []
+    });
+    expect(doors.find((d) => d.id === "allow_unverified")).toBeUndefined();
+  });
 });
