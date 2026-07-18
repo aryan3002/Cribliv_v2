@@ -83,7 +83,15 @@ export const analyticsEvents = [
   "voice_realtime_tool_called",
   "voice_realtime_field_filled",
   "voice_realtime_step_jump",
-  "voice_realtime_error"
+  "voice_realtime_error",
+  // Maya voice map — hold-orb voice search on CriblMap (spec §14)
+  "map_voice_hold_start",
+  "map_voice_transcript",
+  "map_voice_camera_fly",
+  "map_voice_result",
+  "map_voice_negotiation_shown",
+  "map_voice_demand_capture",
+  "map_voice_fallback_text"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

@@ -29,6 +29,10 @@ import { useMapState, useMapDispatch } from "../../../components/criblmap/hooks/
 import { useMapPins } from "../../../components/criblmap/hooks/useMapPins";
 import { useSeekerPins } from "../../../components/criblmap/hooks/useSeekerPins";
 import { useAlertZones, useMapAccessToken } from "../../../components/criblmap/hooks/useAlertZones";
+import { MapCameraProvider } from "../../../components/criblmap/MapCameraController";
+import { MapVoiceDock } from "../../../components/criblmap/voice/MapVoiceDock";
+import { useFlag } from "../../../lib/feature-flags";
+import type { Locale } from "../../../lib/i18n";
 
 interface MapViewProps {
   locale: string;
@@ -61,6 +65,7 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
   const [showCommuteInput, setShowCommuteInput] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const { token: accessToken } = useMapAccessToken();
+  const voiceMapOn = useFlag("ff_maya_voice_map");
 
   useMapPins();
   useSeekerPins();
@@ -131,83 +136,87 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
 
   return (
     <div className="criblmap-root">
-      <CriblMapCanvas
-        onMapReady={handleMapReady}
-        initialCenter={initialCenter}
-        initialZoom={initialZoom}
-      />
+      <MapCameraProvider map={mapInstance}>
+        <CriblMapCanvas
+          onMapReady={handleMapReady}
+          initialCenter={initialCenter}
+          initialZoom={initialZoom}
+        />
 
-      {/* Map layers */}
-      <ListingPinLayer map={mapInstance} locale={locale} />
-      <AreaSelectOverlay map={mapInstance} />
-      <MetroOverlayLayer map={mapInstance} />
-      <SeekerPinLayer map={mapInstance} />
-      <SeekerDraftLayer map={mapInstance} />
-      <AlertZoneLayer map={mapInstance} />
-      <CommuteOverlay
-        map={mapInstance}
-        showInput={showCommuteInput}
-        onCloseInput={() => setShowCommuteInput(false)}
-      />
-      <CommuteReachabilityLayer map={mapInstance} />
-      <DemandHeatmapLayer map={mapInstance} />
+        {/* Map layers */}
+        <ListingPinLayer map={mapInstance} locale={locale} />
+        <AreaSelectOverlay map={mapInstance} />
+        <MetroOverlayLayer map={mapInstance} />
+        <SeekerPinLayer map={mapInstance} />
+        <SeekerDraftLayer map={mapInstance} />
+        <AlertZoneLayer map={mapInstance} />
+        <CommuteOverlay
+          map={mapInstance}
+          showInput={showCommuteInput}
+          onCloseInput={() => setShowCommuteInput(false)}
+        />
+        <CommuteReachabilityLayer map={mapInstance} />
+        <DemandHeatmapLayer map={mapInstance} />
 
-      {/* Draw mode instruction overlay */}
-      {drawMode === "first-corner" && (
-        <div className="cmap-draw-instruction">
-          <span>Tap two corners to define your area</span>
-        </div>
-      )}
-
-      {/* Seeker pin placement hint */}
-      {panelContent.type === "seeker-form" && drawMode === "idle" && (
-        <div className="cmap-draw-instruction">
-          <span>Drag the pin or tap the map to set your search spot</span>
-        </div>
-      )}
-
-      <TopBar locale={locale} onPlaceSelect={handlePlaceSelect} />
-      <MapResultsRail locale={locale} map={mapInstance} />
-
-      {isLoading && pins.length === 0 && (
-        <div className="cmap-loading">
-          <span className="cmap-loading__dot" />
-          <span className="cmap-loading__dot" />
-          <span className="cmap-loading__dot" />
-          Loading listings...
-        </div>
-      )}
-
-      {/* Side panel with dynamic content. NOTE: the "listing" case is no
-          longer rendered — clicking a pin now navigates to /listing/[id]
-          directly via ListingPinLayer. ListingDetailPanel is left in the tree
-          so we can revive an in-map preview pattern later if we want to. */}
-      {panelContent.type !== "none" &&
-        panelContent.type !== "alert-zone-form" &&
-        panelContent.type !== "listing" && (
-          <SidePanel title={getPanelTitle(panelContent.type)}>
-            {panelContent.type === "area-stats" && <AreaStatsPanel />}
-            {panelContent.type === "seeker-form" && <SeekerFormPanel locale={locale} />}
-            {panelContent.type === "locality-insight" && <LocalityInsightCard locale={locale} />}
-          </SidePanel>
+        {/* Draw mode instruction overlay */}
+        {drawMode === "first-corner" && (
+          <div className="cmap-draw-instruction">
+            <span>Tap two corners to define your area</span>
+          </div>
         )}
 
-      <FloatingToolbar onCommuteClick={() => setShowCommuteInput(true)} />
-      <BottomBar onBenchmarkClick={() => setShowBenchmark(true)} />
+        {/* Seeker pin placement hint */}
+        {panelContent.type === "seeker-form" && drawMode === "idle" && (
+          <div className="cmap-draw-instruction">
+            <span>Drag the pin or tap the map to set your search spot</span>
+          </div>
+        )}
 
-      {/* Modals */}
-      {showBenchmark && <BenchmarkModal onClose={() => setShowBenchmark(false)} />}
-      {showAlertZone && (
-        <AlertZoneModal
-          accessToken={accessToken}
-          locale={locale}
-          onClose={() => setShowAlertZone(false)}
-        />
-      )}
-      <FilterDrawer open={showFilterDrawer} onClose={() => setShowFilterDrawer(false)} />
+        <TopBar locale={locale} onPlaceSelect={handlePlaceSelect} />
+        <MapResultsRail locale={locale} map={mapInstance} />
 
-      {/* Mobile filter trigger */}
-      <FilterDrawerTrigger onClick={() => setShowFilterDrawer(true)} />
+        {isLoading && pins.length === 0 && (
+          <div className="cmap-loading">
+            <span className="cmap-loading__dot" />
+            <span className="cmap-loading__dot" />
+            <span className="cmap-loading__dot" />
+            Loading listings...
+          </div>
+        )}
+
+        {/* Side panel with dynamic content. NOTE: the "listing" case is no
+            longer rendered — clicking a pin now navigates to /listing/[id]
+            directly via ListingPinLayer. ListingDetailPanel is left in the tree
+            so we can revive an in-map preview pattern later if we want to. */}
+        {panelContent.type !== "none" &&
+          panelContent.type !== "alert-zone-form" &&
+          panelContent.type !== "listing" && (
+            <SidePanel title={getPanelTitle(panelContent.type)}>
+              {panelContent.type === "area-stats" && <AreaStatsPanel />}
+              {panelContent.type === "seeker-form" && <SeekerFormPanel locale={locale} />}
+              {panelContent.type === "locality-insight" && <LocalityInsightCard locale={locale} />}
+            </SidePanel>
+          )}
+
+        <FloatingToolbar onCommuteClick={() => setShowCommuteInput(true)} />
+        <BottomBar onBenchmarkClick={() => setShowBenchmark(true)} />
+
+        {/* Modals */}
+        {showBenchmark && <BenchmarkModal onClose={() => setShowBenchmark(false)} />}
+        {showAlertZone && (
+          <AlertZoneModal
+            accessToken={accessToken}
+            locale={locale}
+            onClose={() => setShowAlertZone(false)}
+          />
+        )}
+        <FilterDrawer open={showFilterDrawer} onClose={() => setShowFilterDrawer(false)} />
+
+        {/* Mobile filter trigger */}
+        <FilterDrawerTrigger onClick={() => setShowFilterDrawer(true)} />
+
+        {voiceMapOn && <MapVoiceDock locale={locale as Locale} />}
+      </MapCameraProvider>
     </div>
   );
 }

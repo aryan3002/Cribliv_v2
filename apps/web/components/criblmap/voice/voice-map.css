@@ -41,3 +41,8 @@
 .mv-capture__lead { font-size: 13px; color: var(--text-primary, #1a1a2e); font-weight: 600; margin: 0 0 8px; }
 .mv-capture__input { width: 100%; padding: 10px; border: 1px solid var(--border, #e8ecf1); border-radius: 9px; font-size: 14px; margin-bottom: 8px; }
 .mv-capture__error { color: var(--accent, #ff5a5f); font-size: 12px; font-weight: 700; margin: 8px 0 0; }
+.mv-dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 9; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px; pointer-events: none; }
+.mv-dock > * { pointer-events: auto; }
+.mv-dock__caption { background: var(--surface, #fff); border-radius: 12px; padding: 6px 10px; box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.08)); font-size: 12px; font-weight: 600; max-width: 92%; }
+.mv-dock__orb { border: none; background: none; cursor: pointer; touch-action: none; }
+.mv-dock__fallback { width: 92%; max-width: 420px; }
