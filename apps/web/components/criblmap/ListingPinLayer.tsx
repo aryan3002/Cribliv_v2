@@ -45,7 +45,7 @@ function getPinLabel(pin: MapPin): string {
   return `${prefix} · ₹${formatRent(pin.monthly_rent)}`;
 }
 
-function getPinClass(pin: MapPin, isSelected: boolean): string {
+function getPinClass(pin: MapPin, isSelected: boolean, isFaded: boolean): string {
   let cls = "criblmap-pin";
   // Trust tier: verified is the dominant treatment; unverified is muted.
   // PG is layered on top of either as a side-stripe modifier rather than a
@@ -56,6 +56,7 @@ function getPinClass(pin: MapPin, isSelected: boolean): string {
 
   if (pin.belowMarket) cls += " criblmap-pin--below-market";
   if (isSelected) cls += " criblmap-pin--selected";
+  if (isFaded) cls += " criblmap-pin--faded";
   return cls;
 }
 
@@ -71,11 +72,20 @@ interface PinMarkerRecord {
   marker: google.maps.marker.AdvancedMarkerElement;
 }
 
-function applySelectedState(records: Map<string, PinMarkerRecord>, selectedPinId: string | null) {
+function applySelectedState(
+  records: Map<string, PinMarkerRecord>,
+  selectedPinId: string | null,
+  highlightedPinIds: string[] | null
+) {
   for (const { pin, element, marker } of records.values()) {
     const selected = pin.id === selectedPinId;
-    element.className = getPinClass(pin, selected);
-    marker.zIndex = selected ? 10 : 5;
+    // Recompute the fade too — this runs on every selection click, and
+    // element.className is a full overwrite below, so without this a click
+    // while a voice highlight is active would silently drop the
+    // criblmap-pin--faded class from every other pin on the map.
+    const isFaded = highlightedPinIds !== null && !highlightedPinIds.includes(pin.id);
+    element.className = getPinClass(pin, selected, isFaded);
+    marker.zIndex = selected ? 10 : isFaded ? 2 : 5;
   }
 }
 
@@ -113,13 +123,21 @@ function isCluster(item: MapPin | ClusterGroup): item is ClusterGroup {
 }
 
 export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
-  const { pins, selectedPinId, zoom, demandViewActive, commuteReachability, commuteMaxMinutes } =
-    useMapState();
+  const {
+    pins,
+    selectedPinId,
+    highlightedPinIds,
+    zoom,
+    demandViewActive,
+    commuteReachability,
+    commuteMaxMinutes
+  } = useMapState();
   const dispatch = useMapDispatch();
   const router = useRouter();
   const markersRef = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
   const pinRecordsRef = useRef<Map<string, PinMarkerRecord>>(new Map());
   const selectedPinIdRef = useRef<string | null>(selectedPinId);
+  const highlightedPinIdsRef = useRef<string[] | null>(highlightedPinIds);
 
   const clustered = useMemo(() => clusterPins(pins, zoom), [pins, zoom]);
 
@@ -144,11 +162,16 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
 
   useEffect(() => {
     selectedPinIdRef.current = selectedPinId;
-    applySelectedState(pinRecordsRef.current, selectedPinId);
+    applySelectedState(pinRecordsRef.current, selectedPinId, highlightedPinIdsRef.current);
   }, [selectedPinId]);
 
   useEffect(() => {
     if (!map || typeof google === "undefined") return;
+
+    highlightedPinIdsRef.current = highlightedPinIds;
+    const reduce =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
     for (const m of markersRef.current) {
       m.map = null;
@@ -179,7 +202,18 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
         else reachabilityOpacity = 0.28;
       }
 
-      if (demandViewActive) {
+      /* Voice-map highlight fade (only for single pins, not clusters — same
+       * reasoning as reachability above). A non-null highlightedPinIds is
+       * the most specific signal on the map, so it takes precedence over
+       * the demand-view / commute treatments below. Non-matching pins dim
+       * to ~0.4 opacity but stay mounted (fade, don't vanish) so the sheet
+       * and camera can still reference them. */
+      let isFaded = false;
+      if (highlightedPinIds !== null && !isCluster(item)) {
+        isFaded = !highlightedPinIds.includes(item.id);
+        el.style.opacity = isFaded ? "0.4" : "1";
+        el.style.transition = reduce ? "none" : "opacity 200ms ease";
+      } else if (demandViewActive) {
         el.style.opacity = "0.3";
         el.style.transition = "opacity 0.3s ease";
       } else if (reachabilityOpacity !== null) {
@@ -193,7 +227,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
         el.innerHTML = `<span class="criblmap-cluster__count">${item.pins.length}</span><span class="criblmap-cluster__label">${verifiedCount} verified</span>`;
       } else {
         const verified = item.verification_status === "verified";
-        el.className = getPinClass(item, item.id === selectedPinIdRef.current);
+        el.className = getPinClass(item, item.id === selectedPinIdRef.current, isFaded);
 
         // Trust glyph: real Cribliv brand mark for verified, dot for unverified
         const trustGlyph = verified
@@ -248,7 +282,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
             return;
           }
           selectedPinIdRef.current = item.id;
-          applySelectedState(pinRecordsRef.current, item.id);
+          applySelectedState(pinRecordsRef.current, item.id, highlightedPinIdsRef.current);
           dispatch({ type: "SELECT_PIN", pinId: item.id });
           map.panTo({ lat: item.lat, lng: item.lng });
         });
@@ -261,7 +295,7 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
           lng: isCluster(item) ? item.lng : item.lng
         },
         content: el,
-        zIndex: isCluster(item) ? 1 : item.id === selectedPinIdRef.current ? 10 : 5
+        zIndex: isCluster(item) ? 1 : item.id === selectedPinIdRef.current ? 10 : isFaded ? 2 : 5
       });
 
       if (isCluster(item)) {
@@ -283,7 +317,16 @@ export function ListingPinLayer({ map, locale }: ListingPinLayerProps) {
       markersRef.current = [];
       pinRecordsRef.current.clear();
     };
-  }, [map, clustered, dispatch, router, locale, demandViewActive, reachabilityZones]);
+  }, [
+    map,
+    clustered,
+    dispatch,
+    router,
+    locale,
+    demandViewActive,
+    reachabilityZones,
+    highlightedPinIds
+  ]);
 
   return null;
 }
