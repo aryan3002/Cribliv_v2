@@ -23,3 +23,8 @@
 .mv-ledger__ok { color: #334155; } .mv-ledger__ok span { color: var(--trust, #0d9f4f); }
 .mv-ledger__no { color: var(--warning, #e88c00); font-weight: 600; }
 .mv-card__cta { display: block; width: 100%; margin-top: 11px; padding: 10px; border: none; border-radius: 9px; background: var(--accent, #ff5a5f); color: #fff; font-weight: 800; font-size: 13px; cursor: pointer; }
+.mv-doors { display: flex; flex-direction: column; gap: 6px; }
+.mv-door { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: none; border-radius: 9px; background: #fff; box-shadow: inset 0 0 0 1.5px #dbe7fb; color: var(--brand, #0066ff); font-weight: 800; font-size: 13px; cursor: pointer; }
+.mv-door__gain { color: var(--trust, #0d9f4f); font-size: 12px; }
+.mv-door__hint { color: var(--text-secondary, #64748b); font-size: 12px; font-weight: 600; }
+.mv-door--bell { box-shadow: inset 0 0 0 1.5px #ffd9da; color: var(--accent, #ff5a5f); }
