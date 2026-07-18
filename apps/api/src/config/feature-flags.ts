@@ -28,6 +28,8 @@ export interface FeatureFlags {
   ff_voice_agent_enabled: boolean;
   /** Phase D.2 – Azure OpenAI Realtime concierge ("Maya") via WebRTC */
   ff_voice_agent_realtime: boolean;
+  /** Phase D.3 – Voice-driven CriblMap (hold-orb, speak, camera flies) */
+  ff_maya_voice_map: boolean;
   /** Phase E – Geo, Analytics, Leads, Fraud, Boost, Map, Admin */
   ff_geo_search_enabled: boolean;
   ff_listing_analytics_enabled: boolean;
@@ -120,6 +122,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_voice_agent_enabled: false,
   /** Phase D.2 – Azure OpenAI Realtime concierge (default OFF until deployment configured) */
   ff_voice_agent_realtime: false,
+  /** Phase D.3 – Voice-driven CriblMap (default OFF) */
+  ff_maya_voice_map: false,
   /** Phase E – Platform features (default OFF) */
   ff_geo_search_enabled: false,
   ff_listing_analytics_enabled: false,
@@ -277,6 +281,7 @@ export function readFeatureFlags(): FeatureFlags {
       "FF_VOICE_AGENT_REALTIME",
       defaultFeatureFlags.ff_voice_agent_realtime
     ),
+    ff_maya_voice_map: parseBooleanEnv("FF_MAYA_VOICE_MAP", defaultFeatureFlags.ff_maya_voice_map),
     ff_geo_search_enabled: parseBooleanEnv(
       "FF_GEO_SEARCH_ENABLED",
       defaultFeatureFlags.ff_geo_search_enabled
