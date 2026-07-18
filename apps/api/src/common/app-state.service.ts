@@ -171,6 +171,8 @@ export class AppStateService {
   outboundEvents: OutboundEventRecord[] = [];
   verificationAttempts: Array<Record<string, unknown>> = [];
   adminActions: Array<Record<string, unknown>> = [];
+  /** Voice-map demand-sensing: unmet seeker specs captured anonymously. */
+  demandSignals: Array<Record<string, unknown>> = [];
   /** Role upgrade requests submitted by users */
   roleRequests = new Map<string, RoleRequestRecord>();
   /** Lookup: userId → latest pending/decided request id */
