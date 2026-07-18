@@ -90,7 +90,7 @@ const HINDI_NUMBERS: Record<string, number> = {
   das: 10
 };
 
-function parseNumberValue(str: string): number | null {
+export function parseNumberValue(str: string): number | null {
   if (/^\d+$/.test(str)) return Number(str);
   const word = str.toLowerCase();
   if (HINDI_NUMBERS[word] !== undefined) return HINDI_NUMBERS[word];
@@ -106,7 +106,7 @@ function parseNumberValue(str: string): number | null {
   return null;
 }
 
-function parseRentValue(numStr: string, unit: string | undefined): number | null {
+export function parseRentValue(numStr: string, unit: string | undefined): number | null {
   const value = parseNumberValue(numStr);
   if (value === null || !Number.isFinite(value)) return null;
   if (unit && RENT_UNIT_LAKH.test(unit)) return Math.round(value * 100_000);

@@ -136,6 +136,16 @@ const areaHits: MapSearchHit[] = [...areaAccumulators.values()].map((acc) => {
   };
 });
 
+// Static (network-free) slug lists for callers that haven't wired up a live
+// search dictionary (e.g. GET /listings/search/dictionary) — notably
+// buildMapIntent's defaults in map-intent.ts, which must stay a pure module.
+// Computed once at import time from the same bundled seed JSON this file
+// already parses, so they never drift from what searchMapIndex can resolve.
+export const KNOWN_CITY_SLUGS: string[] = cityHits.map((hit) => hit.city);
+export const KNOWN_LOCALITY_SLUGS: string[] = [...localityHits, ...areaHits].map(
+  (hit) => hit.id.split(":").pop() as string
+);
+
 // Scoring tiers. A "name" alias is the place's own identity (its name/slug/aliases);
 // a "context" alias is a broader container (its city or parent area). Context matches
 // must always rank below name matches so that typing a city name surfaces the CITY
