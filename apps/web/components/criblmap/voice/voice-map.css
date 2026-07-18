@@ -28,3 +28,12 @@
 .mv-door__gain { color: var(--trust, #0d9f4f); font-size: 12px; }
 .mv-door__hint { color: var(--text-secondary, #64748b); font-size: 12px; font-weight: 600; }
 .mv-door--bell { box-shadow: inset 0 0 0 1.5px #ffd9da; color: var(--accent, #ff5a5f); }
+.mv-sheet { position: absolute; left: 0; right: 0; bottom: 64px; z-index: 7; background: var(--surface, #fff); border-radius: 18px 18px 0 0; box-shadow: 0 -4px 24px rgba(0,0,0,.16); transition: max-height 240ms ease; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { .mv-sheet { transition: none; } }
+.mv-sheet--peek { max-height: 84px; }
+.mv-sheet--half { max-height: 46vh; }
+.mv-sheet--full { max-height: 82vh; }
+.mv-sheet__handle { width: 100%; background: none; border: none; padding: 8px 12px 10px; cursor: pointer; text-align: center; }
+.mv-sheet__grab { display: block; width: 30px; height: 3px; border-radius: 2px; background: #dbe3ec; margin: 0 auto 7px; }
+.mv-sheet__maya { font-size: 13px; font-weight: 700; color: var(--text-primary, #1a1a2e); }
+.mv-sheet__body { padding: 0 12px 14px; overflow-y: auto; max-height: calc(82vh - 60px); }
