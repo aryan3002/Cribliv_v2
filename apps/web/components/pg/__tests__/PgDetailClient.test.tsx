@@ -88,15 +88,69 @@ beforeEach(() => {
 });
 
 describe("PgDetailClient", () => {
-  it("renders the public listing description below the hero title", () => {
-    render(
+  it("renders a non-empty public description once after Things to know and before Location", () => {
+    const description = "Quiet PG near the metro.";
+    const { container, rerender } = render(
+      <PgDetailClient detail={makeDetail({ description })} city="pune" locale="en" />
+    );
+
+    const hero = container.querySelector(".pg-hero") as HTMLElement;
+    const descriptionParagraph = screen.getByText(description);
+    const descriptionSection = descriptionParagraph.closest("section") as HTMLElement;
+    const thingsToKnowSection = screen
+      .getByRole("heading", { name: /things to know/i })
+      .closest("section") as HTMLElement;
+    const locationSection = screen
+      .getByRole("heading", { name: /where you'll be/i })
+      .closest("section") as HTMLElement;
+
+    expect(within(hero).queryByText(description)).toBeNull();
+    expect(screen.getAllByText(description)).toHaveLength(1);
+    expect(descriptionSection).toHaveClass("ld-section");
+    expect(
+      within(descriptionSection).getByRole("heading", { name: /about this property/i })
+    ).toBeTruthy();
+    expect(descriptionParagraph).toHaveClass("ld-prose");
+    expect(thingsToKnowSection.nextElementSibling).toBe(descriptionSection);
+    expect(descriptionSection.nextElementSibling).toBe(locationSection);
+
+    rerender(
       <PgDetailClient
-        detail={makeDetail({ description: "Quiet PG near the metro." })}
+        detail={makeDetail({
+          description,
+          pg_details: {
+            ...makeDetail().pg_details,
+            security_deposit_paise: null,
+            notice_period_days: null,
+            lock_in_months: null,
+            electricity_mode: null,
+            maintenance_paise: null,
+            deposit_refundable_pct: null
+          }
+        })}
         city="pune"
         locale="en"
       />
     );
-    expect(screen.getByText("Quiet PG near the metro.")).toBeTruthy();
+
+    const descriptionWithoutThings = screen
+      .getByText(description)
+      .closest("section") as HTMLElement;
+    const locationWithoutThings = screen
+      .getByRole("heading", { name: /where you'll be/i })
+      .closest("section") as HTMLElement;
+    expect(screen.queryByRole("heading", { name: /things to know/i })).toBeNull();
+    expect(descriptionWithoutThings.nextElementSibling).toBe(locationWithoutThings);
+
+    rerender(<PgDetailClient detail={makeDetail({ description: "" })} city="pune" locale="en" />);
+    expect(screen.queryByRole("heading", { name: /about this property/i })).toBeNull();
+    expect(container.querySelector(".ld-prose")).toBeNull();
+
+    const detailWithoutDescription = makeDetail();
+    Reflect.deleteProperty(detailWithoutDescription, "description");
+    rerender(<PgDetailClient detail={detailWithoutDescription} city="pune" locale="en" />);
+    expect(screen.queryByRole("heading", { name: /about this property/i })).toBeNull();
+    expect(container.querySelector(".ld-prose")).toBeNull();
   });
 
   it("styles the PG detail bottom CTA as a direct card jump", () => {

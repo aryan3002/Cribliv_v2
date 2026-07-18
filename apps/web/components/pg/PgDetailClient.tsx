@@ -766,9 +766,6 @@ export function PgDetailClient({
               </button>
             </div>
             <h1 className="pg-hero__title">{detail.title ?? "PG"}</h1>
-            {detail.description ? (
-              <p className="pg-hero__description">{detail.description}</p>
-            ) : null}
             <div className="pg-hero__meta">
               <MapPin size={15} aria-hidden="true" />
               {locationLabel}
@@ -996,6 +993,15 @@ export function PgDetailClient({
                 )}
               </section>
             )}
+
+            {detail.description ? (
+              <section className="ld-section">
+                <div className="ld-section__head">
+                  <h2>{t(locale as Locale, "aboutThisProperty")}</h2>
+                </div>
+                <p className="ld-prose">{detail.description}</p>
+              </section>
+            ) : null}
 
             {/* ── Location ── */}
             <section className="ld-section">
