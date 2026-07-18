@@ -957,7 +957,19 @@ const dictionary: Dictionary = {
   cpGatewayUnavailable: {
     en: "Couldn't load the payment gateway. Please use UPI instead.",
     hi: "भुगतान गेटवे लोड नहीं हो सका। कृपया UPI से भुगतान करें।"
-  }
+  },
+  // ── Voice map dock strings ──────────────────────────────────────────────────────
+  mvHoldToSpeak: { en: "Hold & speak", hi: "दबाकर बोलें" },
+  mvListening: { en: "Listening…", hi: "सुन रहे हैं…" },
+  mvTypeInstead: { en: "Type instead", hi: "टाइप करें" },
+  mvThatsEverything: {
+    en: "That's everything — not a page one.",
+    hi: "बस इतना ही — यह पहला पेज नहीं है।"
+  },
+  mvNoneHere: { en: "Nothing matches here yet.", hi: "यहाँ अभी कुछ मेल नहीं खाता।" },
+  mvNotifyMe: { en: "Notify me", hi: "मुझे सूचित करें" },
+  mvCantFilterYet: { en: "can't filter this yet", hi: "यह अभी फ़िल्टर नहीं कर सकते" },
+  mvUnlockNumber: { en: "Unlock owner's number", hi: "मालिक का नंबर अनलॉक करें" }
 };
 
 export function t(locale: Locale, key: string): string {
