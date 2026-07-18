@@ -1,5 +1,6 @@
 import { Body, Controller, Post } from "@nestjs/common";
 import { DemandSignalsService } from "./demand-signals.service";
+import { ok } from "../../common/response";
 import type { CreateDemandSignalDto } from "@cribliv/shared-types";
 
 // Public: anonymous seekers on the voice map submit an unmet-demand spec.
@@ -11,6 +12,6 @@ export class DemandSignalsController {
   @Post()
   async create(@Body() dto: CreateDemandSignalDto) {
     const { id } = await this.demandSignalsService.create(dto ?? { filters: {} });
-    return { ok: true, id };
+    return ok({ ok: true, id });
   }
 }
