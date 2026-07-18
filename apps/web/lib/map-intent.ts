@@ -27,21 +27,38 @@ export interface MapIntent {
 // extracted here always agree with what parseQuery would have produced.
 const SPOKEN_NUM_TOKEN =
   "(\\d{1,6}|ek|do|teen|char|paanch|panch|chhe|che|saat|aath|nau|das|[०-९]+)";
-const SPOKEN_UNIT_TOKEN = "(k|lakh|lac|thousand|हजार|hazar|hazaar|jar|yaar|लाख)?";
+const SPOKEN_UNIT_TOKEN = "(k|lakh|lac|crore|thousand|हजार|hazar|hazaar|jar|yaar|लाख)?";
 const SPOKEN_RENT_RE = new RegExp(`${SPOKEN_NUM_TOKEN}\\s*${SPOKEN_UNIT_TOKEN}`, "gi");
 
+// A number only counts as a rent candidate when it carries a MONEY SIGNAL, so
+// incidental digits in a live ASR transcript (sqft, floor, sector/block, a
+// 6-digit pincode) can't collide at an exact 10x/100x ratio and hijack the
+// guard. Signal (a) is a multiplier suffix on the token itself; signal (b) is
+// a budget/currency cue word sitting immediately before (e.g. "under 20000",
+// "budget ₹200000") or a trailing money word right after (e.g. "20000 rent").
+// A bare number with neither signal is ignored.
+const CUE_BEFORE_RE = /(?:under|below|upto|up\s*to|within|max|budget|rent|rupees?|rs\.?|₹)\s*$/i;
+const CUE_AFTER_RE = /^\s*(?:rent|rupees?|budget)\b/i;
+
 /**
- * Every rent-shaped amount mentioned in a transcript, suffix-expanded via
- * smart-parser's own `parseRentValue` (so "20k" -> 20000, "1 lakh" -> 100000,
- * "20 hazaar" -> 20000, bare "20000" -> 20000). Small bare numbers (BHK
- * counts, etc.) are dropped by the >= 100 floor.
+ * Every money-signalled rent amount mentioned in a transcript, suffix-expanded
+ * via smart-parser's own `parseRentValue` (so "20k" -> 20000, "1 lakh" ->
+ * 100000, "20 hazaar" -> 20000, "under 20000" -> 20000). Bare numbers with no
+ * multiplier suffix and no adjacent budget/currency cue (sqft, sector, floor,
+ * pincode) are dropped, as are sub-100 values (BHK counts, etc.).
  */
 function spokenAmounts(transcript: string): number[] {
   const cleaned = transcript.replace(/,/g, "");
   const amounts: number[] = [];
   for (const match of cleaned.matchAll(SPOKEN_RENT_RE)) {
-    const [, numStr, unit] = match;
+    const [full, numStr, unit] = match;
     if (!numStr) continue;
+    const start = match.index ?? 0;
+    const hasSuffix = Boolean(unit && unit.trim());
+    const hasCue =
+      CUE_BEFORE_RE.test(cleaned.slice(0, start)) ||
+      CUE_AFTER_RE.test(cleaned.slice(start + full.length));
+    if (!hasSuffix && !hasCue) continue;
     const value = parseRentValue(numStr, unit || undefined);
     if (value !== null && Number.isFinite(value) && value >= 100) amounts.push(value);
   }
