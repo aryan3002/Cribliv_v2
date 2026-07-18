@@ -1219,6 +1219,22 @@ export class PgListingService {
     return Math.round(this.cheapestRentPaise(p) / 100);
   }
 
+  /**
+   * The listing's "starting" deposit (pg_details.security_deposit_paise), in
+   * paise. The wizard collects deposit PER ROOM now — the step-level input was
+   * removed — but public detail, the completeness score, and the missing-field
+   * heatmap all read pg_details.security_deposit_paise. Backfill it from the
+   * cheapest room deposit so those read paths stay correct without reviving a
+   * redundant operator input. Returns null when no room carries a deposit, so
+   * the column stays honestly empty rather than defaulting to 0.
+   */
+  private cheapestRoomDepositPaise(p: PgListingPayload): number | null {
+    const deposits = p.room_types
+      .map((rt) => rt.security_deposit_paise)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    return deposits.length ? Math.min(...deposits) : null;
+  }
+
   private async writePgDetails(
     exec: SqlExec,
     listingId: string,
@@ -1266,7 +1282,9 @@ export class PgListingService {
         d.tenant_type ?? null,
         d.notice_period_days ?? null,
         d.lock_in_months ?? null,
-        d.security_deposit_paise ?? null,
+        // Backfill the whole-PG deposit from the cheapest room when the operator
+        // didn't set one — the step-level input is gone; read paths still use it.
+        d.security_deposit_paise ?? this.cheapestRoomDepositPaise(p),
         d.deposit_refundable_pct ?? null,
         d.electricity_mode ?? null,
         d.maintenance_paise ?? null,

@@ -58,7 +58,12 @@ function missingRequiredFields(draft: any): string[] {
   if (p.lat == null || p.lng == null) m.push("location_pin");
   if (!d.gender_policy) m.push("gender_policy");
   if (!d.tenant_type) m.push("tenant_type");
-  if (!((d.security_deposit_paise ?? 0) > 0)) m.push("security_deposit");
+  // Deposit is set per room now — a deposit on any room satisfies this, not only
+  // the removed property-level field.
+  const hasDeposit =
+    (d.security_deposit_paise ?? 0) > 0 ||
+    (Array.isArray(rooms) && rooms.some((r: any) => (r?.security_deposit_paise ?? 0) > 0));
+  if (!hasDeposit) m.push("security_deposit");
   if (!Array.isArray(rooms) || rooms.length < 1) m.push("room_types");
   if (!d.house_rules || Object.keys(d.house_rules ?? {}).length === 0) m.push("house_rules");
   if (!d.amenities || Object.values(d.amenities ?? {}).filter(Boolean).length === 0)

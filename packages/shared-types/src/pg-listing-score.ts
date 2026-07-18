@@ -60,7 +60,9 @@ export function computePgListingScore(
     !!payload.property?.city_slug,
     !!d.gender_policy,
     !!d.tenant_type,
-    (d.security_deposit_paise ?? 0) > 0,
+    // Deposit is collected per room now (the step-level input was removed), so a
+    // deposit on any room counts — not only the property-level field.
+    (d.security_deposit_paise ?? 0) > 0 || rooms.some((r) => (r.security_deposit_paise ?? 0) > 0),
     rooms.length >= 1,
     !!d.house_rules && Object.keys(d.house_rules).length > 0,
     !!d.meals
