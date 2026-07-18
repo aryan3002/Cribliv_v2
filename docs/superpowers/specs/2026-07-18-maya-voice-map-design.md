@@ -113,11 +113,17 @@ block), and **rotating the broken `adars-moibam2t-eastus2` realtime key**. Not n
    `apps/web/lib/google-places.ts:264` for real per-locality viewports — one line, on an API already billed.*
 
 3. **Widened map query with client post-filter.** `MapFilters` supports only 5 fields; the parser already emits
-   `locality`, `min_rent`, `furnishing`, `amenity`. The map pin payload **already carries `furnishing`**
-   (`search.service.ts:856`); `amenities` is a `jsonb` column on the same row — add it to the map SELECT (one line,
-   **no index needed** because we post-filter the ≤500 in-memory pins). Rule: `bhk`/`max_rent`/`listing_type`/
-   `verified_only`/`near_metro` go to the server; `locality`/`min_rent`/`furnishing`/`amenity` are applied
-   **client-side** over the returned pins.
+   `locality`, `min_rent`, `furnishing`, `amenity`. The **Slice-1 filter matrix** (deliberately zero API change):
+   - **Server** (existing endpoint): `bhk`, `max_rent`, `listing_type`, `verified_only`, `near_metro`.
+   - **Client post-filter over the returned ≤500 pins:** `min_rent`, `locality`, `furnishing` — the map pin payload
+     **already carries `furnishing`** (`search.service.ts:856`) and `monthly_rent`/`locality`, so this needs no
+     backend work.
+   - **Struck + 🔔 (unsupported in Slice 1):** `amenity` (parking, lift, etc.). `amenities` is an unindexed `jsonb`
+     column **not** in the map SELECT, and migrated-listing amenity data quality is unverified — post-filtering on
+     it would wrongly exclude listings that have the amenity but never recorded it. Treating it as an honest
+     "can't filter this yet" is both safer and the canonical demand-capture example. *Fast-follow (deferred): once
+     amenity data quality is verified, add `amenities` to the map SELECT (one line, no index — post-filter in
+     memory) to promote it from struck to client-applied.*
 
 4. **The voice dock + bottom sheet UI.** New surface. The old in-map listing `SidePanel` is intentionally dead
    (`map-view.tsx:185-187`) — we do **not** revive it. The sheet is new.
@@ -291,7 +297,8 @@ they are the demand-sensing output.
 
 - No spoken (TTS) replies. No Azure Realtime. No new realtime endpoint. No server-side audio.
 - No per-listing conversational Q&A ("is this real?") — that is Slice 2.
-- No amenity **database** indexing — client post-filter over ≤500 pins only.
+- No amenity filtering at all — amenity chips are struck + 🔔 (see §5.3). Promoting amenity to a client post-filter
+  (which needs the one-line map-SELECT change) is an explicitly deferred fast-follow.
 - No new cities — Lucknow is the live surface; out-of-coverage spoken cities get a "we're only in Lucknow —
   alert me?" demand-capture, not a broken fly-to.
 - No polygon/boundary data model — synthesized radius bounds only.
