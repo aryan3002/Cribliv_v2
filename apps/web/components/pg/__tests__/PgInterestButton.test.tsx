@@ -31,7 +31,7 @@ describe("PgInterestButton", () => {
     render(<PgInterestButton listingId="abc" locale="en" />);
     fireEvent.click(screen.getByRole("button", { name: /i'?m interested/i }));
     await waitFor(() => expect(screen.getByText(/has your interest/i)).toBeTruthy());
-    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1");
+    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1", undefined);
   });
 
   it("allows mobile CTA copy while preserving interest submission", async () => {
@@ -47,7 +47,25 @@ describe("PgInterestButton", () => {
     fireEvent.click(screen.getByRole("button", { name: /show interest/i }));
 
     await waitFor(() => expect(screen.getByText(/owner has your interest/i)).toBeTruthy());
-    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1");
+    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1", undefined);
+  });
+
+  it("forwards the chosen sharing type when a picker is shown", async () => {
+    __session = { access_token: "tok_1" };
+    expressPgInterest.mockResolvedValue({ interested: true, created: true, lead_id: "l2" });
+    render(<PgInterestButton listingId="abc" locale="en" sharingOptions={["single", "double"]} />);
+    fireEvent.change(screen.getByLabelText(/preferred room type/i), {
+      target: { value: "double" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /i'?m interested/i }));
+    await waitFor(() => expect(screen.getByText(/has your interest/i)).toBeTruthy());
+    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1", "double");
+  });
+
+  it("does not render a picker for a single sharing option", () => {
+    __session = { access_token: "tok_1" };
+    render(<PgInterestButton listingId="abc" locale="en" sharingOptions={["single"]} />);
+    expect(screen.queryByLabelText(/preferred room type/i)).toBeNull();
   });
 
   it("shows an error (not success) when the lead was not recorded", async () => {

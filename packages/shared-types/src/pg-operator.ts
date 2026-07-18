@@ -77,6 +77,126 @@ export interface PgAmenities {
   extras?: string[]; // parking_2w, parking_4w, fridge, microwave, gym, indoor_games
 }
 
+// Canonical PG amenity taxonomy — single source of truth for BOTH the backend
+// Zod enum (pg-extraction-schema.ts) and the wizard UI (PgAmenitiesFoodStep).
+// Superset of the original tokens: expanding is additive, so existing stored
+// amenities remain valid. Keep tokens snake_case and stable (they are persisted).
+export const PG_AMENITY_CORE = [
+  "wifi",
+  "hot_water",
+  "power_backup",
+  "cctv",
+  "security_guard",
+  "lift",
+  "fire_safety",
+  "ro_water",
+  "drinking_water",
+  "inverter_backup"
+] as const;
+export const PG_AMENITY_ROOM = [
+  "ac",
+  "tv",
+  "study_table",
+  "wardrobe",
+  "safety_locker",
+  "mattress",
+  "attached_bathroom",
+  "geyser",
+  "fan",
+  "curtains",
+  "chair",
+  "room_cleaning"
+] as const;
+export const PG_AMENITY_SERVICES = [
+  "housekeeping",
+  "laundry",
+  "biometric_access",
+  "mess_food",
+  "cook",
+  "warden",
+  "maintenance_staff",
+  "doctor_on_call",
+  "deep_cleaning",
+  "water_supply_247"
+] as const;
+export const PG_AMENITY_EXTRAS = [
+  "parking_2w",
+  "parking_4w",
+  "fridge",
+  "microwave",
+  "gym",
+  "indoor_games",
+  "common_lounge",
+  "rooftop_terrace",
+  "washing_machine",
+  "water_cooler",
+  "dining_area",
+  "study_room",
+  "library",
+  "swimming_pool",
+  "recreation_room",
+  "vending_machine"
+] as const;
+
+export const PG_AMENITY_LABELS: Record<string, string> = {
+  wifi: "High-Speed WiFi",
+  hot_water: "Hot Water",
+  power_backup: "Power Backup",
+  cctv: "CCTV",
+  security_guard: "Security Guard",
+  lift: "Lift / Elevator",
+  fire_safety: "Fire Safety",
+  ro_water: "RO Water",
+  drinking_water: "Drinking Water",
+  inverter_backup: "Inverter Backup",
+  ac: "Air Conditioning",
+  tv: "TV",
+  study_table: "Study Table",
+  wardrobe: "Wardrobe",
+  safety_locker: "Safety Locker",
+  mattress: "Mattress",
+  attached_bathroom: "Attached Bathroom",
+  geyser: "Geyser",
+  fan: "Fan",
+  curtains: "Curtains",
+  chair: "Chair",
+  room_cleaning: "Room Cleaning",
+  housekeeping: "Daily Cleaning",
+  laundry: "Laundry",
+  biometric_access: "Biometric Access",
+  mess_food: "Mess / Food",
+  cook: "Cook",
+  warden: "Warden",
+  maintenance_staff: "Maintenance Staff",
+  doctor_on_call: "Doctor on Call",
+  deep_cleaning: "Deep Cleaning",
+  water_supply_247: "24×7 Water Supply",
+  parking_2w: "2-Wheeler Parking",
+  parking_4w: "4-Wheeler Parking",
+  fridge: "Fridge",
+  microwave: "Microwave",
+  gym: "Gym",
+  indoor_games: "Indoor Games",
+  common_lounge: "Common Lounge",
+  rooftop_terrace: "Rooftop Terrace",
+  washing_machine: "Washing Machine",
+  water_cooler: "Water Cooler",
+  dining_area: "Dining Area",
+  study_room: "Study Room",
+  library: "Library",
+  swimming_pool: "Swimming Pool",
+  recreation_room: "Recreation Room",
+  vending_machine: "Vending Machine"
+};
+
+// One-tap "Typical PG defaults" preset for the wizard.
+export const PG_AMENITY_DEFAULTS = {
+  core: ["wifi", "hot_water", "power_backup", "cctv", "drinking_water"],
+  room: ["mattress", "wardrobe", "study_table", "fan"],
+  services: ["housekeeping", "laundry"],
+  extras: ["parking_2w"]
+};
+
 export interface PgNearby {
   metro?: string[];
   college?: string[];
@@ -100,6 +220,8 @@ export interface PgListingPayload {
    * (voice drafts / older clients) — backend falls back to property.display_name.
    */
   title?: string | null;
+  /** AI-generated, SEO-optimized, operator-editable body copy. Persisted to listings.description_en. */
+  description?: string | null;
   property: {
     display_name: string;
     internal_code?: string | null;
@@ -131,6 +253,7 @@ export interface PgListingPayload {
     ac: boolean;
     bathroom_kind?: PgBathroomKind;
     furnishing?: PgFurnishing;
+    has_balcony?: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
     security_deposit_paise?: number;
@@ -193,6 +316,8 @@ export interface PgDashboardLead {
   called_by: string | null;
   tenant_name: string;
   tenant_phone?: string | null;
+  /** Sharing type the tenant asked about when expressing interest (null = "Any"). */
+  preferred_sharing?: string | null;
 }
 
 export interface PgPortfolioSummary {

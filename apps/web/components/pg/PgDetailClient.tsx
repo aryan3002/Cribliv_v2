@@ -89,6 +89,9 @@ const SHARING_COLORS: Record<string, string> = {
   dorm: "dorm"
 };
 
+// Canonical ordering for the "which room?" interest picker.
+const SHARING_ORDER = ["single", "double", "triple", "quad", "dorm"] as const;
+
 // FIX: real enum keys (attached_western | attached_indian | shared_western | shared_indian).
 const BATHROOM_LABEL: Record<string, string> = {
   attached_western: "Attached · Western",
@@ -355,6 +358,7 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
         {furnishingLabel && (
           <span className="pg-room-feat pg-room-feat--furnished">{furnishingLabel}</span>
         )}
+        {rt.has_balcony && <span className="pg-room-feat pg-room-feat--balcony">Balcony</span>}
       </div>
 
       <div className="pg-room-card__footer">
@@ -362,6 +366,9 @@ function PgRoomCard({ rt, index }: { rt: PgPublicDetail["room_types"][number]; i
           <Calendar size={11} aria-hidden="true" />
           {isAvailableNow ? "Available now" : `From ${availLabel}`}
         </span>
+        {rt.security_deposit_paise != null && rt.security_deposit_paise > 0 && (
+          <span className="pg-room-card__deposit">{rupees(rt.security_deposit_paise)} deposit</span>
+        )}
       </div>
     </div>
   );
@@ -759,6 +766,9 @@ export function PgDetailClient({
               </button>
             </div>
             <h1 className="pg-hero__title">{detail.title ?? "PG"}</h1>
+            {detail.description ? (
+              <p className="pg-hero__description">{detail.description}</p>
+            ) : null}
             <div className="pg-hero__meta">
               <MapPin size={15} aria-hidden="true" />
               {locationLabel}
@@ -1085,6 +1095,9 @@ export function PgDetailClient({
                 <PgInterestButton
                   listingId={detail.id}
                   locale={locale}
+                  sharingOptions={SHARING_ORDER.filter((s) =>
+                    detail.room_types.some((r) => r.sharing === s)
+                  )}
                   onBefore={() => trackPgInterestClicked(detail.id, "logged_in")}
                   onSuccess={() => trackPgInterestSubmitted(detail.id)}
                 />

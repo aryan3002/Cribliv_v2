@@ -17244,6 +17244,26 @@ a.feature-card:hover .icon-circle {
   color: #047857;
   font-weight: 600;
 }
+.pg-interest__sharing {
+  display: block;
+  margin-bottom: 10px;
+}
+.pg-interest__sharing-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.pg-interest__sharing-select {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  font-size: 14px;
+  color: var(--text-primary);
+}
 
 /* ── Homes | PG search segment toggle ── */
 .hero-segment {
@@ -17696,6 +17716,18 @@ a.feature-card:hover .icon-circle {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+.pg-room-card__deposit {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.pg-room-feat--balcony {
+  background: #f5f3ff;
+  color: #7c3aed;
 }
 
 /* ── Meals Card ───────────────────────────────────────────── */

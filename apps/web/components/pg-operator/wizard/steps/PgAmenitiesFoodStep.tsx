@@ -1,6 +1,14 @@
 "use client";
 import { Dispatch } from "react";
 import { UtensilsCrossed, Sparkles } from "lucide-react";
+import {
+  PG_AMENITY_CORE,
+  PG_AMENITY_DEFAULTS,
+  PG_AMENITY_EXTRAS,
+  PG_AMENITY_LABELS,
+  PG_AMENITY_ROOM,
+  PG_AMENITY_SERVICES
+} from "@cribliv/shared-types";
 import { PgWizardState, PgWizardAction } from "@/lib/pg-wizard-state";
 import SectionCard from "../shared/SectionCard";
 import MealsToggle from "../shared/MealsToggle";
@@ -8,36 +16,8 @@ import ChipMultiSelect, { type ChipOption } from "../shared/ChipMultiSelect";
 import RupeeInput from "../shared/RupeeInput";
 import Disclosure from "../shared/Disclosure";
 
-const LABELS: Record<string, string> = {
-  wifi: "High-Speed WiFi",
-  hot_water: "Hot Water",
-  power_backup: "Power Backup",
-  cctv: "CCTV",
-  security_guard: "Security Guard",
-  ac: "Air Conditioning",
-  tv: "TV",
-  study_table: "Study Table",
-  wardrobe: "Wardrobe",
-  safety_locker: "Safety Locker",
-  mattress: "Mattress",
-  housekeeping: "Daily Cleaning",
-  laundry: "Laundry",
-  biometric_access: "Biometric Access",
-  parking_2w: "2-Wheeler Parking",
-  parking_4w: "4-Wheeler Parking",
-  fridge: "Fridge",
-  microwave: "Microwave",
-  gym: "Gym",
-  indoor_games: "Indoor Games"
-};
-
-const opts = (keys: string[]): ChipOption[] =>
-  keys.map((k) => ({ value: k, label: LABELS[k] ?? k }));
-
-const CORE = ["wifi", "hot_water", "power_backup", "cctv", "security_guard"];
-const ROOM = ["ac", "tv", "study_table", "wardrobe", "safety_locker", "mattress"];
-const SERVICES = ["housekeeping", "laundry", "biometric_access"];
-const EXTRAS = ["parking_2w", "parking_4w", "fridge", "microwave", "gym", "indoor_games"];
+const opts = (keys: readonly string[]): ChipOption[] =>
+  keys.map((key) => ({ value: key, label: PG_AMENITY_LABELS[key] ?? key }));
 
 export default function PgAmenitiesFoodStep({
   state,
@@ -74,33 +54,45 @@ export default function PgAmenitiesFoodStep({
         title="Property amenities"
         subtitle="Select everything available to tenants."
         icon={<Sparkles size={20} />}
+        action={
+          <button
+            type="button"
+            className="pgo-btn pgo-btn--secondary"
+            onClick={() => {
+              setF("pg_details.amenities.core", PG_AMENITY_DEFAULTS.core);
+              setF("pg_details.amenities.room", PG_AMENITY_DEFAULTS.room);
+              setF("pg_details.amenities.services", PG_AMENITY_DEFAULTS.services);
+              setF("pg_details.amenities.extras", PG_AMENITY_DEFAULTS.extras);
+            }}
+          >
+            Typical PG defaults
+          </button>
+        }
       >
         <ChipMultiSelect
           label="Core"
           value={a.core ?? []}
-          options={opts(CORE)}
+          options={opts(PG_AMENITY_CORE)}
           onChange={(v) => setF("pg_details.amenities.core", v)}
         />
         <ChipMultiSelect
           label="In-room"
           value={a.room ?? []}
-          options={opts(ROOM)}
+          options={opts(PG_AMENITY_ROOM)}
           onChange={(v) => setF("pg_details.amenities.room", v)}
         />
         <ChipMultiSelect
           label="Services"
           value={a.services ?? []}
-          options={opts(SERVICES)}
+          options={opts(PG_AMENITY_SERVICES)}
           onChange={(v) => setF("pg_details.amenities.services", v)}
         />
-        <Disclosure summary="More facilities">
-          <ChipMultiSelect
-            label="Extras"
-            value={a.extras ?? []}
-            options={opts(EXTRAS)}
-            onChange={(v) => setF("pg_details.amenities.extras", v)}
-          />
-        </Disclosure>
+        <ChipMultiSelect
+          label="Extras"
+          value={a.extras ?? []}
+          options={opts(PG_AMENITY_EXTRAS)}
+          onChange={(v) => setF("pg_details.amenities.extras", v)}
+        />
       </SectionCard>
     </div>
   );

@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  PG_AMENITY_CORE,
+  PG_AMENITY_EXTRAS,
+  PG_AMENITY_ROOM,
+  PG_AMENITY_SERVICES
+} from "@cribliv/shared-types";
 
 // Enum allowlists — single source of truth for both DB enums and Zod parsing.
 const PG_SHARING = ["single", "double", "triple", "quad", "dorm"] as const;
@@ -13,18 +19,6 @@ const PG_GENDER = ["boys", "girls", "coed"] as const;
 const PG_TENANT_TYPE = ["students", "working", "any"] as const;
 const PG_ELECTRICITY = ["flat", "submetered", "split_equally"] as const;
 const PAYMENT_MODE = ["upi", "bank_transfer", "cash"] as const;
-
-const AMENITY_CORE = ["wifi", "hot_water", "power_backup", "cctv", "security_guard"] as const;
-const AMENITY_ROOM = ["ac", "tv", "study_table", "wardrobe", "safety_locker", "mattress"] as const;
-const AMENITY_SERVICES = ["housekeeping", "laundry", "biometric_access"] as const;
-const AMENITY_EXTRAS = [
-  "parking_2w",
-  "parking_4w",
-  "fridge",
-  "microwave",
-  "gym",
-  "indoor_games"
-] as const;
 
 // Money in paise (int). Sanity cap ₹2 crore.
 const PaiseSchema = z.number().int().nonnegative().max(2_000_000_000);
@@ -52,6 +46,7 @@ export const PricingMatrixSchema = z
     ac: z.boolean(),
     bathroom_kind: z.enum(PG_BATHROOM).optional().default("attached_western"),
     furnishing: z.enum(PG_FURNISHING).optional().default("semi_furnished"),
+    has_balcony: z.boolean().optional().default(false),
     monthly_rent_paise: PaiseSchema.refine((v) => v >= 200_000 && v <= 5_000_000, {
       message: "monthly_rent_paise must be between ₹2,000 (200000) and ₹50,000 (5000000)"
     }),
@@ -79,10 +74,22 @@ export const PaymentTermsSchema = z
 
 export const AmenitiesSchema = z
   .object({
-    core: z.array(z.enum(AMENITY_CORE)).optional().default([]),
-    room: z.array(z.enum(AMENITY_ROOM)).optional().default([]),
-    services: z.array(z.enum(AMENITY_SERVICES)).optional().default([]),
-    extras: z.array(z.enum(AMENITY_EXTRAS)).optional().default([])
+    core: z
+      .array(z.enum(PG_AMENITY_CORE as unknown as [string, ...string[]]))
+      .optional()
+      .default([]),
+    room: z
+      .array(z.enum(PG_AMENITY_ROOM as unknown as [string, ...string[]]))
+      .optional()
+      .default([]),
+    services: z
+      .array(z.enum(PG_AMENITY_SERVICES as unknown as [string, ...string[]]))
+      .optional()
+      .default([]),
+    extras: z
+      .array(z.enum(PG_AMENITY_EXTRAS as unknown as [string, ...string[]]))
+      .optional()
+      .default([])
   })
   .strict();
 

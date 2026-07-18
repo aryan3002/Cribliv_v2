@@ -66,6 +66,7 @@ export interface PgListingDetail {
   id: string;
   status: string;
   title: string | null;
+  description: string | null;
   monthly_rent: number | null;
   created_at: string | null;
   city_slug: string | null;
@@ -102,8 +103,11 @@ export interface PgListingDetail {
     ac: boolean;
     bathroom_kind: string | null;
     furnishing: string | null;
+    has_balcony: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
+    security_deposit_paise: number | null;
+    deposit_refundable_pct: number | null;
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;
@@ -322,16 +326,17 @@ export class PgListingService {
 
     await exec.query(
       `INSERT INTO listings(
-         id, owner_user_id, listing_type, title_en, status, verification_status,
+         id, owner_user_id, listing_type, title_en, description_en, status, verification_status,
          monthly_rent, amenities, pg_property_id, contact_phone_encrypted, whatsapp_available
        )
-       VALUES ($1::uuid, $2::uuid, 'pg', $3, $8::listing_status, 'unverified', $4, '[]'::jsonb, $5::uuid, $6, $7)
+       VALUES ($1::uuid, $2::uuid, 'pg', $3, $9, $8::listing_status, 'unverified', $4, '[]'::jsonb, $5::uuid, $6, $7)
        -- NOTE: verification_status is set on INSERT ('unverified') but deliberately
        -- NOT in the conflict clause. Verification is owned solely by the admin flow;
        -- an operator edit (the only path that hits this conflict) must never re-stamp
        -- it — a non-material edit on a verified+active listing has to stay verified.
        ON CONFLICT (id) DO UPDATE SET
          title_en = EXCLUDED.title_en,
+         description_en = EXCLUDED.description_en,
          monthly_rent = EXCLUDED.monthly_rent,
          status = EXCLUDED.status,
          updated_at = now()`,
@@ -343,7 +348,8 @@ export class PgListingService {
         prop.id,
         contact.rows[0]?.phone_e164 ?? null,
         contact.rows[0]?.whatsapp_opt_in ?? false,
-        status
+        status,
+        this.listingDescription(payload)
       ]
     );
 
@@ -649,7 +655,8 @@ export class PgListingService {
     );
     const rooms = await this.db.query<Record<string, unknown>>(
       `SELECT sharing::text AS sharing, ac, bathroom_kind::text AS bathroom_kind,
-              furnishing::text AS furnishing, monthly_rent_paise, vacancy_count,
+              furnishing::text AS furnishing, has_balcony, monthly_rent_paise, vacancy_count,
+              security_deposit_paise, deposit_refundable_pct,
               available_from::text AS available_from
          FROM pg_room_types WHERE listing_id = $1::uuid
         ORDER BY monthly_rent_paise ASC`,
@@ -705,8 +712,13 @@ export class PgListingService {
       ac: Boolean(r.ac),
       bathroom_kind: (r.bathroom_kind as PgBathroomKind) ?? undefined,
       furnishing: (r.furnishing as PgFurnishing) ?? undefined,
+      has_balcony: Boolean(r.has_balcony),
       monthly_rent_paise: Number(r.monthly_rent_paise),
       vacancy_count: Number(r.vacancy_count),
+      security_deposit_paise:
+        r.security_deposit_paise == null ? undefined : Number(r.security_deposit_paise),
+      deposit_refundable_pct:
+        r.deposit_refundable_pct == null ? undefined : Number(r.deposit_refundable_pct),
       available_from: (r.available_from as string) ?? null
     };
   }
@@ -775,6 +787,7 @@ export class PgListingService {
         pl.id::text               AS id,
         pl.status::text           AS status,
         pl.title                  AS title,
+        lst.description_en        AS description,
         pl.starting_rent_paise    AS starting_rent_paise,
         pl.created_at::text       AS created_at,
         c.slug                    AS city_slug,
@@ -830,7 +843,8 @@ export class PgListingService {
     const rooms = await this.db.query<Record<string, unknown>>(
       `
       SELECT sharing::text AS sharing, ac, bathroom_kind::text AS bathroom_kind,
-             furnishing::text AS furnishing, monthly_rent_paise, vacancy_count,
+             furnishing::text AS furnishing, has_balcony, monthly_rent_paise, vacancy_count,
+             security_deposit_paise, deposit_refundable_pct,
              available_from::text AS available_from
       FROM pg_room_types
       WHERE listing_id = $1::uuid
@@ -860,6 +874,7 @@ export class PgListingService {
       id: String(h.id),
       status: String(h.status),
       title: (h.title as string) ?? null,
+      description: (h.description as string) ?? null,
       monthly_rent:
         h.starting_rent_paise == null ? null : Math.round(Number(h.starting_rent_paise) / 100),
       created_at: (h.created_at as string) ?? null,
@@ -905,8 +920,13 @@ export class PgListingService {
         ac: Boolean(r.ac),
         bathroom_kind: (r.bathroom_kind as string) ?? null,
         furnishing: (r.furnishing as string) ?? null,
+        has_balcony: Boolean(r.has_balcony),
         monthly_rent_paise: Number(r.monthly_rent_paise),
         vacancy_count: Number(r.vacancy_count),
+        security_deposit_paise:
+          r.security_deposit_paise == null ? null : Number(r.security_deposit_paise),
+        deposit_refundable_pct:
+          r.deposit_refundable_pct == null ? null : Number(r.deposit_refundable_pct),
         available_from: (r.available_from as string) ?? null
       })),
       photos: photos.rows.map((p) => ({ blob_path: p.blob_path, is_cover: Boolean(p.is_cover) })),
@@ -1183,6 +1203,11 @@ export class PgListingService {
     return t.length > 0 ? t : p.property.display_name;
   }
 
+  private listingDescription(p: PgListingPayload): string | null {
+    const description = typeof p.description === "string" ? p.description.trim() : "";
+    return description.length > 0 ? description : null;
+  }
+
   /** Cheapest room-type rent, in paise (pg_listings.starting_rent_paise — money rule). */
   private cheapestRentPaise(p: PgListingPayload): number {
     const rents = p.room_types.map((rt) => rt.monthly_rent_paise);
@@ -1192,6 +1217,22 @@ export class PgListingService {
   /** Cheapest room-type rent, in rupees (listings.monthly_rent projection is rupees). */
   private cheapestRentRupees(p: PgListingPayload): number {
     return Math.round(this.cheapestRentPaise(p) / 100);
+  }
+
+  /**
+   * The listing's "starting" deposit (pg_details.security_deposit_paise), in
+   * paise. The wizard collects deposit PER ROOM now — the step-level input was
+   * removed — but public detail, the completeness score, and the missing-field
+   * heatmap all read pg_details.security_deposit_paise. Backfill it from the
+   * cheapest room deposit so those read paths stay correct without reviving a
+   * redundant operator input. Returns null when no room carries a deposit, so
+   * the column stays honestly empty rather than defaulting to 0.
+   */
+  private cheapestRoomDepositPaise(p: PgListingPayload): number | null {
+    const deposits = p.room_types
+      .map((rt) => rt.security_deposit_paise)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    return deposits.length ? Math.min(...deposits) : null;
   }
 
   private async writePgDetails(
@@ -1241,7 +1282,9 @@ export class PgListingService {
         d.tenant_type ?? null,
         d.notice_period_days ?? null,
         d.lock_in_months ?? null,
-        d.security_deposit_paise ?? null,
+        // Backfill the whole-PG deposit from the cheapest room when the operator
+        // didn't set one — the step-level input is gone; read paths still use it.
+        d.security_deposit_paise ?? this.cheapestRoomDepositPaise(p),
         d.deposit_refundable_pct ?? null,
         d.electricity_mode ?? null,
         d.maintenance_paise ?? null,
@@ -1269,12 +1312,14 @@ export class PgListingService {
       // sends it as a JS number which fits; vacancy_count is smallint, ditto.
       await exec.query(
         `INSERT INTO pg_room_types
-           (listing_id, sharing, ac, bathroom_kind, furnishing, room_size_sqft,
-            monthly_rent_paise, vacancy_count, available_from)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         ON CONFLICT (listing_id, sharing, ac, bathroom_kind, furnishing) DO UPDATE SET
+           (listing_id, sharing, ac, bathroom_kind, furnishing, has_balcony, room_size_sqft,
+            monthly_rent_paise, vacancy_count, security_deposit_paise, deposit_refundable_pct, available_from)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         ON CONFLICT (listing_id, sharing, ac, bathroom_kind, furnishing, has_balcony) DO UPDATE SET
             monthly_rent_paise = EXCLUDED.monthly_rent_paise,
             vacancy_count = EXCLUDED.vacancy_count,
+            security_deposit_paise = EXCLUDED.security_deposit_paise,
+            deposit_refundable_pct = EXCLUDED.deposit_refundable_pct,
             available_from = EXCLUDED.available_from`,
         [
           listingId,
@@ -1282,9 +1327,12 @@ export class PgListingService {
           rt.ac,
           rt.bathroom_kind ?? "attached_western",
           rt.furnishing ?? "semi_furnished",
+          rt.has_balcony ?? false,
           null,
           rt.monthly_rent_paise,
           rt.vacancy_count,
+          rt.security_deposit_paise ?? null,
+          rt.deposit_refundable_pct ?? null,
           rt.available_from ?? null
         ]
       );

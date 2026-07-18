@@ -32,6 +32,7 @@ function makeDetail(over: Partial<PgPublicDetail> = {}): PgPublicDetail {
     id: "L1",
     status: "active",
     title: "Sunrise PG",
+    description: null,
     monthly_rent: 7000,
     created_at: null,
     city_slug: "pune",
@@ -64,8 +65,11 @@ function makeDetail(over: Partial<PgPublicDetail> = {}): PgPublicDetail {
         ac: true,
         bathroom_kind: "attached",
         furnishing: "full",
+        has_balcony: true,
         monthly_rent_paise: 700000,
         vacancy_count: 1,
+        security_deposit_paise: 1400000,
+        deposit_refundable_pct: 100,
         available_from: null
       }
     ],
@@ -84,6 +88,17 @@ beforeEach(() => {
 });
 
 describe("PgDetailClient", () => {
+  it("renders the public listing description below the hero title", () => {
+    render(
+      <PgDetailClient
+        detail={makeDetail({ description: "Quiet PG near the metro." })}
+        city="pune"
+        locale="en"
+      />
+    );
+    expect(screen.getByText("Quiet PG near the metro.")).toBeTruthy();
+  });
+
   it("styles the PG detail bottom CTA as a direct card jump", () => {
     const styles = readFileSync("app/globals.css", "utf8");
 
@@ -219,8 +234,11 @@ describe("PgDetailClient", () => {
               ac: true,
               bathroom_kind: null,
               furnishing: null,
+              has_balcony: false,
               monthly_rent_paise: 700000,
               vacancy_count: 50,
+              security_deposit_paise: null,
+              deposit_refundable_pct: null,
               available_from: null
             }
           ]

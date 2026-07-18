@@ -165,8 +165,11 @@ export interface PgListingDetail {
     ac: boolean;
     bathroom_kind: string | null;
     furnishing: string | null;
+    has_balcony: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
+    security_deposit_paise: number | null;
+    deposit_refundable_pct: number | null;
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;
@@ -220,8 +223,54 @@ export interface PgCityLocality {
   lng: number | null;
 }
 
-export function listCityLocalities(citySlug: string) {
-  return fetchApi<{ items: PgCityLocality[] }>(`/seo/localities/${encodeURIComponent(citySlug)}`);
+const localityCache = new Map<string, { items: PgCityLocality[] }>();
+
+export async function listCityLocalities(citySlug: string): Promise<{ items: PgCityLocality[] }> {
+  if (localityCache.has(citySlug)) return localityCache.get(citySlug)!;
+
+  if (typeof window !== "undefined") {
+    const raw = window.sessionStorage.getItem(`pg:loc:${citySlug}`);
+    if (raw) {
+      const cached = { items: JSON.parse(raw) as PgCityLocality[] };
+      localityCache.set(citySlug, cached);
+      return cached;
+    }
+  }
+
+  const result = await fetchApi<{ items: PgCityLocality[] }>(
+    `/seo/localities/${encodeURIComponent(citySlug)}`
+  );
+  localityCache.set(citySlug, result);
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(`pg:loc:${citySlug}`, JSON.stringify(result.items));
+  }
+  return result;
+}
+
+export async function getPgNearby(
+  token: string,
+  lat: number,
+  lng: number
+): Promise<{ metro: string[]; college: string[]; office: string[] }> {
+  // Always resolve to a fully-shaped result — a missing/partial body (or any
+  // network error) must never leave a category `undefined`, which previously
+  // crashed the location step (`postgisNearby[category]` on undefined).
+  try {
+    const res = await fetchApi<{
+      metro?: string[];
+      college?: string[];
+      office?: string[];
+    } | null>(`/pg-operator/listings/nearby?lat=${lat}&lng=${lng}`, {
+      headers: authHeaders(token)
+    });
+    return {
+      metro: res?.metro ?? [],
+      college: res?.college ?? [],
+      office: res?.office ?? []
+    };
+  } catch {
+    return { metro: [], college: [], office: [] };
+  }
 }
 
 // ─── Draft persistence (§6.2) ─────────────────────────────────────────────────
@@ -292,15 +341,24 @@ function handleAiUnavailable(err: unknown): never {
   throw err;
 }
 
-export function generatePgContent(token: string, payload: PgListingPayload) {
-  return fetchApi<{ title: string; description: string }>(
-    "/pg-operator/listings/generate-content",
-    {
-      method: "POST",
-      headers: { ...authHeaders(token), "Content-Type": "application/json" },
-      body: JSON.stringify({ payload })
-    }
-  ).catch(handleAiUnavailable);
+export function generatePgContent(
+  token: string,
+  payload: PgListingPayload
+): Promise<{ title: string; description: string }> {
+  return (
+    fetchApi<{ title?: string; description?: string } | null>(
+      "/pg-operator/listings/generate-content",
+      {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({ payload })
+      }
+    )
+      // Normalize before the caller reads .title/.description so an unexpected
+      // empty/partial body can't throw "reading 'title' of undefined".
+      .then((res) => ({ title: res?.title ?? "", description: res?.description ?? "" }))
+      .catch(handleAiUnavailable)
+  );
 }
 
 export function getPgPricingSuggestions(

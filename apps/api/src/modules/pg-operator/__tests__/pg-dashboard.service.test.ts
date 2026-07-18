@@ -465,7 +465,8 @@ describe("LeadsSliceAdapter.inboxForOperator", () => {
         called_at: null,
         called_by: null,
         tenant_name: "Asha",
-        tenant_phone: null
+        tenant_phone: null,
+        preferred_sharing: null
       }
     ]);
   });

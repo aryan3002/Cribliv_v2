@@ -45,6 +45,7 @@ export interface PgPublicDetail {
   id: string;
   status: string;
   title: string | null;
+  description: string | null;
   monthly_rent: number | null;
   created_at: string | null;
   city_slug: string | null;
@@ -76,8 +77,11 @@ export interface PgPublicDetail {
     ac: boolean;
     bathroom_kind: string | null;
     furnishing: string | null;
+    has_balcony: boolean;
     monthly_rent_paise: number;
     vacancy_count: number;
+    security_deposit_paise: number | null;
+    deposit_refundable_pct: number | null;
     available_from: string | null;
   }>;
   photos: Array<{ blob_path: string; is_cover: boolean }>;
@@ -100,10 +104,12 @@ export function getPgPublicListing(
 
 export function expressPgInterest(
   id: string,
-  token: string
+  token: string,
+  preferredSharing?: string | null
 ): Promise<{ interested: boolean; created: boolean; lead_id?: string; reason?: string }> {
   return fetchApi(`/pg/listings/${id}/interest`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ preferred_sharing: preferredSharing ?? null })
   });
 }

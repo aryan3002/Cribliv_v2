@@ -29,6 +29,7 @@ import {
   OverridesSliceAdapter
 } from "./services/dashboard-adapters";
 import { PgAnalyticsOverrideService } from "../admin/pg-analytics-override.service";
+import { PgNearbyService } from "./services/pg-nearby.service";
 
 // No OwnerModule: PG is a self-contained bounded context after the split — it
 // owns its listing write (PgListingService) and its dashboard read (pg_listings).
@@ -51,6 +52,7 @@ import { PgAnalyticsOverrideService } from "../admin/pg-analytics-override.servi
     PgAiAssistService,
     PgFraudSignalsService,
     PgListingService,
+    PgNearbyService,
     PgDraftService,
     PgSearchService,
     PgAnalyticsService,

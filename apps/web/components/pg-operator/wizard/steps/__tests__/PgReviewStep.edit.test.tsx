@@ -7,6 +7,9 @@ vi.mock("@/lib/pg-funnel", () => ({ trackPgFunnel: vi.fn() }));
 
 const api = vi.hoisted(() => ({
   createPgListing: vi.fn(() => Promise.resolve({ listing_id: "NEW", status: "draft" })),
+  generatePgContent: vi.fn(() =>
+    Promise.resolve({ title: "AI PG", description: "AI description" })
+  ),
   updatePgListing: vi.fn(() => Promise.resolve({ listing_id: "L1", status: "pending_review" })),
   submitPgListing: vi.fn(() => Promise.resolve({ listing_id: "NEW", status: "pending_review" }))
 }));
@@ -54,6 +57,7 @@ function makeState() {
 
 beforeEach(() => {
   api.createPgListing.mockClear();
+  api.generatePgContent.mockClear();
   api.updatePgListing.mockClear();
   api.submitPgListing.mockClear();
   owner.presignListingPhotos.mockReset();
@@ -75,6 +79,25 @@ beforeEach(() => {
 });
 
 describe("PgReviewStep — edit mode save", () => {
+  it("animates generated title and description through requestAnimationFrame", async () => {
+    const dispatch = vi.fn();
+    const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    render(<PgReviewStep state={makeState()} dispatch={dispatch} locale="en" accessToken="tok" />);
+    fireEvent.click(screen.getByRole("button", { name: /draft title/i }));
+    await waitFor(() => expect(api.generatePgContent).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(raf).toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "title", value: "AI PG" })
+    );
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "description", value: "AI description" })
+    );
+    raf.mockRestore();
+  });
   it("calls updatePgListing (NOT createPgListing) and routes to ?updated=1", async () => {
     render(
       <PgReviewStep

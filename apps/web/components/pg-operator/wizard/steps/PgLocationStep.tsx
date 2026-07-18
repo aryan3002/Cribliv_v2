@@ -6,7 +6,7 @@ import { useGooglePlaces } from "@/lib/google-places";
 import { ensureMapsLoaded } from "@/lib/google-maps";
 import { CRIBLMAP_DARK_STYLE } from "@/lib/map-styles";
 import { trackPgFunnel } from "@/lib/pg-funnel";
-import { listCityLocalities, type PgCityLocality } from "@/lib/pg-operator-api";
+import { getPgNearby, listCityLocalities, type PgCityLocality } from "@/lib/pg-operator-api";
 import { CITIES } from "@/components/listing-wizard/types";
 import SectionCard from "../shared/SectionCard";
 import styles from "../shared/pg-wizard.module.css";
@@ -35,30 +35,91 @@ interface Props {
   accessToken: string | null;
 }
 
+type NearbyCategory = "metro" | "college" | "office";
+type NearbyResults = Record<NearbyCategory, string[]>;
+
+const NEARBY_CATEGORIES: NearbyCategory[] = ["metro", "college", "office"];
+const PLACE_TYPES: Record<NearbyCategory, string[]> = {
+  metro: ["subway_station", "train_station"],
+  college: ["university", "school"],
+  office: ["corporate_office"]
+};
+
+async function placesNearbyFallback(
+  lat: number,
+  lng: number,
+  categories: NearbyCategory[]
+): Promise<Partial<NearbyResults>> {
+  if (categories.length === 0) return {};
+
+  try {
+    await ensureMapsLoaded();
+    const { Place, SearchNearbyRankPreference } = (await google.maps.importLibrary(
+      "places"
+    )) as unknown as {
+      Place: {
+        searchNearby: (request: {
+          fields: string[];
+          locationRestriction: { center: { lat: number; lng: number }; radius: number };
+          includedPrimaryTypes: string[];
+          maxResultCount: number;
+          rankPreference: unknown;
+        }) => Promise<{ places?: Array<{ displayName?: string }> }>;
+      };
+      SearchNearbyRankPreference: { DISTANCE: unknown };
+    };
+    const entries = await Promise.all(
+      categories.map(async (category) => {
+        const { places } = await Place.searchNearby({
+          fields: ["displayName"],
+          locationRestriction: { center: { lat, lng }, radius: 1500 },
+          includedPrimaryTypes: PLACE_TYPES[category],
+          maxResultCount: 4,
+          rankPreference: SearchNearbyRankPreference.DISTANCE
+        });
+        return [
+          category,
+          (places ?? [])
+            .map((place) => place.displayName)
+            .filter((name): name is string => Boolean(name))
+        ] as const;
+      })
+    );
+    return Object.fromEntries(entries) as Partial<NearbyResults>;
+  } catch {
+    return {};
+  }
+}
+
 function NearbyTags({
   label,
   fieldKey,
   items,
-  dispatch
+  dispatch,
+  onOperatorEdit
 }: {
   label: string;
-  fieldKey: "metro" | "college" | "office";
+  fieldKey: NearbyCategory;
   items: string[];
   dispatch: Dispatch<PgWizardAction>;
+  onOperatorEdit: (category: NearbyCategory) => void;
 }) {
   const [draft, setDraft] = useState("");
   const commit = () => {
     const t = draft.trim();
     if (!t) return;
+    onOperatorEdit(fieldKey);
     dispatch({ type: "SET_FIELD", path: `pg_details.nearby.${fieldKey}`, value: [...items, t] });
     setDraft("");
   };
-  const remove = (it: string) =>
+  const remove = (it: string) => {
+    onOperatorEdit(fieldKey);
     dispatch({
       type: "SET_FIELD",
       path: `pg_details.nearby.${fieldKey}`,
       value: items.filter((x) => x !== it)
     });
+  };
 
   return (
     <div>
@@ -112,8 +173,8 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
 
   const [addressInput, setAddressInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [snapHint, setSnapHint] = useState<string | null>(null);
   const geocodedRef = useRef(false);
 
   // Canonical localities for the selected city — the SAME set used by locality
@@ -150,7 +211,10 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
         best = loc;
       }
     }
-    if (best) setF("property.locality_slug", best.slug);
+    if (best && best.slug !== localitySlug) {
+      if (!localitySlug) setF("property.locality_slug", best.slug);
+      setSnapHint(best.name_en);
+    }
   }
 
   // NOTE: Google's getPlacePredictions rejects mixing `establishment` with
@@ -163,6 +227,11 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
+  const nearbyCache = useRef(new Map<string, NearbyResults>());
+  const nearbyTimer = useRef<ReturnType<typeof setTimeout>>();
+  const nearbyStateRef = useRef<Partial<NearbyResults>>({});
+  const nearbyEditedRef = useRef(new Set<NearbyCategory>());
+  nearbyStateRef.current = state.draft.pg_details?.nearby ?? {};
 
   // City select → update city_slug
   const onCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -277,6 +346,27 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !citySlug) return;
+    const centroid = CITY_CENTROIDS[citySlug];
+    if (centroid) {
+      map.panTo(centroid);
+      map.setZoom(12);
+    }
+  }, [citySlug]);
+
+  useEffect(() => {
+    if (!localitySlug) return;
+    const locality = localities.find((item) => item.slug === localitySlug);
+    if (!locality || locality.lat == null || locality.lng == null) return;
+    setF("property.lat", locality.lat);
+    setF("property.lng", locality.lng);
+    placePin(locality.lat, locality.lng);
+    mapInstanceRef.current?.setZoom(14);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localitySlug]);
+
   // Sync marker when lat/lng change externally (autocomplete select, draft
   // hydration, drag). Moves the marker only — never commits — so no loop.
   useEffect(() => {
@@ -284,6 +374,50 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
     placePin(lat, lng);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lat, lng]);
+
+  useEffect(() => {
+    if (lat == null || lng == null || !accessToken) return;
+    const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+    let cancelled = false;
+    clearTimeout(nearbyTimer.current);
+    nearbyTimer.current = setTimeout(async () => {
+      let nearby = nearbyCache.current.get(key);
+      if (!nearby) {
+        const postgisNearby = await getPgNearby(accessToken, lat, lng);
+        if (cancelled) return;
+        const current = nearbyStateRef.current;
+        const fallbackCategories = NEARBY_CATEGORIES.filter(
+          (category) =>
+            (postgisNearby[category]?.length ?? 0) === 0 &&
+            !current[category]?.length &&
+            !nearbyEditedRef.current.has(category)
+        );
+        const fallbackNearby = await placesNearbyFallback(lat, lng, fallbackCategories);
+        if (cancelled) return;
+        nearby = { ...postgisNearby, ...fallbackNearby };
+        nearbyCache.current.set(key, nearby);
+      }
+      const current = nearbyStateRef.current;
+      const keep = (category: NearbyCategory) => {
+        const existing = current[category];
+        if (nearbyEditedRef.current.has(category)) return existing ?? [];
+        return existing?.length ? existing : (nearby[category] ?? []);
+      };
+      dispatch({
+        type: "SET_FIELD",
+        path: "pg_details.nearby",
+        value: {
+          metro: keep("metro"),
+          college: keep("college"),
+          office: keep("office")
+        }
+      });
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(nearbyTimer.current);
+    };
+  }, [accessToken, dispatch, lat, lng]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -372,6 +506,11 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
             <Navigation size={13} /> Tap the map or search above to drop your pin.
           </p>
         )}
+        {snapHint && (
+          <p className={styles.mapHint}>
+            <MapPin size={13} /> Nearest locality: {snapHint}
+          </p>
+        )}
         {error && (
           <p role="alert" style={{ color: "var(--pw-danger)", fontSize: 13, fontWeight: 600 }}>
             {error}
@@ -384,23 +523,27 @@ export default function PgLocationStep({ state, dispatch, accessToken }: Props) 
         subtitle="Landmarks help tenants find you, optional but recommended."
         icon={<Navigation size={20} />}
       >
+        <p className={styles.mapHint}>Auto-filled from map — edit as needed.</p>
         <NearbyTags
           label="metro"
           fieldKey="metro"
           items={state.draft.pg_details?.nearby?.metro ?? []}
           dispatch={dispatch}
+          onOperatorEdit={(category) => nearbyEditedRef.current.add(category)}
         />
         <NearbyTags
           label="college"
           fieldKey="college"
           items={state.draft.pg_details?.nearby?.college ?? []}
           dispatch={dispatch}
+          onOperatorEdit={(category) => nearbyEditedRef.current.add(category)}
         />
         <NearbyTags
           label="office"
           fieldKey="office"
           items={state.draft.pg_details?.nearby?.office ?? []}
           dispatch={dispatch}
+          onOperatorEdit={(category) => nearbyEditedRef.current.add(category)}
         />
       </SectionCard>
     </div>

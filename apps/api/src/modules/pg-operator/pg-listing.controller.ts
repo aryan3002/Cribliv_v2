@@ -12,6 +12,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Put,
   UseGuards
 } from "@nestjs/common";
@@ -31,6 +32,7 @@ import { PgListingCreateSchema } from "./dto/pg-listing.dto";
 import { PgDraftUpsertSchema } from "./dto/pg-draft.dto";
 import { UpdatePgListingStatusSchema } from "./dto/pg-listing-status.dto";
 import { readFeatureFlags } from "../../config/feature-flags";
+import { PgNearbyService } from "./services/pg-nearby.service";
 
 @Controller("pg-operator/listings")
 @UseGuards(AuthGuard, RolesGuard)
@@ -40,6 +42,7 @@ export class PgListingController {
     @Inject(PgListingService) private readonly listings: PgListingService,
     @Inject(PgPropertiesService) private readonly properties: PgPropertiesService,
     @Inject(PgDraftService) private readonly draftService: PgDraftService,
+    @Inject(PgNearbyService) private readonly nearby: PgNearbyService,
     @Optional() @Inject(IdempotencyService) private readonly idem: IdempotencyService | undefined,
     @Optional() @Inject(PgAiAssistService) private readonly aiAssist?: PgAiAssistService
   ) {}
@@ -131,6 +134,18 @@ export class PgListingController {
     await this.draftService.remove(user.id, id);
   }
 
+  @Get("nearby")
+  async nearbyPois(
+    @Query("lat") lat: string,
+    @Query("lng") lng: string,
+    @Query("radiusKm") radiusKm?: string
+  ) {
+    // ok() wraps the payload in the { data } envelope the web `fetchApi` unwraps.
+    return ok(
+      await this.nearby.nearby(Number(lat), Number(lng), radiusKm ? Number(radiusKm) : undefined)
+    );
+  }
+
   @Get(":id")
   async detail(@AuthUser() user: UserContext, @Param("id") id: string) {
     const detail = await this.listings.getOperatorListingDetail(user.id, id);
@@ -207,7 +222,7 @@ export class PgListingController {
     if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
       throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
     }
-    return this.aiAssist.generateContent(body.payload as never);
+    return ok(await this.aiAssist.generateContent(body.payload as never));
   }
 
   @Post("pricing-suggestions")
@@ -217,11 +232,13 @@ export class PgListingController {
     if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
       throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
     }
-    return this.aiAssist.pricingSuggestions({
-      city_slug: body.city_slug,
-      locality_slug: body.locality_slug,
-      sharings: body.sharings as never
-    });
+    return ok(
+      await this.aiAssist.pricingSuggestions({
+        city_slug: body.city_slug,
+        locality_slug: body.locality_slug,
+        sharings: body.sharings as never
+      })
+    );
   }
 
   @Post("amenity-suggestions")
@@ -229,6 +246,6 @@ export class PgListingController {
     if (!readFeatureFlags().ff_pg_ai_assist || !this.aiAssist) {
       throw new NotFoundException({ code: "feature_disabled", message: "ff_pg_ai_assist is off" });
     }
-    return this.aiAssist.amenitySuggestions(body.payload as never);
+    return ok(await this.aiAssist.amenitySuggestions(body.payload as never));
   }
 }

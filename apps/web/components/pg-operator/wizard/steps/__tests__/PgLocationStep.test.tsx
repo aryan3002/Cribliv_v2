@@ -131,4 +131,26 @@ describe("PgLocationStep", () => {
       expect(s.draft.property?.locality_slug).toBe("gomti-nagar");
     });
   });
+
+  it("preserves an explicitly selected locality when a later pin snaps elsewhere", async () => {
+    setupMocks();
+    mocks.listCityLocalities.mockResolvedValue({
+      items: [
+        { slug: "gomti-nagar", name_en: "Gomti Nagar", lat: 26.84, lng: 80.94 },
+        { slug: "hazratganj", name_en: "Hazratganj", lat: 30.0, lng: 76.0 }
+      ]
+    });
+    render(<Harness citySlug="lucknow" />);
+
+    const locality = await screen.findByRole("combobox", { name: /locality/i });
+    fireEvent.change(locality, { target: { value: "hazratganj" } });
+    fireEvent.change(screen.getByLabelText(/address search/i), { target: { value: "Gomti" } });
+    fireEvent.mouseDown(within(await screen.findByRole("listbox")).getByText("Gomti Nagar"));
+
+    await waitFor(() => {
+      const s = JSON.parse(screen.getByTestId("state").textContent!);
+      expect(s.draft.property?.locality_slug).toBe("hazratganj");
+    });
+    expect(screen.getByText(/Nearest locality: Gomti Nagar/i)).toBeInTheDocument();
+  });
 });

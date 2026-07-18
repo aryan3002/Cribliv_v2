@@ -1,5 +1,5 @@
 "use client";
-import { Dispatch, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Dispatch, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -10,11 +10,17 @@ import {
   ScrollText,
   Camera,
   Pencil,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles
 } from "lucide-react";
 import { trackPgFunnel } from "@/lib/pg-funnel";
 import { PgWizardState, PgWizardAction, buildSubmitPayload } from "@/lib/pg-wizard-state";
-import { createPgListing, updatePgListing, submitPgListing } from "@/lib/pg-operator-api";
+import {
+  createPgListing,
+  generatePgContent,
+  updatePgListing,
+  submitPgListing
+} from "@/lib/pg-operator-api";
 import { presignListingPhotos, completeListingPhotos, reorderListingPhotos } from "@/lib/owner-api";
 import PgScoreMeter from "../shared/PgScoreMeter";
 import SectionCard from "../shared/SectionCard";
@@ -124,6 +130,9 @@ export default function PgReviewStep({
   );
 
   const photosAddedRef = useRef(false);
+  const lastGeneratedRef = useRef("");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   useEffect(() => {
     if (totalPhotos >= MIN_PHOTOS && !photosAddedRef.current) {
       photosAddedRef.current = true;
@@ -138,7 +147,6 @@ export default function PgReviewStep({
   }, [totalPhotos, state.draftId]);
 
   const canSubmit =
-    (payload.title?.trim().length ?? 0) >= 2 &&
     payload.property.display_name.length >= 2 &&
     payload.property.city_slug.length > 0 &&
     payload.pg_details?.total_beds != null &&
@@ -335,8 +343,84 @@ export default function PgReviewStep({
     }
   };
 
+  // Gate on the live draft (not the strictly-filtered submit payload) so a room
+  // whose rent is still being typed doesn't wrongly disable "Draft with AI".
+  const canGenerate =
+    !!state.draft.property?.city_slug && (state.draft.room_types?.length ?? 0) > 0;
+  const handleGenerate = async () => {
+    if (!accessToken || !canGenerate) return;
+    const signature = JSON.stringify({
+      city: payload.property.city_slug,
+      rooms: payload.room_types,
+      gender: payload.pg_details.gender_policy
+    });
+    if (signature === lastGeneratedRef.current && state.draft.title) return;
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const generated = await generatePgContent(accessToken, payload);
+      lastGeneratedRef.current = signature;
+      const typewriter = (path: "title" | "description", value: string) => {
+        let index = 0;
+        const step = () => {
+          if (index <= value.length) {
+            dispatch({ type: "SET_FIELD", path, value: value.slice(0, index) });
+            index += 1;
+            requestAnimationFrame(step);
+          }
+        };
+        requestAnimationFrame(step);
+      };
+      typewriter("title", generated.title);
+      window.setTimeout(() => typewriter("description", generated.description), 400);
+    } catch (error) {
+      setGenerateError(error instanceof Error ? error.message : "Could not draft listing copy.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <SectionCard
+        title="Listing copy"
+        subtitle="AI-drafted for SEO — edit anything."
+        icon={<Sparkles size={20} />}
+      >
+        <button
+          type="button"
+          className="pgo-btn pgo-btn--primary"
+          onClick={handleGenerate}
+          disabled={generating || !canGenerate}
+        >
+          {generating ? "Drafting…" : "Draft title & description with AI"}
+        </button>
+        {!canGenerate && (
+          <p className={styles.fieldHint}>Add a city and at least one room to draft.</p>
+        )}
+        {generateError && <p role="alert">{generateError}</p>}
+        <label className={styles.fieldLabel}>
+          Title
+          <input
+            className={styles.textInput}
+            aria-label="listing title"
+            value={state.draft.title ?? ""}
+            onChange={(e) => dispatch({ type: "SET_FIELD", path: "title", value: e.target.value })}
+          />
+        </label>
+        <label className={styles.fieldLabel}>
+          Description
+          <textarea
+            className={styles.textInput}
+            aria-label="listing description"
+            rows={6}
+            value={state.draft.description ?? ""}
+            onChange={(e) =>
+              dispatch({ type: "SET_FIELD", path: "description", value: e.target.value })
+            }
+          />
+        </label>
+      </SectionCard>
       <SectionCard title="Basics" icon={<Building2 size={20} />} action={<Edit step={1} />}>
         <div className={styles.reviewRows}>
           <Row label="Listing title">{payload.title || "-"}</Row>
@@ -363,8 +447,14 @@ export default function PgReviewStep({
         <div className={styles.reviewRows}>
           {rooms.length === 0 && <Row label="Rooms">None added</Row>}
           {rooms.map((rt: any, i: number) => (
-            <Row key={i} label={`${titleCase(rt.sharing)} ${rt.ac ? "· AC" : "· Non-AC"}`}>
+            <Row
+              key={i}
+              label={`${titleCase(rt.sharing)} ${rt.ac ? "· AC" : "· Non-AC"}${
+                rt.has_balcony ? " · Balcony" : ""
+              }`}
+            >
               {rupees(rt.monthly_rent_paise)}/mo · {rt.vacancy_count ?? 0} vac
+              {rt.security_deposit_paise ? ` · ${rupees(rt.security_deposit_paise)} deposit` : ""}
             </Row>
           ))}
         </div>
@@ -402,10 +492,11 @@ export default function PgReviewStep({
               "Strict"
             )}
           </Row>
-          <Row label="Security deposit">{rupees(d.security_deposit_paise)}</Row>
           <Row label="Notice period">
             {d.notice_period_days != null ? `${d.notice_period_days} days` : "-"}
           </Row>
+          <Row label="Lock-in">{d.lock_in_months != null ? `${d.lock_in_months} mo` : "-"}</Row>
+          <Row label="Payment modes">{(d.payment_modes ?? []).join(", ") || "-"}</Row>
           <Row label="Electricity">{ELEC[d.electricity_mode] ?? "-"}</Row>
         </div>
       </SectionCard>

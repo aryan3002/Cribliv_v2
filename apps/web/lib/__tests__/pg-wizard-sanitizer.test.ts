@@ -3,6 +3,12 @@ import { sanitizePartialDraft } from "../pg-wizard-sanitizer";
 
 describe("sanitizePartialDraft", () => {
   // --- Spec cases ---
+  it("preserves a non-empty listing description for draft resume", () => {
+    const result = sanitizePartialDraft({ description: "  AI generated copy  " } as any);
+
+    expect(result).toMatchObject({ description: "AI generated copy" });
+  });
+
   it("drops empty strings", () => {
     expect(
       sanitizePartialDraft({ property: { display_name: "", city_slug: "blr" } } as any)

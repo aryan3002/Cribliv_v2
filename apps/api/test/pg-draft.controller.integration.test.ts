@@ -7,6 +7,7 @@ import { PgListingController } from "../src/modules/pg-operator/pg-listing.contr
 import { PgListingService } from "../src/modules/pg-operator/services/pg-listing.service";
 import { PgPropertiesService } from "../src/modules/pg-operator/services/pg-properties.service";
 import { PgDraftService } from "../src/modules/pg-operator/services/pg-draft.service";
+import { PgNearbyService } from "../src/modules/pg-operator/services/pg-nearby.service";
 import { AuthGuard } from "../src/common/auth.guard";
 
 const DRAFT_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -45,7 +46,8 @@ function buildApp(userId = "op-1", draftOwner = "op-1") {
     providers: [
       { provide: PgListingService, useValue: {} },
       { provide: PgPropertiesService, useValue: {} },
-      { provide: PgDraftService, useValue: draftSvc }
+      { provide: PgDraftService, useValue: draftSvc },
+      { provide: PgNearbyService, useValue: { nearby: vi.fn() } }
     ]
   })
   class TestModule {}
