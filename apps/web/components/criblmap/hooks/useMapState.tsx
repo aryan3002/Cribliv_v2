@@ -129,6 +129,7 @@ export interface MapState {
   center: { lat: number; lng: number };
   pins: MapPin[];
   selectedPinId: string | null;
+  highlightedPinIds: string[] | null;
   filters: MapFilters;
   panelContent: PanelContent;
   isLoading: boolean;
@@ -188,6 +189,8 @@ export type MapAction =
   | { type: "SET_PINS"; pins: MapPin[] }
   | { type: "SELECT_PIN"; pinId: string }
   | { type: "DESELECT_PIN" }
+  | { type: "SET_HIGHLIGHT"; pinIds: string[] }
+  | { type: "CLEAR_HIGHLIGHT" }
   | { type: "SET_FILTERS"; filters: MapFilters }
   | { type: "SET_PANEL"; panelContent: PanelContent }
   | { type: "SET_LOADING"; isLoading: boolean }
@@ -223,6 +226,7 @@ export const initialMapState: MapState = {
   center: cityCentroid("lucknow")!,
   pins: [],
   selectedPinId: null,
+  highlightedPinIds: null,
   filters: {},
   panelContent: { type: "none" },
   isLoading: false,
@@ -277,6 +281,12 @@ export function mapReducer(state: MapState, action: MapAction): MapState {
       // Closing the panel (incl. the Seek toolbar toggle) discards the draft
       // so the next Seek starts fresh at the map centre.
       return { ...state, selectedPinId: null, panelContent: { type: "none" }, seekerDraft: null };
+
+    case "SET_HIGHLIGHT":
+      return { ...state, highlightedPinIds: action.pinIds };
+
+    case "CLEAR_HIGHLIGHT":
+      return { ...state, highlightedPinIds: null };
 
     case "SET_FILTERS":
       return { ...state, filters: action.filters };
