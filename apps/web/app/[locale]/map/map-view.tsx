@@ -173,7 +173,9 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
         )}
 
         <TopBar locale={locale} onPlaceSelect={handlePlaceSelect} />
-        <MapResultsRail locale={locale} map={mapInstance} />
+        {/* When the voice map is on, the Maya sheet is the single results surface —
+            suppress the legacy left rail so the two don't compete/occlude. */}
+        {!voiceMapOn && <MapResultsRail locale={locale} map={mapInstance} />}
 
         {isLoading && pins.length === 0 && (
           <div className="cmap-loading">
@@ -199,7 +201,7 @@ export function MapView({ locale, initialCenter, initialZoom }: MapViewProps) {
           )}
 
         <FloatingToolbar onCommuteClick={() => setShowCommuteInput(true)} />
-        <BottomBar onBenchmarkClick={() => setShowBenchmark(true)} />
+        {!voiceMapOn && <BottomBar onBenchmarkClick={() => setShowBenchmark(true)} />}
 
         {/* Modals */}
         {showBenchmark && <BenchmarkModal onClose={() => setShowBenchmark(false)} />}
