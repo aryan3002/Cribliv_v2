@@ -1,9 +1,10 @@
 import { fetchApi } from "./api";
 
 // Client for the public blog API (GET /blog, GET /blog/:slug). Mirrors the
-// server BlogService row shapes. All reads are server-side + ISR (the pages set
-// `export const revalidate`), so we pass { server: true } like the other
-// programmatic pages.
+// server BlogService row shapes. These reads back ISR pages (the pages set
+// `export const revalidate`), so an ISR page should pass `{ revalidate: N }` to
+// keep the fetch cacheable — otherwise a no-store fetch forces the whole route
+// dynamic (per-request SSR). Omit it for build-time enumeration (slug lists).
 
 export interface BlogListItem {
   slug: string;
@@ -60,7 +61,8 @@ export async function fetchBlogList(
     page_size?: number;
     category?: string;
     city?: string;
-  } = {}
+  } = {},
+  opts: { revalidate?: number } = {}
 ): Promise<{ items: BlogListItem[]; total: number }> {
   const qs = new URLSearchParams();
   if (params.page) qs.set("page", String(params.page));
@@ -70,7 +72,8 @@ export async function fetchBlogList(
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   try {
     return await fetchApi<{ items: BlogListItem[]; total: number }>(`/blog${suffix}`, undefined, {
-      server: true
+      server: true,
+      revalidate: opts.revalidate
     });
   } catch {
     return { items: [], total: 0 };

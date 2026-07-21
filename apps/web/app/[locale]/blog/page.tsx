@@ -60,14 +60,16 @@ export default async function BlogHubPage({ params }: { params: { locale: string
   const locale = params.locale;
   const hi = locale === "hi";
 
-  const { items } = await fetchBlogList({ page_size: 12 });
+  // ISR-cached ({ revalidate: 3600 }) so this index stays static — a single
+  // no-store fetch would force the whole route into per-request dynamic SSR.
+  const { items } = await fetchBlogList({ page_size: 12 }, { revalidate: 3600 });
 
   let listings: ClassifiedListing[] = [];
   try {
     const res = await fetchApi<{ items: ClassifiedListing[] }>(
       `/listings/search?${buildSearchQuery({ page_size: "6", sort: "newest" })}`,
       undefined,
-      { server: true }
+      { revalidate: 3600 }
     );
     listings = res.items.slice(0, 3);
   } catch {

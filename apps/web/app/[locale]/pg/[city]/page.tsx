@@ -12,13 +12,14 @@ import { SearchResultsMap } from "../../search/SearchResultsMap";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
-// ISR. This page has generateStaticParams (so Next prerenders it static) but
-// fetches live PG inventory with a no-store request (searchPgListings ->
-// fetchApi { server: true }). Without a revalidate/dynamic declaration, Next
-// throws "Page changed from static to dynamic at runtime" and serves a 500 for
-// every /pg/{city} URL. Declaring revalidate reconciles the two — identical to
-// the working /city/[citySlug] page, which pairs the same no-store fetch with
-// `export const revalidate = 3600`.
+// ISR. This page has generateStaticParams so Next prerenders one static page
+// per city and serves it from the ISR cache (near-zero CPU per request). The
+// PG inventory fetch below MUST be cacheable ({ revalidate }) for that to hold:
+// a `no-store` fetch (the old `{ server: true }`) opts the whole route back into
+// per-request dynamic SSR — Next logs "Page changed from static to dynamic at
+// runtime, reason: no-store fetch" and every visitor burns a serverless render.
+// Aligning the fetch's revalidate with the page's is what actually makes the
+// page ISR govern freshness (hourly), which is all PG inventory needs.
 export const revalidate = 3600;
 
 export function generateStaticParams() {
@@ -57,7 +58,7 @@ export default async function PgCityPage({ params }: { params: { locale: string;
 
   let listings: PgSearchResponse = { items: [], total: 0, page: 1, page_size: 12 };
   try {
-    listings = await searchPgListings({ city: c.slug, page_size: "12" }, { server: true });
+    listings = await searchPgListings({ city: c.slug, page_size: "12" }, { revalidate: 3600 });
   } catch {
     /* render the landing without live inventory */
   }
