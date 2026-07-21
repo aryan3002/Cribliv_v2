@@ -226,8 +226,8 @@ Local Google-Maps markers do not render in the Browser preview, so:
   valve, the pin markup/CSS can sit behind a `NEXT_PUBLIC_FF_*` flag, decided at
   plan time.
 
-## Open questions
+## Resolved decisions
 
-- Verified-PG mark: spec includes the mark for verified PGs (`[mark] PG ₹6K`).
-  Confirm during spec review if you'd rather keep PG pills mark-free to exactly
-  match the mockup.
+- **Verified-PG mark (resolved 2026-07-21):** include the Cribliv mark on
+  verified PGs (`[mark] PG ₹6K`) so a verified PG still visibly earns the trust
+  badge. Unverified PGs stay mark-free (`PG ₹6K`).
