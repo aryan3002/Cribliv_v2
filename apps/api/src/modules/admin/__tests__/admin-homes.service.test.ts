@@ -960,7 +960,7 @@ describe("AdminHomesService", () => {
             owner_role: "owner",
             owner_is_blocked: false,
             owner_member_since: "2026-01-01T00:00:00.000Z",
-            owner_last_login_at: "2026-07-15T02:00:00.000Z",
+            owner_last_login_at: new Date(now - 2 * 86_400_000).toISOString(),
             report_count: "2"
           }
         ]
