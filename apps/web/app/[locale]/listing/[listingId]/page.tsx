@@ -5,6 +5,7 @@ import { toTitleCase } from "../../../../lib/utils";
 import { buildListing } from "../../../../lib/structured-data";
 import { jsonLdSafe } from "../../../../lib/jsonld";
 import { ogImageFor } from "../../../../lib/og-image";
+import { isUnavailableListingsEnabled } from "../../../../lib/unavailable-listings-flag";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
 import { ListingGallery } from "../../../../components/listing/listing-gallery";
 import { ListingHighlights } from "../../../../components/listing/listing-highlights";
@@ -24,7 +25,8 @@ import {
   HomeIcon,
   ChevronRight,
   Shield,
-  BadgeIndianRupee
+  BadgeIndianRupee,
+  XCircle
 } from "lucide-react";
 import { isValidLocale, type Locale, t } from "../../../../lib/i18n";
 
@@ -38,6 +40,11 @@ interface ListingDetailResponse {
     listing_type: "flat_house" | "pg";
     monthly_rent: number;
     verification_status: "unverified" | "pending" | "verified" | "failed";
+    /** Mirrors the `listings.is_available` DB column (migration 0067, Task 12).
+     *  Optional here defensively — treat missing as available. */
+    is_available?: boolean;
+    /** Count of seekers on the notify-when-available waitlist (Task 12). */
+    waitlist_count?: number;
     city: string;
     locality?: string | null;
     lat?: number | null;
@@ -192,6 +199,11 @@ export default async function ListingDetailPage({
   const isPending = listing.verification_status === "pending";
   const amenities = listing.amenities ?? [];
   const photos = listing.photos ?? [];
+  // Server Component — useFlag (client hook) can't run here, so this reads
+  // the env var directly (same pattern as search/page.tsx, Task 10). The
+  // panel below independently re-checks via its own useFlag() call using the
+  // raw is_available/waitlist_count props, matching that dual-gate pattern.
+  const isUnavailable = isUnavailableListingsEnabled() && listing.is_available === false;
 
   // Fetch market rate data
   let pricingIntel: PricingIntelResponse | null = null;
@@ -275,6 +287,12 @@ export default async function ListingDetailPage({
               className="flex items-center gap-2"
               style={{ flexWrap: "wrap", marginBottom: "var(--space-2)" }}
             >
+              {isUnavailable && (
+                <span className="badge badge--pending">
+                  <XCircle size={14} style={{ marginRight: 4 }} aria-hidden="true" />{" "}
+                  {t(locale, "availUnavailableBadge")}
+                </span>
+              )}
               {isVerified && (
                 <span className="badge badge--verified">
                   <ShieldCheck size={14} style={{ marginRight: 4 }} aria-hidden="true" /> Verified
@@ -618,6 +636,8 @@ export default async function ListingDetailPage({
                   listingId={params.listingId}
                   locale={locale}
                   source={sourceRef ?? undefined}
+                  isAvailable={listing.is_available}
+                  waitlistCount={listing.waitlist_count}
                 />
               </div>
 
@@ -654,7 +674,7 @@ export default async function ListingDetailPage({
           )}
         </div>
         <a href="#unlock-panel" className="btn btn--primary btn--sm">
-          View Contact
+          {isUnavailable ? t(locale, "availNotifyButton") : "View Contact"}
         </a>
       </div>
     </>

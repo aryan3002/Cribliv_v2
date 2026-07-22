@@ -1,6 +1,7 @@
 "use client";
 
 import type { MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import styles from "./notify-availability-button.module.css";
 
@@ -9,9 +10,8 @@ export interface NotifyAvailabilityButtonProps {
   locale: string;
   variant: "inline" | "primary";
   /**
-   * Optional override, mainly useful for tests/composition. Task 13 wires the
-   * real OTP → waitlist flow here (via a shared `useNotifyAvailability(listingId)`
-   * hook, per the plan) so this component's signature doesn't need to change.
+   * Optional extra side-effect, mainly useful for tests/composition. Runs
+   * after navigation is kicked off.
    */
   onClick?: () => void;
 }
@@ -23,10 +23,14 @@ const LABEL: Record<NotifyAvailabilityButtonProps["variant"], string> = {
 
 /**
  * Shared "notify me when available" trigger for a listing marked
- * `is_available: false`. Used inline on the search card (Task 10) and, once
- * Task 13 lands, as the primary detail-page CTA that replaces "Request
- * Callback". `listingId`/`locale` are threaded through now so Task 13 can
- * wire the real flow without changing this component's public signature.
+ * `is_available: false`. Used inline on the search card (Task 10).
+ *
+ * Task 13 deliberately simplified the original plan here: rather than a
+ * shared `useNotifyAvailability(listingId)` hook running the full OTP→join
+ * flow inside this tiny card (poor UX — a phone-number + OTP form crammed
+ * into a search-result card), this button just navigates to the listing
+ * detail page, where `UnlockContactPanel` owns the real OTP→join-waitlist
+ * flow end to end.
  */
 export function NotifyAvailabilityButton({
   listingId,
@@ -34,17 +38,16 @@ export function NotifyAvailabilityButton({
   variant,
   onClick
 }: NotifyAvailabilityButtonProps) {
+  const router = useRouter();
+
   function handleClick(event: MouseEvent<HTMLButtonElement>) {
     // Card usage sits inside the card's outer <Link> (same as the existing
-    // heart/save button) — stop the tap from navigating away before the
-    // (future) OTP flow gets a chance to run.
+    // heart/save button) — stop the tap from navigating via that Link before
+    // we send it to the exact same destination ourselves.
     event.preventDefault();
     event.stopPropagation();
 
-    // TODO(Task 13): wire OTP→join waitlist flow — POST
-    // /listings/:id/availability-alerts via a shared
-    // useNotifyAvailability(listingId) hook shared with the detail page.
-    // Intentionally a no-op until then: do not fake a success state here.
+    router.push(`/${locale}/listing/${listingId}` as any);
     onClick?.();
   }
 

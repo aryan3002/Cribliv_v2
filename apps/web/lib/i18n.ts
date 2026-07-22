@@ -962,6 +962,33 @@ const dictionary: Dictionary = {
   cpGatewayUnavailable: {
     en: "Couldn't load the payment gateway. Please use UPI instead.",
     hi: "भुगतान गेटवे लोड नहीं हो सका। कृपया UPI से भुगतान करें।"
+  },
+  // ── Unavailable listings: notify-when-available waitlist (calm-swap CTA) ───
+  availUnavailableBadge: { en: "Unavailable", hi: "अनुपलब्ध" },
+  availUnavailableChip: {
+    en: "Not available right now",
+    hi: "फ़िलहाल उपलब्ध नहीं है"
+  },
+  availNotifyButton: { en: "Notify when available", hi: "उपलब्ध होने पर सूचित करें" },
+  availVerifyButton: {
+    en: "Verify & notify me",
+    hi: "सत्यापित करें और मुझे सूचित करें"
+  },
+  availGuestHint: {
+    en: "Guest browsing is open. OTP is required only to join the waitlist.",
+    hi: "मेहमान के तौर पर ब्राउज़िंग खुली है। प्रतीक्षा सूची में शामिल होने के लिए ही OTP ज़रूरी है।"
+  },
+  availJoinedSuccess: {
+    en: "You're on the list — we'll notify you when it's available",
+    hi: "आप सूची में शामिल हो गए हैं — उपलब्ध होने पर हम आपको सूचित करेंगे"
+  },
+  availAlreadyOnList: {
+    en: "You're already on the waitlist",
+    hi: "आप पहले से ही प्रतीक्षा सूची में हैं"
+  },
+  availWaitlistCount: {
+    en: "{n} people are waiting for this home",
+    hi: "{n} लोग इस घर के लिए प्रतीक्षा कर रहे हैं"
   }
 };
 

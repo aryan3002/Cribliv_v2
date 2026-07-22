@@ -21,6 +21,13 @@ vi.mock("next/link", () => ({
   )
 }));
 
+// Task 13 gave NotifyAvailabilityButton a real useRouter().push() navigation
+// — needed so the "flag ON + unavailable" case below (which mounts it) can
+// render at all; Next's app-router useRouter() throws without a provider.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() })
+}));
+
 // The card's default heart slot pulls in next-auth session + API calls that
 // are irrelevant to availability rendering; stub it out to keep this test
 // focused on the availability treatment.
