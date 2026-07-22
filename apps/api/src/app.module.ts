@@ -30,6 +30,7 @@ import { FraudModule } from "./modules/fraud/fraud.module";
 import { BoostModule } from "./modules/boost/boost.module";
 import { SubscriptionModule } from "./modules/subscriptions/subscription.module";
 import { AlertsModule } from "./modules/alerts/alerts.module";
+import { AvailabilityAlertsModule } from "./modules/availability-alerts/availability-alerts.module";
 import { MapModule } from "./modules/map/map.module";
 import { LandmarksModule } from "./modules/landmarks/landmarks.module";
 import { BlogModule } from "./modules/blog/blog.module";
@@ -72,6 +73,7 @@ import { VoiceAgentPgModule } from "./modules/voice-agent-pg/voice-agent-pg.modu
     BoostModule,
     SubscriptionModule,
     AlertsModule,
+    AvailabilityAlertsModule,
     MapModule,
     LandmarksModule,
     SeoModule,
