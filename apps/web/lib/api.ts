@@ -27,7 +27,7 @@ export function getApiBaseUrl() {
 export async function fetchApi<T>(
   path: string,
   init: RequestInit = {},
-  opts: { server?: boolean } = {}
+  opts: { server?: boolean; revalidate?: number } = {}
 ): Promise<T> {
   const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
   const headers = new Headers(init.headers ?? {});
@@ -36,10 +36,23 @@ export async function fetchApi<T>(
     headers.set("Content-Type", "application/json");
   }
 
+  // Cache strategy for server-side (RSC) fetches:
+  //   - opts.revalidate: ISR-cache this fetch for N seconds. This is what lets a
+  //     page with generateStaticParams stay static/ISR — its data revalidates in
+  //     the background instead of the fetch forcing the whole route dynamic.
+  //     THIS is how "the page's ISR revalidation governs freshness" is actually
+  //     achieved; `no-store` defeats it (opts the route into per-request SSR).
+  //   - opts.server (no revalidate): no-store — never cached, forces the route
+  //     dynamic. Only for pages that must be per-request fresh (search, authed).
+  const cacheInit: RequestInit =
+    typeof opts.revalidate === "number"
+      ? { next: { revalidate: opts.revalidate } }
+      : { cache: opts.server ? "no-store" : init.cache };
+
   const response = await fetch(url, {
     ...init,
     headers,
-    cache: opts.server ? "no-store" : init.cache
+    ...cacheInit
   });
 
   const payload = await response.json().catch(() => ({}));

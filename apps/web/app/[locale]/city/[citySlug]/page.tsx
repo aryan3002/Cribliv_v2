@@ -206,13 +206,14 @@ export default async function CityPage({
   const cityCapitalized = city.replace(/\b\w/g, (c) => c.toUpperCase());
   const isHindi = params.locale === "hi";
 
-  // Fetch top listings for this city
+  // Fetch top listings for this city. ISR-cached ({ revalidate }) — a no-store
+  // fetch here would force this whole static hub into per-request dynamic SSR.
   let listings: ListingCard[] = [];
   try {
     const response = await fetchApi<SearchResponse>(
       `/listings/search?${buildSearchQuery({ city: params.citySlug, page_size: "9" })}`,
       undefined,
-      { server: true }
+      { revalidate: 3600 }
     );
     listings = response.items;
   } catch {
@@ -227,13 +228,17 @@ export default async function CityPage({
   // Programmatic SEO enrichment — shown for any city enabled via the admin
   // toggle (fetchEnabledCities), not just Lucknow. Each fetch is best-effort
   // and returns [] if the API is down so the page still renders.
-  const enabledCities = await fetchEnabledCities();
+  // All ISR-cached ({ revalidate: 3600 }) so this hub stays static — every fetch
+  // on the route must be cacheable or one no-store call forces dynamic SSR. An
+  // admin enabling a city is picked up on the next hourly revalidation (the
+  // hub's own SLA), not per request.
+  const enabledCities = await fetchEnabledCities({ revalidate: 3600 });
   const isProgrammatic = enabledCities.has(params.citySlug);
   const [liveLocalities, liveLandmarks, liveMetros] = isProgrammatic
     ? await Promise.all([
-        fetchLocalities(params.citySlug),
-        fetchLandmarks(params.citySlug),
-        fetchMetroStationsForCity(params.citySlug)
+        fetchLocalities(params.citySlug, { revalidate: 3600 }),
+        fetchLandmarks(params.citySlug, undefined, { revalidate: 3600 }),
+        fetchMetroStationsForCity(params.citySlug, { revalidate: 3600 })
       ])
     : [[], [], []];
 

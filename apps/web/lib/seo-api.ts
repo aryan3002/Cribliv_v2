@@ -1,8 +1,14 @@
 /**
- * Server-only helpers for fetching SEO page data from the API. All calls pass
- * `{ server: true }` to fetchApi (no-store) so a page's ISR revalidation, not
- * a stale per-fetch cache, governs freshness — including the enabled-city
- * config, which must reflect an admin toggle on the next render.
+ * Server-only helpers for fetching SEO page data from the API.
+ *
+ * Caching: pass `{ revalidate: N }` from a static/ISR page (one with
+ * generateStaticParams + `export const revalidate`) so the fetch is ISR-cached
+ * and the route stays static — rendered once per revalidate window and served
+ * from cache, not re-rendered per request. Aligning the fetch's revalidate with
+ * the page's is what actually makes "the page's ISR revalidation govern
+ * freshness". Omit it (the default) on genuinely dynamic pages to keep no-store.
+ * NOTE: a single no-store fetch opts the whole route back into per-request SSR,
+ * so an ISR page must pass revalidate to EVERY helper it calls.
  *
  * Every function returns a typed shape with sensible fallbacks when the API
  * is unreachable — pages always render, even if aggregates show as zero.
@@ -93,12 +99,15 @@ interface SeoCityRow {
   programmatic_enabled: boolean;
 }
 
-export async function fetchLocalities(citySlug: string): Promise<LocalityRow[]> {
+export async function fetchLocalities(
+  citySlug: string,
+  opts: { revalidate?: number } = {}
+): Promise<LocalityRow[]> {
   try {
     const res = await fetchApi<{ items: LocalityRow[] }>(
       `/seo/localities/${encodeURIComponent(citySlug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
     return res.items ?? [];
   } catch {
@@ -110,16 +119,17 @@ export async function fetchLocalities(citySlug: string): Promise<LocalityRow[]> 
  * City slugs whose programmatic SEO pages are live. Falls back to Lucknow on
  * any API problem or empty enabled set so the reference city never goes dark.
  *
- * Fetched no-store (`server: true`) — NOT cached — so an admin enabling a city
- * is reflected on the next render. A cached copy here would gate the hub's
- * programmatic grids on a stale enabled-set: the hub would keep rendering the
- * plain search fallback for a freshly-enabled city until the cache expired.
- * The hub itself is ISR (revalidate=3600), which bounds how often this runs.
+ * An ISR caller should pass its own `revalidate` (e.g. 3600) so this fetch is
+ * cached for the same window as the page — an admin enabling a city is then
+ * reflected on the next revalidation (hourly), exactly the hub's SLA, while the
+ * page still serves from cache in between. Omitting revalidate keeps it no-store
+ * (per-request fresh) for any caller that needs it.
  */
-export async function fetchEnabledCities(): Promise<Set<string>> {
+export async function fetchEnabledCities(opts: { revalidate?: number } = {}): Promise<Set<string>> {
   try {
     const res = await fetchApi<{ items: SeoCityRow[] }>("/seo/cities", undefined, {
-      server: true
+      server: true,
+      revalidate: opts.revalidate
     });
     const enabled = (res.items ?? [])
       .filter((city) => city.programmatic_enabled)
@@ -146,13 +156,17 @@ export async function fetchLocality(
   }
 }
 
-export async function fetchLandmarks(citySlug: string, type?: string): Promise<LandmarkRow[]> {
+export async function fetchLandmarks(
+  citySlug: string,
+  type?: string,
+  opts: { revalidate?: number } = {}
+): Promise<LandmarkRow[]> {
   try {
     const qs = type ? `?type=${encodeURIComponent(type)}` : "";
     const res = await fetchApi<{ items: LandmarkRow[] }>(
       `/landmarks/${encodeURIComponent(citySlug)}${qs}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
     return res.items ?? [];
   } catch {
@@ -210,7 +224,10 @@ export async function fetchMetroStation(
   }
 }
 
-export async function fetchMetroStationsForCity(city: string): Promise<MetroStationRow[]> {
+export async function fetchMetroStationsForCity(
+  city: string,
+  opts: { revalidate?: number } = {}
+): Promise<MetroStationRow[]> {
   try {
     // /map/metro returns stations keyed as `name`, not `station_name`. Map
     // them into the SEO row shape so callers can rely on station_name.
@@ -220,7 +237,10 @@ export async function fetchMetroStationsForCity(city: string): Promise<MetroStat
         line_color: string;
         stations: Array<{ id: number; name: string; lat: number; lng: number; sequence: number }>;
       }>;
-    }>(`/map/metro?city=${encodeURIComponent(city)}`, undefined, { server: true });
+    }>(`/map/metro?city=${encodeURIComponent(city)}`, undefined, {
+      server: true,
+      revalidate: opts.revalidate
+    });
     return (res.lines ?? []).flatMap((line) =>
       line.stations.map((s) => ({
         id: s.id,

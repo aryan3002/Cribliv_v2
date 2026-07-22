@@ -89,7 +89,7 @@ export interface PgPublicDetail {
 
 export function searchPgListings(
   query: Record<string, string>,
-  opts: { server?: boolean } = {}
+  opts: { server?: boolean; revalidate?: number } = {}
 ): Promise<PgSearchResponse> {
   const qs = buildSearchQuery(query);
   return fetchApi<PgSearchResponse>(`/pg/listings${qs ? `?${qs}` : ""}`, undefined, opts);
