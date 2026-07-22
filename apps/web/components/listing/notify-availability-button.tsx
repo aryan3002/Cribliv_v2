@@ -3,6 +3,7 @@
 import type { MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
+import { t, type Locale } from "../../lib/i18n";
 import styles from "./notify-availability-button.module.css";
 
 export interface NotifyAvailabilityButtonProps {
@@ -16,9 +17,11 @@ export interface NotifyAvailabilityButtonProps {
   onClick?: () => void;
 }
 
-const LABEL: Record<NotifyAvailabilityButtonProps["variant"], string> = {
-  inline: "Notify me",
-  primary: "Notify when available"
+// primary reuses the exact same copy already established by Tasks 8/10/13/15
+// for unlock-contact-panel.tsx / listing/[listingId]/page.tsx.
+const LABEL_KEY: Record<NotifyAvailabilityButtonProps["variant"], string> = {
+  inline: "notifyMe",
+  primary: "availNotifyButton"
 };
 
 /**
@@ -60,7 +63,7 @@ export function NotifyAvailabilityButton({
       data-locale={locale}
     >
       <Bell size={variant === "primary" ? 14 : 12} aria-hidden="true" />
-      {LABEL[variant]}
+      {t(locale as Locale, LABEL_KEY[variant])}
     </button>
   );
 }

@@ -989,6 +989,37 @@ const dictionary: Dictionary = {
   availWaitlistCount: {
     en: "{n} people are waiting for this home",
     hi: "{n} लोग इस घर के लिए प्रतीक्षा कर रहे हैं"
+  },
+  // ── Task 16: remaining availability copy (owner toggles, cards, search) ───
+  availabilityLabel: { en: "Availability", hi: "उपलब्धता" },
+  availabilityAvailable: { en: "Available", hi: "उपलब्ध" },
+  availabilityNotAvailable: { en: "Not available", hi: "उपलब्ध नहीं" },
+  availabilityHelper: {
+    en: "Stays listed, sinks in search, collects notify sign-ups.",
+    hi: "लिस्टिंग बनी रहती है, खोज में नीचे जाती है, और नोटिफाई साइन-अप जुटाती है।"
+  },
+  visibilityLabel: { en: "Visibility", hi: "दृश्यता" },
+  visibilityLive: { en: "Live", hi: "सक्रिय" },
+  visibilityHelper: {
+    en: "Paused hides it from search completely",
+    hi: "रोकने पर यह खोज से पूरी तरह हट जाती है"
+  },
+  notifyMe: { en: "Notify me", hi: "मुझे सूचित करें" },
+  waitlistPeopleWaiting: {
+    en: "{count} people want to be notified when this is available",
+    hi: "{count} लोग इसके उपलब्ध होने पर सूचना पाना चाहते हैं"
+  },
+  currentlyUnavailableDivider: {
+    en: "Currently unavailable · get notified when they're back",
+    hi: "फ़िलहाल अनुपलब्ध · वापस आने पर सूचना पाएं"
+  },
+  // Aliases matching the original task-16 brief's literal key names — same
+  // copy as availNotifyButton / currentlyUnavailableDivider above, kept as
+  // separate entries in case anything references these exact names.
+  notifyWhenAvailable: { en: "Notify when available", hi: "उपलब्ध होने पर सूचित करें" },
+  currentlyUnavailable: {
+    en: "Currently unavailable · get notified when they're back",
+    hi: "फ़िलहाल अनुपलब्ध · वापस आने पर सूचना पाएं"
   }
 };
 

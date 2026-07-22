@@ -3,6 +3,7 @@
 import { useState, useEffect, useId } from "react";
 import { setListingAvailability } from "../../lib/owner-api";
 import { useFlag } from "../../lib/feature-flags";
+import { t, type Locale } from "../../lib/i18n";
 
 interface ListingAvailabilityToggleProps {
   listingId: string;
@@ -12,6 +13,9 @@ interface ListingAvailabilityToggleProps {
   /** Hide the row label + helper copy for tight, inline placements (desktop action row). */
   showLabel?: boolean;
   errorMessage?: string;
+  /** Defaults to "en" so existing callers/tests that don't pass a locale keep
+   *  rendering the exact same English copy as before Task 16. */
+  locale?: Locale;
 }
 
 /**
@@ -27,7 +31,8 @@ export function ListingAvailabilityToggle({
   available,
   onAvailabilityChange,
   showLabel = true,
-  errorMessage = "We couldn't update availability. Please try again."
+  errorMessage = "We couldn't update availability. Please try again.",
+  locale = "en"
 }: ListingAvailabilityToggleProps) {
   const flagOn = useFlag("ff_unavailable_listings");
   const id = useId();
@@ -63,7 +68,11 @@ export function ListingAvailabilityToggle({
 
   return (
     <div className="listing-availability-toggle listing-availability-toggle--touch">
-      {showLabel && <span className="listing-availability-toggle__row-label">Availability</span>}
+      {showLabel && (
+        <span className="listing-availability-toggle__row-label">
+          {t(locale, "availabilityLabel")}
+        </span>
+      )}
 
       <label htmlFor={id} className="listing-availability-toggle__label">
         <span className="listing-availability-toggle__switch">
@@ -73,7 +82,7 @@ export function ListingAvailabilityToggle({
             role="switch"
             checked={isAvailable}
             aria-checked={isAvailable}
-            aria-label="Availability"
+            aria-label={t(locale, "availabilityLabel")}
             disabled={toggling}
             onChange={() => void handleToggle()}
             className="listing-availability-toggle__input"
@@ -93,15 +102,15 @@ export function ListingAvailabilityToggle({
                 : "listing-availability-toggle__text listing-availability-toggle__text--amber"
             }
           >
-            {isAvailable ? "Available" : "Not available"}
+            {isAvailable
+              ? t(locale, "availabilityAvailable")
+              : t(locale, "availabilityNotAvailable")}
           </span>
         )}
       </label>
 
       {showLabel && (
-        <p className="listing-availability-toggle__helper">
-          Stays listed, sinks in search, collects notify sign-ups.
-        </p>
+        <p className="listing-availability-toggle__helper">{t(locale, "availabilityHelper")}</p>
       )}
 
       {error && <p className="listing-availability-toggle__error">{error}</p>}

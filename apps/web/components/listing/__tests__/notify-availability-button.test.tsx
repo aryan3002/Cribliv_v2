@@ -26,8 +26,13 @@ describe("NotifyAvailabilityButton", () => {
   });
 
   it("renders a real, labelled, clickable button for each variant", () => {
-    render(<NotifyAvailabilityButton listingId="L1" locale="hi" variant="primary" />);
+    render(<NotifyAvailabilityButton listingId="L1" locale="en" variant="primary" />);
     const btn = screen.getByRole("button", { name: /notify when available/i });
     expect(btn).toBeEnabled();
+  });
+
+  it("renders the Hindi label when locale is hi (Task 16 i18n)", () => {
+    render(<NotifyAvailabilityButton listingId="L1" locale="hi" variant="primary" />);
+    expect(screen.getByRole("button", { name: /उपलब्ध होने पर सूचित करें/ })).toBeEnabled();
   });
 });

@@ -17,7 +17,7 @@ import { isUnavailableListingsEnabled } from "../../../lib/unavailable-listings-
 // false (gating never engages). Caught by guest-gating.spec.ts against a
 // DB-backed run with >6 listings.
 import { GUEST_FREE_CARDS } from "../../../lib/guest-gating";
-import type { Locale } from "../../../lib/i18n";
+import { t, type Locale } from "../../../lib/i18n";
 import {
   MapPin,
   Map as MapIcon,
@@ -470,7 +470,7 @@ export default async function SearchResultsPage({
                 <>
                   <div className="tenant-results-unavailable-divider">
                     <span className="tenant-results-unavailable-divider__label">
-                      Currently unavailable · get notified when they&apos;re back
+                      {t(params.locale as Locale, "currentlyUnavailableDivider")}
                     </span>
                   </div>
                   <div className="listing-grid">

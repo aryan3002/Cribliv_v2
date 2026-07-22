@@ -18,6 +18,7 @@ import styles from "./listing-card.module.css";
 import { ListingCardHeart } from "./listing-card-heart";
 import { NotifyAvailabilityButton } from "./listing/notify-availability-button";
 import { useFlag } from "../lib/feature-flags";
+import { t, type Locale } from "../lib/i18n";
 
 export interface ListingCardData {
   id: string;
@@ -88,6 +89,7 @@ export function ListingCardItem({
   // unavailable-listing UI leaks when the flag is off — see Task 8's lesson.
   const ffUnavailableListings = useFlag("ff_unavailable_listings");
   const isUnavailable = ffUnavailableListings && listing.is_available === false;
+  const loc = locale as Locale;
 
   const chips: { icon: ReactNode; label: string }[] = [];
   if (listing.bhk) chips.push({ icon: <BedDouble size={12} />, label: `${listing.bhk} BHK` });
@@ -127,7 +129,7 @@ export function ListingCardItem({
                 backdropFilter: "blur(6px)"
               }}
             >
-              <XCircle size={12} aria-hidden="true" /> Unavailable
+              <XCircle size={12} aria-hidden="true" /> {t(loc, "availUnavailableBadge")}
             </Badge>
           ) : isVerified ? (
             <Badge

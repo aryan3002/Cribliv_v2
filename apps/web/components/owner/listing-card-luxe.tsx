@@ -326,6 +326,7 @@ export function ListingCardLuxe({
                 accessToken={accessToken}
                 showLabel={false}
                 errorMessage={t(loc, "ownerListingsErrorAvailability")}
+                locale={loc}
                 onStatusChange={(newStatus) => onStatusChange(listing.id, newStatus)}
               />
             </div>
@@ -339,6 +340,7 @@ export function ListingCardLuxe({
                 available={listing.is_available ?? true}
                 showLabel={false}
                 errorMessage={t(loc, "ownerListingsErrorListingAvailability")}
+                locale={loc}
                 onAvailabilityChange={(next) => onAvailabilityChange?.(listing.id, next)}
               />
             </div>
@@ -359,7 +361,9 @@ export function ListingCardLuxe({
         {showWaitlistNudge && (
           <div className="lcl__waitlist-nudge">
             <Users size={14} aria-hidden="true" />
-            <span>{listing.waitlist_count} people want to be notified when this is available</span>
+            <span>
+              {t(loc, "waitlistPeopleWaiting").replace("{count}", String(listing.waitlist_count))}
+            </span>
           </div>
         )}
       </div>
@@ -431,6 +435,7 @@ export function ListingCardLuxe({
                     currentStatus={listing.status as "active" | "paused"}
                     accessToken={accessToken}
                     errorMessage={t(loc, "ownerListingsErrorAvailability")}
+                    locale={loc}
                     onStatusChange={(newStatus) => onStatusChange(listing.id, newStatus)}
                   />
                 </div>
@@ -443,6 +448,7 @@ export function ListingCardLuxe({
                     accessToken={accessToken}
                     available={listing.is_available ?? true}
                     errorMessage={t(loc, "ownerListingsErrorListingAvailability")}
+                    locale={loc}
                     onAvailabilityChange={(next) => onAvailabilityChange?.(listing.id, next)}
                   />
                 </div>
