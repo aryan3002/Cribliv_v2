@@ -19,6 +19,7 @@ import {
 import type { OwnerListingVm, ListingStatus } from "../../lib/owner-api";
 import { t, type Locale } from "../../lib/i18n";
 import { toTitleCase, VERIFICATION_LABELS } from "../../lib/utils";
+import { useFlag } from "../../lib/feature-flags";
 import { AvailabilityToggle } from "./availability-toggle";
 import { ListingAvailabilityToggle } from "./listing-availability-toggle";
 import { SeekerNearWidget } from "./seeker-near-widget";
@@ -86,6 +87,7 @@ export function ListingCardLuxe({
   const actionsDialogRef = useRef<HTMLDivElement>(null);
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const actionsCloseRef = useRef<HTMLButtonElement>(null);
+  const ffUnavailableListings = useFlag("ff_unavailable_listings");
   const loc = locale as Locale;
   const status = STATUS_META[listing.status] ?? STATUS_META.draft;
   const isVerified = listing.verificationStatus === "verified";
@@ -100,9 +102,19 @@ export function ListingCardLuxe({
   // Stricter than the Visibility gate above: "not available" only makes sense
   // for a listing that's actually live and searchable (flats/houses only —
   // see the design spec's monetization/waitlist scope).
+  const isEligibleForAvailabilityToggle =
+    listing.listingType === "flat_house" && listing.status === "active";
+  // Gated by ff_unavailable_listings at the card level so the wrapper divs
+  // (which carry visible box styling in the actions sheet) don't render an
+  // empty shell when the flag is off — the child's own `if (!flagOn) return
+  // null` is defense-in-depth, not the only gate.
   const canToggleListingAvailability =
-    listing.listingType === "flat_house" && listing.status === "active" && Boolean(accessToken);
-  const showWaitlistNudge = Boolean(listing.waitlist_count) && listing.is_available === false;
+    ffUnavailableListings && isEligibleForAvailabilityToggle && Boolean(accessToken);
+  const showWaitlistNudge =
+    ffUnavailableListings &&
+    isEligibleForAvailabilityToggle &&
+    Boolean(listing.waitlist_count) &&
+    listing.is_available === false;
   const canEdit =
     listing.status === "draft" ||
     listing.status === "rejected" ||

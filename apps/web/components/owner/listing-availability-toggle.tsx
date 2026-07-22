@@ -100,7 +100,7 @@ export function ListingAvailabilityToggle({
 
       {showLabel && (
         <p className="listing-availability-toggle__helper">
-          Stays listed, sinks in search, collects notify sign-ups
+          Stays listed, sinks in search, collects notify sign-ups.
         </p>
       )}
 
