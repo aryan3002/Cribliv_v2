@@ -1,9 +1,23 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminHomeDetail } from "@cribliv/shared-types";
 
+// Mirrors the `useFlag` mocking pattern used across the codebase (e.g.
+// owner/__tests__/listing-availability-toggle.test.tsx,
+// pg-operator/dashboard/__tests__/PgLeadsBoard.test.tsx) for any component
+// that calls `useFlag`: the real hook reads a module-level PostHog client
+// that is undefined outside a <PostHogProvider>, so it must be mocked here
+// now that AdminHomeWorkspace uses it to gate the availability toggle.
+const { flagState } = vi.hoisted(() => ({
+  flagState: { ff_unavailable_listings: true } as Record<string, boolean>
+}));
+
+vi.mock("../../../../lib/feature-flags", () => ({
+  useFlag: (flag: string) => Boolean(flagState[flag])
+}));
 vi.mock("../../../../lib/admin-api", () => ({
-  fetchAdminHomeDetail: vi.fn()
+  fetchAdminHomeDetail: vi.fn(),
+  setAdminHomeAvailability: vi.fn()
 }));
 vi.mock("../../../../lib/admin-home-url", () => ({
   adminHomePublicUrl: (publicPath: string) => `https://cribliv.com${publicPath}`,
@@ -12,13 +26,23 @@ vi.mock("../../../../lib/admin-home-url", () => ({
 vi.mock("../../pg-properties/LocationMapPicker", () => ({
   LocationMapPicker: () => <div />
 }));
+// WaitlistLeadsPanel has its own dedicated test file
+// (components/admin/homes/__tests__/WaitlistLeadsPanel.test.tsx) — stub it
+// here so this file only asserts on the wiring (when it's shown), not its
+// internals.
+vi.mock("../WaitlistLeadsPanel", () => ({
+  WaitlistLeadsPanel: ({ count }: { count: number }) => (
+    <div data-testid="waitlist-panel-stub">Waitlist panel stub: {count}</div>
+  )
+}));
 
-import { fetchAdminHomeDetail } from "../../../../lib/admin-api";
+import { fetchAdminHomeDetail, setAdminHomeAvailability } from "../../../../lib/admin-api";
 import { copyAdminHomeUrl } from "../../../../lib/admin-home-url";
 import { AdminHomeWorkspace } from "../AdminHomeWorkspace";
 
 const mockedFetchAdminHomeDetail = vi.mocked(fetchAdminHomeDetail);
 const mockedCopyAdminHomeUrl = vi.mocked(copyAdminHomeUrl);
+const mockedSetAdminHomeAvailability = vi.mocked(setAdminHomeAvailability);
 
 const homeDetailFixture: AdminHomeDetail = {
   listing: {
@@ -151,6 +175,7 @@ function renderWorkspace(overrides: Partial<WorkspaceProps> = {}) {
 describe("AdminHomeWorkspace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    flagState.ff_unavailable_listings = true;
     mockedFetchAdminHomeDetail.mockResolvedValue(homeDetailFixture);
     vi.spyOn(window, "open").mockReturnValue(null);
   });
@@ -218,5 +243,46 @@ describe("AdminHomeWorkspace", () => {
     await screen.findByText("2BHK in Gomti Nagar");
     fireEvent.click(screen.getByRole("button", { name: "Verification" }));
     expect(screen.getByRole("button", { name: /play liveness video/i })).toBeInTheDocument();
+  });
+
+  describe("availability toggle (ff_unavailable_listings)", () => {
+    it("marks a home not available, confirming with an optional reason, and shows the waitlist panel", async () => {
+      mockedSetAdminHomeAvailability.mockResolvedValue({ listingId: "L1", isAvailable: false });
+      renderWorkspace();
+
+      await screen.findByText("2BHK in Gomti Nagar");
+      fireEvent.click(screen.getByRole("button", { name: /mark not available/i }));
+
+      // ConfirmDialog is open with an optional reason box. Scope the confirm
+      // click to the dialog — its confirm button shares the same accessible
+      // name ("Mark not available") as the header toggle that opened it.
+      const dialog = screen.getByRole("dialog");
+      const reasonBox = await within(dialog).findByPlaceholderText("Internal note…");
+      fireEvent.change(reasonBox, { target: { value: "went off-market" } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Mark not available" }));
+
+      await waitFor(() =>
+        expect(mockedSetAdminHomeAvailability).toHaveBeenCalledWith(
+          "tok",
+          "11111111-1111-4111-8111-111111111111",
+          false,
+          "went off-market"
+        )
+      );
+
+      expect(await screen.findByText("Not available")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /mark available/i })).toBeInTheDocument();
+      expect(screen.getByTestId("waitlist-panel-stub")).toBeInTheDocument();
+    });
+
+    it("hides the toggle entirely when ff_unavailable_listings is off", async () => {
+      flagState.ff_unavailable_listings = false;
+      renderWorkspace();
+
+      await screen.findByText("2BHK in Gomti Nagar");
+      expect(screen.queryByRole("button", { name: /mark not available/i })).not.toBeInTheDocument();
+      expect(screen.queryByText("Not available")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("waitlist-panel-stub")).not.toBeInTheDocument();
+    });
   });
 });
