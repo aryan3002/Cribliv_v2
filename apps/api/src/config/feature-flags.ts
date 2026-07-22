@@ -90,6 +90,8 @@ export interface FeatureFlags {
   ff_callback_leads: boolean;
   /** Admin Lead Center — platform-wide lead ops board + analytics (ships dark). */
   ff_admin_lead_center: boolean;
+  /** Unavailable listings + notify-when-available waitlist (flats/houses). */
+  ff_unavailable_listings: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -176,7 +178,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_seo_indexing: false,
   ff_seo_gsc: false,
   ff_callback_leads: false,
-  ff_admin_lead_center: false
+  ff_admin_lead_center: false,
+  ff_unavailable_listings: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -442,6 +445,10 @@ export function readFeatureFlags(): FeatureFlags {
     ff_admin_lead_center: parseBooleanEnv(
       "FF_ADMIN_LEAD_CENTER",
       defaultFeatureFlags.ff_admin_lead_center
+    ),
+    ff_unavailable_listings: parseBooleanEnv(
+      "FF_UNAVAILABLE_LISTINGS",
+      defaultFeatureFlags.ff_unavailable_listings
     )
   };
 }

@@ -45,3 +45,19 @@ describe("defaultFeatureFlags", () => {
     });
   });
 });
+
+describe("ff_unavailable_listings", () => {
+  afterEach(() => {
+    delete process.env.FF_UNAVAILABLE_LISTINGS;
+  });
+
+  it("defaults to false", () => {
+    expect(defaultFeatureFlags.ff_unavailable_listings).toBe(false);
+    expect(readFeatureFlags().ff_unavailable_listings).toBe(false);
+  });
+
+  it("reads FF_UNAVAILABLE_LISTINGS=true", () => {
+    process.env.FF_UNAVAILABLE_LISTINGS = "true";
+    expect(readFeatureFlags().ff_unavailable_listings).toBe(true);
+  });
+});
