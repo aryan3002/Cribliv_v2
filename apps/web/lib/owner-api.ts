@@ -1255,13 +1255,29 @@ export async function fetchBoostStatus(
 
 // ── Availability ─────────────────────────────────────────────────────────────
 
+export async function setListingAvailability(
+  accessToken: string,
+  listingId: string,
+  available: boolean
+): Promise<{ listing_id: string; is_available: boolean }> {
+  const result = await fetchApi<{ listing_id: string; is_available: boolean }>(
+    `/owner/listings/${listingId}/availability-status`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ available })
+    }
+  );
+  return { listing_id: result.listing_id, is_available: result.is_available };
+}
+
 export async function toggleListingAvailability(
   accessToken: string,
   listingId: string,
   available: boolean
 ): Promise<{ listingId: string; status: "active" | "paused" }> {
   const result = await fetchApi<{ listing_id: string; status: string }>(
-    `/owner/listings/${listingId}/availability`,
+    `/owner/listings/${listingId}/visibility`,
     {
       method: "PATCH",
       headers: authHeaders(accessToken),
