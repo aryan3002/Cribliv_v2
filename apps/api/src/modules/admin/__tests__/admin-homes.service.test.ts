@@ -209,6 +209,13 @@ describe("AdminHomesService", () => {
   });
 
   it("applies city, search, paging, and deterministic fallback metrics", async () => {
+    appState.addAvailabilityAlert({
+      listing_id: "active-home",
+      phone: "+919000000097",
+      user_id: null,
+      locale: "en"
+    });
+
     const result = await service.listHomes({
       status: "active",
       city: "lucknow",
@@ -223,7 +230,9 @@ describe("AdminHomesService", () => {
       city_slug: "lucknow",
       views_30d: 0,
       leads_30d: 0,
-      conversion_rate: 0
+      conversion_rate: 0,
+      is_available: true,
+      waitlist_count: 1
     });
   });
 
@@ -608,6 +617,8 @@ describe("AdminHomesService", () => {
               owner_name: "Ramesh Kumar",
               owner_phone: "+919999999901",
               status: "active",
+              is_available: true,
+              waitlist_count: "2",
               cover_photo_path: "homes/db-home.jpg",
               views_30d: "12",
               leads_30d: "3",
@@ -656,6 +667,8 @@ describe("AdminHomesService", () => {
       leads_30d: 3,
       open_leads: 2,
       conversion_rate: 0.25,
+      is_available: true,
+      waitlist_count: 2,
       cover_photo_url: "https://photos.example.test/listing-photos/homes/db-home.jpg"
     });
     expect(result.total).toBe(1);
@@ -863,11 +876,28 @@ describe("AdminHomesService", () => {
         created_at: new Date(createdAt + 13_000).toISOString()
       }
     ];
+    appState.addAvailabilityAlert({
+      listing_id: "active-home",
+      phone: "+919000000098",
+      user_id: null,
+      locale: "en"
+    });
+    appState.addAvailabilityAlert({
+      listing_id: "active-home",
+      phone: "+919000000099",
+      user_id: null,
+      locale: "en"
+    });
 
     const detail = await (service as any).getHome("active-home");
 
     expect(detail).toMatchObject({
-      listing: { id: "active-home", verification_status: "verified" },
+      listing: {
+        id: "active-home",
+        verification_status: "verified",
+        is_available: true,
+        waitlist_count: 2
+      },
       metrics_30d: { views: 0, leads: 11 },
       owner: {
         active_homes: 2,

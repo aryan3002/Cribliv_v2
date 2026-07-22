@@ -124,3 +124,90 @@ describe("AdminHomesService — availability toggle + waitlist leads", () => {
     expect(result.is_available).toBe(false);
   });
 });
+
+// DB-mode path: `database.isEnabled()` returns true and every DB call is a mocked
+// `vi.fn()` (no live Postgres). Mirrors the mock-query pattern established in
+// availability-alerts.service.test.ts's "DB-mode path" describe block
+// (query.mockResolvedValueOnce(...) chained per call, asserting SQL shape + params).
+//
+// `setAvailability`'s DB branch (admin-homes.service.ts) issues `query()` in this
+// exact order:
+//   1. `UPDATE listings SET is_available = $2, became_unavailable_at = ..., ...
+//      WHERE id = $1::uuid AND listing_type = 'flat_house' RETURNING id::text, is_available`
+//   2. `INSERT INTO admin_actions(...) VALUES ($1::uuid, 'listing', $2::uuid,
+//      'availability_change', $3, null, $4::jsonb)`
+//   3. only when `available === true`: the conditional ready-flip
+//      `UPDATE listing_availability_alerts SET status = 'ready', ready_at = now()
+//      WHERE listing_id = $1::uuid AND status = 'waiting'`
+describe("AdminHomesService.setAvailability — DB-mode path", () => {
+  const listingId = "33333333-3333-4333-8333-333333333333";
+
+  function makeDbService() {
+    const query = vi.fn();
+    const database = { isEnabled: () => true, query };
+    const dbAppState = new AppStateService();
+    const dbAvailabilityAlerts = new AvailabilityAlertsService(dbAppState, database as any);
+    const dbService = new AdminHomesService(database as any, dbAppState, dbAvailabilityAlerts);
+    return { service: dbService, query };
+  }
+
+  it("available=true: UPDATE guards on flat_house + sets is_available, writes an availability_change admin_actions row, and flips waiting alerts to ready", async () => {
+    const { service: dbService, query } = makeDbService();
+    query
+      .mockResolvedValueOnce({ rows: [{ id: listingId, is_available: true }], rowCount: 1 }) // UPDATE listings
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT admin_actions
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }); // UPDATE listing_availability_alerts (ready-flip)
+
+    const result = await dbService.setAvailability(listingId, true, "admin-1", "back on market");
+
+    expect(result).toEqual({ listing_id: listingId, is_available: true });
+    expect(query).toHaveBeenCalledTimes(3);
+
+    const [updateSql, updateParams] = query.mock.calls[0];
+    expect(updateSql).toMatch(/UPDATE listings/);
+    expect(updateSql).toContain("SET is_available = $2");
+    expect(updateSql).toContain("listing_type = 'flat_house'");
+    expect(updateParams).toEqual([listingId, true]);
+
+    const [insertSql, insertParams] = query.mock.calls[1];
+    expect(insertSql).toMatch(/INSERT INTO admin_actions/);
+    expect(insertSql).toContain("'availability_change'");
+    expect(insertParams).toEqual([
+      "admin-1",
+      listingId,
+      "back on market",
+      JSON.stringify({ is_available: true })
+    ]);
+
+    const [readyFlipSql, readyFlipParams] = query.mock.calls[2];
+    expect(readyFlipSql).toMatch(/UPDATE listing_availability_alerts/);
+    expect(readyFlipSql).toContain("status = 'ready'");
+    expect(readyFlipSql).toContain("status = 'waiting'");
+    expect(readyFlipParams).toEqual([listingId]);
+  });
+
+  it("available=false: same UPDATE + admin_actions insert, but the ready-flip UPDATE does not run", async () => {
+    const { service: dbService, query } = makeDbService();
+    query
+      .mockResolvedValueOnce({ rows: [{ id: listingId, is_available: false }], rowCount: 1 }) // UPDATE listings
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 }); // INSERT admin_actions
+
+    const result = await dbService.setAvailability(listingId, false, "admin-1");
+
+    expect(result).toEqual({ listing_id: listingId, is_available: false });
+    expect(query).toHaveBeenCalledTimes(2);
+
+    const [updateSql, updateParams] = query.mock.calls[0];
+    expect(updateSql).toContain("listing_type = 'flat_house'");
+    expect(updateSql).toContain("SET is_available = $2");
+    expect(updateParams).toEqual([listingId, false]);
+
+    const [insertSql] = query.mock.calls[1];
+    expect(insertSql).toMatch(/INSERT INTO admin_actions/);
+    expect(insertSql).toContain("'availability_change'");
+
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes("listing_availability_alerts"))
+    ).toBe(false);
+  });
+});
