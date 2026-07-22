@@ -185,7 +185,7 @@ describe("AdminHomesService", () => {
     database = { isEnabled: () => false, query: vi.fn() };
     appState = new AppStateService();
     installFixtures(appState);
-    service = new AdminHomesService(database as any, appState);
+    service = new AdminHomesService(database as any, appState, {} as any);
   });
 
   afterEach(() => {
@@ -701,7 +701,11 @@ describe("AdminHomesService", () => {
 
   it("rejects missing and malformed database listing ids without querying Postgres", async () => {
     const query = vi.fn();
-    const dbBacked = new AdminHomesService({ isEnabled: () => true, query } as any, appState);
+    const dbBacked = new AdminHomesService(
+      { isEnabled: () => true, query } as any,
+      appState,
+      {} as any
+    );
 
     await expect((dbBacked as any).getHome("malformed")).rejects.toMatchObject({
       response: expect.objectContaining({ code: "home_not_found" })
@@ -928,6 +932,7 @@ describe("AdminHomesService", () => {
             description_en: "Verified home",
             description_hi: null,
             status: "active",
+            is_available: true,
             verification_status: "verified",
             monthly_rent: "22000",
             security_deposit: "44000",
@@ -1083,7 +1088,8 @@ describe("AdminHomesService", () => {
             actor_id: "admin-1"
           }
         ]
-      });
+      })
+      .mockResolvedValueOnce({ rows: [{ count: "4" }] });
 
     const detail = await (service as any).getHome(listingId);
     const calls = database.query.mock.calls.map(([sql]) => String(sql));
@@ -1094,7 +1100,9 @@ describe("AdminHomesService", () => {
         security_deposit: 44000,
         bhk: 2,
         bathrooms: 2,
-        area_sqft: 1050
+        area_sqft: 1050,
+        is_available: true,
+        waitlist_count: 4
       },
       location: { lat: 26.8467, lng: 80.9462 },
       owner: {
@@ -1154,6 +1162,9 @@ describe("AdminHomesService", () => {
     );
     expect(calls.some((sql) => sql.includes("aa.target_type = 'lead'"))).toBe(true);
     expect(calls.some((sql) => sql.includes("LIMIT 100"))).toBe(true);
+    expect(
+      calls.some((sql) => sql.includes("listing_availability_alerts") && sql.includes("'waiting'"))
+    ).toBe(true);
   });
 
   it("caps in-memory activity at 100 items using producer-shaped admin actions", async () => {

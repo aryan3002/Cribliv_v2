@@ -22,11 +22,15 @@ import { AdminHomesService } from "./admin-homes.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
 import { SeoModule } from "../seo/seo.module";
+import { AvailabilityAlertsModule } from "../availability-alerts/availability-alerts.module";
 
 @Module({
   // RentAgreementModule is imported for the RENT_AGREEMENT_SAS_ISSUER token
   // (AdminRentAgreementService issues admin PDF download links).
-  imports: [NotificationsModule, RentAgreementModule, SeoModule],
+  // AvailabilityAlertsModule is imported so AdminHomesService can inject
+  // AvailabilityAlertsService and reuse listForListing for the admin waitlist
+  // leads view (Task 14) — same pattern as ContactsModule/LeadsModule.
+  imports: [NotificationsModule, RentAgreementModule, SeoModule, AvailabilityAlertsModule],
   controllers: [
     AdminController,
     AdminSeoController,
