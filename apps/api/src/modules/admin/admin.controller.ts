@@ -38,6 +38,7 @@ import { PgScoreService } from "../pg-operator/services/pg-score.service";
 import { PgFunnelService } from "../pg-operator/services/pg-funnel.service";
 import { PgAdminAnalyticsService } from "./pg-admin-analytics.service";
 import { PgAdminPropertiesService } from "./pg-admin-properties.service";
+import { sanitizeAdminPgListingsParams } from "./admin-pg-listings.params";
 import { PgAdminListingEditService } from "./pg-admin-listing-edit.service";
 import { PgAdminDetailsPatchSchema, PgAdminRoomsPutSchema } from "./dto/pg-admin-edit.dto";
 import { requireIdempotencyKey } from "../../common/idempotency.util";
@@ -1242,17 +1243,24 @@ export class AdminController {
     @Query("q") q?: string,
     @Query("status") status?: string,
     @Query("city") city?: string,
+    @Query("verification") verification?: string,
+    @Query("sort") sort?: string,
     @Query("page") page?: string,
-    @Query("pageSize") pageSize?: string
+    @Query("page_size") pageSize?: string
   ) {
-    const r = await this.pgProps.listListings({
-      q: q || undefined,
-      status: status || undefined,
-      city: city || undefined,
-      page: Number(page) || 1,
-      pageSize: Number(pageSize) || 50
-    });
-    return ok(r.items, { total: r.total });
+    return ok(
+      await this.pgProps.listListings(
+        sanitizeAdminPgListingsParams({
+          q,
+          status,
+          city,
+          verification,
+          sort,
+          page,
+          page_size: pageSize
+        })
+      )
+    );
   }
 
   @Get("pg/listings/:id/analytics")
