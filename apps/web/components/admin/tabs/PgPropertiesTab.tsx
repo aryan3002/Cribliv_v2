@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Check, ExternalLink, EyeOff, Link2 } from "lucide-react";
 import { fetchAdminPgListings } from "../../../lib/admin-api";
 import type {
   PgAdminListingListItem,
@@ -92,18 +93,30 @@ function SkeletonRows() {
 function PublicActions({ item }: { item: PgAdminListingListItem }) {
   const [copied, setCopied] = useState(false);
 
+  // Icon-only: the label lives in aria-label (screen readers) and title (hover
+  // tooltip), so the column stays narrow enough to survive the 375px scroll.
   if (!item.public_path) {
-    return <span style={{ color: "#9CA3AF", fontSize: 12 }}>Not publicly available</span>;
+    return (
+      <span
+        role="img"
+        aria-label="Not publicly available"
+        title="Not publicly available — the listing must be active and have a city"
+        style={{ display: "inline-flex", color: "#D1D5DB" }}
+      >
+        <EyeOff size={15} aria-hidden="true" />
+      </span>
+    );
   }
   const path = item.public_path;
 
   return (
-    <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ display: "flex", gap: 6 }}>
       <button
         type="button"
-        className="admin-btn admin-btn--ghost"
-        style={{ minHeight: 40 }}
+        className="admin-btn admin-btn--ghost admin-btn--icon"
         aria-label={`Copy public URL for ${item.title ?? "listing"}`}
+        title="Copy public URL"
+        style={copied ? { color: "#10B981", borderColor: "#10B981" } : undefined}
         onClick={async (e) => {
           e.stopPropagation();
           try {
@@ -115,18 +128,18 @@ function PublicActions({ item }: { item: PgAdminListingListItem }) {
           }
         }}
       >
-        {copied ? "Copied ✓" : "Copy link"}
+        {copied ? <Check size={15} aria-hidden="true" /> : <Link2 size={15} aria-hidden="true" />}
       </button>
       <a
-        className="admin-btn admin-btn--ghost"
-        style={{ minHeight: 40, display: "inline-flex", alignItems: "center" }}
+        className="admin-btn admin-btn--ghost admin-btn--icon"
         href={publicSiteUrl(path)}
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Open public page for ${item.title ?? "listing"}`}
+        title="Open public page"
         onClick={(e) => e.stopPropagation()}
       >
-        Open
+        <ExternalLink size={15} aria-hidden="true" />
       </a>
     </div>
   );
