@@ -46,6 +46,8 @@ export class OwnerService {
         status: "draft" | "pending_review" | "active" | "rejected" | "paused" | "archived";
         created_at: string;
         photos: string[] | null;
+        is_available: boolean;
+        waitlist_count: number;
       }>(
         `
         SELECT
@@ -58,6 +60,9 @@ export class OwnerService {
           l.verification_status::text,
           l.status::text,
           l.created_at::text,
+          l.is_available,
+          (SELECT count(*) FROM listing_availability_alerts a
+             WHERE a.listing_id = l.id AND a.status IN ('waiting','ready'))::int AS waitlist_count,
           COALESCE(
             (
               SELECT json_agg(lp.blob_path ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC)
@@ -95,7 +100,9 @@ export class OwnerService {
             status: row.status,
             createdAt: new Date(row.created_at).getTime(),
             photos: photoUrls,
-            coverImage: photoUrls[0] ?? null
+            coverImage: photoUrls[0] ?? null,
+            is_available: row.is_available,
+            waitlist_count: Number(row.waitlist_count)
           };
         }),
         total: result.rowCount ?? 0
@@ -107,7 +114,13 @@ export class OwnerService {
     );
 
     return {
-      items: items.map((item) => ({ ...item })) as Array<Record<string, unknown>>,
+      items: items.map((item) => ({
+        ...item,
+        is_available: item.is_available ?? true,
+        waitlist_count: this.appState
+          .listAvailabilityAlerts(item.id)
+          .filter((a) => a.status === "waiting" || a.status === "ready").length
+      })) as Array<Record<string, unknown>>,
       total: items.length
     };
   }
@@ -134,6 +147,9 @@ export class OwnerService {
           l.verification_status::text,
           l.status::text,
           l.created_at::text,
+          l.is_available,
+          (SELECT count(*) FROM listing_availability_alerts a
+             WHERE a.listing_id = l.id AND a.status IN ('waiting','ready'))::int AS waitlist_count,
           ll.address_line1,
           ll.landmark,
           ll.pincode,
@@ -230,6 +246,8 @@ export class OwnerService {
         verificationStatus: row.verification_status,
         status: row.status,
         createdAt: new Date(row.created_at as string).getTime(),
+        is_available: Boolean(row.is_available),
+        waitlist_count: Number(row.waitlist_count),
         addressLine1: row.address_line1 ?? undefined,
         landmark: row.landmark ?? undefined,
         pincode: row.pincode ?? undefined,
@@ -277,6 +295,10 @@ export class OwnerService {
       verificationStatus: listing.verificationStatus,
       status: listing.status,
       createdAt: listing.createdAt,
+      is_available: listing.is_available ?? true,
+      waitlist_count: this.appState
+        .listAvailabilityAlerts(listing.id)
+        .filter((a) => a.status === "waiting" || a.status === "ready").length,
       addressLine1: meta.location?.address_line1,
       landmark: meta.location?.landmark,
       pincode: meta.location?.pincode,

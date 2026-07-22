@@ -75,3 +75,39 @@ describe("OwnerService.setAvailability", () => {
     await expect(ctx.svc.setAvailability("owner-1", l.id, false)).rejects.toThrow();
   });
 });
+
+describe("OwnerService listing reads expose availability + waitlist_count", () => {
+  let ctx: ReturnType<typeof makeService>;
+  beforeEach(() => {
+    ctx = makeService();
+  });
+
+  it("exposes is_available and waitlist_count on owner listings", async () => {
+    const l = [...ctx.app.listings.values()].find((x) => x.listingType === "flat_house")!;
+    l.ownerUserId = "owner-1";
+    ctx.app.addAvailabilityAlert({
+      listing_id: l.id,
+      phone: "+919000000001",
+      user_id: null,
+      locale: "en"
+    });
+    const result = await ctx.svc.listOwnerListings("owner-1");
+    const row = result.items.find((r: any) => r.id === l.id);
+    expect(row!.is_available).toBe(true);
+    expect(row!.waitlist_count).toBe(1);
+  });
+
+  it("exposes is_available and waitlist_count on a single owner listing", async () => {
+    const l = [...ctx.app.listings.values()].find((x) => x.listingType === "flat_house")!;
+    l.ownerUserId = "owner-1";
+    ctx.app.addAvailabilityAlert({
+      listing_id: l.id,
+      phone: "+919000000002",
+      user_id: null,
+      locale: "en"
+    });
+    const row: any = await ctx.svc.getOwnerListing("owner-1", l.id);
+    expect(row.is_available).toBe(true);
+    expect(row.waitlist_count).toBe(1);
+  });
+});
