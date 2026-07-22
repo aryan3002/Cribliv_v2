@@ -44,13 +44,13 @@ export default defineConfig({
       // that need real leads/wallet persistence (e.g. lead-credit-purchase)
       // export DATABASE_URL to a local Postgres and the FF_* flags before
       // invoking Playwright — see docs/superpowers/specs/2026-07-10-lead-monetization-design.md.
-      command: `DATABASE_URL="\${DATABASE_URL:-}" DISABLE_RATE_LIMIT=true OTP_PROVIDER=mock PORT=${apiPort} CORS_ALLOWED_ORIGINS=${shellQuote(webBaseURL)} FF_CALLBACK_LEADS="\${FF_CALLBACK_LEADS:-}" FF_LEAD_MANAGEMENT_ENABLED="\${FF_LEAD_MANAGEMENT_ENABLED:-}" FF_CREDIT_PURCHASE_ENABLED="\${FF_CREDIT_PURCHASE_ENABLED:-}" RAZORPAY_ORDERS_MODE="\${RAZORPAY_ORDERS_MODE:-mock}" RAZORPAY_CHECKOUT_SECRET="\${RAZORPAY_CHECKOUT_SECRET:-e2e_checkout_secret}" PAYMENT_WEBHOOK_SECRET="\${PAYMENT_WEBHOOK_SECRET:-e2e_webhook_secret}" pnpm --filter @cribliv/api dev`,
+      command: `DATABASE_URL="\${DATABASE_URL:-}" DISABLE_RATE_LIMIT=true OTP_PROVIDER=mock PORT=${apiPort} CORS_ALLOWED_ORIGINS=${shellQuote(webBaseURL)} FF_CALLBACK_LEADS="\${FF_CALLBACK_LEADS:-}" FF_LEAD_MANAGEMENT_ENABLED="\${FF_LEAD_MANAGEMENT_ENABLED:-}" FF_CREDIT_PURCHASE_ENABLED="\${FF_CREDIT_PURCHASE_ENABLED:-}" FF_UNAVAILABLE_LISTINGS="\${FF_UNAVAILABLE_LISTINGS:-}" RAZORPAY_ORDERS_MODE="\${RAZORPAY_ORDERS_MODE:-mock}" RAZORPAY_CHECKOUT_SECRET="\${RAZORPAY_CHECKOUT_SECRET:-e2e_checkout_secret}" PAYMENT_WEBHOOK_SECRET="\${PAYMENT_WEBHOOK_SECRET:-e2e_webhook_secret}" pnpm --filter @cribliv/api dev`,
       port: apiPort,
       reuseExistingServer: true,
       timeout: 120_000
     },
     {
-      command: `AUTH_SECRET=cribliv-e2e-secret NEXTAUTH_SECRET=cribliv-e2e-secret PORT=${webPort} NEXT_PUBLIC_API_BASE_URL=${shellQuote(apiBaseURL)} API_BASE_URL=${shellQuote(apiBaseURL)} NEXT_PUBLIC_FF_CALLBACK_LEADS="\${NEXT_PUBLIC_FF_CALLBACK_LEADS:-}" NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED="\${NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED:-}" pnpm --filter @cribliv/web dev`,
+      command: `AUTH_SECRET=cribliv-e2e-secret NEXTAUTH_SECRET=cribliv-e2e-secret PORT=${webPort} NEXT_PUBLIC_API_BASE_URL=${shellQuote(apiBaseURL)} API_BASE_URL=${shellQuote(apiBaseURL)} NEXT_PUBLIC_FF_CALLBACK_LEADS="\${NEXT_PUBLIC_FF_CALLBACK_LEADS:-}" NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED="\${NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED:-}" NEXT_PUBLIC_FF_UNAVAILABLE_LISTINGS="\${NEXT_PUBLIC_FF_UNAVAILABLE_LISTINGS:-}" pnpm --filter @cribliv/web dev`,
       port: webPort,
       reuseExistingServer: true,
       timeout: 120_000

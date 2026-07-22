@@ -140,4 +140,83 @@ describe("SearchService.searchListings — availability sink (in-memory fallback
 
     expect(items.some((i) => i.id === unavailable.id)).toBe(true);
   });
+
+  /**
+   * Task 17 consolidating assertion (flag-off / default-state safety net).
+   *
+   * `ff_unavailable_listings` does not gate the `availabilityOrder` CASE WHEN
+   * key in `search.service.ts` directly (confirmed by reading the file —
+   * it's unconditional on every sort branch, in both the SQL orderBy and the
+   * in-memory comparator). The real flag-off guarantee instead comes from
+   * the key being structurally a no-op whenever every row's `is_available`
+   * is `true` — which is the DB column's `NOT NULL DEFAULT true` (migration
+   * 0067) and therefore the only state reachable when the flag is off (the
+   * owner/admin toggles that could ever set `is_available: false` are
+   * themselves flag-gated in the UI — see
+   * apps/web/components/owner/listing-availability-toggle.tsx and
+   * apps/web/components/admin/homes/AdminHomeWorkspace.tsx). This test
+   * proves that no-op claim directly: with every listing available, the
+   * leading availability key evaluates to the same value (0) for every row,
+   * so it cannot perturb the secondary sort key — the result must be
+   * byte-for-byte the same order a pre-Task-9 sort (createdAt DESC only,
+   * with no availability key at all) would have produced.
+   */
+  it("preserves the pre-feature order when every listing is available (flag-off safety net)", async () => {
+    const now = Date.now();
+    const ownerId = randomUUID();
+    // Three distinct createdAt values, all available, seeded in a
+    // deliberately shuffled insertion order so a passing assertion can't be
+    // a coincidence of Map iteration order matching createdAt order.
+    const middle: ListingRecord = {
+      id: randomUUID(),
+      ownerUserId: ownerId,
+      listingType: "flat_house",
+      title: "All-available Flat (middle)",
+      city: SEED_CITY,
+      monthlyRent: 18000,
+      verificationStatus: "verified",
+      status: "active",
+      createdAt: now - 50_000,
+      is_available: true
+    };
+    const newest: ListingRecord = {
+      id: randomUUID(),
+      ownerUserId: ownerId,
+      listingType: "flat_house",
+      title: "All-available Flat (newest)",
+      city: SEED_CITY,
+      monthlyRent: 19000,
+      verificationStatus: "verified",
+      status: "active",
+      createdAt: now,
+      is_available: true
+    };
+    const oldest: ListingRecord = {
+      id: randomUUID(),
+      ownerUserId: ownerId,
+      listingType: "flat_house",
+      title: "All-available Flat (oldest)",
+      city: SEED_CITY,
+      monthlyRent: 17000,
+      verificationStatus: "verified",
+      status: "active",
+      createdAt: now - 100_000,
+      is_available: true
+    };
+    [middle, newest, oldest].forEach((l) => ctx.app.listings.set(l.id, l));
+
+    const items = (
+      await ctx.svc.searchListings({
+        city: SEED_CITY,
+        listing_type: "flat_house",
+        sort: "newest"
+      })
+    ).items as Array<{ id: string; is_available?: boolean }>;
+
+    expect(items.map((i) => i.id)).toEqual([newest.id, middle.id, oldest.id]);
+    // Every item is explicitly available — confirms the leading key really
+    // was constant (0) across the whole result set, not coincidentally
+    // absent from the comparison.
+    items.forEach((item) => expect(item.is_available).toBe(true));
+  });
 });
