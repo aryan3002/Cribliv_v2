@@ -13,12 +13,14 @@ import {
   XCircle,
   Building,
   Home as HomeIcon,
-  MoreHorizontal
+  MoreHorizontal,
+  Users
 } from "lucide-react";
 import type { OwnerListingVm, ListingStatus } from "../../lib/owner-api";
 import { t, type Locale } from "../../lib/i18n";
 import { toTitleCase, VERIFICATION_LABELS } from "../../lib/utils";
 import { AvailabilityToggle } from "./availability-toggle";
+import { ListingAvailabilityToggle } from "./listing-availability-toggle";
 import { SeekerNearWidget } from "./seeker-near-widget";
 
 interface Props {
@@ -26,6 +28,7 @@ interface Props {
   locale: string;
   accessToken: string | null;
   onStatusChange: (id: string, newStatus: "active" | "paused") => void;
+  onAvailabilityChange?: (id: string, newAvailable: boolean) => void;
   onBoost: (listing: OwnerListingVm) => void;
 }
 
@@ -71,7 +74,14 @@ const STATUS_META: Record<
   }
 };
 
-export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, onBoost }: Props) {
+export function ListingCardLuxe({
+  listing,
+  locale,
+  accessToken,
+  onStatusChange,
+  onAvailabilityChange,
+  onBoost
+}: Props) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsDialogRef = useRef<HTMLDivElement>(null);
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
@@ -87,6 +97,12 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
   const verificationHref = `/${locale}/owner/verification?listing=${listing.id}`;
   const canToggleAvailability =
     (listing.status === "active" || listing.status === "paused") && Boolean(accessToken);
+  // Stricter than the Visibility gate above: "not available" only makes sense
+  // for a listing that's actually live and searchable (flats/houses only —
+  // see the design spec's monetization/waitlist scope).
+  const canToggleListingAvailability =
+    listing.listingType === "flat_house" && listing.status === "active" && Boolean(accessToken);
+  const showWaitlistNudge = Boolean(listing.waitlist_count) && listing.is_available === false;
   const canEdit =
     listing.status === "draft" ||
     listing.status === "rejected" ||
@@ -303,6 +319,19 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
             </div>
           )}
 
+          {canToggleListingAvailability && accessToken && (
+            <div className="lcl__desktop-action">
+              <ListingAvailabilityToggle
+                listingId={listing.id}
+                accessToken={accessToken}
+                available={listing.is_available ?? true}
+                showLabel={false}
+                errorMessage={t(loc, "ownerListingsErrorListingAvailability")}
+                onAvailabilityChange={(next) => onAvailabilityChange?.(listing.id, next)}
+              />
+            </div>
+          )}
+
           {canBoost && (
             <button
               type="button"
@@ -314,6 +343,13 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
             </button>
           )}
         </div>
+
+        {showWaitlistNudge && (
+          <div className="lcl__waitlist-nudge">
+            <Users size={14} aria-hidden="true" />
+            <span>{listing.waitlist_count} people want to be notified when this is available</span>
+          </div>
+        )}
       </div>
 
       {actionsOpen && (
@@ -384,6 +420,18 @@ export function ListingCardLuxe({ listing, locale, accessToken, onStatusChange, 
                     accessToken={accessToken}
                     errorMessage={t(loc, "ownerListingsErrorAvailability")}
                     onStatusChange={(newStatus) => onStatusChange(listing.id, newStatus)}
+                  />
+                </div>
+              )}
+
+              {canToggleListingAvailability && accessToken && (
+                <div className="lcl-sheet__availability">
+                  <ListingAvailabilityToggle
+                    listingId={listing.id}
+                    accessToken={accessToken}
+                    available={listing.is_available ?? true}
+                    errorMessage={t(loc, "ownerListingsErrorListingAvailability")}
+                    onAvailabilityChange={(next) => onAvailabilityChange?.(listing.id, next)}
                   />
                 </div>
               )}

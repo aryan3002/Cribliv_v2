@@ -16872,6 +16872,26 @@ a.feature-card:hover .icon-circle {
   filter: brightness(1.04);
 }
 
+/* Notify-waitlist nudge — shown when a listing is marked not-available and
+   seekers have asked to be notified. Amber = warm/hopeful, not an error. */
+.lcl__waitlist-nudge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.lcl__waitlist-nudge svg {
+  flex-shrink: 0;
+  color: #92400e;
+}
+
 /* ── Leads tab styling on dashboard ────────────────────────────────── */
 .dlx-leads__toolbar {
   display: flex;

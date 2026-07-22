@@ -53,6 +53,8 @@ export function AvailabilityToggle({
 
   return (
     <div className="availability-toggle availability-toggle--touch">
+      {showLabel && <span className="availability-toggle__row-label">Visibility</span>}
+
       <label htmlFor={id} className="availability-toggle__label">
         <span className="availability-toggle__switch">
           <input
@@ -72,9 +74,13 @@ export function AvailabilityToggle({
         </span>
 
         {showLabel && (
-          <span className="availability-toggle__text">{isActive ? "Active" : "Paused"}</span>
+          <span className="availability-toggle__text">{isActive ? "Live" : "Paused"}</span>
         )}
       </label>
+
+      {showLabel && (
+        <p className="availability-toggle__helper">Paused hides it from search completely</p>
+      )}
 
       {error && <p className="availability-toggle__error">{error}</p>}
 

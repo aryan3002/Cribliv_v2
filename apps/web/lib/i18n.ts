@@ -173,6 +173,10 @@ const dictionary: Dictionary = {
     en: "We couldn't update availability. Please try again.",
     hi: "हम उपलब्धता अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
   },
+  ownerListingsErrorListingAvailability: {
+    en: "We couldn't update availability. Please try again.",
+    hi: "हम उपलब्धता अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
   ownerOverviewErrorUnauthorized: {
     en: "Your session expired. Please log in again to continue.",
     hi: "आपका सेशन समाप्त हो गया है। जारी रखने के लिए फिर से लॉग इन करें।"

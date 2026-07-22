@@ -120,6 +120,15 @@ export function OwnerListingsClient(props: { locale: string }): JSX.Element {
     }));
   }
 
+  function updateListingAvailability(id: string, newAvailable: boolean) {
+    setListingState((prev) => ({
+      ...prev,
+      items: prev.items.map((listing) =>
+        listing.id === id ? { ...listing, is_available: newAvailable } : listing
+      )
+    }));
+  }
+
   function handleBoostSuccess() {
     setBoostNotice(t(loc, "ownerListingsBoostSuccess"));
     setBoostListing(null);
@@ -214,6 +223,7 @@ export function OwnerListingsClient(props: { locale: string }): JSX.Element {
               locale={props.locale}
               accessToken={accessToken}
               onStatusChange={updateListingStatus}
+              onAvailabilityChange={updateListingAvailability}
               onBoost={(item) => setBoostListing(item)}
             />
           ))}
