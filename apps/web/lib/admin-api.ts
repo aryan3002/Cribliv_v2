@@ -1091,6 +1091,7 @@ export async function getAdminPgAnalytics(
 import type {
   PgAdminOverview,
   PgAdminListingListItem,
+  PgAdminListingsResponse,
   PgAdminListingDetail,
   PgAdminListingAnalytics,
   PgAdminPropertyPatch,
@@ -1110,10 +1111,18 @@ export async function fetchAdminPgOverview(
 
 export async function fetchAdminPgListings(
   accessToken: string,
-  params: { q?: string; status?: string; city?: string; page?: number; pageSize?: number } = {}
-): Promise<PgAdminListingListItem[]> {
+  params: {
+    q?: string;
+    status?: string;
+    city?: string;
+    verification?: string;
+    sort?: string;
+    page?: number;
+    page_size?: number;
+  } = {}
+): Promise<PgAdminListingsResponse> {
   const qs = buildSearchQuery(params);
-  return fetchApi<PgAdminListingListItem[]>(`/admin/pg/listings${qs ? `?${qs}` : ""}`, {
+  return fetchApi<PgAdminListingsResponse>(`/admin/pg/listings${qs ? `?${qs}` : ""}`, {
     headers: authHeaders(accessToken)
   });
 }

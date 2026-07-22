@@ -106,7 +106,7 @@ export function PgPropertiesTab({ accessToken }: Props) {
       status: statusFilter !== "all" ? statusFilter : undefined
     })
       .then((res) => {
-        if (!cancelled) setRows(res ?? []);
+        if (!cancelled) setRows(res.items);
       })
       .catch(() => {
         if (!cancelled) setRows([]);
