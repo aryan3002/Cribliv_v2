@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useId } from "react";
 import { toggleListingAvailability } from "../../lib/owner-api";
+import { t, type Locale } from "../../lib/i18n";
 
 interface AvailabilityToggleProps {
   listingId: string;
@@ -10,6 +11,9 @@ interface AvailabilityToggleProps {
   onStatusChange?: (newStatus: "active" | "paused") => void;
   showLabel?: boolean;
   errorMessage?: string;
+  /** Defaults to "en" so existing callers/tests that don't pass a locale keep
+   *  rendering the exact same English copy as before Task 16. */
+  locale?: Locale;
 }
 
 export function AvailabilityToggle({
@@ -18,7 +22,8 @@ export function AvailabilityToggle({
   accessToken,
   onStatusChange,
   showLabel = true,
-  errorMessage = "We couldn't update availability. Please try again."
+  errorMessage = "We couldn't update availability. Please try again.",
+  locale = "en"
 }: AvailabilityToggleProps) {
   const id = useId();
   const [status, setStatus] = useState(currentStatus);
@@ -53,6 +58,10 @@ export function AvailabilityToggle({
 
   return (
     <div className="availability-toggle availability-toggle--touch">
+      {showLabel && (
+        <span className="availability-toggle__row-label">{t(locale, "visibilityLabel")}</span>
+      )}
+
       <label htmlFor={id} className="availability-toggle__label">
         <span className="availability-toggle__switch">
           <input
@@ -72,9 +81,13 @@ export function AvailabilityToggle({
         </span>
 
         {showLabel && (
-          <span className="availability-toggle__text">{isActive ? "Active" : "Paused"}</span>
+          <span className="availability-toggle__text">
+            {isActive ? t(locale, "visibilityLive") : t(locale, "paused")}
+          </span>
         )}
       </label>
+
+      {showLabel && <p className="availability-toggle__helper">{t(locale, "visibilityHelper")}</p>}
 
       {error && <p className="availability-toggle__error">{error}</p>}
 

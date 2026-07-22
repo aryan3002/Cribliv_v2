@@ -716,6 +716,21 @@
   gap: 4px;
 }
 
+.availability-toggle__row-label {
+  color: #5f6f86;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.availability-toggle__helper {
+  margin: 0;
+  color: #5f6f86;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .availability-toggle__label {
   display: inline-flex;
   min-height: 44px;
@@ -799,6 +814,123 @@
 }
 
 .availability-toggle__error {
+  margin: 0;
+  color: #b42318;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* "Availability" control (Available / Not available) — distinct from the
+   "Visibility" (.availability-toggle) control above. Amber signals the
+   not-available state: warm/hopeful, not an error. */
+.listing-availability-toggle {
+  display: grid;
+  gap: 4px;
+}
+
+.listing-availability-toggle__row-label {
+  color: #5f6f86;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.listing-availability-toggle__label {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.listing-availability-toggle__switch {
+  position: relative;
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+}
+
+.listing-availability-toggle__input {
+  width: 44px;
+  height: 26px;
+  margin: 0;
+  appearance: none;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.34);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.listing-availability-toggle__input::before {
+  content: "";
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: 2px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(21, 32, 51, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.listing-availability-toggle__input:checked {
+  border-color: #0d9f4f;
+  background: #0d9f4f;
+}
+
+.listing-availability-toggle__input:checked::before {
+  transform: translateX(18px);
+}
+
+.listing-availability-toggle__input:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
+.listing-availability-toggle__spinner-wrap {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.listing-availability-toggle__spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.listing-availability-toggle__text {
+  color: #40516a;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.listing-availability-toggle__text--amber {
+  color: #92400e;
+}
+
+.listing-availability-toggle__helper {
+  margin: 0;
+  color: #5f6f86;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.listing-availability-toggle__error {
   margin: 0;
   color: #b42318;
   font-size: 0.75rem;

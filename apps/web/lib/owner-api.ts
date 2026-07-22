@@ -15,6 +15,14 @@ export interface OwnerListingVm {
   createdAt?: string;
   coverImage?: string;
   photos?: string[];
+  /**
+   * Independent of `status`; mirrors the `listings.is_available` DB column.
+   * Absent should be treated as `true` (a listing is available unless flagged
+   * otherwise). Flats/houses only — see `setListingAvailability`.
+   */
+  is_available?: boolean;
+  /** Count of seekers who asked to be notified when this listing becomes available again. */
+  waitlist_count?: number;
 }
 
 export interface OwnerListingDraftInput {
@@ -201,6 +209,8 @@ interface OwnerListingApiRow {
   photos?: Array<string | { url?: string; src?: string } | null> | null;
   images?: Array<string | { url?: string; src?: string } | null> | null;
   photo_urls?: Array<string | null> | null;
+  is_available?: boolean;
+  waitlist_count?: number;
 }
 
 function pickFirstString(...values: Array<string | null | undefined>): string | undefined {
@@ -261,7 +271,9 @@ function mapOwnerListingRow(row: OwnerListingApiRow): OwnerListingVm {
     verificationStatus: row.verificationStatus ?? row.verification_status ?? "unverified",
     createdAt: createdAtIso,
     coverImage,
-    photos
+    photos,
+    is_available: row.is_available ?? true,
+    waitlist_count: row.waitlist_count ?? 0
   };
 }
 
@@ -1255,13 +1267,29 @@ export async function fetchBoostStatus(
 
 // ── Availability ─────────────────────────────────────────────────────────────
 
+export async function setListingAvailability(
+  accessToken: string,
+  listingId: string,
+  available: boolean
+): Promise<{ listing_id: string; is_available: boolean }> {
+  const result = await fetchApi<{ listing_id: string; is_available: boolean }>(
+    `/owner/listings/${listingId}/availability-status`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ available })
+    }
+  );
+  return { listing_id: result.listing_id, is_available: result.is_available };
+}
+
 export async function toggleListingAvailability(
   accessToken: string,
   listingId: string,
   available: boolean
 ): Promise<{ listingId: string; status: "active" | "paused" }> {
   const result = await fetchApi<{ listing_id: string; status: string }>(
-    `/owner/listings/${listingId}/availability`,
+    `/owner/listings/${listingId}/visibility`,
     {
       method: "PATCH",
       headers: authHeaders(accessToken),

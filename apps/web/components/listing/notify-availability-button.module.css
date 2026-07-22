@@ -1,0 +1,38 @@
+/* Amber "notify me when available" trigger — shared by the search card
+   (inline) and, from Task 13, the listing-detail CTA (primary). */
+.notifyButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1.5px solid var(--warning, #e88c00);
+  border-radius: 9999px;
+  background: var(--warning-light, #fff8e1);
+  color: var(--warning, #e88c00);
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.notifyButton:hover {
+  background: var(--warning, #e88c00);
+  color: #fff;
+}
+
+.notifyButton:active {
+  transform: scale(0.98);
+}
+
+.inline {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+.primary {
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  width: 100%;
+}

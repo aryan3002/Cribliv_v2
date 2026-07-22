@@ -5,7 +5,8 @@ import type {
   AdminHomesListResponse,
   ListingType,
   VerificationType,
-  VerificationResult
+  VerificationResult,
+  WaitlistLead
 } from "@cribliv/shared-types";
 
 export interface AdminListingVm {
@@ -74,6 +75,50 @@ export async function fetchAdminHomeDetail(
   return fetchApi<AdminHomeDetail>(`/admin/homes/${listingId}`, {
     headers: authHeaders(accessToken)
   });
+}
+
+// ── Admin availability toggle + waitlist leads (Task 15; API from Task 14) ──
+
+/**
+ * Flip the admin-controlled `is_available` flag for a verified home. Unlike
+ * the owner toggle, this is not ownership-scoped and works regardless of the
+ * listing's current status (see admin-homes.controller.ts). Every call is
+ * audited server-side via an `admin_actions` row.
+ */
+export async function setAdminHomeAvailability(
+  accessToken: string,
+  listingId: string,
+  available: boolean,
+  reason?: string
+): Promise<{ listingId: string; isAvailable: boolean }> {
+  const response = await fetchApi<{ listing_id: string; is_available: boolean }>(
+    `/admin/homes/${listingId}/availability-status`,
+    {
+      method: "PATCH",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ available, reason })
+    }
+  );
+
+  return {
+    listingId: response.listing_id,
+    isAvailable: response.is_available
+  };
+}
+
+/**
+ * Admin-only waitlist view — includes phone numbers (the owner-facing detail
+ * only ever gets `waitlist_count`). Used to power call/export actions in the
+ * Verified Homes workspace.
+ */
+export async function fetchAdminHomeWaitlist(
+  accessToken: string,
+  listingId: string
+): Promise<WaitlistLead[]> {
+  const response = await fetchApi<{ items: WaitlistLead[] }>(`/admin/homes/${listingId}/waitlist`, {
+    headers: authHeaders(accessToken)
+  });
+  return response.items ?? [];
 }
 
 export async function fetchAdminListings(accessToken: string) {

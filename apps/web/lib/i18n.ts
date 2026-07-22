@@ -173,6 +173,10 @@ const dictionary: Dictionary = {
     en: "We couldn't update availability. Please try again.",
     hi: "हम उपलब्धता अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
   },
+  ownerListingsErrorListingAvailability: {
+    en: "We couldn't update availability. Please try again.",
+    hi: "हम उपलब्धता अपडेट नहीं कर सके। कृपया फिर कोशिश करें।"
+  },
   ownerOverviewErrorUnauthorized: {
     en: "Your session expired. Please log in again to continue.",
     hi: "आपका सेशन समाप्त हो गया है। जारी रखने के लिए फिर से लॉग इन करें।"
@@ -958,6 +962,64 @@ const dictionary: Dictionary = {
   cpGatewayUnavailable: {
     en: "Couldn't load the payment gateway. Please use UPI instead.",
     hi: "भुगतान गेटवे लोड नहीं हो सका। कृपया UPI से भुगतान करें।"
+  },
+  // ── Unavailable listings: notify-when-available waitlist (calm-swap CTA) ───
+  availUnavailableBadge: { en: "Unavailable", hi: "अनुपलब्ध" },
+  availUnavailableChip: {
+    en: "Not available right now",
+    hi: "फ़िलहाल उपलब्ध नहीं है"
+  },
+  availNotifyButton: { en: "Notify when available", hi: "उपलब्ध होने पर सूचित करें" },
+  availVerifyButton: {
+    en: "Verify & notify me",
+    hi: "सत्यापित करें और मुझे सूचित करें"
+  },
+  availGuestHint: {
+    en: "Guest browsing is open. OTP is required only to join the waitlist.",
+    hi: "मेहमान के तौर पर ब्राउज़िंग खुली है। प्रतीक्षा सूची में शामिल होने के लिए ही OTP ज़रूरी है।"
+  },
+  availJoinedSuccess: {
+    en: "You're on the list — we'll notify you when it's available",
+    hi: "आप सूची में शामिल हो गए हैं — उपलब्ध होने पर हम आपको सूचित करेंगे"
+  },
+  availAlreadyOnList: {
+    en: "You're already on the waitlist",
+    hi: "आप पहले से ही प्रतीक्षा सूची में हैं"
+  },
+  availWaitlistCount: {
+    en: "{n} people are waiting for this home",
+    hi: "{n} लोग इस घर के लिए प्रतीक्षा कर रहे हैं"
+  },
+  // ── Task 16: remaining availability copy (owner toggles, cards, search) ───
+  availabilityLabel: { en: "Availability", hi: "उपलब्धता" },
+  availabilityAvailable: { en: "Available", hi: "उपलब्ध" },
+  availabilityNotAvailable: { en: "Not available", hi: "उपलब्ध नहीं" },
+  availabilityHelper: {
+    en: "Stays listed, sinks in search, collects notify sign-ups.",
+    hi: "लिस्टिंग बनी रहती है, खोज में नीचे जाती है, और नोटिफाई साइन-अप जुटाती है।"
+  },
+  visibilityLabel: { en: "Visibility", hi: "दृश्यता" },
+  visibilityLive: { en: "Live", hi: "सक्रिय" },
+  visibilityHelper: {
+    en: "Paused hides it from search completely",
+    hi: "रोकने पर यह खोज से पूरी तरह हट जाती है"
+  },
+  notifyMe: { en: "Notify me", hi: "मुझे सूचित करें" },
+  waitlistPeopleWaiting: {
+    en: "{count} people want to be notified when this is available",
+    hi: "{count} लोग इसके उपलब्ध होने पर सूचना पाना चाहते हैं"
+  },
+  currentlyUnavailableDivider: {
+    en: "Currently unavailable · get notified when they're back",
+    hi: "फ़िलहाल अनुपलब्ध · वापस आने पर सूचना पाएं"
+  },
+  // Aliases matching the original task-16 brief's literal key names — same
+  // copy as availNotifyButton / currentlyUnavailableDivider above, kept as
+  // separate entries in case anything references these exact names.
+  notifyWhenAvailable: { en: "Notify when available", hi: "उपलब्ध होने पर सूचित करें" },
+  currentlyUnavailable: {
+    en: "Currently unavailable · get notified when they're back",
+    hi: "फ़िलहाल अनुपलब्ध · वापस आने पर सूचना पाएं"
   }
 };
 

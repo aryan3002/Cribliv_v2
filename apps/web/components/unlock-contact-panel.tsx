@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { Bell } from "lucide-react";
 import {
   clearAuthSession,
   readAuthSession,
@@ -14,6 +15,7 @@ import { ApiError } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
 import { useFlag } from "../lib/feature-flags";
 import { t, type Locale } from "../lib/i18n";
+import { joinAvailabilityWaitlist, type AvailabilityAlertResult } from "../lib/availability-api";
 import { CreditPurchaseDialog, type CreditPurchaseCapturedResult } from "./credit-purchase-dialog";
 
 interface UnlockContactPanelProps {
@@ -22,6 +24,21 @@ interface UnlockContactPanelProps {
   // Traffic-source tag (e.g. 'blog-2bhk-rent-in-noida') for content->revenue
   // attribution; recorded on the unlock when present.
   source?: string;
+  /**
+   * Mirrors `listing_detail.is_available` (Task 12). When
+   * `ff_unavailable_listings` is on AND this is explicitly `false`, the panel
+   * swaps its entire unlock/callback flow for the calm "Notify when
+   * available" waitlist flow (Option A — calm swap), taking precedence over
+   * both the legacy unlock flow and the `ff_callback_leads` flow.
+   * `undefined`/`true` behaves exactly like today.
+   */
+  isAvailable?: boolean;
+  /**
+   * Mirrors `listing_detail.waitlist_count` (Task 12) — drives the "N people
+   * are waiting" social-proof line in the unavailable branch. Ignored when
+   * not in that branch.
+   */
+  waitlistCount?: number;
 }
 
 interface UnlockResponse {
@@ -67,10 +84,20 @@ function createClientKey() {
   return typeof crypto !== "undefined" ? crypto.randomUUID() : `${Date.now()}_${Math.random()}`;
 }
 
-export function UnlockContactPanel({ listingId, locale, source }: UnlockContactPanelProps) {
+export function UnlockContactPanel({
+  listingId,
+  locale,
+  source,
+  isAvailable,
+  waitlistCount
+}: UnlockContactPanelProps) {
   // NextAuth session — used as auth source when localStorage token is absent
   const { data: nextAuthSession, status: sessionStatus } = useSession();
   const callbackMode = useFlag("ff_callback_leads");
+  const unavailableListingsFlag = useFlag("ff_unavailable_listings");
+  // Takes precedence over both callbackMode and the legacy unlock flow below
+  // — see the early `if (isUnavailable) return (...)` further down.
+  const isUnavailable = unavailableListingsFlag && isAvailable === false;
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [phone, setPhone] = useState("+91");
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -85,6 +112,7 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
   const [walletSnapshot, setWalletSnapshot] = useState<WalletSnapshot | null>(null);
   const [walletRefreshing, setWalletRefreshing] = useState(false);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [waitlistJoin, setWaitlistJoin] = useState<AvailabilityAlertResult | null>(null);
 
   useEffect(() => {
     // Prefer localStorage (legacy in-panel OTP login), fall back to NextAuth session token
@@ -109,14 +137,16 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
   }, [listingId, nextAuthSession]);
 
   useEffect(() => {
-    if (!accessToken) {
+    // Credits/wallet are irrelevant to the notify-waitlist flow — skip the
+    // fetch entirely rather than fetch-and-not-render it.
+    if (!accessToken || isUnavailable) {
       setWalletSnapshot(null);
       return;
     }
     // .catch(() => {}) prevents this from surfacing as an unhandled rejection
     // in React dev mode when the wallet endpoint returns a non-ok response.
     void refreshWalletSnapshot(accessToken).catch(() => {});
-  }, [accessToken]);
+  }, [accessToken, isUnavailable]);
 
   const refundTimeLabel = useMemo(() => {
     if (!unlock?.response_deadline_at) {
@@ -188,13 +218,48 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
       setAccessToken(verified.access_token);
       setAuthStep("none");
       trackEvent("otp_verified", { purpose: "contact_unlock", success: true });
-      await unlockContact(verified.access_token);
+      // isUnavailable takes precedence: same OTP challenge, different
+      // terminal action — join the waitlist instead of unlocking the number.
+      if (isUnavailable) {
+        await joinWaitlist(verified.access_token);
+      } else {
+        await unlockContact(verified.access_token);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "OTP verification failed");
       trackEvent("otp_verified", { purpose: "contact_unlock", success: false });
     } finally {
       setLoading(false);
     }
+  }
+
+  async function joinWaitlist(token: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await joinAvailabilityWaitlist(token, listingId, locale);
+      setWaitlistJoin(response);
+      trackEvent("availability_alert_joined", {
+        listing_id: listingId,
+        already_on_list: response.already_on_list
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to join the waitlist");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onNotifyClick() {
+    // Mirrors onUnlockClick's guard — don't prematurely show the OTP form
+    // just because the NextAuth token hasn't arrived yet.
+    if (sessionStatus === "loading") return;
+
+    if (!accessToken) {
+      setAuthStep("otp_send");
+      return;
+    }
+    await joinWaitlist(accessToken);
   }
 
   async function unlockContact(token: string) {
@@ -351,6 +416,139 @@ export function UnlockContactPanel({ listingId, locale, source }: UnlockContactP
   }
 
   const canShowBuyCredits = Boolean(accessToken && unlockErrorCode === "insufficient_credits");
+
+  // Option A — calm swap: unavailable listings get their own small, self-
+  // contained render path (chip, notify CTA, OTP steps, success state, Save)
+  // instead of threading a third condition through every block of the
+  // legacy/callback flow below. This is a deliberate structural choice, not
+  // just style — it guarantees the unavailable branch can't accidentally
+  // inherit wallet/credit/callback UI, and leaves the already-tested
+  // legacy JSX beneath completely unmodified.
+  if (isUnavailable) {
+    return (
+      <div>
+        <span className="badge badge--pending" style={{ marginBottom: "var(--space-3)" }}>
+          <Bell size={14} style={{ marginRight: 4 }} aria-hidden="true" />
+          {t(locale, "availUnavailableChip")}
+        </span>
+
+        {typeof waitlistCount === "number" && waitlistCount > 0 ? (
+          <p
+            className="caption"
+            style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)" }}
+          >
+            {t(locale, "availWaitlistCount").replace("{n}", String(waitlistCount))}
+          </p>
+        ) : null}
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "var(--space-3)",
+            marginTop: "var(--space-4)"
+          }}
+        >
+          {!waitlistJoin ? (
+            <button
+              className="btn btn--primary"
+              onClick={onNotifyClick}
+              disabled={loading || sessionStatus === "loading"}
+              style={{ width: "100%" }}
+            >
+              <Bell size={16} style={{ marginRight: 6 }} aria-hidden="true" />
+              {loading
+                ? "Processing..."
+                : sessionStatus === "loading"
+                  ? "Loading..."
+                  : t(locale, "availNotifyButton")}
+            </button>
+          ) : null}
+          <button
+            className="btn btn--secondary"
+            onClick={toggleShortlist}
+            disabled={loading}
+            style={{ width: "100%" }}
+          >
+            {shortlisted ? "♥ Saved" : "Save"}
+          </button>
+        </div>
+
+        {!waitlistJoin && !accessToken ? (
+          <p
+            className="caption"
+            style={{ color: "var(--text-tertiary)", marginTop: "var(--space-3)" }}
+          >
+            {t(locale, "availGuestHint")}
+          </p>
+        ) : null}
+
+        {!waitlistJoin && authStep === "otp_send" ? (
+          <div style={{ marginTop: "var(--space-4)" }}>
+            <label className="form-label" htmlFor="unlock-phone">
+              Phone number
+            </label>
+            <input
+              id="unlock-phone"
+              className="input"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <button
+              className="btn btn--primary"
+              onClick={requestOtp}
+              disabled={loading}
+              style={{ marginTop: "var(--space-2)", width: "100%" }}
+            >
+              Send OTP
+            </button>
+          </div>
+        ) : null}
+
+        {!waitlistJoin && authStep === "otp_verify" ? (
+          <div style={{ marginTop: "var(--space-4)" }}>
+            <label className="form-label" htmlFor="unlock-otp">
+              Enter OTP
+            </label>
+            <input
+              id="unlock-otp"
+              className="input"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
+            <button
+              className="btn btn--primary"
+              onClick={verifyOtpAndUnlock}
+              disabled={loading}
+              style={{ marginTop: "var(--space-2)", width: "100%" }}
+            >
+              {t(locale, "availVerifyButton")}
+            </button>
+          </div>
+        ) : null}
+
+        {waitlistJoin ? (
+          <div
+            className="alert alert--success"
+            data-testid="availability-joined"
+            style={{ marginTop: "var(--space-4)" }}
+          >
+            <p style={{ fontWeight: 700 }}>
+              {waitlistJoin.already_on_list
+                ? t(locale, "availAlreadyOnList")
+                : t(locale, "availJoinedSuccess")}
+            </p>
+          </div>
+        ) : null}
+
+        {error ? (
+          <p className="alert alert--error" style={{ marginTop: "var(--space-3)" }}>
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div>

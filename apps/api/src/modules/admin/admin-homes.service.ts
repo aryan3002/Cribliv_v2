@@ -9,11 +9,14 @@ import type {
   AdminHomeSort,
   AdminHomesListParams,
   AdminHomesListResponse,
-  AdminHomeStatusFilter
+  AdminHomeStatusFilter,
+  WaitlistLead
 } from "@cribliv/shared-types";
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { toBlobUrl } from "../../common/photo-url";
+import { readFeatureFlags } from "../../config/feature-flags";
+import { AvailabilityAlertsService } from "../availability-alerts/availability-alerts.service";
 import { computeOwnerHealth } from "./owner-health.calculator";
 
 interface HomeSqlRow {
@@ -27,6 +30,8 @@ interface HomeSqlRow {
   owner_name: string | null;
   owner_phone: string | null;
   status: "active" | "paused" | "archived";
+  is_available: boolean;
+  waitlist_count: number | string;
   cover_photo_path: string | null;
   views_30d: number | string;
   leads_30d: number | string;
@@ -62,6 +67,7 @@ interface HomeDetailSqlRow {
   description_en: string | null;
   description_hi: string | null;
   status: "active" | "paused" | "archived";
+  is_available: boolean;
   verification_status: "verified";
   monthly_rent: number | string;
   security_deposit: number | string | null;
@@ -204,7 +210,9 @@ function nullableNumber(value: number | string | null | undefined): number | nul
 export class AdminHomesService {
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(AppStateService) private readonly appState: AppStateService
+    @Inject(AppStateService) private readonly appState: AppStateService,
+    @Inject(AvailabilityAlertsService)
+    private readonly availabilityAlerts: AvailabilityAlertsService
   ) {}
 
   async listHomes(params: AdminHomesListParams): Promise<AdminHomesListResponse> {
@@ -252,6 +260,10 @@ export class AdminHomesService {
               b.owner_user_id::text AS owner_id,
               b.owner_name, b.owner_phone,
               b.status::text AS status,
+              b.is_available,
+              (SELECT count(*) FROM listing_availability_alerts a
+                 WHERE a.listing_id = b.id AND a.status IN ('waiting', 'ready'))::int
+                AS waitlist_count,
               photo.blob_path AS cover_photo_path,
               COALESCE(event_agg.views_30d, 0)::int AS views_30d,
               COALESCE(lead_agg.leads_30d, 0)::int AS leads_30d,
@@ -384,6 +396,7 @@ export class AdminHomesService {
               l.description_en,
               l.description_hi,
               l.status::text AS status,
+              l.is_available,
               l.verification_status::text AS verification_status,
               l.monthly_rent,
               l.security_deposit,
@@ -435,16 +448,25 @@ export class AdminHomesService {
       this.throwHomeNotFound();
     }
 
-    const [ownerAggregate, photos, metrics, leadSummary, recentLeads, attempts, activity] =
-      await Promise.all([
-        this.loadOwnerAggregate(row.owner_id),
-        this.loadPhotos(listingId),
-        this.loadMetrics(listingId),
-        this.loadLeadSummary(listingId),
-        this.loadRecentLeads(listingId),
-        this.loadVerificationAttempts(listingId),
-        this.loadActivity(listingId)
-      ]);
+    const [
+      ownerAggregate,
+      photos,
+      metrics,
+      leadSummary,
+      recentLeads,
+      attempts,
+      activity,
+      waitlistCount
+    ] = await Promise.all([
+      this.loadOwnerAggregate(row.owner_id),
+      this.loadPhotos(listingId),
+      this.loadMetrics(listingId),
+      this.loadLeadSummary(listingId),
+      this.loadRecentLeads(listingId),
+      this.loadVerificationAttempts(listingId),
+      this.loadActivity(listingId),
+      this.loadWaitlistCount(listingId)
+    ]);
     const health = computeOwnerHealth({
       listings_active: numberValue(ownerAggregate.health_listings_active),
       listings_paused: numberValue(ownerAggregate.health_listings_paused),
@@ -463,6 +485,8 @@ export class AdminHomesService {
         description_en: row.description_en,
         description_hi: row.description_hi,
         status: row.status,
+        is_available: Boolean(row.is_available),
+        waitlist_count: waitlistCount,
         verification_status: "verified",
         monthly_rent: numberValue(row.monthly_rent),
         security_deposit: nullableNumber(row.security_deposit),
@@ -531,6 +555,96 @@ export class AdminHomesService {
       activity: activity.map((item) => this.mapActivity(item)),
       public_path: `/en/listing/${row.id}`
     };
+  }
+
+  /**
+   * Admin flip of the `is_available` flag — independent of `status`/visibility,
+   * mirrors OwnerService.setAvailability but with NO owner scoping (an admin may
+   * act on any flat_house listing regardless of its current `status`) and an
+   * audit trail: every change writes an `admin_actions` row with
+   * action='availability_change'.
+   */
+  async setAvailability(
+    listingId: string,
+    available: boolean,
+    adminUserId: string,
+    reason?: string
+  ): Promise<{ listing_id: string; is_available: boolean }> {
+    if (!readFeatureFlags().ff_unavailable_listings) {
+      throw new NotFoundException({
+        code: "feature_disabled",
+        message: "Notify-when-available is not enabled"
+      });
+    }
+
+    if (this.database.isEnabled()) {
+      const result = await this.database.query<{ id: string; is_available: boolean }>(
+        `UPDATE listings
+            SET is_available = $2,
+                became_unavailable_at = CASE WHEN $2 THEN NULL ELSE now() END,
+                availability_source = 'admin',
+                updated_at = now()
+          WHERE id = $1::uuid
+            AND listing_type = 'flat_house'
+          RETURNING id::text, is_available`,
+        [listingId, available]
+      );
+
+      if (!result.rowCount) {
+        throw new NotFoundException({
+          code: "not_found",
+          message: "Listing not found or not eligible"
+        });
+      }
+
+      await this.database.query(
+        `INSERT INTO admin_actions(admin_user_id, target_type, target_id, action, reason, before_state, after_state)
+         VALUES ($1::uuid, 'listing', $2::uuid, 'availability_change', $3, null, $4::jsonb)`,
+        [adminUserId, listingId, reason ?? null, JSON.stringify({ is_available: available })]
+      );
+
+      if (available) {
+        await this.database.query(
+          `UPDATE listing_availability_alerts
+              SET status = 'ready', ready_at = now()
+            WHERE listing_id = $1::uuid AND status = 'waiting'`,
+          [listingId]
+        );
+      }
+
+      return { listing_id: result.rows[0].id, is_available: result.rows[0].is_available };
+    }
+
+    const listing = this.appState.listings.get(listingId);
+    if (!listing || listing.listingType !== "flat_house") {
+      throw new NotFoundException({
+        code: "not_found",
+        message: "Listing not found or not eligible"
+      });
+    }
+
+    this.appState.setListingAvailability(listingId, available);
+    this.appState.adminActions.push({
+      admin_id: adminUserId,
+      target_type: "listing",
+      target_id: listingId,
+      action: "availability_change",
+      reason: reason ?? null,
+      created_at: new Date().toISOString()
+    });
+
+    return { listing_id: listingId, is_available: available };
+  }
+
+  /**
+   * Admin-only waitlist view — unlike the owner-facing count, admins see the
+   * actual phone numbers (that's the point: these are leads). Delegates to
+   * AvailabilityAlertsService.listForListing (Task 11), which already
+   * implements the identical dual-mode DB/in-memory read; duplicating that
+   * SELECT here would just be a second copy of the same query to keep in sync.
+   */
+  async listWaitlist(listingId: string): Promise<WaitlistLead[]> {
+    return this.availabilityAlerts.listForListing(listingId);
   }
 
   private async loadOwnerAggregate(ownerId: string): Promise<OwnerAggregateSqlRow> {
@@ -685,6 +799,23 @@ export class AdminHomesService {
       [listingId]
     );
     return result.rows[0] ?? { views: 0, leads: 0, open_leads: 0, conversion_rate: 0 };
+  }
+
+  /**
+   * Count-only lookup for the detail view's `waitlist_count` badge. Deliberately
+   * separate from `listWaitlist`/`AvailabilityAlertsService.listForListing` (which
+   * return phone numbers) — this response must not leak phones the way
+   * `recent_leads` already withholds `seeker_phone`.
+   */
+  private async loadWaitlistCount(listingId: string): Promise<number> {
+    const result = await this.database.query<{ count: number | string }>(
+      `SELECT count(*)::int AS count
+         FROM listing_availability_alerts
+        WHERE listing_id = $1::uuid
+          AND status IN ('waiting', 'ready')`,
+      [listingId]
+    );
+    return numberValue(result.rows[0]?.count);
   }
 
   private async loadLeadSummary(listingId: string): Promise<LeadSummarySqlRow> {
@@ -1008,6 +1139,10 @@ export class AdminHomesService {
         description_en: this.inMemoryString(listingExtra.description),
         description_hi: this.inMemoryString(listingExtra.descriptionHi),
         status: listing.status as AdminHomeDetail["listing"]["status"],
+        is_available: listing.is_available ?? true,
+        waitlist_count: this.appState
+          .listAvailabilityAlerts(listing.id)
+          .filter((a) => a.status === "waiting" || a.status === "ready").length,
         verification_status: "verified",
         monthly_rent: listing.monthlyRent,
         security_deposit: nullableNumber(listingExtra.securityDeposit as number),
@@ -1339,8 +1474,9 @@ export class AdminHomesService {
     return {
       sql: `WITH base AS (
         SELECT l.id, l.title_en, l.title_hi, l.monthly_rent, l.status, l.updated_at,
-               l.owner_user_id, ll.address_line1, c.slug AS city_slug, c.name_en AS city_name,
-               loc.name_en AS locality_name, u.full_name AS owner_name, u.phone_e164 AS owner_phone
+               l.owner_user_id, l.is_available, ll.address_line1, c.slug AS city_slug,
+               c.name_en AS city_name, loc.name_en AS locality_name,
+               u.full_name AS owner_name, u.phone_e164 AS owner_phone
         FROM listings l
         JOIN users u ON u.id = l.owner_user_id
         LEFT JOIN listing_locations ll ON ll.listing_id = l.id
@@ -1391,6 +1527,8 @@ export class AdminHomesService {
       owner_name: row.owner_name,
       owner_phone_masked: this.maskPhone(row.owner_phone),
       status: row.status,
+      is_available: Boolean(row.is_available),
+      waitlist_count: numberValue(row.waitlist_count),
       cover_photo_url: toBlobUrl(row.cover_photo_path),
       views_30d: numberValue(row.views_30d),
       leads_30d: numberValue(row.leads_30d),
@@ -1437,6 +1575,10 @@ export class AdminHomesService {
           owner_name: owner?.full_name ?? null,
           owner_phone_masked: this.maskPhone(owner?.phone),
           status: listing.status as AdminHomeListItem["status"],
+          is_available: listing.is_available ?? true,
+          waitlist_count: this.appState
+            .listAvailabilityAlerts(listing.id)
+            .filter((a) => a.status === "waiting" || a.status === "ready").length,
           cover_photo_url: null,
           views_30d,
           leads_30d,

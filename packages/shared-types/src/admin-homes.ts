@@ -30,6 +30,9 @@ export interface AdminHomeListItem {
   owner_name: string | null;
   owner_phone_masked: string | null;
   status: Extract<ListingStatus, "active" | "paused" | "archived">;
+  // populated by admin availability toggle + waitlist (Task 14/15)
+  is_available?: boolean;
+  waitlist_count?: number;
   cover_photo_url: string | null;
   views_30d: number;
   leads_30d: number;
@@ -112,6 +115,9 @@ export interface AdminHomeDetail {
     description_en: string | null;
     description_hi: string | null;
     status: Extract<ListingStatus, "active" | "paused" | "archived">;
+    // populated by admin availability toggle + waitlist (Task 14/15)
+    is_available?: boolean;
+    waitlist_count?: number;
     verification_status: "verified";
     monthly_rent: number;
     security_deposit: number | null;

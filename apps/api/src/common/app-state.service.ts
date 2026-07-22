@@ -29,7 +29,7 @@ interface SessionRecord {
   userId: string;
 }
 
-interface ListingRecord {
+export interface ListingRecord {
   id: string;
   ownerUserId: string;
   listingType: "flat_house" | "pg";
@@ -42,6 +42,26 @@ interface ListingRecord {
   status: "draft" | "pending_review" | "active" | "rejected" | "paused" | "archived";
   createdAt: number;
   amenities?: string[];
+  /**
+   * Independent of `status`; mirrors the `listings.is_available` DB column (migration 0067).
+   * Optional (not every code path that constructs a ListingRecord sets it yet) — readers should
+   * treat an absent value as `true`, matching the DB column's `NOT NULL DEFAULT true`.
+   */
+  is_available?: boolean;
+}
+
+export type AvailabilityAlertStatus = "waiting" | "ready" | "notified" | "cancelled";
+
+export interface AvailabilityAlertRecord {
+  id: string;
+  listing_id: string;
+  user_id: string | null;
+  phone: string;
+  locale: string | null;
+  status: AvailabilityAlertStatus;
+  created_at: string;
+  ready_at: string | null;
+  notified_at: string | null;
 }
 
 interface WalletTxn {
@@ -187,7 +207,17 @@ export class AppStateService {
       lockedUntil: number | null;
     }
   >();
+  /** Availability waitlist — mirrors the `listing_availability_alerts` DB table. In-memory dual-mode parity. */
+  availabilityAlerts: AvailabilityAlertRecord[] = [];
   private outboundEventCounter = 1;
+  /**
+   * Monotonic id counter for availabilityAlerts. Must only ever increment —
+   * never derive the id from `availabilityAlerts.length`, since `leave` (see
+   * AvailabilityAlertsService.leave) filters the array and shrinks its length,
+   * which would let a subsequent `addAvailabilityAlert` reuse an id that was
+   * already handed out (e.g. join -> leave -> join could both mint "alert_1").
+   */
+  private availabilityAlertSeq = 1;
 
   constructor() {
     const ownerId = randomUUID();
@@ -239,7 +269,8 @@ export class AppStateService {
         monthlyRent: 32000,
         verificationStatus: "verified",
         status: "active",
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        is_available: true
       },
       {
         id: randomUUID(),
@@ -251,7 +282,8 @@ export class AppStateService {
         monthlyRent: 14000,
         verificationStatus: "pending",
         status: "active",
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        is_available: true
       },
       {
         id: randomUUID(),
@@ -263,7 +295,8 @@ export class AppStateService {
         monthlyRent: 12000,
         verificationStatus: "unverified",
         status: "draft",
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        is_available: true
       }
     ];
 
@@ -764,6 +797,67 @@ export class AppStateService {
     if (!user) return undefined;
     user.role = role;
     return user;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Listing availability + waitlist (in-memory dual-mode parity)
+  // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Registers interest in being notified when a listing becomes available again.
+   * Idempotent per (listing_id, phone) — a repeat call returns the existing alert
+   * instead of creating a duplicate.
+   */
+  addAvailabilityAlert(input: {
+    listing_id: string;
+    phone: string;
+    user_id: string | null;
+    locale: string | null;
+  }): { alert: AvailabilityAlertRecord; already_on_list: boolean } {
+    const existing = this.availabilityAlerts.find(
+      (a) => a.listing_id === input.listing_id && a.phone === input.phone
+    );
+    if (existing) return { alert: existing, already_on_list: true };
+
+    const alert: AvailabilityAlertRecord = {
+      id: `alert_${this.availabilityAlertSeq++}`,
+      listing_id: input.listing_id,
+      user_id: input.user_id,
+      phone: input.phone,
+      locale: input.locale,
+      status: "waiting",
+      created_at: new Date().toISOString(),
+      ready_at: null,
+      notified_at: null
+    };
+    this.availabilityAlerts.push(alert);
+    return { alert, already_on_list: false };
+  }
+
+  listAvailabilityAlerts(listingId: string): AvailabilityAlertRecord[] {
+    return this.availabilityAlerts.filter((a) => a.listing_id === listingId);
+  }
+
+  /**
+   * Sets a listing's availability flag. When flipping to available, any `waiting`
+   * alerts for that listing move to `ready` (with `ready_at` stamped) so the notify
+   * sweep can pick them up.
+   */
+  setListingAvailability(listingId: string, isAvailable: boolean): ListingRecord | null {
+    const listing = this.listings.get(listingId);
+    if (!listing) return null;
+
+    listing.is_available = isAvailable;
+    if (isAvailable) {
+      const readyAt = new Date().toISOString();
+      this.availabilityAlerts.forEach((a) => {
+        if (a.listing_id === listingId && a.status === "waiting") {
+          a.status = "ready";
+          a.ready_at = readyAt;
+        }
+      });
+    }
+    return listing;
   }
 
   // ─────────────────────────────────────────────────────────────────────

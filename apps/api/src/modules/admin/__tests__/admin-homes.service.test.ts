@@ -185,7 +185,7 @@ describe("AdminHomesService", () => {
     database = { isEnabled: () => false, query: vi.fn() };
     appState = new AppStateService();
     installFixtures(appState);
-    service = new AdminHomesService(database as any, appState);
+    service = new AdminHomesService(database as any, appState, {} as any);
   });
 
   afterEach(() => {
@@ -209,6 +209,13 @@ describe("AdminHomesService", () => {
   });
 
   it("applies city, search, paging, and deterministic fallback metrics", async () => {
+    appState.addAvailabilityAlert({
+      listing_id: "active-home",
+      phone: "+919000000097",
+      user_id: null,
+      locale: "en"
+    });
+
     const result = await service.listHomes({
       status: "active",
       city: "lucknow",
@@ -223,7 +230,9 @@ describe("AdminHomesService", () => {
       city_slug: "lucknow",
       views_30d: 0,
       leads_30d: 0,
-      conversion_rate: 0
+      conversion_rate: 0,
+      is_available: true,
+      waitlist_count: 1
     });
   });
 
@@ -608,6 +617,8 @@ describe("AdminHomesService", () => {
               owner_name: "Ramesh Kumar",
               owner_phone: "+919999999901",
               status: "active",
+              is_available: true,
+              waitlist_count: "2",
               cover_photo_path: "homes/db-home.jpg",
               views_30d: "12",
               leads_30d: "3",
@@ -656,6 +667,8 @@ describe("AdminHomesService", () => {
       leads_30d: 3,
       open_leads: 2,
       conversion_rate: 0.25,
+      is_available: true,
+      waitlist_count: 2,
       cover_photo_url: "https://photos.example.test/listing-photos/homes/db-home.jpg"
     });
     expect(result.total).toBe(1);
@@ -701,7 +714,11 @@ describe("AdminHomesService", () => {
 
   it("rejects missing and malformed database listing ids without querying Postgres", async () => {
     const query = vi.fn();
-    const dbBacked = new AdminHomesService({ isEnabled: () => true, query } as any, appState);
+    const dbBacked = new AdminHomesService(
+      { isEnabled: () => true, query } as any,
+      appState,
+      {} as any
+    );
 
     await expect((dbBacked as any).getHome("malformed")).rejects.toMatchObject({
       response: expect.objectContaining({ code: "home_not_found" })
@@ -859,11 +876,28 @@ describe("AdminHomesService", () => {
         created_at: new Date(createdAt + 13_000).toISOString()
       }
     ];
+    appState.addAvailabilityAlert({
+      listing_id: "active-home",
+      phone: "+919000000098",
+      user_id: null,
+      locale: "en"
+    });
+    appState.addAvailabilityAlert({
+      listing_id: "active-home",
+      phone: "+919000000099",
+      user_id: null,
+      locale: "en"
+    });
 
     const detail = await (service as any).getHome("active-home");
 
     expect(detail).toMatchObject({
-      listing: { id: "active-home", verification_status: "verified" },
+      listing: {
+        id: "active-home",
+        verification_status: "verified",
+        is_available: true,
+        waitlist_count: 2
+      },
       metrics_30d: { views: 0, leads: 11 },
       owner: {
         active_homes: 2,
@@ -928,6 +962,7 @@ describe("AdminHomesService", () => {
             description_en: "Verified home",
             description_hi: null,
             status: "active",
+            is_available: true,
             verification_status: "verified",
             monthly_rent: "22000",
             security_deposit: "44000",
@@ -1083,7 +1118,8 @@ describe("AdminHomesService", () => {
             actor_id: "admin-1"
           }
         ]
-      });
+      })
+      .mockResolvedValueOnce({ rows: [{ count: "4" }] });
 
     const detail = await (service as any).getHome(listingId);
     const calls = database.query.mock.calls.map(([sql]) => String(sql));
@@ -1094,7 +1130,9 @@ describe("AdminHomesService", () => {
         security_deposit: 44000,
         bhk: 2,
         bathrooms: 2,
-        area_sqft: 1050
+        area_sqft: 1050,
+        is_available: true,
+        waitlist_count: 4
       },
       location: { lat: 26.8467, lng: 80.9462 },
       owner: {
@@ -1154,6 +1192,9 @@ describe("AdminHomesService", () => {
     );
     expect(calls.some((sql) => sql.includes("aa.target_type = 'lead'"))).toBe(true);
     expect(calls.some((sql) => sql.includes("LIMIT 100"))).toBe(true);
+    expect(
+      calls.some((sql) => sql.includes("listing_availability_alerts") && sql.includes("'waiting'"))
+    ).toBe(true);
   });
 
   it("caps in-memory activity at 100 items using producer-shaped admin actions", async () => {

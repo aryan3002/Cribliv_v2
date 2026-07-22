@@ -83,7 +83,9 @@ export const analyticsEvents = [
   "voice_realtime_tool_called",
   "voice_realtime_field_filled",
   "voice_realtime_step_jump",
-  "voice_realtime_error"
+  "voice_realtime_error",
+  // Unavailable listings — notify-when-available waitlist (calm-swap CTA)
+  "availability_alert_joined"
 ] as const;
 
 export type AnalyticsEventName = (typeof analyticsEvents)[number];

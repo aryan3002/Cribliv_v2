@@ -61,6 +61,8 @@ interface ListingDetailRow {
   listing_type: "flat_house" | "pg";
   monthly_rent: number;
   verification_status: "unverified" | "pending" | "verified" | "failed";
+  is_available: boolean;
+  waitlist_count: number;
   city: string;
   locality: string | null;
   lat: number | null;
@@ -121,6 +123,9 @@ export class ListingsController {
           l.listing_type::text,
           l.monthly_rent,
           l.verification_status::text,
+          l.is_available,
+          (SELECT count(*) FROM listing_availability_alerts a
+             WHERE a.listing_id = l.id AND a.status IN ('waiting','ready'))::int AS waitlist_count,
           c.slug AS city,
           loc.slug AS locality,
           ll.lat::float8 AS lat,
@@ -223,6 +228,8 @@ export class ListingsController {
             listing_type: listing.listing_type,
             monthly_rent: listing.monthly_rent,
             verification_status: listing.verification_status,
+            is_available: Boolean(listing.is_available),
+            waitlist_count: Number(listing.waitlist_count),
             city: listing.city,
             locality: listing.locality,
             lat: listing.lat != null ? Number(listing.lat) : null,
@@ -279,6 +286,10 @@ export class ListingsController {
         listing_type: listing.listingType,
         monthly_rent: listing.monthlyRent,
         verification_status: listing.verificationStatus,
+        is_available: listing.is_available ?? true,
+        waitlist_count: this.appState
+          .listAvailabilityAlerts(listing.id)
+          .filter((a) => a.status === "waiting" || a.status === "ready").length,
         city: listing.city,
         locality: listing.locality ?? null,
         bhk: null,

@@ -161,3 +161,20 @@ export interface ApiSuccess<T> {
   data: T;
   meta?: Record<string, unknown>;
 }
+
+// ── Availability + Notify-when-available waitlist ───────────────────────────
+
+export type AvailabilityAlertStatus = "waiting" | "ready" | "notified" | "cancelled";
+
+export interface AvailabilityAlertResult {
+  status: AvailabilityAlertStatus;
+  already_on_list: boolean;
+}
+
+export interface WaitlistLead {
+  id: string;
+  phone: string;
+  user_id: string | null;
+  status: AvailabilityAlertStatus;
+  created_at: string;
+}

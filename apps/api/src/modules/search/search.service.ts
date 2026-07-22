@@ -570,17 +570,24 @@ export class SearchService {
         ? `GREATEST(ts_rank(to_tsvector('english', COALESCE(l.title_en,'') || ' ' || COALESCE(l.description_en,'')), websearch_to_tsquery('english', $${ftsParamIdx})), ts_rank(to_tsvector('simple', COALESCE(l.title_hi,'') || ' ' || COALESCE(l.description_hi,'')), websearch_to_tsquery('simple', $${ftsParamIdx})))`
         : "0";
 
+      // Unavailable listings (is_available=false) still pass `l.status='active'`
+      // above — they're never dropped — but must sink strictly after every
+      // available listing in EVERY sort mode, hence prepended as the leading
+      // key on every branch below. Inert (no-op) when every row is available,
+      // which is the default/common case.
+      const availabilityOrder = "CASE WHEN l.is_available THEN 0 ELSE 1 END ASC";
+
       const orderBy =
         normalizedSort === "rent_asc"
-          ? "l.monthly_rent ASC NULLS LAST, l.created_at DESC"
+          ? `${availabilityOrder}, l.monthly_rent ASC NULLS LAST, l.created_at DESC`
           : normalizedSort === "rent_desc"
-            ? "l.monthly_rent DESC NULLS LAST, l.created_at DESC"
+            ? `${availabilityOrder}, l.monthly_rent DESC NULLS LAST, l.created_at DESC`
             : normalizedSort === "verified"
-              ? `CASE WHEN l.verification_status = 'verified' THEN 0 WHEN l.verification_status = 'pending' THEN 1 ELSE 2 END ASC, l.created_at DESC`
+              ? `${availabilityOrder}, CASE WHEN l.verification_status = 'verified' THEN 0 WHEN l.verification_status = 'pending' THEN 1 ELSE 2 END ASC, l.created_at DESC`
               : normalizedSort === "newest"
-                ? "l.created_at DESC"
+                ? `${availabilityOrder}, l.created_at DESC`
                 : // relevance: featured first, then materialized score + text rank
-                  `COALESCE(ls.featured_score, 0) DESC, (COALESCE(ls.composite_score, 0.35) + ${hasFts ? ftsRankExpr : "0"}) DESC, l.created_at DESC`;
+                  `${availabilityOrder}, COALESCE(ls.featured_score, 0) DESC, (COALESCE(ls.composite_score, 0.35) + ${hasFts ? ftsRankExpr : "0"}) DESC, l.created_at DESC`;
 
       const where = clauses.join(" AND ");
 
@@ -629,6 +636,7 @@ export class SearchService {
           photo_count: number;
           cover_photo: string | null;
           composite_score: number | null;
+          is_available: boolean;
         }>(
           `
         SELECT
@@ -648,7 +656,8 @@ export class SearchService {
           l.created_at::text,
           (SELECT count(*)::int FROM listing_photos lp WHERE lp.listing_id = l.id) AS photo_count,
           (SELECT lp2.blob_path FROM listing_photos lp2 WHERE lp2.listing_id = l.id AND lp2.is_cover = true LIMIT 1) AS cover_photo,
-          ls.composite_score
+          ls.composite_score,
+          l.is_available
         FROM listings l
         JOIN listing_locations ll ON ll.listing_id = l.id
         JOIN cities c ON c.id = ll.city_id
@@ -704,7 +713,8 @@ export class SearchService {
             area_sqft: row.area_sqft,
             verification_status: row.verification_status,
             cover_photo: this.toPhotoUrl(row.cover_photo),
-            score: Number(score.toFixed(4))
+            score: Number(score.toFixed(4)),
+            is_available: row.is_available
           };
         });
 
@@ -788,6 +798,13 @@ export class SearchService {
     }
 
     rows.sort((a, b) => {
+      // Unavailable listings sink to the tail of EVERY sort mode — leading key,
+      // mirrors the SQL `availabilityOrder` CASE above. Absent is_available
+      // defaults to available (true), matching the DB column's NOT NULL DEFAULT.
+      const availabilityDelta =
+        Number(!(a.is_available ?? true)) - Number(!(b.is_available ?? true));
+      if (availabilityDelta !== 0) return availabilityDelta;
+
       if (normalizedSort === "rent_asc") return a.monthlyRent - b.monthlyRent;
       if (normalizedSort === "rent_desc") return b.monthlyRent - a.monthlyRent;
       if (normalizedSort === "verified") {
@@ -817,7 +834,8 @@ export class SearchService {
         area_sqft: null,
         verification_status: row.verificationStatus,
         cover_photo: null,
-        score: 0.5
+        score: 0.5,
+        is_available: row.is_available ?? true
       })),
       total,
       page,
@@ -988,6 +1006,7 @@ export class SearchService {
        LEFT JOIN localities loc ON loc.id = ll.locality_id
        CROSS JOIN ref
        WHERE l.status = 'active'
+         AND l.is_available
          AND l.id != $1::uuid
          AND ll.city_id = ref.city_id
          AND l.monthly_rent BETWEEN ref.monthly_rent * 0.7 AND ref.monthly_rent * 1.3

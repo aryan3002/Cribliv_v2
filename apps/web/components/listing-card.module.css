@@ -48,6 +48,10 @@
   place-items: center;
   color: #c2cbd6;
 }
+.imgDimmed {
+  filter: grayscale(1);
+  opacity: 0.8;
+}
 .scrim {
   position: absolute;
   inset: 0;

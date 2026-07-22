@@ -8,15 +8,16 @@ import { PG_CITY_CONTENT } from "../../../lib/pg-city-content";
 import { SearchFilters } from "./search-filters";
 import { SearchResultsMap } from "./SearchResultsMap";
 import { IntentSearchBar } from "../../../components/search/IntentSearchBar";
-import { ListingCardItem } from "../../../components/listing-card";
+import { ListingCardItem, type ListingCardData } from "../../../components/listing-card";
 import { GuestGate } from "../../../components/guest-gate";
+import { isUnavailableListingsEnabled } from "../../../lib/unavailable-listings-flag";
 // NOTE: must come from the plain lib module, NOT components/guest-gate — a
 // value re-exported through a "use client" file arrives in this Server
 // Component as a client-reference Proxy, and `index >= Proxy` is silently
 // false (gating never engages). Caught by guest-gating.spec.ts against a
 // DB-backed run with >6 listings.
 import { GUEST_FREE_CARDS } from "../../../lib/guest-gating";
-import type { Locale } from "../../../lib/i18n";
+import { t, type Locale } from "../../../lib/i18n";
 import {
   MapPin,
   Map as MapIcon,
@@ -84,6 +85,10 @@ interface ListingCard {
   verification_status: "unverified" | "pending" | "verified" | "failed";
   cover_photo?: string | null;
   score: number;
+  /** Task 9: search sinks unavailable listings to the tail; carried through
+   *  here so the page can split them into a "currently unavailable" section
+   *  when `ff_unavailable_listings` is on. */
+  is_available?: boolean;
 }
 
 interface SearchResponse {
@@ -171,6 +176,24 @@ function furnishLabel(f: string): string {
       : "Unfurnished";
 }
 
+function toCardListing(item: ListingCard): ListingCardData {
+  return {
+    id: item.id,
+    title: item.title,
+    city: item.city,
+    city_name: item.city_name ?? cityLabel(item.city),
+    locality: item.locality,
+    listing_type: item.listing_type,
+    monthly_rent: item.monthly_rent,
+    bhk: item.bhk ?? null,
+    furnishing: item.furnishing ?? null,
+    area_sqft: item.area_sqft ?? null,
+    verification_status: item.verification_status,
+    cover_photo: item.cover_photo ?? null,
+    is_available: item.is_available
+  };
+}
+
 export default async function SearchResultsPage({
   params,
   searchParams
@@ -225,6 +248,21 @@ export default async function SearchResultsPage({
   const mapFilters = mapCity && !filters.city ? { ...filters, city: mapCity } : filters;
   const totalPages = Math.max(1, Math.ceil(response.total / response.page_size));
   const currentPage = response.page;
+
+  // Flag OFF ⇒ zero behavior change: `availableIndexed` covers every item in
+  // its original order and `unavailableIndexed` stays empty, so only the
+  // single "available" grid below ever renders and the divider never shows.
+  // This is a second, independent gate on top of ListingCardItem's own
+  // per-card flag check (defense-in-depth, same pattern as
+  // ListingCardLuxe/ListingAvailabilityToggle on the owner side).
+  const unavailableListingsEnabled = isUnavailableListingsEnabled();
+  const indexedItems = response.items.map((item, index) => ({ item, index }));
+  const availableIndexed = unavailableListingsEnabled
+    ? indexedItems.filter(({ item }) => item.is_available !== false)
+    : indexedItems;
+  const unavailableIndexed = unavailableListingsEnabled
+    ? indexedItems.filter(({ item }) => item.is_available === false)
+    : [];
 
   // Active filter chips for removal
   const activeChips: Array<{ label: string; removeParams: Record<string, string> }> = [];
@@ -406,33 +444,49 @@ export default async function SearchResultsPage({
               </Link>
             </div>
           ) : (
-            <div className="listing-grid">
-              {response.items.map((item, index) => (
-                <GuestGate
-                  key={item.id}
-                  gated={isGuest && index >= GUEST_FREE_CARDS}
-                  locale={params.locale as Locale}
-                >
-                  <ListingCardItem
-                    locale={params.locale}
-                    listing={{
-                      id: item.id,
-                      title: item.title,
-                      city: item.city,
-                      city_name: item.city_name ?? cityLabel(item.city),
-                      locality: item.locality,
-                      listing_type: item.listing_type,
-                      monthly_rent: item.monthly_rent,
-                      bhk: item.bhk ?? null,
-                      furnishing: item.furnishing ?? null,
-                      area_sqft: item.area_sqft ?? null,
-                      verification_status: item.verification_status,
-                      cover_photo: item.cover_photo ?? null
-                    }}
-                  />
-                </GuestGate>
-              ))}
-            </div>
+            <>
+              <div className="listing-grid">
+                {availableIndexed.map(({ item, index }) => (
+                  <GuestGate
+                    key={item.id}
+                    gated={isGuest && index >= GUEST_FREE_CARDS}
+                    locale={params.locale as Locale}
+                  >
+                    <ListingCardItem locale={params.locale} listing={toCardListing(item)} />
+                  </GuestGate>
+                ))}
+              </div>
+
+              {/* ff_unavailable_listings only: available-first split + divider.
+                  KNOWN LIMITATION: GuestGate blurs and disables pointer-events
+                  on its *entire* children subtree (components/guest-gate.tsx),
+                  so a gated unavailable card's inline "Notify me" button is not
+                  reachable — the same pre-existing limitation the heart/save
+                  button already has on gated cards today. Fixing this needs a
+                  GuestGate architecture change (e.g. a per-child "always
+                  interactive" slot rendered outside the blur layer); out of
+                  scope here, flagged as a follow-up rather than attempted. */}
+              {unavailableIndexed.length > 0 && (
+                <>
+                  <div className="tenant-results-unavailable-divider">
+                    <span className="tenant-results-unavailable-divider__label">
+                      {t(params.locale as Locale, "currentlyUnavailableDivider")}
+                    </span>
+                  </div>
+                  <div className="listing-grid">
+                    {unavailableIndexed.map(({ item, index }) => (
+                      <GuestGate
+                        key={item.id}
+                        gated={isGuest && index >= GUEST_FREE_CARDS}
+                        locale={params.locale as Locale}
+                      >
+                        <ListingCardItem locale={params.locale} listing={toCardListing(item)} />
+                      </GuestGate>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
           )}
 
           {/* ── Pagination ── */}

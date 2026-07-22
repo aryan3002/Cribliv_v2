@@ -119,13 +119,26 @@ export class OwnerController {
     );
   }
 
-  @Patch("listings/:listing_id/availability")
+  // Pauses/resumes the listing entirely (status active <-> paused). Renamed from
+  // `/availability` to `/visibility` so that path is never reused for the new
+  // `is_available` flag below (see setAvailability).
+  @Patch("listings/:listing_id/visibility")
   async toggleAvailability(
     @Req() req: { user: { id: string } },
     @Param("listing_id") listingId: string,
     @Body() body: { available: boolean }
   ) {
     return ok(await this.ownerService.toggleAvailability(req.user.id, listingId, body.available));
+  }
+
+  // Flips the `is_available` flag — independent of `status`/visibility above.
+  @Patch("listings/:listing_id/availability-status")
+  async setAvailability(
+    @Req() req: { user: { id: string } },
+    @Param("listing_id") listingId: string,
+    @Body() body: { available: boolean }
+  ) {
+    return ok(await this.ownerService.setAvailability(req.user.id, listingId, body.available));
   }
 
   @Post("contact-unlocks/:unlock_id/responded")

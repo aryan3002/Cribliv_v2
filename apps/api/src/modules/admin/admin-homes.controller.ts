@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Patch, Query, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../common/auth.guard";
 import { ok } from "../../common/response";
 import { Roles } from "../../common/roles.decorator";
@@ -31,5 +31,25 @@ export class AdminHomesController {
   @Get(":listing_id")
   async detail(@Param("listing_id") listingId: string) {
     return ok(await this.homes.getHome(listingId));
+  }
+
+  // Admin toggle of the `is_available` flag — no owner scoping, audited via
+  // admin_actions (action='availability_change'). Independent of `status`.
+  @Patch(":listing_id/availability-status")
+  async setAvailability(
+    @Req() req: { user: { id: string } },
+    @Param("listing_id") listingId: string,
+    @Body() body: { available: boolean; reason?: string }
+  ) {
+    return ok(
+      await this.homes.setAvailability(listingId, body.available, req.user.id, body.reason)
+    );
+  }
+
+  // Admin-only waitlist leads — includes phone numbers (owners only ever see
+  // a count on their own listing view).
+  @Get(":listing_id/waitlist")
+  async waitlist(@Param("listing_id") listingId: string) {
+    return ok({ items: await this.homes.listWaitlist(listingId) });
   }
 }

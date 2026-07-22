@@ -12,6 +12,7 @@ import { DatabaseService } from "../../common/database.service";
 import { NotificationService } from "../notifications/notification.service";
 import { logTelemetry } from "../../common/telemetry";
 import { toBlobUrl } from "../../common/photo-url";
+import { readFeatureFlags } from "../../config/feature-flags";
 import { AzureBlobPhotoStorageService } from "./azure-blob-photo-storage.service";
 
 @Injectable()
@@ -46,6 +47,8 @@ export class OwnerService {
         status: "draft" | "pending_review" | "active" | "rejected" | "paused" | "archived";
         created_at: string;
         photos: string[] | null;
+        is_available: boolean;
+        waitlist_count: number;
       }>(
         `
         SELECT
@@ -58,6 +61,9 @@ export class OwnerService {
           l.verification_status::text,
           l.status::text,
           l.created_at::text,
+          l.is_available,
+          (SELECT count(*) FROM listing_availability_alerts a
+             WHERE a.listing_id = l.id AND a.status IN ('waiting','ready'))::int AS waitlist_count,
           COALESCE(
             (
               SELECT json_agg(lp.blob_path ORDER BY lp.is_cover DESC, lp.sort_order ASC, lp.created_at ASC)
@@ -95,7 +101,9 @@ export class OwnerService {
             status: row.status,
             createdAt: new Date(row.created_at).getTime(),
             photos: photoUrls,
-            coverImage: photoUrls[0] ?? null
+            coverImage: photoUrls[0] ?? null,
+            is_available: row.is_available,
+            waitlist_count: Number(row.waitlist_count)
           };
         }),
         total: result.rowCount ?? 0
@@ -107,7 +115,13 @@ export class OwnerService {
     );
 
     return {
-      items: items.map((item) => ({ ...item })) as Array<Record<string, unknown>>,
+      items: items.map((item) => ({
+        ...item,
+        is_available: item.is_available ?? true,
+        waitlist_count: this.appState
+          .listAvailabilityAlerts(item.id)
+          .filter((a) => a.status === "waiting" || a.status === "ready").length
+      })) as Array<Record<string, unknown>>,
       total: items.length
     };
   }
@@ -134,6 +148,9 @@ export class OwnerService {
           l.verification_status::text,
           l.status::text,
           l.created_at::text,
+          l.is_available,
+          (SELECT count(*) FROM listing_availability_alerts a
+             WHERE a.listing_id = l.id AND a.status IN ('waiting','ready'))::int AS waitlist_count,
           ll.address_line1,
           ll.landmark,
           ll.pincode,
@@ -230,6 +247,8 @@ export class OwnerService {
         verificationStatus: row.verification_status,
         status: row.status,
         createdAt: new Date(row.created_at as string).getTime(),
+        is_available: Boolean(row.is_available),
+        waitlist_count: Number(row.waitlist_count),
         addressLine1: row.address_line1 ?? undefined,
         landmark: row.landmark ?? undefined,
         pincode: row.pincode ?? undefined,
@@ -277,6 +296,10 @@ export class OwnerService {
       verificationStatus: listing.verificationStatus,
       status: listing.status,
       createdAt: listing.createdAt,
+      is_available: listing.is_available ?? true,
+      waitlist_count: this.appState
+        .listAvailabilityAlerts(listing.id)
+        .filter((a) => a.status === "waiting" || a.status === "ready").length,
       addressLine1: meta.location?.address_line1,
       landmark: meta.location?.landmark,
       pincode: meta.location?.pincode,
@@ -881,6 +904,78 @@ export class OwnerService {
     }
     listing.status = available ? "active" : "paused";
     return { listing_id: listing.id, status: listing.status };
+  }
+
+  /**
+   * Flips the `is_available` flag (independent of `status`/visibility). Flats/houses
+   * only, ownership-scoped, and only while the listing is `active`.
+   */
+  async setAvailability(
+    ownerUserId: string,
+    listingId: string,
+    available: boolean
+  ): Promise<{ listing_id: string; is_available: boolean }> {
+    if (!readFeatureFlags().ff_unavailable_listings) {
+      throw new NotFoundException({
+        code: "feature_disabled",
+        message: "Notify-when-available is not enabled"
+      });
+    }
+
+    if (this.database.isEnabled()) {
+      const result = await this.database.query<{ id: string; is_available: boolean }>(
+        `UPDATE listings
+            SET is_available = $3,
+                became_unavailable_at = CASE WHEN $3 THEN NULL ELSE now() END,
+                availability_source = 'owner',
+                last_owner_activity_at = now(),
+                updated_at = now()
+          WHERE id = $1::uuid
+            AND owner_user_id = $2::uuid
+            AND status = 'active'
+            AND listing_type = 'flat_house'
+          RETURNING id::text, is_available`,
+        [listingId, ownerUserId, available]
+      );
+
+      if (!result.rowCount) {
+        throw new NotFoundException({
+          code: "not_found",
+          message: "Listing not found or not eligible"
+        });
+      }
+
+      if (available) {
+        await this.database.query(
+          `UPDATE listing_availability_alerts
+              SET status = 'ready', ready_at = now()
+            WHERE listing_id = $1::uuid AND status = 'waiting'`,
+          [listingId]
+        );
+      }
+
+      return { listing_id: result.rows[0].id, is_available: result.rows[0].is_available };
+    }
+
+    const listing = this.appState.listings.get(listingId);
+    if (!listing || listing.ownerUserId !== ownerUserId) {
+      throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+    }
+    if (listing.listingType !== "flat_house") {
+      throw new BadRequestException({
+        code: "availability_flat_house_only",
+        message: "Availability can only be set for flat/house listings"
+      });
+    }
+    if (listing.status !== "active") {
+      throw new BadRequestException({
+        code: "availability_requires_active",
+        message: "Listing must be active to change availability"
+      });
+    }
+
+    this.appState.setListingAvailability(listingId, available);
+    return { listing_id: listingId, is_available: available };
   }
 
   async presignPhotos(

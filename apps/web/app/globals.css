@@ -16872,6 +16872,26 @@ a.feature-card:hover .icon-circle {
   filter: brightness(1.04);
 }
 
+/* Notify-waitlist nudge — shown when a listing is marked not-available and
+   seekers have asked to be notified. Amber = warm/hopeful, not an error. */
+.lcl__waitlist-nudge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.lcl__waitlist-nudge svg {
+  flex-shrink: 0;
+  color: #92400e;
+}
+
 /* ── Leads tab styling on dashboard ────────────────────────────────── */
 .dlx-leads__toolbar {
   display: flex;
@@ -18707,6 +18727,31 @@ a.feature-card:hover .icon-circle {
 .tenant-results-page .listing-grid {
   grid-template-columns: repeat(auto-fill, minmax(292px, 1fr));
   gap: var(--space-6);
+}
+
+/* ff_unavailable_listings: divider between the available grid and the
+   "currently unavailable" tail section. */
+.tenant-results-unavailable-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 var(--space-4);
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 700;
+}
+.tenant-results-unavailable-divider::before,
+.tenant-results-unavailable-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--warning-light);
+}
+.tenant-results-unavailable-divider__label {
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--warning-light);
 }
 
 .tenant-results-page .empty-state,
