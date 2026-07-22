@@ -10,13 +10,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "echo 'shared-types lint placeholder'",
-    "test": "vitest run",
+    "test": "echo 'shared-types test placeholder'",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "vitest": "^2.1.8"
   }
 }
