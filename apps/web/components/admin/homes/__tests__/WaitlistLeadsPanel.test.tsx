@@ -40,6 +40,42 @@ const leads: WaitlistLead[] = [
   }
 ];
 
+// Mirrors the API's `waitlist_count` semantics (status IN ('waiting',
+// 'ready')): `fetchAdminHomeWaitlist` returns every alert row regardless of
+// status, including historical `notified`/`cancelled` ones the panel must
+// not show.
+const leadsWithHistorical: WaitlistLead[] = [
+  ...leads,
+  {
+    id: "a3",
+    phone: "+919000000003",
+    user_id: null,
+    status: "ready",
+    created_at: new Date(Date.now() - 120_000).toISOString()
+  },
+  {
+    id: "a4",
+    phone: "+919000000004",
+    user_id: null,
+    status: "cancelled",
+    created_at: new Date(Date.now() - 7_200_000).toISOString()
+  },
+  {
+    id: "a5",
+    phone: "+919000000005",
+    user_id: "user-2",
+    status: "notified",
+    created_at: new Date(Date.now() - 10_800_000).toISOString()
+  },
+  {
+    id: "a6",
+    phone: "+919000000006",
+    user_id: null,
+    status: "cancelled",
+    created_at: new Date(Date.now() - 14_400_000).toISOString()
+  }
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
   flagState.ff_unavailable_listings = true;
@@ -76,6 +112,25 @@ describe("WaitlistLeadsPanel", () => {
 
     await screen.findByText("+919000000001");
     expect(screen.getByRole("button", { name: /export csv/i })).toBeInTheDocument();
+  });
+
+  it("filters out cancelled/notified leads, showing only waiting/ready phones", async () => {
+    mockedFetchWaitlist.mockResolvedValue(leadsWithHistorical);
+    render(<WaitlistLeadsPanel token="tok" listingId="L1" count={3} />);
+
+    // waiting + ready leads render
+    expect(await screen.findByText("+919000000001")).toBeInTheDocument();
+    expect(screen.getByText("+919000000002")).toBeInTheDocument();
+    expect(screen.getByText("+919000000003")).toBeInTheDocument();
+
+    // cancelled + notified leads must not appear anywhere in the panel
+    expect(screen.queryByText("+919000000004")).not.toBeInTheDocument();
+    expect(screen.queryByText("+919000000005")).not.toBeInTheDocument();
+
+    // "View all (N)" / hasMore must be based on the actionable count (3, under
+    // PREVIEW_LIMIT) — not the raw fetch length (6, over PREVIEW_LIMIT), which
+    // would incorrectly show a "View all (6)" pagination control.
+    expect(screen.queryByRole("button", { name: /view all/i })).not.toBeInTheDocument();
   });
 
   it("shows an empty state when nobody is waiting", async () => {

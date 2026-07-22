@@ -55,10 +55,20 @@ export function WaitlistLeadsPanel({ token, listingId, count }: Props) {
 
   if (!flagOn) return null;
 
+  // Match the server's `waitlist_count` semantics (status IN ('waiting',
+  // 'ready')): `fetchAdminHomeWaitlist`/`listForListing` returns every
+  // `listing_availability_alerts` row regardless of status, but
+  // `notified`/`cancelled` leads are historical, not actionable — they must
+  // not be rendered, called, exported, or counted here. Filter once and base
+  // everything below (rows, hasMore, CSV, empty state) on this list.
+  const actionableLeads = (leads ?? []).filter(
+    (lead) => lead.status === "waiting" || lead.status === "ready"
+  );
+
   function downloadCsv() {
-    if (!leads || leads.length === 0) return;
+    if (actionableLeads.length === 0) return;
     const header = "phone,joined_at,type,status";
-    const rows = leads.map((lead) =>
+    const rows = actionableLeads.map((lead) =>
       [lead.phone, lead.created_at, lead.user_id ? "logged_in" : "guest", lead.status]
         .map((value) => `"${String(value).replace(/"/g, '""')}"`)
         .join(",")
@@ -80,9 +90,8 @@ export function WaitlistLeadsPanel({ token, listingId, count }: Props) {
     }
   }
 
-  const allLeads = leads ?? [];
-  const visibleLeads = expanded ? allLeads : allLeads.slice(0, PREVIEW_LIMIT);
-  const hasMore = allLeads.length > PREVIEW_LIMIT;
+  const visibleLeads = expanded ? actionableLeads : actionableLeads.slice(0, PREVIEW_LIMIT);
+  const hasMore = actionableLeads.length > PREVIEW_LIMIT;
 
   return (
     <SectionCard
@@ -114,7 +123,7 @@ export function WaitlistLeadsPanel({ token, listingId, count }: Props) {
         <div style={{ padding: 16 }} role="status" aria-label="Loading waitlist">
           <span className="admin-homes-skeleton" />
         </div>
-      ) : leads.length === 0 ? (
+      ) : actionableLeads.length === 0 ? (
         <EmptyState
           title="No one is waiting yet"
           hint="Seekers who ask to be notified when this home is available again will show up here with their phone number."
@@ -172,7 +181,7 @@ export function WaitlistLeadsPanel({ token, listingId, count }: Props) {
                 ) : (
                   <ChevronDown size={14} aria-hidden="true" />
                 )}
-                {expanded ? "Show less" : `View all (${allLeads.length})`}
+                {expanded ? "Show less" : `View all (${actionableLeads.length})`}
               </button>
             )}
             <button
