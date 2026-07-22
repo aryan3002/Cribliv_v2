@@ -1,9 +1,13 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
+import { toBlobUrl } from "../../common/photo-url";
 import type {
   PgAdminListingListItem,
   PgAdminListingDetail,
   PgAdminListingAnalytics,
+  PgAdminListingSort,
+  PgAdminListingsParams,
+  PgAdminListingsResponse,
   PgAdminPropertyPatch,
   PgProperty,
   TrendPoint
@@ -11,6 +15,44 @@ import type {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const ratio = (num: number, den: number) => (den > 0 ? round2(num / den) : 0);
+
+/**
+ * Shared FROM for the three admin PG list queries.
+ *
+ * `listings l` is the public READ PROJECTION of the PG head (same id, 1:1 — see
+ * migration 0032). It is joined solely for verification truth: the admin
+ * verification-decision endpoint writes `listings.verification_status` and never
+ * touches the pg_listings head, and search/map/homes all read the projection.
+ * LEFT JOIN (not JOIN) so a listing whose projection row is somehow missing is
+ * still visible to admins rather than silently disappearing.
+ */
+const PG_LIST_FROM = `
+     FROM pg_listings pl
+     JOIN users u ON u.id = pl.operator_user_id
+     LEFT JOIN listings l ON l.id = pl.id
+     LEFT JOIN pg_properties pp ON pp.id = pl.pg_property_id
+     LEFT JOIN cities c ON c.id = pp.city_id
+     LEFT JOIN localities loc ON loc.id = pp.locality_id`;
+
+/** Public verification truth. Projection wins; pg head is the fallback. */
+const PG_VERIFICATION_SQL = `COALESCE(l.verification_status::text, pl.verification_status::text)`;
+
+/**
+ * Free-text predicate, IDENTICAL across all three queries so facet counts can
+ * never disagree with the visible rows. Always bound to $1 — every query below
+ * reserves $1 for `q` precisely so this constant is reusable without renumbering.
+ * Raw phone is MATCHED here but never SELECTed.
+ */
+const PG_LIST_Q_PREDICATE = `($1::text IS NULL OR (
+             pl.title            ILIKE '%' || $1 || '%'
+          OR pl.id::text         ILIKE '%' || $1 || '%'
+          OR pp.display_name     ILIKE '%' || $1 || '%'
+          OR u.full_name         ILIKE '%' || $1 || '%'
+          OR u.phone_e164        ILIKE '%' || $1 || '%'
+          OR loc.slug            ILIKE '%' || $1 || '%'
+          OR loc.name_en         ILIKE '%' || $1 || '%'
+          OR c.slug              ILIKE '%' || $1 || '%'
+          OR c.name_en           ILIKE '%' || $1 || '%'))`;
 
 /**
  * Admin-facing PG management. The unit of management is a pg_listing (an
@@ -22,19 +64,61 @@ const ratio = (num: number, den: number) => (den > 0 ? round2(num / den) : 0);
 export class PgAdminPropertiesService {
   constructor(@Inject(DatabaseService) private readonly db: DatabaseService) {}
 
-  async listListings(params: {
-    q?: string;
-    status?: string;
-    city?: string;
-    page?: number;
-    pageSize?: number;
-  }): Promise<{ items: PgAdminListingListItem[]; total: number }> {
-    if (!this.db.isEnabled()) return { items: [], total: 0 };
-    const page = Math.max(1, params.page ?? 1);
-    const pageSize = Math.min(200, Math.max(1, params.pageSize ?? 50));
+  /**
+   * Verified-PGs inventory list. Returns an envelope mirroring
+   * AdminHomesListResponse: page items + facet cities + scope summary.
+   *
+   * Filter semantics (deliberate, documented in PgAdminListingsResponse):
+   *   items/total       — all filters (verification, status, city, q)
+   *   available_cities  — verification + status + q; IGNORES city (facet pattern)
+   *   summary           — q + city; IGNORES status and the verification toggle
+   */
+  async listListings(params: PgAdminListingsParams): Promise<PgAdminListingsResponse> {
+    const filters = {
+      verification: params.verification,
+      status: params.status,
+      city: params.city ?? null,
+      q: params.q ?? null,
+      sort: params.sort
+    };
+
+    if (!this.db.isEnabled()) {
+      return {
+        items: [],
+        total: 0,
+        page: params.page,
+        page_size: params.page_size,
+        filters,
+        available_cities: [],
+        summary: { verified: 0, active: 0, cities: 0 }
+      };
+    }
+
+    const page = Math.max(1, params.page);
+    const pageSize = params.page_size;
     const offset = (page - 1) * pageSize;
 
-    const r = await this.db.query<PgAdminListingListItem & { total: number }>(
+    // $1 q, $2 city, $3 verification, $4 status
+    const where = `
+        WHERE ${PG_LIST_Q_PREDICATE}
+          AND ($2::text IS NULL OR c.slug = $2)
+          AND ($3::text = 'all' OR ${PG_VERIFICATION_SQL} = 'verified')
+          AND ($4::text = 'all' OR pl.status::text = $4)`;
+
+    const filterValues = [
+      params.q ?? null,
+      params.city ?? null,
+      params.verification,
+      params.status
+    ];
+
+    const pageResult = await this.db.query<
+      Omit<PgAdminListingListItem, "cover_photo_url" | "public_path" | "starting_rent_paise"> & {
+        cover_blob: string | null;
+        starting_rent_paise: string | null;
+        total: number;
+      }
+    >(
       `SELECT pl.id::text AS listing_id, pl.title, pl.status::text AS status,
               pl.pg_property_id::text AS pg_property_id, pp.display_name AS property_name,
               c.slug AS city_slug, loc.slug AS locality_slug,
@@ -46,26 +130,117 @@ export class PgAdminPropertiesService {
               EXISTS (SELECT 1 FROM pg_analytics_overrides o
                        WHERE o.operator_id = pl.operator_user_id AND o.active = true
                          AND (o.listing_id IS NULL OR o.listing_id = pl.id)) AS analytics_cut,
+              ${PG_VERIFICATION_SQL} AS verification_status,
+              pl.starting_rent_paise::text AS starting_rent_paise,
+              d.gender_policy::text AS gender_policy,
+              pl.updated_at::text AS updated_at,
+              cover.blob_path AS cover_blob,
               count(*) OVER ()::int AS total
-         FROM pg_listings pl
-         JOIN users u ON u.id = pl.operator_user_id
-         LEFT JOIN pg_properties pp ON pp.id = pl.pg_property_id
-         LEFT JOIN cities c ON c.id = pp.city_id
-         LEFT JOIN localities loc ON loc.id = pp.locality_id
+         ${PG_LIST_FROM}
+         LEFT JOIN pg_details d ON d.listing_id = pl.id
          LEFT JOIN LATERAL (
-           SELECT count(*) AS cnt FROM leads l
-            WHERE l.listing_id = pl.id AND l.created_at >= now() - interval '7 days'
+           SELECT count(*) AS cnt FROM leads lead
+            WHERE lead.listing_id = pl.id AND lead.created_at >= now() - interval '7 days'
          ) ld ON true
-        WHERE ($1::text IS NULL OR pl.title ILIKE '%' || $1 || '%' OR u.full_name ILIKE '%' || $1 || '%')
-          AND ($2::text IS NULL OR pl.status::text = $2)
-          AND ($3::text IS NULL OR c.slug = $3)
-        ORDER BY pl.created_at DESC
-        LIMIT $4 OFFSET $5`,
-      [params.q ?? null, params.status ?? null, params.city ?? null, pageSize, offset]
+         LEFT JOIN LATERAL (
+           SELECT blob_path FROM listing_photos
+            WHERE listing_id = pl.id AND moderation_status != 'rejected'
+            ORDER BY is_cover DESC, sort_order ASC, created_at ASC
+            LIMIT 1
+         ) cover ON true
+         ${where}
+        ORDER BY ${this.pgListOrderBy(params.sort)}
+        LIMIT $5 OFFSET $6`,
+      [...filterValues, pageSize, offset]
     );
-    const total = r.rows[0]?.total ?? 0;
-    const items = r.rows.map(({ total: _t, ...rest }) => rest as PgAdminListingListItem);
-    return { items, total };
+
+    const items: PgAdminListingListItem[] = pageResult.rows.map((row) => {
+      const { total: _total, cover_blob, starting_rent_paise, ...rest } = row;
+      const shareable = rest.status === "active" && !!rest.city_slug;
+      return {
+        ...rest,
+        starting_rent_paise: starting_rent_paise == null ? null : Number(starting_rent_paise),
+        cover_photo_url: toBlobUrl(cover_blob),
+        public_path: shareable ? `/en/pg/${rest.city_slug}/${rest.listing_id}` : null
+      };
+    });
+
+    // `count(*) OVER ()` rides on the returned rows, so an out-of-range page
+    // yields no rows and no count. Fall back to an explicit COUNT so the UI
+    // reports a real total instead of "Page 7 of 1 · 0 total".
+    let total = pageResult.rows[0]?.total ?? 0;
+    if (pageResult.rows.length === 0 && page > 1) {
+      const countResult = await this.db.query<{ total: number }>(
+        `SELECT count(*)::int AS total ${PG_LIST_FROM} ${where}`,
+        filterValues
+      );
+      total = countResult.rows[0]?.total ?? 0;
+    }
+
+    // Facet: $1 q, $2 verification, $3 status. City intentionally absent.
+    const citiesResult = await this.db.query<{ slug: string; name: string; count: number }>(
+      `SELECT c.slug AS slug, c.name_en AS name, count(*)::int AS count
+         ${PG_LIST_FROM}
+        WHERE ${PG_LIST_Q_PREDICATE}
+          AND ($2::text = 'all' OR ${PG_VERIFICATION_SQL} = 'verified')
+          AND ($3::text = 'all' OR pl.status::text = $3)
+          AND c.slug IS NOT NULL
+        GROUP BY c.slug, c.name_en
+        ORDER BY name ASC, slug ASC`,
+      [params.q ?? null, params.verification, params.status]
+    );
+
+    // Scope tiles: $1 q, $2 city. Status + verification toggle intentionally absent.
+    const summaryResult = await this.db.query<{
+      verified: number;
+      active: number;
+      cities: number;
+    }>(
+      `SELECT
+          count(*) FILTER (WHERE ${PG_VERIFICATION_SQL} = 'verified')::int AS verified,
+          count(*) FILTER (WHERE ${PG_VERIFICATION_SQL} = 'verified'
+                             AND pl.status::text = 'active')::int AS active,
+          count(DISTINCT c.slug) FILTER (WHERE ${PG_VERIFICATION_SQL} = 'verified')::int AS cities
+         ${PG_LIST_FROM}
+        WHERE ${PG_LIST_Q_PREDICATE}
+          AND ($2::text IS NULL OR c.slug = $2)`,
+      [params.q ?? null, params.city ?? null]
+    );
+    const summary = summaryResult.rows[0] ?? { verified: 0, active: 0, cities: 0 };
+
+    return {
+      items,
+      total,
+      page,
+      page_size: pageSize,
+      filters,
+      available_cities: citiesResult.rows.map((row) => ({
+        slug: row.slug,
+        name: row.name,
+        count: Number(row.count)
+      })),
+      summary: {
+        verified: Number(summary.verified),
+        active: Number(summary.active),
+        cities: Number(summary.cities)
+      }
+    };
+  }
+
+  /** Whitelisted ORDER BY. Never interpolate raw input. Mirrors admin-homes.service.ts:1360. */
+  private pgListOrderBy(sort: PgAdminListingSort): string {
+    const fallback = "pl.updated_at DESC, pl.id DESC";
+    switch (sort) {
+      case "updated":
+        return fallback;
+      case "rent_desc":
+        return `pl.starting_rent_paise DESC NULLS LAST, ${fallback}`;
+      case "rent_asc":
+        return `pl.starting_rent_paise ASC NULLS LAST, ${fallback}`;
+      case "leads":
+      default:
+        return `COALESCE(ld.cnt, 0) DESC, ${fallback}`;
+    }
   }
 
   async getListing(listingId: string): Promise<PgAdminListingDetail> {
