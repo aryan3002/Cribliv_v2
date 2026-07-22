@@ -288,6 +288,10 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+    devDependencies:
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.10)(jsdom@29.1.1(@noble/hashes@2.2.0))(terser@5.46.0)
 
   packages/ui:
     devDependencies:
