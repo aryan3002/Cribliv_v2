@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AvailabilityAlertsService } from "../availability-alerts.service";
 import { AppStateService } from "../../../common/app-state.service";
 import { DatabaseService } from "../../../common/database.service";
@@ -96,5 +96,98 @@ describe("AvailabilityAlertsService (in-memory dual-mode path)", () => {
     const items = await ctx.svc.listForListing("L1");
     expect(items).toHaveLength(2);
     expect(items.map((i) => i.phone).sort()).toEqual(["+919000000007", "+919000000008"]);
+  });
+});
+
+// DB-mode path: `database.isEnabled()` returns true and every DB call is a mocked
+// `vi.fn()` (no live Postgres). Mirrors the mock-query pattern established in
+// admin-homes.service.test.ts (`new AdminHomesService({ isEnabled: () => true, query } as any, ...)`),
+// adapted to this service's real constructor order: (appState, database).
+//
+// `join`'s DB branch (availability-alerts.service.ts:74-97) issues query() up to
+// three times in this exact order:
+//   1. resolvePhone(): `SELECT phone_e164 FROM users WHERE id = $1::uuid LIMIT 1`
+//   2. `INSERT ... ON CONFLICT (listing_id, phone) DO NOTHING RETURNING id, status`
+//   3. only when the insert returns no row (conflict): the fallback
+//      `SELECT status FROM listing_availability_alerts WHERE listing_id = $1::uuid
+//      AND phone = $2 LIMIT 1`
+// Each test below queues mockResolvedValueOnce responses in that same call order.
+describe("AvailabilityAlertsService (DB-mode path)", () => {
+  const previousFlag = process.env.FF_UNAVAILABLE_LISTINGS;
+
+  beforeEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = "true";
+  });
+
+  afterEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = previousFlag;
+  });
+
+  function makeDbService() {
+    const app = new AppStateService();
+    const query = vi.fn();
+    const db = { isEnabled: () => true, query } as unknown as DatabaseService;
+    const svc = new AvailabilityAlertsService(app, db);
+    return { svc, query };
+  }
+
+  it("join: fresh insert returns the inserted row's status with already_on_list false", async () => {
+    const { svc, query } = makeDbService();
+
+    query
+      .mockResolvedValueOnce({ rows: [{ phone_e164: "+919000000010" }], rowCount: 1 }) // resolvePhone
+      .mockResolvedValueOnce({ rows: [{ id: "alert-1", status: "waiting" }], rowCount: 1 }); // INSERT ... RETURNING
+
+    const result = await svc.join("u1", "L1", "en");
+
+    expect(result).toEqual({ status: "waiting", already_on_list: false });
+    expect(query).toHaveBeenCalledTimes(2);
+
+    const [insertSql, insertParams] = query.mock.calls[1];
+    expect(insertSql).toMatch(/INSERT INTO listing_availability_alerts/);
+    expect(insertSql).toMatch(/ON CONFLICT \(listing_id, phone\) DO NOTHING/);
+    expect(insertSql).toMatch(/RETURNING id, status/);
+    expect(insertParams).toEqual(["L1", "u1", "+919000000010", "en"]);
+  });
+
+  it("join: conflict (no row from insert) falls back to SELECT and reports already_on_list true with the real status", async () => {
+    const { svc, query } = makeDbService();
+
+    query
+      .mockResolvedValueOnce({ rows: [{ phone_e164: "+919000000011" }], rowCount: 1 }) // resolvePhone
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT ... DO NOTHING (conflict, no row)
+      .mockResolvedValueOnce({ rows: [{ status: "ready" }], rowCount: 1 }); // fallback SELECT status
+
+    const result = await svc.join("u1", "L1", "en");
+
+    // Asserts the real fallback status ("ready") flows through rather than a
+    // hardcoded "waiting" guess — this is the exact branch the task flagged as
+    // having zero coverage.
+    expect(result).toEqual({ status: "ready", already_on_list: true });
+    expect(query).toHaveBeenCalledTimes(3);
+
+    const [selectSql, selectParams] = query.mock.calls[2];
+    expect(selectSql).toMatch(/SELECT status FROM listing_availability_alerts/);
+    expect(selectSql).toMatch(/WHERE listing_id = \$1::uuid AND phone = \$2/);
+    expect(selectParams).toEqual(["L1", "+919000000011"]);
+  });
+
+  it("sends parameterized SQL (placeholders + params array) for every query, never string-interpolated", async () => {
+    const { svc, query } = makeDbService();
+
+    query
+      .mockResolvedValueOnce({ rows: [{ phone_e164: "+919000000012" }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [{ id: "alert-2", status: "waiting" }], rowCount: 1 });
+
+    await svc.join("u1", "L1", "en");
+
+    expect(query).toHaveBeenCalledTimes(2);
+    for (const [sql, params] of query.mock.calls) {
+      expect(sql).toMatch(/\$1/);
+      expect(sql).not.toContain("'u1'");
+      expect(sql).not.toContain("'L1'");
+      expect(Array.isArray(params)).toBe(true);
+      expect((params as unknown[]).length).toBeGreaterThan(0);
+    }
   });
 });
