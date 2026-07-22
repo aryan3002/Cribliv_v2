@@ -24,3 +24,13 @@ const _lead: WaitlistLead = {
 void _status;
 void _result;
 void _lead;
+
+// Exhaustive union check: ensures all AvailabilityAlertStatus members are accounted for.
+// Adding or renaming a member will cause a type error here.
+const _exhaustive: Record<AvailabilityAlertStatus, true> = {
+  waiting: true,
+  ready: true,
+  notified: true,
+  cancelled: true
+};
+void _exhaustive;
