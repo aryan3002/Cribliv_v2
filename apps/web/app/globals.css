@@ -18729,6 +18729,31 @@ a.feature-card:hover .icon-circle {
   gap: var(--space-6);
 }
 
+/* ff_unavailable_listings: divider between the available grid and the
+   "currently unavailable" tail section. */
+.tenant-results-unavailable-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 var(--space-4);
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 700;
+}
+.tenant-results-unavailable-divider::before,
+.tenant-results-unavailable-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--warning-light);
+}
+.tenant-results-unavailable-divider__label {
+  white-space: nowrap;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--warning-light);
+}
+
 .tenant-results-page .empty-state,
 .tenant-results-page .error-state {
   border: 1px solid rgba(226, 232, 240, 0.9);
