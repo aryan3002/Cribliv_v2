@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchAdminPgListings } from "../../../lib/admin-api";
-import type { PgAdminListingListItem } from "@cribliv/shared-types";
+import type {
+  PgAdminListingListItem,
+  PgAdminListingSort,
+  PgAdminListingStatusFilter,
+  PgAdminListingsResponse,
+  PgAdminVerificationFilter
+} from "@cribliv/shared-types";
+import { publicSiteUrl, copyPublicSiteUrl } from "../../../lib/public-site-url";
+import { formatDate, formatINR } from "../../../lib/admin/format";
 import { DataTable } from "../primitives/DataTable";
 import type { Column } from "../primitives/DataTable";
 import { StatusPill } from "../primitives/StatusPill";
@@ -13,16 +21,6 @@ import { PgListingDetail } from "../pg-properties/PgListingDetail";
 interface Props {
   accessToken: string;
 }
-
-type StatusFilter = "all" | "active" | "paused" | "pending_review" | "draft";
-
-const FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "pending_review", label: "Pending" },
-  { value: "draft", label: "Draft" }
-];
 
 function AnalyticsDot({ cut }: { cut: boolean }) {
   return (
@@ -91,25 +89,96 @@ function SkeletonRows() {
   );
 }
 
+function PublicActions({ item }: { item: PgAdminListingListItem }) {
+  const [copied, setCopied] = useState(false);
+
+  if (!item.public_path) {
+    return <span style={{ color: "#9CA3AF", fontSize: 12 }}>Not publicly available</span>;
+  }
+  const path = item.public_path;
+
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <button
+        type="button"
+        className="admin-btn admin-btn--ghost"
+        style={{ minHeight: 40 }}
+        aria-label={`Copy public URL for ${item.title ?? "listing"}`}
+        onClick={async (e) => {
+          e.stopPropagation();
+          try {
+            await copyPublicSiteUrl(path);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          } catch {
+            /* clipboard unavailable in this context */
+          }
+        }}
+      >
+        {copied ? "Copied ✓" : "Copy link"}
+      </button>
+      <a
+        className="admin-btn admin-btn--ghost"
+        style={{ minHeight: 40, display: "inline-flex", alignItems: "center" }}
+        href={publicSiteUrl(path)}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open public page for ${item.title ?? "listing"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        Open
+      </a>
+    </div>
+  );
+}
+
 export function PgPropertiesTab({ accessToken }: Props) {
-  const [rows, setRows] = useState<PgAdminListingListItem[]>([]);
+  const [data, setData] = useState<PgAdminListingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [verification, setVerification] = useState<PgAdminVerificationFilter>("verified");
+  const [statusFilter, setStatusFilter] = useState<PgAdminListingStatusFilter>("active");
+  const [city, setCity] = useState("");
+  const [sort, setSort] = useState<PgAdminListingSort>("leads");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<25 | 50 | 100>(25);
   const [selected, setSelected] = useState<string | null>(null);
 
+  // 300ms debounce on the search box (mirrors HomesInventory).
   useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQ(q.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [q]);
+
+  // Any filter change invalidates the current page offset.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQ, verification, statusFilter, city, sort, pageSize]);
+
+  useEffect(() => {
+    if (!accessToken) return;
     let cancelled = false;
     setLoading(true);
+    setError(null);
     fetchAdminPgListings(accessToken, {
-      q: q || undefined,
-      status: statusFilter !== "all" ? statusFilter : undefined
+      q: debouncedQ || undefined,
+      verification,
+      status: statusFilter,
+      city: city || undefined,
+      sort,
+      page,
+      page_size: pageSize
     })
       .then((res) => {
-        if (!cancelled) setRows(res.items);
+        if (!cancelled) setData(res);
       })
-      .catch(() => {
-        if (!cancelled) setRows([]);
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load PG listings");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -117,38 +186,44 @@ export function PgPropertiesTab({ accessToken }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, q, statusFilter]);
+  }, [accessToken, debouncedQ, verification, statusFilter, city, sort, page, pageSize, reloadKey]);
 
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const active = rows.filter((r) => r.status === "active").length;
-    const totalLeads = rows.reduce((s, r) => s + (r.leads_7d ?? 0), 0);
-    const cut = rows.filter((r) => r.analytics_cut).length;
-    return {
-      total,
-      activePct: total > 0 ? Math.round((active / total) * 100) : 0,
-      totalLeads,
-      cut
-    };
-  }, [rows]);
-
+  const rows = useMemo(() => data?.items ?? [], [data]);
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const maxLeads = useMemo(() => Math.max(1, ...rows.map((r) => r.leads_7d ?? 0)), [rows]);
 
   const columns: Column<PgAdminListingListItem>[] = [
+    {
+      key: "cover",
+      header: "",
+      width: "60px",
+      render: (r) =>
+        r.cover_photo_url ? (
+          // Admin photo URLs are dynamic Azure/CDN values not covered by a fixed Next image host.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={r.cover_photo_url}
+            alt=""
+            style={{ width: 44, height: 44, borderRadius: 6, objectFit: "cover" }}
+          />
+        ) : (
+          <div style={{ width: 44, height: 44, borderRadius: 6, background: "#F3F4F6" }} />
+        )
+    },
     {
       key: "title",
       header: "Listing",
       render: (r) => (
         <div>
           <div style={{ fontWeight: 600, color: "#111827", fontSize: 13 }}>
-            {r.title || "Untitled"}
+            {r.title || r.property_name || "Untitled PG"}
           </div>
-          {r.property_name && (
-            <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>{r.property_name}</div>
-          )}
+          <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+            {r.listing_id.slice(0, 8)}
+          </div>
         </div>
-      ),
-      sortValue: (r) => r.title ?? ""
+      )
     },
     {
       key: "owner",
@@ -171,8 +246,7 @@ export function PgPropertiesTab({ accessToken }: Props) {
             </div>
           )}
         </div>
-      ),
-      sortValue: (r) => r.owner_name ?? ""
+      )
     },
     {
       key: "locality",
@@ -181,27 +255,63 @@ export function PgPropertiesTab({ accessToken }: Props) {
         <span style={{ fontSize: 13, color: "#374151" }}>
           {[r.locality_slug, r.city_slug].filter(Boolean).join(", ") || "-"}
         </span>
-      ),
-      sortValue: (r) => r.city_slug ?? ""
+      )
+    },
+    {
+      key: "rent",
+      header: "From",
+      align: "right",
+      render: (r) => (r.starting_rent_paise == null ? "—" : formatINR(r.starting_rent_paise))
+    },
+    {
+      key: "gender",
+      header: "Gender",
+      render: (r) =>
+        r.gender_policy === "boys"
+          ? "Boys"
+          : r.gender_policy === "girls"
+            ? "Girls"
+            : r.gender_policy === "coed"
+              ? "Co-ed"
+              : "—"
     },
     {
       key: "status",
       header: "Status",
-      render: (r) => <StatusPill status={r.status} />,
-      sortValue: (r) => r.status
+      render: (r) => <StatusPill status={r.status} />
+    },
+    {
+      key: "verification",
+      header: "Verification",
+      // StatusPill has no tone mapping for "failed"; pass it explicitly rather
+      // than editing the shared primitive.
+      render: (r) => (
+        <StatusPill
+          status={r.verification_status}
+          tone={r.verification_status === "failed" ? "danger" : undefined}
+        />
+      )
     },
     {
       key: "leads_7d",
       header: "Leads 7d",
       align: "right",
-      render: (r) => <MiniLeadBars value={r.leads_7d ?? 0} max={maxLeads} />,
-      sortValue: (r) => r.leads_7d ?? 0
+      render: (r) => <MiniLeadBars value={r.leads_7d ?? 0} max={maxLeads} />
     },
     {
       key: "analytics",
       header: "Analytics",
-      render: (r) => <AnalyticsDot cut={r.analytics_cut} />,
-      sortValue: (r) => (r.analytics_cut ? 1 : 0)
+      render: (r) => <AnalyticsDot cut={r.analytics_cut} />
+    },
+    {
+      key: "updated",
+      header: "Updated",
+      render: (r) => formatDate(r.updated_at)
+    },
+    {
+      key: "actions",
+      header: "Public URL",
+      render: (r) => <PublicActions item={r} />
     }
   ];
 
@@ -232,9 +342,7 @@ export function PgPropertiesTab({ accessToken }: Props) {
 
       <div className="admin-page-title">
         <h1>PG Listings</h1>
-        <span className="admin-page-title__sub">
-          {loading ? "loading…" : `${rows.length} shown`}
-        </span>
+        <span className="admin-page-title__sub">{loading ? "loading…" : `${total} total`}</span>
       </div>
 
       <div
@@ -245,14 +353,18 @@ export function PgPropertiesTab({ accessToken }: Props) {
           marginBottom: 20
         }}
       >
-        <StatCard label="Total Listings" value={loading ? "-" : stats.total} />
-        <StatCard label="Active Rate" value={loading ? "-" : `${stats.activePct}%`} tone="trust" />
-        <StatCard label="Leads / 7d" value={loading ? "-" : stats.totalLeads} tone="brand" />
         <StatCard
-          label="Analytics Cut"
-          value={loading ? "-" : stats.cut}
-          tone={stats.cut > 0 ? "warn" : "default"}
+          label="Verified PGs"
+          value={loading ? "-" : (data?.summary.verified ?? 0)}
+          tone="trust"
         />
+        <StatCard
+          label="Verified & Active"
+          value={loading ? "-" : (data?.summary.active ?? 0)}
+          tone="brand"
+        />
+        <StatCard label="Cities" value={loading ? "-" : (data?.summary.cities ?? 0)} />
+        <StatCard label="Showing" value={loading ? "-" : total} />
       </div>
 
       <div
@@ -264,7 +376,33 @@ export function PgPropertiesTab({ accessToken }: Props) {
           marginBottom: 16
         }}
       >
-        {FILTER_OPTIONS.map((opt) => (
+        {(
+          [
+            { value: "verified", label: "Verified" },
+            { value: "all", label: "All" }
+          ] as const
+        ).map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            className="admin-chip"
+            aria-pressed={verification === opt.value}
+            onClick={() => setVerification(opt.value)}
+          >
+            {opt.label}
+          </button>
+        ))}
+        <span style={{ width: 1, height: 20, background: "#E5E7EB" }} aria-hidden="true" />
+        {(
+          [
+            { value: "active", label: "Active" },
+            { value: "paused", label: "Paused" },
+            { value: "pending_review", label: "Pending" },
+            { value: "draft", label: "Draft" },
+            { value: "archived", label: "Archived" },
+            { value: "all", label: "All" }
+          ] as const
+        ).map((opt) => (
           <button
             key={opt.value}
             type="button"
@@ -275,31 +413,120 @@ export function PgPropertiesTab({ accessToken }: Props) {
             {opt.label}
           </button>
         ))}
+        <select
+          className="admin-input"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          aria-label="City"
+          style={{ maxWidth: 180 }}
+        >
+          <option value="">All cities</option>
+          {(data?.available_cities ?? []).map((c) => (
+            <option key={c.slug} value={c.slug}>
+              {c.name} ({c.count})
+            </option>
+          ))}
+        </select>
+        <select
+          className="admin-input"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as PgAdminListingSort)}
+          aria-label="Sort listings"
+          style={{ maxWidth: 190 }}
+        >
+          <option value="leads">Most leads (7d)</option>
+          <option value="updated">Recently updated</option>
+          <option value="rent_desc">Rent: high → low</option>
+          <option value="rent_asc">Rent: low → high</option>
+        </select>
+        <select
+          className="admin-input"
+          value={pageSize}
+          onChange={(e) => setPageSize(Number(e.target.value) as 25 | 50 | 100)}
+          aria-label="Rows per page"
+          style={{ maxWidth: 120 }}
+        >
+          <option value={25}>25 / page</option>
+          <option value={50}>50 / page</option>
+          <option value={100}>100 / page</option>
+        </select>
         <input
           className="admin-input"
-          placeholder="Search listing or owner…"
+          placeholder="Search title, id, property, owner, phone, locality…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          style={{ maxWidth: 260, marginLeft: "auto" }}
+          aria-label="Search PG listings"
+          style={{ maxWidth: 280, marginLeft: "auto" }}
         />
       </div>
 
-      {loading ? (
+      {error ? (
+        <div className="admin-empty" role="alert">
+          <div className="admin-empty__title">Could not load PG listings</div>
+          <div className="admin-empty__hint">{error}</div>
+          <button
+            type="button"
+            className="admin-btn admin-btn--ghost"
+            style={{ minHeight: 40, marginTop: 12 }}
+            onClick={() => setReloadKey((k) => k + 1)}
+          >
+            Retry
+          </button>
+        </div>
+      ) : loading ? (
         <SkeletonRows />
       ) : rows.length === 0 ? (
-        <EmptyState
-          title="No PG listings found"
-          hint={q || statusFilter !== "all" ? "Try clearing the filters." : undefined}
-        />
+        <div>
+          <EmptyState title="No PGs match these filters" hint="Try clearing the filters." />
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <button
+              type="button"
+              className="admin-btn admin-btn--ghost"
+              style={{ minHeight: 40 }}
+              onClick={() => {
+                setQ("");
+                setVerification("verified");
+                setStatusFilter("all");
+                setCity("");
+                setSort("leads");
+              }}
+            >
+              Show all verified
+            </button>
+          </div>
+        </div>
       ) : (
         <DataTable
           columns={columns}
           rows={rows}
           rowKey={(r) => r.listing_id}
           onRowClick={(r) => setSelected(r.listing_id)}
-          initialSort={{ key: "leads_7d", dir: "desc" }}
         />
       )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+        <button
+          type="button"
+          className="admin-btn admin-btn--ghost"
+          style={{ minHeight: 40 }}
+          disabled={page <= 1 || loading}
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+        >
+          ← Prev
+        </button>
+        <span style={{ fontSize: 13, color: "#6B7280" }}>
+          Page {page} of {totalPages} · {total} total
+        </span>
+        <button
+          type="button"
+          className="admin-btn admin-btn--ghost"
+          style={{ minHeight: 40 }}
+          disabled={page >= totalPages || loading}
+          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          Next →
+        </button>
+      </div>
     </div>
   );
 }
