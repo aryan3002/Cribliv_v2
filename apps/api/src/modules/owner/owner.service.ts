@@ -883,6 +883,71 @@ export class OwnerService {
     return { listing_id: listing.id, status: listing.status };
   }
 
+  /**
+   * Flips the `is_available` flag (independent of `status`/visibility). Flats/houses
+   * only, ownership-scoped, and only while the listing is `active`.
+   */
+  async setAvailability(
+    ownerUserId: string,
+    listingId: string,
+    available: boolean
+  ): Promise<{ listing_id: string; is_available: boolean }> {
+    if (this.database.isEnabled()) {
+      const result = await this.database.query<{ id: string; is_available: boolean }>(
+        `UPDATE listings
+            SET is_available = $3,
+                became_unavailable_at = CASE WHEN $3 THEN NULL ELSE now() END,
+                availability_source = 'owner',
+                last_owner_activity_at = now(),
+                updated_at = now()
+          WHERE id = $1::uuid
+            AND owner_user_id = $2::uuid
+            AND status = 'active'
+            AND listing_type = 'flat_house'
+          RETURNING id::text, is_available`,
+        [listingId, ownerUserId, available]
+      );
+
+      if (!result.rowCount) {
+        throw new NotFoundException({
+          code: "not_found",
+          message: "Listing not found or not eligible"
+        });
+      }
+
+      if (available) {
+        await this.database.query(
+          `UPDATE listing_availability_alerts
+              SET status = 'ready', ready_at = now()
+            WHERE listing_id = $1::uuid AND status = 'waiting'`,
+          [listingId]
+        );
+      }
+
+      return { listing_id: result.rows[0].id, is_available: result.rows[0].is_available };
+    }
+
+    const listing = this.appState.listings.get(listingId);
+    if (!listing || listing.ownerUserId !== ownerUserId) {
+      throw new NotFoundException({ code: "not_found", message: "Listing not found" });
+    }
+    if (listing.listingType !== "flat_house") {
+      throw new BadRequestException({
+        code: "availability_flat_house_only",
+        message: "Availability can only be set for flat/house listings"
+      });
+    }
+    if (listing.status !== "active") {
+      throw new BadRequestException({
+        code: "availability_requires_active",
+        message: "Listing must be active to change availability"
+      });
+    }
+
+    this.appState.setListingAvailability(listingId, available);
+    return { listing_id: listingId, is_available: available };
+  }
+
   async presignPhotos(
     ownerUserId: string,
     listingId: string,
