@@ -16,12 +16,21 @@ describe.runIf(!!TEST_DB)("migration 0031_pg_operator_v1", () => {
     await client.end();
   });
 
-  it("creates pg_properties table with one-primary EXCLUDE constraint", async () => {
+  // 0031 created pg_properties with a one-primary-per-operator EXCLUDE
+  // constraint, but 0041 (PG moves to 1 listing : 1 property) drops it
+  // deliberately: with a property created per listing, "which one is primary"
+  // is meaningless. These tests assert the schema after ALL migrations have
+  // run, so the constraint must be absent — re-adding it would break
+  // per-listing property creation.
+  it("creates pg_properties, without the one-primary EXCLUDE constraint (dropped by 0041)", async () => {
+    const table = await client.query(`SELECT to_regclass('public.pg_properties') AS t`);
+    expect(table.rows[0].t).toBe("pg_properties");
+
     const r = await client.query(`
       SELECT conname FROM pg_constraint
       WHERE conname = 'pg_props_one_primary_per_operator'
     `);
-    expect(r.rowCount).toBeGreaterThan(0);
+    expect(r.rowCount).toBe(0);
   });
 
   it("adds pg_property_id column to listings (nullable, FK)", async () => {

@@ -34,7 +34,15 @@ function makeCtrl() {
     }))
   } as any;
   const pgProps = {
-    listListings: vi.fn(async () => ({ items: [], total: 0 })),
+    listListings: vi.fn(async () => ({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 25,
+      filters: { verification: "verified", status: "active", city: null, q: null, sort: "leads" },
+      available_cities: [],
+      summary: { verified: 0, active: 0, cities: 0 }
+    })),
     getListing: vi.fn(async () => ({
       listing: { id: "l-1", title: "x", status: "active" },
       property: null,
@@ -83,17 +91,47 @@ function makeCtrl() {
 }
 
 describe("Admin PG endpoints (unit)", () => {
-  it("GET pg/listings delegates to pgProps.listListings and wraps in ok()", async () => {
+  it("GET pg/listings sanitizes params and wraps the envelope in ok()", async () => {
     const { ctrl, pgProps } = makeCtrl();
-    const res = await ctrl.pgListings(undefined, undefined, undefined, undefined, undefined);
+    const res = await ctrl.pgListings(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined
+    );
     expect(pgProps.listListings).toHaveBeenCalledWith({
-      q: undefined,
-      status: undefined,
-      city: undefined,
+      verification: "verified",
+      status: "active",
+      sort: "leads",
       page: 1,
-      pageSize: 50
+      page_size: 25
     });
-    expect(res).toMatchObject({ data: [] });
+    expect(res).toMatchObject({ data: { items: [], total: 0 } });
+  });
+
+  it("GET pg/listings clamps hostile query values before they reach the service", async () => {
+    const { ctrl, pgProps } = makeCtrl();
+    await ctrl.pgListings(
+      "'; DROP TABLE listings; --",
+      "bogus",
+      "  DELHI ",
+      "nope",
+      "1=1",
+      "-5",
+      "9999"
+    );
+    expect(pgProps.listListings).toHaveBeenCalledWith({
+      verification: "verified",
+      status: "active",
+      city: "delhi",
+      q: "'; DROP TABLE listings; --",
+      sort: "leads",
+      page: 1,
+      page_size: 25
+    });
   });
 
   it("GET pg/listings/:id delegates to pgProps.getListing", async () => {

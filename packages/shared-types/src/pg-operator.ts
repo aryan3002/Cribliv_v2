@@ -382,7 +382,7 @@ export interface PgActiveOverrides {
 export interface PgAdminListingListItem {
   listing_id: string;
   title: string | null;
-  status: string; // pg_listing status: active | paused | draft | pending_review | ...
+  status: string; // pg_listings.status: draft | pending_review | active | rejected | paused | archived
   pg_property_id: string | null;
   property_name: string | null;
   city_slug: string | null;
@@ -392,6 +392,60 @@ export interface PgAdminListingListItem {
   owner_phone_masked: string | null;
   leads_7d: number;
   analytics_cut: boolean; // global OR this-listing override active
+  // --- Verified-PGs additions ---
+  /**
+   * Public verification truth, read from `listings.verification_status` (the
+   * column search/map/homes all read), falling back to the pg_listings head
+   * when the projection row is missing. See Decision D1.
+   * One of: unverified | pending | verified | failed.
+   */
+  verification_status: string;
+  cover_photo_url: string | null;
+  starting_rent_paise: number | null; // cheapest room rent; NOT NULL in schema, nullable here for in-memory mode
+  gender_policy: string | null; // boys | girls | coed
+  /** Postgres timestamptz rendered via ::text (e.g. "2026-07-10 00:00:00+00") — NOT strict ISO-8601. `formatDate` parses it. */
+  updated_at: string;
+  /** `/en/pg/{city}/{id}`; null when not shareable (status !== 'active' or no city). */
+  public_path: string | null;
+}
+
+export type PgAdminVerificationFilter = "verified" | "all";
+/** Mirrors listing_status, minus 'rejected' (not surfaced in this tab). See Decision D2. */
+export type PgAdminListingStatusFilter =
+  | "active"
+  | "paused"
+  | "pending_review"
+  | "draft"
+  | "archived"
+  | "all";
+export type PgAdminListingSort = "leads" | "updated" | "rent_desc" | "rent_asc";
+
+export interface PgAdminListingsParams {
+  verification: PgAdminVerificationFilter;
+  status: PgAdminListingStatusFilter;
+  city?: string;
+  q?: string;
+  sort: PgAdminListingSort;
+  page: number;
+  page_size: 25 | 50 | 100;
+}
+
+export interface PgAdminListingsResponse {
+  items: PgAdminListingListItem[];
+  total: number;
+  page: number;
+  page_size: 25 | 50 | 100;
+  filters: {
+    verification: PgAdminVerificationFilter;
+    status: PgAdminListingStatusFilter;
+    city: string | null;
+    q: string | null;
+    sort: PgAdminListingSort;
+  };
+  /** Facet counts. Honors verification + status + q; deliberately ignores `city` so the dropdown can switch cities. */
+  available_cities: Array<{ slug: string; name: string; count: number }>;
+  /** Inventory scope tiles. Honors q + city; deliberately ignores `status` and the `verification` toggle — always reports verified counts within the searched scope. */
+  summary: { verified: number; active: number; cities: number };
 }
 
 export interface PgAdminPropertyOwner {
