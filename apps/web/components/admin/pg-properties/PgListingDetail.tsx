@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check, ExternalLink, EyeOff, Link2 } from "lucide-react";
 import { StatusPill } from "../primitives/StatusPill";
 import { useAdminPgListing, type RangeDays } from "./useAdminPgListing";
 import { OverviewSection } from "./tabs/OverviewSection";
@@ -9,6 +10,7 @@ import { RoomsSection } from "./tabs/RoomsSection";
 import { PhotosSection } from "./tabs/PhotosSection";
 import { LocationSection } from "./tabs/LocationSection";
 import { OwnerSection } from "./tabs/OwnerSection";
+import { publicSiteUrl, copyPublicSiteUrl } from "../../../lib/public-site-url";
 
 interface Props {
   accessToken: string;
@@ -81,6 +83,7 @@ export function PgListingDetail({ accessToken, listingId, onBack, onToast }: Pro
   const [metric, setMetric] = useState<MetricKey>("views");
   const [tab, setTab] = useState<TabKey>("overview");
   const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const {
     detail,
@@ -145,6 +148,13 @@ export function PgListingDetail({ accessToken, listingId, onBack, onToast }: Pro
       </div>
     );
   }
+
+  // Same shareability rule the list endpoint applies: publicly reachable iff
+  // active and city-slugged. Verification is a badge, not a gate.
+  const publicPath =
+    detail.listing.status === "active" && detail.city_slug
+      ? `/en/pg/${detail.city_slug}/${detail.listing.id}`
+      : null;
 
   const renderContentTab = (node: (f: NonNullable<typeof full>) => React.ReactNode) => {
     if (fullError) {
@@ -244,6 +254,51 @@ export function PgListingDetail({ accessToken, listingId, onBack, onToast }: Pro
             >
               {copied ? "Copied ✓" : "Copy listing ID"}
             </button>
+            {publicPath ? (
+              <>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn--ghost admin-btn--sm admin-btn--icon"
+                  aria-label="Copy public URL"
+                  title="Copy public URL"
+                  style={copiedUrl ? { color: "#10B981", borderColor: "#10B981" } : undefined}
+                  onClick={async () => {
+                    try {
+                      await copyPublicSiteUrl(publicPath);
+                      setCopiedUrl(true);
+                      window.setTimeout(() => setCopiedUrl(false), 1500);
+                    } catch {
+                      onToast?.("Could not copy public link", "error");
+                    }
+                  }}
+                >
+                  {copiedUrl ? (
+                    <Check size={14} aria-hidden="true" />
+                  ) : (
+                    <Link2 size={14} aria-hidden="true" />
+                  )}
+                </button>
+                <a
+                  className="admin-btn admin-btn--ghost admin-btn--sm admin-btn--icon"
+                  href={publicSiteUrl(publicPath)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open public page"
+                  title="Open public page"
+                >
+                  <ExternalLink size={14} aria-hidden="true" />
+                </a>
+              </>
+            ) : (
+              <span
+                role="img"
+                aria-label="Not publicly available"
+                title="Not publicly available — the listing must be active and have a city"
+                style={{ display: "inline-flex", color: "#D1D5DB" }}
+              >
+                <EyeOff size={14} aria-hidden="true" />
+              </span>
+            )}
           </div>
         </div>
         {tab === "overview" && (
