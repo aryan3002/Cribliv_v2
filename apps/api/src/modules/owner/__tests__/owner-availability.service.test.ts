@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { OwnerService } from "../owner.service";
 import { AppStateService } from "../../../common/app-state.service";
 import { DatabaseService } from "../../../common/database.service";
@@ -19,9 +19,20 @@ function makeService() {
 }
 
 describe("OwnerService.setAvailability", () => {
+  // `setAvailability` is flag-gated (mirrors AvailabilityAlertsService.join): it throws
+  // feature_disabled as its first statement when ff_unavailable_listings is off. Every
+  // existing test in this describe block predates that gate and calls setAvailability
+  // expecting it to succeed, so the flag must be forced on here — same mechanism as
+  // availability-alerts.service.test.ts.
+  const previousFlag = process.env.FF_UNAVAILABLE_LISTINGS;
   let ctx: ReturnType<typeof makeService>;
   beforeEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = "true";
     ctx = makeService();
+  });
+
+  afterEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = previousFlag;
   });
 
   it("marks an owned active flat unavailable", async () => {
@@ -73,6 +84,21 @@ describe("OwnerService.setAvailability", () => {
     l.ownerUserId = "owner-1";
     l.listingType = "flat_house";
     await expect(ctx.svc.setAvailability("owner-1", l.id, false)).rejects.toThrow();
+  });
+
+  it("rejects setAvailability when ff_unavailable_listings is off, and does not mutate is_available", async () => {
+    process.env.FF_UNAVAILABLE_LISTINGS = "false";
+    const l = [...ctx.app.listings.values()].find(
+      (x) => x.listingType === "flat_house" && x.status === "active"
+    )!;
+    l.ownerUserId = "owner-1";
+    const before = ctx.app.listings.get(l.id)!.is_available;
+
+    await expect(ctx.svc.setAvailability("owner-1", l.id, false)).rejects.toMatchObject({
+      response: { code: "feature_disabled" }
+    });
+
+    expect(ctx.app.listings.get(l.id)!.is_available).toBe(before);
   });
 });
 

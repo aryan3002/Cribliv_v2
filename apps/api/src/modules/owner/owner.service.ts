@@ -12,6 +12,7 @@ import { DatabaseService } from "../../common/database.service";
 import { NotificationService } from "../notifications/notification.service";
 import { logTelemetry } from "../../common/telemetry";
 import { toBlobUrl } from "../../common/photo-url";
+import { readFeatureFlags } from "../../config/feature-flags";
 import { AzureBlobPhotoStorageService } from "./azure-blob-photo-storage.service";
 
 @Injectable()
@@ -914,6 +915,13 @@ export class OwnerService {
     listingId: string,
     available: boolean
   ): Promise<{ listing_id: string; is_available: boolean }> {
+    if (!readFeatureFlags().ff_unavailable_listings) {
+      throw new NotFoundException({
+        code: "feature_disabled",
+        message: "Notify-when-available is not enabled"
+      });
+    }
+
     if (this.database.isEnabled()) {
       const result = await this.database.query<{ id: string; is_available: boolean }>(
         `UPDATE listings

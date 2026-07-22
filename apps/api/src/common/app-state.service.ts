@@ -210,6 +210,14 @@ export class AppStateService {
   /** Availability waitlist — mirrors the `listing_availability_alerts` DB table. In-memory dual-mode parity. */
   availabilityAlerts: AvailabilityAlertRecord[] = [];
   private outboundEventCounter = 1;
+  /**
+   * Monotonic id counter for availabilityAlerts. Must only ever increment —
+   * never derive the id from `availabilityAlerts.length`, since `leave` (see
+   * AvailabilityAlertsService.leave) filters the array and shrinks its length,
+   * which would let a subsequent `addAvailabilityAlert` reuse an id that was
+   * already handed out (e.g. join -> leave -> join could both mint "alert_1").
+   */
+  private availabilityAlertSeq = 1;
 
   constructor() {
     const ownerId = randomUUID();
@@ -812,7 +820,7 @@ export class AppStateService {
     if (existing) return { alert: existing, already_on_list: true };
 
     const alert: AvailabilityAlertRecord = {
-      id: `alert_${this.availabilityAlerts.length + 1}`,
+      id: `alert_${this.availabilityAlertSeq++}`,
       listing_id: input.listing_id,
       user_id: input.user_id,
       phone: input.phone,

@@ -64,9 +64,11 @@ describe("AvailabilityAlertsService (in-memory dual-mode path)", () => {
     expect(alerts[0].user_id).toBe("u1");
   });
 
-  it("leave removes the alert and allows a clean rejoin", async () => {
+  it("leave removes the alert and allows a clean rejoin with a distinct id (no reuse after array shrink)", async () => {
     seedUser(ctx.app, "u1", "+919000000005");
     await ctx.svc.join("u1", "L1", "en");
+    const firstId = ctx.app.listAvailabilityAlerts("L1")[0]?.id;
+    expect(firstId).toBeDefined();
 
     const left = await ctx.svc.leave("u1", "L1");
     expect(left).toEqual({ ok: true });
@@ -74,6 +76,14 @@ describe("AvailabilityAlertsService (in-memory dual-mode path)", () => {
 
     const rejoined = await ctx.svc.join("u1", "L1", "en");
     expect(rejoined.already_on_list).toBe(false);
+
+    // Regression guard: AppStateService.addAvailabilityAlert used to mint
+    // `alert_${availabilityAlerts.length + 1}`, which — because `leave` shrinks
+    // the array — could hand the rejoin the exact same id the first join got.
+    // It must now come from a monotonic counter instead, so this id differs.
+    const secondId = ctx.app.listAvailabilityAlerts("L1")[0]?.id;
+    expect(secondId).toBeDefined();
+    expect(secondId).not.toBe(firstId);
   });
 
   it("listForUser returns the caller's alerts across listings, keyed by their phone", async () => {

@@ -15,6 +15,7 @@ import type {
 import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { toBlobUrl } from "../../common/photo-url";
+import { readFeatureFlags } from "../../config/feature-flags";
 import { AvailabilityAlertsService } from "../availability-alerts/availability-alerts.service";
 import { computeOwnerHealth } from "./owner-health.calculator";
 
@@ -569,6 +570,13 @@ export class AdminHomesService {
     adminUserId: string,
     reason?: string
   ): Promise<{ listing_id: string; is_available: boolean }> {
+    if (!readFeatureFlags().ff_unavailable_listings) {
+      throw new NotFoundException({
+        code: "feature_disabled",
+        message: "Notify-when-available is not enabled"
+      });
+    }
+
     if (this.database.isEnabled()) {
       const result = await this.database.query<{ id: string; is_available: boolean }>(
         `UPDATE listings

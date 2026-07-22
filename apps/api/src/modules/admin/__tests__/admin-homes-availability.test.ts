@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppStateService } from "../../../common/app-state.service";
 import { AvailabilityAlertsService } from "../../availability-alerts/availability-alerts.service";
 import { AdminHomesService } from "../admin-homes.service";
@@ -54,17 +54,28 @@ function installFixtures(appState: AppStateService) {
 }
 
 describe("AdminHomesService — availability toggle + waitlist leads", () => {
+  // `setAvailability` is flag-gated (mirrors AvailabilityAlertsService.join / the owner
+  // equivalent in owner.service.ts): it throws feature_disabled as its first statement
+  // when ff_unavailable_listings is off. Every existing test in this describe block
+  // predates that gate and calls setAvailability expecting it to succeed, so force the
+  // flag on here — same mechanism as availability-alerts.service.test.ts.
+  const previousFlag = process.env.FF_UNAVAILABLE_LISTINGS;
   let database: { isEnabled: () => boolean; query: ReturnType<typeof vi.fn> };
   let appState: AppStateService;
   let availabilityAlerts: AvailabilityAlertsService;
   let service: AdminHomesService;
 
   beforeEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = "true";
     database = { isEnabled: () => false, query: vi.fn() };
     appState = new AppStateService();
     installFixtures(appState);
     availabilityAlerts = new AvailabilityAlertsService(appState, database as any);
     service = new AdminHomesService(database as any, appState, availabilityAlerts);
+  });
+
+  afterEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = previousFlag;
   });
 
   it("admin marks unavailable and lists waitlist leads with phone", async () => {
@@ -123,6 +134,18 @@ describe("AdminHomesService — availability toggle + waitlist leads", () => {
     const result = await service.setAvailability("active-home", false, "admin-999");
     expect(result.is_available).toBe(false);
   });
+
+  it("rejects setAvailability when ff_unavailable_listings is off, and does not mutate is_available", async () => {
+    process.env.FF_UNAVAILABLE_LISTINGS = "false";
+    const l = appState.listings.get("active-home")!;
+    const before = (l as any).is_available;
+
+    await expect(service.setAvailability(l.id, false, "admin-1")).rejects.toMatchObject({
+      response: { code: "feature_disabled" }
+    });
+
+    expect((appState.listings.get(l.id) as any).is_available).toBe(before);
+  });
 });
 
 // DB-mode path: `database.isEnabled()` returns true and every DB call is a mocked
@@ -141,6 +164,17 @@ describe("AdminHomesService — availability toggle + waitlist leads", () => {
 //      WHERE listing_id = $1::uuid AND status = 'waiting'`
 describe("AdminHomesService.setAvailability — DB-mode path", () => {
   const listingId = "33333333-3333-4333-8333-333333333333";
+  // Same flag-gate as the in-memory describe block above — force it on so these
+  // pre-existing DB-mode tests keep exercising the DB branch instead of short-circuiting.
+  const previousFlag = process.env.FF_UNAVAILABLE_LISTINGS;
+
+  beforeEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = "true";
+  });
+
+  afterEach(() => {
+    process.env.FF_UNAVAILABLE_LISTINGS = previousFlag;
+  });
 
   function makeDbService() {
     const query = vi.fn();
