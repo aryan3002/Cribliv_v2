@@ -58,7 +58,7 @@ describe("ListingCardItem — availability (ff_unavailable_listings)", () => {
     flagState.ff_unavailable_listings = true;
     render(<ListingCardItem listing={baseListing({ is_available: false }) as any} locale="en" />);
 
-    expect(screen.getByText(/unavailable/i)).toBeInTheDocument();
+    expect(screen.getByText(/not available right now/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /notify me/i })).toBeInTheDocument();
   });
 
@@ -66,7 +66,7 @@ describe("ListingCardItem — availability (ff_unavailable_listings)", () => {
     flagState.ff_unavailable_listings = true;
     render(<ListingCardItem listing={baseListing({ is_available: true }) as any} locale="en" />);
 
-    expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not available right now/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /notify me/i })).not.toBeInTheDocument();
     // Verified badge logic must stay intact for available cards.
     expect(screen.getByText(/verified/i)).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe("ListingCardItem — availability (ff_unavailable_listings)", () => {
     flagState.ff_unavailable_listings = false;
     render(<ListingCardItem listing={baseListing({ is_available: false }) as any} locale="en" />);
 
-    expect(screen.queryByText(/unavailable/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not available right now/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /notify me/i })).not.toBeInTheDocument();
     // With the flag off, the card renders exactly as it does today — Verified
     // badge included — regardless of is_available.

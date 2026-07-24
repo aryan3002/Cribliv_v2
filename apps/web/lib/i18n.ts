@@ -987,8 +987,28 @@ const dictionary: Dictionary = {
     hi: "आप पहले से ही प्रतीक्षा सूची में हैं"
   },
   availWaitlistCount: {
-    en: "{n} people are waiting for this home",
-    hi: "{n} लोग इस घर के लिए प्रतीक्षा कर रहे हैं"
+    en: "{n} people are already waiting",
+    hi: "{n} लोग पहले से प्रतीक्षा कर रहे हैं"
+  },
+  availWaitlistCountOne: {
+    en: "1 person is already waiting",
+    hi: "1 व्यक्ति पहले से प्रतीक्षा कर रहा है"
+  },
+  availTakenTitle: {
+    en: "This home is currently taken",
+    hi: "यह घर फ़िलहाल किसी और ने ले लिया है"
+  },
+  availTakenSub: {
+    en: "Get notified the moment it opens up",
+    hi: "जैसे ही यह उपलब्ध हो, तुरंत सूचना पाएं"
+  },
+  availNotifyCard: {
+    en: "Notify me when it opens up",
+    hi: "उपलब्ध होने पर मुझे सूचित करें"
+  },
+  availReassure: {
+    en: "We'll text you the moment it's back. No spam.",
+    hi: "जैसे ही यह वापस आएगा, हम आपको सूचित करेंगे। कोई स्पैम नहीं।"
   },
   // ── Task 16: remaining availability copy (owner toggles, cards, search) ───
   availabilityLabel: { en: "Availability", hi: "उपलब्धता" },

@@ -26,8 +26,11 @@
 }
 
 .inline {
-  font-size: 11px;
-  padding: 4px 10px;
+  font-size: 12.5px;
+  padding: 8px 12px;
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 10px;
 }
 
 .primary {
