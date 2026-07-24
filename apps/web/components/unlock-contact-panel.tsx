@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Bell } from "lucide-react";
+import { Bell, Clock } from "lucide-react";
 import {
   clearAuthSession,
   readAuthSession,
@@ -425,20 +425,88 @@ export function UnlockContactPanel({
   // inherit wallet/credit/callback UI, and leaves the already-tested
   // legacy JSX beneath completely unmodified.
   if (isUnavailable) {
+    const waitingLine =
+      typeof waitlistCount === "number" && waitlistCount > 0
+        ? waitlistCount === 1
+          ? t(locale, "availWaitlistCountOne")
+          : t(locale, "availWaitlistCount").replace("{n}", String(waitlistCount))
+        : null;
     return (
       <div>
-        <span className="badge badge--pending" style={{ marginBottom: "var(--space-3)" }}>
-          <Bell size={14} style={{ marginRight: 4 }} aria-hidden="true" />
-          {t(locale, "availUnavailableChip")}
-        </span>
+        {/* Prominent, hopeful (amber, not red) "currently taken" header so the
+            unavailable status is the first thing a seeker sees. */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: "linear-gradient(90deg, #ba7517, #854f0b)",
+            color: "#fff",
+            borderRadius: "12px",
+            padding: "13px 14px",
+            marginBottom: "var(--space-3)"
+          }}
+        >
+          <Clock size={22} strokeWidth={2} aria-hidden="true" style={{ flexShrink: 0 }} />
+          <span>
+            <span style={{ display: "block", fontWeight: 700, fontSize: 15, lineHeight: 1.2 }}>
+              {t(locale, "availTakenTitle")}
+            </span>
+            <span style={{ display: "block", fontSize: 12, opacity: 0.9, marginTop: 2 }}>
+              {t(locale, "availTakenSub")}
+            </span>
+          </span>
+        </div>
 
-        {typeof waitlistCount === "number" && waitlistCount > 0 ? (
-          <p
-            className="caption"
-            style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)" }}
+        {waitingLine ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              background: "var(--warning-light, #fff8e1)",
+              border: "0.5px solid rgba(232, 140, 0, 0.4)",
+              borderRadius: "10px",
+              padding: "9px 11px",
+              marginBottom: "var(--space-3)"
+            }}
           >
-            {t(locale, "availWaitlistCount").replace("{n}", String(waitlistCount))}
-          </p>
+            <span aria-hidden="true" style={{ display: "flex" }}>
+              <span
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "#dbeafe",
+                  border: "1.5px solid #fff",
+                  display: "inline-block"
+                }}
+              />
+              <span
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "#dcfce7",
+                  border: "1.5px solid #fff",
+                  marginLeft: -8,
+                  display: "inline-block"
+                }}
+              />
+              <span
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "#93c5fd",
+                  border: "1.5px solid #fff",
+                  marginLeft: -8,
+                  display: "inline-block"
+                }}
+              />
+            </span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: "#854f0b" }}>{waitingLine}</span>
+          </div>
         ) : null}
 
         <div

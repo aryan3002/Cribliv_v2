@@ -82,7 +82,7 @@ describe("UnlockContactPanel — unavailable listing calm-swap (ff_unavailable_l
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /request callback/i })).not.toBeInTheDocument();
     // waitlistCount is 0 — no social-proof line yet.
-    expect(screen.queryByText(/people are waiting/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/already waiting/i)).not.toBeInTheDocument();
   });
 
   it("keeps Request Callback and hides Notify when available when the flag is off, even if unavailable", async () => {
@@ -132,10 +132,27 @@ describe("UnlockContactPanel — unavailable listing calm-swap (ff_unavailable_l
     expect(await screen.findByText(/already.*waitlist/i)).toBeInTheDocument();
   });
 
-  it("shows a social-proof line when waitlist_count is greater than zero", async () => {
+  it("shows a plural social-proof line when waitlist_count is greater than one", async () => {
     render(<UnlockContactPanel listingId="L6" locale="en" isAvailable={false} waitlistCount={7} />);
 
-    expect(await screen.findByText(/7 people are waiting/i)).toBeInTheDocument();
+    expect(await screen.findByText(/7 people are already waiting/i)).toBeInTheDocument();
+  });
+
+  it("uses singular copy when exactly one person is waiting", async () => {
+    render(
+      <UnlockContactPanel listingId="L6b" locale="en" isAvailable={false} waitlistCount={1} />
+    );
+
+    expect(await screen.findByText(/1 person is already waiting/i)).toBeInTheDocument();
+    expect(screen.queryByText(/1 people/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the prominent 'currently taken' header in the unavailable branch", async () => {
+    render(
+      <UnlockContactPanel listingId="L6c" locale="en" isAvailable={false} waitlistCount={0} />
+    );
+
+    expect(await screen.findByText(/this home is currently taken/i)).toBeInTheDocument();
   });
 
   it("does not fake a joined state on a failed join request", async () => {

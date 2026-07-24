@@ -620,8 +620,8 @@ export default async function ListingDetailPage({
                       {t(locale, "depositShort")}
                     </span>
                   )}
-                  {availableShort && <span aria-hidden="true">·</span>}
-                  {availableShort && (
+                  {!isUnavailable && availableShort && <span aria-hidden="true">·</span>}
+                  {!isUnavailable && availableShort && (
                     <span>
                       {t(locale, "availableFrom")} {availableShort}
                     </span>

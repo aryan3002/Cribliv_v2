@@ -20,7 +20,7 @@ export interface NotifyAvailabilityButtonProps {
 // primary reuses the exact same copy already established by Tasks 8/10/13/15
 // for unlock-contact-panel.tsx / listing/[listingId]/page.tsx.
 const LABEL_KEY: Record<NotifyAvailabilityButtonProps["variant"], string> = {
-  inline: "notifyMe",
+  inline: "availNotifyCard",
   primary: "availNotifyButton"
 };
 

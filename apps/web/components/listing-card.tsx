@@ -11,7 +11,7 @@ import {
   Maximize2,
   Sofa,
   UtensilsCrossed,
-  XCircle
+  Clock
 } from "lucide-react";
 import { Badge } from "@cribliv/ui";
 import styles from "./listing-card.module.css";
@@ -120,18 +120,7 @@ export function ListingCardItem({
         <span className={styles.scrim} aria-hidden="true" />
 
         <div className={styles.badgeRow}>
-          {isUnavailable ? (
-            <Badge
-              tone="pending"
-              style={{
-                background: "rgba(255,255,255,0.94)",
-                boxShadow: "var(--shadow-sm)",
-                backdropFilter: "blur(6px)"
-              }}
-            >
-              <XCircle size={12} aria-hidden="true" /> {t(loc, "availUnavailableBadge")}
-            </Badge>
-          ) : isVerified ? (
+          {isVerified ? (
             <Badge
               tone="verified"
               style={{
@@ -151,6 +140,13 @@ export function ListingCardItem({
         <span className={`${styles.typePill}${isPg ? ` ${styles.typePillPg}` : ""}`}>
           {typeLabel}
         </span>
+
+        {isUnavailable && (
+          <div className={styles.unavailBanner}>
+            <Clock size={15} strokeWidth={2.25} aria-hidden="true" />
+            {t(loc, "availUnavailableChip")}
+          </div>
+        )}
       </Link>
 
       <Link href={href} className={styles.body}>
@@ -179,14 +175,16 @@ export function ListingCardItem({
             <span className={styles.price}>{rentDisplay}</span>
             {hasRent && <span className={styles.period}>{isPg ? "/mo onwards" : "/month"}</span>}
           </span>
-          {isUnavailable ? (
-            <NotifyAvailabilityButton listingId={listing.id} locale={locale} variant="inline" />
-          ) : (
+          {!isUnavailable && (
             <Badge tone="neutral" style={{ fontSize: 11, padding: "4px 8px" }}>
               <ShieldCheck size={12} aria-hidden="true" /> Live details
             </Badge>
           )}
         </div>
+
+        {isUnavailable && (
+          <NotifyAvailabilityButton listingId={listing.id} locale={locale} variant="inline" />
+        )}
       </Link>
     </article>
   );

@@ -48,9 +48,28 @@
   place-items: center;
   color: #c2cbd6;
 }
+/* Unavailable: a soft desaturation reads as "temporarily taken" rather than a
+   dead/removed listing — the photo stays recognizable. */
 .imgDimmed {
-  filter: grayscale(1);
-  opacity: 0.8;
+  filter: grayscale(0.55) brightness(0.9);
+}
+/* Prominent "not available" banner across the bottom of the photo so the
+   status is unmissable while staying hopeful (amber, not red). */
+.unavailBanner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: linear-gradient(90deg, rgba(186, 117, 23, 0.96), rgba(133, 79, 11, 0.96));
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  pointer-events: none;
 }
 .scrim {
   position: absolute;
