@@ -64,20 +64,25 @@ const primaryNav = (page: Page) => page.getByRole("navigation", { name: "Primary
  * `locator.hover()`.
  *
  * Investigated finding: `locator.hover()` on these triggers is genuinely
- * flaky here — repeatably (5/5 and more in manual repro) the Rent panel
- * closes correctly on Escape and then silently reopens ~120ms later
- * (NavMenuBar's OPEN_DELAY_MS), with a fresh native mouseenter recorded on
- * the trigger even though the OS cursor never moved. Isolated by:
- *   - disabling NavMenuBar's `close()` focus() call — reopen still happened
- *     (not a focus-driven refocus/rehover), and
- *   - replacing `locator.hover()` with one `page.mouse.move()` to the same
- *     coordinates — the reopen stopped, 5/5 clean runs, including the
- *     click-to-open path.
- * That points at Playwright's hover() actionability/retry machinery
- * interacting with the panel's open CSS animation (nav-panel-in), not at a
- * bug a real user's mouse — which doesn't behave like a scripted retry loop
- * — can reach. Filed as a test-methodology workaround; see the Task 11
- * report for the full investigation.
+ * flaky here — reproducibly (10+ manual repro runs), the Rent panel closes
+ * correctly on Escape and then silently reopens ~110-120ms later
+ * (NavMenuBar's OPEN_DELAY_MS). Monkey-patching `window.setTimeout` proved a
+ * fresh 120ms timer gets scheduled from NavMenuBar's own `onMouseEnter`
+ * handler shortly around Escape-time, i.e. `hoverOpen` genuinely runs again —
+ * but capture-phase listeners for every mouse/pointer enter/leave/over/out
+ * event, on both the trigger and `document`, recorded NOTHING in that
+ * window, so the exact browser mechanism re-invoking it is unconfirmed (not
+ * a focus()-driven re-hover: disabling NavMenuBar's `close()` focus() call
+ * didn't stop it; not early-page-load/font-swap timing: waiting 2s +
+ * `document.fonts.ready` before interacting didn't stop it either).
+ * What IS confirmed: swapping `locator.hover()` for one `page.mouse.move()`
+ * to the same coordinates made the reopen stop, cleanly, every time (10+
+ * repro runs incl. the click-to-open path). That isolates it to
+ * `locator.hover()`'s own actionability/retry machinery reacting to the
+ * panel's open CSS animation (nav-panel-in) — a real user's mouse doesn't
+ * behave like a scripted retry loop, so this reads as a test-methodology
+ * artifact rather than a reachable product bug. See the Task 11 report for
+ * the full investigation log.
  */
 async function hoverTrigger(page: Page, trigger: Locator): Promise<void> {
   const box = await trigger.boundingBox();
