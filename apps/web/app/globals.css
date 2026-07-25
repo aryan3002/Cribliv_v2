@@ -492,16 +492,24 @@ h4,
   background: var(--brand-light);
 }
 
-/* Center primary nav (Airbnb-style tabs) */
+.nav-row {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* Two flexible spacers keep the centre group optically centred while letting
+   it grow. The old absolute centring collided as soon as items got wider. */
+.nav-spacer {
+  flex: 1 1 auto;
+  min-width: var(--space-2);
+}
 .nav-center {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: auto;
+  flex-shrink: 0;
 }
 
 .nav-tab {
@@ -529,21 +537,25 @@ h4,
   color: var(--text-primary);
 }
 
+.nav-tab {
+  position: relative;
+}
 .nav-tab--active::after {
   content: "";
-  display: block;
   position: absolute;
-  margin-top: 30px;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
   width: 28px;
   height: 2px;
   border-radius: 1px;
   background: var(--text-primary);
 }
 
-/* CRIBLIV TIMES — a serif masthead chip in the primary nav. Reads as "the
-   newspaper" (Fraunces serif in a hairline box) against the sans nav tabs; the
-   press red mirrors the blog's flag colour. */
-.nav-times {
+/* The two signature chips. Same box, different voice: Times is the editorial
+   serif in press red, CriblMap is the live-data sans in brand blue. They read
+   as a deliberate pair rather than one chip beside one gradient CTA. */
+.nav-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -551,9 +563,8 @@ h4,
   padding: 5px 12px;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
-  font-family: var(--font-display), Georgia, "Times New Roman", serif;
-  font-weight: 700;
   font-size: 14.5px;
+  font-weight: 700;
   letter-spacing: 0.005em;
   color: var(--text-primary);
   text-decoration: none;
@@ -563,121 +574,128 @@ h4,
     border-color var(--transition-fast),
     background var(--transition-fast);
 }
-.nav-times svg {
+.nav-chip svg {
   opacity: 0.7;
 }
-.nav-times:hover,
-.nav-times--active {
+.nav-chip:hover svg,
+.nav-chip--active svg {
+  opacity: 1;
+}
+
+.nav-chip--times {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
+.nav-chip--times:hover,
+.nav-chip--times.nav-chip--active {
   color: #c2301c;
   border-color: #c2301c;
   background: rgba(194, 48, 28, 0.05);
 }
-.nav-times:hover svg,
-.nav-times--active svg {
-  opacity: 1;
+
+.nav-chip--map {
+  font-size: 13.5px;
+}
+.nav-chip--map:hover,
+.nav-chip--map.nav-chip--active {
+  color: var(--brand);
+  border-color: var(--brand);
+  background: var(--brand-light);
+}
+/* Live-inventory dot. Static — the pulse animation went with the gradient. */
+.nav-chip__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
 }
 
-/* CRIBLMAP — a gradient live-map CTA in the primary nav. Brand blue→coral wash
-   (the homepage hero's palette) with an ambient drift, a hover sheen sweep, and
-   a pulsing "live" dot, so the map reads as live inventory rather than a static
-   picture. Deep-links to /{locale}/map. */
-.nav-cribmap {
+.nav-trigger {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  margin-left: 4px;
-  padding: 7px 15px 7px 13px;
+  gap: 4px;
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
   border-radius: var(--radius-full);
-  font-size: 13.5px;
-  font-weight: 700;
-  letter-spacing: 0.005em;
-  color: #fff;
-  text-decoration: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  isolation: isolate;
-  background: linear-gradient(120deg, var(--brand) 0%, #5b57ff 46%, var(--accent) 100%);
-  background-size: 180% 180%;
-  box-shadow:
-    0 2px 10px -2px rgba(255, 90, 95, 0.5),
-    0 1px 3px rgba(0, 102, 255, 0.35);
-  animation: cribmap-drift 7s ease-in-out infinite;
   transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast);
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
-.nav-cribmap svg,
-.nav-cribmap span {
-  position: relative;
-  z-index: 1;
+.nav-trigger:hover,
+.nav-trigger--open {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
 }
-/* Hover sheen — a light streak sweeps across the pill. */
-.nav-cribmap::after {
-  content: "";
+.nav-trigger svg {
+  transition: transform var(--transition-fast);
+}
+.nav-trigger--open svg {
+  transform: rotate(180deg);
+}
+
+.nav-panel {
   position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: linear-gradient(
-    115deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 65%
-  );
-  transform: translateX(-160%);
-  transition: transform 0.7s ease;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: nav-panel-in 180ms ease;
 }
-.nav-cribmap:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 5px 18px -2px rgba(255, 90, 95, 0.6),
-    0 2px 6px rgba(0, 102, 255, 0.4);
-}
-.nav-cribmap:hover::after {
-  transform: translateX(160%);
-}
-.nav-cribmap--active {
-  box-shadow:
-    0 2px 10px -2px rgba(255, 90, 95, 0.5),
-    0 0 0 2px rgba(255, 255, 255, 0.6) inset;
-}
-/* Live pulse dot. */
-.nav-cribmap__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
-  animation: cribmap-pulse 2s infinite;
-}
-@keyframes cribmap-drift {
-  0%,
-  100% {
-    background-position: 0% 50%;
+@keyframes nav-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
   }
-  50% {
-    background-position: 100% 50%;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
-@keyframes cribmap-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
-  }
-  70% {
-    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
-  }
+.nav-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  max-width: var(--container-max);
+  margin: 0 auto;
 }
+.nav-panel__col-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-3);
+}
+.nav-panel__link {
+  display: block;
+  padding: 5px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+.nav-panel__link:hover {
+  color: var(--brand);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .nav-cribmap {
+  .nav-panel {
     animation: none;
   }
-  .nav-cribmap__dot {
-    animation: none;
-  }
-  .nav-cribmap::after {
+  .nav-trigger svg {
     transition: none;
   }
 }

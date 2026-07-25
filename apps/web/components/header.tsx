@@ -77,6 +77,8 @@ export function Header({ locale }: { locale: Locale }) {
           <BrandLockup size="md" priority />
         </Link>
 
+        <span className="nav-spacer" />
+
         {/* ── Center: Primary nav (desktop only) ──────────────────── */}
         <nav className="nav-center" aria-label="Primary">
           {isPgOperatorRoute ? (
@@ -119,7 +121,7 @@ export function Header({ locale }: { locale: Locale }) {
                   "the newspaper", distinct from the sans nav tabs. */}
               <Link
                 href={`/${locale}/blog`}
-                className={`nav-times${isActive(`/${locale}/blog`) ? " nav-times--active" : ""}`}
+                className={`nav-chip nav-chip--times${isActive(`/${locale}/blog`) ? " nav-chip--active" : ""}`}
                 aria-label="Cribliv Times"
               >
                 <Newspaper size={14} aria-hidden="true" />
@@ -129,16 +131,18 @@ export function Header({ locale }: { locale: Locale }) {
                   rent-intelligence map; the pulse dot signals live inventory. */}
               <Link
                 href={`/${locale}/map`}
-                className={`nav-cribmap${isActive(`/${locale}/map`) ? " nav-cribmap--active" : ""}`}
+                className={`nav-chip nav-chip--map${isActive(`/${locale}/map`) ? " nav-chip--active" : ""}`}
                 aria-label="CriblMap: live rent map"
               >
                 <Map size={15} aria-hidden="true" />
                 <span>CriblMap</span>
-                <span className="nav-cribmap__dot" aria-hidden="true" />
+                <span className="nav-chip__dot" aria-hidden="true" />
               </Link>
             </>
           )}
         </nav>
+
+        <span className="nav-spacer" />
 
         {/* ── Right: Actions ──────────────────────────────────────── */}
         <div className="nav-actions">
