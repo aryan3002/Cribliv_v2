@@ -35,7 +35,10 @@ Consequences for the brief's scope:
   `under-15000`, `premium`, `luxury`) **do** apply to PG today — they emit `min_rent`/`max_rent`,
   which the endpoint honours.
 - The top-nav mega-menu budget column is therefore **not blocked**. `/en/pg?max_rent=10000` works
-  now. (The referenced nav spec is not present on this branch.)
+  now. The nav spec (on the `maya-voice-agent-cribliv-81f032` worktree, not this branch) already
+  carries the same correction independently: its §3.2 reinstates the budget column, citing the same
+  legacy-stub diagnosis and the same `pg-search.service.ts:158-163`. Its §11 records the residual UI
+  gap — "adding one is a small, self-contained UI change" — which is exactly what this work closes.
 - The DB dual-mode requirement does not apply. `PgSearchService` deliberately returns an empty page
   when `db.isEnabled()` is false and never injects `AppStateService`. Adding an in-memory PG search
   would be new behaviour unrelated to rent filtering; explicitly out of scope.
