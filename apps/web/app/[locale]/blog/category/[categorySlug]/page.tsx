@@ -23,7 +23,7 @@ export async function generateMetadata({
 }: {
   params: { locale: string; categorySlug: string };
 }): Promise<Metadata> {
-  if (!DESK_SLUGS.includes(params.categorySlug)) return { title: "Not found · Cribliv Times" };
+  if (!DESK_SLUGS.includes(params.categorySlug)) return { title: "Not found" };
   const hi = params.locale === "hi";
   const desk = deskLabel(params.categorySlug, hi);
   const title = `${desk} · Cribliv Times`;

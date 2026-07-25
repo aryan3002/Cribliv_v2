@@ -23,7 +23,7 @@ export async function generateMetadata({
 }: {
   params: { locale: string; authorSlug: string };
 }): Promise<Metadata> {
-  if (params.authorSlug !== EDITORIAL_AUTHOR.slug) return { title: "Not found · Cribliv Times" };
+  if (params.authorSlug !== EDITORIAL_AUTHOR.slug) return { title: "Not found" };
   const hi = params.locale === "hi";
   const title = `${EDITORIAL_AUTHOR.name}, ${EDITORIAL_AUTHOR.role}`;
   const description = hi ? EDITORIAL_AUTHOR.bio_hi : EDITORIAL_AUTHOR.bio_en;

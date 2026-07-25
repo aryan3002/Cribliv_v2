@@ -9,6 +9,7 @@ import {
 } from "../../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../lib/seo";
+import { cityLabel, placeWithCity } from "../../../../../../lib/intent-filters";
 import { isAdminPreview } from "../../../../../../lib/admin-preview";
 
 export const revalidate = 86400;
@@ -76,14 +77,14 @@ export async function generateMetadata({
   });
   const listingCount = bundle?.items.length ?? 0;
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
-  const title =
-    locale === "hi" ? `${name} के पास किराये के घर · Cribliv` : `Rentals near ${name} · Cribliv`;
+  const place = placeWithCity(name, cityLabel(params.citySlug, locale));
+  const title = locale === "hi" ? `${place} के पास किराये के घर` : `Rentals near ${place}`;
   return buildPageMetadata({
     title,
     description:
       locale === "hi"
-        ? `${name} के 2 किमी के दायरे में सत्यापित PG, फ्लैट और मकान। सीधे मालिक से संपर्क।`
-        : `Verified PGs, flats, and houses within 2 km of ${name}. Direct owner contact, zero brokerage.`,
+        ? `${place} के 2 किमी के दायरे में सत्यापित PG, फ्लैट और मकान। सीधे मालिक से संपर्क।`
+        : `Verified PGs, flats, and houses within 2 km of ${place}. Direct owner contact, zero brokerage.`,
     pathname: `/city/${params.citySlug}/near/${params.landmark}`,
     locale,
     noindex: listingCount < 3

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { OwnerOverviewClient } from "../../../../components/owner/owner-overview-client";
 
 export const metadata: Metadata = {
-  title: "Owner workspace · Cribliv"
+  title: "Owner workspace"
 };
 
 interface PageProps {

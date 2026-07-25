@@ -31,7 +31,7 @@ export async function generateMetadata({
   params: { locale: string; slug: string };
 }): Promise<Metadata> {
   const data = await fetchBlogPost(params.slug);
-  if (!data) return { title: "Not found · Cribliv Times" };
+  if (!data) return { title: "Not found" };
   const { post } = data;
   const title = post.meta_title || post.title;
   const description = post.meta_description || post.excerpt || undefined;
