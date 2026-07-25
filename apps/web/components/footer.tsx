@@ -1,7 +1,7 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { Locale } from "../lib/i18n";
 import { Heart, Mail, ShieldCheck, Phone } from "lucide-react";
+import { BrandLockup } from "./brand/brand-lockup";
 
 export function Footer({ locale }: { locale: Locale }) {
   const year = new Date().getFullYear();
@@ -12,18 +12,8 @@ export function Footer({ locale }: { locale: Locale }) {
         <div className="footer__grid">
           {/* Brand column */}
           <div>
-            <div
-              className="footer__brand"
-              style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}
-            >
-              <Image
-                src="/cribliv-logo-new.svg"
-                alt=""
-                width={30}
-                height={30}
-                style={{ opacity: 0.95 }}
-              />
-              Cribliv
+            <div className="footer__brand">
+              <BrandLockup size="md" onDark />
             </div>
             <p className="footer__description">
               AI-powered rental search for North India with live listings, photos, rent, locality,

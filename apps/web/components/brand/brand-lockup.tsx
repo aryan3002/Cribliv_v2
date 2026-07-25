@@ -4,12 +4,19 @@ type Size = "sm" | "md" | "lg";
 
 const BRAND_MARK_SRC = "/cribliv-logo-new.svg";
 const BRAND_WORDMARK_SRC = "/criblivFont.png";
+/** Same wordmark geometry, white ink — for dark canvases (footer, dark chrome). */
+const BRAND_WORDMARK_LIGHT_SRC = "/criblivFont-light.png";
 
 interface Props {
   size?: Size;
   glow?: boolean;
   priority?: boolean;
   className?: string;
+  /**
+   * Render the wordmark in white for placement on a dark surface. The mark
+   * itself is a blue house that already reads on dark, so it is unchanged.
+   */
+  onDark?: boolean;
 }
 
 /**
@@ -22,7 +29,13 @@ interface Props {
  * - "sm"           → compact (icon 20h, wordmark 18h)
  * - "lg"           → auth/marketing moments (icon 44h, wordmark 38h)
  */
-export function BrandLockup({ size = "md", glow = false, priority = false, className }: Props) {
+export function BrandLockup({
+  size = "md",
+  glow = false,
+  priority = false,
+  className,
+  onDark = false
+}: Props) {
   return (
     <span
       className={`brand-lockup brand-lockup--${size}${glow ? " brand-lockup--glow" : ""}${className ? ` ${className}` : ""}`}
@@ -41,7 +54,7 @@ export function BrandLockup({ size = "md", glow = false, priority = false, class
         className="logo-img"
       />
       <Image
-        src={BRAND_WORDMARK_SRC}
+        src={onDark ? BRAND_WORDMARK_LIGHT_SRC : BRAND_WORDMARK_SRC}
         alt="Cribliv"
         width={96}
         height={24}

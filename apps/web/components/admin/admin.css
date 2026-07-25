@@ -57,20 +57,19 @@
   overflow-y: auto;
 }
 .admin-sidebar__brand {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px;
   padding: 4px 10px 16px;
   border-bottom: 1px solid var(--ad-border);
   margin-bottom: 12px;
-  font-family: var(--font-heading, var(--font-manrope));
-  font-weight: 700; font-size: 16px; color: var(--ad-text);
-  letter-spacing: -0.01em;
 }
-.admin-sidebar__brand-mark {
-  width: 26px; height: 26px;
-  border-radius: 7px;
-  background: linear-gradient(135deg, var(--ad-brand) 0%, #0040C0 100%);
-  display: grid; place-items: center;
-  color: #fff; font-weight: 800; font-size: 13px;
+/* Product-line marker, same cadence as CriblMap's "Map": the lockup is the
+   brand, "Admin" is a small tracked suffix beside it — not co-equal text. */
+.admin-sidebar__brand-suffix {
+  font-family: var(--font-heading, var(--font-manrope));
+  font-weight: 700; font-size: 11px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--ad-brand);
+  line-height: 1;
 }
 .admin-sidebar__section {
   font-size: 10px; font-weight: 700;

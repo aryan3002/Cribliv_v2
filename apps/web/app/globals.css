@@ -4911,12 +4911,12 @@ a.feature-card:hover .icon-circle {
   gap: var(--space-8);
   margin-bottom: var(--space-12);
 }
+/* Spacing wrapper only — the brand itself is <BrandLockup onDark />, so there
+   is no longer any typeset logotype here to style. */
 .footer__brand {
-  font-family: var(--font-heading);
-  font-size: 22px;
-  font-weight: 800;
+  display: flex;
+  align-items: center;
   margin-bottom: var(--space-4);
-  color: var(--text-inverse);
 }
 .footer__description {
   font-size: 14px;
