@@ -390,3 +390,52 @@ describe("spec — column cardinality is pinned", () => {
     expect(counts).toEqual([4]);
   });
 });
+
+// Task 3 (intent chip rail): the mobile chip rail shows only the "browse by
+// intent" columns and must never show the place-based one (localities / PG
+// hubs) — those are long and city-specific, wrong for a compact chip row.
+// It tells the two apart via this discriminator rather than a column's
+// (localized) title, which breaks in Hindi, or its position, which is
+// silently wrong the moment column order changes.
+describe("NavColumn.kind — intent vs place discriminator", () => {
+  it('marks exactly the Popular localities column "place" on the rent panel; every other column is left as intent', () => {
+    for (const locale of LOCALES) {
+      for (const city of HUB_CITY_SLUGS) {
+        const columns = buildRentPanel(locale, city).columns;
+        const placeColumns = columns.filter((c) => c.kind === "place");
+        expect(placeColumns, `${locale}/${city}`).toHaveLength(1);
+        expect(placeColumns[0]!.title, `${locale}/${city}`).toBe(
+          locale === "hi" ? "लोकप्रिय इलाके" : "Popular localities"
+        );
+        for (const column of columns) {
+          if (column === placeColumns[0]) continue;
+          expect(column.kind, `${locale}/${city}/"${column.title}"`).not.toBe("place");
+        }
+      }
+    }
+  });
+
+  it('marks exactly the Popular PG hubs column "place" on the pg panel; every other column is left as intent', () => {
+    for (const locale of LOCALES) {
+      for (const city of HUB_CITY_SLUGS) {
+        const columns = buildPgPanel(locale, city).columns;
+        const placeColumns = columns.filter((c) => c.kind === "place");
+        expect(placeColumns, `${locale}/${city}`).toHaveLength(1);
+        expect(placeColumns[0]!.title, `${locale}/${city}`).toBe(
+          locale === "hi" ? "लोकप्रिय पीजी हब" : "Popular PG hubs"
+        );
+        for (const column of columns) {
+          if (column === placeColumns[0]) continue;
+          expect(column.kind, `${locale}/${city}/"${column.title}"`).not.toBe("place");
+        }
+      }
+    }
+  });
+
+  it("buildOwnersPanel and buildTimesPanel have no place columns — nothing in them is location-specific", () => {
+    for (const locale of LOCALES) {
+      expect(buildOwnersPanel(locale).columns.some((c) => c.kind === "place")).toBe(false);
+      expect(buildTimesPanel(locale).columns.some((c) => c.kind === "place")).toBe(false);
+    }
+  });
+});

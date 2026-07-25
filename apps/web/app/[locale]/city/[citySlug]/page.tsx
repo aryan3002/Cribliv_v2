@@ -11,6 +11,8 @@ import {
   fetchEnabledCities
 } from "../../../../lib/seo-api";
 import { intentsByCategory } from "../../../../lib/intent-filters";
+import { IntentChipRail } from "../../../../components/header/intent-chip-rail";
+import type { Locale } from "../../../../lib/i18n";
 
 interface ListingCard {
   id: string;
@@ -313,6 +315,12 @@ export default async function CityPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+
+      {/* Mobile-only (<900px): the desktop Rent mega-menu panel never mounts
+          below that breakpoint (header.tsx's useDesktopNav), so this is how
+          phone users reach the same intent links one tap away. This hub is a
+          city's general rentals landing page (flats & houses), hence "rent". */}
+      <IntentChipRail locale={params.locale as Locale} citySlug={params.citySlug} surface="rent" />
 
       {/* City Hero */}
       <section

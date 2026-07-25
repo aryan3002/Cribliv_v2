@@ -18,6 +18,19 @@ import { isPgIntent, translateFilters, type NavSurface } from "./surface-params"
 export interface NavColumn {
   title: string;
   links: NavLink[];
+  /**
+   * Discriminates a column of clickable INTENTS (property type, budget,
+   * lifestyle, sharing, ...) from a column of PLACES (localities, PG hubs).
+   * Consumers that want only the browsable intents — e.g. the mobile intent
+   * chip rail (components/header/intent-chip-rail.tsx) — filter out
+   * `kind === "place"` rather than matching a column by its (localized)
+   * title, which breaks in Hindi, or by its position, which is silently
+   * wrong the moment column order changes.
+   *
+   * Undefined means "intent": only the two place columns below set this
+   * explicitly, since intent columns are the common case.
+   */
+  kind?: "intent" | "place";
 }
 
 export interface NavPanel {
@@ -140,6 +153,7 @@ export function buildRentPanel(locale: NavLocale, citySlug: string): NavPanel {
       },
       {
         title: hi ? "लोकप्रिय इलाके" : "Popular localities",
+        kind: "place",
         links: localityLinks(locale, citySlug)
       }
     ]
@@ -208,6 +222,7 @@ export function buildPgPanel(locale: NavLocale, citySlug: string): NavPanel {
       },
       {
         title: hi ? "लोकप्रिय पीजी हब" : "Popular PG hubs",
+        kind: "place",
         links: (city?.hubs ?? []).map((hub) => ({
           label: hub,
           href: surfaceHref(locale, "pg", citySlug, { q: hub })

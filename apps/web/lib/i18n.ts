@@ -24,6 +24,10 @@ const dictionary: Dictionary = {
   navMenuRent: { en: "Rent", hi: "किराया" },
   navMenuPg: { en: "PG & Co-living", hi: "पीजी और को-लिविंग" },
   navMenuOwners: { en: "For owners", hi: "मकान मालिकों के लिए" },
+  // Mobile-only intent chip rail (components/header/intent-chip-rail.tsx) —
+  // accessible name for the row of quick-filter chips shown below 900px on
+  // the browse pages, where the desktop mega-menu panels never mount.
+  navIntentRailLabel: { en: "Quick filters", hi: "त्वरित फिल्टर" },
   // Second column of the Cribliv Times hover panel (the first, "Desks", comes
   // pre-translated from buildTimesPanel via lib/blog-desks.ts).
   navTimesLatest: { en: "Latest", hi: "नवीनतम" },

@@ -11,6 +11,7 @@ import { SearchResultsMap } from "./SearchResultsMap";
 import { IntentSearchBar } from "../../../components/search/IntentSearchBar";
 import { ListingCardItem, type ListingCardData } from "../../../components/listing-card";
 import { GuestGate } from "../../../components/guest-gate";
+import { IntentChipRail } from "../../../components/header/intent-chip-rail";
 import { isUnavailableListingsEnabled } from "../../../lib/unavailable-listings-flag";
 // NOTE: must come from the plain lib module, NOT components/guest-gate — a
 // value re-exported through a "use client" file arrives in this Server
@@ -302,6 +303,17 @@ export default async function SearchResultsPage({
 
   return (
     <div className="tenant-results-page">
+      {/* Mobile-only (<900px): the desktop Rent mega-menu panel never mounts
+          below that breakpoint (header.tsx's useDesktopNav), so this is how
+          phone users reach the same intent links one tap away. City is the
+          best guess available on this query-driven page — an explicit
+          ?city=, else the city implied by a free-text query, else lucknow —
+          same fallback SearchResultsMap already uses just below. */}
+      <IntentChipRail
+        locale={params.locale as Locale}
+        citySlug={mapCity || response.items[0]?.city || "lucknow"}
+        surface="rent"
+      />
       {/* ── Inline Search + Header ── */}
       <section className="tenant-results-hero">
         <div className="container">

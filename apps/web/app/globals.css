@@ -2319,6 +2319,46 @@ h4,
   }
 }
 
+/* ── Intent chip rail (Slice 3, Task 3) ──────────────────────────────────
+   A horizontally scrollable row of intent chips on the three browse pages
+   (Homes search, PG search, city hub), server-rendered directly below the
+   header. Same purpose as .mobile-nav-sections above — reaching Rent/PG
+   links below 900px, where the desktop mega-menu panels never mount — but
+   surfaced as always-visible chips rather than a tap-to-open accordion, and
+   scoped to a single page's surface (rent or pg) instead of every panel. */
+.intent-rail {
+  display: none;
+}
+@media (max-width: 900px) {
+  .intent-rail {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .intent-rail::-webkit-scrollbar {
+    display: none;
+  }
+}
+.intent-rail__chip {
+  flex: 0 0 auto;
+  padding: 6px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.intent-rail__chip:hover {
+  color: var(--brand);
+  border-color: var(--brand);
+}
+
 /* Mobile: full-screen sheet from the right */
 @media (max-width: 640px) {
   .menu-popover-backdrop {
