@@ -2,6 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -17,6 +18,7 @@ import {
 import type { ComponentType, ReactNode } from "react";
 import type { Locale } from "../../lib/i18n";
 import { t } from "../../lib/i18n";
+import { BrandLockup } from "../brand/brand-lockup";
 import "./owner-workspace.css";
 
 const OWNER_NAV = [
@@ -152,8 +154,8 @@ export function OwnerWorkspaceShell(props: { locale: Locale; children: ReactNode
     >
       <header className="ows__desktop-nav">
         <Link href={`/${locale}/owner/dashboard`} className="ows__brand">
-          <span className="ows__brand-mark">C</span>
-          <span>Owner Workspace</span>
+          <BrandLockup size="sm" />
+          <span className="ows__brand-suffix">Owner</span>
         </Link>
         <nav className="ows-nav" aria-label="Owner workspace navigation">
           <OwnerNav locale={locale} pathname={pathname} />
@@ -182,7 +184,9 @@ export function OwnerWorkspaceShell(props: { locale: Locale; children: ReactNode
 
       <header className="ows__mobile-header">
         <Link href={`/${locale}/owner/dashboard`} className="ows__mobile-title">
-          <span className="ows__brand-mark">C</span>
+          {/* Mark only — the page title sits beside it, so a full lockup would
+              not fit on a phone. */}
+          <Image src="/cribliv-logo-new.svg" alt="Cribliv" width={30} height={30} />
           <span>{currentTitle}</span>
         </Link>
         <Link

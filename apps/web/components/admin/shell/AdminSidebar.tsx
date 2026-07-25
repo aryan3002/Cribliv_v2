@@ -24,6 +24,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useFlag } from "../../../lib/feature-flags";
+import { BrandLockup } from "../../brand/brand-lockup";
 
 export type AdminTab =
   | "live"
@@ -92,8 +93,8 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
   return (
     <nav className="admin-sidebar" aria-label="Admin navigation">
       <div className="admin-sidebar__brand">
-        <span className="admin-sidebar__brand-mark">C</span>
-        <span>Cribliv Admin</span>
+        <BrandLockup size="sm" />
+        <span className="admin-sidebar__brand-suffix">Admin</span>
       </div>
 
       <Section title="Operate" items={operate} active={active} onChange={onChange} />
