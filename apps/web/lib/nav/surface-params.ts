@@ -66,6 +66,19 @@ const OCCUPANCY_TO_GENDER: Record<string, string> = {
   co_living: "coed"
 };
 
+/**
+ * True iff this intent's filters mark it as a PG intent (listing_type=pg).
+ *
+ * This module's guarantee is narrow: translateFilters(filters, "search")
+ * never emits listing_type=pg. It does NOT stop a caller from routing a PG
+ * intent to the `search` surface in the first place — that just degrades
+ * silently (some PG intents collapse to a bare `/search` no-op, others leak
+ * PG-only attributes onto a flats search; see surface-params.test.ts, the
+ * "caller obligation" tests). Callers (nav-model.ts) MUST call isPgIntent and
+ * route true results to the `pg` surface instead of `search`. Which surface
+ * an intent belongs on is a product decision owned by the caller, not by
+ * this contract-translation module.
+ */
 export function isPgIntent(intent: IntentDefinition): boolean {
   return intent.filters.listing_type === "pg";
 }

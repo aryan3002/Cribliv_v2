@@ -62,13 +62,24 @@ describe("translateFilters — search surface", () => {
       }
     }
   });
+
+  // The loop above only checks key membership: listing_type is itself a
+  // legitimate SEARCH_PARAMS key, so {listing_type: "pg"} would pass it. The
+  // Critical guarantee is about the VALUE "pg", which app/[locale]/search/
+  // page.tsx:197 redirects on — these two tests assert that directly instead.
+  it("never emits listing_type=pg for any real intent on the search surface (the exact value app/[locale]/search/page.tsx redirects on)", () => {
+    const offenders = ALL_INTENTS.filter(
+      (i) => translateFilters(i.filters, "search").listing_type === "pg"
+    ).map((i) => i.slug);
+    expect(offenders, "intents emitting listing_type=pg on the search surface").toEqual([]);
+  });
+
+  it("drops listing_type=pg for the `pg` intent specifically, so /search?listing_type=pg can never be built", () => {
+    expect(translateFilters(intent("pg").filters, "search")).toEqual({});
+  });
 });
 
 describe("translateFilters — pg surface", () => {
-  it("drops listing_type entirely, so /search?listing_type=pg can never be built", () => {
-    expect(translateFilters(intent("pg").filters, "pg")).toEqual({});
-  });
-
   it("maps occupancy_type to the PG gender_policy vocabulary", () => {
     expect(translateFilters(intent("pg-for-girls").filters, "pg")).toEqual({
       gender_policy: "girls"
@@ -103,5 +114,37 @@ describe("translateFilters — pg surface", () => {
         expect(PG_PARAMS, `intent ${i.slug} emitted unknown param ${key}`).toContain(key);
       }
     }
+  });
+});
+
+// translateFilters only speaks the API contract; it is not the thing that
+// decides which surface an intent belongs on. That routing decision belongs
+// to the caller (nav-model.ts), via isPgIntent. These tests do not endorse
+// what happens when a caller gets that routing wrong — they exist only to
+// pin today's (silent, degraded) shape so a future change to it is deliberate.
+describe("translateFilters — PG intents routed to the search surface (caller obligation, not a guarantee)", () => {
+  it("documents, without endorsing, that skipping isPgIntent's routing silently produces a bare /search: pg, rooms, pg-for-students, pg-for-working-professionals all translate to {}", () => {
+    expect(translateFilters(intent("pg").filters, "search")).toEqual({});
+    expect(translateFilters(intent("rooms").filters, "search")).toEqual({});
+    expect(translateFilters(intent("pg-for-students").filters, "search")).toEqual({});
+    expect(translateFilters(intent("pg-for-working-professionals").filters, "search")).toEqual({});
+  });
+
+  it("documents, without endorsing, that skipping isPgIntent's routing leaks PG-only attributes onto a flats search: pg-for-girls, pg-for-boys, co-living, with-food, vegetarian-pg keep a filter key but against the wrong inventory", () => {
+    expect(translateFilters(intent("pg-for-girls").filters, "search")).toEqual({
+      occupancy_type: "female"
+    });
+    expect(translateFilters(intent("pg-for-boys").filters, "search")).toEqual({
+      occupancy_type: "male"
+    });
+    expect(translateFilters(intent("co-living").filters, "search")).toEqual({
+      occupancy_type: "co_living"
+    });
+    expect(translateFilters(intent("with-food").filters, "search")).toEqual({
+      food_included: "true"
+    });
+    expect(translateFilters(intent("vegetarian-pg").filters, "search")).toEqual({
+      q: "vegetarian"
+    });
   });
 });
