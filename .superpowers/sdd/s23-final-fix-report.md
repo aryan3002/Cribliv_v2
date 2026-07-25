@@ -214,6 +214,40 @@ by a workaround.
 This does leave the original symptom unexplained. If it resurfaces, the
 resting-pointer test is the place it will show up first.
 
+## A separate, pre-existing flake found while verifying (now stabilised)
+
+Worth flagging because it means the "8/8 Playwright green" gate this wave
+started from was not as solid as it looked.
+
+`intent chip rail (mobile) › is visible on /search and scrolls horizontally`
+fails intermittently on
+`expect(scrollWidth).toBeGreaterThan(clientWidth)`:
+
+```
+Error: the rail's chips should overflow its own width at 375px
+Expected: > 0     Received: 0
+```
+
+**It is not a regression from this wave.** I checked out the parent commit
+`63de758` and ran the spec three times there: 2 of 3 failed the same way. It is
+also invisible on a warm dev server — I measured `/en/search` at 375px six
+times against one and got an identical, correct result every time (16 chips,
+`scrollWidth` 1894 vs `clientWidth` 375, `display: flex`, `flex-wrap: nowrap`).
+It only shows up when Playwright starts its own cold server.
+
+Cause: `.intent-rail`'s `display:flex` + `flex-wrap:nowrap` is what makes the
+chips overflow *sideways*. Until that rule applies they are ordinary inline
+links that **wrap**, and a wrapped rail has `scrollWidth === clientWidth`. In
+dev the stylesheet lands shortly after `load`, so the single synchronous read
+races it. The chips themselves come from static data, so there is no state in
+which the product is genuinely wrong.
+
+Fixed by polling that assertion (`expect.poll(...).toBeGreaterThan(0)`), which
+is what the same test's `scrollLeft` half already does. It waits for layout
+rather than weakening the assertion. **Six consecutive cold-server runs after
+the change: 11/11 each.** Total for `top-nav.spec.ts` across this wave: 13
+green runs with `locator.hover()` restored.
+
 ## Test discrimination
 
 Every new latch test was mutation-checked; each mutation kills exactly one:

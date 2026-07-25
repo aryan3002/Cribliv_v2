@@ -319,14 +319,23 @@ test.describe("top nav — intent chip rail (mobile)", () => {
     // "Scrolls horizontally" has two parts: there must be more content than
     // fits (otherwise there is nothing to scroll), and a scroll gesture must
     // actually move it.
-    const { scrollWidth, clientWidth } = await rail.evaluate((el) => ({
-      scrollWidth: el.scrollWidth,
-      clientWidth: el.clientWidth
-    }));
-    expect(
-      scrollWidth,
-      "the rail's chips should overflow its own width at 375px — otherwise there is nothing to scroll"
-    ).toBeGreaterThan(clientWidth);
+    //
+    // Polled, not read once. `.intent-rail`'s `display: flex` +
+    // `flex-wrap: nowrap` is what makes the chips overflow sideways; until
+    // that rule applies they are ordinary inline links that WRAP, and a
+    // wrapped rail has scrollWidth === clientWidth. In dev the stylesheet
+    // arrives shortly after `load`, so a single synchronous read races it and
+    // fails intermittently (reproduced on this spec before this fix wave
+    // too, so it is not a regression from it). The settled value is
+    // deterministic -- 16 chips, 1894px against a 375px viewport -- so
+    // polling waits for layout rather than weakening the assertion. The
+    // scrollLeft half below already polls for the same reason.
+    await expect
+      .poll(() => rail.evaluate((el) => el.scrollWidth - el.clientWidth), {
+        message:
+          "the rail's chips should overflow its own width at 375px — otherwise there is nothing to scroll"
+      })
+      .toBeGreaterThan(0);
 
     await rail.hover();
     await page.mouse.wheel(400, 0);
