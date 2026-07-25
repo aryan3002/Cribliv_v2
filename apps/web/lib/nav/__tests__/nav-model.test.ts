@@ -329,14 +329,42 @@ describe("spec — column cardinality is pinned", () => {
     }
   });
 
+  it("never offers two links to the same URL within a column", () => {
+    for (const locale of LOCALES) {
+      for (const city of HUB_CITY_SLUGS) {
+        for (const panel of everyPanel(locale, city)) {
+          for (const col of panel.columns) {
+            const hrefs = col.links.map((l) => l.href);
+            expect(new Set(hrefs).size, `${panel.id} / ${col.title} has duplicate hrefs`).toBe(
+              hrefs.length
+            );
+          }
+        }
+      }
+    }
+  });
+
+  it("drops `studio`, whose only distinguishing filter no endpoint accepts", () => {
+    // studio is {listing_type: flat_house, bhk: 1, max_area_sqft: 450}. Neither
+    // /listings/search nor /pg/listings has an area filter, so max_area_sqft is
+    // dropped and studio collapses onto 1bhk's exact URL. dedupeByHref removes
+    // it. If an area filter is ever added, studio becomes distinct and this
+    // test fails — which is the signal to re-pin the counts above.
+    const labels = allLinks(buildRentPanel("en", "lucknow")).map((l) => l.label);
+    expect(labels).toContain("1 BHK flats");
+    expect(labels).not.toContain("Studio apartments");
+  });
+
   it("pins buildRentPanel's per-column link counts", () => {
-    // [Property type, By budget, By lifestyle, Popular localities]. Lifestyle's
-    // 7 = 5 category-derived (furnished/semi/unfurnished/pet-friendly/ac-rooms)
-    // + family-flats + bachelor-flats via bySlugs — losing either of the last
-    // two, or ac-rooms, drops this to 6 or fewer.
+    // [Property type, By budget, By lifestyle, Popular localities]. Property
+    // type's 4 = 6 category intents, minus `pg` and `rooms` (both listing_type
+    // =pg), minus `studio` which dedupeByHref removes — see the dedupe test
+    // below. Lifestyle's 7 = 5 category-derived (furnished/semi/unfurnished/
+    // pet-friendly/ac-rooms) + family-flats + bachelor-flats via bySlugs —
+    // losing either of the last two, or ac-rooms, drops this to 6 or fewer.
     for (const city of HUB_CITY_SLUGS) {
       const counts = buildRentPanel("en", city).columns.map((c) => c.links.length);
-      expect(counts, city).toEqual([5, 5, 7, 8]);
+      expect(counts, city).toEqual([4, 5, 7, 8]);
     }
   });
 

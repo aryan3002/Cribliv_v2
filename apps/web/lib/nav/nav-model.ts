@@ -85,6 +85,29 @@ function inCategory(category: IntentDefinition["category"]): IntentDefinition[] 
   return ALL_INTENTS.filter((i) => i.category === category);
 }
 
+/**
+ * Drop links that would send the user to a URL another link in the same column
+ * already covers. First occurrence wins.
+ *
+ * A menu must not offer two entries that land in the same place. This happens
+ * when an intent's only distinguishing filter is one no endpoint accepts and
+ * translateFilters therefore drops: `studio` is `{listing_type: flat_house,
+ * bhk: 1, max_area_sqft: 450}`, and neither /listings/search nor /pg/listings
+ * has an area filter, so it collapses onto `1bhk`'s exact URL.
+ *
+ * Deliberately general rather than a special case for `studio`: if an area
+ * filter is added to the search API later, `studio` becomes distinct again and
+ * reappears on its own, with no code change here.
+ */
+function dedupeByHref(links: NavLink[]): NavLink[] {
+  const seen = new Set<string>();
+  return links.filter((link) => {
+    if (seen.has(link.href)) return false;
+    seen.add(link.href);
+    return true;
+  });
+}
+
 // ── Rent ────────────────────────────────────────────────────────────────────
 // Category-derived, then filtered by listing_type so a PG intent can never leak
 // in. `rooms` sits in property-type but is listing_type=pg — filtering by slug
@@ -100,18 +123,20 @@ export function buildRentPanel(locale: NavLocale, citySlug: string): NavPanel {
     columns: [
       {
         title: hi ? categoryLabelHi("property-type") : "Property type",
-        links: inCategory("property-type").filter(notPg).map(link)
+        links: dedupeByHref(inCategory("property-type").filter(notPg).map(link))
       },
       {
         title: hi ? categoryLabelHi("budget") : "By budget",
-        links: inCategory("budget").filter(notPg).map(link)
+        links: dedupeByHref(inCategory("budget").filter(notPg).map(link))
       },
       {
         title: hi ? categoryLabelHi("lifestyle") : "By lifestyle",
-        links: [
-          ...inCategory("lifestyle").filter(notPg),
-          ...bySlugs(["family-flats", "bachelor-flats"])
-        ].map(link)
+        links: dedupeByHref(
+          [
+            ...inCategory("lifestyle").filter(notPg),
+            ...bySlugs(["family-flats", "bachelor-flats"])
+          ].map(link)
+        )
       },
       {
         title: hi ? "लोकप्रिय इलाके" : "Popular localities",
@@ -175,7 +200,7 @@ export function buildPgPanel(locale: NavLocale, citySlug: string): NavPanel {
       },
       {
         title: hi ? categoryLabelHi("budget") : "By budget",
-        links: inCategory("budget").map(link)
+        links: dedupeByHref(inCategory("budget").map(link))
       },
       {
         title: hi ? "खाना और सुविधाएं" : "Food & amenities",
