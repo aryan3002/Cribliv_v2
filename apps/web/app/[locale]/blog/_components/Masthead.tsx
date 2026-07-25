@@ -1,13 +1,11 @@
 import Link from "next/link";
 import styles from "../cribliv-times.module.css";
+import { BLOG_DESKS } from "../../../../lib/blog-desks";
 
 // The four seeded blog_categories become CRIBLIV TIMES "desks".
 export const DESKS: Array<{ slug: string | null; en: string; hi: string }> = [
   { slug: null, en: "Front Page", hi: "मुख पृष्ठ" },
-  { slug: "data-reports", en: "Data Reports", hi: "डेटा रिपोर्ट" },
-  { slug: "local-guides", en: "Local Guides", hi: "लोकल गाइड" },
-  { slug: "tenancy", en: "Tenancy", hi: "किरायेदारी" },
-  { slug: "market-updates", en: "Market Updates", hi: "मार्केट अपडेट" }
+  ...BLOG_DESKS
 ];
 
 export function Masthead({
