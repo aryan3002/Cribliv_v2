@@ -5,7 +5,16 @@ import type { Route } from "next";
 import { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { BarChart3, Building2, Globe, LayoutDashboard, Plus, UsersRound } from "lucide-react";
+import {
+  BarChart3,
+  Building2,
+  Globe,
+  LayoutDashboard,
+  Map,
+  Newspaper,
+  Plus,
+  UsersRound
+} from "lucide-react";
 import type { Locale } from "../../lib/i18n";
 import { t } from "../../lib/i18n";
 import { HeaderMenu } from "../header-menu";
@@ -150,9 +159,17 @@ export function Header({
     },
     {
       // CRIBLMAP — the live rent-intelligence map. Panel-less by design: it is
-      // a destination, not a category.
+      // a destination, not a category. Matches the chip pair's other half
+      // (Cribliv Times below): same hairline box, sans in brand blue, plus
+      // the live-inventory dot that .nav-chip__dot in globals.css expects.
       id: "map",
-      label: "CriblMap",
+      label: (
+        <>
+          <Map size={15} aria-hidden="true" />
+          <span>CriblMap</span>
+          <span className="nav-chip__dot" aria-hidden="true" />
+        </>
+      ),
       panel: null,
       href: `/${locale}/map`,
       className: `nav-chip nav-chip--map${isActive(`/${locale}/map`) ? " nav-chip--active" : ""}`
@@ -161,7 +178,12 @@ export function Header({
       // CRIBLIV TIMES — the serif masthead chip. Panel-less in this slice;
       // slice 3 gives it a desks + latest-posts panel.
       id: "times",
-      label: "Cribliv Times",
+      label: (
+        <>
+          <Newspaper size={14} aria-hidden="true" />
+          <span className="nav-times__word">Cribliv Times</span>
+        </>
+      ),
       panel: null,
       href: `/${locale}/blog`,
       className: `nav-chip nav-chip--times${isActive(`/${locale}/blog`) ? " nav-chip--active" : ""}`

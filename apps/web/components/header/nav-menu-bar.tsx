@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { NavPanel } from "../../lib/nav/types";
@@ -9,7 +10,13 @@ import { NavPanelView } from "./nav-panel";
 
 export interface NavMenuItem {
   id: string;
-  label: string;
+  // ReactNode, not string: the CriblMap and Cribliv Times chips need an icon
+  // (and CriblMap a live-inventory dot) alongside their text. Both usages
+  // below are pure rendering — nothing here keys, compares, or reads this as
+  // a string — so widening it is safe. Icons in a custom label MUST be
+  // aria-hidden, the same way the sibling nav-tab icons are: this is the only
+  // thing standing between the accessible name and the text content.
+  label: ReactNode;
   panel: NavPanel | null;
   href?: string;
   className?: string;

@@ -137,6 +137,33 @@ describe("Header composition — centre nav", () => {
     );
   });
 
+  it("renders the CriblMap live-inventory dot and keeps both chip icons decorative", () => {
+    // Regression pin: NavMenuItem.label used to be typed `string`, which
+    // silently dropped the CriblMap/Times icons and the CriblMap
+    // live-inventory dot (the CSS in globals.css for .nav-chip__dot kept
+    // compiling with nothing left to render it). Widening the type to
+    // ReactNode restored them — this test makes sure they can't quietly
+    // disappear again.
+    render(<Header locale="en" navData={navData} />);
+
+    const mapLink = screen.getByRole("link", { name: /criblmap/i });
+    const timesLink = screen.getByRole("link", { name: /cribliv times/i });
+
+    const dot = mapLink.querySelector(".nav-chip__dot");
+    expect(dot).not.toBeNull();
+    expect(dot).toHaveAttribute("aria-hidden", "true");
+    // The dot is CriblMap's alone — the CSS comment calls it a "live-inventory"
+    // signal for the map, not a generic chip decoration.
+    expect(timesLink.querySelector(".nav-chip__dot")).toBeNull();
+
+    // Both chips keep an icon, and it must be aria-hidden so the accessible
+    // name stays exactly the visible text (asserted above/below via `name:`).
+    const mapIcon = mapLink.querySelector("svg");
+    const timesIcon = timesLink.querySelector("svg");
+    expect(mapIcon).toHaveAttribute("aria-hidden", "true");
+    expect(timesIcon).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("keeps the CriblMap and Times chips panel-less in this slice", () => {
     render(<Header locale="en" navData={navData} />);
 
