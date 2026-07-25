@@ -48,17 +48,22 @@ const SearchHero = dynamic(
   }
 );
 
-// SSR-render these so the layout reserves their space at first paint.
-// Disabling SSR caused the CTA banner to shift down by hundreds of pixels
-// on hydration (CLS 0.438 in Lighthouse).
+// MUST stay ssr:true. These wrap ~18 homepage sections; AnimateOnScroll is
+// built to render its children visible on the server (useState(true)) and only
+// flips to hide-then-animate AFTER mount using transform/opacity (which do not
+// reflow). With ssr:false the wrapped sections are absent from the server HTML
+// and injected on hydration, growing the page and shifting the CTA down by
+// hundreds of pixels (intermittent CLS ~0.3–0.44 in Lighthouse — fails the
+// PageSpeed desktop CLS / Agentic Browsing check). ssr:true reserves the space
+// at first paint; the animation is still client-only and causes no layout shift.
 const AnimateOnScroll = dynamic(
   () => import("../../components/scroll-animations").then((mod) => mod.AnimateOnScroll),
-  { ssr: false }
+  { ssr: true }
 );
 
 const CountUp = dynamic(
   () => import("../../components/scroll-animations").then((mod) => mod.CountUp),
-  { ssr: false }
+  { ssr: true }
 );
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
