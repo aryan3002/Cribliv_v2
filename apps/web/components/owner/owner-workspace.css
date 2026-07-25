@@ -29,15 +29,15 @@
   text-decoration: none;
 }
 
-.ows__brand-mark {
-  display: inline-grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 8px;
-  background: #0057d8;
-  color: #fff;
-  font-weight: 800;
+/* Product-line marker beside the lockup, same cadence as CriblMap's "Map"
+   and the admin rail's "Admin" — the lockup is the brand, this is the suffix. */
+.ows__brand-suffix {
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #0057d8;
+  line-height: 1;
 }
 
 .ows-nav {
