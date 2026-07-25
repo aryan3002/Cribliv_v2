@@ -205,14 +205,18 @@ export default async function ListingDetailPage({
   // raw is_available/waitlist_count props, matching that dual-gate pattern.
   const isUnavailable = isUnavailableListingsEnabled() && listing.is_available === false;
 
-  // Fetch market rate data
+  // Fetch market rate data. This route stays dynamic (it needs `auth()` and
+  // `searchParams` at first paint), but caching this particular fetch still
+  // pays: the response is city+bhk+type aggregate market data, identical for
+  // every listing of the same shape and every viewer, so one upstream call now
+  // serves a whole hour of detail-page renders instead of one call per render.
   let pricingIntel: PricingIntelResponse | null = null;
   if (listing.bhk) {
     try {
       pricingIntel = await fetchApi<PricingIntelResponse>(
         `/listings/pricing-intel?city=${encodeURIComponent(listing.city)}&bhk=${listing.bhk}&listing_type=${listing.listing_type}`,
         undefined,
-        { server: true }
+        { revalidate: 3600 }
       );
       if (!pricingIntel || pricingIntel.sample_size < 3 || pricingIntel.p50 === null) {
         pricingIntel = null;

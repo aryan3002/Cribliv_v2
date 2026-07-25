@@ -53,7 +53,10 @@ export default async function DeskPage({
   const hi = locale === "hi";
   const desk = deskLabel(params.categorySlug, hi);
 
-  const { items } = await fetchBlogList({ category: params.categorySlug, page_size: 24 });
+  const { items } = await fetchBlogList(
+    { category: params.categorySlug, page_size: 24 },
+    { revalidate }
+  );
 
   return (
     <div className={styles.paper}>
