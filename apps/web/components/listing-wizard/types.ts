@@ -512,6 +512,40 @@ export function getUploadSourceFingerprint(file: File): string {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
+/**
+ * Turn a file-picker/drop selection into upload queue entries, deduplicated
+ * against what is already in the grid and within the batch itself.
+ *
+ * Callers must invoke this *before* `setUploads`, never as a side effect from
+ * inside the updater: React only runs updater functions eagerly at dispatch
+ * time as an optimisation, and it skips that whenever an update is already
+ * pending on the same fiber. Building the queue inside the updater therefore
+ * dropped the whole batch at random and left every tile on "Preparing photo…".
+ */
+export function buildQueuedUploads(files: FileList, existing: UploadFile[]): UploadFile[] {
+  const fingerprints = new Set(
+    existing.map((item) => item.sourceFingerprint ?? getUploadSourceFingerprint(item.file))
+  );
+
+  return Array.from(files).map((file) => {
+    const sourceFingerprint = getUploadSourceFingerprint(file);
+    const duplicate = fingerprints.has(sourceFingerprint);
+    fingerprints.add(sourceFingerprint);
+    return {
+      file,
+      originalFile: file,
+      clientUploadId: generateClientUploadId(file),
+      sourceFingerprint,
+      status: duplicate ? ("error" as const) : ("preparing" as const),
+      progress: 0,
+      previewUrl: URL.createObjectURL(file),
+      errorMessage: duplicate ? "This photo was already selected." : undefined,
+      prepared: false,
+      retryable: !duplicate
+    };
+  });
+}
+
 export {
   type OwnerDraftPayloadSnakeCase,
   type OwnerListingCaptureExtractResponse,
