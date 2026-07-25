@@ -21,8 +21,9 @@
 // MobileNavSections inside the hamburger sheet is the only way to reach
 // these links.
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { buildPgPanel, buildRentPanel } from "../../lib/nav/nav-model";
+import { buildPgPanel, buildRentPanel, buildTimesPanel } from "../../lib/nav/nav-model";
 import type { NavLink, NavPanel } from "../../lib/nav/types";
+import { t } from "../../lib/i18n";
 import { loginAsRole, setSessionOnPage } from "../utils/auth";
 
 function apiBaseUrl() {
@@ -35,6 +36,8 @@ function apiBaseUrl() {
 // the real header renders on "/en".
 const RENT_PANEL = buildRentPanel("en", "lucknow");
 const PG_PANEL = buildPgPanel("en", "lucknow");
+// Times has no city — buildTimesPanel(locale) only, see nav-model.ts.
+const TIMES_PANEL = buildTimesPanel("en");
 
 function requiredLink(panel: NavPanel, columnTitle: string, label: string): NavLink {
   const link = panel.columns
@@ -49,6 +52,18 @@ function requiredLink(panel: NavPanel, columnTitle: string, label: string): NavL
   return link;
 }
 
+/** Every link in a named column — same "fail loud if the model drifts" spirit as requiredLink. */
+function requiredColumnLinks(panel: NavPanel, columnTitle: string): NavLink[] {
+  const links = panel.columns.find((c) => c.title === columnTitle)?.links ?? [];
+  if (links.length === 0) {
+    throw new Error(
+      `nav-model.ts no longer has a non-empty "${columnTitle}" column in the "${panel.id}" panel — ` +
+        "update this spec to match the real data."
+    );
+  }
+  return links;
+}
+
 // Real Rent link (Property type column) — also nav-model.test.ts's own pinned
 // example: /en/search with city=lucknow and bhk=2 (param order not asserted,
 // only presence — surfaceHref doesn't promise an order).
@@ -56,6 +71,12 @@ const TWO_BHK = requiredLink(RENT_PANEL, "Property type", "2 BHK flats");
 // Real PG-only link — proves the panel that swapped in is actually PG's, not
 // just "a" panel.
 const SINGLE_SHARING = requiredLink(PG_PANEL, "By sharing", "Single sharing");
+// The four blog_categories desks (lib/blog-desks.ts) — pulled live rather than
+// hard-copied so a fifth desk (or a renamed one) can't silently go untested.
+const TIMES_DESKS = requiredColumnLinks(TIMES_PANEL, "Desks");
+// Same aria-label the rail itself renders (intent-chip-rail.tsx), pulled from
+// the real i18n dictionary rather than hand-copied.
+const CHIP_RAIL_LABEL = t("en", "navIntentRailLabel");
 
 const primaryNav = (page: Page) => page.getByRole("navigation", { name: "Primary" });
 
@@ -160,6 +181,50 @@ test.describe("top nav — desktop mega-menu", () => {
     expect(page.url()).toContain("city=lucknow");
     expect(page.url()).toContain("bhk=2");
   });
+
+  test("hovering Cribliv Times opens a panel with the four desks", async ({ page }) => {
+    await page.goto("/en");
+    const timesTrigger = primaryNav(page).getByRole("button", { name: "Cribliv Times" });
+
+    await hoverTrigger(page, timesTrigger);
+
+    await expect(timesTrigger).toHaveAttribute("aria-expanded", "true");
+
+    // Deliberately not `expect(panel).toBeVisible()` the way the Rent/PG
+    // tests above check their panel container — scoping into it (a locator
+    // never itself has to be visible) is fine, but asserting ITS visibility
+    // is not, for a real, confirmed CSS reason:
+    //
+    // Times' panel body comes from NavMenuBar's `renderPanel` escape hatch
+    // (nav-menu-bar.tsx), which puts role="group"/id/aria-labelledby on a
+    // plain wrapper <div> with no class and therefore `position: static`.
+    // Its only child is TimesPanel's own root, `.nav-panel.nav-panel--times`
+    // (globals.css), which is `position: absolute`. An absolutely positioned
+    // child contributes nothing to a static parent's layout box, so that
+    // wrapper's own bounding box is 0x0 even though its content — the thing
+    // a real visitor sees — is fully painted on screen. Confirmed with a
+    // live getBoundingClientRect()/getComputedStyle() dump (S3 Task 4
+    // report): wrapper `position: static`, rect 0x0; `.nav-panel--times`
+    // `position: absolute`, rect 1280x208. Contrast NavPanelView's branch
+    // (used by every other panel here): its own root IS the positioned,
+    // correctly sized `.nav-panel` box, so `panel.toBeVisible()` is
+    // meaningful for Rent/PG but would be a false negative here — it would
+    // fail for a layout reason unrelated to whether the four desks render.
+    // jsdom-based unit tests (nav-menu-bar.test.tsx, times-panel.test.tsx)
+    // never compute real layout, so this never surfaced there — a real
+    // browser is the only thing that can catch it, which is this file's
+    // whole reason to exist. Reported, not fixed, as part of the slice gate;
+    // not "papering over" it — the four-desks requirement below is checked
+    // the honest way instead, against the content itself.
+    const panel = primaryNav(page).getByRole("group");
+    await expect(panel).toBeAttached();
+
+    for (const desk of TIMES_DESKS) {
+      const link = panel.getByRole("link", { name: desk.label, exact: true });
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute("href", desk.href);
+    }
+  });
 });
 
 test.describe("top nav — mobile hamburger sheet", () => {
@@ -178,6 +243,43 @@ test.describe("top nav — mobile hamburger sheet", () => {
       "href",
       TWO_BHK.href
     );
+  });
+});
+
+test.describe("top nav — intent chip rail (mobile)", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("is visible on /search and scrolls horizontally", async ({ page }) => {
+    await page.goto("/en/search");
+
+    // components/header/intent-chip-rail.tsx: a plain server-rendered <nav>,
+    // CSS-hidden at >= 900px (globals.css .intent-rail) and the only way a
+    // phone-width visitor reaches Rent's intent links, since the desktop
+    // mega-menu panels never mount below that breakpoint (header.tsx's
+    // useDesktopNav) — same reason the hamburger sheet exists above.
+    const rail = page.getByRole("navigation", { name: CHIP_RAIL_LABEL });
+    await expect(rail).toBeVisible();
+
+    // "Scrolls horizontally" has two parts: there must be more content than
+    // fits (otherwise there is nothing to scroll), and a scroll gesture must
+    // actually move it.
+    const { scrollWidth, clientWidth } = await rail.evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth
+    }));
+    expect(
+      scrollWidth,
+      "the rail's chips should overflow its own width at 375px — otherwise there is nothing to scroll"
+    ).toBeGreaterThan(clientWidth);
+
+    await rail.hover();
+    await page.mouse.wheel(400, 0);
+
+    await expect
+      .poll(() => rail.evaluate((el) => el.scrollLeft), {
+        message: "scrollLeft should advance after a horizontal wheel scroll over the rail"
+      })
+      .toBeGreaterThan(0);
   });
 });
 
