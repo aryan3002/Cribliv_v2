@@ -113,10 +113,9 @@ describe("Header composition — centre nav", () => {
       "href",
       "/en/map"
     );
-    expect(within(primary).getByRole("link", { name: /cribliv times/i })).toHaveAttribute(
-      "href",
-      "/en/blog"
-    );
+    // Times gets a real disclosure panel from this slice on — see "gives the
+    // Cribliv Times chip..." below for its aria-expanded / no-link assertions.
+    expect(within(primary).getByRole("button", { name: /cribliv times/i })).toBeInTheDocument();
   });
 
   it("opens the Rent panel with a real Lucknow locality link", async () => {
@@ -143,36 +142,45 @@ describe("Header composition — centre nav", () => {
     // live-inventory dot (the CSS in globals.css for .nav-chip__dot kept
     // compiling with nothing left to render it). Widening the type to
     // ReactNode restored them — this test makes sure they can't quietly
-    // disappear again.
+    // disappear again. Times moved from a link to a button when it gained a
+    // panel, so its icon is looked up there now.
     render(<Header locale="en" navData={navData} />);
 
     const mapLink = screen.getByRole("link", { name: /criblmap/i });
-    const timesLink = screen.getByRole("link", { name: /cribliv times/i });
+    const timesTrigger = screen.getByRole("button", { name: /cribliv times/i });
 
     const dot = mapLink.querySelector(".nav-chip__dot");
     expect(dot).not.toBeNull();
     expect(dot).toHaveAttribute("aria-hidden", "true");
     // The dot is CriblMap's alone — the CSS comment calls it a "live-inventory"
     // signal for the map, not a generic chip decoration.
-    expect(timesLink.querySelector(".nav-chip__dot")).toBeNull();
+    expect(timesTrigger.querySelector(".nav-chip__dot")).toBeNull();
 
     // Both chips keep an icon, and it must be aria-hidden so the accessible
     // name stays exactly the visible text (asserted above/below via `name:`).
     const mapIcon = mapLink.querySelector("svg");
-    const timesIcon = timesLink.querySelector("svg");
+    const timesIcon = timesTrigger.querySelector("svg");
     expect(mapIcon).toHaveAttribute("aria-hidden", "true");
     expect(timesIcon).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("keeps the CriblMap and Times chips panel-less in this slice", () => {
+  it("keeps the CriblMap chip panel-less — a destination link, not a disclosure", () => {
     render(<Header locale="en" navData={navData} />);
 
     // A panel-less item renders as a plain link, never a nav-trigger button —
     // there is no disclosure for a panel to hang off.
-    for (const name of [/criblmap/i, /cribliv times/i]) {
-      expect(screen.getByRole("link", { name })).not.toHaveAttribute("aria-expanded");
-      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
-    }
+    expect(screen.getByRole("link", { name: /criblmap/i })).not.toHaveAttribute("aria-expanded");
+    expect(screen.queryByRole("button", { name: /criblmap/i })).not.toBeInTheDocument();
+  });
+
+  it("gives the Cribliv Times chip a real disclosure panel from this slice on", () => {
+    render(<Header locale="en" navData={navData} />);
+
+    // Times moved from a plain link to a nav-trigger button now that it has a
+    // real desks + latest-posts panel to disclose (see times-panel.test.tsx).
+    const trigger = screen.getByRole("button", { name: /cribliv times/i });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: /cribliv times/i })).not.toBeInTheDocument();
   });
 
   it("does not mount any panel below 900px", () => {
@@ -187,7 +195,14 @@ describe("Header composition — centre nav", () => {
       "href",
       "/en/become-owner"
     );
+    // Times too: its desks + latest-posts panel is a desktop-only disclosure,
+    // same as Rent/PG/Owners above (see header.tsx's useDesktopNav gate).
+    expect(screen.getByRole("link", { name: /cribliv times/i })).toHaveAttribute(
+      "href",
+      "/en/blog"
+    );
     expect(screen.queryByRole("button", { name: "Rent" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /cribliv times/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
   });
 });

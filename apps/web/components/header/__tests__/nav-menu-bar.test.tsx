@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NavMenuBar, type NavMenuItem } from "../nav-menu-bar";
 import { buildRentPanel, buildPgPanel } from "../../../lib/nav/nav-model";
@@ -117,5 +117,52 @@ describe("NavMenuBar", () => {
     await user.click(screen.getByRole("button", { name: /rent/i }));
     await user.click(screen.getAllByRole("link", { name: /BHK|Flats/i })[0]);
     await waitFor(() => expect(screen.queryByRole("group")).not.toBeInTheDocument());
+  });
+});
+
+// ── Custom panel bodies (Cribliv Times) ─────────────────────────────────────
+// renderPanel is the escape hatch a panel with non-static content (Times'
+// hover-loaded posts) uses instead of NavPanelView. These pin that it renders
+// inside the exact same hover/ARIA wrapper — not a parallel, divergent one.
+
+describe("NavMenuBar — custom renderPanel", () => {
+  const customItems: NavMenuItem[] = [
+    {
+      id: "times",
+      label: "Times",
+      panel: { id: "times", columns: [] },
+      renderPanel: (close) => (
+        <button type="button" onClick={close}>
+          Custom panel body
+        </button>
+      )
+    },
+    { id: "map", label: "Map", panel: null, href: "/en/map" }
+  ];
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("renders the custom body in place of NavPanelView, with the same aria-controls pairing", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<NavMenuBar items={customItems} />);
+
+    const trigger = screen.getByRole("button", { name: "Times" });
+    await user.click(trigger);
+
+    const group = screen.getByRole("group");
+    expect(within(group).getByText("Custom panel body")).toBeInTheDocument();
+    expect(group).toHaveAttribute("aria-labelledby", trigger.id);
+    expect(trigger).toHaveAttribute("aria-controls", group.id);
+  });
+
+  it("closes the menu when the custom panel invokes the close callback it was given", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<NavMenuBar items={customItems} />);
+
+    await user.click(screen.getByRole("button", { name: "Times" }));
+    await user.click(screen.getByRole("button", { name: "Custom panel body" }));
+
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
   });
 });

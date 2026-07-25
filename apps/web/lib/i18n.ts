@@ -24,6 +24,9 @@ const dictionary: Dictionary = {
   navMenuRent: { en: "Rent", hi: "किराया" },
   navMenuPg: { en: "PG & Co-living", hi: "पीजी और को-लिविंग" },
   navMenuOwners: { en: "For owners", hi: "मकान मालिकों के लिए" },
+  // Second column of the Cribliv Times hover panel (the first, "Desks", comes
+  // pre-translated from buildTimesPanel via lib/blog-desks.ts).
+  navTimesLatest: { en: "Latest", hi: "नवीनतम" },
   navPostProperty: { en: "Post Property", hi: "प्रॉपर्टी पोस्ट करें" },
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
   navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },

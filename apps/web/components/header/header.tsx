@@ -24,6 +24,7 @@ import { CityChip } from "./city-chip";
 import { NavMenuBar, type NavMenuItem } from "./nav-menu-bar";
 import { SavedIcon } from "./saved-icon";
 import { SearchPill } from "./search-pill";
+import { TimesPanel } from "./times-panel";
 // Type-only, and it must stay that way: lib/nav/nav-model.ts and nav-data.ts
 // pull ~46 KB of city prose, FAQs and rent tips, and this component renders in
 // the root layout. The panels arrive as a prop that app/[locale]/layout.tsx
@@ -175,16 +176,22 @@ export function Header({
       className: `nav-chip nav-chip--map${isActive(`/${locale}/map`) ? " nav-chip--active" : ""}`
     },
     {
-      // CRIBLIV TIMES — the serif masthead chip. Panel-less in this slice;
-      // slice 3 gives it a desks + latest-posts panel.
+      // CRIBLIV TIMES — the serif masthead chip, now with a desks +
+      // latest-posts hover panel (slice 3). Same panel-less-below-900px
+      // gating as Rent/PG/Owners above: `.nav-center` is already hidden by
+      // CSS there, but a null panel makes that explicit and testable rather
+      // than an emergent property of the stylesheet (see useDesktopNav).
       id: "times",
       label: (
         <>
           <Newspaper size={14} aria-hidden="true" />
-          <span className="nav-times__word">Cribliv Times</span>
+          <span>Cribliv Times</span>
         </>
       ),
-      panel: null,
+      panel: desktopNav ? navData.times : null,
+      renderPanel: (close) => (
+        <TimesPanel locale={locale} panel={navData.times} onNavigate={close} />
+      ),
       href: `/${locale}/blog`,
       className: `nav-chip nav-chip--times${isActive(`/${locale}/blog`) ? " nav-chip--active" : ""}`
     },

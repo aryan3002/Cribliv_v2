@@ -21,6 +21,17 @@ export interface NavMenuItem {
   href?: string;
   className?: string;
   active?: boolean;
+  /**
+   * Escape hatch for a panel body that is not static NavPanel data — Cribliv
+   * Times' desks-plus-hover-loaded-posts panel is the first user. When
+   * present it renders in place of NavPanelView, inside the exact same
+   * hover-intent wrapper below, so outside-pointerdown/Escape close it
+   * identically either way. Receives the same `close` NavPanelView is given
+   * as onNavigate, so a custom panel can close the menu on link click exactly
+   * like the built-in one does. Only ever invoked while `panel` is truthy —
+   * see the guard below — so it is safe to build from data that assumes that.
+   */
+  renderPanel?: (close: () => void) => ReactNode;
 }
 
 // Exported so the test can assert against the real constants instead of
@@ -151,16 +162,32 @@ export function NavMenuBar({ items }: { items: NavMenuItem[] }) {
       })}
 
       {openItem?.panel && (
-        // This wrapper carries no id of its own — NavPanelView's root is the
-        // actual role="group" element, so the id triggers' aria-controls must
-        // match lives there (passed through below), not on this plain div.
-        <div onMouseEnter={clearTimer} onMouseLeave={hoverClose}>
-          <NavPanelView
-            id={`nav-panel-${openItem.id}`}
-            panel={openItem.panel}
-            labelledBy={`nav-trigger-${openItem.id}`}
-            onNavigate={close}
-          />
+        <div
+          onMouseEnter={clearTimer}
+          onMouseLeave={hoverClose}
+          // NavPanelView's own root is the actual role="group" element the
+          // trigger's aria-controls points at (id passed through below), so
+          // this wrapper stays id-less in that case. A custom renderPanel has
+          // no root of its own to carry that pairing, so it moves up to this
+          // wrapper instead — same id, same aria-labelledby, same trigger.
+          {...(openItem.renderPanel
+            ? {
+                id: `nav-panel-${openItem.id}`,
+                role: "group" as const,
+                "aria-labelledby": `nav-trigger-${openItem.id}`
+              }
+            : {})}
+        >
+          {openItem.renderPanel ? (
+            openItem.renderPanel(close)
+          ) : (
+            <NavPanelView
+              id={`nav-panel-${openItem.id}`}
+              panel={openItem.panel}
+              labelledBy={`nav-trigger-${openItem.id}`}
+              onNavigate={close}
+            />
+          )}
         </div>
       )}
     </div>

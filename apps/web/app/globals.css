@@ -700,6 +700,16 @@ h4,
   color: var(--brand);
 }
 
+/* Cribliv Times' panel reuses the mega-menu box above, but only ever carries
+   two short columns (Desks, Latest) instead of three to five — left unchecked
+   the shared auto-fit grid stretches those few columns edge to edge across
+   the full row width, reading as sparse rather than intentional. Capping the
+   track's max width keeps it dense and left-aligned like an editorial rail. */
+.nav-panel--times .nav-panel__grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
+  justify-content: start;
+}
+
 /* City chip — sits just right of the logo: shows the current city and opens
    a small popover to switch. The trigger keeps a visible border (unlike
    .nav-trigger) so it reads as a control immediately, before the user has
