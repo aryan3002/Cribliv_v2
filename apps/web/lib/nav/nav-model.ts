@@ -1,4 +1,9 @@
-import { ALL_INTENTS, getIntent, type IntentDefinition } from "../intent-filters";
+import {
+  ALL_INTENTS,
+  getIntent,
+  INTENT_CATEGORIES,
+  type IntentDefinition
+} from "../intent-filters";
 import { PG_CITY_CONTENT } from "../pg-city-content";
 import { BLOG_DESKS } from "../blog-desks";
 import { HUB_CITIES } from "./cities";
@@ -24,6 +29,21 @@ export type NavLocale = "en" | "hi";
 
 function label(intent: IntentDefinition, locale: NavLocale): string {
   return locale === "hi" ? intent.label_hi : intent.label_en;
+}
+
+/**
+ * Column titles that map onto a real intent category borrow that category's
+ * own label_hi rather than a hand-written string, so the nav and the
+ * programmatic SEO pages never drift on what "Budget" or "Lifestyle" is
+ * called in Hindi. Only property-type/budget/lifestyle are used this way —
+ * "audience" backs columns (e.g. "By who it's for") whose English title is a
+ * paraphrase, not the category name, so those get a hand-written Hindi title
+ * instead (see buildPgPanel).
+ */
+function categoryLabelHi(category: "property-type" | "budget" | "lifestyle"): string {
+  const found = INTENT_CATEGORIES.find((c) => c.slug === category);
+  if (!found) throw new Error(`intent-filters.ts categories is missing "${category}"`);
+  return found.label_hi;
 }
 
 /** Build a surface URL, always city-scoped, params sorted for stable output. */
@@ -71,6 +91,7 @@ function inCategory(category: IntentDefinition["category"]): IntentDefinition[] 
 // would have missed it and produced /search?listing_type=pg.
 
 export function buildRentPanel(locale: NavLocale, citySlug: string): NavPanel {
+  const hi = locale === "hi";
   const link = (i: IntentDefinition) => intentLink(i, locale, "search", citySlug);
   const notPg = (i: IntentDefinition) => !isPgIntent(i);
 
@@ -78,22 +99,22 @@ export function buildRentPanel(locale: NavLocale, citySlug: string): NavPanel {
     id: "rent",
     columns: [
       {
-        title: "Property type",
+        title: hi ? categoryLabelHi("property-type") : "Property type",
         links: inCategory("property-type").filter(notPg).map(link)
       },
       {
-        title: "By budget",
+        title: hi ? categoryLabelHi("budget") : "By budget",
         links: inCategory("budget").filter(notPg).map(link)
       },
       {
-        title: "By lifestyle",
+        title: hi ? categoryLabelHi("lifestyle") : "By lifestyle",
         links: [
           ...inCategory("lifestyle").filter(notPg),
           ...bySlugs(["family-flats", "bachelor-flats"])
         ].map(link)
       },
       {
-        title: "Popular localities",
+        title: hi ? "लोकप्रिय इलाके" : "Popular localities",
         links: localityLinks(locale, citySlug)
       }
     ]
@@ -112,6 +133,7 @@ const PG_SHARING: ReadonlyArray<{ value: string; en: string; hi: string }> = [
 ];
 
 export function buildPgPanel(locale: NavLocale, citySlug: string): NavPanel {
+  const hi = locale === "hi";
   const link = (i: IntentDefinition) => intentLink(i, locale, "pg", citySlug);
   const city = PG_CITY_CONTENT[citySlug];
 
@@ -119,14 +141,14 @@ export function buildPgPanel(locale: NavLocale, citySlug: string): NavPanel {
     id: "pg",
     columns: [
       {
-        title: "By sharing",
+        title: hi ? "शेयरिंग" : "By sharing",
         links: PG_SHARING.map((s) => ({
-          label: locale === "hi" ? s.hi : s.en,
+          label: hi ? s.hi : s.en,
           href: surfaceHref(locale, "pg", citySlug, { sharing: s.value })
         }))
       },
       {
-        title: "By who it's for",
+        title: hi ? "किसके लिए" : "By who it's for",
         links: bySlugs([
           "pg-for-girls",
           "pg-for-boys",
@@ -152,15 +174,15 @@ export function buildPgPanel(locale: NavLocale, citySlug: string): NavPanel {
         })
       },
       {
-        title: "By budget",
+        title: hi ? categoryLabelHi("budget") : "By budget",
         links: inCategory("budget").map(link)
       },
       {
-        title: "Food & amenities",
+        title: hi ? "खाना और सुविधाएं" : "Food & amenities",
         links: bySlugs(["with-food", "vegetarian-pg", "ac-rooms", "co-living"]).map(link)
       },
       {
-        title: "Popular PG hubs",
+        title: hi ? "लोकप्रिय पीजी हब" : "Popular PG hubs",
         links: (city?.hubs ?? []).map((hub) => ({
           label: hub,
           href: surfaceHref(locale, "pg", citySlug, { q: hub })
@@ -198,7 +220,11 @@ export function buildOwnersPanel(locale: NavLocale): NavPanel {
         title: hi ? "जानें" : "Learn",
         links: [
           { label: hi ? "यह कैसे काम करता है" : "How it works", href: at("/how-it-works") },
-          { label: hi ? "सामान्य प्रश्न" : "FAQ", href: at("/faq") }
+          { label: hi ? "सामान्य प्रश्न" : "FAQ", href: at("/faq") },
+          {
+            label: hi ? "किरायेदारी गाइड" : "Tenancy guides",
+            href: at("/blog/category/tenancy")
+          }
         ]
       }
     ]

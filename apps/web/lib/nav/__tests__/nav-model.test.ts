@@ -4,10 +4,13 @@ import {
   buildPgPanel,
   buildOwnersPanel,
   buildTimesPanel,
-  cityChipLinks
+  cityChipLinks,
+  type NavPanel
 } from "../nav-model";
 import { HUB_CITY_SLUGS } from "../cities";
 import { BLOG_DESKS } from "../../blog-desks";
+import { localityLinks } from "../localities";
+import { PG_CITY_CONTENT } from "../../pg-city-content";
 
 const LOCALES = ["en", "hi"] as const;
 
@@ -73,15 +76,19 @@ describe("spec §C2 — link correctness", () => {
 });
 
 describe("buildRentPanel", () => {
-  it("has the five approved columns", () => {
+  it("has the five approved columns, localized per locale", () => {
     const panel = buildRentPanel("en", "lucknow");
     expect(panel.id).toBe("rent");
-    expect(panel.columns.map((c) => c.title)).toEqual([
-      "Property type",
-      "By budget",
-      "By lifestyle",
-      "Popular localities"
-    ]);
+
+    const expectedTitles: Record<"en" | "hi", string[]> = {
+      en: ["Property type", "By budget", "By lifestyle", "Popular localities"],
+      hi: ["प्रॉपर्टी का प्रकार", "बजट", "लाइफस्टाइल", "लोकप्रिय इलाके"]
+    };
+    for (const locale of LOCALES) {
+      expect(buildRentPanel(locale, "lucknow").columns.map((c) => c.title)).toEqual(
+        expectedTitles[locale]
+      );
+    }
   });
 
   it("excludes `rooms`, a PG intent that lives in the property-type category", () => {
@@ -130,16 +137,19 @@ describe("buildRentPanel", () => {
 });
 
 describe("buildPgPanel", () => {
-  it("has the approved columns including budget", () => {
+  it("has the approved columns including budget, localized per locale", () => {
     const panel = buildPgPanel("en", "lucknow");
     expect(panel.id).toBe("pg");
-    expect(panel.columns.map((c) => c.title)).toEqual([
-      "By sharing",
-      "By who it's for",
-      "By budget",
-      "Food & amenities",
-      "Popular PG hubs"
-    ]);
+
+    const expectedTitles: Record<"en" | "hi", string[]> = {
+      en: ["By sharing", "By who it's for", "By budget", "Food & amenities", "Popular PG hubs"],
+      hi: ["शेयरिंग", "किसके लिए", "बजट", "खाना और सुविधाएं", "लोकप्रिय पीजी हब"]
+    };
+    for (const locale of LOCALES) {
+      expect(buildPgPanel(locale, "lucknow").columns.map((c) => c.title)).toEqual(
+        expectedTitles[locale]
+      );
+    }
   });
 
   it("sends every link to /pg, never /search", () => {
@@ -187,6 +197,7 @@ describe("buildOwnersPanel and buildTimesPanel", () => {
     expect(hrefs).toContain("/en/rent-agreement");
     expect(hrefs).toContain("/en/how-it-works");
     expect(hrefs).toContain("/en/faq");
+    expect(hrefs).toContain("/en/blog/category/tenancy");
   });
 
   it("times links point at the four real blog desks", () => {
@@ -216,5 +227,138 @@ describe("cityChipLinks", () => {
     expect(links).toHaveLength(8);
     expect(links[0]).toEqual({ label: "Delhi", href: "/en/city/delhi" });
     expect(links.map((l) => l.label)).not.toContain("Varanasi");
+  });
+});
+
+// Fix 2 (final-review wave): only one Rent intent and one Times desk were ever
+// asserted in Hindi. This walks every panel's links position-by-position and
+// requires the hi label to differ from its en counterpart wherever the
+// underlying data actually carries a translation. Locality display names and
+// PG hub names have no Hindi variant at all — they are plain strings pulled
+// from RENT_CITY_CONTENT / the Lucknow micro-localities seed / PG_CITY_CONTENT
+// — so they legitimately coincide between locales. `allowedToCoincide` is the
+// escape hatch for exactly those proper nouns, not a general bypass: anything
+// else that comes out identical in both locales is a real bug.
+function assertLocalesDiffer(
+  panelId: string,
+  enPanel: NavPanel,
+  hiPanel: NavPanel,
+  allowedToCoincide: ReadonlySet<string>
+) {
+  expect(hiPanel.columns.length, `${panelId}: column count differs between locales`).toBe(
+    enPanel.columns.length
+  );
+  enPanel.columns.forEach((column, columnIndex) => {
+    const hiColumn = hiPanel.columns[columnIndex];
+    expect(
+      hiColumn.links.length,
+      `${panelId}/"${column.title}": link count differs between locales`
+    ).toBe(column.links.length);
+    column.links.forEach((enLink, linkIndex) => {
+      const hiLink = hiColumn.links[linkIndex];
+      const identical = enLink.label === hiLink.label;
+      expect(
+        identical && !allowedToCoincide.has(enLink.label),
+        `${panelId}/"${column.title}": link "${enLink.label}" (${enLink.href}) is not translated into Hindi`
+      ).toBe(false);
+    });
+  });
+}
+
+/** Locality names and PG hub names are proper nouns with no Hindi variant. */
+function properNounsFor(citySlug: string): Set<string> {
+  const nouns = new Set<string>();
+  for (const link of localityLinks("en", citySlug)) nouns.add(link.label);
+  for (const hub of PG_CITY_CONTENT[citySlug]?.hubs ?? []) nouns.add(hub);
+  return nouns;
+}
+
+describe("spec §C2 — Hindi actually differs from English, across every panel", () => {
+  it("buildRentPanel: every hi label differs from its en counterpart, except locality names", () => {
+    for (const city of HUB_CITY_SLUGS) {
+      assertLocalesDiffer(
+        "rent",
+        buildRentPanel("en", city),
+        buildRentPanel("hi", city),
+        properNounsFor(city)
+      );
+    }
+  });
+
+  it("buildPgPanel: every hi label differs from its en counterpart, except PG hub names", () => {
+    for (const city of HUB_CITY_SLUGS) {
+      assertLocalesDiffer(
+        "pg",
+        buildPgPanel("en", city),
+        buildPgPanel("hi", city),
+        properNounsFor(city)
+      );
+    }
+  });
+
+  it("buildOwnersPanel: every hi label differs from its en counterpart", () => {
+    assertLocalesDiffer("owners", buildOwnersPanel("en"), buildOwnersPanel("hi"), new Set());
+  });
+
+  it("buildTimesPanel: every hi label differs from its en counterpart", () => {
+    assertLocalesDiffer("times", buildTimesPanel("en"), buildTimesPanel("hi"), new Set());
+  });
+});
+
+// Fix 4 (final-review wave): bySlugs() silently filters out unknown slugs and
+// inCategory() silently returns [] for a renamed category — neither is a type
+// error, because the category union in intent-filters.ts is hand-written over
+// an `as unknown as` cast on the JSON. Without a pinned count, an entire
+// column (e.g. "By lifestyle") could quietly go to zero links and every other
+// assertion in this file would stay green. These counts are derived from
+// data/seeds/lucknow/intents.json + PG_CITY_CONTENT and are locale-invariant
+// (filtering never depends on locale), so pinning against "en" is sufficient.
+describe("spec — column cardinality is pinned", () => {
+  it("every column of every panel has at least one link, for every hub city and locale", () => {
+    for (const locale of LOCALES) {
+      for (const city of HUB_CITY_SLUGS) {
+        for (const panel of everyPanel(locale, city)) {
+          for (const column of panel.columns) {
+            expect(
+              column.links.length,
+              `${panel.id}/"${column.title}" (${locale}/${city}) has no links`
+            ).toBeGreaterThan(0);
+          }
+        }
+      }
+    }
+  });
+
+  it("pins buildRentPanel's per-column link counts", () => {
+    // [Property type, By budget, By lifestyle, Popular localities]. Lifestyle's
+    // 7 = 5 category-derived (furnished/semi/unfurnished/pet-friendly/ac-rooms)
+    // + family-flats + bachelor-flats via bySlugs — losing either of the last
+    // two, or ac-rooms, drops this to 6 or fewer.
+    for (const city of HUB_CITY_SLUGS) {
+      const counts = buildRentPanel("en", city).columns.map((c) => c.links.length);
+      expect(counts, city).toEqual([5, 5, 7, 8]);
+    }
+  });
+
+  it("pins buildPgPanel's per-column link counts", () => {
+    // [By sharing, By who it's for, By budget, Food & amenities, Popular PG
+    // hubs]. Food & amenities' 4 = with-food/vegetarian-pg/ac-rooms/co-living
+    // via bySlugs — losing vegetarian-pg or ac-rooms drops this to 3.
+    for (const city of HUB_CITY_SLUGS) {
+      const counts = buildPgPanel("en", city).columns.map((c) => c.links.length);
+      expect(counts, city).toEqual([4, 4, 5, 4, 6]);
+    }
+  });
+
+  it("pins buildOwnersPanel's per-column link counts", () => {
+    // [List your property, Pricing, Tools, Learn]. Learn is 3 after Fix 5
+    // added the /blog/category/tenancy link.
+    const counts = buildOwnersPanel("en").columns.map((c) => c.links.length);
+    expect(counts).toEqual([2, 1, 1, 3]);
+  });
+
+  it("pins buildTimesPanel's per-column link count", () => {
+    const counts = buildTimesPanel("en").columns.map((c) => c.links.length);
+    expect(counts).toEqual([4]);
   });
 });
