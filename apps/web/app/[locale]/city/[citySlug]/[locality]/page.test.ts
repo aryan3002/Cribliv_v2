@@ -9,9 +9,6 @@ vi.mock("../../../../../lib/seo-api", () => ({
   fetchLocalities: vi.fn(),
   fetchMetroStationsForCity: vi.fn()
 }));
-vi.mock("../../../../../lib/admin-preview", () => ({
-  isAdminPreview: vi.fn().mockResolvedValue(false)
-}));
 
 import { generateMetadata } from "./page";
 import { fetchEnabledCities, fetchLocality, fetchSeoCopy } from "../../../../../lib/seo-api";
@@ -57,7 +54,7 @@ describe("locality generateMetadata meta override wiring", () => {
       faq_items: []
     });
 
-    const meta = await generateMetadata({ params: PARAMS, searchParams: {} });
+    const meta = await generateMetadata({ params: PARAMS });
 
     expect(meta.title).toBe("Custom Meta Title");
     expect(meta.description).toBe("Custom meta description.");
@@ -66,7 +63,7 @@ describe("locality generateMetadata meta override wiring", () => {
   it("falls back to the template title/description when there is no stored copy", async () => {
     mockedCopy.mockResolvedValue(null);
 
-    const meta = await generateMetadata({ params: PARAMS, searchParams: {} });
+    const meta = await generateMetadata({ params: PARAMS });
 
     expect(String(meta.title)).toContain("Gomti Nagar");
     expect(String(meta.description)).toContain("Gomti Nagar");
@@ -82,7 +79,7 @@ describe("locality generateMetadata meta override wiring", () => {
       faq_items: []
     });
 
-    const meta = await generateMetadata({ params: PARAMS, searchParams: {} });
+    const meta = await generateMetadata({ params: PARAMS });
 
     expect(String(meta.title)).toContain("Gomti Nagar");
   });

@@ -142,13 +142,14 @@ export async function fetchEnabledCities(opts: { revalidate?: number } = {}): Pr
 
 export async function fetchLocality(
   citySlug: string,
-  localitySlug: string
+  localitySlug: string,
+  opts: { revalidate?: number } = {}
 ): Promise<{ locality: LocalityRow; aggregates: PageAggregates } | null> {
   try {
     const res = await fetchApi<{ locality: LocalityRow; aggregates: PageAggregates } | null>(
       `/seo/localities/${encodeURIComponent(citySlug)}/${encodeURIComponent(localitySlug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
     return res ?? null;
   } catch {
@@ -176,13 +177,14 @@ export async function fetchLandmarks(
 
 export async function fetchLandmark(
   citySlug: string,
-  landmarkSlug: string
+  landmarkSlug: string,
+  opts: { revalidate?: number } = {}
 ): Promise<LandmarkRow | null> {
   try {
     return await fetchApi<LandmarkRow>(
       `/landmarks/${encodeURIComponent(citySlug)}/${encodeURIComponent(landmarkSlug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
   } catch {
     return null;
@@ -192,7 +194,7 @@ export async function fetchLandmark(
 export async function fetchLandmarkListings(
   citySlug: string,
   landmarkSlug: string,
-  opts: { radiusKm?: number; limit?: number } = {}
+  opts: { radiusKm?: number; limit?: number; revalidate?: number } = {}
 ): Promise<{ items: ListingCard[]; radius_km: number; landmark: LandmarkRow } | null> {
   try {
     const qs = new URLSearchParams();
@@ -202,7 +204,7 @@ export async function fetchLandmarkListings(
     return await fetchApi(
       `/landmarks/${encodeURIComponent(citySlug)}/${encodeURIComponent(landmarkSlug)}/listings${suffix}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
   } catch {
     return null;
@@ -211,13 +213,14 @@ export async function fetchLandmarkListings(
 
 export async function fetchMetroStation(
   city: string,
-  stationSlug: string
+  stationSlug: string,
+  opts: { revalidate?: number } = {}
 ): Promise<{ station: MetroStationRow; aggregates: PageAggregates } | null> {
   try {
     return await fetchApi(
       `/seo/metro/${encodeURIComponent(city)}/${encodeURIComponent(stationSlug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
   } catch {
     return null;
@@ -258,13 +261,14 @@ export async function fetchMetroStationsForCity(
 }
 
 export async function fetchListings(
-  params: Record<string, string | number | boolean | undefined>
+  params: Record<string, string | number | boolean | undefined>,
+  opts: { revalidate?: number } = {}
 ): Promise<{ items: ListingCard[]; total: number }> {
   try {
     const res = await fetchApi<SearchResponse>(
       `/listings/search?${buildSearchQuery(params)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
     return { items: res.items, total: res.total };
   } catch {
@@ -291,6 +295,7 @@ export async function fetchSeoCopy(input: {
     nearest_metro?: { name: string; walk_minutes: number } | null;
     parent_locality?: string | null;
   };
+  revalidate?: number;
 }): Promise<SeoCopy | null> {
   try {
     // Public read only — the batch generator (admin) pre-populates copy; the
@@ -298,7 +303,8 @@ export async function fetchSeoCopy(input: {
     // used; the rest of the input stays for the caller's own convenience.
     const params = new URLSearchParams({ path: input.pagePath, locale: input.locale });
     return await fetchApi<SeoCopy | null>(`/seo/copy?${params.toString()}`, undefined, {
-      server: true
+      server: true,
+      revalidate: input.revalidate
     });
   } catch {
     return null;
