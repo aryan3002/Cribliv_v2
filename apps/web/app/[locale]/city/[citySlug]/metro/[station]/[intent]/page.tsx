@@ -16,9 +16,11 @@ import {
 } from "../../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../../lib/seo";
 import {
+  cityLabel,
   getIntent,
   intentToSearchParams,
-  renderIntentH1
+  renderIntentH1,
+  renderIntentTitle
 } from "../../../../../../../lib/intent-filters";
 import { isAdminPreview } from "../../../../../../../lib/admin-preview";
 
@@ -53,13 +55,17 @@ export async function generateMetadata({
       noindex: true
     });
   }
-  const h1 = renderIntentH1(intent, `${data.station.station_name} Metro`, locale);
+  const city = cityLabel(params.citySlug, locale);
   return buildPageMetadata({
-    title: `${h1} · Cribliv`,
+    title: renderIntentTitle(
+      intent,
+      { name: `${data.station.station_name} Metro`, kind: "metro", city },
+      locale
+    ),
     description:
       locale === "hi"
-        ? `${data.station.station_name} मेट्रो के पास ${intent.label_hi}, Cribliv पर सत्यापित लिस्टिंग।`
-        : `Verified ${intent.label_en.toLowerCase()} near ${data.station.station_name} Metro. Zero brokerage.`,
+        ? `${data.station.station_name} मेट्रो, ${city} के पास ${intent.label_hi}, Cribliv पर सत्यापित लिस्टिंग।`
+        : `Verified ${intent.label_en.toLowerCase()} near ${data.station.station_name} Metro, ${city}. Zero brokerage.`,
     pathname: `/city/${params.citySlug}/metro/${params.station}/${params.intent}`,
     locale,
     noindex: data.aggregates.listing_count < 3

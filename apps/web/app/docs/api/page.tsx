@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 
 export const metadata: Metadata = {
-  title: "Cribliv API documentation",
+  title: "API documentation",
   description:
     "Public, agent-friendly OpenAPI 3.1 reference for the Cribliv rentals platform: search listings, fetch a listing, locality SEO data, OTP login.",
   robots: { index: true, follow: true }

@@ -9,6 +9,7 @@ import {
 } from "../../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../lib/seo";
+import { cityLabel, placeWithCity } from "../../../../../../lib/intent-filters";
 import { isAdminPreview } from "../../../../../../lib/admin-preview";
 
 export const revalidate = 86400;
@@ -41,10 +42,11 @@ export async function generateMetadata({
       noindex: true
     });
   }
-  const title =
-    locale === "hi"
-      ? `${data.station.station_name} मेट्रो के पास किराये · Cribliv`
-      : `Rentals near ${data.station.station_name} Metro · Cribliv`;
+  const stationPlace = placeWithCity(
+    locale === "hi" ? `${data.station.station_name} मेट्रो` : `${data.station.station_name} Metro`,
+    cityLabel(params.citySlug, locale)
+  );
+  const title = locale === "hi" ? `${stationPlace} के पास किराये` : `Rentals near ${stationPlace}`;
   const desc =
     locale === "hi"
       ? `${data.station.station_name} मेट्रो (${data.station.line_name}) के 1.5 किमी के दायरे में ${data.aggregates.listing_count}+ सत्यापित लिस्टिंग।`

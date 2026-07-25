@@ -14,9 +14,11 @@ import {
 } from "../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../lib/seo";
 import {
+  cityLabel,
   getIntent,
   intentToSearchParams,
-  renderIntentH1
+  renderIntentH1,
+  renderIntentTitle
 } from "../../../../../../lib/intent-filters";
 import { isAdminPreview } from "../../../../../../lib/admin-preview";
 
@@ -52,13 +54,13 @@ export async function generateMetadata({
     });
   }
   const placeName = locale === "hi" ? data.locality.name_hi : data.locality.name_en;
-  const h1 = renderIntentH1(intent, placeName, locale);
+  const city = cityLabel(params.citySlug, locale);
   return buildPageMetadata({
-    title: `${h1} · Cribliv`,
+    title: renderIntentTitle(intent, { name: placeName, kind: "locality", city }, locale),
     description:
       locale === "hi"
-        ? `${placeName} में ${locale === "hi" ? intent.label_hi : intent.label_en}, Cribliv पर सत्यापित लिस्टिंग।`
-        : `Verified ${intent.label_en.toLowerCase()} in ${placeName}. Direct-owner contact, zero brokerage.`,
+        ? `${placeName}, ${city} में ${intent.label_hi}, Cribliv पर सत्यापित लिस्टिंग।`
+        : `Verified ${intent.label_en.toLowerCase()} in ${placeName}, ${city}. Direct-owner contact, zero brokerage.`,
     pathname: `/city/${params.citySlug}/${params.locality}/${params.intent}`,
     locale,
     noindex: data.aggregates.listing_count < 3

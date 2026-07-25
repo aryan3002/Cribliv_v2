@@ -12,9 +12,11 @@ import {
 } from "../../../../../../../lib/structured-data";
 import { buildPageMetadata, isValidSlug } from "../../../../../../../lib/seo";
 import {
+  cityLabel,
   getIntent,
   intentToSearchParams,
-  renderIntentH1
+  renderIntentH1,
+  renderIntentTitle
 } from "../../../../../../../lib/intent-filters";
 import { isAdminPreview } from "../../../../../../../lib/admin-preview";
 
@@ -57,13 +59,13 @@ export async function generateMetadata({
     page_size: 1
   });
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
-  const h1 = renderIntentH1(intent, name, locale);
+  const city = cityLabel(params.citySlug, locale);
   return buildPageMetadata({
-    title: `${h1} · Cribliv`,
+    title: renderIntentTitle(intent, { name, kind: "landmark", city }, locale),
     description:
       locale === "hi"
-        ? `${name} के पास ${intent.label_hi}, Cribliv पर सत्यापित लिस्टिंग।`
-        : `${intent.label_en} near ${name}. Verified Cribliv listings, no broker fees.`,
+        ? `${name}, ${city} के पास ${intent.label_hi}, Cribliv पर सत्यापित लिस्टिंग।`
+        : `${intent.label_en} near ${name}, ${city}. Verified listings, direct owner contact, no broker fees.`,
     pathname: `/city/${params.citySlug}/near/${params.landmark}/${params.intent}`,
     locale,
     noindex: parentCount.total < 3
