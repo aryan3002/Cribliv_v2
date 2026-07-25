@@ -691,11 +691,102 @@ h4,
   color: var(--brand);
 }
 
+/* City chip — sits just right of the logo: shows the current city and opens
+   a small popover to switch. The trigger keeps a visible border (unlike
+   .nav-trigger) so it reads as a control immediately, before the user has
+   hovered anything else in the bar. */
+.city-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.city-chip__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+.city-chip__trigger:hover,
+.city-chip__trigger--open {
+  border-color: var(--brand);
+  background: var(--brand-light);
+  color: var(--brand);
+}
+.city-chip__trigger svg {
+  opacity: 0.7;
+}
+.city-chip__trigger:hover svg,
+.city-chip__trigger--open svg {
+  opacity: 1;
+}
+.city-chip__trigger svg:last-child {
+  transition: transform var(--transition-fast);
+}
+.city-chip__trigger--open svg:last-child {
+  transform: rotate(180deg);
+}
+
+.city-chip__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  animation: nav-panel-in 180ms ease;
+}
+
+.city-chip__link {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+.city-chip__link:hover {
+  color: var(--brand);
+  background: var(--surface-sunken);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav-panel {
     animation: none;
   }
   .nav-trigger svg {
+    transition: none;
+  }
+  .city-chip__popover {
+    animation: none;
+  }
+  .city-chip__trigger svg:last-child {
     transition: none;
   }
 }
