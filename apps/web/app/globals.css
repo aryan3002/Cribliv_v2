@@ -649,6 +649,22 @@ h4,
   transform: rotate(180deg);
 }
 
+/* The open panel's mount point (nav-menu-bar.tsx). `display: contents` removes
+   its own box from `.nav-center`'s flex flow entirely: as an ordinary flex item
+   it added one `gap: var(--space-1)` (4px) to the row just by existing, so
+   opening a panel widened `.nav-center` by 4px and — wherever `.nav-row` still
+   has free space for its two `flex: 1 1 auto` spacers to absorb, i.e. every
+   inner page — slid every trigger 2px left, then 2px back on close.
+   `.nav-panel` itself is `position: absolute` against `.nav-row`, so it is
+   out-of-flow and contributes no gap of its own once this wrapper is gone.
+   Not `position: absolute` on the wrapper: that would make it the panel's
+   containing block and move the panel. Events are unaffected — `display:
+   contents` removes the box, not the node, so React's enter/leave synthesis
+   still walks through it. */
+.nav-panel-mount {
+  display: contents;
+}
+
 .nav-panel {
   position: absolute;
   top: 100%;

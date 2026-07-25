@@ -59,15 +59,49 @@ function formatRent(value: number): string {
 }
 
 /**
- * True only for the two query-param-driven results pages (/search, /pg) --
- * the sole routes where the current querystring is worth carrying onto the
- * pill's target. Everything else (city/locality SEO pages, listing detail,
- * the homepage, ...) either ignores these params or means something
- * different by them, so dragging them onto /search would be noise.
+ * The results surface the current route IS, or null when it is not one of the
+ * two query-param-driven results pages -- the sole routes where the current
+ * querystring is worth carrying onto the pill's target. Everything else
+ * (city/locality SEO pages, listing detail, the homepage, ...) either ignores
+ * these params or means something different by them, so dragging them onto a
+ * results page would be noise.
+ *
+ * Returning WHICH surface, not just whether, is load-bearing: /search forces
+ * listing_type=flat_house server-side (app/[locale]/search/page.tsx) and has no
+ * sharing/gender_policy/tenant_type filter at all, so sending a /pg visitor's
+ * querystring there silently drops every PG filter they had chosen and swaps
+ * their PG results for unfiltered flats. The pill must keep them on /pg.
  */
-function isSearchLikeRoute(pathname: string, locale: NavLocale): boolean {
-  return pathname === `/${locale}/search` || pathname === `/${locale}/pg`;
+function searchSurface(pathname: string, locale: NavLocale): "search" | "pg" | null {
+  if (pathname === `/${locale}/search`) return "search";
+  if (pathname === `/${locale}/pg`) return "pg";
+  return null;
 }
+
+/**
+ * PG filter values -> the labels the rest of the product already shows for
+ * them. Lookup maps rather than title-casing the raw value, so an unrecognised
+ * value is skipped instead of rendered as-is: `sharing` and `gender_policy` are
+ * closed vocabularies (lib/nav/surface-params.ts), and "Xyz sharing" in the
+ * header would be worse than saying nothing. English-only, matching the
+ * existing "2 BHK in Gomti Nagar" summary, which is locale-invariant by design.
+ */
+const PG_GENDER_LABELS: Record<string, string> = {
+  girls: "Girls PG",
+  boys: "Boys PG",
+  coed: "Co-ed PG"
+};
+const PG_SHARING_LABELS: Record<string, string> = {
+  single: "Single sharing",
+  double: "Double sharing",
+  triple: "Triple sharing",
+  quad: "Four sharing"
+};
+// `any` is deliberately absent: it is the no-op default, so it adds nothing.
+const PG_TENANT_LABELS: Record<string, string> = {
+  students: "For students",
+  working: "For working professionals"
+};
 
 /**
  * Compact summary of the current search, shown in place of the city chip
@@ -80,6 +114,9 @@ export function SearchPill({ locale }: { locale: NavLocale }) {
   const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
 
+  const surface = searchSurface(pathname, locale);
+  const isPg = surface === "pg";
+
   const q = searchParams?.get("q")?.trim() ?? "";
   const bhk = searchParams?.get("bhk")?.trim() ?? "";
   const locality = searchParams?.get("locality")?.trim() ?? "";
@@ -89,9 +126,26 @@ export function SearchPill({ locale }: { locale: NavLocale }) {
   let label = q;
   if (!label) {
     const place = locality || city;
-    const bhkPart = bhk ? `${bhk} BHK` : "";
     const placePart = place ? placeLabel(place) : "";
-    const composed = [bhkPart, placePart].filter(Boolean).join(" in ");
+
+    // The "what kind of home" half of the summary. On /pg the flats vocabulary
+    // (bhk) does not exist -- PG inventory is described by who it is for and
+    // how many share a room -- so read the PG params the page actually honours
+    // (lib/nav/surface-params.ts PG_PARAMS) instead. Same order the on-page PG
+    // filter bar shows them in (components/pg/PgFilters.tsx).
+    const kindPart = isPg
+      ? [
+          PG_GENDER_LABELS[searchParams?.get("gender_policy")?.trim() ?? ""],
+          PG_SHARING_LABELS[searchParams?.get("sharing")?.trim() ?? ""],
+          PG_TENANT_LABELS[searchParams?.get("tenant_type")?.trim() ?? ""]
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : bhk
+        ? `${bhk} BHK`
+        : "";
+
+    const composed = [kindPart, placePart].filter(Boolean).join(" in ");
 
     // Guard the empty string explicitly: Number("") is 0, not NaN, which
     // would otherwise make an absent max_rent render as "Under ₹0".
@@ -101,12 +155,11 @@ export function SearchPill({ locale }: { locale: NavLocale }) {
     label = [composed, maxRentPart].filter(Boolean).join(" · ");
   }
 
-  if (!label) label = t(locale, "navSearchPlaceholder");
+  if (!label) label = t(locale, isPg ? "navSearchPlaceholderPg" : "navSearchPlaceholder");
 
   const qs = searchParams?.toString() ?? "";
-  const href = (
-    isSearchLikeRoute(pathname, locale) && qs ? `/${locale}/search?${qs}` : `/${locale}/search`
-  ) as Route;
+  const base = `/${locale}/${isPg ? "pg" : "search"}`;
+  const href = (surface && qs ? `${base}?${qs}` : base) as Route;
 
   return (
     <Link href={href} className="search-pill" title={label}>

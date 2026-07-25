@@ -59,7 +59,14 @@ function categoryLabelHi(category: "property-type" | "budget" | "lifestyle"): st
   return found.label_hi;
 }
 
-/** Build a surface URL, always city-scoped, params sorted for stable output. */
+/**
+ * Build a surface URL, always city-scoped.
+ *
+ * Output is stable but NOT sorted: URLSearchParams preserves insertion order,
+ * so `city` leads and the intent's own filters follow in their registry order.
+ * Deterministic for a given input, which is all the snapshot-style href
+ * assertions in __tests__/nav-model.test.ts rely on.
+ */
 function surfaceHref(
   locale: NavLocale,
   surface: NavSurface,

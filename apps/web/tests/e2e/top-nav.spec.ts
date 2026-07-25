@@ -81,34 +81,27 @@ const CHIP_RAIL_LABEL = t("en", "navIntentRailLabel");
 const primaryNav = (page: Page) => page.getByRole("navigation", { name: "Primary" });
 
 /**
- * Hovers a trigger via a single raw `mouse.move` rather than
- * `locator.hover()`.
+ * Hovers a trigger. This used to be a raw `page.mouse.move()` workaround,
+ * because `locator.hover()` reproducibly made the Rent panel reopen ~120ms
+ * (NavMenuBar's OPEN_DELAY_MS) after Escape closed it, and the investigation
+ * at the time could not find the mechanism — it was written off as
+ * `locator.hover()`'s actionability/retry loop reacting to the panel's open
+ * animation.
  *
- * Investigated finding: `locator.hover()` on these triggers is genuinely
- * flaky here — reproducibly (10+ manual repro runs), the Rent panel closes
- * correctly on Escape and then silently reopens ~110-120ms later
- * (NavMenuBar's OPEN_DELAY_MS). Monkey-patching `window.setTimeout` proved a
- * fresh 120ms timer gets scheduled from NavMenuBar's own `onMouseEnter`
- * handler shortly around Escape-time, i.e. `hoverOpen` genuinely runs again —
- * but capture-phase listeners for every mouse/pointer enter/leave/over/out
- * event, on both the trigger and `document`, recorded NOTHING in that
- * window, so the exact browser mechanism re-invoking it is unconfirmed (not
- * a focus()-driven re-hover: disabling NavMenuBar's `close()` focus() call
- * didn't stop it; not early-page-load/font-swap timing: waiting 2s +
- * `document.fonts.ready` before interacting didn't stop it either).
- * What IS confirmed: swapping `locator.hover()` for one `page.mouse.move()`
- * to the same coordinates made the reopen stop, cleanly, every time (10+
- * repro runs incl. the click-to-open path). That isolates it to
- * `locator.hover()`'s own actionability/retry machinery reacting to the
- * panel's open CSS animation (nav-panel-in) — a real user's mouse doesn't
- * behave like a scripted retry loop, so this reads as a test-methodology
- * artifact rather than a reachable product bug. See the Task 11 report for
- * the full investigation log.
+ * It was not a harness artifact. The cause was a real product bug, found by
+ * the final whole-branch review and fixed alongside this revert: Escape left
+ * hover fully armed, so any `mouseenter` that arrived afterwards — and
+ * `locator.hover()` issues one on every actionability retry — re-ran
+ * `hoverOpen` and rescheduled the open. (`locator.hover()` re-hovered where a
+ * single `mouse.move()` did not, which is why swapping them "fixed" it and
+ * sent the original investigation down the harness path.) NavMenuBar now
+ * latches hover off on Escape until the pointer leaves the bar, and the panel
+ * no longer shifts the row's geometry when it opens.
+ *
+ * Kept as a helper purely so the call sites stay uniform.
  */
-async function hoverTrigger(page: Page, trigger: Locator): Promise<void> {
-  const box = await trigger.boundingBox();
-  if (!box) throw new Error("trigger has no bounding box to hover");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+async function hoverTrigger(_page: Page, trigger: Locator): Promise<void> {
+  await trigger.hover();
 }
 
 test.describe("top nav — desktop mega-menu", () => {
@@ -163,6 +156,71 @@ test.describe("top nav — desktop mega-menu", () => {
 
     await expect(primaryNav(page).getByRole("group")).toHaveCount(0);
     await expect(rentTrigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // Regression for the reopen described on hoverTrigger above. The pointer
+  // stays on the bar and twitches one pixel, which is what a resting hand
+  // does; before the hover latch that single mouseenter rescheduled the open
+  // and the dismissed panel came back ~120ms later.
+  test("a panel dismissed with Escape stays closed under a resting pointer", async ({ page }) => {
+    await page.goto("/en");
+    const rentTrigger = primaryNav(page).getByRole("button", { name: "Rent", exact: true });
+
+    await hoverTrigger(page, rentTrigger);
+    await expect(primaryNav(page).getByRole("group")).toBeVisible();
+
+    const box = await rentTrigger.boundingBox();
+    if (!box) throw new Error("trigger has no bounding box");
+    await page.keyboard.press("Escape");
+    await expect(primaryNav(page).getByRole("group")).toHaveCount(0);
+
+    // One-pixel tremor, then well past OPEN_DELAY_MS.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 1);
+    await page.mouse.move(box.x + box.width / 2 + 1, box.y + box.height / 2 + 1);
+    await page.waitForTimeout(400);
+
+    await expect(primaryNav(page).getByRole("group")).toHaveCount(0);
+    await expect(rentTrigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // I-1a: opening a panel must not change the row's geometry. The panel's
+  // mount point used to be an ordinary flex item, so it contributed one
+  // `.nav-center` gap (4px) purely by existing and slid every trigger 2px.
+  test("opening a panel does not move the nav row", async ({ page }) => {
+    await page.goto("/en/search?city=lucknow");
+    const rentTrigger = primaryNav(page).getByRole("button", { name: "Rent", exact: true });
+
+    const widthOf = () =>
+      page.evaluate(() => {
+        const el = document.querySelector(".nav-center");
+        return el ? Math.round(el.getBoundingClientRect().width * 100) / 100 : null;
+      });
+
+    const closedBox = await rentTrigger.boundingBox();
+    const closedWidth = await widthOf();
+
+    await hoverTrigger(page, rentTrigger);
+    await expect(primaryNav(page).getByRole("group")).toBeVisible();
+
+    expect(await widthOf()).toBe(closedWidth);
+    expect((await rentTrigger.boundingBox())?.x).toBe(closedBox?.x);
+  });
+
+  // I-2: Tab from an expanded trigger lands inside that trigger's own panel.
+  // The panel used to render after all five triggers, so Tab went to the next
+  // trigger (reporting aria-expanded="false") and took five presses to reach
+  // the first panel link.
+  test("Tab from an expanded trigger moves into its own panel", async ({ page }) => {
+    await page.goto("/en");
+    const rentTrigger = primaryNav(page).getByRole("button", { name: "Rent", exact: true });
+
+    await hoverTrigger(page, rentTrigger);
+    await expect(primaryNav(page).getByRole("group")).toBeVisible();
+
+    await rentTrigger.focus();
+    await page.keyboard.press("Tab");
+
+    expect(await page.evaluate(() => !!document.activeElement?.closest(".nav-panel"))).toBe(true);
   });
 
   test("a panel link navigates to a URL carrying its real filter params", async ({ page }) => {

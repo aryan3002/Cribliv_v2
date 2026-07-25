@@ -176,6 +176,28 @@ describe("buildPgPanel", () => {
     expect(hrefs.some((h) => h.includes("occupancy_type="))).toBe(false);
   });
 
+  // pg-for-students and pg-for-working-professionals carry only listing_type in
+  // the intent registry, so buildPgPanel supplies their tenant_type by hand
+  // from a slug ternary. Nothing else in the suite pins WHICH label gets WHICH
+  // value, so swapping the two arms would send "PG for students" to
+  // tenant_type=working and stay green. Assert the pairing per link, not with
+  // a `hrefs.some(...)` that both arms satisfy either way round.
+  it("pairs each audience label with its own tenant_type, not the other one", () => {
+    const audience = buildPgPanel("en", "lucknow").columns[1];
+    const hrefFor = (labelText: string) =>
+      audience.links.find((l) => l.label === labelText)?.href ?? "";
+
+    expect(hrefFor("PG for students")).toContain("tenant_type=students");
+    expect(hrefFor("PG for students")).not.toContain("tenant_type=working");
+    expect(hrefFor("PG for working professionals")).toContain("tenant_type=working");
+    expect(hrefFor("PG for working professionals")).not.toContain("tenant_type=students");
+
+    // The gendered pair must not pick up a tenant_type at all -- the ternary's
+    // third arm is what keeps them out of it.
+    expect(hrefFor("PG for girls")).not.toContain("tenant_type=");
+    expect(hrefFor("PG for boys")).not.toContain("tenant_type=");
+  });
+
   it("includes budget links, which pg-search.service.ts does honour", () => {
     const budget = buildPgPanel("en", "lucknow").columns[2];
     expect(budget.links.length).toBeGreaterThan(0);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act, within } from "@testing-library/react";
+import { render, screen, waitFor, act, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NavMenuBar, type NavMenuItem } from "../nav-menu-bar";
 import { buildRentPanel, buildPgPanel } from "../../../lib/nav/nav-model";
@@ -85,6 +85,133 @@ describe("NavMenuBar", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("group")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  // Regression (final review I-1b). Escape means "keep this shut": a pointer
+  // still resting on the bar must not be able to re-arm hover-open on its own.
+  // Before the latch, the trigger re-firing mouseenter -- which a one-pixel
+  // hand tremor is enough to do -- scheduled a fresh OPEN_DELAY_MS timer and
+  // the dismissed panel sprang back open.
+  //
+  // These drive raw `mouseout` with an explicit `relatedTarget` instead of
+  // userEvent's pointer API, and both details are load-bearing rather than
+  // stylistic:
+  //
+  //   * userEvent/jsdom leave `relatedTarget` null, and React reads it to
+  //     decide how far up the tree to synthesise enter/leave. Null means "came
+  //     from outside the document", so under userEvent EVERY move fires enter
+  //     and leave on the whole ancestor chain, `.nav-center` included -- a
+  //     move between two children of the bar becomes indistinguishable from
+  //     leaving the page and coming back, which is the exact distinction this
+  //     latch is built on.
+  //   * The event to dispatch is `mouseout`, not `mouseover`. React's
+  //     EnterLeaveEventPlugin emits BOTH the leave and the enter side from the
+  //     `mouseout` (from=target, to=relatedTarget) and deliberately early-
+  //     returns on `mouseover` whenever its relatedTarget is a React-managed
+  //     node, precisely to avoid dispatching twice. A `mouseover`-driven
+  //     simulation therefore fires nothing at all and passes no matter what
+  //     the component does -- verified by deleting the guard in `hoverOpen`
+  //     and watching the test stay green.
+  //
+  // A real browser sends mouseout-on-the-element-being-left for each of these.
+  it("stays closed when the pointer re-enters the trigger after Escape", async () => {
+    const { user, container } = setup();
+    const navCenter = container.querySelector(".nav-center") as HTMLElement;
+    const trigger = screen.getByRole("button", { name: /rent/i });
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+
+    // The pointer never leaves the bar: it slips off the trigger into the gap
+    // beside it and straight back, which is all a resting hand has to do.
+    // relatedTarget stays inside `.nav-center` throughout, so the bar's own
+    // mouseleave never fires and the latch must survive.
+    fireEvent.mouseOut(trigger, { relatedTarget: navCenter });
+    fireEvent.mouseOut(navCenter, { relatedTarget: trigger });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  // The latch must not be a one-way door: leaving the bar and coming back is
+  // the user deliberately re-initiating hover, and that has to work again.
+  it("re-arms hover once the pointer leaves and re-enters the bar", async () => {
+    const { user, container } = setup();
+    const navCenter = container.querySelector(".nav-center") as HTMLElement;
+    const trigger = screen.getByRole("button", { name: /rent/i });
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+
+    // Out of the bar altogether, then back in. The return leg is a `mouseover`
+    // because its relatedTarget (document.body) is NOT React-managed, so the
+    // early-return described above does not apply and React handles this one
+    // itself. It also could not be a mouseout on body: body is an ancestor of
+    // React's root container, so an event dispatched there never reaches the
+    // delegated listener at all.
+    fireEvent.mouseOut(trigger, { relatedTarget: document.body });
+    fireEvent.mouseOver(trigger, { relatedTarget: document.body });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    await waitFor(() => expect(screen.getByRole("group")).toBeInTheDocument());
+  });
+
+  // A keyboard user whose pointer is nowhere near the bar has no stray
+  // mouseenter to guard against, so Escape must not latch at all -- otherwise
+  // their first hover afterwards would be silently dead.
+  it("does not latch when Escape is pressed with the pointer off the bar", async () => {
+    const { user } = setup();
+    const trigger = screen.getByRole("button", { name: /rent/i });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("group")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.hover(trigger);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    await waitFor(() => expect(screen.getByRole("group")).toBeInTheDocument());
+  });
+
+  // Clicking is always an explicit request, so it must bypass the latch even
+  // while the latch is set.
+  it("still opens on click after Escape", async () => {
+    const { user } = setup();
+    const trigger = screen.getByRole("button", { name: /rent/i });
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+    await user.click(trigger);
+    expect(screen.getByRole("group")).toBeInTheDocument();
+  });
+
+  // I-2: the panel is rendered immediately after its OWN trigger, so a
+  // keyboard user Tabs from the expanded trigger straight into the panel.
+  // It used to render after all five triggers, putting four unrelated
+  // triggers (each reporting aria-expanded="false") in the way.
+  it("renders the open panel immediately after its own trigger in DOM order", async () => {
+    const { user } = setup();
+    const rent = screen.getByRole("button", { name: /rent/i });
+    await user.click(rent);
+    const panel = screen.getByRole("group");
+
+    expect(rent.nextElementSibling).toBe(panel.parentElement);
+    // Every other trigger follows the panel, not precedes it.
+    expect(panel.compareDocumentPosition(screen.getByRole("button", { name: /^pg/i }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+
+    // And the same holds for a trigger further along the row. Hover, not
+    // click: with a panel already open the pointer landing on PG swaps to it
+    // instantly, and the click that followed would then toggle it shut again.
+    const pg = screen.getByRole("button", { name: /^pg/i });
+    await user.hover(pg);
+    expect(pg.nextElementSibling).toBe(screen.getByRole("group").parentElement);
+    expect(rent.compareDocumentPosition(screen.getByRole("group"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
   it("moves focus between triggers with arrow keys", async () => {

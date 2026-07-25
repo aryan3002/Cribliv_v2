@@ -18,6 +18,9 @@ const dictionary: Dictionary = {
   },
   navSearch: { en: "Search", hi: "खोजें" },
   navSearchPlaceholder: { en: "Search rentals", hi: "किराया खोजें" },
+  // The same pill on /pg, where "rentals" would misdescribe the surface the
+  // link actually keeps the visitor on (components/header/search-pill.tsx).
+  navSearchPlaceholderPg: { en: "Search PGs", hi: "पीजी खोजें" },
   navSaved: { en: "Saved", hi: "सेव किए" },
   // Mega-menu triggers. CriblMap and Cribliv Times are brand names and stay
   // untranslated, matching menuMap in this same dictionary.
