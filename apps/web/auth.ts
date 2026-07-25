@@ -31,6 +31,11 @@ declare module "next-auth" {
     };
     /** True only during the session created by first-ever OTP verify (signup). */
     isNewUser?: boolean;
+    /**
+     * Set when the API rejected the refresh token. The cookie is still valid,
+     * but `accessToken` is dead — consumers should sign out rather than render.
+     */
+    error?: "RefreshFailed";
     /** Canonical reward returned by the first successful OTP verification. */
     signupReward?: {
       creditsGranted: number;
@@ -70,6 +75,8 @@ declare module "next-auth/jwt" {
     refreshToken: string | null;
     tokenIssuedAt: number;
     isNewUser?: boolean;
+    /** Set when the API rejected the refresh token; accessToken is dead. */
+    error?: "RefreshFailed";
     signupReward?: {
       creditsGranted: number;
       expiresAt: string | null;

@@ -18,6 +18,17 @@ import { readOtpProviderConfig } from "./otp-provider.config";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
 
+/**
+ * How long an already-rotated refresh token may be replayed for.
+ *
+ * Rotation is only safe when the caller reliably receives the replacement, and
+ * next-auth v5's RSC `auth()` branch drops the Set-Cookie carrying it. Within
+ * this window a repeat presentation returns the same successor instead of 401,
+ * so a lost rotation self-heals on the next session poll. Kept short so genuine
+ * refresh-token theft is still caught by the reuse check.
+ */
+export const REFRESH_REUSE_GRACE = "5 minutes";
+
 export function timingSafeOtpEqual(expected: string, provided: string): boolean {
   const expectedDigest = createHash("sha256").update(expected, "utf8").digest();
   const providedDigest = createHash("sha256").update(provided, "utf8").digest();
@@ -541,20 +552,62 @@ export class AuthService {
         session_id: string;
         user_id: string;
         role: string;
+        is_live: boolean;
+        rotated_to: string | null;
+        within_grace: boolean;
       }>(
         `
-        SELECT s.id::text AS session_id, s.user_id::text, u.role::text
+        SELECT
+          s.id::text AS session_id,
+          s.user_id::text,
+          u.role::text,
+          (s.revoked_at IS NULL AND s.expires_at > now()) AS is_live,
+          s.rotated_to_session_id::text AS rotated_to,
+          (s.revoked_at IS NOT NULL AND s.revoked_at > now() - $2::interval) AS within_grace
         FROM sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.refresh_token_hash = $1
-          AND s.revoked_at IS NULL
-          AND s.expires_at > now()
         LIMIT 1
         `,
-        [token]
+        [token, REFRESH_REUSE_GRACE]
       );
 
-      if (!result.rowCount || !result.rows[0]) {
+      const row = result.rows[0];
+      if (!result.rowCount || !row) {
+        throw new UnauthorizedException({
+          code: "invalid_token",
+          message: "Invalid or expired refresh token"
+        });
+      }
+
+      // Already rotated, but recently enough that the caller plausibly never
+      // received the replacement (see 0068). Replay the same successor rather
+      // than stranding them with tokens we have already revoked.
+      if (!row.is_live) {
+        if (row.rotated_to && row.within_grace) {
+          const successor = await this.database.query<{
+            session_id: string;
+            refresh_token_hash: string;
+          }>(
+            `
+            SELECT s.id::text AS session_id, s.refresh_token_hash
+            FROM sessions s
+            WHERE s.id = $1::uuid
+              AND s.revoked_at IS NULL
+              AND s.expires_at > now()
+            LIMIT 1
+            `,
+            [row.rotated_to]
+          );
+
+          if (successor.rowCount && successor.rows[0]) {
+            return {
+              access_token: `acc_${successor.rows[0].session_id}`,
+              refresh_token: `ref_${successor.rows[0].refresh_token_hash}`
+            };
+          }
+        }
+
         throw new UnauthorizedException({
           code: "invalid_token",
           message: "Invalid or expired refresh token"
@@ -564,17 +617,19 @@ export class AuthService {
       const client = await this.database.getClient();
       try {
         await client.query("BEGIN");
-        await client.query(
-          `UPDATE sessions SET revoked_at = now(), updated_at = now() WHERE refresh_token_hash = $1`,
-          [token]
-        );
         const newToken = randomUUID();
-        const sessionDuration = result.rows[0].role === "admin" ? "4 hours" : "30 days";
+        const sessionDuration = row.role === "admin" ? "4 hours" : "30 days";
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO sessions(user_id, refresh_token_hash, expires_at)
            VALUES ($1::uuid, $2, now() + $3::interval)
            RETURNING id::text`,
-          [result.rows[0].user_id, newToken, sessionDuration]
+          [row.user_id, newToken, sessionDuration]
+        );
+        await client.query(
+          `UPDATE sessions
+             SET revoked_at = now(), updated_at = now(), rotated_to_session_id = $2::uuid
+           WHERE refresh_token_hash = $1`,
+          [token, inserted.rows[0].id]
         );
         await client.query("COMMIT");
         return {

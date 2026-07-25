@@ -8,7 +8,7 @@ function makeDbForRefresh(role: "admin" | "tenant") {
     query: async (sql: string, params: unknown[] = []) => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK")
         return { rowCount: 0, rows: [] };
-      if (/UPDATE sessions SET revoked_at/i.test(sql)) return { rowCount: 1, rows: [] };
+      if (/UPDATE sessions/i.test(sql) && /revoked_at/i.test(sql)) return { rowCount: 1, rows: [] };
       if (/INSERT INTO sessions\(user_id, refresh_token_hash, expires_at\)/i.test(sql)) {
         insertDurations.push(String(params[2]));
         return { rowCount: 1, rows: [{ id: "11111111-1111-4111-8111-111111111111" }] };
@@ -28,7 +28,11 @@ function makeDbForRefresh(role: "admin" | "tenant") {
             {
               session_id: "sess-1",
               user_id: "22222222-2222-4222-8222-222222222222",
-              role
+              role,
+              // Live session — takes the rotate path rather than replay.
+              is_live: true,
+              rotated_to: null,
+              within_grace: false
             }
           ]
         };

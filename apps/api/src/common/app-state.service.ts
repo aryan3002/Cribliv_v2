@@ -29,6 +29,15 @@ interface SessionRecord {
   userId: string;
 }
 
+interface RotatedSessionRecord {
+  accessToken: string;
+  refreshToken: string;
+  rotatedAt: number;
+}
+
+/** Mirrors REFRESH_REUSE_GRACE in auth.service.ts (in-memory fallback path). */
+const REFRESH_REUSE_GRACE_MS = 5 * 60 * 1000;
+
 export interface ListingRecord {
   id: string;
   ownerUserId: string;
@@ -173,6 +182,8 @@ export class AppStateService {
   usersByPhone = new Map<string, UserRecord>();
   challenges = new Map<string, Challenge>();
   sessions = new Map<string, SessionRecord>();
+  /** old refresh token -> successor, for the rotation reuse grace window. */
+  rotatedSessions = new Map<string, RotatedSessionRecord>();
   listings = new Map<string, ListingRecord>();
   shortlists = new Map<string, Set<string>>();
   wallets = new Map<string, number>();
@@ -333,7 +344,20 @@ export class AppStateService {
 
   rotateSession(oldRefreshToken: string): { accessToken: string; refreshToken: string } | null {
     const old = this.getSessionByRefreshToken(oldRefreshToken);
-    if (!old) return null;
+
+    // Already rotated. If it happened recently the caller most likely never
+    // received the replacement (next-auth's RSC `auth()` drops the Set-Cookie),
+    // so replay the same successor instead of stranding them. Mirrors the DB
+    // path's grace window in auth.service.ts.
+    if (!old) {
+      const rotated = this.rotatedSessions.get(oldRefreshToken);
+      if (!rotated) return null;
+      if (Date.now() - rotated.rotatedAt > REFRESH_REUSE_GRACE_MS) return null;
+      const successor = this.getSessionByRefreshToken(rotated.refreshToken);
+      if (!successor) return null;
+      return { accessToken: successor.accessToken, refreshToken: successor.refreshToken };
+    }
+
     this.sessions.delete(old.accessToken);
     const newAccessToken = `acc_${randomUUID()}`;
     const newRefreshToken = `ref_${randomUUID()}`;
@@ -341,6 +365,11 @@ export class AppStateService {
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       userId: old.userId
+    });
+    this.rotatedSessions.set(oldRefreshToken, {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      rotatedAt: Date.now()
     });
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }

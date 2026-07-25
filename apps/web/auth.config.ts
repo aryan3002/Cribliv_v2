@@ -157,6 +157,13 @@ export const authConfig: NextAuthConfig = {
       const thirtyMinutes = 30 * 60 * 1000;
       const shouldRefresh = Date.now() - issuedAt > thirtyMinutes;
 
+      if (shouldRefresh && !token.refreshToken) {
+        // Past the refresh age with nothing to refresh with. The access token
+        // will expire and cannot be recovered, so flag it rather than let the
+        // 401 recovery path retry against a token that can never come back.
+        return { ...token, error: "RefreshFailed" };
+      }
+
       if (shouldRefresh && token.refreshToken) {
         try {
           const res = await fetch(`${API_BASE_URL}/auth/token/refresh`, {
@@ -169,16 +176,27 @@ export const authConfig: NextAuthConfig = {
             const payload = (await res.json()) as {
               data: { access_token: string; refresh_token?: string };
             };
+            const { error: _cleared, ...rest } = token;
             return {
-              ...token,
+              ...rest,
               accessToken: payload.data.access_token,
               refreshToken: payload.data.refresh_token ?? (token.refreshToken as string),
               tokenIssuedAt: Date.now()
             };
           }
         } catch {
-          // Refresh failed — let the existing token stand until it expires
+          // Network error reaching the API — same handling as a rejection below.
         }
+
+        // The refresh did not succeed, so `accessToken` is very likely already
+        // revoked server-side. Flag it: `fetch` doesn't throw on a non-2xx, so
+        // silently returning the token here is what used to leave admins in a
+        // zombie session — authenticated to NextAuth, 401 on every API call.
+        //
+        // tokenIssuedAt is deliberately NOT advanced, so the next poll retries.
+        // The API replays a rotated refresh token within its grace window, and
+        // that retry is what heals a rotation whose Set-Cookie was dropped.
+        return { ...token, error: "RefreshFailed" };
       }
 
       return token;
@@ -196,6 +214,11 @@ export const authConfig: NextAuthConfig = {
         session.user.preferredLanguage = token.preferredLanguage as "en" | "hi";
         session.accessToken = token.accessToken;
         session.isNewUser = Boolean(token.isNewUser);
+        // Lets the app distinguish "signed in" from "holding a dead token" and
+        // sign the user out instead of rendering a surface that only 401s.
+        if (token.error) {
+          session.error = token.error;
+        }
         if (token.signupReward) {
           session.signupReward = {
             creditsGranted: token.signupReward.creditsGranted,
