@@ -4,7 +4,7 @@
 
 **Goal:** Build and fully test the pure data layer behind the new top navigation — a canonical city list, an extracted rent-city content module, and a `nav-model` that turns existing constants into panel link data — without changing a single rendered pixel.
 
-**Architecture:** Everything in this slice is pure, synchronous, and dependency-free at runtime. `nav-model.ts` reads existing constants (`intent-filters.ts`, `rent-city-content.ts`, `PG_CITY_CONTENT`, `DESKS`, the Lucknow micro-locality seed) and returns plain data describing each menu panel. Because it performs no I/O and renders nothing, every link-correctness rule from the spec is unit-testable in isolation. Slice 2 consumes this model; nothing in slice 1 imports React.
+**Architecture:** Everything in this slice is pure, synchronous, and dependency-free at runtime. `nav-model.ts` reads existing constants (`intent-filters.ts`, `rent-city-content.ts`, `PG_CITY_CONTENT`, `blog-desks.ts`, the Lucknow micro-locality seed) and returns plain data describing each menu panel. Because it performs no I/O and renders nothing, every link-correctness rule from the spec is unit-testable in isolation. Slice 2 consumes this model; nothing in slice 1 imports React.
 
 **Tech Stack:** TypeScript, Next.js 14 App Router (typed routes enabled), Vitest + jsdom (`apps/web/vitest.config.ts`), pnpm workspaces.
 
@@ -16,7 +16,7 @@
 - **Never emit `/search?listing_type=pg`.** `apps/web/app/[locale]/search/page.tsx:205` redirects it. (Spec §C2)
 - **Never emit a `/city/{citySlug}/{locality}` URL for a locality slug that is not known-good.** Only Lucknow slugs from `data/seeds/lucknow/micro-localities.json` qualify. (Spec §3.3)
 - **Every emitted href must begin with `/{locale}/`** where locale is `en` or `hi`.
-- **Hindi must use `label_hi`** from `IntentDefinition` and the `hi` field from `DESKS`.
+- **Hindi must use `label_hi`** from `IntentDefinition` and the `hi` field from `BLOG_DESKS`.
 - Typed routes are on — composed hrefs need `as Route` at the call site (slice 2), but `nav-model` returns plain `string` hrefs.
 - Run tests with: `pnpm --filter @cribliv/web test`
 - Existing regression gate (must stay green all slice): `components/__tests__/header.post-property-gating.test.tsx`, `components/__tests__/header-menu.pg-split.test.tsx`, `components/__tests__/header.pg-operator.test.tsx`
@@ -48,6 +48,7 @@ These were checked against the source on 2026-07-25. Do not re-derive them; do n
 - `apps/web/lib/nav/localities.ts` — locality link resolution (Lucknow seed slugs vs display-name fallback).
 - `apps/web/lib/nav/nav-model.ts` — assembles panel data. Imports the three above plus existing constants.
 - `apps/web/lib/rent-city-content.ts` — `CITIES` extracted out of the rent-in page.
+- `apps/web/lib/blog-desks.ts` — the four blog desks, extracted so a lib module never imports a `.tsx` component.
 - `apps/web/lib/nav/__tests__/cities.test.ts`
 - `apps/web/lib/nav/__tests__/surface-params.test.ts`
 - `apps/web/lib/nav/__tests__/localities.test.ts`
@@ -59,6 +60,7 @@ These were checked against the source on 2026-07-25. Do not re-derive them; do n
 - `apps/web/app/sitemap.ts:23-32` — use `HUB_CITY_SLUGS`.
 - `apps/web/app/[locale]/city/[citySlug]/page.tsx:44-53` — use `HUB_CITY_SLUGS`.
 - `apps/web/app/[locale]/search/page.tsx:53-62` — use `HUB_CITIES`.
+- `apps/web/app/[locale]/blog/_components/Masthead.tsx` — rebuild its exported `DESKS` from `BLOG_DESKS` (public shape unchanged).
 
 Split rationale: `surface-params.ts` is separated from `nav-model.ts` because it encodes the API contract (which params each endpoint honours) while `nav-model.ts` encodes product decisions (which columns exist). They change for different reasons — a new API filter touches only the former, a new menu column only the latter.
 
@@ -890,11 +892,14 @@ git commit -m "feat(web): resolve nav locality links, real SEO pages for Lucknow
 **Files:**
 
 - Create: `apps/web/lib/nav/nav-model.ts`
+- Create: `apps/web/lib/blog-desks.ts` (Step 3a — extracted so a lib module never imports a `.tsx` component)
+- Modify: `apps/web/app/[locale]/blog/_components/Masthead.tsx` (Step 3a — rebuild its exported `DESKS` from the shared list)
 - Test: `apps/web/lib/nav/__tests__/nav-model.test.ts`
 
 **Interfaces:**
 
-- Consumes: everything above, plus `intentsByCategory`/`ALL_INTENTS` from `intent-filters.ts`, `PG_CITY_CONTENT`, and `DESKS` from `app/[locale]/blog/_components/Masthead.tsx`.
+- Consumes: everything above, plus `ALL_INTENTS`/`getIntent` from `intent-filters.ts`, `PG_CITY_CONTENT`, and `BLOG_DESKS` from the new `lib/blog-desks.ts`.
+- Produces (additionally): `BLOG_DESKS: ReadonlyArray<{ slug: string; en: string; hi: string }>` — the four blog desks, with `Masthead.tsx`'s `DESKS` re-derived from it (front-page entry prepended). `DESKS`'s public shape is unchanged, so existing blog consumers need no edits.
 - Produces:
   - `interface NavColumn { title: string; links: NavLink[] }`
   - `interface NavPanel { id: "rent" | "pg" | "owners" | "times"; columns: NavColumn[] }`
@@ -918,6 +923,7 @@ import {
   cityChipLinks
 } from "../nav-model";
 import { HUB_CITY_SLUGS } from "../cities";
+import { BLOG_DESKS } from "../../blog-desks";
 
 const LOCALES = ["en", "hi"] as const;
 
@@ -1095,6 +1101,12 @@ describe("buildOwnersPanel and buildTimesPanel", () => {
   it("times uses Hindi desk labels for hi", () => {
     expect(allLinks(buildTimesPanel("hi")).map((l) => l.label)).toContain("डेटा रिपोर्ट");
   });
+
+  it("times panel and the shared desk list cannot drift apart", () => {
+    const links = buildTimesPanel("en").columns[0].links;
+    expect(links.map((l) => l.href.split("/").pop())).toEqual(BLOG_DESKS.map((d) => d.slug));
+    expect(links.map((l) => l.label)).toEqual(BLOG_DESKS.map((d) => d.en));
+  });
 });
 
 describe("cityChipLinks", () => {
@@ -1112,13 +1124,41 @@ describe("cityChipLinks", () => {
 Run: `pnpm --filter @cribliv/web test -- lib/nav/__tests__/nav-model.test.ts`
 Expected: FAIL — `Failed to resolve import "../nav-model"`.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 3a: Make the desk list shared first**
+
+`buildTimesPanel` needs the four blog desks. They currently live only inside a `.tsx` component module (`app/[locale]/blog/_components/Masthead.tsx`), which a lib module must not import — it would drag React and a CSS-module import into a pure data file. Extract them **before** writing `nav-model.ts`, so no duplicate constant is ever created.
+
+Create `apps/web/lib/blog-desks.ts`:
+
+```ts
+/** The four seeded blog_categories, rendered as CRIBLIV TIMES "desks". */
+export const BLOG_DESKS: ReadonlyArray<{ slug: string; en: string; hi: string }> = [
+  { slug: "data-reports", en: "Data Reports", hi: "डेटा रिपोर्ट" },
+  { slug: "local-guides", en: "Local Guides", hi: "लोकल गाइड" },
+  { slug: "tenancy", en: "Tenancy", hi: "किरायेदारी" },
+  { slug: "market-updates", en: "Market Updates", hi: "मार्केट अपडेट" }
+];
+```
+
+Then in `apps/web/app/[locale]/blog/_components/Masthead.tsx`, replace the inline `DESKS` array with a version rebuilt from it, so the front-page entry stays where it belongs and every existing consumer of `DESKS` keeps working unchanged:
+
+```ts
+import { BLOG_DESKS } from "../../../../lib/blog-desks";
+
+export const DESKS: Array<{ slug: string | null; en: string; hi: string }> = [
+  { slug: null, en: "Front Page", hi: "मुख पृष्ठ" },
+  ...BLOG_DESKS
+];
+```
+
+- [ ] **Step 3b: Write the implementation**
 
 Create `apps/web/lib/nav/nav-model.ts`:
 
 ```ts
 import { ALL_INTENTS, getIntent, type IntentDefinition } from "../intent-filters";
 import { PG_CITY_CONTENT } from "../pg-city-content";
+import { BLOG_DESKS } from "../blog-desks";
 import { HUB_CITIES } from "./cities";
 import { localityLinks, type NavLink } from "./localities";
 import { isPgIntent, translateFilters, type NavSurface } from "./surface-params";
@@ -1317,15 +1357,9 @@ export function buildOwnersPanel(locale: NavLocale): NavPanel {
 }
 
 // ── Cribliv Times ───────────────────────────────────────────────────────────
-// Desk list mirrors DESKS in app/[locale]/blog/_components/Masthead.tsx, minus
-// its slug:null "Front Page" entry which is the /blog root, not a category.
-
-const DESKS: ReadonlyArray<{ slug: string; en: string; hi: string }> = [
-  { slug: "data-reports", en: "Data Reports", hi: "डेटा रिपोर्ट" },
-  { slug: "local-guides", en: "Local Guides", hi: "लोकल गाइड" },
-  { slug: "tenancy", en: "Tenancy", hi: "किरायेदारी" },
-  { slug: "market-updates", en: "Market Updates", hi: "मार्केट अपडेट" }
-];
+// BLOG_DESKS is the shared list (lib/blog-desks.ts, created in Step 3a below).
+// Masthead.tsx re-exports it with its slug:null "Front Page" entry prepended —
+// that entry is the /blog root, not a category, so it never appears here.
 
 export function buildTimesPanel(locale: NavLocale): NavPanel {
   return {
@@ -1333,7 +1367,7 @@ export function buildTimesPanel(locale: NavLocale): NavPanel {
     columns: [
       {
         title: locale === "hi" ? "डेस्क" : "Desks",
-        links: DESKS.map((desk) => ({
+        links: BLOG_DESKS.map((desk) => ({
           label: locale === "hi" ? desk.hi : desk.en,
           href: `/${locale}/blog/category/${desk.slug}`
         }))
@@ -1355,14 +1389,14 @@ export function cityChipLinks(locale: NavLocale): NavLink[] {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @cribliv/web test -- lib/nav/__tests__/nav-model.test.ts`
-Expected: PASS, 20 tests.
+Expected: PASS, 21 tests.
 
 If the "Popular localities" column title assertion fails because `buildRentPanel` returned five columns, that is the promo card — the promo card is **presentation**, added in slice 2, not part of the model. Keep four columns here.
 
 - [ ] **Step 5: Run the whole web suite**
 
 Run: `pnpm --filter @cribliv/web test`
-Expected: PASS. The three header suites must be green — nothing in this slice touches them.
+Expected: PASS. The three header suites must be green — nothing in this slice touches them. The blog suites must also stay green: `Masthead.tsx`'s exported `DESKS` keeps its exact previous shape (front-page entry first, then the four desks), so its consumers are unaffected.
 
 Run: `pnpm --filter @cribliv/web typecheck`
 Expected: no errors.
@@ -1370,106 +1404,13 @@ Expected: no errors.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/web/lib/nav/nav-model.ts apps/web/lib/nav/__tests__/nav-model.test.ts
+git add apps/web/lib/nav/nav-model.ts apps/web/lib/blog-desks.ts "apps/web/app/[locale]/blog/_components/Masthead.tsx" apps/web/lib/nav/__tests__/nav-model.test.ts
 git commit -m "feat(web): nav panel model assembled from existing constants"
 ```
 
 ---
 
-### Task 8: Duplicate the DESKS constant away
-
-Task 7 copied the four desks into `nav-model.ts` to keep it dependency-free. That is a second source of truth. Close it.
-
-**Files:**
-
-- Modify: `apps/web/app/[locale]/blog/_components/Masthead.tsx`
-- Modify: `apps/web/lib/nav/nav-model.ts`
-- Test: `apps/web/lib/nav/__tests__/nav-model.test.ts` (append)
-
-**Interfaces:**
-
-- Consumes: `DESKS` from `Masthead.tsx`.
-- Produces: no signature change to `buildTimesPanel`.
-
-- [ ] **Step 1: Write the failing test**
-
-Append to `apps/web/lib/nav/__tests__/nav-model.test.ts`:
-
-```ts
-import { DESKS as MASTHEAD_DESKS } from "../../../app/[locale]/blog/_components/Masthead";
-
-describe("desk list has one source of truth", () => {
-  it("the Times panel matches the masthead's desks exactly", () => {
-    const mastheadSlugs = MASTHEAD_DESKS.filter((d) => d.slug !== null).map((d) => d.slug);
-    const panelSlugs = buildTimesPanel("en").columns[0].links.map((l) => l.href.split("/").pop()!);
-    expect(panelSlugs).toEqual(mastheadSlugs);
-  });
-
-  it("the Times panel labels match the masthead's", () => {
-    const mastheadLabels = MASTHEAD_DESKS.filter((d) => d.slug !== null).map((d) => d.en);
-    expect(buildTimesPanel("en").columns[0].links.map((l) => l.label)).toEqual(mastheadLabels);
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `pnpm --filter @cribliv/web test -- lib/nav/__tests__/nav-model.test.ts`
-Expected: FAIL — importing a `.tsx` component module from a lib test may pull React/CSS-module imports. If it fails on the CSS-module import rather than the assertion, do not fight it: instead move `DESKS` into a new `apps/web/lib/blog-desks.ts`, re-export it from `Masthead.tsx` for backwards compatibility, and point both the test and `nav-model.ts` at the lib module.
-
-- [ ] **Step 3: Make the desk list shared**
-
-Create `apps/web/lib/blog-desks.ts`:
-
-```ts
-/** The four seeded blog_categories, rendered as CRIBLIV TIMES "desks". */
-export const BLOG_DESKS: ReadonlyArray<{ slug: string; en: string; hi: string }> = [
-  { slug: "data-reports", en: "Data Reports", hi: "डेटा रिपोर्ट" },
-  { slug: "local-guides", en: "Local Guides", hi: "लोकल गाइड" },
-  { slug: "tenancy", en: "Tenancy", hi: "किरायेदारी" },
-  { slug: "market-updates", en: "Market Updates", hi: "मार्केट अपडेट" }
-];
-```
-
-In `Masthead.tsx`, rebuild the exported `DESKS` from it so the front-page entry stays where it belongs:
-
-```ts
-import { BLOG_DESKS } from "../../../../lib/blog-desks";
-
-export const DESKS: Array<{ slug: string | null; en: string; hi: string }> = [
-  { slug: null, en: "Front Page", hi: "मुख पृष्ठ" },
-  ...BLOG_DESKS
-];
-```
-
-In `nav-model.ts`, delete the local `DESKS` const and import instead:
-
-```ts
-import { BLOG_DESKS } from "../blog-desks";
-```
-
-then change `buildTimesPanel` to map over `BLOG_DESKS`.
-
-Update the test's import to `import { BLOG_DESKS } from "../../blog-desks";` and compare against it directly.
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `pnpm --filter @cribliv/web test`
-Expected: PASS, whole suite.
-
-Run: `pnpm --filter @cribliv/web typecheck`
-Expected: no errors.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add apps/web/lib/blog-desks.ts apps/web/lib/nav/nav-model.ts "apps/web/app/[locale]/blog/_components/Masthead.tsx" apps/web/lib/nav/__tests__/nav-model.test.ts
-git commit -m "refactor(web): single source of truth for the Cribliv Times desks"
-```
-
----
-
-### Task 9: Slice gate
+### Task 8: Slice gate
 
 **Files:** none — verification only.
 
@@ -1520,7 +1461,7 @@ Plan these after slice 1 merges, so the model's real shape informs them.
 
 Checked against the spec on 2026-07-25:
 
-- **Spec coverage.** §6's file structure, §3.1/§3.2/§3.4/§3.5 panel contents, §3.3 locality rule, §3.6 city chip, §3.7 labels, §C1 no-fetch, §C2 route correctness, and §9's six `nav-model` unit tests all map to tasks 1–8. §1 bar anatomy, §1.1 Saved badge, §2 chip language, §4 interaction, §5 mobile, §7 a11y and §8 the CSS fix are all slice 2 or 3 and are deliberately absent here.
+- **Spec coverage.** §6's file structure, §3.1/§3.2/§3.4/§3.5 panel contents, §3.3 locality rule, §3.6 city chip, §3.7 labels, §C1 no-fetch, §C2 route correctness, and §9's six `nav-model` unit tests all map to tasks 1–7. §1 bar anatomy, §1.1 Saved badge, §2 chip language, §4 interaction, §5 mobile, §7 a11y and §8 the CSS fix are all slice 2 or 3 and are deliberately absent here.
 - **One deviation from the spec, made deliberately.** §3.1 lists a promo card as a Rent column; the model returns four columns and leaves the promo to slice 2, because a promo card is presentation with no link-correctness rules to test. Task 7 Step 4 calls this out so an implementer does not "fix" it.
 - **Two intents need supplementary params.** `pg-for-students` and `pg-for-working-professionals` carry only `listing_type: pg`, which the PG surface drops — leaving them identical to a bare `/pg?city=…`. Task 7 supplies `tenant_type` explicitly. This is a real gap in the intent registry, not a bug in the translation layer.
 - **Type consistency.** `NavLink` is declared once in `localities.ts` and re-used by `nav-model.ts`; `NavSurface` once in `surface-params.ts`. `HUB_CITIES` is `{slug,label}[]` everywhere; `HUB_CITY_SLUGS` is `string[]` everywhere.
