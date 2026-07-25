@@ -33,8 +33,7 @@ import {
   type StepError,
   STEPS,
   EMPTY_FORM,
-  generateClientUploadId,
-  getUploadSourceFingerprint,
+  buildQueuedUploads,
   validateStep,
   WizardStepIndicator,
   BasicsStep,
@@ -604,33 +603,16 @@ export default function OwnerListingWizardPage({ params }: { params: { locale: s
 
   function onFilesSelected(files: FileList | null) {
     if (!files) return;
-    const additions: UploadFile[] = [];
-    setUploads((current) => {
-      const existingFingerprints = new Set(
-        current.map((item) => item.sourceFingerprint ?? getUploadSourceFingerprint(item.file))
-      );
-      const next: UploadFile[] = Array.from(files).map((file) => {
-        const id = generateClientUploadId(file);
-        const sourceFingerprint = getUploadSourceFingerprint(file);
-        const duplicate = existingFingerprints.has(sourceFingerprint);
-        existingFingerprints.add(sourceFingerprint);
-        const upload: UploadFile = {
-          file,
-          originalFile: file,
-          clientUploadId: id,
-          sourceFingerprint,
-          status: duplicate ? ("error" as const) : ("preparing" as const),
-          progress: 0,
-          previewUrl: URL.createObjectURL(file),
-          errorMessage: duplicate ? "This photo was already selected." : undefined,
-          prepared: false,
-          retryable: !duplicate
-        };
-        additions.push(upload);
-        return upload;
-      });
-      return [...current, ...next];
-    });
+    // Build the queue BEFORE touching state. Collecting it as a side effect
+    // inside the `setUploads` updater only worked while React happened to run
+    // the updater eagerly at dispatch time — an optimisation it skips whenever
+    // an update is already pending on this fiber (toast auto-dismiss, Maya
+    // agent-state change, `setListingId` after an autosave...). When it was
+    // skipped nothing was ever prepared and every tile sat on
+    // "Preparing photo…" forever with "Upload all" stuck disabled.
+    const additions = buildQueuedUploads(files, uploads);
+    if (additions.length === 0) return;
+    setUploads((current) => [...current, ...additions]);
     for (const upload of additions) {
       if (upload.status === "preparing") {
         void prepareQueuedUpload(upload);
