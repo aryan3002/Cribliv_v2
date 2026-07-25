@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "../../../auth";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
+import { HUB_CITIES } from "../../../lib/nav/cities";
 import { PG_CITY_CONTENT } from "../../../lib/pg-city-content";
 import { SearchFilters } from "./search-filters";
 import { SearchResultsMap } from "./SearchResultsMap";
@@ -49,17 +50,6 @@ function toDisplayCity(slug: string): string {
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
-
-const CITIES = [
-  { slug: "delhi", label: "Delhi" },
-  { slug: "gurugram", label: "Gurugram" },
-  { slug: "noida", label: "Noida" },
-  { slug: "ghaziabad", label: "Ghaziabad" },
-  { slug: "faridabad", label: "Faridabad" },
-  { slug: "chandigarh", label: "Chandigarh" },
-  { slug: "jaipur", label: "Jaipur" },
-  { slug: "lucknow", label: "Lucknow" }
-];
 
 const SORT_OPTIONS = [
   { key: "relevance", label: "Relevance" },
@@ -153,7 +143,9 @@ function normalizeSearchParams(searchParams: Record<string, string | string[] | 
 }
 
 function cityLabel(slug: string): string {
-  return CITIES.find((c) => c.slug === slug)?.label ?? slug.charAt(0).toUpperCase() + slug.slice(1);
+  return (
+    HUB_CITIES.find((c) => c.slug === slug)?.label ?? slug.charAt(0).toUpperCase() + slug.slice(1)
+  );
 }
 
 function citySlugFromQuery(query: string): string | null {
@@ -163,7 +155,7 @@ function citySlugFromQuery(query: string): string | null {
     .replace(/^["']|["']$/g, "");
   if (!normalized) return null;
   return (
-    CITIES.find((city) => city.slug === normalized || city.label.toLowerCase() === normalized)
+    HUB_CITIES.find((city) => city.slug === normalized || city.label.toLowerCase() === normalized)
       ?.slug ?? null
   );
 }
@@ -351,7 +343,7 @@ export default async function SearchResultsPage({
                 <SearchFilters
                   locale={params.locale}
                   filters={filters}
-                  cities={CITIES}
+                  cities={HUB_CITIES}
                   sortOptions={SORT_OPTIONS}
                 />
               </div>
@@ -411,7 +403,7 @@ export default async function SearchResultsPage({
               Or try one of these popular cities:
             </p>
             <div className="error-state__cities">
-              {CITIES.slice(0, 4).map((city) => (
+              {HUB_CITIES.slice(0, 4).map((city) => (
                 <Link
                   key={city.slug}
                   href={`/${params.locale}/search?city=${city.slug}` as Route}

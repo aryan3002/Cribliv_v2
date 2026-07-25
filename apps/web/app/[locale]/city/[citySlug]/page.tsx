@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, MapPin } from "lucide-react";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { ListingCardItem } from "../../../../components/listing-card";
+import { HUB_CITY_SLUGS } from "../../../../lib/nav/cities";
 import {
   fetchLocalities,
   fetchLandmarks,
@@ -41,19 +42,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 // search fallback instead of its locality/metro/landmark discovery grids.
 export const revalidate = 3600;
 
-const CITIES = [
-  "delhi",
-  "gurugram",
-  "noida",
-  "ghaziabad",
-  "faridabad",
-  "chandigarh",
-  "jaipur",
-  "lucknow"
-];
-
 export function generateStaticParams() {
-  return CITIES.flatMap((city) => [
+  return HUB_CITY_SLUGS.flatMap((city) => [
     { locale: "en", citySlug: city },
     { locale: "hi", citySlug: city }
   ]);

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { buildSearchQuery, getApiBaseUrl } from "../lib/api";
 import { fetchAllBlogSlugs } from "../lib/blog-api";
+import { HUB_CITY_SLUGS } from "../lib/nav/cities";
 import {
   fetchEnabledCities,
   fetchLandmarks,
@@ -20,17 +21,6 @@ import {
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 const FALLBACK_CITIES = ["lucknow"];
-
-const HUB_CITIES = [
-  "delhi",
-  "gurugram",
-  "noida",
-  "ghaziabad",
-  "faridabad",
-  "chandigarh",
-  "jaipur",
-  "lucknow"
-];
 
 type ChunkDescriptor =
   | { kind: "core" }
@@ -75,18 +65,18 @@ function buildCoreChunk(): MetadataRoute.Sitemap {
 
   rows.push(...entry(BASE_URL, "", { priority: 1.0, freq: "daily" }));
 
-  for (const city of HUB_CITIES) {
+  for (const city of HUB_CITY_SLUGS) {
     rows.push(...entry(BASE_URL, `/city/${city}`, { priority: 0.8, freq: "daily" }));
   }
 
   rows.push(...entry(BASE_URL, "/search", { priority: 0.7, freq: "daily" }));
   rows.push(...entry(BASE_URL, "/map", { priority: 0.75, freq: "daily" }));
-  for (const city of HUB_CITIES) {
+  for (const city of HUB_CITY_SLUGS) {
     rows.push(...entry(BASE_URL, `/rent-in/${city}`, { priority: 0.7 }));
   }
 
   rows.push(...entry(BASE_URL, "/pg", { priority: 0.7, freq: "daily" }));
-  for (const city of HUB_CITIES) {
+  for (const city of HUB_CITY_SLUGS) {
     rows.push(...entry(BASE_URL, `/pg/${city}`, { priority: 0.7 }));
   }
 
