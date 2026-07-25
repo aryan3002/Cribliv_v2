@@ -175,11 +175,25 @@ These block real delivery regardless of the code being correct.
 1. **Complete KYC.** The account is in DEMO status, which delivers SMS but replaces the
    body with a fixed testing string — the OTP never reaches the user. e-KYC via Aadhaar
    is the fast path.
-2. **DLT.** India requires a registered entity (PE), a six-alphabetic-character header,
-   and an approved content template, for OTP as well as promotional traffic. Since D7
-   already delivers to Indian numbers in production, a PE and header very likely exist
-   already; if so, the work is adding MSG91 to the PE-TM chain and re-mapping the header,
-   not a fresh ₹5,000-per-operator entity registration.
+2. **DLT — full registration, from scratch.** India requires a registered entity (PE), a
+   six-alphabetic-character header, and an approved content template. This applies to OTP
+   as well as promotional traffic; OTP is categorised as Service Implicit, which is a
+   different category, not an exemption. MSG91's DLT FAQ states PE-TM binding is mandatory
+   for "all types of messages, including Transactional, Promotional, and OTP."
+
+   We have **no DLT registration today**. D7 delivers to Indian numbers over an
+   international long-distance route, which bypasses DLT scrubbing — which is why OTP
+   works today with no PE, header, or template. MSG91 is a domestic provider connecting
+   through Indian operators, so no such bypass exists for it.
+
+   Budget roughly ₹5,000 + GST for entity registration, 2–3 days for entity approval, and
+   24h–3 days for header sync. Template approval time is not published. Cribliv is a
+   registered entity, so the documents needed (PAN, registration certificate, authorised
+   signatory) are available.
+
+   Independent of MSG91, this is worth doing: the current international route is exactly
+   the traffic TRAI has been progressively restricting, so the entire login flow presently
+   rests on a path that can degrade without notice.
 3. **Register the template in MSG91** and record the returned `template_id`.
 
 Template content, matching the current D7 copy:
@@ -197,6 +211,8 @@ non-delivery.
 | Risk                                        | Mitigation                                                     |
 | ------------------------------------------- | -------------------------------------------------------------- |
 | Wallet runs dry, sends start failing        | Env flip back to D7. Wallet is ~200 OTPs at current rates.       |
+| DLT not yet approved when code merges       | Ships flag-off behind `OTP_PROVIDER=d7`; inert until configured.  |
+| D7's international route degrades (TRAI)    | The reason to complete DLT regardless of whether MSG91 ships.     |
 | DLT template mismatch → silent non-delivery | Allowlist testing on production catches it before any user does. |
 | Refactor changes D7 behaviour               | Existing D7 tests must pass untouched.                           |
 | MSG91 error-in-200 shape parsed wrongly     | Explicit unit tests per documented error string.                 |
