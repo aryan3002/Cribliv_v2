@@ -12,16 +12,18 @@ import type { NavPanel } from "../../lib/nav/types";
 export function NavPanelView({
   panel,
   labelledBy,
-  onNavigate
+  onNavigate,
+  id
 }: {
   panel: NavPanel;
   labelledBy: string;
   onNavigate: () => void;
+  id?: string;
 }) {
   if (panel.columns.length === 0) return null;
 
   return (
-    <div className="nav-panel" role="group" aria-labelledby={labelledBy}>
+    <div id={id} className="nav-panel" role="group" aria-labelledby={labelledBy}>
       <div className="nav-panel__grid">
         {panel.columns.map((col) => (
           <div className="nav-panel__col" key={col.title}>
