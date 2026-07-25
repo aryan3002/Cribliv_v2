@@ -17,9 +17,16 @@ function photoUrl(blobPath: string): string {
   return PHOTO_BASE ? `${PHOTO_BASE}/${blobPath.replace(/^\/+/, "")}` : blobPath;
 }
 
+// `/pg/listings/:id` is a pure read keyed only on the id — no view-event write
+// and no viewer-dependent fields — so this is safe to serve from the ISR cache.
+// The page itself still renders dynamically (it needs `auth()` to decide guest
+// photo gating at first paint), but caching here removes the two upstream calls
+// every render otherwise made: once from generateMetadata, once from the page.
+const PG_DETAIL_REVALIDATE = 300;
+
 async function load(id: string) {
   try {
-    return await getPgPublicListing(id, { server: true });
+    return await getPgPublicListing(id, { revalidate: PG_DETAIL_REVALIDATE });
   } catch {
     return null;
   }

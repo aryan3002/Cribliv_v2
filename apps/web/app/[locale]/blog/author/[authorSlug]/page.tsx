@@ -49,7 +49,7 @@ export default async function AuthorPage({
   const locale = params.locale;
   const hi = locale === "hi";
 
-  const { items } = await fetchBlogList({ page_size: 12 });
+  const { items } = await fetchBlogList({ page_size: 12 }, { revalidate });
   const byAuthor = items.filter((post) => post.author === EDITORIAL_AUTHOR.name).slice(0, 6);
 
   const personJsonLd = {
