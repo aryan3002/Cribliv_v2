@@ -776,6 +776,49 @@ h4,
   background: var(--surface-sunken);
 }
 
+/* Saved icon — heart link between the nav menus and "Post Property"; replaces
+   the old text nav-tab (icon + "Saved" label) with an icon-only control, so
+   the accessible name moves to aria-label (see saved-icon.tsx) and a live
+   count badge from the shared shortlist-count store takes the label's place
+   visually. Icon-only, so it gets a plain hover treatment like .nav-trigger
+   rather than a bordered chip — there's no text to make a chip shape read
+   as a control. */
+.saved-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+.saved-icon:hover {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
+
+.saved-icon__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  color: var(--text-inverse);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav-panel {
     animation: none;
@@ -787,6 +830,9 @@ h4,
     animation: none;
   }
   .city-chip__trigger svg:last-child {
+    transition: none;
+  }
+  .saved-icon {
     transition: none;
   }
 }
