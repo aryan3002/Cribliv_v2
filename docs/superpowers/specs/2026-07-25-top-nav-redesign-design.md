@@ -57,8 +57,13 @@ subject to the API's CORS allowlist, which does not currently include `cribliv.c
   `/pg/{city}` or `/pg`. PG links must target `/pg` directly.
 - `/city/{citySlug}/{locality}` calls `notFound()` for unknown localities. A guessed slug is a 404 _inside
   the navigation_. See §3.3 for the locality-linking rule.
-- The homepage advertises a ninth city card, `varanasi`, which has no `/rent-in` or `/pg` page. The nav
-  lists only the 8 real hub cities; the homepage card is fixed in passing.
+- The homepage shows a ninth city card, `varanasi`, that is absent from every other city list. The nav lists
+  only the 8 hub cities. **Correction (verified 2026-07-25):** an earlier draft called this a dead link. It
+  is not. `city/[citySlug]/page.tsx` contains no `notFound()` and `dynamicParams` defaults to `true`, so
+  `/city/varanasi` renders on demand — it just takes the non-programmatic search fallback because
+  `isProgrammatic` is false. Nothing links to `/rent-in/varanasi` or `/pg/varanasi`, since the sitemap
+  iterates the 8-city list. So this is a thin page, not a broken one, and fixing it is out of scope. The nav
+  simply must not add a ninth entry that has no programmatic support behind it.
 
 ## 1. Bar anatomy
 
@@ -145,10 +150,19 @@ read and more faithful to the data model.
 | Popular PG hubs  | `PG_CITY_CONTENT[city].hubs` (6 per city)                                        | `/pg?city=…&q=…`                        |
 | Promo card       | static                                                                           | `/pg`                                   |
 
-**There is deliberately no PG budget column.** The PG module supports no rent filtering whatsoever — there
-is no `min_rent`/`max_rent` anywhere in `apps/api/src/modules/pg/`, and `PgFilters.tsx` exposes only
-`gender_policy`, `sharing`, `tenant_type`, `ac`, and `food_included`. Emitting budget intents here would
-produce links that look like filters and are silently ignored. See §11.
+**Correction (verified 2026-07-25): the PG panel does get a budget column.** An earlier draft omitted it,
+claiming PG had no rent filtering — that check looked at `apps/api/src/modules/pg/`, which is a legacy 308
+redirect stub, not the PG search. The real endpoint is `PgPublicController` `@Get("listings")` backed by
+`apps/api/src/modules/pg-operator/services/pg-search.service.ts:158-163`, which **does** apply `min_rent`
+and `max_rent`. So a sixth column is included:
+
+| Column    | Source            | Href shape              |
+| --------- | ----------------- | ----------------------- |
+| By budget | category `budget` | `/pg?city=…&max_rent=…` |
+
+Only the _UI_ lacks a budget control — `PgFilters.tsx` exposes just `gender_policy`, `sharing`,
+`tenant_type`, `ac`, and `food_included`. The nav is not blocked by that, since `/pg` forwards every search
+param straight through to the API. See §11.
 
 ### 3.3 Locality linking rule
 
@@ -238,7 +252,7 @@ and markup. Five panels would make it unmaintainable, so it becomes a folder of 
 
 ```
 apps/web/lib/nav/
-  cities.ts             HUB_CITIES — one constant, replacing the copy in 5 files
+  cities.ts             HUB_CITIES + HUB_CITY_SLUGS — canonical city list
   nav-model.ts          pure sync functions → panel data
 apps/web/lib/
   rent-city-content.ts  CITIES extracted out of the rent-in page file
@@ -267,10 +281,22 @@ behaviour survive intact.
 
 - Extract `CITIES` from `app/[locale]/rent-in/[city]/page.tsx` into `lib/rent-city-content.ts`; the page
   imports it back. The nav must not import from a page file.
-- Extract `HUB_CITIES` into `lib/nav/cities.ts` and point the 5 existing duplicates at it
-  (`sitemap.ts:24`, `city/[citySlug]/page.tsx:44`, `search/page.tsx:53`, `lib/search-segment.ts:18`, and the
-  homepage city grid).
-- Remove the `varanasi` card from the homepage, or give it real destinations. Not both.
+- Introduce `lib/nav/cities.ts` exporting `HUB_CITIES: ReadonlyArray<{slug, label}>` and a derived
+  `HUB_CITY_SLUGS: ReadonlyArray<string>`.
+
+**On the five city lists — they are not literal duplicates.** They share a slug set but carry different
+payloads, so this is a convergence, not a delete-and-replace:
+
+| Site                                      | Current shape                             | Action                                                                         |
+| ----------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `sitemap.ts:24` `HUB_CITIES`              | `string[]`                                | replace with `HUB_CITY_SLUGS`                                                  |
+| `city/[citySlug]/page.tsx:44` `CITIES`    | `string[]`                                | replace with `HUB_CITY_SLUGS`                                                  |
+| `search/page.tsx:53` `CITIES`             | `{slug,label}[]`                          | replace with `HUB_CITIES`                                                      |
+| `[locale]/page.tsx` `CITIES`              | `{name,photo,icon,gradient}[]`, 9 entries | keep presentation data; key it by canonical slug                               |
+| `lib/search-segment.ts:18` `CITY_ALIASES` | `Record<alias, slug>`                     | **keep as-is** — an alias map (`gurgaon`→`gurugram`) is extra data, not a copy |
+
+The homepage and the alias map are therefore guarded by tests rather than rewritten: every `CITY_ALIASES`
+value must be a member of `HUB_CITY_SLUGS`, and every homepage card slug except `varanasi` must be too.
 
 **Typed routes are enabled**, so dynamically composed hrefs need the same `as Route` cast used throughout the
 current header.
@@ -315,7 +341,7 @@ focus returned to the trigger, and the mobile sheet exposes the same links as th
 Shipping unflagged means each slice must leave the header in a releasable state on prod. Three slices:
 
 1. **Foundations, no visible change.** Extract `HUB_CITIES` and `rent-city-content.ts`, point the 5
-   duplicates at them, drop `varanasi`, build `nav-model.ts` with its full unit-test suite. Nothing renders
+   city lists at them (see §6), build `nav-model.ts` with its full unit-test suite. Nothing renders
    differently; the model is proven correct before anything consumes it.
 2. **The nav itself.** Flex layout replacing absolute centring, CriblMap restyle, active-underline fix, city
    chip, Saved badge with `shortlist-count.ts`, search pill, `nav-menu-bar.tsx` + `nav-panel.tsx` with the
@@ -334,9 +360,11 @@ surface that nothing else depends on.
 
 ## 11. Follow-ups (out of scope)
 
-- **PG budget filtering does not exist.** Neither the API nor `PgFilters.tsx` supports any rent range, so PG
-  cannot be browsed by price — plausibly the single most-wanted filter for student and working-professional
-  PG seekers. This is a product gap the nav work surfaced but must not fix; it needs an API change.
+- **PG budget filtering exists in the API but is not exposed in the UI.** `pg-search.service.ts` applies
+  `min_rent`/`max_rent`, and `/pg` forwards them, so the nav's budget links work today — but a user who
+  lands on `/pg` has no on-page control to change the range, because `PgFilters.tsx` renders no budget chip.
+  Adding one is a small, self-contained UI change. Budget is plausibly the top filter for student and
+  working-professional PG seekers.
 - Live listing counts beside locality names, once ISR behaviour is measured on Vercel.
 - Upgrading non-Lucknow locality links from `/search?…` to real `/city/{slug}/{locality}` pages, once those
   cities have verified locality slugs.
