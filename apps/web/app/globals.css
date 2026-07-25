@@ -439,23 +439,26 @@ h4,
   flex-shrink: 0;
 }
 
+/* Lockup geometry is derived from a single knob, --brand-mark-size (the mark's
+   rendered height), using the ratios measured off the master artwork
+   (cribliv-lockup-horizontal-color / -stacked-color, which agree to 0.4%):
+     wordmark height = 0.806x the mark
+     gap             = 0.189x the mark
+     vertical offset = 0 — the two are optically centred as-is, no nudge
+   Sizing a variant therefore means setting --brand-mark-size and nothing else;
+   the wordmark and gap follow automatically and stay on-spec at every size. */
 .logo-img {
-  height: 30px;
+  height: var(--brand-mark-size, 30px);
   width: auto;
   display: block;
   object-fit: contain;
 }
 
 .logo-font {
-  height: 16px;
+  height: calc(var(--brand-mark-size, 30px) * 0.806);
   width: auto;
   display: block;
   object-fit: contain;
-  margin-left: var(--space-1);
-  /* Optical alignment: the mark's visual focal point (window cutout) sits
-     slightly below its bounding-box center, so the wordmark is nudged down
-     to match rather than aligning both boxes' raw geometric centers. */
-  transform: translateY(2px);
 }
 
 .logo-wordmark {
@@ -760,8 +763,11 @@ h4,
   .nav-actions {
     gap: 6px;
   }
-  .header .brand-lockup--md .logo-font {
-    height: 16px;
+  /* Scale the whole lockup down rather than squashing the wordmark alone, so
+     the mark:wordmark ratio holds. At 24px the lockup measures ~106px wide —
+     the same footprint the old 30/16 pairing occupied here. */
+  .header .brand-lockup--md {
+    --brand-mark-size: 24px;
   }
   .profile-pill {
     gap: 6px;
@@ -7131,32 +7137,23 @@ a.feature-card:hover .icon-circle {
   justify-content: center;
   margin-bottom: clamp(20px, 3vw, 28px);
 }
-/* BrandLockup — wraps the legacy .logo-img / .logo-font classes so their
-   height-based sizing is preserved. Variants only override the height. */
+/* BrandLockup — composes .logo-img / .logo-font. Both, plus the gap, derive
+   from --brand-mark-size, so a variant only ever sets that one value. */
 .brand-lockup {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: calc(var(--brand-mark-size, 30px) * 0.189);
   flex-shrink: 0;
 }
-.brand-lockup--sm .logo-img {
-  height: 20px;
+/* Variants set the mark height only — see the ratio note on .logo-img above. */
+.brand-lockup--sm {
+  --brand-mark-size: 20px;
 }
-.brand-lockup--sm .logo-font {
-  height: 11px;
-  margin-left: 4px;
+.brand-lockup--md {
+  --brand-mark-size: 30px;
 }
-/* md = default: inherits global .logo-img/.logo-font (30 / 22) */
 .brand-lockup--lg {
-  gap: 12px;
-}
-.brand-lockup--lg .logo-img {
-  height: 40px;
-}
-.brand-lockup--lg .logo-font {
-  height: 22px;
-  margin-left: 6px;
-  transform: translateY(3px);
+  --brand-mark-size: 40px;
 }
 
 /* Auth dark-portal glow — keeps the wordmark legible on dark canvas without
@@ -12214,9 +12211,12 @@ a.feature-card:hover .icon-circle {
    [icon] [Cribliv] │ MAP   — same cadence as Bloomberg Terminal, Apple TV+,
    Google Maps' editorial sub-brands. */
 .cmap-brand {
+  /* Same master-artwork ratios as .brand-lockup: wordmark 0.806x the mark,
+     gap 0.189x, no vertical nudge. See the note on .logo-img. */
+  --brand-mark-size: 24px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: calc(var(--brand-mark-size) * 0.189);
   flex-shrink: 0;
   text-decoration: none;
   cursor: pointer;
@@ -12224,7 +12224,7 @@ a.feature-card:hover .icon-circle {
   line-height: 1;
 }
 .cmap-brand__icon {
-  height: 24px;
+  height: var(--brand-mark-size);
   width: auto;
   display: block;
   /* Subtle cobalt halo so the mark feels at home on the dark canvas. */
@@ -12232,16 +12232,12 @@ a.feature-card:hover .icon-circle {
   transition: filter 200ms ease;
 }
 .cmap-brand__wordmark {
-  height: 13px;
+  height: calc(var(--brand-mark-size) * 0.806);
   width: auto;
   display: block;
   /* The source PNG is dark-on-light; brighten for the dark map chrome. */
   filter: brightness(0) invert(1);
   opacity: 0.96;
-  /* Optical alignment: the mark's focal point sits below its box center,
-     so the wordmark is nudged down to match rather than centering both
-     boxes' raw geometric centers. */
-  transform: translateY(2px);
 }
 .cmap-brand__sep {
   width: 1px;
@@ -13428,11 +13424,8 @@ a.feature-card:hover .icon-circle {
     gap: var(--space-2);
   }
 
-  .cmap-brand__icon {
-    height: 20px;
-  }
-  .cmap-brand__wordmark {
-    height: 11px;
+  .cmap-brand {
+    --brand-mark-size: 20px;
   }
   .cmap-brand__sep {
     height: 12px;
@@ -19150,12 +19143,8 @@ a.feature-card:hover .icon-circle {
   background: rgba(255, 253, 250, 0.96);
 }
 
-.brand-lockup--md .logo-img {
-  height: 34px;
-}
-
-.brand-lockup--md .logo-font {
-  height: 18px;
+.brand-lockup--md {
+  --brand-mark-size: 34px;
 }
 
 .nav-tab,
@@ -19716,12 +19705,8 @@ a.feature-card:hover .icon-circle {
 }
 
 @media (max-width: 700px) {
-  .brand-lockup--md .logo-img {
-    height: 30px;
-  }
-
-  .brand-lockup--md .logo-font {
-    height: 16px;
+  .brand-lockup--md {
+    --brand-mark-size: 30px;
   }
 
   .hero--home-prototype {
@@ -19785,11 +19770,8 @@ a.feature-card:hover .icon-circle {
 }
 
 /* Homepage rollback: restore the lighter pre-rollout hero composition. */
-.brand-lockup--md .logo-img {
-  height: 30px;
-}
-.brand-lockup--md .logo-font {
-  height: 16px;
+.brand-lockup--md {
+  --brand-mark-size: 30px;
 }
 
 .hero--home-prototype {
@@ -20495,12 +20477,13 @@ a.feature-card:hover .icon-circle {
   padding: 0 var(--space-5);
 }
 
+.cmap-brand {
+  --brand-mark-size: 28px;
+}
 .cmap-brand__icon {
-  height: 28px;
   filter: drop-shadow(0 5px 12px rgba(0, 102, 255, 0.22));
 }
 .cmap-brand__wordmark {
-  height: 15px;
   filter: none;
   opacity: 1;
 }
