@@ -92,4 +92,14 @@ describe("localityLinks", () => {
     expect(localityLinks("en", "varanasi")).toEqual([]);
     expect(localityLinks("en", "atlantis")).toEqual([]);
   });
+
+  // RENT_CITY_CONTENT is a plain object literal, so these keys resolve up the
+  // prototype chain to something truthy. A bare `if (!city)` guard lets them
+  // past and then throws on `.popularLocalities`.
+  it("returns an empty list for prototype-chain keys rather than throwing", () => {
+    for (const key of ["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"]) {
+      expect(() => localityLinks("en", key), `localityLinks threw on "${key}"`).not.toThrow();
+      expect(localityLinks("en", key), `localityLinks returned links for "${key}"`).toEqual([]);
+    }
+  });
 });

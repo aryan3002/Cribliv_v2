@@ -60,8 +60,14 @@ export function localityLinks(
     }));
   }
 
+  // Object.hasOwn, not a bare truthiness check: RENT_CITY_CONTENT is a plain
+  // object literal, so RENT_CITY_CONTENT["__proto__"] (or "constructor",
+  // "toString", …) resolves up the prototype chain to something truthy. A
+  // `if (!city)` guard would let those through and then throw on
+  // `.popularLocalities`, breaking this function's contract of returning an
+  // empty list for an unknown city.
+  if (!Object.hasOwn(RENT_CITY_CONTENT, citySlug)) return [];
   const city = RENT_CITY_CONTENT[citySlug];
-  if (!city) return [];
 
   return city.popularLocalities.slice(0, limit).map((name) => ({
     label: name,
