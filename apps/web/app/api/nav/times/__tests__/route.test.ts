@@ -7,7 +7,14 @@ import { GET } from "../route";
 const asMock = fetchBlogList as unknown as ReturnType<typeof vi.fn>;
 
 describe("GET /api/nav/times", () => {
-  beforeEach(() => asMock.mockReset());
+  // Braces are load-bearing. A concise arrow returns mockReset()'s value —
+  // the mock itself — and Vitest treats a function returned from beforeEach
+  // as a teardown callback, so it CALLS the mock after each test. For the
+  // rejection case that manufactures a rejected promise nobody awaits, and
+  // the resulting unhandled rejection fails a test whose assertions all pass.
+  beforeEach(() => {
+    asMock.mockReset();
+  });
 
   it("returns at most 4 posts, newest first as the API ordered them", async () => {
     asMock.mockResolvedValue({
