@@ -146,11 +146,11 @@ export class GscService {
   }
 
   async fetchCoverage(): Promise<{
-    indexed_count: number | null;
-    submitted_count: number | null;
+    pages_with_impressions: number | null;
+    urls_submitted: number | null;
   }> {
     if (!this.database.isEnabled()) {
-      return { indexed_count: null, submitted_count: null };
+      return { pages_with_impressions: null, urls_submitted: null };
     }
 
     const [indexed, submitted] = await Promise.all([
@@ -165,8 +165,8 @@ export class GscService {
     ]);
 
     return {
-      indexed_count: indexed.rows[0]?.count ?? 0,
-      submitted_count: submitted.rows[0]?.count ?? 0
+      pages_with_impressions: indexed.rows[0]?.count ?? 0,
+      urls_submitted: submitted.rows[0]?.count ?? 0
     };
   }
 }

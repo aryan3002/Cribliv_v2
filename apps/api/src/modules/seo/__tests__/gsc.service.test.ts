@@ -214,21 +214,21 @@ describe("GscService", () => {
       const service = new GscService(database as never, auth as never, fetchMock as never);
 
       await expect(service.fetchCoverage()).resolves.toEqual({
-        indexed_count: null,
-        submitted_count: null
+        pages_with_impressions: null,
+        urls_submitted: null
       });
       expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it("derives indexed_count/submitted_count from local tables", async () => {
+    it("derives pages_with_impressions/urls_submitted from local tables", async () => {
       query
         .mockResolvedValueOnce({ rows: [{ count: 42 }] })
         .mockResolvedValueOnce({ rows: [{ count: 7 }] });
       const service = new GscService(database as never, auth as never, fetchMock as never);
 
       await expect(service.fetchCoverage()).resolves.toEqual({
-        indexed_count: 42,
-        submitted_count: 7
+        pages_with_impressions: 42,
+        urls_submitted: 7
       });
       expect(fetchMock).not.toHaveBeenCalled();
     });

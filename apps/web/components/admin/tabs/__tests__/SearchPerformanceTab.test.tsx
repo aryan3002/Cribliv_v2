@@ -49,10 +49,23 @@ const QUEUE_RESULT = {
       attempts: 5,
       submittedAt: null,
       updatedAt: "2026-07-06T00:00:00.000Z"
+    },
+    {
+      id: "q2",
+      url: "https://cribliv.com/en/city/lucknow",
+      status: "submitted",
+      reason: "listing_approved",
+      attempts: 0,
+      submittedAt: "2026-07-20T00:00:00.000Z",
+      updatedAt: "2026-07-20T00:00:00.000Z"
     }
   ],
-  total: 1,
-  summary: { countsByStatus: { failed: 1 }, submittedToday: 3, dailyQuota: 200 }
+  total: 2,
+  summary: {
+    countsByStatus: { submitted: 128, pending: 4, failed: 1 },
+    submittedToday: 3,
+    dailyQuota: 200
+  }
 };
 
 describe("SearchPerformanceTab", () => {
@@ -61,7 +74,7 @@ describe("SearchPerformanceTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchSearchPerformance.mockResolvedValue(PERFORMANCE_RESULT);
-    fetchSeoCoverage.mockResolvedValue({ indexedCount: 42, submittedCount: 7 });
+    fetchSeoCoverage.mockResolvedValue({ pagesWithImpressions: 42, urlsSubmitted: 7 });
     fetchIndexingQueue.mockResolvedValue(QUEUE_RESULT);
     fetchSearchPerformanceCsv.mockResolvedValue("keyword,page\n2bhk noida,/en/city/noida\n");
   });
@@ -157,6 +170,55 @@ describe("SearchPerformanceTab", () => {
 
     await waitFor(() => {
       expect(retryIndexingUrl).toHaveBeenCalledWith("tok", "q1");
+    });
+  });
+
+  it("surfaces the queue status breakdown so a stalled queue is visible at a glance", async () => {
+    render(<SearchPerformanceTab accessToken="tok" onToast={onToast} />);
+    await screen.findByText("2bhk noida");
+
+    // The counts were always fetched; they just were not rendered. A queue with
+    // 4 pending and 1 failed should say so rather than showing a wall of rows.
+    expect(screen.getByText(/4 pending/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/128 submitted/i)).toBeInTheDocument();
+  });
+
+  it("shows when a URL was submitted instead of a permanently-zero attempts column", async () => {
+    render(<SearchPerformanceTab accessToken="tok" onToast={onToast} />);
+    await screen.findByText("2bhk noida");
+
+    expect(screen.queryByRole("columnheader", { name: /attempts/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /submitted/i })).toBeInTheDocument();
+  });
+
+  it("reports retry count on the status pill only when a row has actually failed", async () => {
+    render(<SearchPerformanceTab accessToken="tok" onToast={onToast} />);
+    await screen.findByText("2bhk noida");
+
+    expect(screen.getByText(/failed · 5 tries/i)).toBeInTheDocument();
+    expect(screen.queryByText(/submitted · 0/i)).not.toBeInTheDocument();
+  });
+
+  it("labels coverage as pages with impressions, which is what it actually counts", async () => {
+    render(<SearchPerformanceTab accessToken="tok" onToast={onToast} />);
+    await screen.findByText("2bhk noida");
+
+    expect(screen.getByText(/pages with impressions/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^indexed pages$/i)).not.toBeInTheDocument();
+  });
+
+  it("toggles to the page-one-no-clicks view and re-fetches with noClicks: true", async () => {
+    render(<SearchPerformanceTab accessToken="tok" onToast={onToast} />);
+    await screen.findByText("2bhk noida");
+
+    fireEvent.click(screen.getByRole("button", { name: /no clicks/i }));
+
+    await waitFor(() => {
+      expect(fetchSearchPerformance).toHaveBeenCalledWith(
+        "tok",
+        expect.objectContaining({ noClicks: true })
+      );
     });
   });
 

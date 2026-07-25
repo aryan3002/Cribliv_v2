@@ -803,7 +803,15 @@ async function runPgScoreRecompute(pool: Pool): Promise<number> {
 // ── Lead 4-hour follow-up nudge (every 15 min) ───────────────────────────────
 // Finds leads stuck in 'new' for >4h with no prior nudge event, queues a
 // WhatsApp reminder to the owner via outbound_events, and records the nudge.
-async function runLeadNudgeSweep(pool: Pool): Promise<number> {
+//
+// The upper age bound matters as much as the lower one. Eligibility is "never
+// nudged", so without a ceiling the first run after this sweep starts working
+// would walk the entire backlog — 50 leads every 15 minutes — and message
+// owners about enquiries from months ago. A lead nobody answered in a week is
+// not worth a reminder; it is worth silence.
+const LEAD_NUDGE_MAX_AGE = "interval '7 days'";
+
+export async function runLeadNudgeSweep(pool: Pool): Promise<number> {
   const leads = await pool.query<{
     lead_id: string;
     listing_title: string;
@@ -816,13 +824,14 @@ async function runLeadNudgeSweep(pool: Pool): Promise<number> {
       ld.id::text          AS lead_id,
       COALESCE(NULLIF(l.title_en, ''), 'your listing') AS listing_title,
       ld.owner_user_id::text,
-      u.phone              AS owner_phone,
+      u.phone_e164         AS owner_phone,
       u.whatsapp_opt_in
     FROM leads ld
     JOIN users    u ON u.id  = ld.owner_user_id
     JOIN listings l ON l.id  = ld.listing_id
     WHERE ld.status = 'new'
       AND ld.created_at < now() - interval '4 hours'
+      AND ld.created_at > now() - ${LEAD_NUDGE_MAX_AGE}
       AND NOT EXISTS (
         SELECT 1 FROM lead_events le
         WHERE le.lead_id = ld.id
@@ -866,11 +875,14 @@ async function runLeadNudgeSweep(pool: Pool): Promise<number> {
         ]
       );
 
-      // Record nudge so we don't send again
+      // Record nudge so we don't send again. A nudge is a reminder, not a
+      // transition — the lead stays 'new' — but to_status is NOT NULL, so it
+      // has to be stated explicitly rather than left to a default that the
+      // table does not have.
       await client.query(
         `
-        INSERT INTO lead_events (lead_id, notes)
-        VALUES ($1::uuid, 'follow_up_nudge_sent')
+        INSERT INTO lead_events (lead_id, from_status, to_status, notes)
+        VALUES ($1::uuid, 'new'::lead_status, 'new'::lead_status, 'follow_up_nudge_sent')
         `,
         [lead.lead_id]
       );
@@ -891,7 +903,7 @@ async function runLeadNudgeSweep(pool: Pool): Promise<number> {
 // ── Subscription renewal reminder (daily) ────────────────────────────────────
 // Finds active subscriptions expiring within 3 days with auto_renew=true,
 // queues a WhatsApp reminder to the owner.
-async function runSubscriptionRenewalSweep(pool: Pool): Promise<number> {
+export async function runSubscriptionRenewalSweep(pool: Pool): Promise<number> {
   const subs = await pool.query<{
     subscription_id: string;
     owner_user_id: string;
@@ -906,7 +918,7 @@ async function runSubscriptionRenewalSweep(pool: Pool): Promise<number> {
       os.owner_user_id::text,
       sp.label              AS plan_label,
       os.expires_at::text,
-      u.phone               AS owner_phone,
+      u.phone_e164          AS owner_phone,
       u.whatsapp_opt_in
     FROM owner_subscriptions os
     JOIN subscription_plans  sp ON sp.plan_id = os.plan_id
@@ -963,7 +975,7 @@ async function runSubscriptionRenewalSweep(pool: Pool): Promise<number> {
 // ── Saved search alert sweep (daily) ─────────────────────────────────────────
 // For each active saved search, finds new listings posted since last_alerted_at
 // and queues a WhatsApp notification to the tenant if new matches exist.
-async function runSavedSearchAlertSweep(pool: Pool): Promise<number> {
+export async function runSavedSearchAlertSweep(pool: Pool): Promise<number> {
   // Fetch saved searches that haven't been alerted in the past 24h (or never)
   const searches = await pool.query<{
     id: string;
@@ -987,7 +999,7 @@ async function runSavedSearchAlertSweep(pool: Pool): Promise<number> {
       ss.max_rent,
       ss.listing_type::text,
       ss.last_alerted_at::text,
-      u.phone   AS user_phone,
+      u.phone_e164 AS user_phone,
       u.whatsapp_opt_in
     FROM saved_searches ss
     JOIN users u ON u.id = ss.user_id

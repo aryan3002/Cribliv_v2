@@ -23,7 +23,7 @@ describe("SeoSearchService", () => {
   beforeEach(() => {
     query = vi.fn();
     database = { isEnabled: () => true, query };
-    gsc = { fetchCoverage: vi.fn(async () => ({ indexed_count: 10, submitted_count: 4 })) };
+    gsc = { fetchCoverage: vi.fn(async () => ({ pages_with_impressions: 10, urls_submitted: 4 })) };
   });
 
   describe("getSearchPerformance", () => {
@@ -167,8 +167,8 @@ describe("SeoSearchService", () => {
     it("delegates to GscService.fetchCoverage", async () => {
       const service = new SeoSearchService(database as never, gsc as never);
       await expect(service.getCoverage()).resolves.toEqual({
-        indexed_count: 10,
-        submitted_count: 4
+        pages_with_impressions: 10,
+        urls_submitted: 4
       });
       expect(gsc.fetchCoverage).toHaveBeenCalledTimes(1);
     });

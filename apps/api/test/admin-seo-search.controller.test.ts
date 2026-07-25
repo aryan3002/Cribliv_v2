@@ -64,7 +64,7 @@ describe("AdminSeoSearchController", () => {
     seoSearch = {
       getSearchPerformance: vi.fn(async () => PERFORMANCE_RESULT),
       exportSearchPerformanceCsv: vi.fn(async () => "keyword,page\nfoo,bar\n"),
-      getCoverage: vi.fn(async () => ({ indexed_count: 10, submitted_count: 4 })),
+      getCoverage: vi.fn(async () => ({ pages_with_impressions: 10, urls_submitted: 4 })),
       getIndexingQueueSummary: vi.fn(async () => ({
         counts_by_status: { pending: 1 },
         submitted_today: 0,
@@ -222,6 +222,6 @@ describe("AdminSeoSearchController", () => {
     await request(app.getHttpServer())
       .get("/admin/seo/coverage")
       .expect(200)
-      .expect({ data: { indexed_count: 10, submitted_count: 4 } });
+      .expect({ data: { pages_with_impressions: 10, urls_submitted: 4 } });
   });
 });

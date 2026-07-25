@@ -28,6 +28,7 @@ function parseSearchPerformanceQuery(query: {
   city_slug?: string;
   locale?: string;
   quick_wins?: string;
+  no_clicks?: string;
   limit?: string;
   offset?: string;
 }): SearchPerformanceParams {
@@ -35,6 +36,7 @@ function parseSearchPerformanceQuery(query: {
     city_slug: query.city_slug || undefined,
     locale: query.locale || undefined,
     quick_wins: query.quick_wins === "true" ? true : undefined,
+    no_clicks: query.no_clicks === "true" ? true : undefined,
     limit: query.limit ? Number(query.limit) : undefined,
     offset: query.offset ? Number(query.offset) : undefined
   };
@@ -57,6 +59,7 @@ export class AdminSeoSearchController {
       city_slug?: string;
       locale?: string;
       quick_wins?: string;
+      no_clicks?: string;
       limit?: string;
       offset?: string;
     }
@@ -66,7 +69,8 @@ export class AdminSeoSearchController {
 
   @Get("search-performance/export")
   async exportSearchPerformance(
-    @Query() query: { city_slug?: string; locale?: string; quick_wins?: string },
+    @Query()
+    query: { city_slug?: string; locale?: string; quick_wins?: string; no_clicks?: string },
     @Res() res: Response
   ) {
     const csv = await this.seoSearch.exportSearchPerformanceCsv(parseSearchPerformanceQuery(query));

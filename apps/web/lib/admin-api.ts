@@ -1730,6 +1730,8 @@ interface SearchPerformanceFilterParams {
   citySlug?: string;
   locale?: string;
   quickWins?: boolean;
+  /** Page-one keywords earning impressions but no clicks — a copy problem, not a rank one. */
+  noClicks?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -1741,6 +1743,7 @@ function searchPerformanceQueryParams(
   if (params?.citySlug) query.city_slug = params.citySlug;
   if (params?.locale) query.locale = params.locale;
   if (params?.quickWins) query.quick_wins = "true";
+  if (params?.noClicks) query.no_clicks = "true";
   if (params?.limit != null) query.limit = String(params.limit);
   if (params?.offset != null) query.offset = String(params.offset);
   return query;
@@ -1770,11 +1773,7 @@ export async function fetchSearchPerformance(
   };
 }
 
-export function searchPerformanceExportUrl(params?: {
-  citySlug?: string;
-  locale?: string;
-  quickWins?: boolean;
-}): string {
+export function searchPerformanceExportUrl(params?: SearchPerformanceFilterParams): string {
   return `${getApiBaseUrl()}${withSearchQuery(
     "/admin/seo/search-performance/export",
     searchPerformanceQueryParams(params)
@@ -1783,7 +1782,7 @@ export function searchPerformanceExportUrl(params?: {
 
 export async function fetchSearchPerformanceCsv(
   accessToken: string,
-  params?: { citySlug?: string; locale?: string; quickWins?: boolean }
+  params?: SearchPerformanceFilterParams
 ): Promise<string> {
   const response = await fetch(searchPerformanceExportUrl(params), {
     headers: authHeaders(accessToken)
@@ -1804,12 +1803,12 @@ export async function fetchSearchPerformanceCsv(
 
 export async function fetchSeoCoverage(
   accessToken: string
-): Promise<{ indexedCount: number | null; submittedCount: number | null }> {
-  const raw = await fetchApi<{ indexed_count: number | null; submitted_count: number | null }>(
-    "/admin/seo/coverage",
-    { headers: authHeaders(accessToken) }
-  );
-  return { indexedCount: raw.indexed_count, submittedCount: raw.submitted_count };
+): Promise<{ pagesWithImpressions: number | null; urlsSubmitted: number | null }> {
+  const raw = await fetchApi<{
+    pages_with_impressions: number | null;
+    urls_submitted: number | null;
+  }>("/admin/seo/coverage", { headers: authHeaders(accessToken) });
+  return { pagesWithImpressions: raw.pages_with_impressions, urlsSubmitted: raw.urls_submitted };
 }
 
 export async function fetchIndexingQueue(
