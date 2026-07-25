@@ -37,12 +37,12 @@ export async function fetchListingCard(
   opts: { revalidate?: number } = {}
 ): Promise<ListingCardData | null> {
   try {
-    // NOTE: `/listings/:id` records a `view` event server-side. Rendering an
-    // embed is not a listing view, so an uncached fetch here inflated owners'
-    // view metrics once per blog render (and kept the article route dynamic).
-    // Caching collapses that to at most one spurious view per revalidate
-    // window; removing it entirely needs a read-only detail endpoint.
-    const res = await fetchApi<ListingDetailResponse>(`/listings/${id}`, undefined, {
+    // `track_view=0` because rendering an embedded card is NOT a listing view.
+    // `/listings/:id` is the only place a view is persisted, so without this an
+    // article embedding three listings recorded three views every time it
+    // rendered, inflating owners' dashboard metrics with traffic that never
+    // looked at the listing.
+    const res = await fetchApi<ListingDetailResponse>(`/listings/${id}?track_view=0`, undefined, {
       server: true,
       revalidate: opts.revalidate
     });

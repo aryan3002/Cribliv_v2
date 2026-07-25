@@ -112,6 +112,8 @@ export function buildOpenApiDocument() {
         get: {
           tags: ["listings"],
           summary: "Fetch a single listing",
+          description:
+            "Records a `view` event for non-owner viewers — this is the only place a listing view is persisted. Pass `track_view=0` for reads that are not a user looking at the listing (embedded cards, metadata generation) so owners' view metrics stay honest.",
           operationId: "getListing",
           parameters: [
             {
@@ -119,6 +121,22 @@ export function buildOpenApiDocument() {
               in: "path",
               required: true,
               schema: { type: "string", format: "uuid" }
+            },
+            {
+              name: "ref",
+              in: "query",
+              required: false,
+              description:
+                "Traffic-source tag stored as view-event metadata. Only `blog-*` refs are accepted.",
+              schema: { type: "string" }
+            },
+            {
+              name: "track_view",
+              in: "query",
+              required: false,
+              description:
+                "Set to `0` or `false` to suppress the view event. The response payload is identical either way. Defaults to tracking.",
+              schema: { type: "string", enum: ["0", "1", "true", "false"] }
             }
           ],
           responses: {
