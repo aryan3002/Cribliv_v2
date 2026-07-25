@@ -190,34 +190,32 @@ test.describe("top nav — desktop mega-menu", () => {
 
     await expect(timesTrigger).toHaveAttribute("aria-expanded", "true");
 
-    // Deliberately not `expect(panel).toBeVisible()` the way the Rent/PG
-    // tests above check their panel container — scoping into it (a locator
-    // never itself has to be visible) is fine, but asserting ITS visibility
-    // is not, for a real, confirmed CSS reason:
+    // This panel's role="group" node used to have a 0x0 layout box: the
+    // NavMenuBar `renderPanel` escape hatch (nav-menu-bar.tsx) put
+    // id/role="group"/aria-labelledby on a plain wrapper <div> with no class
+    // (position: static), while the actual positioned box was a *child* —
+    // TimesPanel's own root, `.nav-panel.nav-panel--times` (globals.css),
+    // `position: absolute`. An absolutely positioned child contributes
+    // nothing to a static parent's auto layout size, so the wrapper
+    // collapsed even though its content painted correctly on screen
+    // (confirmed live: wrapper rect 0x0, `.nav-panel--times` rect 1280x208 —
+    // see the S3 Task 4 gate report). Fixed by moving id/role/aria-labelledby
+    // onto TimesPanel's own root instead (times-panel.tsx / nav-menu-bar.tsx),
+    // matching NavPanelView's pattern below (used by Rent/PG), where the
+    // ARIA-labelled node already IS the positioned `.nav-panel` node.
     //
-    // Times' panel body comes from NavMenuBar's `renderPanel` escape hatch
-    // (nav-menu-bar.tsx), which puts role="group"/id/aria-labelledby on a
-    // plain wrapper <div> with no class and therefore `position: static`.
-    // Its only child is TimesPanel's own root, `.nav-panel.nav-panel--times`
-    // (globals.css), which is `position: absolute`. An absolutely positioned
-    // child contributes nothing to a static parent's layout box, so that
-    // wrapper's own bounding box is 0x0 even though its content — the thing
-    // a real visitor sees — is fully painted on screen. Confirmed with a
-    // live getBoundingClientRect()/getComputedStyle() dump (S3 Task 4
-    // report): wrapper `position: static`, rect 0x0; `.nav-panel--times`
-    // `position: absolute`, rect 1280x208. Contrast NavPanelView's branch
-    // (used by every other panel here): its own root IS the positioned,
-    // correctly sized `.nav-panel` box, so `panel.toBeVisible()` is
-    // meaningful for Rent/PG but would be a false negative here — it would
-    // fail for a layout reason unrelated to whether the four desks render.
-    // jsdom-based unit tests (nav-menu-bar.test.tsx, times-panel.test.tsx)
-    // never compute real layout, so this never surfaced there — a real
-    // browser is the only thing that can catch it, which is this file's
-    // whole reason to exist. Reported, not fixed, as part of the slice gate;
-    // not "papering over" it — the four-desks requirement below is checked
-    // the honest way instead, against the content itself.
+    // `toBeVisible()` here — the same assertion the Rent/PG tests above use
+    // on their own panel container — is itself the regression pin: before
+    // the fix this was a real, reproducible failure (Playwright reported the
+    // group "hidden" because of its 0x0 box), not a false negative. The
+    // explicit width/height check below pins the actual geometry jsdom can
+    // never compute (nav-menu-bar.test.tsx / times-panel.test.tsx cover the
+    // DOM-structural side of this fix).
     const panel = primaryNav(page).getByRole("group");
-    await expect(panel).toBeAttached();
+    await expect(panel).toBeVisible();
+    const box = await panel.boundingBox();
+    expect(box?.width, "the group's own box should no longer be 0x0").toBeGreaterThan(0);
+    expect(box?.height, "the group's own box should no longer be 0x0").toBeGreaterThan(0);
 
     for (const desk of TIMES_DESKS) {
       const link = panel.getByRole("link", { name: desk.label, exact: true });

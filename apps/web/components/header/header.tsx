@@ -189,8 +189,14 @@ export function Header({
         </>
       ),
       panel: desktopNav ? navData.times : null,
-      renderPanel: (close) => (
-        <TimesPanel locale={locale} panel={navData.times} onNavigate={close} />
+      renderPanel: ({ id, labelledBy, close }) => (
+        <TimesPanel
+          id={id}
+          labelledBy={labelledBy}
+          locale={locale}
+          panel={navData.times}
+          onNavigate={close}
+        />
       ),
       href: `/${locale}/blog`,
       className: `nav-chip nav-chip--times${isActive(`/${locale}/blog`) ? " nav-chip--active" : ""}`

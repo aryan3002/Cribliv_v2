@@ -138,4 +138,33 @@ describe("TimesPanel", () => {
     await userEvent.click(postLink);
     expect(onNavigate).toHaveBeenCalledOnce();
   });
+
+  // Regression pin for the bug in the S3 Task 4 gate report: this component's
+  // own root must carry id/role="group"/aria-labelledby AND the `.nav-panel`
+  // class together, on the same node — never split across a wrapper (id/role)
+  // and a child (`.nav-panel`, position: absolute). nav-menu-bar.tsx used to
+  // hoist the ARIA identity onto a class-less wrapper *around* this
+  // component instead of handing it to the component, so that wrapper
+  // (position: static, no styling of its own) collapsed to a 0x0 layout box
+  // even though this div painted correctly one level down — a real-browser
+  // -only symptom jsdom can't compute (see top-nav.spec.ts for the geometry
+  // check). Before the fix this assertion fails outright: `role="group"`
+  // did not exist anywhere in this component's own output.
+  it('carries id/role="group"/aria-labelledby on the same root that gets .nav-panel positioning', () => {
+    asMock.mockReturnValue(pendingForever());
+    render(
+      <TimesPanel
+        id="nav-panel-times"
+        labelledBy="nav-trigger-times"
+        locale="en"
+        panel={DESKS_PANEL}
+        onNavigate={() => {}}
+      />
+    );
+
+    const group = screen.getByRole("group");
+    expect(group).toHaveAttribute("id", "nav-panel-times");
+    expect(group).toHaveAttribute("aria-labelledby", "nav-trigger-times");
+    expect(group).toHaveClass("nav-panel", "nav-panel--times");
+  });
 });

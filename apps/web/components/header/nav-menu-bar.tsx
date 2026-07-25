@@ -26,12 +26,26 @@ export interface NavMenuItem {
    * Times' desks-plus-hover-loaded-posts panel is the first user. When
    * present it renders in place of NavPanelView, inside the exact same
    * hover-intent wrapper below, so outside-pointerdown/Escape close it
-   * identically either way. Receives the same `close` NavPanelView is given
-   * as onNavigate, so a custom panel can close the menu on link click exactly
-   * like the built-in one does. Only ever invoked while `panel` is truthy —
-   * see the guard below — so it is safe to build from data that assumes that.
+   * identically either way. Receives the same identity NavPanelView is given
+   * directly as props — `id` and `labelledBy` — plus `close` (the same
+   * callback NavPanelView is given as onNavigate).
+   *
+   * A custom panel MUST put `id`/`role="group"`/`aria-labelledby` on its OWN
+   * root, the same way NavPanelView does (see nav-panel.tsx), rather than
+   * leaving them for a wrapper here to carry. The wrapper below has no CSS
+   * class of its own; if it held the ARIA identity while the real
+   * `.nav-panel` (position: absolute) box was merely its child, the
+   * wrapper's own layout box would collapse to 0x0 — an absolutely
+   * positioned child contributes nothing to a `position: static` parent's
+   * auto content size, even though the child still paints correctly on
+   * screen via its own positioning. This is exactly the bug that shipped
+   * here once (S3 Task 4 gate report) and was fixed by moving the identity
+   * from the wrapper onto TimesPanel's own root.
+   *
+   * Only ever invoked while `panel` is truthy — see the guard below — so it
+   * is safe to build from data that assumes that.
    */
-  renderPanel?: (close: () => void) => ReactNode;
+  renderPanel?: (ctx: { id: string; labelledBy: string; close: () => void }) => ReactNode;
 }
 
 // Exported so the test can assert against the real constants instead of
@@ -162,24 +176,20 @@ export function NavMenuBar({ items }: { items: NavMenuItem[] }) {
       })}
 
       {openItem?.panel && (
-        <div
-          onMouseEnter={clearTimer}
-          onMouseLeave={hoverClose}
-          // NavPanelView's own root is the actual role="group" element the
-          // trigger's aria-controls points at (id passed through below), so
-          // this wrapper stays id-less in that case. A custom renderPanel has
-          // no root of its own to carry that pairing, so it moves up to this
-          // wrapper instead — same id, same aria-labelledby, same trigger.
-          {...(openItem.renderPanel
-            ? {
-                id: `nav-panel-${openItem.id}`,
-                role: "group" as const,
-                "aria-labelledby": `nav-trigger-${openItem.id}`
-              }
-            : {})}
-        >
+        // Plain wrapper: only the hover-intent mouse handlers live here. The
+        // id/role="group"/aria-labelledby triple lives on the panel's own
+        // root in both branches below — NavPanelView's root for the built-in
+        // path, whatever renderPanel returns for the escape hatch — so the
+        // ARIA-labelled node is always the same node CSS positions as
+        // `.nav-panel`. See the renderPanel doc comment above for why that
+        // matters.
+        <div onMouseEnter={clearTimer} onMouseLeave={hoverClose}>
           {openItem.renderPanel ? (
-            openItem.renderPanel(close)
+            openItem.renderPanel({
+              id: `nav-panel-${openItem.id}`,
+              labelledBy: `nav-trigger-${openItem.id}`,
+              close
+            })
           ) : (
             <NavPanelView
               id={`nav-panel-${openItem.id}`}

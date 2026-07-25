@@ -18,6 +18,13 @@ import { t } from "../../lib/i18n";
  * nav-menu-bar.tsx), so mounting the component IS the first hover — the
  * effect below has no other trigger to wait for.
  *
+ * `id`/`labelledBy` are the same identity NavPanelView takes as props
+ * (nav-panel.tsx) — put them on this component's own root, not a wrapper
+ * around it, so the id/role="group"/aria-labelledby triple lands on the
+ * exact node `.nav-panel` (position: absolute) styles. Optional only so this
+ * component stays renderable standalone in isolation (see times-panel.test.tsx);
+ * nav-menu-bar.tsx always supplies both in real usage.
+ *
  * Never a value-import of lib/nav/nav-model.ts: this file (and header.tsx,
  * which renders it) sits in the root layout's client bundle for every route,
  * and that module pulls in ~46 KB of city prose, FAQs and rent tips. `panel`
@@ -26,11 +33,15 @@ import { t } from "../../lib/i18n";
 export function TimesPanel({
   locale,
   panel,
-  onNavigate
+  onNavigate,
+  id,
+  labelledBy
 }: {
   locale: NavLocale;
   panel: NavPanel;
   onNavigate: () => void;
+  id?: string;
+  labelledBy?: string;
 }) {
   const [posts, setPosts] = useState<TimesPost[]>([]);
 
@@ -51,7 +62,7 @@ export function TimesPanel({
   if (panel.columns.length === 0 && posts.length === 0) return null;
 
   return (
-    <div className="nav-panel nav-panel--times">
+    <div id={id} className="nav-panel nav-panel--times" role="group" aria-labelledby={labelledBy}>
       <div className="nav-panel__grid">
         {panel.columns.map((col) => (
           <div className="nav-panel__col" key={col.title}>

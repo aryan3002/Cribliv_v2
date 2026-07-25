@@ -122,8 +122,16 @@ describe("NavMenuBar", () => {
 
 // ── Custom panel bodies (Cribliv Times) ─────────────────────────────────────
 // renderPanel is the escape hatch a panel with non-static content (Times'
-// hover-loaded posts) uses instead of NavPanelView. These pin that it renders
-// inside the exact same hover/ARIA wrapper — not a parallel, divergent one.
+// hover-loaded posts) uses instead of NavPanelView. It receives the same
+// id/labelledBy identity NavPanelView takes as props, and — like
+// NavPanelView — is responsible for putting id/role="group"/aria-labelledby
+// on its OWN root rather than leaving a wrapper to carry them (a wrapper
+// with no CSS class of its own has no layout box that would size to an
+// absolutely positioned child — see the long comment on
+// NavMenuItem.renderPanel for the bug this contract replaced). These pin
+// that: the real ARIA-labelled node is whatever renderPanel returns, nested
+// in the exact same hover-intent wrapper Rent/PG use — not a parallel,
+// divergent one.
 
 describe("NavMenuBar — custom renderPanel", () => {
   const customItems: NavMenuItem[] = [
@@ -131,10 +139,12 @@ describe("NavMenuBar — custom renderPanel", () => {
       id: "times",
       label: "Times",
       panel: { id: "times", columns: [] },
-      renderPanel: (close) => (
-        <button type="button" onClick={close}>
-          Custom panel body
-        </button>
+      renderPanel: ({ id, labelledBy, close }) => (
+        <div id={id} role="group" aria-labelledby={labelledBy}>
+          <button type="button" onClick={close}>
+            Custom panel body
+          </button>
+        </div>
       )
     },
     { id: "map", label: "Map", panel: null, href: "/en/map" }
