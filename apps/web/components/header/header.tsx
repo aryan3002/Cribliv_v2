@@ -281,7 +281,7 @@ export function Header({
             </Link>
           )}
 
-          <HeaderMenu locale={locale} />
+          <HeaderMenu locale={locale} navData={navData} />
         </div>
       </div>
     </header>

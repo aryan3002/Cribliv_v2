@@ -2216,6 +2216,99 @@ h4,
   background: var(--danger-light);
 }
 
+/* ── Mobile nav accordions (inside the header sheet) ────────────────────
+   Below 900px NavMenuBar's floating .nav-panel dropdowns never mount (see
+   header.tsx's useDesktopNav), so these collapsible sections are the only
+   place phone users reach the Rent / PG / Owners sub-links. Same NavPanel
+   data as .nav-panel/.nav-panel__link above, laid out in-sheet instead of a
+   floating grid — column title and link styling intentionally mirror those
+   classes; trigger row styling mirrors .menu-item since it lives in the same
+   sheet. */
+.mobile-nav-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mobile-nav-section__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 10px var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+.mobile-nav-section__trigger:hover {
+  background: var(--surface-sunken);
+}
+
+.mobile-nav-section__chevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-fast);
+}
+.mobile-nav-section__trigger--open .mobile-nav-section__chevron {
+  transform: rotate(180deg);
+}
+
+.mobile-nav-section__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3) calc(var(--space-3) + 4px);
+  animation: mobile-nav-section-in 160ms ease;
+}
+@keyframes mobile-nav-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-nav-section__col-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-2);
+}
+
+.mobile-nav-section__link {
+  display: block;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+.mobile-nav-section__link:hover {
+  color: var(--brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-section__chevron {
+    transition: none;
+  }
+  .mobile-nav-section__panel {
+    animation: none;
+  }
+}
+
 /* Mobile: full-screen sheet from the right */
 @media (max-width: 640px) {
   .menu-popover-backdrop {
