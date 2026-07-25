@@ -137,17 +137,21 @@ the existing D7 branch validates `D7_KEY`.
 Sender ID reuses the existing `OTP_SENDER_ID`; MSG91 resolves the header from the
 template rather than the request, so it is informational only.
 
-## Bugs fixed in passing
+## Fixed in passing
 
-Both are in code this change already touches.
-
-1. **`auth.service.ts:231-235`** — on the D7 path, a wrong OTP calls
-   `handleInvalidDbOtp` (incrementing attempts) and then unconditionally throws
-   `otp_expired`. Users who mistype are told their code expired, which is misleading and
-   makes the attempt counter invisible. Correct behaviour: `invalid_otp` for a wrong code,
-   `otp_expired` only when the provider says expired. Applies to D7 and MSG91 alike.
-2. **`d7-otp.client.ts:49`** — a `console.log` prints the full provider response on every
+1. **`d7-otp.client.ts:49`** — a `console.log` prints the full provider response on every
    send in production. Becomes `Logger.debug`.
+2. **`auth.service.ts:366`** — `handleInvalidDbOtp` always throws, but its signature and
+   call sites read like it returns, which makes the surrounding control flow easy to
+   misread. Annotate the return type as `Promise<never>` so the compiler documents it.
+   No behaviour change.
+
+**Previously claimed and retracted:** an earlier revision of this spec asserted that a
+wrong OTP on the D7 path incorrectly surfaced as `otp_expired`. That was a misreading.
+Because `handleInvalidDbOtp` always throws, the `otp_expired` throw at `auth.service.ts:235`
+is only reachable when the provider genuinely reports expiry. Current behaviour is
+correct, and `test/auth-d7.provider.test.ts` already covers it. The MSG91 provider must
+match this behaviour rather than "fix" it.
 
 ## Testing
 
@@ -163,10 +167,11 @@ Vitest unit tests with a stubbed `fetch`, no live SMS in CI:
 - Resolver: allowlisted phone beats `OTP_PROVIDER=d7`
 - Resolver: allowlist inert when `MSG91_AUTH_KEY` unset
 - Resolver: `OTP_PROVIDER=mock` ignores the allowlist entirely
-- Regression: wrong code on the D7 path now yields `invalid_otp`
 
-The existing D7 and auth integration tests must pass unchanged. That is the primary
-regression gate — the refactor is only safe if D7 behaviour is provably identical.
+The existing `test/auth-d7.provider.test.ts` must pass unchanged. That is the primary
+regression gate — the refactor is only safe if D7 behaviour is provably identical. Note
+it is quarantined from CI in `vitest.config.ts`, so it has to be run locally and
+deliberately; passing CI is not sufficient evidence for this change.
 
 ## Go-live prerequisites (account-side, not code)
 
