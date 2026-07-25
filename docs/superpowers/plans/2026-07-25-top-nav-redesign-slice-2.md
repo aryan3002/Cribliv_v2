@@ -14,6 +14,8 @@
 ## Global Constraints
 
 - **No server fetch may be added to anything the root layout renders.** The header is in the root layout; a server fetch there forces every page site-wide to render dynamically — the exact cause of a past Vercel Fluid CPU overage. Menu data comes from `nav-model.ts`, which is pure and synchronous. The Saved count is **client-side only**.
+- **`nav-model.ts` must never be imported from a `"use client"` module.** This is the same blast radius as the fetch rule, arriving by a different route. `components/header.tsx` is `"use client"` and is mounted on every page via `locale-chrome.tsx:29` from `app/[locale]/layout.tsx:57`. The moment that tree imports `nav-model.ts`, webpack pulls `rent-city-content.ts` (18.6 KB), `pg-city-content.ts` (9.6 KB), `intents.json` (11.2 KB) and `micro-localities.json` (7.2 KB) into the client bundle **on every route** — and most of it is `faqs`, `rentTips`, `description`, `h1_en`/`h1_hi` and `applies_to`, which the nav never reads and which property-level tree-shaking cannot strip. Homepage LCP is already a known concern on this project.
+  **Therefore panels are built in a Server Component and passed down as props.** `NavPanel` is plain serializable data (`{id, columns:[{title, links:[{label, href}]}]}`), so it crosses the RSC boundary cleanly. Task 9 establishes the plumbing; Tasks 4-8 are already prop-first, so they need no change — but none of them may value-import the model.
 - **`--header-height` stays `72px`.** Layout `calc()`s depend on it (e.g. `.ra-layout`).
 - **No feature flag.** This ships directly, so every task must leave the header releasable.
 - **The role-aware Post Property target is unchanged**: owner → `/owner/dashboard`, `pg_operator` or any `/pg-operator` route → `/pg-operator/listings/new`, everyone else → `/become-owner`.
@@ -83,6 +85,8 @@ Checked against source 2026-07-25. Do not re-derive.
 - `apps/web/components/header/search-pill.tsx`
 - `apps/web/components/header/mobile-nav-sections.tsx`
 - `apps/web/components/header/header.tsx` — orchestration (moved from `components/header.tsx`)
+- `apps/web/lib/nav/types.ts` — pure type re-exports so client components have one honest, zero-runtime import path
+- `apps/web/lib/nav/nav-data.ts` — the single server-side entry point that builds every panel
 - tests alongside each, under `apps/web/components/header/__tests__/`
 
 **Modify:**
@@ -90,6 +94,8 @@ Checked against source 2026-07-25. Do not re-derive.
 - `apps/web/components/header.tsx` → becomes a one-line re-export of `./header/header` so existing imports and the three regression suites keep working untouched
 - `apps/web/components/listing-card-heart.tsx` — notify the count store on toggle
 - `apps/web/components/header-menu.tsx` — inject mobile accordion sections
+- `apps/web/components/locale-chrome.tsx` — accept and forward `navData`
+- `apps/web/app/[locale]/layout.tsx` — build `navData` server-side (the only importer of `nav-model.ts` in the render tree)
 - `apps/web/app/globals.css` — bar layout, CriblMap restyle, panel surface, underline fix
 - `apps/web/lib/i18n.ts` — new nav strings, `en` + `hi`
 - `apps/web/lib/nav/nav-model.ts` + its test — only in Task 1
@@ -1096,10 +1102,19 @@ git commit -m "feat(web): nav menu bar with hover intent and keyboard support"
 
 **Interfaces:**
 
-- Consumes: `cityChipLinks(locale)` from `nav-model.ts`; `usePathname` to derive the current city.
-- Produces: `<CityChip locale={NavLocale} />`
+- Consumes: `links: NavLink[]` **as a prop** — this is a client component and must not import `nav-model.ts` (see the bundle constraint). Type-only imports are erased at compile time, so `import type { NavLink } from "../../lib/nav/types"` is fine; a value import is not. Uses `usePathname` only to derive the _label_.
+- Produces: `<CityChip locale={NavLocale} links={NavLink[]} hidden={boolean} />`
 
-Behaviour: renders a `<button>` labelled with the current city (derived from the pathname — `/{locale}/city/{slug}`, `/{locale}/pg/{slug}`, or `/{locale}/rent-in/{slug}`; defaults to `Lucknow`), opening a small popover listing all 8 cities. Reuses the same close-on-Escape / close-on-outside-pointerdown pattern as `NavMenuBar`. Hidden when the header is in its scrolled state (Task 9 controls that via a prop).
+Behaviour: renders a `<button>` labelled with the current city (derived from the pathname — `/{locale}/city/{slug}`, `/{locale}/pg/{slug}`, or `/{locale}/rent-in/{slug}`; defaults to `Lucknow`), opening a small popover listing the cities it was given. Reuses the same close-on-Escape / close-on-outside-pointerdown pattern as `NavMenuBar`. Renders nothing when `hidden` is true (Task 9 sets that from the scrolled state).
+
+Add `apps/web/lib/nav/types.ts` in this task, re-exporting the pure types so client components have one honest import path:
+
+```ts
+export type { NavLink } from "./localities";
+export type { NavColumn, NavPanel, NavLocale } from "./nav-model";
+```
+
+A `export type` re-export emits no runtime code, so this file adds nothing to any bundle.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1199,23 +1214,52 @@ The integration task. After this, the new nav is live.
 
 **Files:**
 
+- Create: `apps/web/lib/nav/nav-data.ts` — one server-side builder returning everything the header needs
 - Create: `apps/web/components/header/header.tsx`
 - Modify: `apps/web/components/header.tsx` → `export { Header } from "./header/header";`
+- Modify: `apps/web/components/locale-chrome.tsx` — accept and forward a `navData` prop
+- Modify: `apps/web/app/[locale]/layout.tsx` — build `navData` and pass it to `LocaleChrome`
 - Create: `apps/web/components/header/__tests__/header.composition.test.tsx`
+- Create: `apps/web/lib/nav/__tests__/nav-data.test.ts`
 
 **Interfaces:**
 
-- Consumes: every component from Tasks 4–8, plus `buildRentPanel` / `buildPgPanel` / `buildOwnersPanel` / `buildTimesPanel`.
-- Produces: `<Header locale={Locale} />` — same public signature as today.
+- `nav-data.ts` produces:
+
+```ts
+export interface NavData {
+  rent: NavPanel;
+  pg: NavPanel;
+  owners: NavPanel;
+  times: NavPanel;
+  cities: NavLink[];
+}
+export function buildNavData(locale: NavLocale, citySlug?: string): NavData;
+```
+
+- Produces: `<Header locale={Locale} navData={NavData} />`
+
+**The architecture requirement — read before writing any code.**
+
+`components/header.tsx` is `"use client"` and renders on every route. If it imports `nav-model.ts`, webpack pulls ~46 KB of city prose, FAQs and rent tips into the client bundle site-wide. So:
+
+- `buildNavData` is called in `app/[locale]/layout.tsx`, a **Server Component**. It is the only place in the render tree that imports `nav-model.ts`.
+- `LocaleChrome` is `"use client"` but is _mounted from_ the server layout, so it can receive `NavData` as a prop and forward it. `NavPanel` is plain serializable data, so it crosses the RSC boundary cleanly.
+- `header.tsx` and every component under `components/header/` may import the **types** (`import type { … } from "../../lib/nav/types"` — erased at compile time) but must never value-import `nav-model.ts`, `rent-city-content.ts`, `pg-city-content.ts`, `intent-filters.ts`, or either JSON seed.
+
+**The city question, decided.** A root layout cannot read the pathname without `headers()`, which would force dynamic rendering — the exact trap this design exists to avoid. So `buildNavData` is called with no city and defaults to `lucknow`. That is correct for the homepage, `/search`, `/pg` and all Lucknow routes, which is where essentially all inventory and traffic live. Per-city locality columns on `/city/delhi` and friends are a **follow-up**, best done by having those pages pass an override down rather than by making the layout dynamic. Do not attempt per-city adaptation in this task, and do not reach for `headers()`.
 
 Requirements:
 
 - Move the existing `header.tsx` body across unchanged **except** the centre nav, preserving the scroll listener, the PG-operator route branch, `hostLinkHref` / `hostLinkLabel` / `hostLinkShort`, `isActive`, `BrandLockup`, `lang-pill` and `HeaderMenu` exactly.
-- Keeping `components/header.tsx` as a re-export means the three regression suites and every existing import keep working with no edits. **Do not modify those three test files.**
-- Build the menu items: `Rent` and `PG & Co-living` and `For owners` get panels; `CriblMap` is a panel-less item with `className="nav-chip nav-chip--map"`; `Cribliv Times` is panel-less in this slice with `className="nav-chip nav-chip--times"` (slice 3 gives it a panel).
-- The current city for `buildRentPanel` / `buildPgPanel` comes from the pathname, defaulting to `lucknow` — same derivation as the city chip, so **extract that helper into `lib/nav/current-city.ts` in this task** rather than duplicating it.
+- Keeping `components/header.tsx` as a re-export means the three regression suites and every existing import keep working with no edits. **Do not modify those three test files.** They render `<Header locale="en" />` with no `navData`, so give the prop a safe default (an empty panel set) rather than making it required — a missing prop must not throw.
+- Build the menu items: `Rent`, `PG & Co-living` and `For owners` get panels from `navData`; `CriblMap` is a panel-less item with `className="nav-chip nav-chip--map"`; `Cribliv Times` is panel-less in this slice with `className="nav-chip nav-chip--times"` (slice 3 gives it a panel).
 - Scrolled state (existing `scrolled` boolean, `window.scrollY > 8`): hide `CityChip` and the `lang-pill`, show `SearchPill`. On non-home routes, show the pill regardless of scroll.
 - Below 900px the panels must not mount at all.
+
+- [ ] **Step 0: Prove the bundle constraint holds**
+
+Before writing anything, record the baseline: run `pnpm --filter @cribliv/web build` and note the "First Load JS shared by all" figure (87.7 kB at slice 1). After Step 3, run it again — **the shared figure must not grow materially**. If it jumps by tens of kilobytes, a client component value-imported the model; find it and fix it before proceeding. Report both numbers.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1234,8 +1278,8 @@ Run: `pnpm --filter @cribliv/web build` — must succeed, and **no route may fli
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/web/components/header apps/web/components/header.tsx apps/web/lib/nav/current-city.ts
-git commit -m "feat(web): compose the mega-menu header"
+git add apps/web/components/header apps/web/components/header.tsx apps/web/components/locale-chrome.tsx "apps/web/app/[locale]/layout.tsx" apps/web/lib/nav/nav-data.ts apps/web/lib/nav/__tests__/nav-data.test.ts
+git commit -m "feat(web): compose the mega-menu header from server-built nav data"
 ```
 
 ---
