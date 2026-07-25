@@ -92,12 +92,12 @@ describe("admin-api search performance client fns", () => {
   it("fetches coverage and maps to camelCase", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ data: { indexed_count: 10, submitted_count: 4 } })
+      json: async () => ({ data: { pages_with_impressions: 10, urls_submitted: 4 } })
     });
 
     await expect(fetchSeoCoverage("tok")).resolves.toEqual({
-      indexedCount: 10,
-      submittedCount: 4
+      pagesWithImpressions: 10,
+      urlsSubmitted: 4
     });
   });
 

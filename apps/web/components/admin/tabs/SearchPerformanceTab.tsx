@@ -33,6 +33,30 @@ interface Props {
   onToast: (message: string, tone?: "trust" | "warn" | "danger") => void;
 }
 
+/**
+ * Two different failures wear the same "low traffic" face, and the fix for each
+ * is different work:
+ *   quickWins — ranks 11-30, nobody sees it. A ranking problem.
+ *   noClicks  — ranks 1-10, everybody sees it and scrolls past. A copy problem.
+ */
+type RankingView = "all" | "quickWins" | "noClicks";
+
+const VIEW_LABELS: Record<RankingView, string> = {
+  all: "All rankings",
+  quickWins: "Quick wins",
+  noClicks: "No clicks"
+};
+
+/** Order matters: worst-value first is not useful, so keep the queue's own story order. */
+const QUEUE_STATUS_ORDER = ["pending", "failed", "skipped", "submitted"] as const;
+
+const QUEUE_STATUS_TONE: Record<string, "trust" | "warn" | "danger" | "muted"> = {
+  submitted: "trust",
+  failed: "danger",
+  skipped: "warn",
+  pending: "muted"
+};
+
 export function SearchPerformanceTab({ accessToken, onToast }: Props) {
   const [rows, setRows] = useState<SearchPerformanceRowVm[]>([]);
   const [totals, setTotals] = useState({
@@ -41,16 +65,16 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
     avgPosition: null as number | null
   });
   const [coverage, setCoverage] = useState<{
-    indexedCount: number | null;
-    submittedCount: number | null;
-  }>({ indexedCount: null, submittedCount: null });
+    pagesWithImpressions: number | null;
+    urlsSubmitted: number | null;
+  }>({ pagesWithImpressions: null, urlsSubmitted: null });
   const [queue, setQueue] = useState<IndexingQueueRowVm[]>([]);
   const [queueSummary, setQueueSummary] = useState({
     countsByStatus: {} as Record<string, number>,
     submittedToday: 0,
     dailyQuota: 200
   });
-  const [quickWins, setQuickWins] = useState(false);
+  const [view, setView] = useState<RankingView>("all");
   const [loading, setLoading] = useState(true);
   const [manualUrl, setManualUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -70,7 +94,10 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
       setLoading(true);
       try {
         const [performance, cov] = await Promise.all([
-          fetchSearchPerformance(accessToken, { quickWins: quickWins || undefined }),
+          fetchSearchPerformance(accessToken, {
+            quickWins: view === "quickWins" || undefined,
+            noClicks: view === "noClicks" || undefined
+          }),
           fetchSeoCoverage(accessToken)
         ]);
         if (!cancelled) {
@@ -94,7 +121,7 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, quickWins, reloadKey]);
+  }, [accessToken, view, reloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +153,22 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
     () => rows.filter((row) => row.position >= 11 && row.position <= 30).length,
     [rows]
   );
+
+  // Known statuses first, in triage order; anything unrecognised still shows up
+  // rather than being silently dropped.
+  const queueStatusCounts = useMemo(() => {
+    const counts = queueSummary.countsByStatus;
+    const known = QUEUE_STATUS_ORDER.filter((status) => (counts[status] ?? 0) > 0).map(
+      (status) => ({
+        status: status as string,
+        count: counts[status]
+      })
+    );
+    const extra = Object.entries(counts)
+      .filter(([status, count]) => count > 0 && !QUEUE_STATUS_ORDER.includes(status as never))
+      .map(([status, count]) => ({ status, count }));
+    return [...known, ...extra];
+  }, [queueSummary.countsByStatus]);
 
   async function handleSubmitUrl() {
     if (!manualUrl.trim()) return;
@@ -159,7 +202,8 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
     setExporting(true);
     try {
       const csv = await fetchSearchPerformanceCsv(accessToken, {
-        quickWins: quickWins || undefined
+        quickWins: view === "quickWins" || undefined,
+        noClicks: view === "noClicks" || undefined
       });
       const blobUrl = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
       const link = document.createElement("a");
@@ -236,30 +280,28 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
     {
       key: "status",
       header: "Status",
+      // `attempts` only ever increments on failure, so a healthy queue shows 0
+      // forever — as a column it reads like a broken counter. Fold it into the
+      // pill, where it only appears when it means something.
       render: (row) => (
         <StatusPill
           status={row.status}
-          label={row.status}
-          tone={
-            row.status === "submitted"
-              ? "trust"
-              : row.status === "failed"
-                ? "danger"
-                : row.status === "skipped"
-                  ? "warn"
-                  : "muted"
+          label={
+            row.attempts > 0
+              ? `${row.status} · ${row.attempts} ${row.attempts === 1 ? "try" : "tries"}`
+              : row.status
           }
+          tone={QUEUE_STATUS_TONE[row.status] ?? "muted"}
         />
       ),
       sortValue: (row) => row.status
     },
     { key: "reason", header: "Reason", render: (row) => row.reason ?? "-" },
     {
-      key: "attempts",
-      header: "Attempts",
-      align: "right",
-      render: (row) => row.attempts,
-      sortValue: (row) => row.attempts
+      key: "submittedAt",
+      header: "Submitted",
+      render: (row) => (row.submittedAt ? formatDate(row.submittedAt) : "—"),
+      sortValue: (row) => row.submittedAt ?? ""
     },
     {
       key: "action",
@@ -289,7 +331,13 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
       </div>
 
       <div className="admin-stat-grid">
-        <StatCard label="Indexed pages" value={formatNumber(coverage.indexedCount ?? 0)} />
+        {/* Not "indexed pages": this counts distinct pages seen in GSC search
+            analytics, i.e. pages that earned at least one impression. Real
+            indexation lives in Search Console and needs the Inspection API. */}
+        <StatCard
+          label="Pages with impressions"
+          value={formatNumber(coverage.pagesWithImpressions ?? 0)}
+        />
         <StatCard
           label="Submitted today"
           value={`${formatNumber(queueSummary.submittedToday)} / ${formatNumber(queueSummary.dailyQuota)}`}
@@ -299,24 +347,18 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <button
-          type="button"
-          className={`admin-btn admin-btn--sm ${
-            !quickWins ? "admin-btn--primary" : "admin-btn--ghost"
-          }`}
-          onClick={() => setQuickWins(false)}
-        >
-          All rankings
-        </button>
-        <button
-          type="button"
-          className={`admin-btn admin-btn--sm ${
-            quickWins ? "admin-btn--primary" : "admin-btn--ghost"
-          }`}
-          onClick={() => setQuickWins(true)}
-        >
-          Quick wins
-        </button>
+        {(Object.keys(VIEW_LABELS) as RankingView[]).map((candidate) => (
+          <button
+            key={candidate}
+            type="button"
+            className={`admin-btn admin-btn--sm ${
+              view === candidate ? "admin-btn--primary" : "admin-btn--ghost"
+            }`}
+            onClick={() => setView(candidate)}
+          >
+            {VIEW_LABELS[candidate]}
+          </button>
+        ))}
         <button
           type="button"
           className="admin-btn admin-btn--ghost admin-btn--sm"
@@ -332,11 +374,32 @@ export function SearchPerformanceTab({ accessToken, onToast }: Props) {
         columns={rankingColumns}
         rows={rows}
         rowKey={(row) => `${row.keyword}::${row.page}::${row.locale}`}
-        emptyState={quickWins ? "No quick-win keywords yet" : "No ranking data yet"}
+        emptyState={
+          view === "quickWins"
+            ? "No quick-win keywords yet"
+            : view === "noClicks"
+              ? "Nothing ranking on page one is being ignored — good"
+              : "No ranking data yet"
+        }
         initialSort={{ key: "impressions", dir: "desc" }}
       />
 
       <SectionCard title="Indexing queue">
+        {/* The API has always returned these counts; nothing rendered them, so a
+            queue silently stuck on `pending` looked identical to a healthy one. */}
+        {queueStatusCounts.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+            {queueStatusCounts.map(({ status, count }) => (
+              <StatusPill
+                key={status}
+                status={status}
+                label={`${formatNumber(count)} ${status}`}
+                tone={QUEUE_STATUS_TONE[status] ?? "muted"}
+              />
+            ))}
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input
             type="text"
