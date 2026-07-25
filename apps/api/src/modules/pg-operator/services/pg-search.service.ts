@@ -155,12 +155,19 @@ export class PgSearchService {
         `(l.title_en ILIKE $${i} OR l.title_hi ILIKE $${i} OR c.name_en ILIKE $${i} OR c.slug ILIKE $${i} OR loc.name_en ILIKE $${i} OR loc.slug ILIKE $${i})`
       );
     }
-    if (query.min_rent) {
-      params.push(Number(query.min_rent));
+    // Rent bounds are ignored when non-numeric rather than rejected with a 400:
+    // this endpoint is called by SSR on page load, so throwing would blank the
+    // whole page, while skipping a junk param still renders results. Binding a
+    // NaN would make Postgres throw and get swallowed into an empty page below,
+    // which reads to the seeker as "no PGs match".
+    const minRent = Number(query.min_rent);
+    if (query.min_rent && Number.isFinite(minRent)) {
+      params.push(minRent);
       clauses.push(`l.monthly_rent >= $${params.length}`);
     }
-    if (query.max_rent) {
-      params.push(Number(query.max_rent));
+    const maxRent = Number(query.max_rent);
+    if (query.max_rent && Number.isFinite(maxRent)) {
+      params.push(maxRent);
       clauses.push(`l.monthly_rent <= $${params.length}`);
     }
     if (query.gender_policy) {
