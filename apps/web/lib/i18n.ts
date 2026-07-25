@@ -17,6 +17,7 @@ const dictionary: Dictionary = {
     hi: "अपनी जरूरत लिखें, जैसे साइबर सिटी के पास 2BHK, 35k तक"
   },
   navSearch: { en: "Search", hi: "खोजें" },
+  navSearchPlaceholder: { en: "Search rentals", hi: "किराया खोजें" },
   navSaved: { en: "Saved", hi: "सेव किए" },
   navPostProperty: { en: "Post Property", hi: "प्रॉपर्टी पोस्ट करें" },
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },

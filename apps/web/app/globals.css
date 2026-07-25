@@ -819,6 +819,49 @@ h4,
   line-height: 1;
 }
 
+/* Search pill — replaces the city chip + हिंदी switch once the page is
+   scrolled (or on any inner page), showing a compact, URL-derived summary of
+   the current search. Bordered like .city-chip__trigger so it reads as the
+   same "control" language, but its content length varies with the query, so
+   it caps its width and truncates rather than growing unbounded. */
+.search-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 320px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+.search-pill:hover {
+  border-color: var(--brand);
+  background: var(--brand-light);
+  color: var(--brand);
+}
+.search-pill svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.search-pill:hover svg {
+  opacity: 1;
+}
+.search-pill__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nav-panel {
     animation: none;
@@ -833,6 +876,9 @@ h4,
     transition: none;
   }
   .saved-icon {
+    transition: none;
+  }
+  .search-pill {
     transition: none;
   }
 }
