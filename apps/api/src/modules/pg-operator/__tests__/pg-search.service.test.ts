@@ -55,3 +55,51 @@ describe("PgSearchService caching (PERF-H6)", () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 });
+
+describe("PgSearchService rent filtering", () => {
+  /** Run a search and return the SQL + params of the row query (call 2 of 2). */
+  async function runSearch(query: Record<string, string>) {
+    const db = makeDb();
+    await new PgSearchService(db).search(query);
+    const [sql, params] = db.query.mock.calls.at(-1) as [string, unknown[]];
+    return { sql, params };
+  }
+
+  it("min_rent adds a lower bound with the numeric value bound", async () => {
+    const { sql, params } = await runSearch({ city: "lucknow", min_rent: "5000" });
+    expect(sql).toContain("l.monthly_rent >=");
+    expect(sql).not.toContain("l.monthly_rent <=");
+    expect(params).toContain(5000);
+  });
+
+  it("max_rent adds an upper bound with the numeric value bound", async () => {
+    const { sql, params } = await runSearch({ city: "lucknow", max_rent: "10000" });
+    expect(sql).toContain("l.monthly_rent <=");
+    expect(sql).not.toContain("l.monthly_rent >=");
+    expect(params).toContain(10000);
+  });
+
+  it("applies both bounds for a budget band", async () => {
+    const { sql, params } = await runSearch({ min_rent: "5000", max_rent: "10000" });
+    expect(sql).toContain("l.monthly_rent >=");
+    expect(sql).toContain("l.monthly_rent <=");
+    expect(params).toContain(5000);
+    expect(params).toContain(10000);
+  });
+
+  it("omits the predicate entirely when no rent filter is supplied", async () => {
+    const { sql } = await runSearch({ city: "lucknow" });
+    expect(sql).not.toContain("monthly_rent >=");
+    expect(sql).not.toContain("monthly_rent <=");
+  });
+
+  // Regression: `Number("abc")` is NaN. Binding NaN makes Postgres throw, which
+  // runSearch's catch swallows into an empty page — a typo would read to the
+  // user as "no PGs match" instead of being ignored.
+  it("ignores non-numeric rent input instead of binding NaN", async () => {
+    const { sql, params } = await runSearch({ min_rent: "abc", max_rent: "₹10k" });
+    expect(sql).not.toContain("monthly_rent >=");
+    expect(sql).not.toContain("monthly_rent <=");
+    expect(params.some((p) => typeof p === "number" && Number.isNaN(p))).toBe(false);
+  });
+});
