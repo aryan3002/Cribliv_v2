@@ -102,7 +102,24 @@ describe("buildRentPanel", () => {
     expect(twoBhk!.href).toContain("/en/search?");
     expect(twoBhk!.href).toContain("city=lucknow");
     expect(twoBhk!.href).toContain("bhk=2");
-    expect(twoBhk!.href).toContain("listing_type=flat_house");
+  });
+
+  it("omits listing_type from Rent links — /search hard-forces flat_house anyway, and the param only renders a filter chip whose remove is a no-op", () => {
+    for (const locale of LOCALES) {
+      for (const city of HUB_CITY_SLUGS) {
+        for (const link of allLinks(buildRentPanel(locale, city))) {
+          expect(link.href, link.label).not.toContain("listing_type=");
+        }
+      }
+    }
+  });
+
+  it("still narrows Rent links by their real filters", () => {
+    const twoBhk = allLinks(buildRentPanel("en", "lucknow")).find((l) => l.label === "2 BHK flats");
+    expect(twoBhk).toBeDefined();
+    expect(twoBhk!.href).toContain("/en/search?");
+    expect(twoBhk!.href).toContain("city=lucknow");
+    expect(twoBhk!.href).toContain("bhk=2");
   });
 
   it("uses Hindi labels for the hi locale", () => {

@@ -44,9 +44,16 @@ function intentLink(
   surface: NavSurface,
   citySlug: string
 ): NavLink {
+  const params = translateFilters(intent.filters, surface);
+  // /search hard-forces listing_type=flat_house server-side
+  // (app/[locale]/search/page.tsx:227), so carrying it in the URL changes no
+  // results — it only makes app/[locale]/search/page.tsx:265-271 render a
+  // "Type: Flat/House" chip whose remove button does nothing. Drop it here, in
+  // the product layer; surface-params.ts stays a faithful API contract.
+  delete params.listing_type;
   return {
     label: label(intent, locale),
-    href: surfaceHref(locale, surface, citySlug, translateFilters(intent.filters, surface))
+    href: surfaceHref(locale, surface, citySlug, params)
   };
 }
 
