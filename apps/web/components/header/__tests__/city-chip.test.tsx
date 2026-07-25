@@ -108,4 +108,24 @@ describe("CityChip", () => {
     const { container } = render(<CityChip locale="en" links={links} hidden={true} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  // The chip is not unmounted when it hides — the composing header keeps it in
+  // the tree and flips `hidden` from its scroll state — so its open/closed
+  // state survives the round trip unless it is explicitly reset.
+  it("does not come back with its popover still open after being hidden", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<CityChip locale="en" links={links} hidden={false} />);
+
+    await user.click(screen.getByRole("button", { name: /lucknow/i }));
+    expect(screen.getByRole("group")).toBeInTheDocument();
+
+    rerender(<CityChip locale="en" links={links} hidden={true} />);
+    rerender(<CityChip locale="en" links={links} hidden={false} />);
+
+    expect(screen.queryByRole("group")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /lucknow/i })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+  });
 });

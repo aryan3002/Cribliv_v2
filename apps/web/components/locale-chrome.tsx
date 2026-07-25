@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Header } from "./header";
 import { Footer } from "./footer";
 import type { Locale } from "../lib/i18n";
+import type { NavData } from "../lib/nav/types";
 
 /* ──────────────────────────────────────────────────────────────────────
  * LocaleChrome
@@ -15,7 +16,19 @@ import type { Locale } from "../lib/i18n";
 
 const NO_CHROME_PATHS = [/\/admin(\/|$)/, /\/owner(\/|$)/];
 
-export function LocaleChrome({ locale, children }: { locale: Locale; children: ReactNode }) {
+export function LocaleChrome({
+  locale,
+  navData,
+  children
+}: {
+  locale: Locale;
+  /** Built server-side by app/[locale]/layout.tsx; forwarded, never derived
+   *  here — LocaleChrome is a client component and lib/nav/nav-data.ts must
+   *  stay out of the browser bundle. Optional so a caller without it still
+   *  renders a working (panel-less) header. */
+  navData?: NavData;
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const skipChrome = pathname && NO_CHROME_PATHS.some((re) => re.test(pathname));
 
@@ -25,7 +38,7 @@ export function LocaleChrome({ locale, children }: { locale: Locale; children: R
 
   return (
     <>
-      <Header locale={locale} />
+      <Header locale={locale} navData={navData} />
       <main id="main-content" className="page-content">
         {children}
       </main>

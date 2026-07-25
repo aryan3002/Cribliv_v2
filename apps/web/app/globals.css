@@ -511,6 +511,15 @@ h4,
   gap: var(--space-1);
   flex-shrink: 0;
 }
+/* The "Primary" navigation landmark around the mega-menu bar. On PG-operator
+   routes that landmark and .nav-center are the same element; on public routes
+   nav-menu-bar.tsx owns .nav-center, so the <nav> wraps it. Layout is passed
+   straight through so both branches lay out identically. */
+.nav-primary {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
 
 .nav-tab {
   display: inline-flex;
@@ -884,7 +893,8 @@ h4,
 }
 
 @media (max-width: 900px) {
-  .nav-center {
+  .nav-center,
+  .nav-primary {
     display: none;
   }
 }

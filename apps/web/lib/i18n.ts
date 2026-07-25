@@ -19,6 +19,11 @@ const dictionary: Dictionary = {
   navSearch: { en: "Search", hi: "खोजें" },
   navSearchPlaceholder: { en: "Search rentals", hi: "किराया खोजें" },
   navSaved: { en: "Saved", hi: "सेव किए" },
+  // Mega-menu triggers. CriblMap and Cribliv Times are brand names and stay
+  // untranslated, matching menuMap in this same dictionary.
+  navMenuRent: { en: "Rent", hi: "किराया" },
+  navMenuPg: { en: "PG & Co-living", hi: "पीजी और को-लिविंग" },
+  navMenuOwners: { en: "For owners", hi: "मकान मालिकों के लिए" },
   navPostProperty: { en: "Post Property", hi: "प्रॉपर्टी पोस्ट करें" },
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
   navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },

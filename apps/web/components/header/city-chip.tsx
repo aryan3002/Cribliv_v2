@@ -66,6 +66,14 @@ export function CityChip({
 
   const close = useCallback(() => setOpen(false), []);
 
+  // `hidden` swaps the chip out for the search pill on scroll; the component
+  // stays mounted (that is what lets it come back with the same identity), so
+  // an open popover would otherwise still be open when the user scrolls back
+  // up. Drop it as soon as the chip is hidden.
+  useEffect(() => {
+    if (hidden) setOpen(false);
+  }, [hidden]);
+
   // Close on outside pointerdown / Escape — same pattern as NavMenuBar.
   useEffect(() => {
     if (!open) return;

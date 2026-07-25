@@ -9,3 +9,6 @@
  */
 export type { NavLink } from "./localities";
 export type { NavColumn, NavPanel, NavLocale } from "./nav-model";
+// nav-data.ts is server-only for the same reason, so the header takes its
+// NavData shape from here rather than naming that module directly.
+export type { NavData } from "./nav-data";
