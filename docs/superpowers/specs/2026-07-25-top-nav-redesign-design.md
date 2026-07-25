@@ -125,11 +125,15 @@ Five menus. `CriblMap` remains a direct link with no panel.
 | Column             | Source                                                  | Href shape                 |
 | ------------------ | ------------------------------------------------------- | -------------------------- |
 | Property type      | `intentsByCategory` → `property-type`, minus `pg`       | `/search?…` from `filters` |
-| By BHK             | `1bhk`, `2bhk`, `3bhk`                                  | `/search?city=…&bhk=…`     |
 | By budget          | category `budget`                                       | `/search?…`                |
 | By lifestyle       | category `lifestyle` + `family-flats`, `bachelor-flats` | `/search?…`                |
 | Popular localities | see §3.3                                                | see §3.3                   |
 | Promo card         | static                                                  | `/map`                     |
+
+Five columns, not six. An earlier draft split BHK into its own column, but `1bhk` / `2bhk` / `3bhk` already
+live in the `property-type` category alongside `flats`, `rooms`, and `studio` — so that column is a single
+`intentsByCategory` group (six links, minus `pg`) rather than an artificial split. This is both lighter to
+read and more faithful to the data model.
 
 ### 3.2 PG & Co-living
 
@@ -308,17 +312,25 @@ focus returned to the trigger, and the mobile sheet exposes the same links as th
 
 ## 10. Suggested slicing
 
-Shipping unflagged means each slice must leave the header in a releasable state. Four slices, in order:
+Shipping unflagged means each slice must leave the header in a releasable state on prod. Three slices:
 
 1. **Foundations, no visible change.** Extract `HUB_CITIES` and `rent-city-content.ts`, point the 5
    duplicates at them, drop `varanasi`, build `nav-model.ts` with its full unit-test suite. Nothing renders
    differently; the model is proven correct before anything consumes it.
-2. **Bar restructure.** Flex layout replacing absolute centring, CriblMap restyle, active-underline fix,
-   city chip, Saved badge with `shortlist-count.ts`, search pill. The three existing header suites are the
-   regression gate. Still no panels.
-3. **Panels.** `nav-menu-bar.tsx`, `nav-panel.tsx`, hover-intent state machine, the four content panels,
-   keyboard and ARIA, E2E coverage.
-4. **Times panel and mobile.** Route handler and client hover-load, sheet accordions, intent chip rail.
+2. **The nav itself.** Flex layout replacing absolute centring, CriblMap restyle, active-underline fix, city
+   chip, Saved badge with `shortlist-count.ts`, search pill, `nav-menu-bar.tsx` + `nav-panel.tsx` with the
+   hover-intent state machine, the Rent / PG / Owners panels, keyboard and ARIA, **and the mobile sheet
+   accordions**. The three existing header suites plus new E2E are the regression gate.
+3. **Additive polish.** Times panel with its route handler and client hover-load, plus the intent chip rail.
+
+An earlier draft split slice 2 into "bar restructure" and "panels". Merged, for two reasons. A bar-only
+release would ship the new layout and the restyled CriblMap with no menus behind the triggers — a visibly
+half-finished nav on prod with no flag to hide it. And the mobile sheet accordions cannot trail the desktop
+panels: below 900px the panels never mount, so shipping panels without accordions would leave phone users
+with the new bar and _less_ navigation than they have today. Desktop and mobile have to land together.
+
+Slice 3 is genuinely additive — Times stays a plain link until its panel exists, and the chip rail is new
+surface that nothing else depends on.
 
 ## 11. Follow-ups (out of scope)
 
