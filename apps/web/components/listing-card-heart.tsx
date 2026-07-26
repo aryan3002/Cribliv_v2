@@ -6,6 +6,7 @@ import { Heart } from "lucide-react";
 import { readAuthSession, readGuestShortlist, toggleGuestShortlist } from "../lib/client-auth";
 import { fetchApi } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
+import { adjustShortlistCount } from "../lib/shortlist-count";
 import styles from "./listing-card.module.css";
 
 /**
@@ -59,6 +60,7 @@ export function ListingCardHeart({ listingId }: { listingId: string }) {
     if (!token) {
       const result = toggleGuestShortlist(listingId);
       setSaved(result.active);
+      adjustShortlistCount(result.active ? 1 : -1);
       trackEvent(result.active ? "shortlist_added" : "shortlist_removed", {
         listing_id: listingId,
         is_guest: true
@@ -74,6 +76,7 @@ export function ListingCardHeart({ listingId }: { listingId: string }) {
           headers: { Authorization: `Bearer ${token}` }
         });
         setSaved(false);
+        adjustShortlistCount(-1);
         trackEvent("shortlist_removed", { listing_id: listingId, is_guest: false });
       } else {
         await fetchApi<{ shortlist_id: string }>("/shortlist", {
@@ -82,6 +85,7 @@ export function ListingCardHeart({ listingId }: { listingId: string }) {
           body: JSON.stringify({ listing_id: listingId })
         });
         setSaved(true);
+        adjustShortlistCount(1);
         trackEvent("shortlist_added", { listing_id: listingId, is_guest: false });
       }
     } catch {
