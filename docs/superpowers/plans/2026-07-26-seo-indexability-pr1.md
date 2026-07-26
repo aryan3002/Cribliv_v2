@@ -133,11 +133,16 @@ In `apps/api/src/modules/seo/seo-city-config.service.ts`, delete line 7 (`export
 import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 ```
 
-Then update the single usage at line 118:
+Then update the single usage inside `computeCounts`, so the whole return block reads:
 
 ```typescript
-indexable_count: localities.filter((locality) => locality.listing_count >= INDEXABLE_MIN_LISTINGS)
-  .length;
+return {
+  locality_count: localities.length,
+  landmark_count: landmarkCount,
+  metro_count: metros.length,
+  indexable_count: localities.filter((locality) => locality.listing_count >= INDEXABLE_MIN_LISTINGS)
+    .length
+};
 ```
 
 In `apps/api/src/modules/admin/admin-seo.controller.ts`, delete line 32:
@@ -158,16 +163,11 @@ to:
 if (loc.listing_count < INDEXABLE_MIN_LISTINGS) break;
 ```
 
-In `apps/web/components/admin/tabs/SeoCityReviewDrawer.tsx`, add `import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";` and change line 278 from:
+In `apps/web/components/admin/tabs/SeoCityReviewDrawer.tsx`, add `import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";` and change line 278. This is an object property inside a column definition, not a standalone statement — apply it as a diff:
 
-```typescript
-render: (r) => (r.listing_count >= 3 ? "✓" : "✗");
-```
-
-to:
-
-```typescript
-render: (r) => (r.listing_count >= INDEXABLE_MIN_LISTINGS ? "✓" : "✗");
+```diff
+-      render: (r) => (r.listing_count >= 3 ? "✓" : "✗")
++      render: (r) => (r.listing_count >= INDEXABLE_MIN_LISTINGS ? "✓" : "✗")
 ```
 
 - [ ] **Step 9: Update the API test import**
@@ -682,10 +682,15 @@ then add `SeoPlacesService,` to both arrays so they read:
 
 - [ ] **Step 6: Add the route**
 
-In `apps/api/src/modules/seo/seo.controller.ts`, add `SeoPlacesService` to the imports and to the constructor injection list, following the existing `@Inject(...)` pattern:
+In `apps/api/src/modules/seo/seo.controller.ts`, add `import { SeoPlacesService } from "./seo-places.service";` and extend the constructor so it reads in full:
 
 ```typescript
+  constructor(
+    @Inject(SeoAggregatesService) private readonly aggregates: SeoAggregatesService,
     @Inject(SeoPlacesService) private readonly places: SeoPlacesService,
+    @Inject(SeoCityConfigService) private readonly cityConfig: SeoCityConfigService,
+    @Inject(SeoCopyService) private readonly copy: SeoCopyService
+  ) {}
 ```
 
 Then add the route immediately after the existing `@Get("cities")` handler:
