@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException
 } from "@nestjs/common";
 import { createHash, randomInt, randomUUID, timingSafeEqual } from "crypto";
@@ -52,23 +53,32 @@ export class AuthService {
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(D7OtpClient) private readonly d7OtpClient: D7OtpClient,
-    @Inject(OtpProviderResolver) private readonly otpProviders?: OtpProviderResolver
+    // @Optional() is load-bearing: a bare `?` marks the parameter optional to
+    // TypeScript only, while Nest still treats @Inject as required and refuses
+    // to instantiate AuthService in any module that does not also provide the
+    // resolver (several test modules construct AuthService standalone).
+    @Optional()
+    @Inject(OtpProviderResolver)
+    private readonly otpProviders?: OtpProviderResolver
   ) {}
 
+  private fallbackProviders?: OtpProviderResolver;
+
   /**
-   * test/auth-d7.provider.test.ts constructs AuthService with three positional
-   * args, so the resolver can be absent. Fall back to one wired to the
-   * injected D7 client in that case.
+   * Unit tests construct AuthService with three positional args, and some test
+   * modules provide it without the resolver, so it can legitimately be absent.
+   * Fall back to one wired to the injected D7 client, built once.
    */
   private get providers(): OtpProviderResolver {
     if (this.otpProviders) {
       return this.otpProviders;
     }
-    return new OtpProviderResolver(
+    this.fallbackProviders ??= new OtpProviderResolver(
       new MockOtpProvider(),
       new WhatsAppOtpProvider(new WhatsAppClient()),
       new D7OtpProvider(this.d7OtpClient)
     );
+    return this.fallbackProviders;
   }
 
   async sendOtp(

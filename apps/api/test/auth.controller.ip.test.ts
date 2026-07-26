@@ -16,6 +16,13 @@ describe("AuthController sendOtp IP extraction", () => {
       }
     );
 
-    expect(authService.sendOtp).toHaveBeenCalledWith("+919999999901", "login", "10.0.0.7");
+    // 4th arg is the optional OTP channel, absent here because the request
+    // body carries no `channel` — the client only sends it for SMS fallback.
+    expect(authService.sendOtp).toHaveBeenCalledWith(
+      "+919999999901",
+      "login",
+      "10.0.0.7",
+      undefined
+    );
   });
 });
