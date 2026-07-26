@@ -1,5 +1,11 @@
 export const DEFAULT_API_BASE_URL = "http://localhost:4000/v1";
 
+/**
+ * Browser event fired when the API rejects our bearer token (401).
+ * Authenticated client surfaces listen for it to recover the session.
+ */
+export const UNAUTHORIZED_EVENT = "cribliv:unauthorized";
+
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -59,6 +65,12 @@ export async function fetchApi<T>(
   if (!response.ok) {
     const errorPayload = payload?.error ?? payload ?? {};
     const message = errorPayload?.message ?? `Request failed with status ${response.status}`;
+    if (response.status === 401 && typeof window !== "undefined") {
+      // The bearer token is dead. Authenticated surfaces listen for this so they
+      // can heal the session or sign out, instead of rendering panels that all
+      // silently fail. Deliberately not 403 — that's a valid token, wrong role.
+      window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+    }
     throw new ApiError(message, {
       status: response.status,
       code: errorPayload?.code,

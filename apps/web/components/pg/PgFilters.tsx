@@ -20,6 +20,16 @@ const TENANT = [
   { value: "working", label: "Working" },
   { value: "any", label: "Any" }
 ];
+// Mutually exclusive budget bands. Values map straight onto the `min_rent` /
+// `max_rent` params that GET /pg/listings already honours, so these chips share
+// a URL contract with natural-language search and the programmatic budget
+// intents in data/seeds/lucknow/intents.json.
+const BUDGET = [
+  { value: "u5", label: "Under ₹5k", min: "", max: "5000" },
+  { value: "5-10", label: "₹5–10k", min: "5000", max: "10000" },
+  { value: "10-15", label: "₹10–15k", min: "10000", max: "15000" },
+  { value: "15plus", label: "₹15k+", min: "15000", max: "" }
+];
 const SORTS = [
   { value: "relevance", label: "Relevance" },
   { value: "newest", label: "Newest" },
@@ -51,6 +61,26 @@ export function PgFilters({
     else track("pg_filter_applied", { filter_key: key, value });
   }
 
+  // A band spans two params, so it can't go through `toggle`, which writes one
+  // key. Re-clicking the active band clears both; `navigate` drops empty values.
+  function setBand(band: (typeof BUDGET)[number]) {
+    const clearing = isBandActive(band);
+    navigate({
+      ...filters,
+      min_rent: clearing ? "" : band.min,
+      max_rent: clearing ? "" : band.max
+    });
+    if (clearing) track("pg_filter_cleared", { filter_key: "budget" });
+    else track("pg_filter_applied", { filter_key: "budget", value: band.value });
+  }
+
+  // Absent params arrive as `undefined`, not "", hence the `?? ""`. A band shows
+  // active only on an exact match, so an NL query like `max_rent=10000` (no min)
+  // lights no chip rather than claiming a range the URL doesn't carry.
+  function isBandActive(band: (typeof BUDGET)[number]) {
+    return (filters.min_rent ?? "") === band.min && (filters.max_rent ?? "") === band.max;
+  }
+
   function setBoolean(key: string) {
     const clearing = filters[key] === "true";
     navigate({ ...filters, [key]: clearing ? "" : "true" });
@@ -68,6 +98,14 @@ export function PgFilters({
             onClick={() => toggle("gender_policy", g.value)}
           >
             {g.label}
+          </Chip>
+        ))}
+      </FilterRow>
+
+      <FilterRow label="Budget">
+        {BUDGET.map((b) => (
+          <Chip key={b.value} active={isBandActive(b)} onClick={() => setBand(b)}>
+            {b.label}
           </Chip>
         ))}
       </FilterRow>

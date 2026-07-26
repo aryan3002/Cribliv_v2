@@ -6,10 +6,21 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 const DEFAULT_DAILY_QUOTA = 200;
 
+/** Page-one cutoff. Below this a zero-click row is a ranking story, not a copy one. */
+const PAGE_ONE_MAX_POSITION = 10;
+/** Under this many impressions, "no clicks" is noise rather than a signal. */
+const NO_CLICKS_MIN_IMPRESSIONS = 10;
+
 export interface SearchPerformanceParams {
   city_slug?: string;
   locale?: string;
   quick_wins?: boolean;
+  /**
+   * Ranks on page one, earns impressions, gets no clicks. These pages have
+   * already won the ranking fight and are losing the click — almost always a
+   * title/description problem, which is a different fix from `quick_wins`.
+   */
+  no_clicks?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -64,11 +75,18 @@ export class SeoSearchService {
     if (params.quick_wins) {
       conditions.push("position BETWEEN 11 AND 30");
     }
+    if (params.no_clicks) {
+      conditions.push(`position <= ${PAGE_ONE_MAX_POSITION}`);
+      conditions.push("clicks = 0");
+      conditions.push(`impressions >= ${NO_CLICKS_MIN_IMPRESSIONS}`);
+    }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const orderClause = params.quick_wins
-      ? "ORDER BY impressions DESC"
-      : "ORDER BY captured_at DESC, impressions DESC";
+    // Both worklist views rank by impressions: the top row is the most wasted reach.
+    const orderClause =
+      params.quick_wins || params.no_clicks
+        ? "ORDER BY impressions DESC"
+        : "ORDER BY captured_at DESC, impressions DESC";
 
     const sql = `
         SELECT ${ROW_COLUMNS} FROM (
@@ -158,7 +176,10 @@ export class SeoSearchService {
     return header + lines.join("\n") + (lines.length ? "\n" : "");
   }
 
-  async getCoverage(): Promise<{ indexed_count: number | null; submitted_count: number | null }> {
+  async getCoverage(): Promise<{
+    pages_with_impressions: number | null;
+    urls_submitted: number | null;
+  }> {
     return this.gsc.fetchCoverage();
   }
 

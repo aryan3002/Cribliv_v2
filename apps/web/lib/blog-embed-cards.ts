@@ -32,10 +32,19 @@ interface ListingDetailResponse {
 }
 
 /** Fetch a flat/house listing by id and map it to a listing card. */
-export async function fetchListingCard(id: string): Promise<ListingCardData | null> {
+export async function fetchListingCard(
+  id: string,
+  opts: { revalidate?: number } = {}
+): Promise<ListingCardData | null> {
   try {
-    const res = await fetchApi<ListingDetailResponse>(`/listings/${id}`, undefined, {
-      server: true
+    // `track_view=0` because rendering an embedded card is NOT a listing view.
+    // `/listings/:id` is the only place a view is persisted, so without this an
+    // article embedding three listings recorded three views every time it
+    // rendered, inflating owners' dashboard metrics with traffic that never
+    // looked at the listing.
+    const res = await fetchApi<ListingDetailResponse>(`/listings/${id}?track_view=0`, undefined, {
+      server: true,
+      revalidate: opts.revalidate
     });
     const d = res?.listing_detail;
     if (!d?.id) return null;
@@ -59,9 +68,13 @@ export async function fetchListingCard(id: string): Promise<ListingCardData | nu
 }
 
 /** Fetch a PG by id and map it to a PG card (rents are stored in paise). */
-export async function fetchPgCard(city: string, id: string): Promise<PgCard | null> {
+export async function fetchPgCard(
+  city: string,
+  id: string,
+  opts: { revalidate?: number } = {}
+): Promise<PgCard | null> {
   try {
-    const d = await getPgPublicListing(id, { server: true });
+    const d = await getPgPublicListing(id, { server: true, revalidate: opts.revalidate });
     if (!d?.id) return null;
     const roomRents = (d.room_types ?? [])
       .map((r) => r.monthly_rent_paise)

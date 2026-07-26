@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ShortlistClient } from "../../../components/shortlist-client";
 
 export const metadata: Metadata = {
-  title: "Saved Homes | Cribliv"
+  title: "Saved Homes"
 };
 
 export default function ShortlistPage({ params }: { params: { locale: string } }) {

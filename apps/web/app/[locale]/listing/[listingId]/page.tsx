@@ -96,15 +96,27 @@ function blogRef(raw: string | string[] | undefined): string | null {
   return typeof v === "string" && /^blog-[a-z0-9:_-]{1,110}$/i.test(v) ? v : null;
 }
 
+/**
+ * `countView` must be true for exactly ONE fetch per page render. `/listings/:id`
+ * persists the `view` event behind owners' dashboard metrics, and this route hits
+ * it twice — once from generateMetadata, once from the page body. Those are two
+ * different URLs whenever `?ref=` is present, so request memoisation does not
+ * collapse them and the render recorded two views for one visit. Metadata
+ * generation is not a view, so only the page body counts.
+ */
 async function fetchListing(
   listingId: string,
-  ref?: string | null
+  ref?: string | null,
+  opts: { countView?: boolean } = {}
 ): Promise<ListingDetailResponse | null> {
   try {
-    const path = ref
-      ? `/listings/${listingId}?ref=${encodeURIComponent(ref)}`
-      : `/listings/${listingId}`;
-    return await fetchApi<ListingDetailResponse>(path, undefined, { server: true });
+    const qs = new URLSearchParams();
+    if (ref) qs.set("ref", ref);
+    if (!opts.countView) qs.set("track_view", "0");
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return await fetchApi<ListingDetailResponse>(`/listings/${listingId}${suffix}`, undefined, {
+      server: true
+    });
   } catch {
     return null;
   }
@@ -176,7 +188,7 @@ export default async function ListingDetailPage({
   // Never let a session-decode failure 500 the public listing page.
   const session = await auth().catch(() => null);
   const isGuest = !session?.user?.id;
-  const payload = await fetchListing(params.listingId, sourceRef);
+  const payload = await fetchListing(params.listingId, sourceRef, { countView: true });
 
   if (!payload) {
     return (
@@ -205,14 +217,18 @@ export default async function ListingDetailPage({
   // raw is_available/waitlist_count props, matching that dual-gate pattern.
   const isUnavailable = isUnavailableListingsEnabled() && listing.is_available === false;
 
-  // Fetch market rate data
+  // Fetch market rate data. This route stays dynamic (it needs `auth()` and
+  // `searchParams` at first paint), but caching this particular fetch still
+  // pays: the response is city+bhk+type aggregate market data, identical for
+  // every listing of the same shape and every viewer, so one upstream call now
+  // serves a whole hour of detail-page renders instead of one call per render.
   let pricingIntel: PricingIntelResponse | null = null;
   if (listing.bhk) {
     try {
       pricingIntel = await fetchApi<PricingIntelResponse>(
         `/listings/pricing-intel?city=${encodeURIComponent(listing.city)}&bhk=${listing.bhk}&listing_type=${listing.listing_type}`,
         undefined,
-        { server: true }
+        { revalidate: 3600 }
       );
       if (!pricingIntel || pricingIntel.sample_size < 3 || pricingIntel.p50 === null) {
         pricingIntel = null;

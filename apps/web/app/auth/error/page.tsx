@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { BrandLockup } from "../../../components/brand/brand-lockup";
 
 // ---------------------------------------------------------------------------
 // Error definitions
@@ -72,7 +73,9 @@ function ErrorPageInner() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1 className="auth-card__title">Cribliv</h1>
+        <div className="auth-card__brand">
+          <BrandLockup size="lg" glow />
+        </div>
 
         <div className="alert alert--error" role="alert" aria-live="assertive">
           <p style={{ fontWeight: 600, marginBottom: "var(--space-1)" }}>{title}</p>

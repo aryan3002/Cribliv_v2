@@ -102,12 +102,22 @@ export class ListingsController {
   async detail(
     @Param("listing_id") listingId: string,
     @Headers("authorization") authHeader: string | undefined,
-    @Query("ref") ref?: string
+    @Query("ref") ref?: string,
+    @Query("track_view") trackViewParam?: string
   ) {
     // Traffic-source tag (e.g. a blog post drove this view). Only accept a
     // bounded blog- ref so it's safe to store as event metadata.
     const sourceRef =
       typeof ref === "string" && /^blog-[a-z0-9:_-]{1,110}$/i.test(ref) ? ref : null;
+
+    // Opt-out for reads that are NOT a user looking at the listing. This endpoint
+    // is the only place a listing view is persisted, so any server-side render
+    // that merely needs listing data was silently inflating owners' view metrics:
+    // a blog article embedding three listing cards recorded three views per
+    // render, and the detail page itself double-counted because generateMetadata
+    // and the page body each fetched. Defaults to tracking, so a caller has to
+    // ask to be excluded and existing clients are unaffected.
+    const trackView = trackViewParam !== "0" && trackViewParam !== "false";
     if (this.database.isEnabled() && /^[0-9a-f-]{36}$/i.test(listingId)) {
       // If the request is from the listing's owner (operator preview), allow
       // viewing in any status. Otherwise enforce status='active' for public.
@@ -176,9 +186,10 @@ export class ListingsController {
         // Record a "view" for non-owner viewers. This is the ONLY place a
         // listing view is persisted (listing_events('view')) — it powers the
         // operator/owner dashboard "views" metric, uniformly for PG + flat/house.
-        // Owner self-previews don't count. Internally gated by
-        // ff_listing_analytics_enabled. Fire-and-forget; never blocks the response.
-        if (viewerId !== listing.owner_user_id) {
+        // Owner self-previews don't count, and neither do callers that passed
+        // `track_view=0` (embeds, metadata generation — see above). Internally
+        // gated by ff_listing_analytics_enabled. Fire-and-forget; never blocks.
+        if (trackView && viewerId !== listing.owner_user_id) {
           void this.analytics.trackEvent({
             listing_id: listing.id,
             user_id: viewerId ?? undefined,

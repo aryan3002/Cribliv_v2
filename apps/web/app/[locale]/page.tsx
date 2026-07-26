@@ -1,6 +1,6 @@
 import type { Metadata, Route } from "next";
 import dynamic from "next/dynamic";
-import { t, type Locale } from "../../lib/i18n";
+import { t, locales, type Locale } from "../../lib/i18n";
 import { fetchApi } from "../../lib/api";
 import Link from "next/link";
 import {
@@ -48,17 +48,22 @@ const SearchHero = dynamic(
   }
 );
 
-// SSR-render these so the layout reserves their space at first paint.
-// Disabling SSR caused the CTA banner to shift down by hundreds of pixels
-// on hydration (CLS 0.438 in Lighthouse).
+// MUST stay ssr:true. These wrap ~18 homepage sections; AnimateOnScroll is
+// built to render its children visible on the server (useState(true)) and only
+// flips to hide-then-animate AFTER mount using transform/opacity (which do not
+// reflow). With ssr:false the wrapped sections are absent from the server HTML
+// and injected on hydration, growing the page and shifting the CTA down by
+// hundreds of pixels (intermittent CLS ~0.3–0.44 in Lighthouse — fails the
+// PageSpeed desktop CLS / Agentic Browsing check). ssr:true reserves the space
+// at first paint; the animation is still client-only and causes no layout shift.
 const AnimateOnScroll = dynamic(
   () => import("../../components/scroll-animations").then((mod) => mod.AnimateOnScroll),
-  { ssr: false }
+  { ssr: true }
 );
 
 const CountUp = dynamic(
   () => import("../../components/scroll-animations").then((mod) => mod.CountUp),
-  { ssr: false }
+  { ssr: true }
 );
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
@@ -95,6 +100,27 @@ export async function generateMetadata({
       description
     }
   };
+}
+
+// ISR window for the homepage. Every fetch below passes this same value, which
+// is what actually keeps the route static — a single `no-store` fetch anywhere
+// in the tree opts the whole page into per-request SSR, and this page makes 18
+// of them (localities + 3 carousels + 2 counters + one counter per city). As
+// the highest-traffic route that made it the largest consumer of Fluid Active
+// CPU and function invocations. All endpoints it reads are read-only search
+// queries, so serving them from the ISR cache costs nothing but staleness:
+// a newly published listing takes up to 5 minutes to surface on the homepage
+// (it is immediately live on /search, which is intentionally still dynamic).
+export const revalidate = 300;
+
+// Required for the `revalidate` above to actually cache the *page*. Caching the
+// fetches alone is not enough: without generateStaticParams, a route under a
+// dynamic segment (`[locale]`) is rendered per request, so we would still pay a
+// function invocation and its CPU on every visit and only save the API calls.
+// Enumerating the two locales lets Next prerender /en and /hi and serve them
+// from the ISR cache instead. Keep in sync with `locales` in lib/i18n.
+export function generateStaticParams() {
+  return locales.map((locale) => ({ locale }));
 }
 
 const CITIES = [
@@ -213,7 +239,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
     popularLocalities = await fetchApi<typeof popularLocalities>(
       "/listings/search/popular-localities?city=lucknow&limit=10",
       undefined,
-      { server: true }
+      { revalidate }
     );
   } catch {
     /* silent */
@@ -236,7 +262,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
   async function safeFetchListingBucket(qs: string): Promise<ListingBucket> {
     try {
       const res = await fetchApi<ListingsSearchResponse>(`/listings/search?${qs}`, undefined, {
-        server: true
+        revalidate
       });
       return {
         items: res.items ?? [],
