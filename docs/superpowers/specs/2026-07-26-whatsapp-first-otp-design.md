@@ -96,16 +96,19 @@ whichever channel issued that code:
   gate closed is served over WhatsApp instead, silently. The gate is server-side so the
   client cannot cheapen or bypass it.
 
-**The gate opens when either holds:**
+**The gate opens when at least 2 WhatsApp attempts already exist for this phone in the
+last 10 minutes.** This is the product requirement: users must exhaust WhatsApp retries
+before SMS is offered, so WhatsApp share stays high.
 
-1. At least **2 WhatsApp attempts** already exist for this phone in the last 10 minutes, or
-2. The most recent WhatsApp send returned a **hard undeliverable error** from Meta
-   (e.g. code 131026, recipient not on WhatsApp).
+**Separately, a hard undeliverable error auto-falls-back within the same request.** When
+Meta reports that the number has no WhatsApp account (e.g. error 131026), `AuthService`
+sends via D7 immediately and returns `channel: "sms"`. Forcing two more doomed attempts
+would add ~40s of dead waiting before an SMS that was always inevitable.
 
-Rule 1 is the user's explicit requirement: users must exhaust WhatsApp retries before SMS
-is offered, so WhatsApp share stays high. Rule 2 is a necessary escape hatch — when Meta
-has already told us the number has no WhatsApp account, forcing two more doomed attempts
-only adds ~40s of dead waiting before the inevitable SMS.
+Handling it in-request rather than as a second gate condition avoids persisting any
+"this number is undeliverable" state: the failure is known synchronously, so it is acted
+on synchronously. The 2-attempt gate then governs only the genuinely *ambiguous* case —
+Meta accepted the message but the user says nothing arrived.
 
 **Counting needs no migration.** WhatsApp attempts are already recorded: count rows in
 `otp_challenges` for this phone with `otp_hash LIKE 'wa:%'` created in the last 10
@@ -212,8 +215,11 @@ every existing notification caller untouched.
 - Resolver: default is WhatsApp when `OTP_CHANNEL_PRIMARY=whatsapp`
 - Resolver: `channel: "sms"` is ignored while the gate is closed
 - Resolver: gate opens after 2 WhatsApp attempts within 10 minutes
-- Resolver: gate opens immediately on a Meta hard-undeliverable error
 - Resolver: `OTP_PROVIDER=mock` overrides everything
+- AuthService: a Meta hard-undeliverable error auto-sends via D7 in the same request and
+  reports `channel: "sms"`
+- AuthService: a *soft* WhatsApp failure (timeout, 5xx) surfaces as `otp_provider_error`
+  and does NOT silently burn an SMS
 - Regression: `test/auth-d7.provider.test.ts` passes **unmodified**
 
 That D7 test is quarantined from CI in `vitest.config.ts`, so it must be run locally and
