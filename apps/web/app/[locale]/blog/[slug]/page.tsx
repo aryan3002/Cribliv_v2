@@ -6,6 +6,7 @@ import { Masthead } from "../_components/Masthead";
 import { formatDate, cityLabel, deskLabel, formatRent } from "../_components/blog-format";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { fetchBlogPost, fetchAllBlogSlugs } from "../../../../lib/blog-api";
+import { stripBrandSuffix } from "../../../../lib/seo";
 import { locales } from "../../../../lib/i18n";
 import { prepareBlogBody } from "../../../../lib/blog-body";
 import { hasBlogEmbeds } from "../../../../lib/blog-embeds";
@@ -51,7 +52,9 @@ export async function generateMetadata({
   const data = await fetchBlogPost(params.slug, { revalidate });
   if (!data) return { title: "Not found" };
   const { post } = data;
-  const title = post.meta_title || post.title;
+  // AI-generated post meta_titles sometimes append the brand despite the prompt
+  // telling them not to; the layout template adds it regardless.
+  const title = stripBrandSuffix(post.meta_title || post.title);
   const description = post.meta_description || post.excerpt || undefined;
   return {
     title,

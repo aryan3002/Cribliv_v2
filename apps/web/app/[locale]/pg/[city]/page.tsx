@@ -33,7 +33,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const c = PG_CITY_CONTENT[params.city];
   if (!c) return { title: "City not found" };
-  const title = `PGs in ${c.name}: Verified, Zero Brokerage | Cribliv`;
+  // No brand here: the root layout's title.template appends "| Cribliv". This
+  // used to carry it too, so production served "… | Cribliv | Cribliv".
+  const title = `PGs in ${c.name}: Verified, Zero Brokerage`;
   return {
     title,
     description: c.intro,
