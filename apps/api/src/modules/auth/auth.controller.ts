@@ -22,12 +22,14 @@ export class AuthController {
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post("auth/otp/send")
   async sendOtp(
-    @Body() body: { phone_e164: string; purpose: string },
+    @Body() body: { phone_e164: string; purpose: string; channel?: "whatsapp" | "sms" },
     @Req() req: { ip?: string; headers?: Record<string, string | string[] | undefined> }
   ) {
     // req.ip is proxy-aware when Express trust proxy is configured in main.ts.
     const clientIp = req.ip || "unknown";
-    return ok(await this.authService.sendOtp(body.phone_e164, body.purpose, clientIp));
+    return ok(
+      await this.authService.sendOtp(body.phone_e164, body.purpose, clientIp, body.channel)
+    );
   }
 
   // Strict rate limit: 15 verify attempts per 60s per IP

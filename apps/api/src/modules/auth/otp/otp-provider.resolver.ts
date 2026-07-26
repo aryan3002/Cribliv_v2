@@ -65,6 +65,15 @@ export class OtpProviderResolver {
   }
 
   /**
+   * Whether the WhatsApp channel is active at all. Lets AuthService skip the
+   * attempt-count query entirely while this ships inert, so the SMS-only path
+   * issues exactly the same queries it did before this change.
+   */
+  isWhatsAppPrimary(): boolean {
+    return this.whatsappIsPrimary();
+  }
+
+  /**
    * The SMS provider, bypassing the gate. Used only by AuthService when Meta
    * reports the recipient permanently undeliverable on WhatsApp.
    */
