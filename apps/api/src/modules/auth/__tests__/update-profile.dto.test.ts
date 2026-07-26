@@ -18,6 +18,33 @@ describe("normalizeFullName", () => {
   it("leaves an already-clean name untouched", () => {
     expect(normalizeFullName("Asha Devi")).toBe("Asha Devi");
   });
+
+  it("turns a tab between words into a single space rather than joining them", () => {
+    // Tab is both a control character and whitespace-category; deleting
+    // controls before collapsing whitespace used to join words instead of
+    // spacing them (the bug this test guards against).
+    expect(normalizeFullName("Asha\tDevi")).toBe("Asha Devi");
+  });
+
+  it("turns a newline between words into a single space rather than joining them", () => {
+    expect(normalizeFullName("Asha\nDevi")).toBe("Asha Devi");
+  });
+
+  it("collapses a run of whitespace-category control characters to one space", () => {
+    expect(normalizeFullName("Asha\t\t  Devi")).toBe("Asha Devi");
+  });
+
+  it("still deletes a zero-width space outright rather than turning it into a space", () => {
+    expect(normalizeFullName("As\u200bha")).toBe("Asha");
+  });
+
+  it("still deletes a BEL control character outright", () => {
+    expect(normalizeFullName("Asha\u0007")).toBe("Asha");
+  });
+
+  it("normalises a string of only whitespace-category control characters to empty", () => {
+    expect(normalizeFullName("\t\n  ")).toBe("");
+  });
 });
 
 describe("UpdateProfileSchema full_name", () => {

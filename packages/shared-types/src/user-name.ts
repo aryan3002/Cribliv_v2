@@ -19,9 +19,25 @@ const WHITESPACE_RUN = /\s+/g;
 export const FULL_NAME_MIN = 2;
 export const FULL_NAME_MAX = 80;
 
-/** Rules 1-2: strip control characters, collapse whitespace runs, trim. */
+/**
+ * Rules 1-2: normalise control/format characters, then collapse whitespace
+ * runs and trim.
+ *
+ * Tab, line feed, and carriage return are simultaneously control characters
+ * (category Cc) and whitespace, so they are turned into a single space here
+ * rather than deleted outright — deleting them before the whitespace-collapse
+ * pass below would silently join words together (a tab or newline between
+ * two words would vanish instead of separating them). Every other control or
+ * format character (NUL, BEL, zero-width space, and so on) has no such
+ * overlap with whitespace and is still deleted outright. Do not "simplify"
+ * this back into a single blanket delete of CONTROL_CHARS — that reintroduces
+ * the word-joining bug.
+ */
 export function normalizeFullName(raw: string): string {
-  return raw.replace(CONTROL_CHARS, "").replace(WHITESPACE_RUN, " ").trim();
+  return raw
+    .replace(CONTROL_CHARS, (char) => (/\s/.test(char) ? " " : ""))
+    .replace(WHITESPACE_RUN, " ")
+    .trim();
 }
 
 export const FullNameSchema = z
