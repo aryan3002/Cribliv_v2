@@ -16,13 +16,36 @@ import { buildPageMetadata, isValidSlug } from "../../../../../../lib/seo";
 import {
   cityLabel,
   getIntent,
+  type IntentDefinition,
   intentToSearchParams,
   renderIntentH1,
   renderIntentTitle
 } from "../../../../../../lib/intent-filters";
 import { isAdminPreview } from "../../../../../../lib/admin-preview";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 
 export const revalidate = 86400;
+
+/**
+ * The one query that defines this page's result set.
+ *
+ * Both `generateMetadata` (for the noindex decision) and the page body (for the
+ * rendered grid) build from this, so the metadata can never contradict the
+ * content. Previously the metadata used the parent locality's *unfiltered*
+ * total, so `/gomti-nagar/under-5000` claimed to be indexable while rendering
+ * an empty grid.
+ */
+function intentListingQuery(
+  citySlug: string,
+  localitySlug: string,
+  intent: IntentDefinition
+): Record<string, string> {
+  return {
+    city: citySlug,
+    locality: localitySlug,
+    ...intentToSearchParams(intent)
+  };
+}
 
 export async function generateMetadata({
   params,
@@ -55,6 +78,12 @@ export async function generateMetadata({
   }
   const placeName = locale === "hi" ? data.locality.name_hi : data.locality.name_en;
   const city = cityLabel(params.citySlug, locale);
+  // Count with the intent filter applied. The locality's own total is not the
+  // number this page shows, so it must not be the number that gates indexing.
+  const filtered = await fetchListings({
+    ...intentListingQuery(params.citySlug, data.locality.slug, intent),
+    page_size: 1
+  });
   return buildPageMetadata({
     title: renderIntentTitle(intent, { name: placeName, kind: "locality", city }, locale),
     description:
@@ -63,7 +92,7 @@ export async function generateMetadata({
         : `Verified ${intent.label_en.toLowerCase()} in ${placeName}, ${city}. Direct-owner contact, zero brokerage.`,
     pathname: `/city/${params.citySlug}/${params.locality}/${params.intent}`,
     locale,
-    noindex: data.aggregates.listing_count < 3
+    noindex: filtered.total < INDEXABLE_MIN_LISTINGS
   });
 }
 
@@ -89,10 +118,8 @@ export default async function LocalityIntentPage({
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
 
   const listingsRes = await fetchListings({
-    city: params.citySlug,
-    locality: data.locality.slug,
-    page_size: 24,
-    ...intentToSearchParams(intent)
+    ...intentListingQuery(params.citySlug, data.locality.slug, intent),
+    page_size: 24
   });
   const listings = listingsRes.items;
 

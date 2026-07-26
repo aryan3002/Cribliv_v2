@@ -14,13 +14,38 @@ import { buildPageMetadata, isValidSlug } from "../../../../../../../lib/seo";
 import {
   cityLabel,
   getIntent,
+  type IntentDefinition,
   intentToSearchParams,
   renderIntentH1,
   renderIntentTitle
 } from "../../../../../../../lib/intent-filters";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { isAdminPreview } from "../../../../../../../lib/admin-preview";
 
 export const revalidate = 86400;
+
+const RADIUS_KM = 2;
+
+/**
+ * The one query that defines this page's result set. `generateMetadata` (noindex
+ * decision) and the page body (rendered grid) both build from it. The previous
+ * `parentCount` fetch used the same radius but omitted the intent filter, so an
+ * intent page with no matches still claimed to be indexable.
+ */
+function intentListingQuery(
+  citySlug: string,
+  lat: number,
+  lng: number,
+  intent: IntentDefinition
+): Record<string, string | number> {
+  return {
+    city: citySlug,
+    lat,
+    lng,
+    radius_km: RADIUS_KM,
+    ...intentToSearchParams(intent)
+  };
+}
 
 export async function generateMetadata({
   params,
@@ -51,11 +76,8 @@ export async function generateMetadata({
       noindex: true
     });
   }
-  const parentCount = await fetchListings({
-    city: params.citySlug,
-    lat: landmark.lat,
-    lng: landmark.lng,
-    radius_km: 2,
+  const filtered = await fetchListings({
+    ...intentListingQuery(params.citySlug, landmark.lat, landmark.lng, intent),
     page_size: 1
   });
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
@@ -68,7 +90,7 @@ export async function generateMetadata({
         : `${intent.label_en} near ${name}, ${city}. Verified listings, direct owner contact, no broker fees.`,
     pathname: `/city/${params.citySlug}/near/${params.landmark}/${params.intent}`,
     locale,
-    noindex: parentCount.total < 3
+    noindex: filtered.total < INDEXABLE_MIN_LISTINGS
   });
 }
 
@@ -94,12 +116,8 @@ export default async function LandmarkIntentPage({
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
 
   const listingsRes = await fetchListings({
-    city: params.citySlug,
-    lat: landmark.lat,
-    lng: landmark.lng,
-    radius_km: 2,
-    page_size: 24,
-    ...intentToSearchParams(intent)
+    ...intentListingQuery(params.citySlug, landmark.lat, landmark.lng, intent),
+    page_size: 24
   });
 
   const h1 = renderIntentH1(intent, name, locale);

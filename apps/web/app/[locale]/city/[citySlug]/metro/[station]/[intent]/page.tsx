@@ -18,13 +18,38 @@ import { buildPageMetadata, isValidSlug } from "../../../../../../../lib/seo";
 import {
   cityLabel,
   getIntent,
+  type IntentDefinition,
   intentToSearchParams,
   renderIntentH1,
   renderIntentTitle
 } from "../../../../../../../lib/intent-filters";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { isAdminPreview } from "../../../../../../../lib/admin-preview";
 
 export const revalidate = 86400;
+
+const RADIUS_KM = 1.5;
+
+/**
+ * The one query that defines this page's result set. `generateMetadata` (noindex
+ * decision) and the page body (rendered grid) both build from it, so the
+ * metadata cannot contradict the content. The station's own unfiltered 1.5 km
+ * total is not what this page shows and must not gate indexing.
+ */
+function intentListingQuery(
+  citySlug: string,
+  lat: number,
+  lng: number,
+  intent: IntentDefinition
+): Record<string, string | number> {
+  return {
+    city: citySlug,
+    lat,
+    lng,
+    radius_km: RADIUS_KM,
+    ...intentToSearchParams(intent)
+  };
+}
 
 export async function generateMetadata({
   params,
@@ -56,6 +81,12 @@ export async function generateMetadata({
     });
   }
   const city = cityLabel(params.citySlug, locale);
+  // Count with the intent filter applied, not the station's unfiltered radius
+  // total — otherwise an empty intent page still claims to be indexable.
+  const filtered = await fetchListings({
+    ...intentListingQuery(params.citySlug, data.station.lat, data.station.lng, intent),
+    page_size: 1
+  });
   return buildPageMetadata({
     title: renderIntentTitle(
       intent,
@@ -68,7 +99,7 @@ export async function generateMetadata({
         : `Verified ${intent.label_en.toLowerCase()} near ${data.station.station_name} Metro, ${city}. Zero brokerage.`,
     pathname: `/city/${params.citySlug}/metro/${params.station}/${params.intent}`,
     locale,
-    noindex: data.aggregates.listing_count < 3
+    noindex: filtered.total < INDEXABLE_MIN_LISTINGS
   });
 }
 
@@ -94,12 +125,8 @@ export default async function MetroIntentPage({
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
 
   const listingsRes = await fetchListings({
-    city: params.citySlug,
-    lat: data.station.lat,
-    lng: data.station.lng,
-    radius_km: 1.5,
-    page_size: 24,
-    ...intentToSearchParams(intent)
+    ...intentListingQuery(params.citySlug, data.station.lat, data.station.lng, intent),
+    page_size: 24
   });
 
   const h1 = renderIntentH1(intent, `${stationName} Metro`, locale);
