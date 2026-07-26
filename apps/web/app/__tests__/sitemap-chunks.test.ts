@@ -92,8 +92,10 @@ describe("sitemap chunk builders", () => {
     expect(rows.some((row) => row.url.includes("kept-place"))).toBe(true);
   });
 
-  it("buildCityMetroEntries emits hub and intent URLs per station", () => {
-    const rows = buildCityMetroEntries(BASE_URL, "lucknow", [{ station_name: "Bhootnath Market" }]);
+  it("buildCityMetroEntries emits hub and intent URLs for an indexable station", () => {
+    const rows = buildCityMetroEntries(BASE_URL, "lucknow", [
+      { slug: "bhootnath-market", listing_count: 3 }
+    ]);
 
     expect(rows).toHaveLength((1 + METRO_INTENTS.length) * 2);
     expect(rows.some((row) => row.url.endsWith("/en/city/lucknow/metro/bhootnath-market"))).toBe(
@@ -101,13 +103,39 @@ describe("sitemap chunk builders", () => {
     );
   });
 
-  it("buildCityLandmarkEntries emits hub and intent URLs per landmark", () => {
-    const rows = buildCityLandmarkEntries(BASE_URL, "lucknow", [{ slug: "charbagh-station" }]);
+  it("buildCityMetroEntries fully excludes thin stations", () => {
+    const rows = buildCityMetroEntries(BASE_URL, "lucknow", [
+      { slug: "thin-station", listing_count: 2 },
+      { slug: "kept-station", listing_count: 4 }
+    ]);
+
+    expect(rows.some((row) => row.url.includes("thin-station"))).toBe(false);
+    expect(rows.some((row) => row.url.includes("kept-station"))).toBe(true);
+  });
+
+  it("buildCityMetroEntries treats a missing count as thin", () => {
+    // Faridabad had zero stations of its own yet shipped 2,916 metro URLs
+    // sourced from every Delhi line touching the city.
+    expect(buildCityMetroEntries(BASE_URL, "faridabad", [{ slug: "kashmere-gate" }])).toEqual([]);
+  });
+
+  it("buildCityLandmarkEntries emits hub and intent URLs for an indexable landmark", () => {
+    const rows = buildCityLandmarkEntries(BASE_URL, "lucknow", [
+      { slug: "charbagh-station", listing_count: 5 }
+    ]);
 
     expect(rows).toHaveLength((1 + LANDMARK_INTENTS.length) * 2);
     expect(rows.some((row) => row.url.endsWith("/en/city/lucknow/near/charbagh-station"))).toBe(
       true
     );
+  });
+
+  it("buildCityLandmarkEntries fully excludes thin landmarks", () => {
+    const rows = buildCityLandmarkEntries(BASE_URL, "lucknow", [
+      { slug: "thin-landmark", listing_count: 1 }
+    ]);
+
+    expect(rows).toEqual([]);
   });
 });
 

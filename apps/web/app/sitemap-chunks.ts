@@ -96,19 +96,28 @@ export function buildCityLocalityEntries(
   return rows;
 }
 
+/**
+ * Metro entries for a city. `slug` is derived server-side by
+ * `SeoAggregatesService.metroStationsWithCountsForCity` using the same
+ * expression the page resolver matches on, so it is used verbatim here.
+ */
 export function buildCityMetroEntries(
   baseUrl: string,
   citySlug: string,
-  stations: Array<{ station_name: string }>
+  stations: Array<{ slug: string; listing_count?: number | null }>
 ): MetadataRoute.Sitemap {
   const rows: MetadataRoute.Sitemap = [];
 
   for (const station of stations) {
-    const slug = metroSlug(station.station_name);
-    rows.push(...entry(baseUrl, `/city/${citySlug}/metro/${slug}`, { priority: 0.7 }));
+    // Same inventory gate as localities. Without it, every station on every
+    // metro line touching the city shipped — including stations the city does
+    // not have, which render as soft 404s.
+    if ((station.listing_count ?? 0) < THIN_LISTING_THRESHOLD) continue;
+
+    rows.push(...entry(baseUrl, `/city/${citySlug}/metro/${station.slug}`, { priority: 0.7 }));
     for (const intent of METRO_INTENTS) {
       rows.push(
-        ...entry(baseUrl, `/city/${citySlug}/metro/${slug}/${intent.slug}`, {
+        ...entry(baseUrl, `/city/${citySlug}/metro/${station.slug}/${intent.slug}`, {
           priority: 0.55
         })
       );
@@ -121,11 +130,13 @@ export function buildCityMetroEntries(
 export function buildCityLandmarkEntries(
   baseUrl: string,
   citySlug: string,
-  landmarks: Array<{ slug: string }>
+  landmarks: Array<{ slug: string; listing_count?: number | null }>
 ): MetadataRoute.Sitemap {
   const rows: MetadataRoute.Sitemap = [];
 
   for (const landmark of landmarks) {
+    if ((landmark.listing_count ?? 0) < THIN_LISTING_THRESHOLD) continue;
+
     rows.push(...entry(baseUrl, `/city/${citySlug}/near/${landmark.slug}`, { priority: 0.7 }));
     for (const intent of LANDMARK_INTENTS) {
       rows.push(
