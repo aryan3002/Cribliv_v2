@@ -72,6 +72,27 @@ describe("UpdateProfileSchema full_name", () => {
     if (result.success) expect(result.data.full_name).toBe("Asha Devi");
   });
 
+  it("accepts an explicit null and normalises it to null", () => {
+    const result = parseName(null);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.full_name).toBeNull();
+  });
+
+  it("accepts the settings page's `trim() || null` payload", () => {
+    // Regression test for Finding 1: apps/web/components/settings-client.tsx:96
+    // sends `full_name: fullName.trim() || null` — a literal JSON null, not an
+    // absent key — whenever the name field is empty. FullNameSchema.optional()
+    // only widens for `undefined`, so before this fix this exact payload 400'd
+    // on every save with an empty name field, breaking a working page for
+    // exactly the users (those with no name yet) this feature exists to serve.
+    const result = UpdateProfileSchema.safeParse({
+      full_name: null,
+      preferred_language: "en",
+      whatsapp_opt_in: false
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("accepts a body with no full_name at all", () => {
     const result = UpdateProfileSchema.safeParse({ preferred_language: "hi" });
     expect(result.success).toBe(true);
@@ -99,6 +120,15 @@ describe("validateFullName — the shape the web consumes", () => {
 
   it("returns null for a blank name", () => {
     expect(validateFullName("   ")).toEqual({ ok: true, value: null });
+  });
+
+  it("keeps its string-only signature — FullNameSchema, not validateFullName, is what accepts null", () => {
+    // Finding 1 widened FullNameSchema's *input* to accept an explicit null
+    // (for the API's request envelope), but validateFullName is the web-facing
+    // wrapper and the web always has a string from a controlled input to
+    // validate, converting to null itself only when building the request body.
+    // Its signature must stay `(raw: string) => ValidateFullNameResult`.
+    expect(validateFullName("Asha Devi")).toEqual({ ok: true, value: "Asha Devi" });
   });
 
   it("returns a human-readable message on failure", () => {

@@ -41,7 +41,11 @@ export function normalizeFullName(raw: string): string {
 }
 
 export const FullNameSchema = z
-  .string()
+  // Accept an explicit null as input, not just a string: the existing settings
+  // page sends `full_name: fullName.trim() || null`, so a literal null is a real
+  // request shape and means "clear my name" — the same as an empty string.
+  .union([z.string(), z.null()])
+  .transform((value) => value ?? "")
   .transform(normalizeFullName)
   // An empty result is a deliberate "clear my name", not a validation failure.
   .transform((value) => (value === "" ? null : value))

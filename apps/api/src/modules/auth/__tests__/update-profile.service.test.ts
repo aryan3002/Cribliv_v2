@@ -101,6 +101,20 @@ describe("AuthService.updateProfile — in-memory mode", () => {
     expect(result).toMatchObject({ full_name: null });
   });
 
+  it("leaves the name alone when full_name is absent", async () => {
+    // The DB-mode block already pins this third tri-state case (absent key ->
+    // untouched); this is the in-memory equivalent. A regression that removed
+    // only the `if (nameProvided)` guard in the in-memory branch would
+    // otherwise go undetected, since neither the "sets a string" nor the
+    // "clears on null" test above exercises an absent full_name key.
+    const { service, users } = makeService({ dbEnabled: false });
+    users.set("u1", { id: "u1", full_name: "Asha", preferred_language: "en" });
+
+    const result = await service.updateProfile("u1", { preferred_language: "hi" });
+
+    expect(result).toMatchObject({ full_name: "Asha", preferred_language: "hi" });
+  });
+
   it("throws NotFound for an unknown user", async () => {
     const { service } = makeService({ dbEnabled: false });
     await expect(service.updateProfile("nope", { full_name: "Asha" })).rejects.toBeInstanceOf(
