@@ -35,14 +35,14 @@ it, and make that name visible everywhere the product already expects one.
 
 ## Decisions
 
-| Question | Decision |
-| --- | --- |
-| Who gets prompted | `tenant`, `owner`, `pg_operator`. Not `admin`. |
-| When, for existing nameless users | On login, **and** unskippably before contacting an owner. |
-| Re-prompt cadence | Every login until answered. |
-| Approach | Capture inline during the auth flow; ambient modal for existing users. |
-| Shipping | One slice. |
-| Feature flag | None. Ships on. |
+| Question                          | Decision                                                               |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| Who gets prompted                 | `tenant`, `owner`, `pg_operator`. Not `admin`.                         |
+| When, for existing nameless users | On login, **and** unskippably before contacting an owner.              |
+| Re-prompt cadence                 | Every login until answered.                                            |
+| Approach                          | Capture inline during the auth flow; ambient modal for existing users. |
+| Shipping                          | One slice.                                                             |
+| Feature flag                      | None. Ships on.                                                        |
 
 ## Architecture
 
@@ -56,7 +56,7 @@ No migration. `users.full_name text` already exists and is nullable. `NULL` and 
 **1. Validate `PATCH /users/me`.**
 
 The route (`auth.controller.ts:59-67`) declares an inline TypeScript body type, which erases at
-runtime. The global `ValidationPipe` skips bodies whose metatype is `Object`, so today *no*
+runtime. The global `ValidationPipe` skips bodies whose metatype is `Object`, so today _no_
 constraint runs — any length, any characters, any control bytes land in `users.full_name`.
 
 Add a zod schema and `safeParse` in the controller, matching the idiom already used by
@@ -81,10 +81,10 @@ const UpdateProfileSchema = z.object({
 
 Rule 6 needs a change to the `UPDATE`: the current statement
 (`auth.service.ts:507`) uses `full_name = COALESCE($2, full_name)`, which cannot clear the column
-but *can* write an empty string.
+but _can_ write an empty string.
 
 **Where each step lives.** Normalisation (steps 1–2, 6) is a `.transform()` on the zod schema;
-rejection (steps 3–5) is a `.refine()` on the transformed value. The controller passes the *parsed*
+rejection (steps 3–5) is a `.refine()` on the transformed value. The controller passes the _parsed_
 body to `updateProfile`, so both service branches — Postgres and `AppStateService` — receive an
 already-normalised `string | null` and cannot drift. The service performs no string handling of its
 own. Normalisation before rejection matters: `"  A  "` must fail the 2-char minimum, not pass it.
@@ -108,13 +108,13 @@ and out of scope here; noted as a follow-up.
 
 `session.user.name` is read in five places today and is **always `undefined`**:
 
-| File | Line |
-| --- | --- |
-| `apps/web/components/header-menu.tsx` | 358 |
-| `apps/web/components/owner/workspace-shell.tsx` | 60 |
-| `apps/web/components/owner/owner-overview-client.tsx` | 133 |
-| `apps/web/app/[locale]/owner/listings/new/page.tsx` | 87 |
-| `apps/web/app/[locale]/pg-operator/dashboard/page.tsx` | 69 |
+| File                                                   | Line |
+| ------------------------------------------------------ | ---- |
+| `apps/web/components/header-menu.tsx`                  | 358  |
+| `apps/web/components/owner/workspace-shell.tsx`        | 60   |
+| `apps/web/components/owner/owner-overview-client.tsx`  | 133  |
+| `apps/web/app/[locale]/owner/listings/new/page.tsx`    | 87   |
+| `apps/web/app/[locale]/pg-operator/dashboard/page.tsx` | 69   |
 
 The cause: `authorize()` never returns a `name`, and the session callback's `/auth/me` sync
 (`auth.config.ts:231-247`) copies only `role`, `walletBalance`, and `promotionalCredits` — even
@@ -152,10 +152,10 @@ body-scroll lock, and focus restore follow `welcome-credits-modal.tsx:151-193`.
 
 **`NamePromptProvider`** — a client context mounted globally. Responsibilities:
 
-- *Ambient trigger.* When the session is authenticated, the role is not `admin`, `session.user.name`
+- _Ambient trigger._ When the session is authenticated, the role is not `admin`, `session.user.name`
   is empty, the path is not suppressed, and the session dismissal flag is unset — open the modal in
   skippable mode.
-- *Imperative gate.* Exposes `requireName(): Promise<boolean>`. Opens the modal in `required` mode
+- _Imperative gate._ Exposes `requireName(): Promise<boolean>`. Opens the modal in `required` mode
   and resolves `true` once a name is saved, `false` if the user backs out. This is what keeps the
   gate from being copy-pasted into four call sites.
 
@@ -172,18 +172,27 @@ other is the inline OTP flow inside the unlock panel, where a guest on a listing
 and unlock in a single sequence (`unlock-contact-panel.tsx:192-234`). A design that only touched
 the login page would miss every user created that way.
 
-| # | Moment | Implementation | Skippable |
-| --- | --- | --- | --- |
-| 1 | New user finishes OTP on the login page | New step after `verify` returns `is_new_user: true`, before the redirect at `app/[locale]/auth/login/page.tsx:202` | Yes |
-| 2 | New user finishes inline OTP on a listing | New `"name"` value in the `authStep` union at `unlock-contact-panel.tsx:110`, rendered before `unlockContact()` fires | **No** |
-| 3 | Existing nameless user, any authenticated page | Ambient modal from `NamePromptProvider` | Yes |
-| 4 | Nameless user initiates contact | `await requireName()` pre-flight | **No** |
+| #   | Moment                                               | Implementation                                                                                                        | Skippable |
+| --- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------- |
+| 1   | **Any** nameless user finishes OTP on the login page | New step after `verify`, before the redirect at `app/[locale]/auth/login/page.tsx:202`                                | Yes       |
+| 2   | Nameless user finishes inline OTP on a listing       | New `"name"` value in the `authStep` union at `unlock-contact-panel.tsx:110`, rendered before `unlockContact()` fires | **No**    |
+| 3   | Existing nameless user, already-live session         | Ambient modal from `NamePromptProvider`                                                                               | Yes       |
+| 4   | Nameless user initiates contact                      | `await requireName()` pre-flight                                                                                      | **No**    |
 
-Moment 1 means new users arrive already named, so the ambient modal does not fire for them — which
-is what keeps it from colliding with `WelcomeCreditsModal` (see Risks).
+Moment 1 keys off `!session.user.name`, **not** off `is_new_user`. New users are always nameless so
+they are covered, but so is an existing nameless user logging in — and they get the calm in-flow
+step instead of a modal. This has two consequences worth stating plainly:
 
-Moment 2 is unskippable because the user is already mid-contact; it *is* the moment-4 gate for that
+- **The ambient modal (moment 3) becomes a fallback**, not the primary path. It only fires for users
+  whose session was already live when this shipped, or who skipped earlier in the same tab.
+- **"Every login until answered" is satisfied structurally.** The login step fires on every login
+  regardless of any dismissal flag, so the cadence does not depend on storage being intact.
+
+Moment 2 is unskippable because the user is already mid-contact; it _is_ the moment-4 gate for that
 path, and it is the highest-intent moment in the product.
+
+Because new users arrive already named, the ambient modal does not fire for them, which is what
+keeps it from colliding with `WelcomeCreditsModal` (see Risks).
 
 ### Contact gate call sites
 
@@ -196,7 +205,7 @@ two components, four trigger paths:
 - `pg/PgInterestButton.tsx` → `onClick()` (`:89`)
 
 `verifyOtpAndUnlock` bypasses `onUnlockClick` entirely, so a gate placed only on the button handler
-would leak. Follow the existing *login* gate pattern in that file (`:327-332`) — a pre-flight check
+would leak. Follow the existing _login_ gate pattern in that file (`:327-332`) — a pre-flight check
 that returns before the API call — not the credits gate, which is reactive on a 402.
 
 ### Mount point
@@ -215,12 +224,19 @@ that returns before the API call — not the credits gate, which is reactive on 
 ### Dismissal semantics
 
 "Every login until answered" is implemented as: `sessionStorage`, key
-`cribliv:name-prompt-dismissed:<userId>`, set on skip, and **explicitly cleared in the login page's
-success handler**.
+`cribliv:name-prompt-dismissed:<userId>`, set on skip and never cleared.
+
+It needs no clearing because **moment 1 ignores the flag entirely**. The login-page step fires
+whenever the account has no name, so every login re-asks by construction; the flag exists only to
+stop the _ambient_ modal from re-opening on the landing page immediately after the user just skipped
+at login, which would read as a broken form.
+
+That also means the cadence does not depend on storage surviving. If `sessionStorage` is cleared or
+blocked, the worst case is the ambient modal appearing once more in a new tab — never a missed
+prompt.
 
 This deliberately avoids keying on `tokenIssuedAt`: that value is rewritten by the token-rotation
-machinery (`auth.config.ts:155-200`), which would make the prompt reappear mid-session. Clearing on
-login is explicit and does not depend on token internals.
+machinery (`auth.config.ts:155-200`), which would make the prompt reappear mid-session.
 
 Within a session the dismissal survives the 30s session refetch and all in-app navigation. The
 contact gate ignores the flag entirely — it is unskippable regardless.
@@ -237,12 +253,12 @@ same suppression list — `[/\/auth(\/|$)/]` — plus `/admin`, since admins are
 All strings go through `t(locale, key)` in `apps/web/lib/i18n.ts`, `en` and `hi`. The value
 proposition differs by role, so the body copy is role-dependent:
 
-| Role | Framing |
-| --- | --- |
-| `tenant` | Owners will see who is calling. |
+| Role                   | Framing                                      |
+| ---------------------- | -------------------------------------------- |
+| `tenant`               | Owners will see who is calling.              |
 | `owner`, `pg_operator` | Seekers will see your name on your listings. |
 
-The unskippable variants (moments 2 and 4) say why the name is needed *now* — the owner is about to
+The unskippable variants (moments 2 and 4) say why the name is needed _now_ — the owner is about to
 be contacted — rather than presenting it as a settings chore.
 
 ## Testing
@@ -257,7 +273,7 @@ round-trips through `GET /auth/me`; empty string stores as `NULL`. Note that CI 
 targeted file.
 
 **Web unit** — `shouldShowNamePrompt()` truth table (role, name present/absent, dismissal flag,
-suppressed path); the shared validator against the *same* fixture as the API; `NameCaptureForm`
+suppressed path); the shared validator against the _same_ fixture as the API; `NameCaptureForm`
 submit success, validation failure, and API error.
 
 **Web component** — none of the four contact trigger paths can fire while nameless; the required
@@ -288,6 +304,24 @@ to `/{locale}/auth/login`, and `/auth/login` is in the middleware matcher (`:292
 `href="/auth/login"` in the codebase therefore lands on the locale page. **Moment 1 is implemented
 only on `app/[locale]/auth/login/page.tsx`.** The legacy file is dead code; deleting it is a
 follow-up, not part of this slice.
+
+**The login page redirects itself away.** An effect at `app/[locale]/auth/login/page.tsx:219-223`
+calls `window.location.replace(...)` as soon as `status === "authenticated"`. Since `signIn()` flips
+the session to authenticated _before_ moment 1 renders, that effect would tear the name step down
+mid-typing. The guard must be suppressed while the name step is showing — it is not enough to add
+the step and rely on ordering.
+
+**The unlock panel does not use NextAuth.** `verifyOtpAndUnlock` (`unlock-contact-panel.tsx:192-234`)
+calls `POST /auth/otp/verify` through `fetchApi` and persists the result with `writeAuthSession()` to
+localStorage; the panel prefers that token over the NextAuth one (`:117-121`). Users authenticated
+this way have **no NextAuth session at all**, so `session.user.name` is `undefined` for reasons that
+have nothing to do with whether they have a name.
+
+Consequence: `requireName()` must resolve the current name from `GET /auth/me` using whichever token
+the caller holds, not from the session. The ambient modal (moment 3) may keep using
+`session.user.name`, because it only ever runs for NextAuth-authenticated users. Reading the name
+from the session inside the contact gate would prompt every localStorage-session user on every
+click, including those who already have a name.
 
 **Name becomes attacker-controlled output.** Beyond the CSV, `full_name` flows into WhatsApp
 template parameters and SMS bodies (`notification.templates.ts:57`, `:62`), admin dashboards, and
