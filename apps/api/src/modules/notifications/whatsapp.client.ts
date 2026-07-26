@@ -22,6 +22,12 @@ export interface WhatsAppTemplateMessage {
   bodyParams?: string[];
   /** Header parameters (image/document URL, etc.) */
   headerParams?: Array<{ type: "text" | "image"; value: string }>;
+  /**
+   * Parameters for a template's button component. Authentication templates
+   * require this — Meta renders a copy-code button and the code must be
+   * repeated here as well as in the body.
+   */
+  buttonParams?: string[];
 }
 
 export interface WhatsAppSendResult {
@@ -160,6 +166,15 @@ export class WhatsAppClient {
       components.push({
         type: "body",
         parameters: message.bodyParams.map((text) => ({ type: "text", text }))
+      });
+    }
+
+    if (message.buttonParams?.length) {
+      components.push({
+        type: "button",
+        sub_type: "url",
+        index: "0",
+        parameters: message.buttonParams.map((text) => ({ type: "text", text }))
       });
     }
 
