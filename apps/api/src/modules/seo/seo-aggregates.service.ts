@@ -27,8 +27,22 @@ export interface LocalityRow {
   lat: number | null;
   lng: number | null;
   parent_locality_slug: string | null;
+  /** Rolled up: this locality plus every descendant. Drives indexability. */
   listing_count: number;
+  /** Directly assigned to this locality only. For display and debugging. */
+  own_listing_count: number;
 }
+
+/**
+ * Recursive descent from a locality to all of its descendants.
+ *
+ * Used by BOTH the count that decides indexability and the search filter that
+ * decides what the page renders. Those two must agree on depth semantics — if
+ * one became parent-only, a parent page could be indexable while rendering an
+ * empty grid, which is the exact class of bug this work exists to remove.
+ * Keep the seed/recurse shape identical at every call site.
+ */
+export const LOCALITY_SUBTREE_RECURSE_SQL = `child.parent_locality_id = s.node_id`;
 
 export interface MetroStationRow {
   id: number;
@@ -146,17 +160,37 @@ export class SeoAggregatesService {
     if (!this.database.isEnabled()) return [];
     try {
       const { rows } = await this.database.query<LocalityRow>(
-        `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
+        `WITH RECURSIVE subtree AS (
+         SELECT loc.id AS root_id, loc.id AS node_id
+         FROM localities loc
+         JOIN cities c ON c.id = loc.city_id
+         WHERE c.slug = $1
+         UNION ALL
+         SELECT s.root_id, child.id
+         FROM localities child
+         JOIN subtree s ON ${LOCALITY_SUBTREE_RECURSE_SQL}
+       ),
+       counts AS (
+         SELECT s.root_id,
+                COUNT(DISTINCT l.id) FILTER (WHERE l.status = 'active') AS rolled_up,
+                COUNT(DISTINCT l.id) FILTER (
+                  WHERE l.status = 'active' AND s.node_id = s.root_id
+                ) AS own
+         FROM subtree s
+         LEFT JOIN listing_locations ll ON ll.locality_id = s.node_id
+         LEFT JOIN listings l ON l.id = ll.listing_id
+         GROUP BY s.root_id
+       )
+       SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
               loc.lat::float8 AS lat, loc.lng::float8 AS lng,
               parent.slug AS parent_locality_slug,
-              COALESCE(COUNT(l.id) FILTER (WHERE l.status = 'active'), 0)::int AS listing_count
+              COALESCE(cnt.rolled_up, 0)::int AS listing_count,
+              COALESCE(cnt.own, 0)::int AS own_listing_count
        FROM localities loc
        JOIN cities c ON c.id = loc.city_id
        LEFT JOIN localities parent ON parent.id = loc.parent_locality_id
-       LEFT JOIN listing_locations ll ON ll.locality_id = loc.id
-       LEFT JOIN listings l ON l.id = ll.listing_id
+       LEFT JOIN counts cnt ON cnt.root_id = loc.id
        WHERE c.slug = $1
-       GROUP BY loc.id, parent.slug
        ORDER BY listing_count DESC, loc.name_en ASC`,
         [citySlug]
       );
@@ -176,7 +210,8 @@ export class SeoAggregatesService {
         `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
               loc.lat::float8 AS lat, loc.lng::float8 AS lng,
               parent.slug AS parent_locality_slug,
-              0::int AS listing_count
+              0::int AS listing_count,
+              0::int AS own_listing_count
        FROM localities loc
        JOIN cities c ON c.id = loc.city_id
        LEFT JOIN localities parent ON parent.id = loc.parent_locality_id
@@ -201,7 +236,8 @@ export class SeoAggregatesService {
         SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
                loc.lat::float8 AS lat, loc.lng::float8 AS lng,
                parent.slug AS parent_locality_slug,
-               0::int AS listing_count
+               0::int AS listing_count,
+              0::int AS own_listing_count
         FROM localities loc, origin
         LEFT JOIN localities parent ON parent.id = loc.parent_locality_id
         WHERE loc.id != $1
