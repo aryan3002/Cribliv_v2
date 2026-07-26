@@ -1,6 +1,7 @@
 import { NotFoundException } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { INDEXABLE_MIN, SeoCityConfigService } from "../src/modules/seo/seo-city-config.service";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
+import { SeoCityConfigService } from "../src/modules/seo/seo-city-config.service";
 
 const ENABLED_ROW = {
   city_slug: "lucknow",
@@ -27,8 +28,8 @@ describe("SeoCityConfigService", () => {
     database = { isEnabled: () => true, query };
     aggregates = {
       localitiesForCity: vi.fn(async () => [
-        { slug: "gomti-nagar", listing_count: INDEXABLE_MIN },
-        { slug: "aliganj", listing_count: INDEXABLE_MIN - 1 }
+        { slug: "gomti-nagar", listing_count: INDEXABLE_MIN_LISTINGS },
+        { slug: "aliganj", listing_count: INDEXABLE_MIN_LISTINGS - 1 }
       ]),
       metroStationsForCity: vi.fn(async () => [{ id: 1 }, { id: 2 }])
     };

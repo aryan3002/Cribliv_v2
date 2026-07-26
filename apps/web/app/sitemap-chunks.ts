@@ -1,10 +1,17 @@
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import type { MetadataRoute } from "next";
 
 import { ALL_INTENTS } from "../lib/intent-filters";
 
 type ChangeFrequency = NonNullable<MetadataRoute.Sitemap[number]["changeFrequency"]>;
 
-export const THIN_LISTING_THRESHOLD = 3;
+/**
+ * @deprecated Import `INDEXABLE_MIN_LISTINGS` from `@cribliv/shared-types`
+ * directly. Kept as a local alias only so the call sites in this module read
+ * naturally. Never reassign this to a literal — the API computes indexability
+ * from the shared constant and the two must not drift.
+ */
+export const THIN_LISTING_THRESHOLD = INDEXABLE_MIN_LISTINGS;
 export const LOCALES = ["en", "hi"] as const;
 
 export const LOCALITY_INTENTS = ALL_INTENTS.filter((intent) =>

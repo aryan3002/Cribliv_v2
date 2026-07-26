@@ -15,6 +15,7 @@ import {
   Req,
   UseGuards
 } from "@nestjs/common";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { AuthGuard } from "../../common/auth.guard";
 import { DatabaseService } from "../../common/database.service";
 import { deterministicUuidV5 } from "../../common/deterministic-uuid";
@@ -29,7 +30,6 @@ import { type GeneratedCopy, SeoCopyService } from "../seo/seo-copy.service";
 import type { ToggleSeoCityDto } from "./dto/toggle-seo-city.dto";
 
 const LOCALES = ["en", "hi"] as const;
-const MIN_LISTINGS = 3;
 const MAX_FAQ = 6;
 const CAPS = {
   h1: 200,
@@ -327,7 +327,7 @@ export class AdminSeoController {
       if (generated >= limit) break;
       // localitiesForCity is ordered by listing_count DESC — once we reach a
       // thin locality the rest are thinner, so stop scanning.
-      if (loc.listing_count < MIN_LISTINGS) break;
+      if (loc.listing_count < INDEXABLE_MIN_LISTINGS) break;
 
       let agg: Awaited<ReturnType<SeoAggregatesService["aggregatesForLocality"]>> | null = null;
       for (const locale of LOCALES) {

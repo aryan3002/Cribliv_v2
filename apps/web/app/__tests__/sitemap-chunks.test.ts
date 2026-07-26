@@ -1,3 +1,4 @@
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,12 +10,18 @@ import {
   LANDMARK_INTENTS,
   LOCALITY_INTENTS,
   METRO_INTENTS,
-  metroSlug
+  metroSlug,
+  THIN_LISTING_THRESHOLD
 } from "../sitemap-chunks";
 
 const BASE_URL = "https://cribliv.test";
 
 describe("sitemap chunk builders", () => {
+  it("uses the shared threshold rather than a local copy", () => {
+    expect(INDEXABLE_MIN_LISTINGS).toBe(3);
+    expect(THIN_LISTING_THRESHOLD).toBe(INDEXABLE_MIN_LISTINGS);
+  });
+
   it("entry emits one row per locale with hreflang alternates", () => {
     const rows = entry(BASE_URL, "/city/lucknow", { priority: 0.8, freq: "daily" });
 
