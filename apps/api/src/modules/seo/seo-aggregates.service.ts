@@ -40,6 +40,20 @@ export interface MetroStationRow {
   sequence: number;
 }
 
+export interface MetroStationWithCount extends MetroStationRow {
+  /** Derived in SQL with the same expression findMetroStation resolves. */
+  slug: string;
+  listing_count: number;
+}
+
+export interface LandmarkWithCount {
+  id: number;
+  slug: string;
+  name_en: string;
+  name_hi: string;
+  listing_count: number;
+}
+
 @Injectable()
 export class SeoAggregatesService {
   private readonly logger = new Logger(SeoAggregatesService.name);
@@ -242,6 +256,94 @@ export class SeoAggregatesService {
         `findMetroStation query failed: ${err instanceof Error ? err.message : err}`
       );
       return null;
+    }
+  }
+
+  /**
+   * Every metro station in a city with the number of active listings within
+   * `radiusKm`. Used to gate metro pages out of the sitemap when there is
+   * nothing to show.
+   *
+   * The slug is derived in SQL using the identical expression
+   * `findMetroStation` matches on, so a URL we emit always resolves. Deriving
+   * it in TypeScript instead is how the sitemap ended up emitting stations the
+   * page could not resolve.
+   */
+  async metroStationsWithCountsForCity(
+    citySlug: string,
+    radiusKm = 1.5
+  ): Promise<MetroStationWithCount[]> {
+    if (!this.database.isEnabled()) return [];
+    try {
+      const { rows } = await this.database.query<MetroStationWithCount>(
+        `SELECT ms.id, ms.station_name, ms.line_name, ms.line_color,
+                ms.lat::float8 AS lat, ms.lng::float8 AS lng, ms.sequence,
+                LOWER(REGEXP_REPLACE(ms.station_name, '[^a-zA-Z0-9]+', '-', 'g')) AS slug,
+                COALESCE(cnt.listing_count, 0)::int AS listing_count
+         FROM metro_stations ms
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS listing_count
+           FROM listing_locations ll
+           JOIN listings l ON l.id = ll.listing_id
+           JOIN cities c ON c.id = ll.city_id
+           WHERE l.status = 'active'
+             AND c.slug = $1
+             AND ll.geo_point IS NOT NULL
+             AND ST_DWithin(
+               ll.geo_point,
+               ST_SetSRID(ST_MakePoint(ms.lng::float8, ms.lat::float8), 4326)::geography,
+               $2::float8
+             )
+         ) cnt ON true
+         WHERE ms.city = $1
+         ORDER BY ms.line_name, ms.sequence`,
+        [citySlug, radiusKm * 1000]
+      );
+      return rows;
+    } catch (err) {
+      this.logger.debug(
+        `metroStationsWithCountsForCity failed: ${err instanceof Error ? err.message : err}`
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Every active landmark in a city with the number of active listings within
+   * `radiusKm`. Mirrors the 2 km radius the landmark page itself renders, so
+   * the gate and the rendered content agree.
+   */
+  async landmarksWithCountsForCity(citySlug: string, radiusKm = 2): Promise<LandmarkWithCount[]> {
+    if (!this.database.isEnabled()) return [];
+    try {
+      const { rows } = await this.database.query<LandmarkWithCount>(
+        `SELECT lm.id, lm.slug, lm.name_en, lm.name_hi,
+                COALESCE(cnt.listing_count, 0)::int AS listing_count
+         FROM landmarks lm
+         JOIN cities c ON c.id = lm.city_id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS listing_count
+           FROM listing_locations ll
+           JOIN listings l ON l.id = ll.listing_id
+           WHERE l.status = 'active'
+             AND ll.city_id = c.id
+             AND ll.geo_point IS NOT NULL
+             AND ST_DWithin(
+               ll.geo_point,
+               ST_SetSRID(ST_MakePoint(lm.lng::float8, lm.lat::float8), 4326)::geography,
+               $2::float8
+             )
+         ) cnt ON true
+         WHERE c.slug = $1 AND lm.is_active = true
+         ORDER BY listing_count DESC, lm.name_en ASC`,
+        [citySlug, radiusKm * 1000]
+      );
+      return rows;
+    } catch (err) {
+      this.logger.debug(
+        `landmarksWithCountsForCity failed: ${err instanceof Error ? err.message : err}`
+      );
+      return [];
     }
   }
 }
