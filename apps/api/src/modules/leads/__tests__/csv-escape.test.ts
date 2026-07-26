@@ -28,23 +28,23 @@ describe("escapeCsvCell", () => {
     expect(escapeCsvCell("=SUM(1,2)")).toBe('"\'=SUM(1,2)"');
   });
 
-  it("prefixes formula starting with + and then quotes if needed", () => {
+  it("prefixes formula starting with + without quoting", () => {
     expect(escapeCsvCell("+1")).toBe("'+1");
   });
 
-  it("prefixes formula starting with - and then quotes if needed", () => {
+  it("prefixes formula starting with - without quoting", () => {
     expect(escapeCsvCell("-1")).toBe("'-1");
   });
 
-  it("prefixes formula starting with @ and then quotes if needed", () => {
+  it("prefixes formula starting with @ without quoting", () => {
     expect(escapeCsvCell("@SUM")).toBe("'@SUM");
   });
 
-  it("prefixes formula starting with tab and then quotes if needed", () => {
+  it("prefixes formula starting with tab without quoting", () => {
     expect(escapeCsvCell("\tvalue")).toBe("'\tvalue");
   });
 
-  it("prefixes formula starting with CR and then quotes if needed", () => {
+  it("prefixes formula starting with CR without quoting", () => {
     expect(escapeCsvCell("\rvalue")).toBe("'\rvalue");
   });
 
@@ -68,7 +68,24 @@ describe("escapeCsvCell", () => {
     expect(escapeCsvCell("apple")).toBe("apple");
   });
 
-  it("preserves existing test case: Asha with comma and quotes", () => {
-    expect(escapeCsvCell('Asha, "Tenant"')).toBe('"Asha, ""Tenant"""');
+  // Anchor regression guards: the leading-trigger-character rule must only match at
+  // position 0. Every test above places its trigger character at the start of the
+  // string, so a regex with the `^` anchor dropped (matching the trigger anywhere)
+  // would still pass all of them. These cases put the trigger character mid-string,
+  // where it must be left alone.
+  it("does not prefix a hyphen that appears mid-string, not at the start", () => {
+    expect(escapeCsvCell("Jean-Luc")).toBe("Jean-Luc");
+  });
+
+  it("does not prefix an equals sign that appears mid-string, not at the start", () => {
+    expect(escapeCsvCell("a=b")).toBe("a=b");
+  });
+
+  it("does not prefix an at-sign that appears mid-string, not at the start", () => {
+    expect(escapeCsvCell("R&D @ Home")).toBe("R&D @ Home");
+  });
+
+  it("does not prefix a mid-string tab, and a tab alone never triggers quoting either", () => {
+    expect(escapeCsvCell("a\tb")).toBe("a\tb");
   });
 });

@@ -24,7 +24,7 @@ import {
  * Formulas starting with =, +, -, @, tab, or CR are prefixed with an apostrophe.
  * Values containing commas, quotes, or newlines are wrapped in quotes with inner quotes doubled.
  */
-export const escapeCsvCell = (v: string | null | undefined): string => {
+export function escapeCsvCell(v: string | null | undefined): string {
   if (v == null) return "";
   let s = String(v);
 
@@ -38,7 +38,7 @@ export const escapeCsvCell = (v: string | null | undefined): string => {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
-};
+}
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ["contacted", "lost"],
