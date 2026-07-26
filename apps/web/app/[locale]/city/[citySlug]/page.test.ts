@@ -4,7 +4,7 @@ vi.mock("../../../../lib/seo-api", () => ({
   fetchListings: vi.fn(),
   fetchLocalities: vi.fn(async () => []),
   fetchLandmarks: vi.fn(async () => []),
-  fetchMetroStationsForCity: vi.fn(async () => []),
+  fetchCityMetroStations: vi.fn(async () => []),
   fetchEnabledCities: vi.fn(async () => new Set(["lucknow"]))
 }));
 vi.mock("../../../../lib/api", () => ({

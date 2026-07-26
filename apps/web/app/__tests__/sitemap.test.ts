@@ -144,7 +144,6 @@ describe("sitemap", () => {
     // /map/metro returns whole metro LINES touching a city, which is why
     // Faridabad shipped 2,916 metro URLs while having zero stations.
     expect(mocks.fetchCityPlaces).toHaveBeenCalledTimes(1);
-    expect(mocks).not.toHaveProperty("fetchMetroStationsForCity");
   });
 
   it("core chunk omits city hubs for cities without inventory", async () => {

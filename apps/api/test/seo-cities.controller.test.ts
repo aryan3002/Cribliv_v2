@@ -71,6 +71,78 @@ describe("GET /seo/cities", () => {
   });
 });
 
+describe("GET /seo/cities/:citySlug/metro-stations", () => {
+  let app: INestApplication;
+  let aggregates: { metroStationsWithCountsForCity: ReturnType<typeof vi.fn> };
+
+  const STATIONS = [
+    {
+      id: 1,
+      station_name: "Munshipulia",
+      slug: "munshipulia",
+      line_name: "Red Line",
+      line_color: "#e11d48",
+      lat: 26.89,
+      lng: 81.01,
+      sequence: 4,
+      listing_count: 5
+    }
+  ];
+
+  beforeEach(async () => {
+    aggregates = { metroStationsWithCountsForCity: vi.fn(async () => STATIONS) };
+    const moduleRef = await Test.createTestingModule({
+      controllers: [SeoController],
+      providers: [
+        { provide: SeoAggregatesService, useValue: aggregates },
+        { provide: SeoCopyService, useValue: {} },
+        { provide: SeoPlacesService, useValue: {} },
+        { provide: SeoCityConfigService, useValue: { listEnabled: vi.fn(async () => []) } }
+      ]
+    })
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
+
+    app = moduleRef.createNestApplication();
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app?.close();
+  });
+
+  it("is public — the SSR rails fetch it unauthenticated", () => {
+    expect(SeoController.prototype.listCityMetroStations).toBeTypeOf("function");
+    expect(
+      Reflect.getMetadata(GUARDS_METADATA, SeoController.prototype.listCityMetroStations)
+    ).toBeUndefined();
+  });
+
+  it("returns only the city's own stations, with line data and counts", async () => {
+    await request(app.getHttpServer())
+      .get("/seo/cities/lucknow/metro-stations")
+      .expect(200)
+      .expect({ data: { items: STATIONS } });
+
+    // City-scoped by design: /map/metro returns whole metro LINES touching a
+    // city, which is how phantom Delhi stations ended up linked under Faridabad.
+    expect(aggregates.metroStationsWithCountsForCity).toHaveBeenCalledWith("lucknow");
+  });
+
+  it("carries the SQL-derived slug so links always resolve", async () => {
+    const res = await request(app.getHttpServer())
+      .get("/seo/cities/lucknow/metro-stations")
+      .expect(200);
+
+    expect(res.body.data.items[0]).toMatchObject({
+      slug: "munshipulia",
+      line_name: "Red Line",
+      listing_count: 5
+    });
+  });
+});
+
 describe("GET /seo/cities/:citySlug/places", () => {
   let app: INestApplication;
   let places: { placesForCity: ReturnType<typeof vi.fn> };

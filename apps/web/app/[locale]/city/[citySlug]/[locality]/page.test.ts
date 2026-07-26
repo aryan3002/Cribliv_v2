@@ -7,7 +7,7 @@ vi.mock("../../../../../lib/seo-api", () => ({
   fetchLandmarks: vi.fn(),
   fetchListings: vi.fn(),
   fetchLocalities: vi.fn(),
-  fetchMetroStationsForCity: vi.fn()
+  fetchCityMetroStations: vi.fn()
 }));
 
 import { generateMetadata } from "./page";
