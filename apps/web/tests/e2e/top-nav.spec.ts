@@ -302,6 +302,56 @@ test.describe("top nav — mobile hamburger sheet", () => {
   });
 });
 
+// Regression for the mobile header-overflow bug: at 375px the row overflowed
+// the viewport by up to 160px on the homepage-at-rest (city chip + language
+// pill + Saved heart + Post Property + hamburger all fighting for the same
+// 343px of usable width) and by 19px on every inner/compact page, and in both
+// cases the hamburger's bounding box sat partly or wholly outside the
+// viewport — unreachable without sideways-scrolling the page. The mobile
+// hamburger sheet test above opens the sheet with `.click()`, which Playwright
+// happily fires even on an element outside the viewport (it scrolls the page,
+// not the row, into view first) — that is the blind spot: this suite passed
+// the entire time the bug existed because nothing here ever asserted the
+// button was reachable *without* that auto-scroll. These two checks —
+// document-level horizontal overflow and the hamburger's own bounding box vs.
+// the viewport — are what a `.click()`-based test cannot catch on its own.
+test.describe("top nav — mobile header overflow", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  for (const { route, label } of [
+    { route: "/en", label: "homepage at rest" },
+    { route: "/en/search", label: "inner/compact page" }
+  ]) {
+    test(`no document overflow and hamburger fully in view — ${label}`, async ({ page }) => {
+      await page.goto(route);
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      );
+      expect(overflow, "document.documentElement.scrollWidth should equal clientWidth").toBe(0);
+
+      const hamburger = page.getByRole("button", { name: "Open menu", exact: true });
+      await expect(hamburger).toBeVisible();
+      const box = await hamburger.boundingBox();
+      if (!box) throw new Error("hamburger has no bounding box");
+      const viewport = page.viewportSize();
+      if (!viewport) throw new Error("page has no viewport size");
+
+      expect(box.x, "hamburger's left edge should be inside the viewport").toBeGreaterThanOrEqual(
+        0
+      );
+      expect(
+        box.x + box.width,
+        "hamburger's right edge should be inside the viewport"
+      ).toBeLessThanOrEqual(viewport.width);
+      expect(
+        viewport.width - (box.x + box.width),
+        "hamburger should sit at least 8px clear of the right edge"
+      ).toBeGreaterThanOrEqual(8);
+    });
+  }
+});
+
 test.describe("top nav — intent chip rail (mobile)", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 

@@ -961,7 +961,7 @@ h4,
 
 @media (max-width: 640px) {
   /* Post Property becomes a labeled brand pill (not a bare + icon) so the
-     action stays obvious; the language switch moves into the hamburger menu. */
+     action stays obvious. */
   .nav-host-link {
     width: auto;
     height: auto;
@@ -980,15 +980,21 @@ h4,
   .nav-host-link__short {
     display: inline;
   }
-  /* Language stays visible on the top bar as a compact "हिंदी" chip — Hindi
-     discovery matters for the audience. Drop the globe on mobile to save width;
-     the label alone is self-explanatory, and the border reads as tappable. */
-  .nav-actions .lang-pill {
-    padding: 6px 11px;
-    gap: 0;
-    border: 1px solid var(--border);
-  }
-  .nav-actions .lang-pill svg {
+  /* The top bar at this width cannot fit the city chip, the language switch,
+     the Saved heart, Post Property and the hamburger without overflowing the
+     viewport (see the header overflow investigation, Task 11 follow-up) —
+     Post Property is the primary conversion action and the hamburger is the
+     entry point to everything else, so those two stay; the other three go.
+     The language switch and Saved are true duplicates, not lost
+     functionality: header-menu.tsx renders both a "हिंदी"/"EN" row in the
+     sheet's footer and a "My Saved" row in its account section, reachable
+     from every page via the hamburger that must stay visible anyway. The
+     city chip has no such twin in the sheet — hiding it does remove city
+     switching from the mobile top bar, a real (if smaller) loss, tracked as
+     a follow-up rather than fixed here. */
+  .nav-actions .lang-pill,
+  .nav-actions .saved-icon,
+  .city-chip {
     display: none;
   }
   /* Free horizontal room so the profile pill sits a comfortable margin from the
