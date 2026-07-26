@@ -140,6 +140,48 @@ export async function fetchEnabledCities(opts: { revalidate?: number } = {}): Pr
   }
 }
 
+export interface SeoPlace {
+  slug: string;
+  name_en: string;
+  name_hi: string | null;
+  listing_count: number;
+  indexable: boolean;
+}
+
+export interface CityPlaces {
+  city_slug: string;
+  localities: SeoPlace[];
+  metro_stations: SeoPlace[];
+  landmarks: SeoPlace[];
+}
+
+/**
+ * Every place in a city with a server-computed `indexable` flag. This is the
+ * sitemap's only source for which programmatic URLs may be submitted — do not
+ * re-apply a listing threshold on the web side, and do not go back to
+ * `/map/metro`, which returns whole metro lines rather than a city's stations.
+ */
+export async function fetchCityPlaces(
+  citySlug: string,
+  opts: { revalidate?: number } = {}
+): Promise<CityPlaces> {
+  try {
+    const res = await fetchApi<CityPlaces>(
+      `/seo/cities/${encodeURIComponent(citySlug)}/places`,
+      undefined,
+      { server: true, revalidate: opts.revalidate }
+    );
+    return {
+      city_slug: res.city_slug ?? citySlug,
+      localities: res.localities ?? [],
+      metro_stations: res.metro_stations ?? [],
+      landmarks: res.landmarks ?? []
+    };
+  } catch {
+    return { city_slug: citySlug, localities: [], metro_stations: [], landmarks: [] };
+  }
+}
+
 export async function fetchLocality(
   citySlug: string,
   localitySlug: string,

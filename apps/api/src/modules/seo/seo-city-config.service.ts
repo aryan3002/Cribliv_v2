@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { DatabaseService } from "../../common/database.service";
 import { SeoAggregatesService } from "./seo-aggregates.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { IndexingService } from "./indexing.service";
-
-export const INDEXABLE_MIN = 3;
 
 export interface SeoCityConfigRow {
   city_slug: string;
@@ -115,8 +114,9 @@ export class SeoCityConfigService {
       locality_count: localities.length,
       landmark_count: landmarkCount,
       metro_count: metros.length,
-      indexable_count: localities.filter((locality) => locality.listing_count >= INDEXABLE_MIN)
-        .length
+      indexable_count: localities.filter(
+        (locality) => locality.listing_count >= INDEXABLE_MIN_LISTINGS
+      ).length
     };
   }
 

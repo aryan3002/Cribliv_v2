@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { SeoController } from "./seo.controller";
 import { SeoAggregatesService } from "./seo-aggregates.service";
+import { SeoPlacesService } from "./seo-places.service";
 import { SeoCityConfigService } from "./seo-city-config.service";
 import { SeoCopyService } from "./seo-copy.service";
 import { GoogleServiceAuth } from "./google/google-service-auth";
@@ -12,6 +13,7 @@ import { SeoSearchService } from "./seo-search.service";
   controllers: [SeoController],
   providers: [
     SeoAggregatesService,
+    SeoPlacesService,
     SeoCityConfigService,
     SeoCopyService,
     GoogleServiceAuth,
@@ -21,6 +23,7 @@ import { SeoSearchService } from "./seo-search.service";
   ],
   exports: [
     SeoAggregatesService,
+    SeoPlacesService,
     SeoCityConfigService,
     SeoCopyService,
     GoogleServiceAuth,
