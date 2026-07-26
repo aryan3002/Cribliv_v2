@@ -19,6 +19,27 @@ import {
   WalletBalanceError
 } from "../wallet/wallet-balance";
 
+/**
+ * Escapes a CSV cell value to prevent formula injection and handle special characters.
+ * Formulas starting with =, +, -, @, tab, or CR are prefixed with an apostrophe.
+ * Values containing commas, quotes, or newlines are wrapped in quotes with inner quotes doubled.
+ */
+export const escapeCsvCell = (v: string | null | undefined): string => {
+  if (v == null) return "";
+  let s = String(v);
+
+  // Prevent formula injection by prefixing with apostrophe
+  if (/^[=+\-@\t\r]/.test(s)) {
+    s = `'${s}`;
+  }
+
+  // Standard CSV escaping: quote if contains comma, quote, or newline
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+};
+
 const VALID_TRANSITIONS: Record<string, string[]> = {
   new: ["contacted", "lost"],
   contacted: ["visit_scheduled", "lost"],
@@ -837,15 +858,6 @@ export class LeadsService {
           )
         ).rows;
 
-    const escape = (v: string | null | undefined) => {
-      if (v == null) return "";
-      const s = String(v);
-      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-        return `"${s.replace(/"/g, '""')}"`;
-      }
-      return s;
-    };
-
     const header =
       "lead_id,listing_title,tenant_name,tenant_phone_masked,status,created_at,status_changed_at,owner_notes";
     const csvRows = rows.map((r) =>
@@ -859,7 +871,7 @@ export class LeadsService {
         r.status_changed_at,
         r.owner_notes ?? ""
       ]
-        .map(escape)
+        .map(escapeCsvCell)
         .join(",")
     );
 
