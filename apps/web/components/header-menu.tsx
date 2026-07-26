@@ -22,12 +22,21 @@ import {
   Building2,
   UsersRound,
   Newspaper,
-  ChevronRight
+  ChevronRight,
+  Globe
 } from "lucide-react";
 import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { getPgDashboardLinks } from "./pg-operator/dashboard-links";
 import { RoleAvatar } from "./role-avatar";
+import { MobileCitySection } from "./header/mobile-city-section";
+import { MobileNavSections } from "./header/mobile-nav-sections";
+// Type-only, and it must stay that way: lib/nav/nav-model.ts and nav-data.ts
+// pull ~46 KB of city prose, FAQs and rent tips, and this component renders
+// in the root layout (via Header -> HeaderMenu). The panels arrive as a prop
+// that app/[locale]/layout.tsx (a Server Component) builds — see the
+// bundle-size note in lib/nav/nav-data.ts and header.tsx's own copy of it.
+import type { NavData, NavPanel } from "../lib/nav/types";
 
 function formatPhone(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(-10);
@@ -42,9 +51,37 @@ interface MenuItem {
   label: string;
   emphasis?: "primary" | "danger";
   external?: boolean;
+  // The language-switch row needs an accessible name ("Switch to Hindi")
+  // that differs from its short visible label ("हिंदी") — every other item's
+  // visible text already doubles as its accessible name, so there was
+  // nothing to override before this.
+  ariaLabel?: string;
+  // Mirrors header.tsx's top-bar language pill, which sets this to false so
+  // opening the hamburger doesn't prefetch the whole locale-swapped route.
+  // Optional and unused by every other row, so their default Link behaviour
+  // is unchanged.
+  prefetch?: boolean;
 }
 
 const MOBILE_MENU_PORTAL_MQ = "(max-width: 640px)";
+
+const emptyNavPanel = (id: NavPanel["id"]): NavPanel => ({ id, columns: [] });
+
+/**
+ * Safe default for `navData`, mirroring header.tsx's own EMPTY_NAV_DATA
+ * (duplicated rather than imported: header.tsx imports HeaderMenu, so the
+ * reverse import would be a cycle). header-menu.pg-split.test.tsx and every
+ * other pre-existing test render `<HeaderMenu locale="en" />` with no nav
+ * data at all — a missing prop must degrade to a sheet with no Rent/PG/Owners
+ * accordions, never throw.
+ */
+const EMPTY_NAV_DATA: NavData = {
+  rent: emptyNavPanel("rent"),
+  pg: emptyNavPanel("pg"),
+  owners: emptyNavPanel("owners"),
+  times: emptyNavPanel("times"),
+  cities: []
+};
 
 function useMatchMedia(query: string): boolean {
   return useSyncExternalStore(
@@ -59,7 +96,13 @@ function useMatchMedia(query: string): boolean {
   );
 }
 
-export function HeaderMenu({ locale }: { locale: Locale }) {
+export function HeaderMenu({
+  locale,
+  navData = EMPTY_NAV_DATA
+}: {
+  locale: Locale;
+  navData?: NavData;
+}) {
   const { data: session, status } = useSession();
   const role = session?.user?.role;
   const phone = session?.user?.phone;
@@ -231,16 +274,33 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
     }
   ];
 
-  const footer: MenuItem[] = isLoggedIn
-    ? [
-        {
-          onClick: () => void signOut({ callbackUrl: `/${locale}` }),
-          icon: <LogOut size={16} aria-hidden="true" />,
-          label: t(locale, "menuSignOut"),
-          emphasis: "danger"
-        }
-      ]
-    : [];
+  // The top-bar language pill (header.tsx ~line 250) hides whenever `compact`
+  // is true — every scrolled or inner page, including all programmatic SEO
+  // pages — with no other way to switch language. This mirrors that pill's
+  // target, wording and icon exactly so the switch stays reachable everywhere
+  // the hamburger is. Lives in the footer/utility area, not the nav
+  // accordions above: it is a site-wide preference, not a navigation link.
+  const languageItem: MenuItem = {
+    href: locale === "en" ? "/hi" : "/en",
+    prefetch: false,
+    icon: <Globe size={16} aria-hidden="true" />,
+    label: locale === "en" ? "हिंदी" : "EN",
+    ariaLabel: locale === "en" ? "Switch to Hindi" : "Switch to English"
+  };
+
+  const footer: MenuItem[] = [
+    languageItem,
+    ...(isLoggedIn
+      ? [
+          {
+            onClick: () => void signOut({ callbackUrl: `/${locale}` }),
+            icon: <LogOut size={16} aria-hidden="true" />,
+            label: t(locale, "menuSignOut"),
+            emphasis: "danger"
+          } as MenuItem
+        ]
+      : [])
+  ];
 
   function renderMenuItem(item: MenuItem) {
     const className = `menu-item${
@@ -261,7 +321,9 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
           key={item.label}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           href={item.href as any}
+          prefetch={item.prefetch}
           className={className}
+          aria-label={item.ariaLabel}
           onClick={() => setOpen(false)}
         >
           {inner}
@@ -305,6 +367,32 @@ export function HeaderMenu({ locale }: { locale: Locale }) {
         {account.length > 0 && <div className="menu-section">{account.map(renderMenuItem)}</div>}
 
         <div className="menu-divider" role="separator" />
+
+        {/* Mobile counterpart to the desktop city chip (header/city-chip.tsx),
+            which CSS hides below 640px (globals.css) with no on-screen twin —
+            unlike the Saved heart and language pill, both already reachable
+            elsewhere in this sheet. Placed above the Rent/PG/Owners
+            accordions below, mirroring the desktop bar's own ordering: the
+            city chip sits leftmost, before every nav menu. Renders nothing
+            when navData is the empty default (see EMPTY_NAV_DATA above). */}
+        <MobileCitySection
+          locale={locale}
+          cities={navData.cities}
+          onNavigate={() => setOpen(false)}
+        />
+
+        {/* Below 900px NavMenuBar's desktop panels never mount (header.tsx's
+            useDesktopNav), so this is the only place phone users can reach
+            the Rent / PG / Owners sub-links — same NavPanel data as desktop,
+            passed down as props rather than rebuilt here. Renders nothing
+            when navData is the empty default (see EMPTY_NAV_DATA above). */}
+        <MobileNavSections
+          locale={locale}
+          rent={navData.rent}
+          pg={navData.pg}
+          owners={navData.owners}
+          onNavigate={() => setOpen(false)}
+        />
 
         <div className="menu-section">{explore.map(renderMenuItem)}</div>
 

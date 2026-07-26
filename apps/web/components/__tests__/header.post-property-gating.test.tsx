@@ -19,13 +19,34 @@ vi.mock("next/navigation", () => ({
   usePathname: () => pathname
 }));
 
-vi.mock("next/link", () => ({
-  default: ({ href, children, ...props }: any) => (
-    <a href={typeof href === "string" ? href : href?.pathname} {...props}>
-      {children}
-    </a>
-  )
-}));
+// forwardRef, not a plain function component: NavMenuBar hands its panel-less
+// items a ref, and a non-forwarding stub makes React log "Function components
+// cannot be given refs" on every render here. Mirrors the stub in
+// components/header/__tests__/header.composition.test.tsx. Expected console
+// noise trains people to ignore console noise that is not.
+vi.mock("next/link", async () => {
+  const { forwardRef, createElement } = await import("react");
+  return {
+    // `prefetch` is dropped rather than spread: it is a next/link-only prop,
+    // and forwarding it to a bare <a> makes React warn "Received `false` for a
+    // non-boolean attribute". Same reason as the ref above -- this stub should
+    // add no console noise of its own.
+    default: forwardRef<HTMLAnchorElement, Record<string, unknown>>(function MockLink(
+      { href, children, prefetch: _prefetch, ...props },
+      ref
+    ) {
+      return createElement(
+        "a",
+        {
+          ...props,
+          ref,
+          href: typeof href === "string" ? href : (href as { pathname?: string })?.pathname
+        },
+        children as never
+      );
+    })
+  };
+});
 
 vi.mock("../header-menu", () => ({
   HeaderMenu: () => <button type="button">Open menu</button>

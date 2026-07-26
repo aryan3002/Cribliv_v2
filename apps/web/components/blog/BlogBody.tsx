@@ -23,12 +23,19 @@ const wrapStyle = { margin: "1.75rem 0", maxWidth: 460 } as const;
  */
 export async function BlogBody({
   html,
-  locale
+  locale,
+  revalidate
 }: {
   html: string;
   locale: string;
   /** Reserved for ?ref=blog-<slug> attribution on embedded card links. */
   slug?: string;
+  /**
+   * ISR window to cache embed-card fetches for. Must be passed by any page that
+   * sets `export const revalidate`, otherwise these fetches default to
+   * `no-store` and drag the whole article back into per-request SSR.
+   */
+  revalidate?: number;
 }) {
   const segments = parseBlogEmbeds(html);
 
@@ -42,9 +49,13 @@ export async function BlogBody({
   ).slice(0, MAX_EMBEDS);
 
   const [listingEntries, pgEntries] = await Promise.all([
-    Promise.all(listingIds.map(async (id) => [id, await fetchListingCard(id)] as const)),
     Promise.all(
-      pgSegs.map(async (s) => [`${s.city}/${s.id}`, await fetchPgCard(s.city, s.id)] as const)
+      listingIds.map(async (id) => [id, await fetchListingCard(id, { revalidate })] as const)
+    ),
+    Promise.all(
+      pgSegs.map(
+        async (s) => [`${s.city}/${s.id}`, await fetchPgCard(s.city, s.id, { revalidate })] as const
+      )
     )
   ]);
   const listingMap = new Map(listingEntries);

@@ -17,7 +17,28 @@ const dictionary: Dictionary = {
     hi: "अपनी जरूरत लिखें, जैसे साइबर सिटी के पास 2BHK, 35k तक"
   },
   navSearch: { en: "Search", hi: "खोजें" },
+  navSearchPlaceholder: { en: "Search rentals", hi: "किराया खोजें" },
+  // The same pill on /pg, where "rentals" would misdescribe the surface the
+  // link actually keeps the visitor on (components/header/search-pill.tsx).
+  navSearchPlaceholderPg: { en: "Search PGs", hi: "पीजी खोजें" },
   navSaved: { en: "Saved", hi: "सेव किए" },
+  // Mega-menu triggers. CriblMap and Cribliv Times are brand names and stay
+  // untranslated, matching menuMap in this same dictionary.
+  navMenuRent: { en: "Rent", hi: "किराया" },
+  navMenuPg: { en: "PG & Co-living", hi: "पीजी और को-लिविंग" },
+  navMenuOwners: { en: "For owners", hi: "मकान मालिकों के लिए" },
+  // Hamburger-sheet city switcher (components/header/mobile-city-section.tsx)
+  // — the mobile counterpart to the desktop city chip's trigger. The current
+  // city itself (e.g. "Lucknow") is a proper noun and stays untranslated,
+  // same as every HUB_CITIES label; this is only the static prefix text.
+  menuChangeCity: { en: "Change city", hi: "शहर बदलें" },
+  // Mobile-only intent chip rail (components/header/intent-chip-rail.tsx) —
+  // accessible name for the row of quick-filter chips shown below 900px on
+  // the browse pages, where the desktop mega-menu panels never mount.
+  navIntentRailLabel: { en: "Quick filters", hi: "त्वरित फिल्टर" },
+  // Second column of the Cribliv Times hover panel (the first, "Desks", comes
+  // pre-translated from buildTimesPanel via lib/blog-desks.ts).
+  navTimesLatest: { en: "Latest", hi: "नवीनतम" },
   navPostProperty: { en: "Post Property", hi: "प्रॉपर्टी पोस्ट करें" },
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
   navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },
