@@ -12,6 +12,32 @@
 
 **Base branch:** `claude/programmatic-seo-page-25814e` (PR #121). This PR is stacked on it — merge #121 first.
 
+## Execution status (2026-07-26)
+
+| Task                                                | State                                         |
+| --------------------------------------------------- | --------------------------------------------- |
+| 1 — hierarchy rollup in the locality count          | **done** (`f0e0656`)                          |
+| 2 — matching rollup in the search filter            | **done** (`19096bc`)                          |
+| 3 — intent pages use their filtered count           | **done** (`bce9e7d`, all three surfaces)      |
+| 4 — city hubs stop being unconditionally indexable  | not started                                   |
+| 5 — city hub rails stop linking to phantom stations | not started                                   |
+| 6 — title double-brand + duplicate robots tag       | not started                                   |
+| 7 — admin metrics become decision-grade             | not started                                   |
+| 8 — `pnpm seo:audit` recurrence guard               | not started                                   |
+| 9 — full verification + PR                          | partial (suites green after each landed task) |
+
+Tasks 1–3 were sequenced first deliberately: they are what make incoming NCR
+supply promote pages into the index. 4–8 each remove a further place where
+metadata contradicts content, and are independent of one another — they can be
+picked up in any order.
+
+Verified after task 3: `pnpm typecheck` clean (6/6), `pnpm --filter @cribliv/api test`
+2,121 passed / 229 skipped, `pnpm --filter @cribliv/web test` 1,386 passed.
+
+Note: `apps/api/test/admin-seo-search.controller.test.ts` "rejects a missing url
+with 400" is **flaky** under the full parallel suite (passes in isolation and on
+re-run). Pre-existing, not caused by this work; tracked separately.
+
 ## Global Constraints
 
 - **Spec:** `docs/superpowers/specs/2026-07-26-programmatic-seo-indexability-design.md` §4.2, §5 items 7–13.
