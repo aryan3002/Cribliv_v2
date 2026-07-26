@@ -7,6 +7,7 @@ export * from "./pg-listing-score";
 export * from "./pg-operations";
 export * from "./admin-leads";
 export * from "./admin-homes";
+export * from "./user-name";
 
 // ── Bundler-safe explicit re-exports for RUNTIME (value) exports ──────────────
 // A barrel `export *` compiles (CommonJS) to TypeScript's `__exportStar`, a
@@ -18,3 +19,11 @@ export * from "./admin-homes";
 // above are erased before bundling, so their `export *` is harmless.
 export { computePgListingScore } from "./pg-listing-score";
 export { pgEvents, analyticsEvents } from "./events";
+export {
+  normalizeFullName,
+  validateFullName,
+  FullNameSchema,
+  NAME_FIXTURES,
+  FULL_NAME_MIN,
+  FULL_NAME_MAX
+} from "./user-name";
