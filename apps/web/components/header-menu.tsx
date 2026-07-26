@@ -29,6 +29,7 @@ import type { Locale } from "../lib/i18n";
 import { t } from "../lib/i18n";
 import { getPgDashboardLinks } from "./pg-operator/dashboard-links";
 import { RoleAvatar } from "./role-avatar";
+import { MobileCitySection } from "./header/mobile-city-section";
 import { MobileNavSections } from "./header/mobile-nav-sections";
 // Type-only, and it must stay that way: lib/nav/nav-model.ts and nav-data.ts
 // pull ~46 KB of city prose, FAQs and rent tips, and this component renders
@@ -366,6 +367,19 @@ export function HeaderMenu({
         {account.length > 0 && <div className="menu-section">{account.map(renderMenuItem)}</div>}
 
         <div className="menu-divider" role="separator" />
+
+        {/* Mobile counterpart to the desktop city chip (header/city-chip.tsx),
+            which CSS hides below 640px (globals.css) with no on-screen twin —
+            unlike the Saved heart and language pill, both already reachable
+            elsewhere in this sheet. Placed above the Rent/PG/Owners
+            accordions below, mirroring the desktop bar's own ordering: the
+            city chip sits leftmost, before every nav menu. Renders nothing
+            when navData is the empty default (see EMPTY_NAV_DATA above). */}
+        <MobileCitySection
+          locale={locale}
+          cities={navData.cities}
+          onNavigate={() => setOpen(false)}
+        />
 
         {/* Below 900px NavMenuBar's desktop panels never mount (header.tsx's
             useDesktopNav), so this is the only place phone users can reach

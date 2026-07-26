@@ -63,3 +63,34 @@ describe("HeaderMenu nav accordions (plumbing)", () => {
     expect(screen.queryByRole("button", { name: "For owners" })).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The same plumbing leg as above, for navData.cities specifically: it used to
+ * be built server-side and handed to HeaderMenu but never rendered anywhere
+ * in the sheet (the desktop city chip's only twin). This pins
+ * HeaderMenu -> MobileCitySection so that gap cannot reopen silently.
+ */
+describe("HeaderMenu city section (plumbing)", () => {
+  it("renders a city-switcher trigger exposing all 8 real hub-city links when navData is supplied", () => {
+    render(<HeaderMenu locale="en" navData={buildNavData("en")} />);
+    openMenu();
+
+    const trigger = screen.getByRole("button", { name: /change city/i });
+    fireEvent.click(trigger);
+
+    const links = screen.getAllByRole("link", {
+      name: /^(Delhi|Gurugram|Noida|Ghaziabad|Faridabad|Chandigarh|Jaipur|Lucknow)$/
+    });
+    expect(links).toHaveLength(8);
+    for (const link of links) {
+      expect(link.getAttribute("href")).toMatch(/^\/en\/city\/[a-z-]+$/);
+    }
+  });
+
+  it("renders no city-switcher trigger when navData is omitted, matching the pre-existing sheet", () => {
+    render(<HeaderMenu locale="en" />);
+    openMenu();
+
+    expect(screen.queryByRole("button", { name: /change city/i })).not.toBeInTheDocument();
+  });
+});

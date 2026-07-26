@@ -27,6 +27,11 @@ const dictionary: Dictionary = {
   navMenuRent: { en: "Rent", hi: "किराया" },
   navMenuPg: { en: "PG & Co-living", hi: "पीजी और को-लिविंग" },
   navMenuOwners: { en: "For owners", hi: "मकान मालिकों के लिए" },
+  // Hamburger-sheet city switcher (components/header/mobile-city-section.tsx)
+  // — the mobile counterpart to the desktop city chip's trigger. The current
+  // city itself (e.g. "Lucknow") is a proper noun and stays untranslated,
+  // same as every HUB_CITIES label; this is only the static prefix text.
+  menuChangeCity: { en: "Change city", hi: "शहर बदलें" },
   // Mobile-only intent chip rail (components/header/intent-chip-rail.tsx) —
   // accessible name for the row of quick-filter chips shown below 900px on
   // the browse pages, where the desktop mega-menu panels never mount.

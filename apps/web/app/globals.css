@@ -2254,6 +2254,87 @@ h4,
   background: var(--danger-light);
 }
 
+/* ── Mobile city section (inside the header sheet) ───────────────────────
+   The sheet's counterpart to the desktop city chip (.city-chip above), which
+   is CSS-hidden below 640px with no on-screen twin. Trigger styling mirrors
+   .mobile-nav-section__trigger below (same sheet, same row language); the
+   expanded list borrows .city-chip__link's own look rather than
+   .mobile-nav-section__link's, since it is a flat list of places, not a
+   titled column of category links. */
+.mobile-city-section {
+  margin-bottom: 1px;
+}
+
+.mobile-city-section__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 10px var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+.mobile-city-section__trigger:hover {
+  background: var(--surface-sunken);
+}
+
+.mobile-city-section__trigger-value {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.mobile-city-section__chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-fast);
+}
+.mobile-city-section__trigger--open .mobile-city-section__chevron {
+  transform: rotate(180deg);
+}
+
+.mobile-city-section__panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  padding: var(--space-2) var(--space-3) var(--space-3) calc(var(--space-3) + 4px);
+  animation: mobile-nav-section-in 160ms ease;
+}
+
+.mobile-city-section__link {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+.mobile-city-section__link:hover {
+  color: var(--brand);
+  background: var(--surface-sunken);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-city-section__chevron {
+    transition: none;
+  }
+  .mobile-city-section__panel {
+    animation: none;
+  }
+}
+
 /* ── Mobile nav accordions (inside the header sheet) ────────────────────
    Below 900px NavMenuBar's floating .nav-panel dropdowns never mount (see
    header.tsx's useDesktopNav), so these collapsible sections are the only
