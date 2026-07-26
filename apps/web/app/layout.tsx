@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./motion.css";
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "../components/auth/session-provider";

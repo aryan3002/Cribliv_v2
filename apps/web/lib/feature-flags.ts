@@ -12,6 +12,7 @@ const ENV_FLAG_MAP: Record<string, string | undefined> = {
   ff_lead_management_enabled: process.env.NEXT_PUBLIC_FF_LEAD_MANAGEMENT_ENABLED,
   ff_listing_analytics_enabled: process.env.NEXT_PUBLIC_FF_LISTING_ANALYTICS_ENABLED,
   ff_listening_hero: process.env.NEXT_PUBLIC_FF_LISTENING_HERO,
+  ff_hero_motion_v2: process.env.NEXT_PUBLIC_FF_HERO_MOTION_V2,
   ff_callback_leads: process.env.NEXT_PUBLIC_FF_CALLBACK_LEADS,
   ff_guest_gating: process.env.NEXT_PUBLIC_FF_GUEST_GATING,
   ff_credit_purchase_enabled: process.env.NEXT_PUBLIC_FF_CREDIT_PURCHASE_ENABLED,

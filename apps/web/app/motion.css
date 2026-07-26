@@ -1,0 +1,65 @@
+/* motion.css — global companion styles for the Cribliv motion kit (components/motion/*).
+   Imported once in app/layout.tsx, right after globals.css. Keep in sync with the kit. */
+:root {
+  --lhm-ease-expo: cubic-bezier(.16, 1, .3, 1);
+  --lhm-ease-pop: cubic-bezier(.34, 1.56, .64, 1);
+  --lhm-gradient: linear-gradient(120deg, #0066ff 0%, #5b57ff 46%, #ff5a5f 100%);
+}
+
+/* Signature-gradient bloom behind the search glass (position it yourself) */
+.lhm-glow {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--lhm-gradient);
+  filter: blur(90px);
+  pointer-events: none;
+}
+
+/* Indigo halo behind Maya's orb */
+.lhm-orb-halo {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #5b57ff 0%, rgba(91, 87, 255, 0) 70%);
+  filter: blur(8px);
+  opacity: .8;
+  pointer-events: none;
+}
+
+/* Price pins — dark-hero styling; override in your own theme if needed */
+.lhm-pin,
+.lhm-pin-featured {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #1a1a2e;
+  white-space: nowrap;
+}
+.lhm-pin { background: #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, .4); }
+.lhm-pin-featured { background: #f59e0b; box-shadow: 0 8px 24px rgba(245, 158, 11, .45); }
+
+/* LISTENING dot */
+@keyframes lhm-blink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+.lhm-listening-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #f59e0b; display: inline-block;
+  animation: lhm-blink 1.1s ease-in-out infinite;
+}
+
+/* Skeleton shimmer (MicroKit <Skeleton>) */
+@keyframes microkit-shimmer { from { background-position: 180% 0; } to { background-position: -40% 0; } }
+
+/* Fade fallback for browsers without View Transitions */
+.lhm-fade-out body,
+.jm-fade-out body { opacity: 0; transition: opacity .24s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lhm-listening-dot { animation: none; }
+  .lhm-fade-out body, .jm-fade-out body { transition: none; }
+}
