@@ -825,6 +825,11 @@ export class AuthService {
       challenge_id: id,
       expires_in_sec: 300,
       retry_after_sec: 30,
+      // Mirrors the DB path's shape so the client sees one contract whether or
+      // not DATABASE_URL is set. This path never reaches a real provider, so
+      // the SMS escape hatch is always closed.
+      channel: "mock" as const,
+      sms_fallback_available: false,
       dev_otp: otp // returned to client so login page can auto-fill
     };
   }
