@@ -438,7 +438,9 @@ function makeService(opts: { dbEnabled: boolean }) {
     },
     query
   };
-  const service = new AuthService(appState as never, database as never);
+  // AuthService takes three injected deps: (appState, database, d7OtpClient).
+  // updateProfile touches none of the OTP client, so a bare stub is enough.
+  const service = new AuthService(appState as never, database as never, {} as never);
   return { service, query, users };
 }
 
@@ -2513,13 +2515,12 @@ describe("UnlockContactPanel name gate", () => {
 });
 ```
 
-Two things to resolve against the real file when implementing, rather than guessing:
+`getByTestId("unlock-cta")` works because Step 3 of this task adds that testid to the button. Keep
+the two in sync — the Task 13 E2E spec selects on it too.
 
-1. **How the unlock CTA is selected.** `getByTestId("unlock-cta")` above assumes a testid that may
-   not exist. Copy the exact selector whichever existing test in that file already uses to click
-   Unlock — the file imports `t`, so it is likely a `getByRole("button", { name: ... })` built from
-   an i18n key.
-2. **The wallet and unlock response shapes.** `refreshWalletSnapshot` runs after a successful unlock.
+One thing to resolve against the real file when implementing, rather than guessing:
+
+1. **The wallet and unlock response shapes.** `refreshWalletSnapshot` runs after a successful unlock.
    Copy both route stubs verbatim from the existing successful-unlock test in that file instead of
    using the invented payloads above.
 
