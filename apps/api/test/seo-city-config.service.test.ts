@@ -1,6 +1,6 @@
 import { NotFoundException } from "@nestjs/common";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SeoCityConfigService } from "../src/modules/seo/seo-city-config.service";
 
 const ENABLED_ROW = {
@@ -14,35 +14,61 @@ const ENABLED_ROW = {
   notes: "live"
 };
 
+/**
+ * Fixture shape: 2 localities (1 indexable), 2 metro stations (1 indexable),
+ * 4 landmarks (1 indexable) = 8 places, 3 indexable, 5 thin.
+ *
+ * `indexable_count` deliberately spans all three kinds. It used to count
+ * localities only, so the admin headline described ~1.6% of the surface it
+ * claimed to summarise.
+ */
+function makeAggregates() {
+  return {
+    localitiesForCity: vi.fn(async () => [
+      { slug: "gomti-nagar", listing_count: INDEXABLE_MIN_LISTINGS },
+      { slug: "aliganj", listing_count: INDEXABLE_MIN_LISTINGS - 1 }
+    ]),
+    metroStationsWithCountsForCity: vi.fn(async () => [
+      { id: 1, listing_count: INDEXABLE_MIN_LISTINGS },
+      { id: 2, listing_count: 0 }
+    ]),
+    landmarksWithCountsForCity: vi.fn(async () => [
+      { id: 1, listing_count: INDEXABLE_MIN_LISTINGS + 5 },
+      { id: 2, listing_count: 1 },
+      { id: 3, listing_count: 0 },
+      { id: 4, listing_count: 0 }
+    ])
+  };
+}
+
+const EXPECTED_COUNTS = {
+  locality_count: 2,
+  landmark_count: 4,
+  metro_count: 2,
+  indexable_count: 3,
+  thin_count: 5
+};
+
 describe("SeoCityConfigService", () => {
   let query: ReturnType<typeof vi.fn>;
   let database: { isEnabled: () => boolean; query: ReturnType<typeof vi.fn> };
-  let aggregates: {
-    localitiesForCity: ReturnType<typeof vi.fn>;
-    metroStationsForCity: ReturnType<typeof vi.fn>;
-  };
+  let aggregates: ReturnType<typeof makeAggregates>;
   let indexing: { enqueue: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     query = vi.fn();
     database = { isEnabled: () => true, query };
-    aggregates = {
-      localitiesForCity: vi.fn(async () => [
-        { slug: "gomti-nagar", listing_count: INDEXABLE_MIN_LISTINGS },
-        { slug: "aliganj", listing_count: INDEXABLE_MIN_LISTINGS - 1 }
-      ]),
-      metroStationsForCity: vi.fn(async () => [{ id: 1 }, { id: 2 }])
-    };
+    aggregates = makeAggregates();
     indexing = { enqueue: vi.fn(async () => null) };
   });
 
+  function makeService() {
+    return new SeoCityConfigService(database as never, aggregates as never, indexing as never);
+  }
+
   it("returns empty lists without querying when DB is disabled", async () => {
     database = { isEnabled: () => false, query };
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
+    const service = makeService();
 
     await expect(service.listEnabled()).resolves.toEqual([]);
     await expect(service.listAllWithCounts()).resolves.toEqual([]);
@@ -50,28 +76,30 @@ describe("SeoCityConfigService", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it("returns zeroed counts without querying when DB is disabled", async () => {
+    database = { isEnabled: () => false, query };
+
+    await expect(makeService().computeCounts("lucknow")).resolves.toEqual({
+      locality_count: 0,
+      landmark_count: 0,
+      metro_count: 0,
+      indexable_count: 0,
+      thin_count: 0
+    });
+  });
+
   it("returns null from setEnabled without querying when DB is disabled", async () => {
     database = { isEnabled: () => false, query };
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
 
-    await expect(service.setEnabled("noida", true, "reviewed")).resolves.toBeNull();
+    await expect(makeService().setEnabled("noida", true, "reviewed")).resolves.toBeNull();
 
     expect(query).not.toHaveBeenCalled();
   });
 
   it("lists enabled city config rows without joining cities", async () => {
     query.mockResolvedValueOnce({ rows: [ENABLED_ROW] });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
 
-    await expect(service.listEnabled()).resolves.toEqual([ENABLED_ROW]);
+    await expect(makeService().listEnabled()).resolves.toEqual([ENABLED_ROW]);
 
     const [sql, params] = query.mock.calls[0];
     expect(sql).toContain("FROM seo_city_config");
@@ -84,14 +112,7 @@ describe("SeoCityConfigService", () => {
     const original = process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED;
     process.env.FF_PROGRAMMATIC_SEO_CITIES_ENABLED = "false";
     try {
-      const service = new SeoCityConfigService(
-        database as never,
-        aggregates as never,
-        indexing as never
-      );
-
-      await expect(service.listEnabled()).resolves.toEqual([]);
-
+      await expect(makeService().listEnabled()).resolves.toEqual([]);
       expect(query).not.toHaveBeenCalled();
     } finally {
       if (original === undefined) {
@@ -103,146 +124,108 @@ describe("SeoCityConfigService", () => {
   });
 
   it("lists every city with config defaults and refreshed count columns", async () => {
-    const baseRow = {
-      ...ENABLED_ROW,
-      name_en: "Lucknow",
-      name_hi: "लखनऊ",
-      is_active: true
-    };
-    // Base cities query returns the row first; computeCounts then issues one
-    // landmark-count query per city against the same mocked `query` fn.
-    query
-      .mockResolvedValueOnce({ rows: [baseRow] })
-      .mockResolvedValueOnce({ rows: [{ count: 4 }] });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
+    const baseRow = { ...ENABLED_ROW, name_en: "Lucknow", name_hi: "लखनऊ", is_active: true };
+    query.mockResolvedValueOnce({ rows: [baseRow] });
 
-    await expect(service.listAllWithCounts()).resolves.toEqual([
-      {
-        ...baseRow,
-        // Live counts come from computeCounts (aggregates + landmark query),
-        // NOT from the stored ENABLED_ROW count columns.
-        locality_count: 2,
-        landmark_count: 4,
-        metro_count: 2,
-        indexable_count: 1
-      }
+    await expect(makeService().listAllWithCounts()).resolves.toEqual([
+      // Live counts from computeCounts win over the stored count columns, so a
+      // city that was never toggled does not show stale zeros.
+      { ...baseRow, ...EXPECTED_COUNTS }
     ]);
 
     expect(aggregates.localitiesForCity).toHaveBeenCalledWith("lucknow");
-    expect(aggregates.metroStationsForCity).toHaveBeenCalledWith("lucknow");
+    expect(aggregates.metroStationsWithCountsForCity).toHaveBeenCalledWith("lucknow");
+    expect(aggregates.landmarksWithCountsForCity).toHaveBeenCalledWith("lucknow");
 
     const [sql, params] = query.mock.calls[0];
     expect(sql).toContain("FROM cities");
     expect(sql).toContain("LEFT JOIN seo_city_config");
     expect(sql).toContain("COALESCE(scc.programmatic_enabled, false)");
     expect(params).toEqual([]);
-
-    const [landmarkSql, landmarkParams] = query.mock.calls[1];
-    expect(landmarkSql).toContain("FROM landmarks");
-    expect(landmarkParams).toEqual(["lucknow"]);
   });
 
   it("returns live non-zero counts for a city whose stored counts are 0 (e.g. never toggled)", async () => {
-    const neverToggledRow = {
-      city_slug: "lucknow",
-      programmatic_enabled: false,
-      locality_count: 0,
-      landmark_count: 0,
-      metro_count: 0,
-      indexable_count: 0,
-      enabled_at: null,
-      notes: null,
-      created_at: null,
-      updated_at: null,
-      name_en: "Lucknow",
-      name_hi: "लखनऊ",
-      is_active: true
-    };
-    query
-      .mockResolvedValueOnce({ rows: [neverToggledRow] })
-      .mockResolvedValueOnce({ rows: [{ count: 4 }] });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
-
-    const [result] = await service.listAllWithCounts();
-
-    expect(result.locality_count).toBe(2);
-    expect(result.landmark_count).toBe(4);
-    expect(result.metro_count).toBe(2);
-    expect(result.indexable_count).toBe(1);
-  });
-
-  it("computes indexable counts from locality listing counts and counts landmarks", async () => {
-    query.mockResolvedValueOnce({ rows: [{ count: 4 }] });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
-
-    await expect(service.computeCounts("lucknow")).resolves.toEqual({
-      locality_count: 2,
-      landmark_count: 4,
-      metro_count: 2,
-      indexable_count: 1
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          city_slug: "lucknow",
+          programmatic_enabled: false,
+          locality_count: 0,
+          landmark_count: 0,
+          metro_count: 0,
+          indexable_count: 0,
+          enabled_at: null,
+          notes: null,
+          created_at: null,
+          updated_at: null,
+          name_en: "Lucknow",
+          name_hi: "लखनऊ",
+          is_active: true
+        }
+      ]
     });
 
-    const [sql, params] = query.mock.calls[0];
-    expect(sql).toContain("FROM landmarks");
-    expect(params).toEqual(["lucknow"]);
+    const [result] = await makeService().listAllWithCounts();
+
+    expect(result).toMatchObject(EXPECTED_COUNTS);
+  });
+
+  it("counts indexable places across localities, metro AND landmarks", async () => {
+    await expect(makeService().computeCounts("lucknow")).resolves.toEqual(EXPECTED_COUNTS);
+  });
+
+  it("reports thin places — the number that should gate an Enable decision", async () => {
+    aggregates.localitiesForCity = vi.fn(async () => [
+      { slug: "a", listing_count: 0 },
+      { slug: "b", listing_count: 1 }
+    ]);
+    aggregates.metroStationsWithCountsForCity = vi.fn(async () => [{ id: 1, listing_count: 0 }]);
+    aggregates.landmarksWithCountsForCity = vi.fn(async () => [{ id: 1, listing_count: 2 }]);
+
+    // A city with places but zero indexable ones adds nothing to the surface.
+    await expect(makeService().computeCounts("noida")).resolves.toMatchObject({
+      indexable_count: 0,
+      thin_count: 4
+    });
   });
 
   it("upserts toggle state with refreshed counts and returns the config row", async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ count: 4 }] })
-      .mockResolvedValueOnce({ rows: [ENABLED_ROW] });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
+    query.mockResolvedValueOnce({ rows: [ENABLED_ROW] });
 
-    await expect(service.setEnabled("noida", true, "reviewed")).resolves.toEqual(ENABLED_ROW);
+    await expect(makeService().setEnabled("noida", true, "reviewed")).resolves.toEqual(ENABLED_ROW);
 
-    const [sql, params] = query.mock.calls[1];
+    const [sql, params] = query.mock.calls[0];
     expect(sql).toContain("INSERT INTO seo_city_config");
-    expect(sql).toContain("enabled_at = CASE WHEN $2 THEN now() ELSE NULL END");
     expect(sql).toContain("ON CONFLICT (city_slug) DO UPDATE");
-    expect(params).toEqual(["noida", true, "reviewed", 2, 4, 2, 1]);
+    // thin_count is computed live and has no column, so it must not be written.
+    expect(params).toEqual(["noida", true, "reviewed", 2, 4, 2, 3]);
+  });
+
+  it("preserves the original enabled_at across a disable then re-enable", async () => {
+    query.mockResolvedValueOnce({ rows: [ENABLED_ROW] });
+
+    await makeService().setEnabled("noida", true, "reviewed");
+
+    const [sql] = query.mock.calls[0];
+    // Disabling used to NULL enabled_at outright, destroying the date the admin
+    // table shows. COALESCE stamps only the first enable; disable leaves it.
+    expect(sql).toContain("COALESCE(seo_city_config.enabled_at, now())");
+    expect(sql).not.toContain("enabled_at = CASE WHEN $2 THEN now() ELSE NULL END");
   });
 
   it("maps an unknown city (FK violation) to NotFoundException, not a raw 500", async () => {
     const fkError = Object.assign(new Error("violates foreign key constraint"), { code: "23503" });
-    query.mockResolvedValueOnce({ rows: [{ count: 0 }] }).mockRejectedValueOnce(fkError);
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
+    query.mockRejectedValueOnce(fkError);
 
-    await expect(service.setEnabled("does-not-exist", true, "x")).rejects.toBeInstanceOf(
+    await expect(makeService().setEnabled("does-not-exist", true, "x")).rejects.toBeInstanceOf(
       NotFoundException
     );
   });
 
   it("enqueues the city hub URL (en + hi) for fast indexing when enabling a city", async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ count: 4 }] })
-      .mockResolvedValueOnce({ rows: [ENABLED_ROW] });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
+    query.mockResolvedValueOnce({ rows: [ENABLED_ROW] });
 
-    await service.setEnabled("noida", true, "reviewed");
+    await makeService().setEnabled("noida", true, "reviewed");
 
     expect(indexing.enqueue).toHaveBeenCalledTimes(2);
     expect(indexing.enqueue).toHaveBeenCalledWith("/en/city/noida", "city_enabled");
@@ -250,33 +233,21 @@ describe("SeoCityConfigService", () => {
   });
 
   it("does NOT enqueue indexing when disabling a city", async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ count: 4 }] })
-      .mockResolvedValueOnce({ rows: [{ ...ENABLED_ROW, programmatic_enabled: false }] });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
+    query.mockResolvedValueOnce({
+      rows: [{ ...ENABLED_ROW, programmatic_enabled: false }]
+    });
 
-    await service.setEnabled("noida", false, "paused");
+    await makeService().setEnabled("noida", false, "paused");
 
     expect(indexing.enqueue).not.toHaveBeenCalled();
   });
 
   it("does not let an indexing enqueue failure break the city toggle response", async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ count: 4 }] })
-      .mockResolvedValueOnce({ rows: [ENABLED_ROW] });
+    query.mockResolvedValueOnce({ rows: [ENABLED_ROW] });
     indexing.enqueue = vi.fn(async () => {
       throw new Error("db blip");
     });
-    const service = new SeoCityConfigService(
-      database as never,
-      aggregates as never,
-      indexing as never
-    );
 
-    await expect(service.setEnabled("noida", true, "reviewed")).resolves.toEqual(ENABLED_ROW);
+    await expect(makeService().setEnabled("noida", true, "reviewed")).resolves.toEqual(ENABLED_ROW);
   });
 });
