@@ -20,20 +20,20 @@ inferred from code.
 
 Five live city chunks, 32,864 URLs (plus core 72, listings 190, blog 50):
 
-| City | Total | Locality | Metro | Landmark |
-| ---------- | -----: | -------: | -----: | -------: |
-| faridabad | 4,060 | 0 | 2,916 | 1,144 |
-| ghaziabad | 7,358 | 0 | 6,318 | 1,040 |
-| gurugram | 5,348 | 0 | 2,592 | 2,756 |
-| lucknow | 5,886 | **540** | 1,134 | 4,212 |
-| noida | 10,212 | 0 | 8,964 | 1,248 |
-| **Total** | **32,864** | **540** | **21,924** | **10,400** |
+| City      |      Total | Locality |      Metro |   Landmark |
+| --------- | ---------: | -------: | ---------: | ---------: |
+| faridabad |      4,060 |        0 |      2,916 |      1,144 |
+| ghaziabad |      7,358 |        0 |      6,318 |      1,040 |
+| gurugram  |      5,348 |        0 |      2,592 |      2,756 |
+| lucknow   |      5,886 |  **540** |      1,134 |      4,212 |
+| noida     |     10,212 |        0 |      8,964 |      1,248 |
+| **Total** | **32,864** |  **540** | **21,924** | **10,400** |
 
 Locality URLs are correctly inventory-gated (`sitemap-chunks.ts:77`). Metro and
 landmark URLs are **not gated at all** — `buildCityMetroEntries`
 (`sitemap-chunks.ts:92`) and `buildCityLandmarkEntries` (`:114`) never receive a
 listing count. The existing test (`apps/web/app/__tests__/sitemap-chunks.test.ts:78`)
-asserts thin *localities* are excluded and has no equivalent assertion for metro or
+asserts thin _localities_ are excluded and has no equivalent assertion for metro or
 landmark, which is why the leak survived review.
 
 ### 1.2 The metro URLs are wrong, not merely thin
@@ -44,13 +44,13 @@ returns whole metro **lines** that touch a city — correct for drawing a map,
 incorrect as a URL namespace. The admin panel instead uses
 `SeoAggregatesService.metroStationsForCity` (exact city match). The two disagree:
 
-| City | Stations per sitemap | Stations per admin |
-| ---------- | -------------------: | -----------------: |
-| faridabad | 54 | **0** |
-| ghaziabad | 117 | **0** |
-| gurugram | 48 | 11 |
-| noida | 166 | 21 |
-| lucknow | 21 | 21 |
+| City      | Stations per sitemap | Stations per admin |
+| --------- | -------------------: | -----------------: |
+| faridabad |                   54 |              **0** |
+| ghaziabad |                  117 |              **0** |
+| gurugram  |                   48 |                 11 |
+| noida     |                  166 |                 21 |
+| lucknow   |                   21 |                 21 |
 
 Consequences, verified:
 
@@ -76,18 +76,18 @@ locality coverage.
 
 ### 1.3 Google's response (Search Console crawl stats, 90 days to 2026-07-24)
 
-| Metric | Value |
-| --------------------------- | -----------------------------: |
-| Total crawl requests | 158,043 (+1,002 on `www`) |
-| Requests in 12–24 Jul window | 153,898 (**97%**) |
-| Peak day (16 Jul) | 40,745 |
-| Latest day (24 Jul) | 2,758 (**−93%** from peak) |
-| Purpose: refresh / discovery | 87.08% / 12.92% |
-| Response: `OK (200)` | **98.80%** |
-| Response: `404` | 0.32% |
-| File type: HTML | 21.25% |
-| File type: other | **67.05%** |
-| Googlebot: desktop / smartphone | 72.42% / 8.48% |
+| Metric                          |                      Value |
+| ------------------------------- | -------------------------: |
+| Total crawl requests            |  158,043 (+1,002 on `www`) |
+| Requests in 12–24 Jul window    |          153,898 (**97%**) |
+| Peak day (16 Jul)               |                     40,745 |
+| Latest day (24 Jul)             | 2,758 (**−93%** from peak) |
+| Purpose: refresh / discovery    |            87.08% / 12.92% |
+| Response: `OK (200)`            |                 **98.80%** |
+| Response: `404`                 |                      0.32% |
+| File type: HTML                 |                     21.25% |
+| File type: other                |                 **67.05%** |
+| Googlebot: desktop / smartphone |             72.42% / 8.48% |
 
 Reading:
 
@@ -99,7 +99,7 @@ Reading:
    33,176 submitted URLs — Google has not finished discovering the sitemap once,
    and the budget to do so is collapsing.
 4. **The report is misleading by construction.** 98.8% `OK (200)` and a "No
-   problems" host status exist *because* the broken pages return 200. Google gets no
+   problems" host status exist _because_ the broken pages return 200. Google gets no
    error signal to act on, so it devalues the domain instead of purging the URLs. If
    these returned 404, this table would show ~58% not-found and Google would drop
    them within days.
@@ -109,7 +109,7 @@ Reading:
 `SeoAggregatesService.localitiesForCity` (`seo-aggregates.service.ts:142`) counts
 listings with `ll.locality_id = loc.id` — exact match, **no hierarchy rollup**.
 Migration `0054_backfill_listing_locality_from_geo.sql` assigns each listing to its
-*nearest* locality, frequently a micro-locality with `parent_locality_id` set.
+_nearest_ locality, frequently a micro-locality with `parent_locality_id` set.
 
 So a parent locality with two micro-localities holding 2 listings each shows a count
 of 0; each child shows 2; the threshold is 3; **six real listings produce zero
@@ -142,7 +142,7 @@ in `packages/shared-types` covers SEO, which is why the constant drifted.
   `<meta name="robots" content="noindex">`.
 - **Admin metrics are not decision-grade.** `SeoProgrammaticPages.tsx:54` sums
   `indexableCount` across **draft** cities too; `indexable_count` counts only
-  *localities* clearing the threshold and ignores metro, landmark and all 26 intent
+  _localities_ clearing the threshold and ignores metro, landmark and all 26 intent
   variants; "Cities configured" is `rows.length`, i.e. every row in `cities`.
 - **Disabling a city wipes `enabled_at`** (`seo-city-config.service.ts:146`),
   destroying enablement history on any toggle-off.
@@ -168,7 +168,7 @@ automatically promotes pages into the index.
 
 - Making zero-inventory pages rank on informational intent (rent benchmarks,
   commute data, locality guides, demand capture). That is the natural next slice and
-  is the only way to rank in a city *before* supply lands — but it depends on this
+  is the only way to rank in a city _before_ supply lands — but it depends on this
   spec's invariant holding first, and on a separately-tracked defect where SSR calls
   the `AuthGuard`-gated `POST /seo/copy` unauthenticated, so every programmatic page
   silently falls back to template copy instead of AI copy. Verify that before
@@ -186,13 +186,13 @@ automatically promotes pages into the index.
 
 Every defect in §1 is a violation:
 
-| Violation | Where |
-| --- | --- |
-| In sitemap, renders nothing | metro/landmark for cities with no such places |
-| In sitemap, ungated | all metro + landmark entries |
+| Violation                                    | Where                                          |
+| -------------------------------------------- | ---------------------------------------------- |
+| In sitemap, renders nothing                  | metro/landmark for cities with no such places  |
+| In sitemap, ungated                          | all metro + landmark entries                   |
 | `index` from a count the page doesn't render | intent pages use the parent's unfiltered total |
-| Indexable with zero inventory | city hubs |
-| Would render listings it isn't credited for | parent localities, after rollup |
+| Indexable with zero inventory                | city hubs                                      |
+| Would render listings it isn't credited for  | parent localities, after rollup                |
 
 The design therefore does not patch five call sites. **The API computes
 `indexable` once and returns it; the sitemap and the page templates consume it.**
@@ -264,15 +264,43 @@ reviewed in the same change.
 
 Two distinct outcomes, currently conflated:
 
-| Case | Status | Sitemap | Robots |
-| --- | --- | --- | --- |
-| Place does not exist in this city | **404** | absent | n/a |
-| Place exists, below threshold | 200 | absent | `noindex, follow` |
+| Case                              | Status  | Sitemap | Robots            |
+| --------------------------------- | ------- | ------- | ----------------- |
+| Place does not exist in this city | **404** | absent  | n/a               |
+| Place exists, below threshold     | 200     | absent  | `noindex, follow` |
 
-Requires adding `apps/web/app/[locale]/not-found.tsx` (none exists today) and
-root-causing why `notFound()` is currently ISR-cached and served as 200. `404` is
-chosen over `410`: Google treats them nearly identically for removal, and `410`
-would need a route handler or middleware shim in App Router for no material gain.
+`404` is chosen over `410`: Google treats them nearly identically for removal, and
+`410` would need a route handler or middleware shim in App Router for no material
+gain.
+
+**PR 1 status: NOT ACHIEVED — deferred to its own task.** `apps/web/app/[locale]/not-found.tsx`
+was added (it did not exist) and is correct, but it does **not** by itself change
+the status. Measured against a local production build (`next build && next start`,
+2026-07-26):
+
+| Fact                              | Evidence                                                               |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `notFound()` **is** thrown        | `NEXT_NOT_FOUND` appears twice in the response payload                 |
+| The new boundary **does** compile | `"Page not found"` present in `.next/server/chunks/4798.js`            |
+| The boundary is **not** rendered  | response body contains site chrome, no `<h1>`, not the boundary's copy |
+| Status is still **200**           | `curl -w '%{http_code}'` on `/en/city/faridabad/metro/kashmere-gate`   |
+| Middleware is **not** the cause   | its only `rewrite` fires solely on `Accept: text/markdown`             |
+| A healthy page is unaffected      | `/en` returns 121 KB with 1 `<h1>` and 7 `<h2>`                        |
+
+**Leading hypothesis (unconfirmed):** the route streams. `apps/web/app/[locale]/loading.tsx`
+exists, creating a Suspense boundary that flushes the shell — committing a 200 —
+before the page body resolves and throws `notFound()`. Once headers are sent the
+status cannot change, so Next can only signal not-found in-band via the RSC
+payload. An experiment removing `loading.tsx` was attempted but the second test
+server failed to bind, so this is **not verified**. Do not treat it as fact.
+
+Next step for whoever picks this up: re-run that experiment properly (remove
+`[locale]/loading.tsx`, rebuild, `next start`, curl the status). If confirmed, the
+fix is to resolve place existence _before_ the streaming boundary — not to delete
+`loading.tsx`, which would regress loading UX site-wide.
+
+**This does not block PR 1.** Those URLs are removed from the sitemap regardless,
+which is the dominant effect; the real 404 only accelerates purging.
 
 ### 4.4 Threshold as a shared contract
 
@@ -310,7 +338,18 @@ instead of empty 200s.
 10. City hubs: `noindex` when city-wide active inventory is below threshold; source
     `HUB_CITIES` from the enabled set in both `sitemap.ts` and `[citySlug]/page.tsx`;
     delete the invented `["Sector 1", "Sector 2", "Central"]` fallback.
-11. Fix double-branded titles; remove the duplicate `robots` tag.
+11. Fix double-branded titles; remove the duplicate `robots` tag. **Mechanism
+    confirmed 2026-07-26:** `apps/web/app/layout.tsx:54` sets
+    `title.template = "%s | Cribliv"`, and page-level titles already end in
+    `— Cribliv`, producing `… — Cribliv | Cribliv`. Fix by stripping the brand
+    from page titles and letting the template add it once.
+    11b. **Stop the city hub linking to phantom metro stations.** PR 1 removed
+    `/map/metro` from the _sitemap_, but `apps/web/app/[locale]/city/[citySlug]/page.tsx`
+    (plus the locality and metro page rails) still call `fetchMetroStationsForCity`,
+    which is `/map/metro`-backed. So Faridabad's hub keeps internally linking to
+    `/city/faridabad/metro/kashmere-gate`. Google follows internal links, so these
+    stay discoverable even though they are no longer submitted. Point these rails
+    at `fetchCityPlaces` too.
 12. Admin page: split live vs draft in the `INDEXABLE` card, count indexable **URLs**
     (localities + their intents + qualifying metro + qualifying landmarks) rather
     than localities, and add a "noindex URLs in sitemap" figure — the number that
@@ -415,14 +454,14 @@ which is inverted for mobile-first indexing. Worth a look, no hypothesis yet.
 
 ## 9. Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| The programmatic sitemap shrinks ~97% (32,864 → ~1,000) and reads as a regression in GSC | Expected and intended. Communicate before deploy; §7.3 defines success as rising 404s and rising Discovery share, not URL count. |
-| Rollup makes a parent indexable while its page renders an empty grid | §4.2 consistency requirement — search filter rolls up in the same PR, with a test asserting count-matches-render. |
-| Rollup double-counts a listing across parent and child | `COUNT(DISTINCT l.id)` over the subtree. |
-| 404-ing ~32,000 previously-200 URLs loses equity | They were `noindex` and non-ranking; no equity exists to lose. |
-| Recursive CTE performance on Gurugram's 267 localities | Counts are already cached behind ISR (`revalidate = 86400`) and the admin's N+1 per-city loop is replaced by one query per city. Benchmark in PR 2. |
-| AI-generated city data contains phantom localities | Runbook's coordinate-collision check is mandatory in PR 3; human review gate retained. |
+| Risk                                                                                     | Mitigation                                                                                                                                          |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The programmatic sitemap shrinks ~97% (32,864 → ~1,000) and reads as a regression in GSC | Expected and intended. Communicate before deploy; §7.3 defines success as rising 404s and rising Discovery share, not URL count.                    |
+| Rollup makes a parent indexable while its page renders an empty grid                     | §4.2 consistency requirement — search filter rolls up in the same PR, with a test asserting count-matches-render.                                   |
+| Rollup double-counts a listing across parent and child                                   | `COUNT(DISTINCT l.id)` over the subtree.                                                                                                            |
+| 404-ing ~32,000 previously-200 URLs loses equity                                         | They were `noindex` and non-ranking; no equity exists to lose.                                                                                      |
+| Recursive CTE performance on Gurugram's 267 localities                                   | Counts are already cached behind ISR (`revalidate = 86400`) and the admin's N+1 per-city loop is replaced by one query per city. Benchmark in PR 2. |
+| AI-generated city data contains phantom localities                                       | Runbook's coordinate-collision check is mandatory in PR 3; human review gate retained.                                                              |
 
 ---
 
