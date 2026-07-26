@@ -81,13 +81,14 @@ export async function fetchBlogList(
 }
 
 export async function fetchBlogPost(
-  slug: string
+  slug: string,
+  opts: { revalidate?: number } = {}
 ): Promise<{ post: BlogPostDetail; related: BlogRelated[] } | null> {
   try {
     const data = await fetchApi<{ post: BlogPostDetail; related: BlogRelated[] } | null>(
       `/blog/${encodeURIComponent(slug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
     return data ?? null;
   } catch {

@@ -71,4 +71,50 @@ describe("ListingsController.detail — view recording", () => {
     await ctrl.detail(UUID, "Bearer acc_22222222-2222-2222-2222-222222222222");
     expect(analytics.trackEvent).not.toHaveBeenCalled();
   });
+
+  // Renders that merely need listing data (blog embed cards, generateMetadata)
+  // must not inflate owners' view metrics. This endpoint is the only place a view
+  // is persisted, so before `track_view` an article embedding three listings
+  // recorded three views per render.
+  describe("track_view opt-out", () => {
+    function harness() {
+      const db = {
+        isEnabled: () => true,
+        query: vi.fn(async () => ({ rows: [detailRow("owner-1")], rowCount: 1 }))
+      };
+      const analytics = { trackEvent: vi.fn(async () => undefined) };
+      const ctrl = new ListingsController({} as any, db as any, analytics as any);
+      return { ctrl, analytics };
+    }
+
+    it.each(["0", "false"])(
+      'suppresses the view event when track_view="%s"',
+      async (trackViewParam) => {
+        const { ctrl, analytics } = harness();
+        const res: any = await ctrl.detail(UUID, undefined, undefined, trackViewParam);
+        // The payload must be unchanged — only the side effect is suppressed.
+        expect(res.data.listing_detail.id).toBe(UUID);
+        expect(analytics.trackEvent).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each([undefined, "1", "true"])(
+      "still records the view when track_view=%s (tracking is the default)",
+      async (trackViewParam) => {
+        const { ctrl, analytics } = harness();
+        await ctrl.detail(UUID, undefined, undefined, trackViewParam);
+        expect(analytics.trackEvent).toHaveBeenCalledWith(
+          expect.objectContaining({ listing_id: UUID, event_type: "view" })
+        );
+      }
+    );
+
+    it("keeps the ?ref= source tag working alongside tracking", async () => {
+      const { ctrl, analytics } = harness();
+      await ctrl.detail(UUID, undefined, "blog-2bhk-rent-in-noida", "1");
+      expect(analytics.trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ metadata: { source: "blog-2bhk-rent-in-noida" } })
+      );
+    });
+  });
 });

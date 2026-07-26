@@ -495,16 +495,33 @@ h4,
   background: var(--brand-light);
 }
 
-/* Center primary nav (Airbnb-style tabs) */
+.nav-row {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* Two flexible spacers keep the centre group optically centred while letting
+   it grow. The old absolute centring collided as soon as items got wider. */
+.nav-spacer {
+  flex: 1 1 auto;
+  min-width: var(--space-2);
+}
 .nav-center {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: auto;
+  flex-shrink: 0;
+}
+/* The "Primary" navigation landmark around the mega-menu bar. On PG-operator
+   routes that landmark and .nav-center are the same element; on public routes
+   nav-menu-bar.tsx owns .nav-center, so the <nav> wraps it. Layout is passed
+   straight through so both branches lay out identically. */
+.nav-primary {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .nav-tab {
@@ -532,21 +549,25 @@ h4,
   color: var(--text-primary);
 }
 
+.nav-tab {
+  position: relative;
+}
 .nav-tab--active::after {
   content: "";
-  display: block;
   position: absolute;
-  margin-top: 30px;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
   width: 28px;
   height: 2px;
   border-radius: 1px;
   background: var(--text-primary);
 }
 
-/* CRIBLIV TIMES — a serif masthead chip in the primary nav. Reads as "the
-   newspaper" (Fraunces serif in a hairline box) against the sans nav tabs; the
-   press red mirrors the blog's flag colour. */
-.nav-times {
+/* The two signature chips. Same box, different voice: Times is the editorial
+   serif in press red, CriblMap is the live-data sans in brand blue. They read
+   as a deliberate pair rather than one chip beside one gradient CTA. */
+.nav-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -554,9 +575,8 @@ h4,
   padding: 5px 12px;
   border: 1px solid var(--border-strong);
   border-radius: 4px;
-  font-family: var(--font-display), Georgia, "Times New Roman", serif;
-  font-weight: 700;
   font-size: 14.5px;
+  font-weight: 700;
   letter-spacing: 0.005em;
   color: var(--text-primary);
   text-decoration: none;
@@ -566,127 +586,344 @@ h4,
     border-color var(--transition-fast),
     background var(--transition-fast);
 }
-.nav-times svg {
+.nav-chip svg {
   opacity: 0.7;
 }
-.nav-times:hover,
-.nav-times--active {
+.nav-chip:hover svg,
+.nav-chip--active svg {
+  opacity: 1;
+}
+
+.nav-chip--times {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
+.nav-chip--times:hover,
+.nav-chip--times.nav-chip--active {
   color: #c2301c;
   border-color: #c2301c;
   background: rgba(194, 48, 28, 0.05);
 }
-.nav-times:hover svg,
-.nav-times--active svg {
-  opacity: 1;
+
+.nav-chip--map {
+  font-size: 13.5px;
+}
+.nav-chip--map:hover,
+.nav-chip--map.nav-chip--active {
+  color: var(--brand);
+  border-color: var(--brand);
+  background: var(--brand-light);
+}
+/* Live-inventory dot. Static — the pulse animation went with the gradient. */
+.nav-chip__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--brand);
 }
 
-/* CRIBLMAP — a gradient live-map CTA in the primary nav. Brand blue→coral wash
-   (the homepage hero's palette) with an ambient drift, a hover sheen sweep, and
-   a pulsing "live" dot, so the map reads as live inventory rather than a static
-   picture. Deep-links to /{locale}/map. */
-.nav-cribmap {
+.nav-trigger {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  margin-left: 4px;
-  padding: 7px 15px 7px 13px;
+  gap: 4px;
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
   border-radius: var(--radius-full);
-  font-size: 13.5px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+.nav-trigger:hover,
+.nav-trigger--open {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
+.nav-trigger svg {
+  transition: transform var(--transition-fast);
+}
+.nav-trigger--open svg {
+  transform: rotate(180deg);
+}
+
+/* The open panel's mount point (nav-menu-bar.tsx). `display: contents` removes
+   its own box from `.nav-center`'s flex flow entirely: as an ordinary flex item
+   it added one `gap: var(--space-1)` (4px) to the row just by existing, so
+   opening a panel widened `.nav-center` by 4px and — wherever `.nav-row` still
+   has free space for its two `flex: 1 1 auto` spacers to absorb, i.e. every
+   inner page — slid every trigger 2px left, then 2px back on close.
+   `.nav-panel` itself is `position: absolute` against `.nav-row`, so it is
+   out-of-flow and contributes no gap of its own once this wrapper is gone.
+   Not `position: absolute` on the wrapper: that would make it the panel's
+   containing block and move the panel. Events are unaffected — `display:
+   contents` removes the box, not the node, so React's enter/leave synthesis
+   still walks through it. */
+.nav-panel-mount {
+  display: contents;
+}
+
+.nav-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: nav-panel-in 180ms ease;
+}
+@keyframes nav-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.nav-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+  max-width: var(--container-max);
+  margin: 0 auto;
+}
+.nav-panel__col-title {
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.005em;
-  color: #fff;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-3);
+}
+.nav-panel__link {
+  display: block;
+  padding: 5px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+.nav-panel__link:hover {
+  color: var(--brand);
+}
+
+/* Cribliv Times' panel reuses the mega-menu box above, but only ever carries
+   two short columns (Desks, Latest) instead of three to five — left unchecked
+   the shared auto-fit grid stretches those few columns edge to edge across
+   the full row width, reading as sparse rather than intentional. Capping the
+   track's max width keeps it dense and left-aligned like an editorial rail. */
+.nav-panel--times .nav-panel__grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
+  justify-content: start;
+}
+
+/* City chip — sits just right of the logo: shows the current city and opens
+   a small popover to switch. The trigger keeps a visible border (unlike
+   .nav-trigger) so it reads as a control immediately, before the user has
+   hovered anything else in the bar. */
+.city-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.city-chip__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+.city-chip__trigger:hover,
+.city-chip__trigger--open {
+  border-color: var(--brand);
+  background: var(--brand-light);
+  color: var(--brand);
+}
+.city-chip__trigger svg {
+  opacity: 0.7;
+}
+.city-chip__trigger:hover svg,
+.city-chip__trigger--open svg {
+  opacity: 1;
+}
+.city-chip__trigger svg:last-child {
+  transition: transform var(--transition-fast);
+}
+.city-chip__trigger--open svg:last-child {
+  transform: rotate(180deg);
+}
+
+.city-chip__popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  animation: nav-panel-in 180ms ease;
+}
+
+.city-chip__link {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
   text-decoration: none;
   white-space: nowrap;
-  overflow: hidden;
-  isolation: isolate;
-  background: linear-gradient(120deg, var(--brand) 0%, #5b57ff 46%, var(--accent) 100%);
-  background-size: 180% 180%;
-  box-shadow:
-    0 2px 10px -2px rgba(255, 90, 95, 0.5),
-    0 1px 3px rgba(0, 102, 255, 0.35);
-  animation: cribmap-drift 7s ease-in-out infinite;
   transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-fast);
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
-.nav-cribmap svg,
-.nav-cribmap span {
+.city-chip__link:hover {
+  color: var(--brand);
+  background: var(--surface-sunken);
+}
+
+/* Saved icon — heart link between the nav menus and "Post Property"; replaces
+   the old text nav-tab (icon + "Saved" label) with an icon-only control, so
+   the accessible name moves to aria-label (see saved-icon.tsx) and a live
+   count badge from the shared shortlist-count store takes the label's place
+   visually. Icon-only, so it gets a plain hover treatment like .nav-trigger
+   rather than a bordered chip — there's no text to make a chip shape read
+   as a control. */
+.saved-icon {
   position: relative;
-  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
 }
-/* Hover sheen — a light streak sweeps across the pill. */
-.nav-cribmap::after {
-  content: "";
+.saved-icon:hover {
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+}
+
+.saved-icon__badge {
   position: absolute;
-  inset: 0;
-  z-index: 0;
-  background: linear-gradient(
-    115deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 65%
-  );
-  transform: translateX(-160%);
-  transition: transform 0.7s ease;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  color: var(--text-inverse);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
 }
-.nav-cribmap:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 5px 18px -2px rgba(255, 90, 95, 0.6),
-    0 2px 6px rgba(0, 102, 255, 0.4);
+
+/* Search pill — replaces the city chip + हिंदी switch once the page is
+   scrolled (or on any inner page), showing a compact, URL-derived summary of
+   the current search. Bordered like .city-chip__trigger so it reads as the
+   same "control" language, but its content length varies with the query, so
+   it caps its width and truncates rather than growing unbounded. */
+.search-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 320px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
-.nav-cribmap:hover::after {
-  transform: translateX(160%);
+.search-pill:hover {
+  border-color: var(--brand);
+  background: var(--brand-light);
+  color: var(--brand);
 }
-.nav-cribmap--active {
-  box-shadow:
-    0 2px 10px -2px rgba(255, 90, 95, 0.5),
-    0 0 0 2px rgba(255, 255, 255, 0.6) inset;
+.search-pill svg {
+  flex-shrink: 0;
+  opacity: 0.7;
 }
-/* Live pulse dot. */
-.nav-cribmap__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
-  animation: cribmap-pulse 2s infinite;
+.search-pill:hover svg {
+  opacity: 1;
 }
-@keyframes cribmap-drift {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+.search-pill__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
-@keyframes cribmap-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.75);
-  }
-  70% {
-    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
-  }
-}
+
 @media (prefers-reduced-motion: reduce) {
-  .nav-cribmap {
+  .nav-panel {
     animation: none;
   }
-  .nav-cribmap__dot {
+  .nav-trigger svg {
+    transition: none;
+  }
+  .city-chip__popover {
     animation: none;
   }
-  .nav-cribmap::after {
+  .city-chip__trigger svg:last-child {
+    transition: none;
+  }
+  .saved-icon {
+    transition: none;
+  }
+  .search-pill {
     transition: none;
   }
 }
 
 @media (max-width: 900px) {
-  .nav-center {
+  .nav-center,
+  .nav-primary {
     display: none;
   }
 }
@@ -727,7 +964,7 @@ h4,
 
 @media (max-width: 640px) {
   /* Post Property becomes a labeled brand pill (not a bare + icon) so the
-     action stays obvious; the language switch moves into the hamburger menu. */
+     action stays obvious. */
   .nav-host-link {
     width: auto;
     height: auto;
@@ -746,15 +983,21 @@ h4,
   .nav-host-link__short {
     display: inline;
   }
-  /* Language stays visible on the top bar as a compact "हिंदी" chip — Hindi
-     discovery matters for the audience. Drop the globe on mobile to save width;
-     the label alone is self-explanatory, and the border reads as tappable. */
-  .nav-actions .lang-pill {
-    padding: 6px 11px;
-    gap: 0;
-    border: 1px solid var(--border);
-  }
-  .nav-actions .lang-pill svg {
+  /* The top bar at this width cannot fit the city chip, the language switch,
+     the Saved heart, Post Property and the hamburger without overflowing the
+     viewport (see the header overflow investigation, Task 11 follow-up) —
+     Post Property is the primary conversion action and the hamburger is the
+     entry point to everything else, so those two stay; the other three go.
+     The language switch and Saved are true duplicates, not lost
+     functionality: header-menu.tsx renders both a "हिंदी"/"EN" row in the
+     sheet's footer and a "My Saved" row in its account section, reachable
+     from every page via the hamburger that must stay visible anyway. The
+     city chip has no such twin in the sheet — hiding it does remove city
+     switching from the mobile top bar, a real (if smaller) loss, tracked as
+     a follow-up rather than fixed here. */
+  .nav-actions .lang-pill,
+  .nav-actions .saved-icon,
+  .city-chip {
     display: none;
   }
   /* Free horizontal room so the profile pill sits a comfortable margin from the
@@ -2009,6 +2252,220 @@ h4,
 }
 .menu-item--danger:hover {
   background: var(--danger-light);
+}
+
+/* ── Mobile city section (inside the header sheet) ───────────────────────
+   The sheet's counterpart to the desktop city chip (.city-chip above), which
+   is CSS-hidden below 640px with no on-screen twin. Trigger styling mirrors
+   .mobile-nav-section__trigger below (same sheet, same row language); the
+   expanded list borrows .city-chip__link's own look rather than
+   .mobile-nav-section__link's, since it is a flat list of places, not a
+   titled column of category links. */
+.mobile-city-section {
+  margin-bottom: 1px;
+}
+
+.mobile-city-section__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 10px var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+.mobile-city-section__trigger:hover {
+  background: var(--surface-sunken);
+}
+
+.mobile-city-section__trigger-value {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.mobile-city-section__chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-fast);
+}
+.mobile-city-section__trigger--open .mobile-city-section__chevron {
+  transform: rotate(180deg);
+}
+
+.mobile-city-section__panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  padding: var(--space-2) var(--space-3) var(--space-3) calc(var(--space-3) + 4px);
+  animation: mobile-nav-section-in 160ms ease;
+}
+
+.mobile-city-section__link {
+  display: block;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+.mobile-city-section__link:hover {
+  color: var(--brand);
+  background: var(--surface-sunken);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-city-section__chevron {
+    transition: none;
+  }
+  .mobile-city-section__panel {
+    animation: none;
+  }
+}
+
+/* ── Mobile nav accordions (inside the header sheet) ────────────────────
+   Below 900px NavMenuBar's floating .nav-panel dropdowns never mount (see
+   header.tsx's useDesktopNav), so these collapsible sections are the only
+   place phone users reach the Rent / PG / Owners sub-links. Same NavPanel
+   data as .nav-panel/.nav-panel__link above, laid out in-sheet instead of a
+   floating grid — column title and link styling intentionally mirror those
+   classes; trigger row styling mirrors .menu-item since it lives in the same
+   sheet. */
+.mobile-nav-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mobile-nav-section__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 10px var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+.mobile-nav-section__trigger:hover {
+  background: var(--surface-sunken);
+}
+
+.mobile-nav-section__chevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-fast);
+}
+.mobile-nav-section__trigger--open .mobile-nav-section__chevron {
+  transform: rotate(180deg);
+}
+
+.mobile-nav-section__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3) calc(var(--space-3) + 4px);
+  animation: mobile-nav-section-in 160ms ease;
+}
+@keyframes mobile-nav-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-nav-section__col-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-2);
+}
+
+.mobile-nav-section__link {
+  display: block;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+.mobile-nav-section__link:hover {
+  color: var(--brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav-section__chevron {
+    transition: none;
+  }
+  .mobile-nav-section__panel {
+    animation: none;
+  }
+}
+
+/* ── Intent chip rail (Slice 3, Task 3) ──────────────────────────────────
+   A horizontally scrollable row of intent chips on the three browse pages
+   (Homes search, PG search, city hub), server-rendered directly below the
+   header. Same purpose as .mobile-nav-sections above — reaching Rent/PG
+   links below 900px, where the desktop mega-menu panels never mount — but
+   surfaced as always-visible chips rather than a tap-to-open accordion, and
+   scoped to a single page's surface (rent or pg) instead of every panel. */
+.intent-rail {
+  display: none;
+}
+@media (max-width: 900px) {
+  .intent-rail {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .intent-rail::-webkit-scrollbar {
+    display: none;
+  }
+}
+.intent-rail__chip {
+  flex: 0 0 auto;
+  padding: 6px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.intent-rail__chip:hover {
+  color: var(--brand);
+  border-color: var(--brand);
 }
 
 /* Mobile: full-screen sheet from the right */

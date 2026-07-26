@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { locales } from "../../../lib/i18n";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -15,6 +16,15 @@ import {
 } from "lucide-react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
+
+// Pure static marketing copy — there is no data fetching on this page. This
+// export is nonetheless required to actually serve it statically: without
+// generateStaticParams a page under the `[locale]` segment is rendered per
+// request, so content that never changes was costing a serverless invocation
+// (and Fluid CPU) on every visit. Keep in sync with `locales` in lib/i18n.
+export function generateStaticParams() {
+  return locales.map((locale) => ({ locale }));
+}
 
 export async function generateMetadata({
   params

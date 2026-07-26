@@ -1,4 +1,5 @@
 import type { Metadata, Route } from "next";
+import { locales } from "../../../lib/i18n";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -223,8 +224,20 @@ const SECTION_COPY = {
     hi: "पहले सत्यापित किराये देखें। संपर्क तभी अनलॉक करें जब लिस्टिंग, मालिक और लोकेशन सही लगे।"
   },
   finalCta: { en: "Open search", hi: "अब खोजें" },
-  finalOwner: { en: "Owners can list a property instead", hi: "मालिक अपनी प्रॉपर्टी लिस्ट कर सकते हैं" }
+  finalOwner: {
+    en: "Owners can list a property instead",
+    hi: "मालिक अपनी प्रॉपर्टी लिस्ट कर सकते हैं"
+  }
 } as const;
+
+// Pure static marketing copy — there is no data fetching on this page. This
+// export is nonetheless required to actually serve it statically: without
+// generateStaticParams a page under the `[locale]` segment is rendered per
+// request, so content that never changes was costing a serverless invocation
+// (and Fluid CPU) on every visit. Keep in sync with `locales` in lib/i18n.
+export function generateStaticParams() {
+  return locales.map((locale) => ({ locale }));
+}
 
 export async function generateMetadata({
   params
@@ -303,7 +316,10 @@ export default function HowItWorksPage({ params }: { params: { locale: string } 
               <Link href={`/${locale}/search`} className={`btn btn--primary ${styles.action}`}>
                 {HERO.primaryCta[locale]} <ArrowRight size={17} aria-hidden="true" />
               </Link>
-              <Link href={`/${locale}/become-owner`} className={`btn btn--secondary ${styles.action}`}>
+              <Link
+                href={`/${locale}/become-owner`}
+                className={`btn btn--secondary ${styles.action}`}
+              >
                 {HERO.secondaryCta[locale]}
               </Link>
             </div>
@@ -404,7 +420,10 @@ export default function HowItWorksPage({ params }: { params: { locale: string } 
               {TRUST_ITEMS.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <article key={item.title.en} className={`${styles.trustItem} ${styles[item.tone]}`}>
+                  <article
+                    key={item.title.en}
+                    className={`${styles.trustItem} ${styles[item.tone]}`}
+                  >
                     <span className={styles.trustIcon} aria-hidden="true">
                       <Icon size={21} />
                     </span>
