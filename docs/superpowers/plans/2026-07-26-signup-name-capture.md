@@ -22,7 +22,7 @@
   3. Reject if it contains `<` or `>`.
   4. Reject unless it contains at least one letter (`\p{L}`).
   5. Reject unless length is 2–80 after normalisation.
-  6. Normalised `''` stores as `NULL`.
+  6. Normalised `''` stores as `NULL`. An explicit input `null` is accepted and means the same thing — `settings-client.tsx:96` already sends `full_name: fullName.trim() || null`, so rejecting a literal `null` would 400 the existing settings page.
 - **There is exactly one implementation of the name rules**, in `packages/shared-types/src/user-name.ts`. Both apps import it. Never re-implement or re-state a rule in `apps/api` or `apps/web`.
 - **Runtime values exported from `packages/shared-types` need an explicit re-export** in `src/index.ts`, not just `export *` — see the comment block already in that file. A value reached only through the barrel is `undefined` once Next.js bundles it.
 - **All user-facing copy goes through `t(locale, key)`** from `apps/web/lib/i18n.ts`, with both `en` and `hi` values. `t()` signature: `t(locale: Locale, key: string): string`.
@@ -247,7 +247,11 @@ export function normalizeFullName(raw: string): string {
 }
 
 export const FullNameSchema = z
-  .string()
+  // Accept an explicit null as input, not just a string: the existing settings
+  // page sends `full_name: fullName.trim() || null`, so a literal null is a real
+  // request shape and means "clear my name" — the same as an empty string.
+  .union([z.string(), z.null()])
+  .transform((value) => value ?? "")
   .transform(normalizeFullName)
   // An empty result is a deliberate "clear my name", not a validation failure.
   .transform((value) => (value === "" ? null : value))
