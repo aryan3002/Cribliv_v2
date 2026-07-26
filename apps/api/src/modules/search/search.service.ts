@@ -6,6 +6,7 @@ import { RankingService } from "../ai/ranking.service";
 import { EmbeddingService } from "../ai/embedding.service";
 import { QueryParserService } from "../ai/query-parser.service";
 import type { ParsedFilters, SearchIntent } from "../ai/ai.types";
+import { LOCALITY_SUBTREE_RECURSE_SQL } from "../seo/seo-aggregates.service";
 
 const CITY_ALIASES: Record<string, string> = {
   delhi: "delhi",
@@ -449,7 +450,24 @@ export class SearchService {
 
       if (query.locality) {
         params.push(query.locality.toLowerCase());
-        clauses.push(`loc.slug = $${params.length}`);
+        // Roll up: match listings tagged to this locality OR any descendant.
+        // Migration 0054 assigns listings to the NEAREST locality, often a
+        // micro-locality, so an exact `loc.slug` match returned nothing for a
+        // parent. This MUST stay identical in depth semantics to
+        // SeoAggregatesService.localitiesForCity, which decides indexability —
+        // otherwise a parent page is indexable while rendering an empty grid.
+        clauses.push(`ll.locality_id IN (
+          WITH RECURSIVE sub AS (
+            SELECT seed.id AS node_id
+            FROM localities seed
+            WHERE seed.slug = $${params.length}
+            UNION ALL
+            SELECT child.id
+            FROM localities child
+            JOIN sub s ON ${LOCALITY_SUBTREE_RECURSE_SQL}
+          )
+          SELECT node_id FROM sub
+        )`);
       }
 
       if (query.min_rent) {
@@ -599,12 +617,12 @@ export class SearchService {
       //    no location is excluded from both). It also carries the geo predicate.
       //  - cities is DROPPED: INNER but ll.city_id is FK-guaranteed, so it never
       //    removed a row; count(*) selects no columns, so c.* is unused here.
-      //  - localities is DROPPED unless a locality filter is active: it was a LEFT
-      //    join, so it never changed the count; only needed for `loc.slug`.
+      //  - localities is DROPPED unconditionally: it was a LEFT join so it never
+      //    changed the count, and since the locality filter became a subtree
+      //    predicate on `ll.locality_id` it no longer needs `loc.slug` either.
       // Measured at 100k: city+rent 46ms->26ms, city+FTS 103ms->32ms, totals identical.
       const countFromSql = `FROM listings l
         JOIN listing_locations ll ON ll.listing_id = l.id
-        ${query.locality ? "LEFT JOIN localities loc ON loc.id = ll.locality_id" : ""}
         ${pgJoinSql}`;
 
       try {
