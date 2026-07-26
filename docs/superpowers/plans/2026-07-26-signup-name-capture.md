@@ -17,7 +17,7 @@
 - **Roles prompted:** `tenant`, `owner`, `pg_operator`. Never `admin`.
 - **`NULL` and `''` both mean "no name".** The API normalises `''` to `NULL` on write.
 - **Name rules, applied in this order — normalise, then reject:**
-  1. Strip Unicode control chars (`\p{Cc}`, `\p{Cf}`).
+  1. Map whitespace-category control chars (tab, LF, CR) to a single space, and **delete** all other control/format chars (`\p{Cc}`, `\p{Cf}`). Deleting tab/LF outright would silently join words — `"Asha\tDevi"` must normalise to `"Asha Devi"`, never `"AshaDevi"`.
   2. Collapse internal whitespace runs to one space; trim.
   3. Reject if it contains `<` or `>`.
   4. Reject unless it contains at least one letter (`\p{L}`).
