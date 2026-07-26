@@ -1,8 +1,13 @@
 import type { Metadata } from "next";
-import { fetchEnabledCities, fetchMetroStation } from "../../../../../../../lib/seo-api";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
+import {
+  fetchEnabledCities,
+  fetchListings,
+  fetchMetroStation
+} from "../../../../../../../lib/seo-api";
 import { buildPageMetadata } from "../../../../../../../lib/seo";
 import { cityLabel, getIntent, renderIntentTitle } from "../../../../../../../lib/intent-filters";
-import { MetroStationIntentView } from "./station-intent-view";
+import { MetroStationIntentView, stationIntentQuery } from "./station-intent-view";
 
 export const revalidate = 86400;
 
@@ -43,6 +48,16 @@ export async function generateMetadata({
     });
   }
   const city = cityLabel(params.citySlug, locale);
+  // Count with the intent filter applied. The station's own 1.5 km total is not
+  // the number this page shows, so it must not be the number that gates
+  // indexing. `revalidate` keeps this ISR-cached.
+  const filtered = await fetchListings(
+    {
+      ...stationIntentQuery(params.citySlug, data.station.lat, data.station.lng, intent),
+      page_size: 1
+    },
+    { revalidate }
+  );
   return buildPageMetadata({
     title: renderIntentTitle(
       intent,
@@ -55,7 +70,7 @@ export async function generateMetadata({
         : `Verified ${intent.label_en.toLowerCase()} near ${data.station.station_name} Metro, ${city}. Zero brokerage.`,
     pathname: `/city/${params.citySlug}/metro/${params.station}/${params.intent}`,
     locale,
-    noindex: data.aggregates.listing_count < 3
+    noindex: filtered.total < INDEXABLE_MIN_LISTINGS
   });
 }
 

@@ -435,6 +435,44 @@ after each deploy and in CI against a preview URL.
 
 ---
 
+## 7.4 PR 1 measured results (production, 2026-07-26, post-merge)
+
+Measured on cribliv.com after #121 merged and deployed:
+
+| Chunk     |     Before |     After |
+| --------- | ---------: | --------: |
+| core      |         72 |        72 |
+| listings  |        190 |       190 |
+| faridabad |      4,060 |     **0** |
+| ghaziabad |      7,358 |     **0** |
+| gurugram  |      5,348 |     **0** |
+| lucknow   |      5,886 |     3,422 |
+| noida     |     10,212 |     **0** |
+| blog      |         50 |        50 |
+| **Total** | **33,176** | **3,734** |
+
+**−89%.** The four zero-inventory NCR cities emit nothing, so the ~19,000
+soft-404 metro URLs are no longer submitted.
+
+Lucknow's 3,422 = 540 locality (10 localities × 27 × 2 — exactly as predicted)
+
+- 594 metro (11 of 21 stations clear ≥3 within 1.5 km) + 2,288 landmark (44 of 81
+  clear ≥3 within 2 km). Every one clears the threshold; this is not residual junk.
+  The estimate of "~600–1,000" in §5 was low because it under-counted how many of
+  Lucknow's compact landmark set genuinely qualify.
+
+**Residual defect confirmed live:** the core chunk still submits hub URLs for all
+eight cities in `HUB_CITY_SLUGS` — including draft cities with no data
+(`chandigarh`, `delhi`, `jaipur`) — because that constant is static rather than
+the enabled set. Those hubs are also still `index`. 48 URLs, but they are
+indexable pages carrying invented locality names. This is PR 2 item 10 / task 4,
+now with production evidence.
+
+Master's #120 has since made `HUB_CITY_SLUGS` a canonical shared constant
+(`apps/web/lib/nav/cities.ts`), so task 4 shrinks to adding the `noindex` rule,
+sourcing the sitemap's hub list from the enabled set, and deleting the invented
+`["Sector 1","Sector 2","Central"]` fallback.
+
 ## 8. Open item: the 67% "other file type" crawl share
 
 HTML is 21% of crawl; "other" is 67% (≈106,000 requests). The leading hypothesis is

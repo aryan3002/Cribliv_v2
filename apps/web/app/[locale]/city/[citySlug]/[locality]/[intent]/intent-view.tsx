@@ -14,9 +14,30 @@ import {
 import { isValidSlug } from "../../../../../../lib/seo";
 import {
   getIntent,
+  type IntentDefinition,
   intentToSearchParams,
   renderIntentH1
 } from "../../../../../../lib/intent-filters";
+
+/**
+ * The one query that defines this page's result set.
+ *
+ * `generateMetadata` in ./page.tsx imports this so the noindex decision is made
+ * on the SAME filtered count the body renders. It previously used the parent
+ * locality's *unfiltered* total, so `/gomti-nagar/under-5000` claimed to be
+ * indexable while rendering an empty grid.
+ */
+export function localityIntentQuery(
+  citySlug: string,
+  localitySlug: string,
+  intent: IntentDefinition
+): Record<string, string> {
+  return {
+    city: citySlug,
+    locality: localitySlug,
+    ...intentToSearchParams(intent)
+  };
+}
 
 /**
  * The locality-intent page's render, extracted out of `page.tsx` so the admin
@@ -66,12 +87,7 @@ export async function LocalityIntentView({
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
 
   const listingsRes = await fetchListings(
-    {
-      city: params.citySlug,
-      locality: data.locality.slug,
-      page_size: 24,
-      ...intentToSearchParams(intent)
-    },
+    { ...localityIntentQuery(params.citySlug, data.locality.slug, intent), page_size: 24 },
     { revalidate }
   );
   const listings = listingsRes.items;
