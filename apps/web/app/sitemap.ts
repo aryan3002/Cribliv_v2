@@ -2,15 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { buildSearchQuery, getApiBaseUrl } from "../lib/api";
 import { fetchAllBlogSlugs } from "../lib/blog-api";
-import {
-  fetchEnabledCities,
-  fetchLandmarks,
-  fetchLocalities,
-  fetchMetroStationsForCity,
-  type LandmarkRow,
-  type LocalityRow,
-  type MetroStationRow
-} from "../lib/seo-api";
+import { fetchCityPlaces, fetchEnabledCities, type SeoPlace } from "../lib/seo-api";
 import {
   buildCityLandmarkEntries,
   buildCityLocalityEntries,
@@ -152,23 +144,22 @@ async function buildListingsChunk(): Promise<MetadataRoute.Sitemap> {
 }
 
 async function buildCityChunk(citySlug: string): Promise<MetadataRoute.Sitemap> {
-  const [localities, landmarks, stations] = await Promise.all([
-    fetchLocalities(citySlug).catch((): LocalityRow[] => []),
-    fetchLandmarks(citySlug).catch((): LandmarkRow[] => []),
-    fetchMetroStationsForCity(citySlug).catch((): MetroStationRow[] => [])
-  ]);
+  // One call, one definition of `indexable`. Metro stations used to come from
+  // /map/metro, which returns whole metro LINES touching the city — that is why
+  // Faridabad shipped 2,916 metro URLs while having zero stations of its own,
+  // every one of them an HTTP-200 soft 404.
+  // A thrown error here would make the whole chunk a 500, which Google treats
+  // far worse than an empty urlset. fetchCityPlaces already swallows failures;
+  // this is belt-and-braces for the crawl-critical path.
+  const places = await fetchCityPlaces(citySlug, { revalidate: 86400 }).catch(() => null);
+  if (!places) return [];
+
+  const indexable = (list: SeoPlace[]) => list.filter((place) => place.indexable);
 
   return [
-    ...buildCityLocalityEntries(
-      BASE_URL,
-      citySlug,
-      localities.map((locality) => ({
-        slug: locality.slug,
-        listing_count: locality.listing_count ?? 0
-      }))
-    ),
-    ...buildCityMetroEntries(BASE_URL, citySlug, stations),
-    ...buildCityLandmarkEntries(BASE_URL, citySlug, landmarks)
+    ...buildCityLocalityEntries(BASE_URL, citySlug, indexable(places.localities)),
+    ...buildCityMetroEntries(BASE_URL, citySlug, indexable(places.metro_stations)),
+    ...buildCityLandmarkEntries(BASE_URL, citySlug, indexable(places.landmarks))
   ];
 }
 
