@@ -455,7 +455,8 @@ describe("AuthService.updateProfile — DB mode", () => {
     const result = await service.updateProfile("u1", { full_name: "Asha Devi" });
 
     expect(result).toMatchObject({ full_name: "Asha Devi" });
-    expect(query.mock.calls[0][1]).toEqual(["u1", "Asha Devi", null, null]);
+    // 5 params: $5 is the "full_name was provided" flag the CASE WHEN needs.
+    expect(query.mock.calls[0][1]).toEqual(["u1", "Asha Devi", null, null, true]);
   });
 
   it("clears the column when given null", async () => {
