@@ -183,8 +183,7 @@ export class AuthService {
         challenge_id: inserted.rows[0].id,
         expires_in_sec: sent.expirySec,
         retry_after_sec: 30,
-        channel:
-          provider.name === "d7" ? ("sms" as const) : (provider.name as "whatsapp" | "mock"),
+        channel: provider.name === "d7" ? ("sms" as const) : (provider.name as "whatsapp" | "mock"),
         sms_fallback_available: this.providers.isSmsFallbackAvailable(attemptsAfterSend),
         ...(sent.devOtp ? { dev_otp: sent.devOtp } : {})
       };

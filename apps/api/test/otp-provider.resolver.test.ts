@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OtpProviderResolver } from "../src/modules/auth/otp/otp-provider.resolver";
 
 const mock = { name: "mock" } as never;
@@ -8,6 +8,15 @@ const d7 = { name: "d7" } as never;
 function makeResolver() {
   return new OtpProviderResolver(mock, whatsapp, d7);
 }
+
+// Cleared before AND after: several cases assert on a var being *unset*, and
+// the ambient shell may already export it (the inert-verification run does
+// exactly that). Braces are deliberate — an expression-bodied arrow would
+// return delete's boolean and Vitest would treat a returned value as teardown.
+beforeEach(() => {
+  delete process.env.OTP_PROVIDER;
+  delete process.env.OTP_CHANNEL_PRIMARY;
+});
 
 afterEach(() => {
   delete process.env.OTP_PROVIDER;
