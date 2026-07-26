@@ -6,6 +6,8 @@ import { buildListing } from "../../../../lib/structured-data";
 import { jsonLdSafe } from "../../../../lib/jsonld";
 import { ogImageFor } from "../../../../lib/og-image";
 import { isUnavailableListingsEnabled } from "../../../../lib/unavailable-listings-flag";
+import { isTrustMotionEnabled } from "../../../../lib/trust-motion-flag";
+import { RentReveal, SafetyRow } from "../../../../components/motion/TrustMotion";
 import { UnlockContactPanel } from "../../../../components/unlock-contact-panel";
 import { ListingGallery } from "../../../../components/listing/listing-gallery";
 import { ListingHighlights } from "../../../../components/listing/listing-highlights";
@@ -216,6 +218,7 @@ export default async function ListingDetailPage({
   // panel below independently re-checks via its own useFlag() call using the
   // raw is_available/waitlist_count props, matching that dual-gate pattern.
   const isUnavailable = isUnavailableListingsEnabled() && listing.is_available === false;
+  const trustMotion = isTrustMotionEnabled();
 
   // Fetch market rate data. This route stays dynamic (it needs `auth()` and
   // `searchParams` at first paint), but caching this particular fetch still
@@ -383,7 +386,11 @@ export default async function ListingDetailPage({
               <BadgeIndianRupee size={18} />
             </span>
             <span className="tenant-cost-card__label">Rent</span>
-            <strong>₹{listing.monthly_rent.toLocaleString("en-IN")}</strong>
+            {trustMotion ? (
+              <RentReveal rent={listing.monthly_rent} per="" style={{ fontSize: 22 }} />
+            ) : (
+              <strong>₹{listing.monthly_rent.toLocaleString("en-IN")}</strong>
+            )}
             <span className="tenant-cost-card__note">
               Total monthly cost ₹{monthlyAllIn.toLocaleString("en-IN")}/mo all-in
             </span>
@@ -419,6 +426,12 @@ export default async function ListingDetailPage({
             </span>
           </div>
         </section>
+
+        {trustMotion && (
+          <div style={{ margin: "12px 2px 0", display: "flex", justifyContent: "center" }}>
+            <SafetyRow items={["Verified owner", "Real photos", "No brokerage"]} />
+          </div>
+        )}
 
         {/* Detail layout */}
         <div className="detail-layout">

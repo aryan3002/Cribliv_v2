@@ -19,6 +19,8 @@ import { ListingCardHeart } from "./listing-card-heart";
 import { NotifyAvailabilityButton } from "./listing/notify-availability-button";
 import { useFlag } from "../lib/feature-flags";
 import { t, type Locale } from "../lib/i18n";
+import { motion, useReducedMotion } from "framer-motion";
+import { RentReveal, SafetyRow } from "./motion/TrustMotion";
 
 export interface ListingCardData {
   id: string;
@@ -64,13 +66,16 @@ interface ListingCardItemProps {
   heartSlot?: ReactNode;
   /** Render compact (carousel) instead of grid card. Compact uses min-width for horizontal scroll snap. */
   compact?: boolean;
+  /** Force the TrustMotion treatment on/off. Omit to gate via ff_trust_motion. */
+  trustMotion?: boolean;
 }
 
 export function ListingCardItem({
   listing,
   locale,
   heartSlot,
-  compact = false
+  compact = false,
+  trustMotion
 }: ListingCardItemProps) {
   const cityDisplay = listing.city_name ?? toDisplayCity(listing.city);
   const isPg = listing.listing_type === "pg";
@@ -90,6 +95,23 @@ export function ListingCardItem({
   const ffUnavailableListings = useFlag("ff_unavailable_listings");
   const isUnavailable = ffUnavailableListings && listing.is_available === false;
   const loc = locale as Locale;
+  // TrustMotion: verified pill pops in, rent counts up + underline, safety strip.
+  // The prop overrides the flag (used by the preview); suppressed on unavailable.
+  const ffTrustMotion = useFlag("ff_trust_motion");
+  const reducedMotion = !!useReducedMotion();
+  const showTrust = (trustMotion ?? ffTrustMotion) && !isUnavailable;
+  const verifiedBadge = (
+    <Badge
+      tone="verified"
+      style={{
+        background: "rgba(255,255,255,0.94)",
+        boxShadow: "var(--shadow-sm)",
+        backdropFilter: "blur(6px)"
+      }}
+    >
+      <ShieldCheck size={12} aria-hidden="true" /> Verified
+    </Badge>
+  );
 
   const chips: { icon: ReactNode; label: string }[] = [];
   if (listing.bhk) chips.push({ icon: <BedDouble size={12} />, label: `${listing.bhk} BHK` });
@@ -121,16 +143,39 @@ export function ListingCardItem({
 
         <div className={styles.badgeRow}>
           {isVerified ? (
-            <Badge
-              tone="verified"
-              style={{
-                background: "rgba(255,255,255,0.94)",
-                boxShadow: "var(--shadow-sm)",
-                backdropFilter: "blur(6px)"
-              }}
-            >
-              <ShieldCheck size={12} aria-hidden="true" /> Verified
-            </Badge>
+            showTrust ? (
+              <span style={{ position: "relative", display: "inline-flex" }}>
+                {!reducedMotion && (
+                  <motion.span
+                    aria-hidden
+                    initial={{ opacity: 0.5, scale: 1 }}
+                    animate={{ opacity: 0, scale: 1.9 }}
+                    transition={{ duration: 0.7, ease: "easeOut", delay: 0.3 }}
+                    style={{
+                      position: "absolute",
+                      inset: -2,
+                      borderRadius: 9999,
+                      border: "2px solid #0d9f4f"
+                    }}
+                  />
+                )}
+                <motion.span
+                  initial={reducedMotion ? false : { scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 420,
+                    damping: 24,
+                    mass: 0.7,
+                    delay: 0.12
+                  }}
+                >
+                  {verifiedBadge}
+                </motion.span>
+              </span>
+            ) : (
+              verifiedBadge
+            )
           ) : (
             <span />
           )}
@@ -171,10 +216,18 @@ export function ListingCardItem({
         )}
 
         <div className={styles.priceRow}>
-          <span className={styles.priceWrap}>
-            <span className={styles.price}>{rentDisplay}</span>
-            {hasRent && <span className={styles.period}>{isPg ? "/mo onwards" : "/month"}</span>}
-          </span>
+          {showTrust && hasRent ? (
+            <RentReveal
+              rent={listing.monthly_rent ?? 0}
+              per={isPg ? "/mo onwards" : "/month"}
+              style={{ fontSize: 18 }}
+            />
+          ) : (
+            <span className={styles.priceWrap}>
+              <span className={styles.price}>{rentDisplay}</span>
+              {hasRent && <span className={styles.period}>{isPg ? "/mo onwards" : "/month"}</span>}
+            </span>
+          )}
           {!isUnavailable && (
             <Badge tone="neutral" style={{ fontSize: 11, padding: "4px 8px" }}>
               <ShieldCheck size={12} aria-hidden="true" /> Live details
@@ -186,6 +239,14 @@ export function ListingCardItem({
           <NotifyAvailabilityButton listingId={listing.id} locale={locale} variant="inline" />
         )}
       </Link>
+      {showTrust && !compact && (
+        <div style={{ padding: "0 14px 14px" }}>
+          <SafetyRow
+            items={["Verified owner", "Real photos", "No brokerage"]}
+            style={{ gap: 12 }}
+          />
+        </div>
+      )}
     </article>
   );
 }

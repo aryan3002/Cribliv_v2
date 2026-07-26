@@ -5,11 +5,9 @@
  * (against the site's real .btn / .skeleton classes). Dev/preview surface (noindex).
  */
 import * as React from "react";
-import { motion, useReducedMotion, MotionConfig } from "framer-motion";
-import { ShieldCheck, MapPin, BedDouble, Sofa } from "lucide-react";
-import { Badge } from "@cribliv/ui";
+import { MotionConfig } from "framer-motion";
+import { ShieldCheck } from "lucide-react";
 import { ListingCardItem, type ListingCardData } from "@/components/listing-card";
-import cardStyles from "@/components/listing-card.module.css";
 import {
   RentReveal,
   SafetyRow,
@@ -28,7 +26,6 @@ const INK = "#1a1a2e",
   SEC = "#64748b",
   GREEN = "#0d9f4f",
   LINE = "#e4e7ec";
-const POP = { type: "spring", stiffness: 420, damping: 24, mass: 0.7 } as const;
 
 const photo = (a: string, b: string) =>
   "data:image/svg+xml;utf8," +
@@ -66,93 +63,6 @@ const SAMPLES: (ListingCardData & { rentNum: number })[] = [
     cover_photo: photo("#eaf6ee", "#cfe9d8")
   }
 ];
-
-/* Faithful copy of the real card (same CSS module) with the TrustMotion treatment:
-   verified pill pops in + one-shot ring pulse, rent counts up + amber underline,
-   and a SafetyRow strip makes verification feel earned. */
-function TrustCard({ listing, rentNum }: { listing: ListingCardData; rentNum: number }) {
-  const reduced = useReducedMotion();
-  const fLabel =
-    listing.furnishing === "fully_furnished"
-      ? "Fully Furnished"
-      : listing.furnishing === "semi_furnished"
-        ? "Semi-Furnished"
-        : "Unfurnished";
-  return (
-    <article className={cardStyles.card}>
-      <div className={cardStyles.media}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={listing.cover_photo ?? ""} alt={listing.title} className={cardStyles.img} />
-        <span className={cardStyles.scrim} aria-hidden="true" />
-        <div className={cardStyles.badgeRow}>
-          <span style={{ position: "relative", display: "inline-flex" }}>
-            {!reduced && (
-              <motion.span
-                aria-hidden
-                initial={{ opacity: 0.5, scale: 1 }}
-                animate={{ opacity: 0, scale: 1.9 }}
-                transition={{ duration: 0.7, ease: "easeOut", delay: 0.32 }}
-                style={{
-                  position: "absolute",
-                  inset: -2,
-                  borderRadius: 9999,
-                  border: `2px solid ${GREEN}`
-                }}
-              />
-            )}
-            <motion.span
-              initial={reduced ? false : { scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ ...POP, delay: 0.15 }}
-            >
-              <Badge
-                tone="verified"
-                style={{
-                  background: "rgba(255,255,255,0.94)",
-                  boxShadow: "var(--shadow-sm)",
-                  backdropFilter: "blur(6px)"
-                }}
-              >
-                <ShieldCheck size={12} aria-hidden="true" /> Verified
-              </Badge>
-            </motion.span>
-          </span>
-          <span />
-        </div>
-        <span className={cardStyles.typePill}>Flat / House</span>
-      </div>
-      <div className={cardStyles.body}>
-        <h3 className={cardStyles.title}>{listing.title}</h3>
-        <div className={cardStyles.loc}>
-          <MapPin size={13} aria-hidden="true" />
-          <span className={cardStyles.locText}>{listing.locality}, Lucknow</span>
-        </div>
-        <div className={cardStyles.metaRow}>
-          <span className={cardStyles.metaChip}>
-            <BedDouble size={12} />
-            {listing.bhk} BHK
-          </span>
-          <span className={cardStyles.metaChip}>
-            <Sofa size={12} />
-            {fLabel}
-          </span>
-        </div>
-        <div className={cardStyles.priceRow}>
-          <span style={{ fontSize: 18 }}>
-            <RentReveal rent={rentNum} per="/month" />
-          </span>
-          <Badge tone="neutral" style={{ fontSize: 11, padding: "4px 8px" }}>
-            <ShieldCheck size={12} aria-hidden="true" /> Live details
-          </Badge>
-        </div>
-      </div>
-      {/* the "feels earned" strip */}
-      <div style={{ padding: "0 14px 14px", marginTop: -2 }}>
-        <SafetyRow items={["Verified owner", "Real photos", "No brokerage"]} style={{ gap: 12 }} />
-      </div>
-    </article>
-  );
-}
 
 function Panel({
   title,
@@ -338,6 +248,7 @@ export function MotionPreview() {
                       listing={s}
                       locale="en"
                       heartSlot={<span aria-hidden />}
+                      trustMotion={false}
                     />
                   ))}
                 </div>
@@ -345,7 +256,13 @@ export function MotionPreview() {
               <Panel title="With TrustMotion">
                 <div style={{ display: "grid", gap: 16, gridTemplateColumns: "1fr" }}>
                   {SAMPLES.map((s) => (
-                    <TrustCard key={s.id} listing={s} rentNum={s.rentNum} />
+                    <ListingCardItem
+                      key={s.id}
+                      listing={s}
+                      locale="en"
+                      heartSlot={<span aria-hidden />}
+                      trustMotion
+                    />
                   ))}
                 </div>
               </Panel>
