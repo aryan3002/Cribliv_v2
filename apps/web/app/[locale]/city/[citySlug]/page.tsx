@@ -4,9 +4,11 @@ import { ArrowRight, MapPin } from "lucide-react";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { ListingCardItem } from "../../../../components/listing-card";
 import { HUB_CITY_SLUGS } from "../../../../lib/nav/cities";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import {
   fetchLocalities,
   fetchLandmarks,
+  fetchListings,
   fetchMetroStationsForCity,
   fetchEnabledCities
 } from "../../../../lib/seo-api";
@@ -67,9 +69,28 @@ export async function generateMetadata({
     ? `${cityCapitalized} में सत्यापित किराये के मकान, PG और फ्लैट खोजें। AI-संचालित खोज, मालिक सत्यापन और 12-घंटे रिफंड गारंटी।`
     : `Find verified flats, PGs, and houses for rent in ${cityCapitalized}. AI-powered search with owner verification and 12-hour refund guarantee.`;
 
+  // City-wide active inventory decides whether this hub may be indexed. The
+  // threshold is city-wide rather than per-locality because a hub legitimately
+  // aggregates across its localities.
+  //
+  // The root layout sets `robots: { index: true, follow: true }`
+  // (apps/web/app/layout.tsx), so a thin hub must set `index: false`
+  // EXPLICITLY — omitting robots inherits that positive default. Verified on
+  // production: /en/city/varanasi served `index, follow` with fabricated
+  // locality names.
+  //
+  // ISR-cached at the hub's own 3600s window; a no-store fetch here would force
+  // the whole static hub into per-request dynamic rendering.
+  const cityInventory = await fetchListings(
+    { city: params.citySlug, page_size: 1 },
+    { revalidate: 3600 }
+  );
+  const thin = cityInventory.total < INDEXABLE_MIN_LISTINGS;
+
   return {
     title,
     description,
+    robots: thin ? { index: false, follow: true } : undefined,
     alternates: {
       canonical: `${BASE_URL}/en/city/${params.citySlug}`,
       languages: {
@@ -215,7 +236,12 @@ export default async function CityPage({
   const cityMeta = CITY_META[params.citySlug] ?? null;
   const budgetChips = ["Under ₹8,000", "₹8k-₹15k", "₹15k-₹25k", "₹25k+"];
   const typeChips = ["Flat/House", "PG", "1 BHK", "2 BHK", "Furnished"];
-  const localities = CITY_LOCALITIES[params.citySlug] ?? ["Sector 1", "Sector 2", "Central"];
+  // No invented fallback. This used to default to
+  // ["Sector 1", "Sector 2", "Central"], which rendered fabricated place names
+  // as real "Popular Areas in <city>" links for any city outside
+  // CITY_LOCALITIES — verified live on /en/city/varanasi. An empty list hides
+  // the section entirely instead.
+  const localities = CITY_LOCALITIES[params.citySlug] ?? [];
 
   // Programmatic SEO enrichment — shown for any city enabled via the admin
   // toggle (fetchEnabledCities), not just Lucknow. Each fetch is best-effort
@@ -661,55 +687,58 @@ export default async function CityPage({
           </section>
         )}
 
-        {/* Locality Clusters */}
-        <section style={{ marginBottom: "var(--space-10)" }}>
-          <h3
-            style={{
-              marginBottom: "var(--space-4)",
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)"
-            }}
-          >
-            {cityMeta && (
-              <MapPin
-                size={18}
-                style={{ color: "var(--brand)", flexShrink: 0 }}
-                aria-hidden="true"
-              />
-            )}
-            {isHindi ? "लोकप्रिय इलाके" : `Popular Areas in ${cityCapitalized}`}
-          </h3>
-          <div
-            className="listing-grid"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
-          >
-            {localities.map((loc) => (
-              <a
-                key={loc}
-                href={`/${params.locale}/search?city=${params.citySlug}&q=${encodeURIComponent(loc)}`}
-                className="card"
-                style={{ textDecoration: "none", padding: "var(--space-5)", textAlign: "center" }}
-              >
-                {cityMeta && (
-                  <MapPin
-                    size={14}
-                    style={{
-                      color: "var(--brand)",
-                      marginBottom: "var(--space-1)",
-                      display: "block",
-                      margin: "0 auto var(--space-1)"
-                    }}
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="body-sm text-brand" style={{ fontWeight: 600 }}>
-                  {loc}
-                </span>
-              </a>
-            ))}
-          </div>
-        </section>
+        {/* Locality Clusters — hidden entirely when we have no real localities
+            for this city, rather than inventing placeholder names. */}
+        {localities.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <h3
+              style={{
+                marginBottom: "var(--space-4)",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)"
+              }}
+            >
+              {cityMeta && (
+                <MapPin
+                  size={18}
+                  style={{ color: "var(--brand)", flexShrink: 0 }}
+                  aria-hidden="true"
+                />
+              )}
+              {isHindi ? "लोकप्रिय इलाके" : `Popular Areas in ${cityCapitalized}`}
+            </h3>
+            <div
+              className="listing-grid"
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
+            >
+              {localities.map((loc) => (
+                <a
+                  key={loc}
+                  href={`/${params.locale}/search?city=${params.citySlug}&q=${encodeURIComponent(loc)}`}
+                  className="card"
+                  style={{ textDecoration: "none", padding: "var(--space-5)", textAlign: "center" }}
+                >
+                  {cityMeta && (
+                    <MapPin
+                      size={14}
+                      style={{
+                        color: "var(--brand)",
+                        marginBottom: "var(--space-1)",
+                        display: "block",
+                        margin: "0 auto var(--space-1)"
+                      }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="body-sm text-brand" style={{ fontWeight: 600 }}>
+                    {loc}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* FAQ */}
         <section>

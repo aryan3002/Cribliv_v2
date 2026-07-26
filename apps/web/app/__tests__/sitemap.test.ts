@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   fetchEnabledCities: vi.fn(),
   fetchCityPlaces: vi.fn(),
+  fetchListings: vi.fn(),
   buildSearchQuery: vi.fn((params: Record<string, string | number | boolean | undefined>) => {
     const qs = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
@@ -15,7 +16,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../lib/seo-api", () => ({
   fetchEnabledCities: mocks.fetchEnabledCities,
-  fetchCityPlaces: mocks.fetchCityPlaces
+  fetchCityPlaces: mocks.fetchCityPlaces,
+  fetchListings: mocks.fetchListings
 }));
 
 vi.mock("../../lib/api", () => ({
@@ -62,6 +64,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.fetchEnabledCities.mockResolvedValue(new Set(["lucknow"]));
   mocks.fetchCityPlaces.mockResolvedValue(lucknowPlaces);
+  // Default: every hub city has inventory, so the core chunk's existing
+  // assertions are unaffected. Individual tests override per city.
+  mocks.fetchListings.mockResolvedValue({ items: [], total: 10 });
   vi.stubGlobal(
     "fetch",
     vi.fn(async () => ({
@@ -140,6 +145,44 @@ describe("sitemap", () => {
     // Faridabad shipped 2,916 metro URLs while having zero stations.
     expect(mocks.fetchCityPlaces).toHaveBeenCalledTimes(1);
     expect(mocks).not.toHaveProperty("fetchMetroStationsForCity");
+  });
+
+  it("core chunk omits city hubs for cities without inventory", async () => {
+    // Draft cities (chandigarh, delhi, jaipur) and enabled-but-empty NCR cities
+    // were submitted as indexable hubs. Verified live: /en/city/varanasi served
+    // `index, follow` with fabricated locality names.
+    mocks.fetchListings.mockImplementation(async (params: Record<string, unknown>) => ({
+      items: [],
+      total: params.city === "lucknow" ? 9 : 0
+    }));
+
+    const rows = await sitemap({ id: 0 });
+    const urls = rows.map((row) => row.url);
+
+    expect(urls.some((u) => u.endsWith("/en/city/lucknow"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/en/city/chandigarh"))).toBe(false);
+    expect(urls.some((u) => u.endsWith("/en/city/delhi"))).toBe(false);
+    expect(urls.some((u) => u.endsWith("/en/city/jaipur"))).toBe(false);
+  });
+
+  it("core chunk keeps the curated /rent-in and /pg city pages ungated", async () => {
+    // Deliberate scope boundary: those are hand-curated editorial pages, not
+    // programmatic ones, so inventory does not decide whether they belong.
+    mocks.fetchListings.mockResolvedValue({ items: [], total: 0 });
+
+    const rows = await sitemap({ id: 0 });
+    const urls = rows.map((row) => row.url);
+
+    expect(urls.some((u) => u.endsWith("/en/rent-in/chandigarh"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/en/pg/chandigarh"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/en/city/chandigarh"))).toBe(false);
+  });
+
+  it("core chunk counts city inventory with an ISR-cacheable fetch", async () => {
+    await sitemap({ id: 0 });
+
+    const [, opts] = mocks.fetchListings.mock.calls[0];
+    expect(opts).toMatchObject({ revalidate: 3600 });
   });
 
   it("returns an empty sitemap for out-of-range chunk ids", async () => {
