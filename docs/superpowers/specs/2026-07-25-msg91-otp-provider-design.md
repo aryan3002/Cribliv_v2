@@ -1,7 +1,15 @@
 # MSG91 as a third OTP provider
 
+> **SUPERSEDED 2026-07-26 — do not implement.** MSG91's domestic rate (₹0.25 + 18% GST)
+> is no better than D7's own domestic rate (₹0.26), so migrating providers buys nothing.
+> The real cost driver is the *route*, not the vendor: we are on D7's international route
+> at ₹4.93/SMS because we have no DLT registration. See
+> `2026-07-26-whatsapp-first-otp-design.md` for the replacement direction (WhatsApp
+> authentication templates at ₹0.115, no DLT). The `OtpProvider` abstraction described
+> below survives into that design — only the MSG91-specific parts are dead.
+
 **Date:** 2026-07-25
-**Status:** Approved, pending implementation plan
+**Status:** Superseded
 **Scope:** Login OTP only. Transactional SMS (`notifications/sms.client.ts`) is explicitly out of scope.
 
 ## Problem

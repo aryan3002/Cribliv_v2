@@ -1,5 +1,12 @@
 # MSG91 OTP Provider Implementation Plan
 
+> **SUPERSEDED 2026-07-26 — do not execute this plan.** MSG91 offers no cost advantage
+> over D7's own domestic route, so the migration was cancelled before any code was
+> written. See `docs/superpowers/specs/2026-07-26-whatsapp-first-otp-design.md`.
+> Tasks 1, 3, 4 and 5 (the `OtpProvider` interface, providers, resolver and `AuthService`
+> rewiring) remain broadly valid and are being reused for the WhatsApp-first work; Tasks
+> 2, 6 and 7 are MSG91-specific and dead.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add MSG91 as a third selectable login-OTP provider alongside `mock` and `d7`, shipping flag-off so D7 stays live and cutover is a single env var.
