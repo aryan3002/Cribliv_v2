@@ -5513,6 +5513,10 @@ a.feature-card:hover .icon-circle {
   border-top: 1px solid var(--border);
 }
 
+.name-capture-overlay {
+  z-index: 110;
+}
+
 /* ── Signup reward reveal ───────────────────────────────────────────── */
 .welcome-reward-overlay {
   position: fixed;
