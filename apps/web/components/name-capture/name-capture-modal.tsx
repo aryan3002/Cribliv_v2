@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { t, type Locale } from "../../lib/i18n";
 import { NameCaptureForm } from "./name-capture-form";
 
@@ -26,11 +26,28 @@ export function NameCaptureModal({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
+  // Required has no exit that isn't saving — UNLESS a save attempt has
+  // actually failed (PATCH /users/me: network drop, 500). requireName one
+  // layer up (lib/name-capture.ts) already fails OPEN when the name *lookup*
+  // fails; a required modal that fails CLOSED with zero escape when the save
+  // itself fails is the same class of bug from the other side — the user is
+  // stuck behind a dead endpoint with only a page reload to get out. Once
+  // NameCaptureForm reports a save error via onSaveError below, this flips
+  // true and every trap below (Escape, overlay click, close button) stands
+  // down, same as the non-required path.
+  const [saveFailed, setSaveFailed] = useState(false);
+  // Mirrors saveFailed for the mount-only effect's onKeyDown closure below,
+  // which cannot see later renders' state directly (the effect's own deps
+  // deliberately exclude saveFailed — see that effect's comment). Assigned
+  // during render, not inside the effect, so it is always current by the
+  // time any keydown fires without needing the effect to re-run.
+  const saveFailedRef = useRef(false);
+  saveFailedRef.current = saveFailed;
+
   const dismiss = useCallback(() => {
-    // The required variant has no exit that isn't saving.
-    if (required) return;
+    if (required && !saveFailed) return;
     onDismiss();
-  }, [onDismiss, required]);
+  }, [onDismiss, required, saveFailed]);
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement as HTMLElement | null;
@@ -40,17 +57,23 @@ export function NameCaptureModal({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (required) {
+      // Reads the ref, not `saveFailed` directly: this effect runs once (on
+      // mount — its deps below deliberately exclude saveFailed so a save
+      // failure doesn't tear down and re-run the focus/scroll-lock setup
+      // above), so a closure over the state variable itself would freeze at
+      // its mount-time value (always `false`) and never see a later failure.
+      if (required && !saveFailedRef.current) {
         // Swallow it completely: without this the browser may still blur/close
         // things and the user perceives a dismissable dialog that isn't. The
-        // stated guarantee for required mode is that NOTHING else in the tree
-        // reacts to this Escape press, so stop it from propagating any
-        // further too — e.g. header-menu.tsx's nav-dropdown closer also
-        // listens for Escape on `document` and must not fire. Because this
-        // listener is itself attached to `document`, plain stopPropagation()
-        // cannot stop sibling document-level listeners; stopImmediatePropagation()
-        // is what actually prevents other document listeners registered
-        // (before or after this one) from running for this event.
+        // stated guarantee for required mode (while no save has failed yet)
+        // is that NOTHING else in the tree reacts to this Escape press, so
+        // stop it from propagating any further too — e.g. header-menu.tsx's
+        // nav-dropdown closer also listens for Escape on `document` and must
+        // not fire. Because this listener is itself attached to `document`,
+        // plain stopPropagation() cannot stop sibling document-level
+        // listeners; stopImmediatePropagation() is what actually prevents
+        // other document listeners registered (before or after this one)
+        // from running for this event.
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
@@ -93,6 +116,10 @@ export function NameCaptureModal({
       document.body.style.overflow = previousOverflow;
       previousFocusRef.current?.focus({ preventScroll: true });
     };
+    // saveFailed is deliberately NOT a dep: this effect's cleanup restores
+    // focus/scroll to their pre-open state, which must only happen on actual
+    // unmount, not merely because a save attempt failed while still open.
+    // onKeyDown reads saveFailedRef (kept fresh every render, above) instead.
   }, [onDismiss, required]);
 
   const titleKey = required ? "nameCaptureTitleRequired" : "nameCaptureTitle";
@@ -118,7 +145,7 @@ export function NameCaptureModal({
           <h2 className="modal__title" ref={headingRef} tabIndex={-1}>
             {t(locale, titleKey)}
           </h2>
-          {required ? null : (
+          {required && !saveFailed ? null : (
             <button
               type="button"
               className="modal__close"
@@ -137,6 +164,7 @@ export function NameCaptureModal({
             token={token}
             onSaved={onSaved}
             onSkip={required ? undefined : onDismiss}
+            onSaveError={() => setSaveFailed(true)}
             submitLabelKey={required ? "nameCaptureSaveAndContinue" : "nameCaptureSave"}
             // NameCaptureForm defaults autoFocus to true, but React focuses
             // autoFocus elements during commit — synchronously, and before

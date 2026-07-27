@@ -13,6 +13,14 @@ export interface NameCaptureFormProps {
   /** Omitted for the unskippable variants. When absent, no skip control renders. */
   onSkip?: () => void;
   onSaved: (name: string) => void;
+  /**
+   * Fires when `saveFullName` itself throws (network drop, 500 — a request
+   * actually reaching the server and failing), not on local validation
+   * failure. A required NameCaptureModal has no other exit; it uses this to
+   * reveal a dismiss affordance so a dead PATCH /users/me doesn't trap the
+   * user in an unclosable dialog.
+   */
+  onSaveError?: () => void;
   /** Label override; defaults to nameCaptureSave. */
   submitLabelKey?: string;
   autoFocus?: boolean;
@@ -40,6 +48,7 @@ export function NameCaptureForm({
   token,
   onSkip,
   onSaved,
+  onSaveError,
   submitLabelKey = "nameCaptureSave",
   autoFocus = true
 }: NameCaptureFormProps) {
@@ -77,11 +86,12 @@ export function NameCaptureForm({
         onSaved(parsed.value);
       } catch {
         setError(t(locale, "nameCaptureError"));
+        onSaveError?.();
       } finally {
         setSaving(false);
       }
     },
-    [locale, onSaved, saving, token, value]
+    [locale, onSaveError, onSaved, saving, token, value]
   );
 
   return (

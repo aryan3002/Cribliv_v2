@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 /**
  * Canonical rules for users.full_name, shared by apps/api and apps/web.
  *
@@ -40,26 +38,6 @@ export function normalizeFullName(raw: string): string {
     .trim();
 }
 
-export const FullNameSchema = z
-  // Accept an explicit null as input, not just a string: the existing settings
-  // page sends `full_name: fullName.trim() || null`, so a literal null is a real
-  // request shape and means "clear my name" — the same as an empty string.
-  .union([z.string(), z.null()])
-  .transform((value) => value ?? "")
-  .transform(normalizeFullName)
-  // An empty result is a deliberate "clear my name", not a validation failure.
-  .transform((value) => (value === "" ? null : value))
-  .refine((value) => value === null || !/[<>]/.test(value), {
-    message: "Name must not contain < or >"
-  })
-  .refine((value) => value === null || /\p{L}/u.test(value), {
-    message: "Name must contain at least one letter"
-  })
-  .refine(
-    (value) => value === null || (value.length >= FULL_NAME_MIN && value.length <= FULL_NAME_MAX),
-    { message: `Name must be between ${FULL_NAME_MIN} and ${FULL_NAME_MAX} characters` }
-  );
-
 /**
  * Stable, machine-readable failure reasons. UI layers map these to localised
  * copy; `message` (below) stays an English default for logs and non-UI
@@ -72,27 +50,34 @@ export type ValidateFullNameResult =
   | { ok: false; code: FullNameErrorCode; message: string };
 
 /**
- * Ergonomic wrapper for the web, which needs a stable code to map to localised
- * copy (plus a message to log) rather than a ZodError to unpack.
+ * The single source of truth for full_name validation, shared by apps/web and
+ * apps/api. Returns a stable `code` (for localised copy) and a `message` (for
+ * logs / non-UI callers) rather than a ZodError to unpack.
  *
- * Runs its own explicit checks in the same order as FullNameSchema's chained
- * `.refine()`s, instead of reverse-engineering a code from zod's issue
- * message text — that text is an English sentence, not a stable identifier,
- * and string-matching it would silently break the moment either drifts.
- * Accept/reject and `message` must stay byte-identical to FullNameSchema's
- * behaviour: same normalisation, same rules, same order (angle brackets,
- * then letter presence, then length).
+ * apps/api's UpdateProfileSchema (apps/api/src/modules/auth/dto/update-profile.dto.ts)
+ * builds its zod wrapper directly on top of this function's result via
+ * `superRefine`, instead of re-implementing these rules as a second, parallel
+ * set of zod `.refine()`s. This package used to carry exactly that second
+ * implementation (a `FullNameSchema` built from chained zod `.refine()`s,
+ * kept in agreement with this function only by tests). It has been removed
+ * — this function is now the only place these rules live, and the only
+ * runtime dependency zod-free.
  *
- * Accepts `null`/`undefined` for the same reason FullNameSchema's input is
- * `.union([z.string(), z.null()])`: a literal `null` is a real request shape
- * (the settings page sends `full_name: fullName.trim() || null`), and the two
- * validators exist specifically so they never disagree. Do not narrow this
- * back to `raw: string` — that reintroduces a crash on that exact payload.
+ * Checks run in a fixed order — angle brackets, then letter presence, then
+ * length — matching normalizeFullName's rule ordering above. Do not reorder:
+ * doing so changes which `code` a multi-violation input reports (e.g. "<>"
+ * fails both the angle-bracket and letter-presence rules; whichever is
+ * checked first wins the reported code).
+ *
+ * Accepts `null`/`undefined`: a literal `null` is a real request shape (the
+ * settings page sends `full_name: fullName.trim() || null`), and this
+ * function being the one shared implementation is what keeps apps/web and
+ * apps/api from ever silently disagreeing on it. Do not narrow this back to
+ * `raw: string` — that reintroduces a crash on that exact payload.
  */
 export function validateFullName(raw: string | null | undefined): ValidateFullNameResult {
   // null/undefined mean "no name given", same as an empty or whitespace-only
-  // string ends up meaning below — mirrors FullNameSchema's
-  // `.union([z.string(), z.null()])` -> `.transform((value) => value ?? "")`.
+  // string ends up meaning below.
   if (raw === null || raw === undefined) {
     return { ok: true, value: null };
   }

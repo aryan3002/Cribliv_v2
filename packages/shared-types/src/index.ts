@@ -22,7 +22,6 @@ export { pgEvents, analyticsEvents } from "./events";
 export {
   normalizeFullName,
   validateFullName,
-  FullNameSchema,
   NAME_FIXTURES,
   FULL_NAME_MIN,
   FULL_NAME_MAX

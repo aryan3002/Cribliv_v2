@@ -209,6 +209,24 @@ describe("login page — name-capture step (step 3)", () => {
     expect(replaceMock).not.toHaveBeenCalled();
   });
 
+  it("hides the login/signup tab switcher once the name-capture step is reached", async () => {
+    // Regression test: the tab switcher's onClick calls setStep(1) but has no
+    // way to also clear verifyingRef (deliberately left `true` once step 3 is
+    // reached). Before this fix, clicking a tab here flipped `step` back to 1
+    // while the ref stayed `true`, which stood down BOTH the redirect effect
+    // and the render-time "already authenticated" gate — the phone form
+    // reappeared for an already-authenticated user with no way to reach their
+    // destination. Hiding the switcher on step 3 removes the click that
+    // triggers it; there is no login/signup choice left to make once the
+    // account is already verified.
+    await verifyIntoNameStep({ id: "user-4", role: "tenant", name: null });
+    await screen.findByTestId("name-capture-input");
+
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /log in/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /sign up/i })).not.toBeInTheDocument();
+  });
+
   it("does not divert a nameless admin — admins are excluded from the prompt", async () => {
     await verifyIntoNameStep({ id: "admin-1", role: "admin", name: null });
 

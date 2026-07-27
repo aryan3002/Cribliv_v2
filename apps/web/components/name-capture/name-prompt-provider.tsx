@@ -138,7 +138,11 @@ export function NamePromptProvider({
           }}
           onDismiss={() => {
             if (pending) {
-              // Unreachable in required mode, but keep the promise from leaking.
+              // Reachable in required mode only after a failed save attempt
+              // (NameCaptureModal reveals its escape hatch then, so the
+              // contact gate doesn't trap the user behind a dead
+              // PATCH /users/me) — resolve false so requireName's caller
+              // proceeds without a name instead of hanging forever.
               pending.resolve(false);
               setPending(null);
               return;

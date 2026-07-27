@@ -393,35 +393,46 @@ function LoginPageInner() {
             {subtitleCopy}
           </motion.p>
 
-          {/* Tab switcher */}
-          <motion.div
-            className="auth-tabs auth-tabs--pill"
-            variants={fadeUp}
-            custom={3}
-            initial="hidden"
-            animate="show"
-            role="tablist"
-          >
-            {(["login", "signup"] as const).map((t) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={tab === t}
-                className={`auth-tab${tab === t ? " auth-tab--active" : ""}`}
-                onClick={() => {
-                  setTab(t);
-                  setStep(1);
-                  setError(null);
-                  setInfo(null);
-                  setOtp("");
-                  setChallengeId("");
-                  setDevOtp(null);
-                }}
-              >
-                {t === "login" ? "Log in" : "Sign up"}
-              </button>
-            ))}
-          </motion.div>
+          {/* Tab switcher — hidden on step 3 (post-verify name capture). The
+              user is already authenticated by that point, so a login/signup
+              choice is no longer meaningful; more importantly, its onClick
+              calls setStep(1) but has no way to also clear verifyingRef
+              (deliberately left `true` when step 3 is reached — see that
+              ref's declaration comment above). Without this guard, clicking a
+              tab here would flip `step` back to 1 while the ref stayed `true`,
+              which stands down BOTH the redirect effect and the render-time
+              "already authenticated" gate — stranding an authenticated user on
+              the phone form with no way to reach their destination. */}
+          {step !== 3 && (
+            <motion.div
+              className="auth-tabs auth-tabs--pill"
+              variants={fadeUp}
+              custom={3}
+              initial="hidden"
+              animate="show"
+              role="tablist"
+            >
+              {(["login", "signup"] as const).map((t) => (
+                <button
+                  key={t}
+                  role="tab"
+                  aria-selected={tab === t}
+                  className={`auth-tab${tab === t ? " auth-tab--active" : ""}`}
+                  onClick={() => {
+                    setTab(t);
+                    setStep(1);
+                    setError(null);
+                    setInfo(null);
+                    setOtp("");
+                    setChallengeId("");
+                    setDevOtp(null);
+                  }}
+                >
+                  {t === "login" ? "Log in" : "Sign up"}
+                </button>
+              ))}
+            </motion.div>
+          )}
 
           {/* Signup benefits strip */}
           {tab === "signup" ? (

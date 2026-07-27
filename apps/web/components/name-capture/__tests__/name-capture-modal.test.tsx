@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NameCaptureModal } from "../name-capture-modal";
 
 // The modal renders the real NameCaptureForm (Task 7), which calls this on
-// submit. None of these tests submit the form, but mocking it keeps the
-// suite from ever making a real network call if that changes later — same
-// guard as name-capture-form.test.tsx.
+// submit. Most of these tests don't submit the form; mocking it keeps the
+// suite from ever making a real network call regardless. The "save failure
+// escape hatch" describe block below does submit, and controls this mock's
+// resolved/rejected behaviour per test to drive that failure path.
 const saveFullName = vi.fn();
 vi.mock("../../../lib/name-capture", async () => {
   const actual = await vi.importActual<typeof import("../../../lib/name-capture")>(
@@ -77,6 +78,87 @@ describe("NameCaptureModal", () => {
       expect(
         screen.getByRole("heading", { name: "Add your name to continue" })
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("required mode — save failure escape hatch", () => {
+    // requireName one layer up (lib/name-capture.ts) already fails OPEN when
+    // the name *lookup* fails; a required modal that fails CLOSED with zero
+    // escape when the save itself fails is the same bug from the other side.
+    // These pin: no escape while no save has failed (still fully trapped,
+    // same as the "required mode" block above), and an escape appears once
+    // one actually has.
+
+    it("does not reveal a close control after a mere local validation failure", async () => {
+      // "A" fails validateFullName's length rule before any network call —
+      // not the failure this fix targets. The trap must stay fully up.
+      setup({ required: true });
+      fireEvent.change(screen.getByTestId("name-capture-input"), { target: { value: "A" } });
+      fireEvent.click(screen.getByTestId("name-capture-submit"));
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(saveFullName).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("name-capture-close")).not.toBeInTheDocument();
+    });
+
+    it("still swallows Escape after a mere local validation failure", async () => {
+      const { onDismiss } = setup({ required: true });
+      fireEvent.change(screen.getByTestId("name-capture-input"), { target: { value: "A" } });
+      fireEvent.click(screen.getByTestId("name-capture-submit"));
+      await screen.findByRole("alert");
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(onDismiss).not.toHaveBeenCalled();
+    });
+
+    it("reveals a close control once a save attempt actually fails", async () => {
+      saveFullName.mockRejectedValueOnce(new Error("network drop"));
+      setup({ required: true });
+      fireEvent.change(screen.getByTestId("name-capture-input"), {
+        target: { value: "Asha Devi" }
+      });
+      fireEvent.click(screen.getByTestId("name-capture-submit"));
+
+      expect(await screen.findByTestId("name-capture-close")).toBeInTheDocument();
+      expect(saveFullName).toHaveBeenCalledWith("acc_test", "Asha Devi");
+    });
+
+    it("lets Escape dismiss once a save attempt has failed", async () => {
+      saveFullName.mockRejectedValueOnce(new Error("network drop"));
+      const { onDismiss } = setup({ required: true });
+      fireEvent.change(screen.getByTestId("name-capture-input"), {
+        target: { value: "Asha Devi" }
+      });
+      fireEvent.click(screen.getByTestId("name-capture-submit"));
+      await screen.findByTestId("name-capture-close");
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it("lets an overlay click dismiss once a save attempt has failed", async () => {
+      saveFullName.mockRejectedValueOnce(new Error("network drop"));
+      const { onDismiss } = setup({ required: true });
+      fireEvent.change(screen.getByTestId("name-capture-input"), {
+        target: { value: "Asha Devi" }
+      });
+      fireEvent.click(screen.getByTestId("name-capture-submit"));
+      await screen.findByTestId("name-capture-close");
+
+      fireEvent.click(screen.getByTestId("name-capture-modal"));
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it("clicking the revealed close control itself dismisses", async () => {
+      saveFullName.mockRejectedValueOnce(new Error("network drop"));
+      const { onDismiss } = setup({ required: true });
+      fireEvent.change(screen.getByTestId("name-capture-input"), {
+        target: { value: "Asha Devi" }
+      });
+      fireEvent.click(screen.getByTestId("name-capture-submit"));
+
+      fireEvent.click(await screen.findByTestId("name-capture-close"));
+      expect(onDismiss).toHaveBeenCalledTimes(1);
     });
   });
 

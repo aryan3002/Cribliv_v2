@@ -286,11 +286,7 @@ importers:
 
   packages/config: {}
 
-  packages/shared-types:
-    dependencies:
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
+  packages/shared-types: {}
 
   packages/ui:
     devDependencies:

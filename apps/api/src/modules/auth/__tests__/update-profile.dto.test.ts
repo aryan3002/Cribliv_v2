@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   FULL_NAME_MAX,
-  FullNameSchema,
   NAME_FIXTURES,
   normalizeFullName,
   validateFullName
@@ -87,10 +86,11 @@ describe("UpdateProfileSchema full_name", () => {
   it("accepts the settings page's `trim() || null` payload", () => {
     // Regression test for Finding 1: apps/web/components/settings-client.tsx:96
     // sends `full_name: fullName.trim() || null` — a literal JSON null, not an
-    // absent key — whenever the name field is empty. FullNameSchema.optional()
-    // only widens for `undefined`, so before this fix this exact payload 400'd
-    // on every save with an empty name field, breaking a working page for
-    // exactly the users (those with no name yet) this feature exists to serve.
+    // absent key — whenever the name field is empty. The full_name field's
+    // `.optional()` wrapper only widens for `undefined`, so before this fix
+    // this exact payload 400'd on every save with an empty name field,
+    // breaking a working page for exactly the users (those with no name yet)
+    // this feature exists to serve.
     const result = UpdateProfileSchema.safeParse({
       full_name: null,
       preferred_language: "en",
@@ -128,12 +128,14 @@ describe("validateFullName — the shape the web consumes", () => {
     expect(validateFullName("   ")).toEqual({ ok: true, value: null });
   });
 
-  it("returns null for a null input rather than throwing, agreeing with FullNameSchema", () => {
-    // Regression test: validateFullName used to delegate to FullNameSchema
-    // (whose `.union([z.string(), z.null()])` accepts null), but the rewrite
-    // that added `code` started calling normalizeFullName(raw) directly,
-    // which crashed with `TypeError: Cannot read properties of null (reading
-    // 'replace')` on a literal null. The settings page really does send
+  it("returns null for a null input rather than throwing", () => {
+    // Regression test: validateFullName used to delegate to a zod schema
+    // (a `FullNameSchema`, since removed — see
+    // packages/shared-types/src/user-name.ts — whose `.union([z.string(),
+    // z.null()])` accepted null), but a rewrite that added `code` started
+    // calling normalizeFullName(raw) directly, which crashed with
+    // `TypeError: Cannot read properties of null (reading 'replace')` on a
+    // literal null. The settings page really does send
     // `full_name: fullName.trim() || null`, so this must not throw.
     expect(validateFullName(null)).toEqual({ ok: true, value: null });
   });
@@ -142,10 +144,13 @@ describe("validateFullName — the shape the web consumes", () => {
     expect(validateFullName(undefined)).toEqual({ ok: true, value: null });
   });
 
-  it("keeps FullNameSchema and validateFullName agreeing on null input", () => {
-    // Pins the two validators together: this package exists so the web and
-    // API can never silently diverge on what counts as a valid name.
-    expect(FullNameSchema.safeParse(null).success).toBe(true);
+  it("keeps UpdateProfileSchema and validateFullName agreeing on null input", () => {
+    // Pins the two validators together: UpdateProfileSchema's full_name field
+    // is built directly on top of validateFullName (see ../dto/update-profile.dto),
+    // so this package's rules and the API's request-envelope schema can never
+    // silently diverge on what counts as a valid name.
+    expect(UpdateProfileSchema.safeParse({ full_name: null }).success).toBe(true);
+    expect(validateFullName(null).ok).toBe(true);
   });
 
   it("still validates an ordinary string the same as always", () => {
