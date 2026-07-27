@@ -27,3 +27,4 @@ export {
   FULL_NAME_MIN,
   FULL_NAME_MAX
 } from "./user-name";
+export type { FullNameErrorCode } from "./user-name";

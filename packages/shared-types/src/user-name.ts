@@ -60,23 +60,50 @@ export const FullNameSchema = z
     { message: `Name must be between ${FULL_NAME_MIN} and ${FULL_NAME_MAX} characters` }
   );
 
+/**
+ * Stable, machine-readable failure reasons. UI layers map these to localised
+ * copy; `message` (below) stays an English default for logs and non-UI
+ * callers, and must never be string-matched to recover one of these.
+ */
+export type FullNameErrorCode = "too_short" | "too_long" | "no_letter" | "invalid_chars";
+
 export type ValidateFullNameResult =
   | { ok: true; value: string | null }
-  | { ok: false; message: string };
+  | { ok: false; code: FullNameErrorCode; message: string };
 
 /**
- * Ergonomic wrapper for the web, which needs a message to render inline rather
- * than a ZodError to unpack.
+ * Ergonomic wrapper for the web, which needs a stable code to map to localised
+ * copy (plus a message to log) rather than a ZodError to unpack.
+ *
+ * Runs its own explicit checks in the same order as FullNameSchema's chained
+ * `.refine()`s, instead of reverse-engineering a code from zod's issue
+ * message text — that text is an English sentence, not a stable identifier,
+ * and string-matching it would silently break the moment either drifts.
+ * Accept/reject and `message` must stay byte-identical to FullNameSchema's
+ * behaviour: same normalisation, same rules, same order (angle brackets,
+ * then letter presence, then length).
  */
 export function validateFullName(raw: string): ValidateFullNameResult {
-  const parsed = FullNameSchema.safeParse(raw);
-  if (parsed.success) {
-    return { ok: true, value: parsed.data };
+  const normalized = normalizeFullName(raw);
+  const value = normalized === "" ? null : normalized;
+
+  if (value === null) {
+    return { ok: true, value: null };
   }
-  return {
-    ok: false,
-    message: parsed.error.issues[0]?.message ?? "Please enter a valid name"
-  };
+  if (/[<>]/.test(value)) {
+    return { ok: false, code: "invalid_chars", message: "Name must not contain < or >" };
+  }
+  if (!/\p{L}/u.test(value)) {
+    return { ok: false, code: "no_letter", message: "Name must contain at least one letter" };
+  }
+  const lengthMessage = `Name must be between ${FULL_NAME_MIN} and ${FULL_NAME_MAX} characters`;
+  if (value.length < FULL_NAME_MIN) {
+    return { ok: false, code: "too_short", message: lengthMessage };
+  }
+  if (value.length > FULL_NAME_MAX) {
+    return { ok: false, code: "too_long", message: lengthMessage };
+  }
+  return { ok: true, value };
 }
 
 /** Shared fixture so both apps' tests exercise the same cases. */

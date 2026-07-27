@@ -47,7 +47,11 @@ export function NameCaptureForm({
       // cannot 400 on the server for a rule reason.
       const parsed = validateFullName(value);
       if (!parsed.ok) {
-        setError(parsed.message);
+        // parsed.message is zod's English default (for logs/non-UI callers);
+        // the code is what drives localised copy so hi users don't see it.
+        setError(
+          t(locale, parsed.code === "too_short" ? "nameCaptureTooShort" : "nameCaptureInvalid")
+        );
         return;
       }
       if (parsed.value === null) {

@@ -71,6 +71,24 @@ describe("NameCaptureForm", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
+  it("renders a localised (Devanagari) error for locale=hi, not the English zod sentence", async () => {
+    // Regression test: validateFullName's `message` is an English zod
+    // default; the form must map its `code` through t() instead of
+    // rendering that message verbatim. Locate elements by test id (not
+    // translated label/button text) and assert on script rather than
+    // hardcoding the Hindi string, so the test doesn't depend on exact copy.
+    setup({ locale: "hi" });
+    await userEvent.type(screen.getByTestId("name-capture-input"), "A");
+    await userEvent.click(screen.getByTestId("name-capture-submit"));
+
+    const alert = await screen.findByRole("alert");
+    // Devanagari block is U+0900-U+097F. Written as escapes, not literal
+    // characters — U+0900 is a combining mark that renders as invisible
+    // without a preceding base glyph.
+    expect(alert.textContent ?? "").toMatch(/[\u0900-\u097F]/);
+    expect(saveFullName).not.toHaveBeenCalled();
+  });
+
   it("rejects angle brackets", async () => {
     setup();
     await userEvent.type(screen.getByLabelText("Your name"), "<b>Asha</b>");

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { NAME_FIXTURES, normalizeFullName, validateFullName } from "@cribliv/shared-types";
+import {
+  FULL_NAME_MAX,
+  NAME_FIXTURES,
+  normalizeFullName,
+  validateFullName
+} from "@cribliv/shared-types";
 import { UpdateProfileSchema } from "../dto/update-profile.dto";
 
 const parseName = (full_name: unknown) => UpdateProfileSchema.safeParse({ full_name });
@@ -135,5 +140,31 @@ describe("validateFullName — the shape the web consumes", () => {
     const result = validateFullName("A");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.message).toMatch(/2 and 80/);
+  });
+
+  describe("failure code — what the UI maps to localised copy, not the message text", () => {
+    it("codes a 1-char name as too_short", () => {
+      const result = validateFullName("A");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.code).toBe("too_short");
+    });
+
+    it("codes an 81-char name as too_long", () => {
+      const result = validateFullName("A".repeat(FULL_NAME_MAX + 1));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.code).toBe("too_long");
+    });
+
+    it('codes "123" as no_letter', () => {
+      const result = validateFullName("123");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.code).toBe("no_letter");
+    });
+
+    it('codes "<b>x</b>" as invalid_chars', () => {
+      const result = validateFullName("<b>x</b>");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.code).toBe("invalid_chars");
+    });
   });
 });
