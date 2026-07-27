@@ -1,13 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useSyncExternalStore } from "react";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-// useSession returns whatever the current test set on `__session`.
+// useSession returns whatever the current test set on `__session`. It is also
+// reactive — sessionListeners lets a test force every subscribed component to
+// re-render the instant the session changes, via setSessionAndNotify below.
+// That is what the earlier-flip regression test needs: a render where
+// `status` has already flipped to "authenticated" but the component's own
+// `step` state has not yet reached 3 (real NextAuth's signIn() broadcasts a
+// session update to every useSession() consumer the moment it completes,
+// independent of anything the calling component's own state does — this
+// mirrors that). Tests that only need the value at the FIRST render (nearly
+// all of them) are unaffected: they can keep assigning `__session = {...}`
+// directly before calling render(), exactly as before.
 let __session: { status: "authenticated" | "unauthenticated" | "loading"; data: unknown } = {
   status: "unauthenticated",
   data: null
 };
+const sessionListeners = new Set<() => void>();
+function setSessionAndNotify(next: typeof __session) {
+  __session = next;
+  sessionListeners.forEach((listener) => listener());
+}
 
 // vi.hoisted: these are called directly inside vi.mock factories below, which
 // are hoisted above this file's own top-level code — a plain `const x = vi.fn()`
@@ -21,7 +37,14 @@ const { signInMock, getSessionMock, saveFullNameMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  useSession: () => __session,
+  useSession: () =>
+    useSyncExternalStore(
+      (onStoreChange: () => void) => {
+        sessionListeners.add(onStoreChange);
+        return () => sessionListeners.delete(onStoreChange);
+      },
+      () => __session
+    ),
   signIn: signInMock,
   getSession: getSessionMock
 }));
@@ -61,6 +84,12 @@ let replaceMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   __session = { status: "unauthenticated", data: null };
+  // Defensive: RTL auto-unmounts between tests (registered afterEach(cleanup),
+  // since this file imports from "@testing-library/react" not "/pure"), which
+  // already runs each useSyncExternalStore subscription's own unsubscribe —
+  // this just guarantees no listener ever leaks across tests even if that
+  // didn't happen.
+  sessionListeners.clear();
   replaceMock = vi.fn();
   vi.stubGlobal("location", {
     href: "http://localhost/en/auth/login",
@@ -119,12 +148,23 @@ describe("login page — already-authenticated guard", () => {
 
 /**
  * Drives the real phone -> OTP -> verify flow so `step` and `status` change
- * exactly the way they do in production: signIn() (mocked here) flips
- * useSession()'s status to "authenticated" mid-handleVerify — before
- * setStep(3) runs — same as the real NextAuth timing the login page's own
- * comments describe. A synthetic shortcut that set `step` to 3 directly
- * without also flipping status would never exercise the guard at all, since
- * both guards only act when status === "authenticated".
+ * the way they do in production under the MILDER of two possible timings:
+ * status flips to "authenticated" when handleVerify's own getSession() call
+ * resolves — in the same tick as the setStep(3) call a few lines later in
+ * page.tsx — so status and step change together, in the same render. This
+ * ordering never needed verifyingRef: the old `step === 3`-only guards
+ * already handled it correctly, which is why it's the one this suite
+ * originally covered.
+ *
+ * The HARDER, real-NextAuth ordering — signIn() itself flips status to
+ * "authenticated" a full render before getSession() even starts, let alone
+ * resolves — is covered separately below by
+ * verifyIntoNameStepWithEarlierFlip(). That ordering is what actually broke
+ * the login page in a real browser (see .superpowers/sdd/task-13-report.md)
+ * and is what verifyingRef exists to fix. A synthetic shortcut that set
+ * `step` to 3 directly without also flipping status would never exercise
+ * either guard at all, since both guards only act when
+ * status === "authenticated".
  */
 async function verifyIntoNameStep(sessionUser: { id: string; role: string; name: string | null }) {
   signInMock.mockResolvedValue({ error: null });
@@ -134,9 +174,8 @@ async function verifyIntoNameStep(sessionUser: { id: string; role: string; name:
   // write). Flipping __session as this resolves — synchronously, in the same
   // tick as the setStep(3) a few lines later in page.tsx — reproduces "status
   // is already authenticated by the render where step becomes 3" without
-  // fabricating an earlier, unrelated intermediate render at step === 2 that
-  // no implementation could suppress (flipping inside signIn() instead would
-  // do exactly that — verified by hand, it fails even with the guard fix).
+  // fabricating the earlier, harder ordering that verifyIntoNameStepWithEarlierFlip
+  // covers below.
   getSessionMock.mockImplementation(async () => {
     __session = { status: "authenticated", data: { user: sessionUser } };
     return { user: sessionUser, accessToken: "acc_test_token" };
@@ -206,5 +245,61 @@ describe("login page — name-capture step (step 3)", () => {
     await waitFor(() => {
       expect(window.location.href).toBe("/en/owner/dashboard");
     });
+  });
+});
+
+// ── The earlier, real-NextAuth flip ordering — the actual bug ──────────────
+
+/**
+ * Drives the same phone -> OTP -> verify flow as verifyIntoNameStep, but
+ * reproduces the HARDER ordering: signIn() itself flips useSession()'s status
+ * to "authenticated" — via setSessionAndNotify, which forces every subscribed
+ * component to re-render immediately — before handleVerify's subsequent
+ * getSession() call even starts, let alone resolves or reaches setStep(3).
+ *
+ * This is not a synthetic edge case: it is real NextAuth's own documented
+ * behaviour (signIn() broadcasts the new session to every useSession()
+ * consumer as part of its own completion) and is exactly what the E2E suite
+ * hit in a real browser (.superpowers/sdd/task-13-report.md) — the render
+ * where status is already "authenticated" but `step` is still 1 is one full
+ * render earlier than anything verifyIntoNameStep above can produce, because
+ * that helper only flips __session inside getSession(), which resolves in
+ * the same tick as setStep(3).
+ */
+async function verifyIntoNameStepWithEarlierFlip(sessionUser: {
+  id: string;
+  role: string;
+  name: string | null;
+}) {
+  signInMock.mockImplementation(async () => {
+    setSessionAndNotify({ status: "authenticated", data: { user: sessionUser } });
+    return { error: null };
+  });
+  getSessionMock.mockResolvedValue({ user: sessionUser, accessToken: "acc_test_token" });
+
+  render(<LoginPage />);
+
+  fireEvent.change(screen.getByLabelText(/mobile number/i), {
+    target: { value: "9876543210" }
+  });
+  fireEvent.click(screen.getByRole("button", { name: /continue with otp/i }));
+
+  await screen.findByLabelText(/one-time password/i);
+
+  fireEvent.click(screen.getByRole("button", { name: /verify & sign in/i }));
+}
+
+describe("login page — earlier session-flip ordering (regression)", () => {
+  it("renders the name step and does not redirect when status flips to authenticated before getSession() resolves", async () => {
+    await verifyIntoNameStepWithEarlierFlip({ id: "user-5", role: "tenant", name: null });
+
+    expect(await screen.findByTestId("name-capture-input")).toBeInTheDocument();
+
+    // This is the actual regression check: on the render where signIn()
+    // flipped status but handleVerify had not yet reached setStep(3), `step`
+    // was still 1. Both guards would have fired under `step === 3` alone —
+    // verifyingRef (set synchronously before signIn() is ever called) is what
+    // stands them down here instead.
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });

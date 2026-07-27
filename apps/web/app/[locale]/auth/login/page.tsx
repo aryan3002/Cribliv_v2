@@ -2,7 +2,7 @@
 
 import { signIn, getSession, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { useState, useCallback, useEffect, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import { BrandLockup } from "../../../../components/brand/brand-lockup";
@@ -104,6 +104,17 @@ function LoginPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  // True from the moment handleVerify begins OTP verification until it either
+  // diverts to the name step or navigates away. A ref, not state: it must be
+  // observable on the very render where useSession()'s status flips, and a
+  // ref updates synchronously without waiting for a render. This matters
+  // because signIn() flips status to "authenticated" as part of its own
+  // completion — before handleVerify's subsequent getSession() call resolves
+  // and setStep(3) runs. On that render, `step` is still 1, so a guard that
+  // only checks `step === 3` is always one render too late; it must also
+  // consult this ref.
+  const verifyingRef = useRef(false);
+
   // ------------------------------------------------------------------
   // Step 1 — Request OTP
   // ------------------------------------------------------------------
@@ -166,10 +177,16 @@ function LoginPageInner() {
   // Step 2 — Verify OTP + Sign In
   // ------------------------------------------------------------------
   const handleVerify = useCallback(async () => {
+    // Set BEFORE signIn() is ever called (and before the OTP-format check, so
+    // no path that skips signIn() can leave a stale `true` behind — every
+    // early return below explicitly clears it again). See the ref's own
+    // declaration comment for why this has to be a ref and not state.
+    verifyingRef.current = true;
     setError(null);
     const otpErr = validateOtp(otp);
     if (otpErr) {
       setError(otpErr);
+      verifyingRef.current = false;
       return;
     }
 
@@ -182,6 +199,7 @@ function LoginPageInner() {
       });
       if (result?.error) {
         setError(friendlyError(result.error));
+        verifyingRef.current = false;
         return;
       }
 
@@ -214,6 +232,10 @@ function LoginPageInner() {
           setNameRole(role ?? null);
           setPendingDest(safeDest);
           setStep(3);
+          // verifyingRef is intentionally left `true` here: step 3 renders
+          // right away with the same commit, so both guards already stand
+          // down on `step === 3` alone from this point on. Nothing further
+          // needs the ref.
           return;
         }
       }
@@ -223,9 +245,12 @@ function LoginPageInner() {
       // freshly-set session cookie, it silently bounces back to login and the
       // URL doesn't change. window.location.href guarantees a fresh request
       // that includes the new cookie, sidestepping the race entirely.
+      // (verifyingRef is left `true`; the navigation unloads the page, so
+      // there is no further render for a stale ref to affect.)
       window.location.href = safeDest;
     } catch {
       setError("Sign-in failed. Please try again.");
+      verifyingRef.current = false;
     } finally {
       setLoading(false);
     }
@@ -243,8 +268,14 @@ function LoginPageInner() {
   useEffect(() => {
     // step 3 is the post-verify name capture: the session IS authenticated
     // there by design, so this guard must stand down or it redirects the user
-    // away mid-typing.
-    if (step === 3) return;
+    // away mid-typing. That alone is too late, though: signIn() flips
+    // useSession()'s status to "authenticated" as part of its own completion,
+    // before handleVerify's getSession() resolves and setStep(3) runs — so on
+    // the render where status first flips, `step` is still 1. verifyingRef
+    // (set synchronously at the very start of handleVerify, before signIn())
+    // is what actually stands this guard down on that earlier render; `step
+    // === 3` only takes over from the render after that.
+    if (step === 3 || verifyingRef.current) return;
     if (status === "authenticated") {
       window.location.replace(resolveAuthedDestination(session?.user?.role, fromPath, locale));
     }
@@ -271,7 +302,14 @@ function LoginPageInner() {
   // its own card below — this early return must not blank that out from
   // under it (the effect's guard alone isn't enough; this render gate short-
   // circuits before that card's JSX is ever reached).
-  if (status === "authenticated" && step !== 3) {
+  //
+  // `step !== 3` alone is too late for the same reason the effect above needs
+  // verifyingRef: status can flip to "authenticated" on a render that still
+  // has `step === 1` (signIn() completes before handleVerify reaches
+  // setStep(3)). Without also consulting the ref here, this gate would blank
+  // the page on exactly that render — a real DOM node the E2E suite observed
+  // (see login-guard.test.tsx's earlier-flip regression test).
+  if (status === "authenticated" && step !== 3 && !verifyingRef.current) {
     return <div className="auth-canvas" aria-hidden="true" />;
   }
 
