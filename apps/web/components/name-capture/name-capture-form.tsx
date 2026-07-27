@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useId, useState } from "react";
+import type { FullNameErrorCode } from "@cribliv/shared-types";
 import { t, type Locale } from "../../lib/i18n";
 import { saveFullName, validateFullName } from "../../lib/name-capture";
 
@@ -21,6 +22,16 @@ const BODY_KEY: Record<NameCaptureFormProps["variant"], string> = {
   tenant: "nameCaptureBodyTenant",
   owner: "nameCaptureBodyOwner",
   contact: "nameCaptureBodyContact"
+};
+
+// Exhaustive over FullNameErrorCode (not a ternary) so a fifth error code
+// added later fails the compiler here instead of silently falling into a
+// catch-all with no prompt to pick real copy for it.
+const ERROR_COPY_KEY: Record<FullNameErrorCode, string> = {
+  too_short: "nameCaptureTooShort",
+  too_long: "nameCaptureInvalid",
+  no_letter: "nameCaptureInvalid",
+  invalid_chars: "nameCaptureInvalid"
 };
 
 export function NameCaptureForm({
@@ -49,9 +60,7 @@ export function NameCaptureForm({
       if (!parsed.ok) {
         // parsed.message is zod's English default (for logs/non-UI callers);
         // the code is what drives localised copy so hi users don't see it.
-        setError(
-          t(locale, parsed.code === "too_short" ? "nameCaptureTooShort" : "nameCaptureInvalid")
-        );
+        setError(t(locale, ERROR_COPY_KEY[parsed.code]));
         return;
       }
       if (parsed.value === null) {

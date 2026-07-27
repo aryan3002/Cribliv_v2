@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FULL_NAME_MAX,
+  FullNameSchema,
   NAME_FIXTURES,
   normalizeFullName,
   validateFullName
@@ -127,12 +128,29 @@ describe("validateFullName — the shape the web consumes", () => {
     expect(validateFullName("   ")).toEqual({ ok: true, value: null });
   });
 
-  it("keeps its string-only signature — FullNameSchema, not validateFullName, is what accepts null", () => {
-    // Finding 1 widened FullNameSchema's *input* to accept an explicit null
-    // (for the API's request envelope), but validateFullName is the web-facing
-    // wrapper and the web always has a string from a controlled input to
-    // validate, converting to null itself only when building the request body.
-    // Its signature must stay `(raw: string) => ValidateFullNameResult`.
+  it("returns null for a null input rather than throwing, agreeing with FullNameSchema", () => {
+    // Regression test: validateFullName used to delegate to FullNameSchema
+    // (whose `.union([z.string(), z.null()])` accepts null), but the rewrite
+    // that added `code` started calling normalizeFullName(raw) directly,
+    // which crashed with `TypeError: Cannot read properties of null (reading
+    // 'replace')` on a literal null. The settings page really does send
+    // `full_name: fullName.trim() || null`, so this must not throw.
+    expect(validateFullName(null)).toEqual({ ok: true, value: null });
+  });
+
+  it("returns null for an undefined input rather than throwing", () => {
+    expect(validateFullName(undefined)).toEqual({ ok: true, value: null });
+  });
+
+  it("keeps FullNameSchema and validateFullName agreeing on null input", () => {
+    // Pins the two validators together: this package exists so the web and
+    // API can never silently diverge on what counts as a valid name.
+    expect(FullNameSchema.safeParse(null).success).toBe(true);
+  });
+
+  it("still validates an ordinary string the same as always", () => {
+    // The signature was widened to accept null/undefined (above); a normal
+    // web-controlled string — the common case — must behave unchanged.
     expect(validateFullName("Asha Devi")).toEqual({ ok: true, value: "Asha Devi" });
   });
 

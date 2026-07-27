@@ -82,8 +82,20 @@ export type ValidateFullNameResult =
  * Accept/reject and `message` must stay byte-identical to FullNameSchema's
  * behaviour: same normalisation, same rules, same order (angle brackets,
  * then letter presence, then length).
+ *
+ * Accepts `null`/`undefined` for the same reason FullNameSchema's input is
+ * `.union([z.string(), z.null()])`: a literal `null` is a real request shape
+ * (the settings page sends `full_name: fullName.trim() || null`), and the two
+ * validators exist specifically so they never disagree. Do not narrow this
+ * back to `raw: string` — that reintroduces a crash on that exact payload.
  */
-export function validateFullName(raw: string): ValidateFullNameResult {
+export function validateFullName(raw: string | null | undefined): ValidateFullNameResult {
+  // null/undefined mean "no name given", same as an empty or whitespace-only
+  // string ends up meaning below — mirrors FullNameSchema's
+  // `.union([z.string(), z.null()])` -> `.transform((value) => value ?? "")`.
+  if (raw === null || raw === undefined) {
+    return { ok: true, value: null };
+  }
   const normalized = normalizeFullName(raw);
   const value = normalized === "" ? null : normalized;
 

@@ -89,6 +89,25 @@ describe("NameCaptureForm", () => {
     expect(saveFullName).not.toHaveBeenCalled();
   });
 
+  it("renders a localised (Devanagari) error for the nameCaptureInvalid catch-all too (locale=hi)", async () => {
+    // The hi-locale test above only exercises the too_short branch
+    // (nameCaptureTooShort). "123" has digits but no letter, so it codes as
+    // no_letter and falls into the nameCaptureInvalid catch-all — cover that
+    // branch too so a regression isolated to it wouldn't slip through.
+    // Same approach as above: test-id lookups and a script-range assertion
+    // rather than hardcoding Hindi copy.
+    setup({ locale: "hi" });
+    await userEvent.type(screen.getByTestId("name-capture-input"), "123");
+    await userEvent.click(screen.getByTestId("name-capture-submit"));
+
+    const alert = await screen.findByRole("alert");
+    // Devanagari block is U+0900-U+097F. Written as escapes, not literal
+    // characters — U+0900 is a combining mark that renders as invisible
+    // without a preceding base glyph.
+    expect(alert.textContent ?? "").toMatch(/[\u0900-\u097F]/);
+    expect(saveFullName).not.toHaveBeenCalled();
+  });
+
   it("rejects angle brackets", async () => {
     setup();
     await userEvent.type(screen.getByLabelText("Your name"), "<b>Asha</b>");
