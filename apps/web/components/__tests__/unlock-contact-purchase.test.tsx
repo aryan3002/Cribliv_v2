@@ -64,6 +64,11 @@ vi.mock("next-auth/react", () => ({
   })
 }));
 
+const requireName = vi.fn();
+vi.mock("../name-capture/name-prompt-provider", () => ({
+  useNamePrompt: () => ({ requireName })
+}));
+
 function jsonOk(data: unknown) {
   return Promise.resolve({ ok: true, json: async () => ({ data }) });
 }
@@ -176,6 +181,8 @@ function statusRoute(orderId: string, planId: string, amountPaise: number, credi
 beforeEach(() => {
   FakeRazorpay.instances = [];
   flagState.ff_callback_leads = true;
+  requireName.mockReset();
+  requireName.mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -341,5 +348,50 @@ describe("UnlockContactPanel purchase integration", () => {
     expect(screen.getByTestId("tenant-wallet-balance")).toHaveTextContent(
       t("hi", "cpWalletBalance")
     );
+  });
+});
+
+describe("UnlockContactPanel name gate", () => {
+  const unlockCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
+    fetchMock.mock.calls.filter(([url]) => String(url).includes("/tenant/contact-unlocks"));
+
+  it("does not POST contact-unlocks when the gate refuses", async () => {
+    requireName.mockResolvedValue(false);
+    const fetchMock = routeFetch([shortlistRoute()]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<UnlockContactPanel listingId="listing-1" locale="en" />);
+    fireEvent.click(screen.getByTestId("unlock-cta"));
+
+    await waitFor(() => expect(requireName).toHaveBeenCalledWith({ token: "session-tok" }));
+    // routeFetch throws on an unmocked call, so a leaked unlock would fail
+    // loudly too — assert explicitly so the reason is unambiguous.
+    expect(unlockCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("POSTs contact-unlocks once the gate grants", async () => {
+    requireName.mockResolvedValue(true);
+    const fetchMock = routeFetch([
+      shortlistRoute(),
+      {
+        match: (url: string, init?: RequestInit) =>
+          url.includes("/tenant/contact-unlocks") && init?.method === "POST",
+        respond: () =>
+          jsonOk({
+            unlock_id: "unlock_cb_1",
+            callback: { status: "awaiting_call", call_deadline_at: "2026-07-12T00:00:00.000Z" },
+            credits_remaining: 9,
+            response_deadline_at: "2026-07-12T00:00:00.000Z"
+          })
+      },
+      walletTxnsRoute(),
+      walletRoute(0)
+    ]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<UnlockContactPanel listingId="listing-1" locale="en" />);
+    fireEvent.click(screen.getByTestId("unlock-cta"));
+
+    await waitFor(() => expect(unlockCalls(fetchMock)).toHaveLength(1));
   });
 });
