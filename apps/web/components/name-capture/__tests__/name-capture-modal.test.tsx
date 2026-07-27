@@ -139,4 +139,90 @@ describe("NameCaptureModal", () => {
       expect(screen.getByRole("heading")).toHaveFocus();
     });
   });
+
+  describe("Escape propagation", () => {
+    it("stops other document-level Escape listeners from running when required", () => {
+      const { onDismiss } = setup({ required: true });
+
+      // Registered AFTER the component mounts, so it sits later than the
+      // modal's own listener in document's keydown queue — only then does
+      // stopImmediatePropagation() have anything to actually prove. If this
+      // spy were registered before setup(), it would already have run by the
+      // time the modal's handler calls stopImmediatePropagation() and the
+      // test would pass even without that call.
+      const spy = vi.fn();
+      document.addEventListener("keydown", spy);
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(spy).not.toHaveBeenCalled();
+      expect(onDismiss).not.toHaveBeenCalled();
+
+      document.removeEventListener("keydown", spy);
+    });
+
+    it("still calls onDismiss on Escape when not required", () => {
+      const { onDismiss } = setup({ required: false });
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("focus trap", () => {
+    it("pulls focus back into the dialog when it escapes to the page background", () => {
+      setup();
+      const modal = screen.getByTestId("name-capture-modal");
+
+      const outsideButton = document.createElement("button");
+      outsideButton.textContent = "Outside";
+      document.body.appendChild(outsideButton);
+
+      outsideButton.focus();
+
+      expect(outsideButton).not.toHaveFocus();
+      expect(modal.contains(document.activeElement)).toBe(true);
+
+      outsideButton.remove();
+    });
+
+    it("does not steal focus from a different dialog stacked on top of it", () => {
+      setup();
+
+      // Stands in for WelcomeCreditsModal, which can be mounted at the same
+      // time as this modal, sits above it (z-index 120 vs. this modal's
+      // 110), and runs its own independent Tab-cycling focus trap. This
+      // modal's trap must not fight that one for focus.
+      const otherDialog = document.createElement("div");
+      otherDialog.setAttribute("role", "dialog");
+      const otherButton = document.createElement("button");
+      otherButton.textContent = "Other dialog control";
+      otherDialog.appendChild(otherButton);
+      document.body.appendChild(otherDialog);
+
+      otherButton.focus();
+
+      expect(otherButton).toHaveFocus();
+
+      otherDialog.remove();
+    });
+  });
+
+  describe("focus restoration", () => {
+    it("restores focus to the previously focused element on unmount", () => {
+      const trigger = document.createElement("button");
+      trigger.textContent = "Open modal";
+      document.body.appendChild(trigger);
+      trigger.focus();
+      expect(trigger).toHaveFocus();
+
+      const { unmount } = setup();
+      expect(trigger).not.toHaveFocus();
+      expect(screen.getByRole("heading")).toHaveFocus();
+
+      unmount();
+      expect(trigger).toHaveFocus();
+
+      trigger.remove();
+    });
+  });
 });
