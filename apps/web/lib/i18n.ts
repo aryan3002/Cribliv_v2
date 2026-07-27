@@ -1061,6 +1061,43 @@ const dictionary: Dictionary = {
   currentlyUnavailable: {
     en: "Currently unavailable · get notified when they're back",
     hi: "फ़िलहाल अनुपलब्ध · वापस आने पर सूचना पाएं"
+  },
+  // ── Signup name capture ─────────────────────────────────────────────────────
+  nameCaptureTitle: { en: "What should we call you?", hi: "हम आपको क्या कहें?" },
+  nameCaptureTitleRequired: {
+    en: "Add your name to continue",
+    hi: "जारी रखने के लिए अपना नाम जोड़ें"
+  },
+  nameCaptureBodyTenant: {
+    en: "Owners see your name when you contact them, so they know who's calling.",
+    hi: "जब आप ओनर से संपर्क करते हैं तो उन्हें आपका नाम दिखता है, ताकि वे जानें कि कौन कॉल कर रहा है।"
+  },
+  nameCaptureBodyOwner: {
+    en: "Seekers see your name on your listings. Listings with a name get more enquiries.",
+    hi: "खोजने वालों को आपकी लिस्टिंग पर आपका नाम दिखता है। नाम वाली लिस्टिंग को ज़्यादा पूछताछ मिलती है।"
+  },
+  nameCaptureBodyContact: {
+    en: "The owner will see this name when you contact them.",
+    hi: "जब आप संपर्क करेंगे तो ओनर को यह नाम दिखेगा।"
+  },
+  nameCaptureLabel: { en: "Your name", hi: "आपका नाम" },
+  nameCapturePlaceholder: { en: "e.g. Asha Devi", hi: "उदा. आशा देवी" },
+  nameCaptureSave: { en: "Save", hi: "सेव करें" },
+  nameCaptureSaving: { en: "Saving…", hi: "सेव हो रहा है…" },
+  nameCaptureSaveAndContinue: { en: "Save and continue", hi: "सेव करें और जारी रखें" },
+  nameCaptureSkip: { en: "Not now", hi: "अभी नहीं" },
+  nameCaptureClose: { en: "Close", hi: "बंद करें" },
+  nameCaptureError: {
+    en: "Couldn't save your name. Please try again.",
+    hi: "आपका नाम सेव नहीं हो सका। कृपया फिर कोशिश करें।"
+  },
+  nameCaptureTooShort: {
+    en: "Please enter at least 2 characters.",
+    hi: "कृपया कम से कम 2 अक्षर दर्ज करें।"
+  },
+  nameCaptureInvalid: {
+    en: "Please enter a valid name.",
+    hi: "कृपया एक मान्य नाम दर्ज करें।"
   }
 };
 

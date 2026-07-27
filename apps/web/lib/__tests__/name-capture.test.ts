@@ -7,6 +7,7 @@ import {
   namePromptDismissKey,
   shouldShowNamePrompt
 } from "../name-capture";
+import { locales, t } from "../i18n";
 
 /** Minimal in-memory Storage so these stay pure — no jsdom needed. */
 function makeStorage(): Storage {
@@ -150,5 +151,33 @@ describe("shouldShowNamePrompt", () => {
 
   it("shows when storage is unavailable rather than staying silent", () => {
     expect(shouldShowNamePrompt({ ...base, storage: undefined })).toBe(true);
+  });
+});
+
+describe("name-capture copy", () => {
+  const keys = [
+    "nameCaptureTitle",
+    "nameCaptureTitleRequired",
+    "nameCaptureBodyTenant",
+    "nameCaptureBodyOwner",
+    "nameCaptureBodyContact",
+    "nameCaptureLabel",
+    "nameCapturePlaceholder",
+    "nameCaptureSave",
+    "nameCaptureSaving",
+    "nameCaptureSaveAndContinue",
+    "nameCaptureSkip",
+    "nameCaptureClose",
+    "nameCaptureError",
+    "nameCaptureTooShort",
+    "nameCaptureInvalid"
+  ];
+
+  // t() returns the key itself when missing, which would otherwise ship as
+  // visible gibberish like "nameCaptureSave" in the UI.
+  it.each(locales)("resolves every key in %s", (locale) => {
+    for (const key of keys) {
+      expect(t(locale, key)).not.toBe(key);
+    }
   });
 });
