@@ -6,8 +6,10 @@ import { useState, useCallback, useEffect, Suspense } from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import { BrandLockup } from "../../../../components/brand/brand-lockup";
+import { NameCaptureForm } from "../../../../components/name-capture/name-capture-form";
 import { t } from "../../../../lib/i18n";
 import { resolveAuthedDestination } from "../../../../lib/login-redirect";
+import { hasName, markNamePromptDismissed } from "../../../../lib/name-capture";
 import { signInWithCsrfRetry } from "../../../../lib/sign-in-retry";
 
 // ---------------------------------------------------------------------------
@@ -83,13 +85,19 @@ function LoginPageInner() {
   // UI state
   const initialTab = params.get("tab") === "signup" ? "signup" : "login";
   const [tab, setTab] = useState<"login" | "signup">(initialTab);
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
 
   // Form state
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [challengeId, setChallengeId] = useState("");
   const [devOtp, setDevOtp] = useState<string | null>(null); // Only in mock mode
+
+  // Where to go once the name step is done (saved or skipped).
+  const [pendingDest, setPendingDest] = useState<string | null>(null);
+  const [nameToken, setNameToken] = useState<string | null>(null);
+  const [nameUserId, setNameUserId] = useState<string | null>(null);
+  const [nameRole, setNameRole] = useState<string | null>(null);
 
   // Async state
   const [loading, setLoading] = useState(false);
@@ -194,6 +202,22 @@ function LoginPageInner() {
       // back to homepage" path that made owners think login had failed.
       const safeDest = resolveAuthedDestination(role, fromPath, locale);
 
+      // Divert to the name step when the account has no name. Covers brand-new
+      // signups (always nameless) and existing users who never set one.
+      // session.user.name is populated by the /auth/me sync in the session
+      // callback, so it is authoritative by this point.
+      if (!hasName(session?.user?.name) && role !== "admin") {
+        const token = (session as { accessToken?: string } | null)?.accessToken ?? null;
+        if (token) {
+          setNameToken(token);
+          setNameUserId(session?.user?.id ?? null);
+          setNameRole(role ?? null);
+          setPendingDest(safeDest);
+          setStep(3);
+          return;
+        }
+      }
+
       // Force a full page navigation instead of router.push. router.push uses
       // the App Router's client-side cache; if middleware can't yet see the
       // freshly-set session cookie, it silently bounces back to login and the
@@ -217,10 +241,14 @@ function LoginPageInner() {
   // destination won't bounce back to login. window.location.replace: a full
   // navigation (guarantees the cookie) that leaves no login entry in history.
   useEffect(() => {
+    // step 3 is the post-verify name capture: the session IS authenticated
+    // there by design, so this guard must stand down or it redirects the user
+    // away mid-typing.
+    if (step === 3) return;
     if (status === "authenticated") {
       window.location.replace(resolveAuthedDestination(session?.user?.role, fromPath, locale));
     }
-  }, [status, session, fromPath, locale]);
+  }, [status, session, fromPath, locale, step]);
 
   // ------------------------------------------------------------------
   // UI
@@ -238,8 +266,12 @@ function LoginPageInner() {
     tab === "signup" ? "Two minutes. No brokers. No passwords." : "Pick up where you left off.";
 
   // Already authenticated → we're redirecting (effect above). Render nothing
-  // instead of a flash of the login form.
-  if (status === "authenticated") {
+  // instead of a flash of the login form. EXCEPT step 3: that step is reached
+  // precisely because the session just became authenticated, and it renders
+  // its own card below — this early return must not blank that out from
+  // under it (the effect's guard alone isn't enough; this render gate short-
+  // circuits before that card's JSX is ever reached).
+  if (status === "authenticated" && step !== 3) {
     return <div className="auth-canvas" aria-hidden="true" />;
   }
 
@@ -472,6 +504,30 @@ function LoginPageInner() {
               >
                 ← Change number
               </button>
+            </motion.div>
+          )}
+
+          {/* Step 3 — Name capture (nameless account, post-verify) */}
+          {step === 3 && nameToken && (
+            <motion.div variants={fadeUp} custom={4} initial="hidden" animate="show">
+              <h1 className="auth-card__title">{t(locale, "nameCaptureTitle")}</h1>
+              <NameCaptureForm
+                locale={locale}
+                variant={nameRole === "owner" || nameRole === "pg_operator" ? "owner" : "tenant"}
+                token={nameToken}
+                submitLabelKey="nameCaptureSaveAndContinue"
+                onSaved={() => {
+                  if (pendingDest) window.location.href = pendingDest;
+                }}
+                onSkip={() => {
+                  // Suppress the ambient modal on landing — being asked twice in a
+                  // row reads as a broken form. It returns on the next login.
+                  if (nameUserId && typeof window !== "undefined") {
+                    markNamePromptDismissed(nameUserId, window.sessionStorage);
+                  }
+                  if (pendingDest) window.location.href = pendingDest;
+                }}
+              />
             </motion.div>
           )}
 
