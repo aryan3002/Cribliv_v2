@@ -45,17 +45,30 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** The one sliver of the `pg` API markListingVerified actually uses. */
+interface MinimalPgClient {
+  connect(): Promise<void>;
+  query(text: string, params?: unknown[]): Promise<unknown>;
+  end(): Promise<void>;
+}
+
+interface MinimalPgModule {
+  Client: new (config: { connectionString: string }) => MinimalPgClient;
+}
+
 /**
  * apps/web has no dependency on `pg` (this is the only spec in the suite that
  * needs a direct DB connection rather than going through the HTTP API — see
  * markListingVerified below for why). Reuse @cribliv/api's install the same
  * way data/seeds/seed.ts does, instead of adding a new devDependency to
- * apps/web just for this one fixture-setup query.
+ * apps/web just for this one fixture-setup query. Typed against a minimal
+ * local shape rather than `typeof import("pg")` — apps/web's tsconfig can't
+ * resolve pg's own type declarations since pg isn't its dependency either.
  */
-function loadPgFromApi(): typeof import("pg") {
+function loadPgFromApi(): MinimalPgModule {
   const apiPackageJson = path.resolve(__dirname, "../../api/package.json");
   const requireFromApi = createRequire(apiPackageJson);
-  return requireFromApi("pg") as typeof import("pg");
+  return requireFromApi("pg") as MinimalPgModule;
 }
 
 /**
