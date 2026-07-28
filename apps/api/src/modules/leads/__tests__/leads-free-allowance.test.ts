@@ -56,7 +56,12 @@ describe("LeadsService.createLead — free-lead allowance", () => {
       tenant_user_id: "33333333-3333-4333-8333-333333333333"
     });
 
-    const insertCall = query.mock.calls.find(([sql]: [string]) => /INSERT INTO leads/i.test(sql));
+    // `query` is typed with only the `sql` param (see makeService above), so its
+    // mock.calls elements type as 1-tuples even though Vitest always records
+    // every real argument. Cast to reach the bound params actually passed.
+    const insertCall = query.mock.calls.find(([sql]: [string]) =>
+      /INSERT INTO leads/i.test(sql)
+    ) as [string, unknown[]] | undefined;
     expect(insertCall![1]).toContain("free");
   });
 
@@ -69,7 +74,12 @@ describe("LeadsService.createLead — free-lead allowance", () => {
       tenant_user_id: "33333333-3333-4333-8333-333333333333"
     });
 
-    const insertCall = query.mock.calls.find(([sql]: [string]) => /INSERT INTO leads/i.test(sql));
+    // `query` is typed with only the `sql` param (see makeService above), so its
+    // mock.calls elements type as 1-tuples even though Vitest always records
+    // every real argument. Cast to reach the bound params actually passed.
+    const insertCall = query.mock.calls.find(([sql]: [string]) =>
+      /INSERT INTO leads/i.test(sql)
+    ) as [string, unknown[]] | undefined;
     expect(insertCall![1]).toContain("locked");
   });
 });
