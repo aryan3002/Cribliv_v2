@@ -16,9 +16,33 @@ import {
 import { isValidSlug } from "../../../../../../../lib/seo";
 import {
   getIntent,
+  type IntentDefinition,
   intentToSearchParams,
   renderIntentH1
 } from "../../../../../../../lib/intent-filters";
+
+/**
+ * The one query that defines this page's result set.
+ *
+ * `generateMetadata` in ./page.tsx imports this so the noindex decision is made
+ * on the SAME filtered count the body renders. It previously used the station's
+ * *unfiltered* 1.5 km total, so an intent page with no matches still claimed to
+ * be indexable.
+ */
+export function stationIntentQuery(
+  citySlug: string,
+  lat: number,
+  lng: number,
+  intent: IntentDefinition
+): Record<string, string | number> {
+  return {
+    city: citySlug,
+    lat,
+    lng,
+    radius_km: 1.5,
+    ...intentToSearchParams(intent)
+  };
+}
 
 /**
  * The metro-intent page's render, extracted out of `page.tsx` so the admin
@@ -69,12 +93,8 @@ export async function MetroStationIntentView({
 
   const listingsRes = await fetchListings(
     {
-      city: params.citySlug,
-      lat: data.station.lat,
-      lng: data.station.lng,
-      radius_km: 1.5,
-      page_size: 24,
-      ...intentToSearchParams(intent)
+      ...stationIntentQuery(params.citySlug, data.station.lat, data.station.lng, intent),
+      page_size: 24
     },
     { revalidate }
   );

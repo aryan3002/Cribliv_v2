@@ -27,8 +27,22 @@ export interface LocalityRow {
   lat: number | null;
   lng: number | null;
   parent_locality_slug: string | null;
+  /** Rolled up: this locality plus every descendant. Drives indexability. */
   listing_count: number;
+  /** Directly assigned to this locality only. For display and debugging. */
+  own_listing_count: number;
 }
+
+/**
+ * Recursive descent from a locality to all of its descendants.
+ *
+ * Used by BOTH the count that decides indexability and the search filter that
+ * decides what the page renders. Those two must agree on depth semantics — if
+ * one became parent-only, a parent page could be indexable while rendering an
+ * empty grid, which is the exact class of bug this work exists to remove.
+ * Keep the seed/recurse shape identical at every call site.
+ */
+export const LOCALITY_SUBTREE_RECURSE_SQL = `child.parent_locality_id = s.node_id`;
 
 export interface MetroStationRow {
   id: number;
@@ -38,6 +52,20 @@ export interface MetroStationRow {
   lat: number;
   lng: number;
   sequence: number;
+}
+
+export interface MetroStationWithCount extends MetroStationRow {
+  /** Derived in SQL with the same expression findMetroStation resolves. */
+  slug: string;
+  listing_count: number;
+}
+
+export interface LandmarkWithCount {
+  id: number;
+  slug: string;
+  name_en: string;
+  name_hi: string;
+  listing_count: number;
 }
 
 @Injectable()
@@ -132,17 +160,37 @@ export class SeoAggregatesService {
     if (!this.database.isEnabled()) return [];
     try {
       const { rows } = await this.database.query<LocalityRow>(
-        `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
+        `WITH RECURSIVE subtree AS (
+         SELECT loc.id AS root_id, loc.id AS node_id
+         FROM localities loc
+         JOIN cities c ON c.id = loc.city_id
+         WHERE c.slug = $1
+         UNION ALL
+         SELECT s.root_id, child.id
+         FROM localities child
+         JOIN subtree s ON ${LOCALITY_SUBTREE_RECURSE_SQL}
+       ),
+       counts AS (
+         SELECT s.root_id,
+                COUNT(DISTINCT l.id) FILTER (WHERE l.status = 'active') AS rolled_up,
+                COUNT(DISTINCT l.id) FILTER (
+                  WHERE l.status = 'active' AND s.node_id = s.root_id
+                ) AS own
+         FROM subtree s
+         LEFT JOIN listing_locations ll ON ll.locality_id = s.node_id
+         LEFT JOIN listings l ON l.id = ll.listing_id
+         GROUP BY s.root_id
+       )
+       SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
               loc.lat::float8 AS lat, loc.lng::float8 AS lng,
               parent.slug AS parent_locality_slug,
-              COALESCE(COUNT(l.id) FILTER (WHERE l.status = 'active'), 0)::int AS listing_count
+              COALESCE(cnt.rolled_up, 0)::int AS listing_count,
+              COALESCE(cnt.own, 0)::int AS own_listing_count
        FROM localities loc
        JOIN cities c ON c.id = loc.city_id
        LEFT JOIN localities parent ON parent.id = loc.parent_locality_id
-       LEFT JOIN listing_locations ll ON ll.locality_id = loc.id
-       LEFT JOIN listings l ON l.id = ll.listing_id
+       LEFT JOIN counts cnt ON cnt.root_id = loc.id
        WHERE c.slug = $1
-       GROUP BY loc.id, parent.slug
        ORDER BY listing_count DESC, loc.name_en ASC`,
         [citySlug]
       );
@@ -162,7 +210,8 @@ export class SeoAggregatesService {
         `SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
               loc.lat::float8 AS lat, loc.lng::float8 AS lng,
               parent.slug AS parent_locality_slug,
-              0::int AS listing_count
+              0::int AS listing_count,
+              0::int AS own_listing_count
        FROM localities loc
        JOIN cities c ON c.id = loc.city_id
        LEFT JOIN localities parent ON parent.id = loc.parent_locality_id
@@ -187,7 +236,8 @@ export class SeoAggregatesService {
         SELECT loc.id, loc.slug, loc.name_en, loc.name_hi,
                loc.lat::float8 AS lat, loc.lng::float8 AS lng,
                parent.slug AS parent_locality_slug,
-               0::int AS listing_count
+               0::int AS listing_count,
+              0::int AS own_listing_count
         FROM localities loc, origin
         LEFT JOIN localities parent ON parent.id = loc.parent_locality_id
         WHERE loc.id != $1
@@ -242,6 +292,94 @@ export class SeoAggregatesService {
         `findMetroStation query failed: ${err instanceof Error ? err.message : err}`
       );
       return null;
+    }
+  }
+
+  /**
+   * Every metro station in a city with the number of active listings within
+   * `radiusKm`. Used to gate metro pages out of the sitemap when there is
+   * nothing to show.
+   *
+   * The slug is derived in SQL using the identical expression
+   * `findMetroStation` matches on, so a URL we emit always resolves. Deriving
+   * it in TypeScript instead is how the sitemap ended up emitting stations the
+   * page could not resolve.
+   */
+  async metroStationsWithCountsForCity(
+    citySlug: string,
+    radiusKm = 1.5
+  ): Promise<MetroStationWithCount[]> {
+    if (!this.database.isEnabled()) return [];
+    try {
+      const { rows } = await this.database.query<MetroStationWithCount>(
+        `SELECT ms.id, ms.station_name, ms.line_name, ms.line_color,
+                ms.lat::float8 AS lat, ms.lng::float8 AS lng, ms.sequence,
+                LOWER(REGEXP_REPLACE(ms.station_name, '[^a-zA-Z0-9]+', '-', 'g')) AS slug,
+                COALESCE(cnt.listing_count, 0)::int AS listing_count
+         FROM metro_stations ms
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS listing_count
+           FROM listing_locations ll
+           JOIN listings l ON l.id = ll.listing_id
+           JOIN cities c ON c.id = ll.city_id
+           WHERE l.status = 'active'
+             AND c.slug = $1
+             AND ll.geo_point IS NOT NULL
+             AND ST_DWithin(
+               ll.geo_point,
+               ST_SetSRID(ST_MakePoint(ms.lng::float8, ms.lat::float8), 4326)::geography,
+               $2::float8
+             )
+         ) cnt ON true
+         WHERE ms.city = $1
+         ORDER BY ms.line_name, ms.sequence`,
+        [citySlug, radiusKm * 1000]
+      );
+      return rows;
+    } catch (err) {
+      this.logger.debug(
+        `metroStationsWithCountsForCity failed: ${err instanceof Error ? err.message : err}`
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Every active landmark in a city with the number of active listings within
+   * `radiusKm`. Mirrors the 2 km radius the landmark page itself renders, so
+   * the gate and the rendered content agree.
+   */
+  async landmarksWithCountsForCity(citySlug: string, radiusKm = 2): Promise<LandmarkWithCount[]> {
+    if (!this.database.isEnabled()) return [];
+    try {
+      const { rows } = await this.database.query<LandmarkWithCount>(
+        `SELECT lm.id, lm.slug, lm.name_en, lm.name_hi,
+                COALESCE(cnt.listing_count, 0)::int AS listing_count
+         FROM landmarks lm
+         JOIN cities c ON c.id = lm.city_id
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS listing_count
+           FROM listing_locations ll
+           JOIN listings l ON l.id = ll.listing_id
+           WHERE l.status = 'active'
+             AND ll.city_id = c.id
+             AND ll.geo_point IS NOT NULL
+             AND ST_DWithin(
+               ll.geo_point,
+               ST_SetSRID(ST_MakePoint(lm.lng::float8, lm.lat::float8), 4326)::geography,
+               $2::float8
+             )
+         ) cnt ON true
+         WHERE c.slug = $1 AND lm.is_active = true
+         ORDER BY listing_count DESC, lm.name_en ASC`,
+        [citySlug, radiusKm * 1000]
+      );
+      return rows;
+    } catch (err) {
+      this.logger.debug(
+        `landmarksWithCountsForCity failed: ${err instanceof Error ? err.message : err}`
+      );
+      return [];
     }
   }
 }

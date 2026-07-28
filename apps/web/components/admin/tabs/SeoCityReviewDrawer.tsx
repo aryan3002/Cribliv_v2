@@ -1,5 +1,6 @@
 "use client";
 
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { useEffect, useState } from "react";
 import { Drawer } from "../primitives/Drawer";
 import { DataTable, type Column } from "../primitives/DataTable";
@@ -280,7 +281,7 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
       key: "indexable",
       header: "Indexable",
       align: "center",
-      render: (r) => (r.listing_count >= 3 ? "✓" : "✗")
+      render: (r) => (r.listing_count >= INDEXABLE_MIN_LISTINGS ? "✓" : "✗")
     },
     {
       key: "copy",

@@ -12,9 +12,33 @@ import {
 import { isValidSlug } from "../../../../../../../lib/seo";
 import {
   getIntent,
+  type IntentDefinition,
   intentToSearchParams,
   renderIntentH1
 } from "../../../../../../../lib/intent-filters";
+
+/**
+ * The one query that defines this page's result set.
+ *
+ * `generateMetadata` in ./page.tsx imports this so the noindex decision is made
+ * on the SAME filtered count the body renders. Its previous `parentCount` fetch
+ * used the same 2 km radius but omitted the intent filter, so an intent page
+ * with no matches still claimed to be indexable.
+ */
+export function landmarkIntentQuery(
+  citySlug: string,
+  lat: number,
+  lng: number,
+  intent: IntentDefinition
+): Record<string, string | number> {
+  return {
+    city: citySlug,
+    lat,
+    lng,
+    radius_km: 2,
+    ...intentToSearchParams(intent)
+  };
+}
 
 /**
  * The landmark-intent page's render, extracted out of `page.tsx` so the admin
@@ -64,14 +88,7 @@ export async function LandmarkIntentView({
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
 
   const listingsRes = await fetchListings(
-    {
-      city: params.citySlug,
-      lat: landmark.lat,
-      lng: landmark.lng,
-      radius_km: 2,
-      page_size: 24,
-      ...intentToSearchParams(intent)
-    },
+    { ...landmarkIntentQuery(params.citySlug, landmark.lat, landmark.lng, intent), page_size: 24 },
     { revalidate }
   );
 

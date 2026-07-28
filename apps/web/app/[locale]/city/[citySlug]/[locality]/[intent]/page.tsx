@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { fetchEnabledCities, fetchLocality } from "../../../../../../lib/seo-api";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
+import { fetchEnabledCities, fetchListings, fetchLocality } from "../../../../../../lib/seo-api";
 import { buildPageMetadata } from "../../../../../../lib/seo";
 import { cityLabel, getIntent, renderIntentTitle } from "../../../../../../lib/intent-filters";
-import { LocalityIntentView } from "./intent-view";
+import { localityIntentQuery, LocalityIntentView } from "./intent-view";
 
 export const revalidate = 86400;
 
@@ -44,6 +45,14 @@ export async function generateMetadata({
   }
   const placeName = locale === "hi" ? data.locality.name_hi : data.locality.name_en;
   const city = cityLabel(params.citySlug, locale);
+  // Count with the intent filter applied. The locality's own total is not the
+  // number this page shows, so it must not be the number that gates indexing.
+  // `revalidate` is passed so this stays ISR-cached — a no-store fetch here
+  // would opt all ~33k programmatic routes back into per-request rendering.
+  const filtered = await fetchListings(
+    { ...localityIntentQuery(params.citySlug, data.locality.slug, intent), page_size: 1 },
+    { revalidate }
+  );
   return buildPageMetadata({
     title: renderIntentTitle(intent, { name: placeName, kind: "locality", city }, locale),
     description:
@@ -52,7 +61,7 @@ export async function generateMetadata({
         : `Verified ${intent.label_en.toLowerCase()} in ${placeName}, ${city}. Direct-owner contact, zero brokerage.`,
     pathname: `/city/${params.citySlug}/${params.locality}/${params.intent}`,
     locale,
-    noindex: data.aggregates.listing_count < 3
+    noindex: filtered.total < INDEXABLE_MIN_LISTINGS
   });
 }
 

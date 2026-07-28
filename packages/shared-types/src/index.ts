@@ -7,6 +7,7 @@ export * from "./pg-listing-score";
 export * from "./pg-operations";
 export * from "./admin-leads";
 export * from "./admin-homes";
+export * from "./seo";
 export * from "./user-name";
 
 // ── Bundler-safe explicit re-exports for RUNTIME (value) exports ──────────────
@@ -19,6 +20,7 @@ export * from "./user-name";
 // above are erased before bundling, so their `export *` is harmless.
 export { computePgListingScore } from "./pg-listing-score";
 export { pgEvents, analyticsEvents } from "./events";
+export { INDEXABLE_MIN_LISTINGS } from "./seo";
 export {
   normalizeFullName,
   validateFullName,

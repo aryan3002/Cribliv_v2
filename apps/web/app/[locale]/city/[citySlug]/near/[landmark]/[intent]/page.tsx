@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { fetchEnabledCities, fetchLandmark, fetchListings } from "../../../../../../../lib/seo-api";
 import { buildPageMetadata } from "../../../../../../../lib/seo";
 import { cityLabel, getIntent, renderIntentTitle } from "../../../../../../../lib/intent-filters";
-import { LandmarkIntentView } from "./landmark-intent-view";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
+import { landmarkIntentQuery, LandmarkIntentView } from "./landmark-intent-view";
 
 export const revalidate = 86400;
 
@@ -42,14 +43,11 @@ export async function generateMetadata({
       noindex: true
     });
   }
-  const parentCount = await fetchListings(
-    {
-      city: params.citySlug,
-      lat: landmark.lat,
-      lng: landmark.lng,
-      radius_km: 2,
-      page_size: 1
-    },
+  // Count with the intent filter applied. The landmark's own 2 km total is not
+  // the number this page shows, so it must not be the number that gates
+  // indexing. `revalidate` keeps this ISR-cached.
+  const filtered = await fetchListings(
+    { ...landmarkIntentQuery(params.citySlug, landmark.lat, landmark.lng, intent), page_size: 1 },
     { revalidate }
   );
   const name = locale === "hi" ? landmark.name_hi : landmark.name_en;
@@ -62,7 +60,7 @@ export async function generateMetadata({
         : `${intent.label_en} near ${name}, ${city}. Verified listings, direct owner contact, no broker fees.`,
     pathname: `/city/${params.citySlug}/near/${params.landmark}/${params.intent}`,
     locale,
-    noindex: parentCount.total < 3
+    noindex: filtered.total < INDEXABLE_MIN_LISTINGS
   });
 }
 
