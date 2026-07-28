@@ -154,7 +154,32 @@ Behaviour:
 
 The shared logic should live in one hook rather than being written three times.
 
-## WhatsApp account setup (blocking, not code)
+## Update 2026-07-28 — the WABA already exists, via D7
+
+The prerequisites below were largely satisfied before this spec was written. A
+CribLiv WABA is live and delivering authentication-template OTPs
+(*"234569 is your verification code. This code has expired."*), created through
+**D7's Meta embedded-signup**. Business verification and template approval are
+therefore already done, which removes the 2–4 week blocker this spec assumed.
+
+Two consequences:
+
+1. **D7 is the BSP and holds the Meta credentials.** It proxies sends through
+   `POST https://api.d7networks.com/whatsapp/v2/send` with a D7 bearer token; we
+   never see a `phone_number_id` or Meta token. The Meta Cloud API path in
+   `WhatsAppClient` is consequently unusable as-is, so `WHATSAPP_PROVIDER` gains
+   a third value, `d7`. Meta-direct is retained because it remains the cheaper
+   long-run route if we ever hold our own credentials.
+2. **D7's authentication-template payload carries the code only in the button's
+   `action_payload`** — there is no separate body parameter as there is with
+   Meta, which fills the visible body from the same code server-side.
+
+Unresolved: D7's per-message WhatsApp rate. D7 publishes no WhatsApp price list
+and bills per Meta's conversation categories; Meta's India authentication rate
+is ₹0.115, but D7's markup over it is unknown and must be confirmed in writing
+before treating the blended-cost figures above as accurate.
+
+## WhatsApp account setup (mostly complete — see update above)
 
 1. **Meta Business Portfolio registered under the Indian entity.** Critical: Meta's
    "authentication-international" rate (₹2.58) applies when the business is based in a
