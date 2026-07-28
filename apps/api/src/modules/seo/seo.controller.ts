@@ -64,6 +64,22 @@ export class SeoController {
   }
 
   /**
+   * The city's OWN metro stations, with line topology, coordinates and listing
+   * counts.
+   *
+   * Distinct from `/map/metro`, which returns whole metro *lines* that touch a
+   * city — correct for drawing a map, but the reason phantom Delhi stations were
+   * linked under Faridabad. Any rail that renders station links or computes a
+   * nearest station must use this instead. `SeoPlace` from
+   * `/cities/:slug/places` deliberately carries no geometry or line data, which
+   * is why this returns the richer row rather than extending that shape.
+   */
+  @Get("cities/:citySlug/metro-stations")
+  async listCityMetroStations(@Param("citySlug") citySlug: string) {
+    return ok({ items: await this.aggregates.metroStationsWithCountsForCity(citySlug) });
+  }
+
+  /**
    * PUBLIC read of stored copy — no auth, no LLM. The SSR render path calls
    * this; it returns whatever the batch generator pre-populated, or null (the
    * page then falls back to its template).

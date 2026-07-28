@@ -6,7 +6,7 @@ import {
   fetchListings,
   fetchLocalities,
   fetchLocality,
-  fetchMetroStationsForCity,
+  fetchCityMetroStations,
   fetchSeoCopy
 } from "../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../lib/structured-data";
@@ -70,7 +70,9 @@ export async function LocalityHubView({
     ),
     fetchLocalities(params.citySlug, { revalidate }),
     fetchLandmarks(params.citySlug, undefined, { revalidate }),
-    fetchMetroStationsForCity(params.citySlug, { revalidate })
+    // City-scoped: feeding /map/metro's whole-line result into
+    // nearestMetroForLocality could name a station in another city entirely.
+    fetchCityMetroStations(params.citySlug, { revalidate })
   ]);
 
   // Compute simple distance ordering for related items (cheap, server-side).

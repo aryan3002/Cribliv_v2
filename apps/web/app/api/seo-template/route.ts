@@ -1,4 +1,4 @@
-import { fetchLocality, fetchMetroStationsForCity } from "../../../lib/seo-api";
+import { fetchLocality, fetchCityMetroStations } from "../../../lib/seo-api";
 import { buildLocalityTemplateCopy, nearestMetroForLocality } from "../../../lib/seo-template-copy";
 
 export const runtime = "nodejs";
@@ -29,7 +29,9 @@ export async function GET(req: Request) {
   const data = await fetchLocality(city, locality);
   if (!data) return json({ data: null });
 
-  const metros = await fetchMetroStationsForCity(city);
+  // City-scoped, so template copy can never claim a locality's nearest metro is
+  // a station in a different city.
+  const metros = await fetchCityMetroStations(city);
   const cityName = city.charAt(0).toUpperCase() + city.slice(1);
   const copy = buildLocalityTemplateCopy({
     locale,
