@@ -36,4 +36,17 @@ describe("normalizeIndianPhone", () => {
   it("rejects a non-Indian country code", () => {
     expect(normalizeIndianPhone("+14155552671")).toBeNull();
   });
+
+  it("rejects a 10-digit number that does not start 6-9", () => {
+    expect(normalizeIndianPhone("1234567890")).toBeNull();
+    expect(normalizeIndianPhone("5000000000")).toBeNull();
+    expect(normalizeIndianPhone("+911234567890")).toBeNull();
+    expect(normalizeIndianPhone("910123456789")).toBeNull();
+  });
+
+  it("accepts each valid leading digit", () => {
+    for (const lead of ["6", "7", "8", "9"]) {
+      expect(normalizeIndianPhone(`${lead}956729103`)).toBe(`+91${lead}956729103`);
+    }
+  });
 });

@@ -22,6 +22,11 @@ export function normalizeIndianPhone(input: string): string | null {
     s = s.replace(/^0+/, "");
   }
 
-  if (!/^\d{10}$/.test(s)) return null;
+  // Indian mobile subscriber numbers start 6-9. Matches the existing normaliser
+  // at apps/api/src/migration/v1/phone.ts:11 and the PHONE_REGEX in
+  // rent-agreement/validators/india-rules.validator.ts:5. Note the admin
+  // controller's own check (admin.controller.ts:873) is only /^\+91\d{10}$/, so
+  // it would NOT catch an impossible number — this is the gate that does.
+  if (!/^[6-9]\d{9}$/.test(s)) return null;
   return `+91${s}`;
 }
