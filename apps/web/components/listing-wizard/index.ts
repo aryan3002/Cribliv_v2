@@ -1,6 +1,10 @@
 // Concierge stylesheet — must be imported once for the wizard to look right.
 import "./concierge.css";
 
+// Wizard orchestrator — composes the steps below into the full flow. Used by
+// the owner "new listing" route and (mode="admin") the admin on-behalf flow.
+export { ListingWizard, type ListingWizardProps } from "./ListingWizard";
+
 // New concierge components
 export { VoiceCoPilot } from "./VoiceCoPilot";
 export { VoiceOrb } from "./VoiceOrb";
