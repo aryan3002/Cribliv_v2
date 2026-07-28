@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException
 } from "@nestjs/common";
 import { createHash, randomInt, randomUUID, timingSafeEqual } from "crypto";
@@ -13,9 +14,18 @@ import { AppStateService } from "../../common/app-state.service";
 import { DatabaseService } from "../../common/database.service";
 import { isRateLimitingDisabled } from "../../common/rate-limit.util";
 import { expireSignupCredits } from "../wallet/wallet-balance";
-import { D7OtpClient, D7OtpVerifyError } from "./d7-otp.client";
+import { D7OtpClient } from "./d7-otp.client";
 import { signupReward } from "./signup-credits";
-import { readOtpProviderConfig } from "./otp-provider.config";
+import { WhatsAppClient } from "../notifications/whatsapp.client";
+import { MockOtpProvider } from "./otp/mock-otp.provider";
+import { WhatsAppOtpProvider } from "./otp/whatsapp-otp.provider";
+import { D7OtpProvider } from "./otp/d7-otp.provider";
+import { OtpProviderResolver } from "./otp/otp-provider.resolver";
+import {
+  OtpUndeliverableError,
+  OtpVerifyError,
+  type OtpSendResult
+} from "./otp/otp-provider.interface";
 import type { UpdateProfileBody } from "./dto/update-profile.dto";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
@@ -44,10 +54,41 @@ export class AuthService {
   constructor(
     @Inject(AppStateService) private readonly appState: AppStateService,
     @Inject(DatabaseService) private readonly database: DatabaseService,
-    @Inject(D7OtpClient) private readonly d7OtpClient: D7OtpClient
+    @Inject(D7OtpClient) private readonly d7OtpClient: D7OtpClient,
+    // @Optional() is load-bearing: a bare `?` marks the parameter optional to
+    // TypeScript only, while Nest still treats @Inject as required and refuses
+    // to instantiate AuthService in any module that does not also provide the
+    // resolver (several test modules construct AuthService standalone).
+    @Optional()
+    @Inject(OtpProviderResolver)
+    private readonly otpProviders?: OtpProviderResolver
   ) {}
 
-  async sendOtp(phone_e164: string, purpose: string, clientIp?: string) {
+  private fallbackProviders?: OtpProviderResolver;
+
+  /**
+   * Unit tests construct AuthService with three positional args, and some test
+   * modules provide it without the resolver, so it can legitimately be absent.
+   * Fall back to one wired to the injected D7 client, built once.
+   */
+  private get providers(): OtpProviderResolver {
+    if (this.otpProviders) {
+      return this.otpProviders;
+    }
+    this.fallbackProviders ??= new OtpProviderResolver(
+      new MockOtpProvider(),
+      new WhatsAppOtpProvider(new WhatsAppClient()),
+      new D7OtpProvider(this.d7OtpClient)
+    );
+    return this.fallbackProviders;
+  }
+
+  async sendOtp(
+    phone_e164: string,
+    purpose: string,
+    clientIp?: string,
+    channel?: "whatsapp" | "sms"
+  ) {
     if (!/^\+91\d{10}$/.test(phone_e164)) {
       throw new BadRequestException({ code: "invalid_phone", message: "Invalid phone format" });
     }
@@ -110,46 +151,53 @@ export class AuthService {
         }
       }
 
-      const providerConfig = readOtpProviderConfig();
-      if (providerConfig.provider === "mock") {
-        const otp = String(randomInt(100000, 999999));
-        const inserted = await this.database.query<{ id: string }>(
-          `
-          INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status, client_ip)
-          VALUES ($1, $2::otp_purpose, $3, now() + interval '5 minutes', 'active', $4)
-          RETURNING id::text
-          `,
-          [phone_e164, purpose, otp, clientIp || null]
-        );
+      // Skipped entirely while WhatsApp is off, so the SMS-only path issues
+      // exactly the queries it did before this change.
+      const recentWhatsAppAttempts = this.providers.isWhatsAppPrimary()
+        ? await this.countRecentWhatsAppAttempts(phone_e164)
+        : 0;
+      let provider = this.providers.forSend({
+        requestedChannel: channel,
+        recentWhatsAppAttempts
+      });
 
-        return {
-          challenge_id: inserted.rows[0].id,
-          expires_in_sec: 300,
-          retry_after_sec: 30,
-          dev_otp: otp
-        };
+      let sent: OtpSendResult;
+      try {
+        sent = await provider.send({ phoneE164: phone_e164 });
+      } catch (error) {
+        // Meta told us this number has no WhatsApp account. That is permanent,
+        // so fall through to SMS now rather than making the user burn two more
+        // doomed attempts before the escape hatch appears. A transient failure
+        // (timeout, 5xx) is NOT caught here — it must surface rather than
+        // silently spending an SMS that costs ~43x a WhatsApp message.
+        if (error instanceof OtpUndeliverableError) {
+          this.logger.log(`WhatsApp undeliverable for ${phone_e164}, falling back to SMS`);
+          provider = this.providers.sms();
+          sent = await provider.send({ phoneE164: phone_e164 });
+        } else {
+          throw error;
+        }
       }
 
-      const d7SendResult = await this.d7OtpClient.sendOtp({ phoneE164: phone_e164 });
       const inserted = await this.database.query<{ id: string }>(
         `
         INSERT INTO otp_challenges(phone_e164, purpose, otp_hash, expires_at, status, client_ip)
         VALUES ($1, $2::otp_purpose, $3, now() + ($4::int * interval '1 second'), 'active', $5)
         RETURNING id::text
         `,
-        [
-          phone_e164,
-          purpose,
-          `d7:${d7SendResult.otpId}`,
-          providerConfig.expirySec,
-          clientIp || null
-        ]
+        [phone_e164, purpose, sent.marker, sent.expirySec, clientIp || null]
       );
+
+      const attemptsAfterSend =
+        provider.name === "whatsapp" ? recentWhatsAppAttempts + 1 : recentWhatsAppAttempts;
 
       return {
         challenge_id: inserted.rows[0].id,
-        expires_in_sec: providerConfig.expirySec,
-        retry_after_sec: 30
+        expires_in_sec: sent.expirySec,
+        retry_after_sec: 30,
+        channel: provider.name === "d7" ? ("sms" as const) : (provider.name as "whatsapp" | "mock"),
+        sms_fallback_available: this.providers.isSmsFallbackAvailable(attemptsAfterSend),
+        ...(sent.devOtp ? { dev_otp: sent.devOtp } : {})
       };
     }
 
@@ -223,23 +271,22 @@ export class AuthService {
         throw new UnauthorizedException({ code: "otp_expired", message: "OTP expired" });
       }
 
-      const providerOtpId = challenge.otp_hash.startsWith("d7:")
-        ? challenge.otp_hash.slice(3)
-        : null;
-      if (providerOtpId) {
-        try {
-          await this.d7OtpClient.verifyOtp({ otpId: providerOtpId, otpCode: otp_code });
-        } catch (error) {
-          if (error instanceof D7OtpVerifyError) {
-            if (error.code === "invalid_otp") {
-              await this.handleInvalidDbOtp(challenge.id, challenge.attempt_count);
-            }
-            throw new UnauthorizedException({ code: "otp_expired", message: "OTP expired" });
+      const provider = this.providers.forMarker(challenge.otp_hash);
+      try {
+        await provider.verify({
+          marker: challenge.otp_hash,
+          phoneE164: challenge.phone_e164,
+          code: otp_code
+        });
+      } catch (error) {
+        if (error instanceof OtpVerifyError) {
+          if (error.code === "invalid_otp") {
+            // Always throws: invalid_otp, or otp_blocked at the 5th attempt.
+            await this.handleInvalidDbOtp(challenge.id, challenge.attempt_count);
           }
-          throw error;
+          throw new UnauthorizedException({ code: "otp_expired", message: "OTP expired" });
         }
-      } else if (!timingSafeOtpEqual(challenge.otp_hash, otp_code)) {
-        await this.handleInvalidDbOtp(challenge.id, challenge.attempt_count);
+        throw error;
       }
 
       const client = await this.database.getClient();
@@ -365,7 +412,29 @@ export class AuthService {
     return this.verifyOtpInMemory(challenge_id, otp_code);
   }
 
-  private async handleInvalidDbOtp(challengeId: string, currentAttemptCount: number) {
+  /**
+   * Counts WhatsApp OTP attempts for this phone in the last 10 minutes.
+   * Drives the SMS fallback gate. Derived from the marker prefix rather than a
+   * dedicated column, so no migration is required.
+   */
+  private async countRecentWhatsAppAttempts(phoneE164: string): Promise<number> {
+    const result = await this.database.query<{ count: number }>(
+      `
+      SELECT count(*)::int AS count
+      FROM otp_challenges
+      WHERE phone_e164 = $1
+        AND otp_hash LIKE 'wa:%'
+        AND created_at > now() - interval '10 minutes'
+      `,
+      [phoneE164]
+    );
+    return result.rows[0]?.count ?? 0;
+  }
+
+  private async handleInvalidDbOtp(
+    challengeId: string,
+    currentAttemptCount: number
+  ): Promise<never> {
     const attempts = currentAttemptCount + 1;
     const status = attempts >= 5 ? "blocked" : "active";
 
@@ -785,6 +854,11 @@ export class AuthService {
       challenge_id: id,
       expires_in_sec: 300,
       retry_after_sec: 30,
+      // Mirrors the DB path's shape so the client sees one contract whether or
+      // not DATABASE_URL is set. This path never reaches a real provider, so
+      // the SMS escape hatch is always closed.
+      channel: "mock" as const,
+      sms_fallback_available: false,
       dev_otp: otp // returned to client so login page can auto-fill
     };
   }

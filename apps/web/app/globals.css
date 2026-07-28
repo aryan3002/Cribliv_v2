@@ -7996,6 +7996,46 @@ a.feature-card:hover .icon-circle {
   color: rgba(255, 224, 168, 0.68);
 }
 
+/* Resend + SMS-fallback controls under the OTP input. The SMS option is
+   styled quieter than the resend deliberately: WhatsApp costs a fraction of
+   an SMS, so it should read as the escape hatch, not the obvious next tap. */
+.otp-channel-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 12px;
+}
+.otp-channel-actions__resend,
+.otp-channel-actions__sms {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px 0;
+  font-weight: 500;
+  transition: color var(--transition-fast);
+}
+.otp-channel-actions__resend {
+  color: rgba(232, 240, 255, 0.82);
+  font-size: 13.5px;
+}
+.otp-channel-actions__resend:hover:not(:disabled) {
+  color: #ffffff;
+}
+.otp-channel-actions__resend:disabled {
+  color: rgba(232, 240, 255, 0.38);
+  cursor: default;
+}
+.otp-channel-actions__sms {
+  color: rgba(232, 240, 255, 0.5);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.otp-channel-actions__sms:hover:not(:disabled) {
+  color: rgba(232, 240, 255, 0.85);
+}
+
 .auth-change-number {
   margin-top: 14px;
   background: transparent;
@@ -23400,6 +23440,14 @@ a.feature-card:hover .icon-circle {
   .wa-fab:hover {
     transform: none;
   }
+}
+
+/* Channel notice in the contact-unlock panel, which uses light surfaces
+   rather than the dark auth canvas. */
+.otp-channel-note {
+  margin: 4px 0 8px;
+  font-size: 12.5px;
+  color: var(--color-text-muted, #6b7280);
 }
 
 /* ── Name capture ─────────────────────────────────────────────────────────── */

@@ -11,6 +11,8 @@ import {
   writeAuthSession
 } from "../lib/client-auth";
 import { fetchApi } from "../lib/api";
+import { describeOtpChannel, type OtpSendData } from "../lib/otp-channel";
+import { OtpChannelActions } from "./auth/otp-channel-actions";
 import { ApiError } from "../lib/api";
 import { trackEvent } from "../lib/analytics";
 import { useFlag } from "../lib/feature-flags";
@@ -103,6 +105,7 @@ export function UnlockContactPanel({
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [phone, setPhone] = useState("+91");
   const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [sendData, setSendData] = useState<OtpSendData | null>(null);
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [unlock, setUnlock] = useState<UnlockResponse | null>(null);
@@ -163,22 +166,27 @@ export function UnlockContactPanel({
     });
   }, [unlock?.response_deadline_at]);
 
-  async function requestOtp() {
+  /**
+   * `channel` is only passed for the SMS escape hatch. Omitting it lets the
+   * server pick, which keeps WhatsApp the default; the server also refuses an
+   * "sms" request until the fallback has been earned.
+   */
+  async function requestOtp(channel?: "sms") {
     setLoading(true);
     setError(null);
     setUnlockErrorCode(null);
     try {
-      const response = await fetchApi<{ challenge_id: string; dev_otp?: string }>(
-        "/auth/otp/send",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            phone_e164: phone,
-            purpose: "contact_unlock"
-          })
-        }
-      );
+      const response = await fetchApi<OtpSendData>("/auth/otp/send", {
+        method: "POST",
+        body: JSON.stringify({
+          phone_e164: phone,
+          purpose: "contact_unlock",
+          ...(channel ? { channel } : {})
+        })
+      });
       setChallengeId(response.challenge_id);
+      setSendData(response);
+      setOtp("");
       setAuthStep("otp_verify");
       trackEvent("otp_send_requested", {
         purpose: "contact_unlock",
@@ -571,7 +579,7 @@ export function UnlockContactPanel({
             />
             <button
               className="btn btn--primary"
-              onClick={requestOtp}
+              onClick={() => requestOtp()}
               disabled={loading}
               style={{ marginTop: "var(--space-2)", width: "100%" }}
             >
@@ -585,6 +593,9 @@ export function UnlockContactPanel({
             <label className="form-label" htmlFor="unlock-otp">
               Enter OTP
             </label>
+            {sendData ? (
+              <p className="otp-channel-note">{describeOtpChannel(sendData.channel, phone)}</p>
+            ) : null}
             <input
               id="unlock-otp"
               className="input"
@@ -599,6 +610,12 @@ export function UnlockContactPanel({
             >
               {t(locale, "availVerifyButton")}
             </button>
+            <OtpChannelActions
+              data={sendData}
+              phone={phone}
+              loading={loading}
+              onResend={requestOtp}
+            />
           </div>
         ) : null}
 
@@ -709,7 +726,7 @@ export function UnlockContactPanel({
           />
           <button
             className="btn btn--primary"
-            onClick={requestOtp}
+            onClick={() => requestOtp()}
             disabled={loading}
             style={{ marginTop: "var(--space-2)", width: "100%" }}
           >
@@ -723,6 +740,9 @@ export function UnlockContactPanel({
           <label className="form-label" htmlFor="unlock-otp">
             Enter OTP
           </label>
+          {sendData ? (
+            <p className="otp-channel-note">{describeOtpChannel(sendData.channel, phone)}</p>
+          ) : null}
           <input
             id="unlock-otp"
             className="input"
@@ -737,6 +757,12 @@ export function UnlockContactPanel({
           >
             {callbackMode ? t(locale, "cbVerifyButton") : "Verify & Unlock"}
           </button>
+          <OtpChannelActions
+            data={sendData}
+            phone={phone}
+            loading={loading}
+            onResend={requestOtp}
+          />
         </div>
       ) : null}
 

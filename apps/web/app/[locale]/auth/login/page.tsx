@@ -11,6 +11,8 @@ import { t } from "../../../../lib/i18n";
 import { resolveAuthedDestination } from "../../../../lib/login-redirect";
 import { hasName, markNamePromptDismissed } from "../../../../lib/name-capture";
 import { signInWithCsrfRetry } from "../../../../lib/sign-in-retry";
+import { describeOtpChannel, type OtpSendData } from "../../../../lib/otp-channel";
+import { OtpChannelActions } from "../../../../components/auth/otp-channel-actions";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,6 +65,9 @@ const OTP_ERRORS: Record<string, string> = {
   otp_expired: "OTP has expired. Please request a new one.",
   otp_blocked: "Too many incorrect attempts. Please request a new OTP.",
   otp_rate_limited: "Too many requests. Please wait a few minutes before trying again.",
+  otp_ip_rate_limited: "Too many requests from your network. Please wait a few minutes.",
+  otp_provider_error: "Couldn't send the code right now. Please try again in a moment.",
+  otp_provider_misconfigured: "Sign-in is temporarily unavailable. Please try again shortly.",
   invalid_phone: "Invalid phone number format.",
   MissingCSRF: "Your secure sign-in session expired. Please try again.",
   CredentialsSignin: "Incorrect OTP or session expired."
@@ -103,6 +108,7 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [sendData, setSendData] = useState<OtpSendData | null>(null);
 
   // True from the moment handleVerify begins OTP verification until it either
   // diverts to the name step or navigates away. A ref, not state: it must be
@@ -118,60 +124,76 @@ function LoginPageInner() {
   // ------------------------------------------------------------------
   // Step 1 — Request OTP
   // ------------------------------------------------------------------
-  const handleSendOtp = useCallback(async () => {
-    setError(null);
-    setInfo(null);
+  /**
+   * `channel` is only passed for the SMS escape hatch. Omitting it lets the
+   * server pick, which keeps WhatsApp the default; the server also refuses an
+   * "sms" request until the fallback has been earned, so this is a hint rather
+   * than a command.
+   */
+  const handleSendOtp = useCallback(
+    async (channel?: "sms") => {
+      setError(null);
+      setInfo(null);
 
-    const phoneErr = validatePhone(phone);
-    if (phoneErr) {
-      setError(phoneErr);
-      return;
-    }
-
-    const normalizedPhone = normalizePhone(phone);
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/auth/otp/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone_e164: normalizedPhone, purpose: "login" })
-      });
-
-      const payload = (await res.json()) as {
-        data?: { challenge_id: string; dev_otp?: string };
-        error?: { code: string; message: string };
-        // NestJS HttpException throws body directly (no wrapper)
-        code?: string;
-        message?: string;
-      };
-
-      if (!res.ok) {
-        const errorCode = payload.error?.code ?? payload.code;
-        setError(friendlyError(errorCode));
+      const phoneErr = validatePhone(phone);
+      if (phoneErr) {
+        setError(phoneErr);
         return;
       }
 
-      if (!payload.data?.challenge_id) {
-        setError("Unexpected response from server. Please try again.");
-        return;
+      const normalizedPhone = normalizePhone(phone);
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/auth/otp/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone_e164: normalizedPhone,
+            purpose: "login",
+            ...(channel ? { channel } : {})
+          })
+        });
+
+        const payload = (await res.json()) as {
+          data?: OtpSendData;
+          error?: { code: string; message: string };
+          // NestJS HttpException throws body directly (no wrapper)
+          code?: string;
+          message?: string;
+        };
+
+        if (!res.ok) {
+          const errorCode = payload.error?.code ?? payload.code;
+          setError(friendlyError(errorCode));
+          return;
+        }
+
+        if (!payload.data?.challenge_id) {
+          setError("Unexpected response from server. Please try again.");
+          return;
+        }
+
+        setChallengeId(payload.data.challenge_id);
+        setSendData(payload.data);
+
+        // dev_otp is only returned when OTP_PROVIDER=mock
+        if (payload.data.dev_otp) {
+          setDevOtp(payload.data.dev_otp);
+          setOtp(payload.data.dev_otp); // auto-fill so user can just click Verify
+        } else {
+          setOtp(""); // a resend invalidates whatever was typed for the old code
+        }
+
+        setInfo(describeOtpChannel(payload.data.channel, normalizedPhone));
+        setStep(2);
+      } catch {
+        setError("Network error. Please check your connection and try again.");
+      } finally {
+        setLoading(false);
       }
-
-      setChallengeId(payload.data.challenge_id);
-
-      // dev_otp is only returned when OTP_PROVIDER=mock
-      if (payload.data.dev_otp) {
-        setDevOtp(payload.data.dev_otp);
-        setOtp(payload.data.dev_otp); // auto-fill so user can just click Verify
-      }
-
-      setInfo(`OTP sent to ${normalizedPhone}`);
-      setStep(2);
-    } catch {
-      setError("Network error. Please check your connection and try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [phone]);
+    },
+    [phone]
+  );
 
   // ------------------------------------------------------------------
   // Step 2 — Verify OTP + Sign In
@@ -484,7 +506,7 @@ function LoginPageInner() {
                 />
               </div>
               <button
-                onClick={handleSendOtp}
+                onClick={() => handleSendOtp()}
                 disabled={loading}
                 className="btn btn--primary btn--full auth-cta"
               >
@@ -539,6 +561,14 @@ function LoginPageInner() {
                     ? "Verify & Sign up"
                     : "Verify & Sign in"}
               </button>
+
+              <OtpChannelActions
+                data={sendData}
+                phone={phone}
+                loading={loading}
+                onResend={handleSendOtp}
+              />
+
               <button
                 onClick={() => {
                   setStep(1);
@@ -547,6 +577,7 @@ function LoginPageInner() {
                   setDevOtp(null);
                   setError(null);
                   setInfo(null);
+                  setSendData(null);
                 }}
                 className="auth-change-number"
                 type="button"
