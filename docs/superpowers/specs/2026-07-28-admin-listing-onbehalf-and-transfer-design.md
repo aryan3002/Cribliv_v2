@@ -91,10 +91,17 @@ concurrent admins cannot race.
 3. **Move both columns together.** `owner_user_id` and `contact_phone_encrypted = <owner phone>`.
 4. **Move the leads.** `UPDATE leads SET owner_user_id = <new>, transferred_at = now() WHERE
 listing_id = $1`.
-5. **Audit.** Insert into `audit_logs` (`infra/migrations/0001_init.sql:375`) with
-   `actor_type = 'admin'`, `event_name = 'listing.owner_transferred'`, `entity_type = 'listing'`,
-   and a payload carrying from/to user ids, the target phone and the leads-moved count. Nothing in
-   the API writes to this table today; an irreversible ownership change is what it is for.
+5. **Audit.** Insert into `admin_actions` (`infra/migrations/0001_init.sql:363`) with
+   `target_type = 'listing'`, `action = 'transfer_owner'`, and before/after state carrying the
+   from/to user ids, the target phone and the leads-moved count.
+
+   > **Corrected during planning.** An earlier draft of this spec specified `audit_logs`. That
+   > table exists in the schema but nothing in the API writes to it — the codebase's real admin
+   > audit mechanism is `admin_actions`, used in 8+ places (`admin-homes.service.ts:601`,
+   > `pg-admin-properties.service.ts:468`, `admin-lead-ops.service.ts:564`) and read back by the
+   > admin home workspace's Activity tab (`admin-homes.service.ts:972`). Using it means a transfer
+   > shows up in that Activity tab for free. `action` needs a new enum value, `'transfer_owner'`,
+   > added in the same migration.
 
 ### Phone normalisation
 
@@ -146,10 +153,12 @@ Migration **0069** (0068 is the current head):
 
 ```sql
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS transferred_at timestamptz;
+ALTER TYPE admin_action_type ADD VALUE IF NOT EXISTS 'transfer_owner';
 ```
 
 The free-lead check at `leads.service.ts:110` gains `AND transferred_at IS NULL`, so inherited
-leads do not consume the new owner's two free ones. Rollback file drops the column.
+leads do not consume the new owner's two free ones. The rollback drops the column; Postgres cannot
+remove an enum value, so `'transfer_owner'` remains behind harmlessly.
 
 No other schema change. Both transfer columns already exist.
 
@@ -189,9 +198,15 @@ leads moved with `transferred_at` set, audit row written. A unit test proving an
 inherited leads still gets `free` on their first organic lead. Web unit tests for the modal and
 Review-step validation. E2E covering create → publish-on-behalf → listing appears under the owner.
 
-**These DB tests will silently skip in CI**, which never sets `TEST_DATABASE_URL`. They must be run
-locally against a real database, targeted per file — running the full API suite against a DB drops
-`keyword_rankings` and `seo_indexing_queue` via migration 0045's rollback.
+**Corrected during planning:** an earlier draft assumed these would all skip in CI for want of
+`TEST_DATABASE_URL`. That is true only of tests needing a live database. The established pattern in
+`admin-homes-availability.test.ts:181` and `pg-description-write.test.ts:18` mocks
+`DatabaseService.query`/`getClient` with `vi.fn()`, asserting SQL shape and parameters without
+Postgres — so the transfer service's DB path, including the both-columns-move-together guarantee,
+**does** get real CI coverage. Only the Playwright E2E needs a live database and stays a local gate.
+
+Still true regardless: never run the full API suite against a live database — migration 0045's
+rollback drops `keyword_rankings` and `seo_indexing_queue`. Run targeted files.
 
 ## Accepted risks
 
