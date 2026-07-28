@@ -162,7 +162,14 @@ export function SearchPill({ locale }: { locale: NavLocale }) {
   const href = (surface && qs ? `${base}?${qs}` : base) as Route;
 
   return (
-    <Link href={href} className="search-pill" title={label}>
+    // aria-label duplicates the visible label deliberately. Below 640px the
+    // CSS hides .search-pill__text and shows the magnifier alone, and
+    // `display: none` removes that text from the accessibility tree too --
+    // leaving `title` as the only accessible name, which touch screen readers
+    // announce inconsistently. Naming the link explicitly keeps the summary
+    // available at every width. On wider screens the label is visible and the
+    // two strings are identical, so "label in name" still holds.
+    <Link href={href} className="search-pill" title={label} aria-label={label}>
       <Search size={14} aria-hidden="true" />
       <span className="search-pill__text">{label}</span>
     </Link>

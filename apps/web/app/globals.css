@@ -992,12 +992,24 @@ h4,
      functionality: header-menu.tsx renders both a "हिंदी"/"EN" row in the
      sheet's footer and a "My Saved" row in its account section, reachable
      from every page via the hamburger that must stay visible anyway. The
-     city chip has no such twin in the sheet — hiding it does remove city
-     switching from the mobile top bar, a real (if smaller) loss, tracked as
-     a follow-up rather than fixed here. */
+     city chip is a duplicate too, since the sheet gained a "Change city"
+     section of its own — so nothing here is unreachable on mobile. */
   .nav-actions .lang-pill,
   .nav-actions .saved-icon,
   .city-chip {
+    display: none;
+  }
+  /* Icon-only search at this width. The pill's label is a URL-derived summary
+     of arbitrary length, and there is no room for it here: .search-pill__text
+     would truncate to a character or two ("S…"), which reads as a rendering
+     fault rather than as a compact control. A bare magnifier is unambiguous,
+     and the accessible name still carries the full summary for screen
+     readers. */
+  .search-pill {
+    padding: 7px;
+    gap: 0;
+  }
+  .search-pill__text {
     display: none;
   }
   /* Free horizontal room so the profile pill sits a comfortable margin from the
@@ -2101,6 +2113,17 @@ h4,
   right: 0;
   width: 280px;
   max-width: calc(100vw - var(--space-4));
+  /* The sheet outgrew the viewport once it gained a city switcher and three
+     nav accordions: expanding "PG & Co-living" alone adds ~15 rows, which ran
+     off the bottom of the screen with no way to reach them. Cap it to what is
+     left below the header and scroll the overflow. The mobile rule at the
+     bottom of this file (top/bottom:0 + overflow-y:auto) already did this;
+     only the desktop popover was missing it.
+     overscroll-behavior stops a scroll that reaches the end of the sheet from
+     chaining to the page behind it. */
+  max-height: calc(100vh - var(--header-height) - var(--space-6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

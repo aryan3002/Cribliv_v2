@@ -444,3 +444,71 @@ test.describe("top nav — Saved badge", () => {
     await expect(badge).toHaveText("1");
   });
 });
+
+// Both of these are layout facts, invisible to the jsdom unit tests: one is a
+// scroll container's height, the other is whether a label survives being
+// squeezed. Each corresponds to a bug that shipped.
+test.describe("top nav — sheet and pill at real sizes", () => {
+  test("the desktop hamburger sheet scrolls when its content overflows", async ({ page }) => {
+    // A short viewport is the point: the sheet gained a city switcher and three
+    // nav accordions, and with "PG & Co-living" expanded (~15 rows) it ran past
+    // the bottom of the screen. The desktop rule had no max-height and no
+    // overflow-y, so those rows were simply unreachable — the mobile rule had
+    // both all along, which is why this only ever broke above 640px.
+    await page.setViewportSize({ width: 1280, height: 700 });
+    await page.goto("/en");
+
+    await page.getByRole("button", { name: "Open menu", exact: true }).click();
+    const sheet = page.locator(".menu-popover");
+    await expect(sheet).toBeVisible();
+
+    // Expand the largest section so the content genuinely exceeds the cap.
+    await sheet.getByRole("button", { name: /PG & Co-living/i }).click();
+
+    const metrics = await sheet.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      overflowY: getComputedStyle(el).overflowY,
+      bottom: el.getBoundingClientRect().bottom
+    }));
+
+    expect(metrics.overflowY, "sheet must be a scroll container").toMatch(/auto|scroll/);
+    expect(
+      metrics.bottom,
+      "sheet must not extend past the bottom of the viewport"
+    ).toBeLessThanOrEqual(700);
+
+    // Prove it actually scrolls rather than merely being allowed to: only
+    // meaningful when the content is taller than the box.
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+    const scrolled = await sheet.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+      return el.scrollTop;
+    });
+    expect(scrolled, "sheet should be scrollable to its end").toBeGreaterThan(0);
+  });
+
+  test("the search pill is icon-only on mobile rather than truncating to a letter", async ({
+    page
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/en/search");
+
+    const pill = page.locator(".search-pill");
+    await expect(pill).toBeVisible();
+
+    // The label element is hidden, so no clipped "S…" is rendered...
+    await expect(pill.locator(".search-pill__text")).toBeHidden();
+
+    // ...but the control keeps a real accessible name. `display: none` removes
+    // the span from the a11y tree, so this passes only because the link is
+    // explicitly labelled.
+    const name = await pill.getAttribute("aria-label");
+    expect(name, "pill must keep an accessible name once its text is hidden").toBeTruthy();
+    expect((name ?? "").length, "accessible name should be the full summary").toBeGreaterThan(2);
+
+    const box = await pill.boundingBox();
+    if (!box) throw new Error("search pill has no bounding box");
+    expect(box.width, "icon-only pill should be compact").toBeLessThan(48);
+  });
+});
