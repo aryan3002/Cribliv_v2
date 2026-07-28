@@ -719,14 +719,178 @@ h4,
   color: var(--brand);
 }
 
-/* Cribliv Times' panel reuses the mega-menu box above, but only ever carries
-   two short columns (Desks, Latest) instead of three to five — left unchecked
-   the shared auto-fit grid stretches those few columns edge to edge across
-   the full row width, reading as sparse rather than intentional. Capping the
-   track's max width keeps it dense and left-aligned like an editorial rail. */
+/* Cribliv Times' panel (components/header/times-panel.tsx) reuses the
+   mega-menu box above but is deliberately styled as a front page in
+   miniature, not another Rent/PG-style link grid: a serif (--font-display)
+   lead headline with a kicker/dek/byline, an "Also Reported" rail of
+   secondary heads, and a static footer link into the blog hub. It only ever
+   carries the Desks column plus (once posts resolve) that lead/rail — never
+   the three-to-five columns Rent/PG/Owners fill edge to edge — so left
+   unchecked the shared mega-menu box would read as a sparse, oversized
+   rectangle. Rather than stretch to `.nav-row`'s full width like every other
+   panel, `.nav-panel--times` overrides the box itself to a content-sized,
+   centred width that grows in three discrete steps as more content is known:
+   desks-only (narrowest) → +lead story once one post resolves → +rail once a
+   second post makes one worthwhile. `left/right: 0` + `margin: 0 auto` is
+   used instead of a translateX(-50%) centring trick specifically because the
+   base `.nav-panel` rule above already animates `transform` on open
+   (nav-panel-in) — a second static transform on this element would be
+   clobbered by that keyframe's own `transform: translateY(...)` for the
+   duration of the animation. */
+.nav-panel--times {
+  --times-flag: #c2301c; /* same red as the live paper's masthead/kicker */
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(320px, calc(100% - 32px));
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.nav-panel--times.nav-panel--times-lead {
+  width: min(660px, calc(100% - 32px));
+}
+.nav-panel--times.nav-panel--times-lead.nav-panel--times-rail {
+  width: min(960px, calc(100% - 32px));
+}
+
+/* Desks-only fallback (no posts yet, or the feed failed/timed out) — dense
+   and left-aligned rather than stretched across the (already narrow) box. */
 .nav-panel--times .nav-panel__grid {
   grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
   justify-content: start;
+}
+/* Once a lead story exists, Desks becomes a fixed-width rail beside it.
+   Higher specificity (three chained classes) than the desks-only rule above
+   guarantees this wins regardless of source order. */
+.nav-panel--times.nav-panel--times-lead .nav-panel__grid {
+  grid-template-columns: 180px minmax(0, 1fr);
+  column-gap: var(--space-8);
+  justify-content: stretch;
+}
+
+.times-panel__stories {
+  display: flex;
+  gap: var(--space-6);
+  align-items: flex-start;
+}
+.times-panel__lead {
+  flex: 1.5 1 0%;
+  min-width: 0;
+}
+.times-panel__rail {
+  flex: 1 1 0%;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  padding-left: var(--space-5);
+}
+
+.times-panel__kicker {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--times-flag);
+  margin: 0 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.times-panel__kicker--sm {
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.times-panel__lead-link {
+  display: block;
+  text-decoration: none;
+}
+.times-panel__headline {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.times-panel__lead-link:hover .times-panel__headline {
+  color: var(--times-flag);
+}
+.times-panel__dek {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin: 0 0 10px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.times-panel__byline {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.times-panel__rail-head {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-tertiary);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.times-panel__rail-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.times-panel__rail-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.times-panel__rail-link {
+  display: block;
+  text-decoration: none;
+}
+.times-panel__rail-title {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.28;
+  color: var(--text-primary);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.times-panel__rail-link:hover .times-panel__rail-title {
+  color: var(--times-flag);
+}
+
+.times-panel__footer {
+  border-top: 1px solid var(--border);
+  background: var(--surface-sunken);
+  padding: var(--space-3) var(--space-8);
+}
+.times-panel__footer-link {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--times-flag);
+  text-decoration: none;
+}
+.times-panel__footer-link:hover {
+  text-decoration: underline;
 }
 
 /* City chip — sits just right of the logo: shows the current city and opens

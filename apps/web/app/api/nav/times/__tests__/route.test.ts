@@ -21,14 +21,63 @@ describe("GET /api/nav/times", () => {
       items: Array.from({ length: 9 }, (_, i) => ({
         slug: `post-${i}`,
         title: `Post ${i}`,
-        category_slug: "tenancy"
+        category_slug: "tenancy",
+        excerpt: `Excerpt ${i}`,
+        published_at: "2026-07-01T00:00:00.000Z",
+        author: "Team Cribliv"
       }))
     });
     const res = await GET();
     const body = await res.json();
     expect(res.status).toBe(200);
     expect(body.posts).toHaveLength(4);
-    expect(body.posts[0]).toEqual({ slug: "post-0", title: "Post 0", category: "tenancy" });
+    expect(body.posts[0]).toEqual({
+      slug: "post-0",
+      title: "Post 0",
+      category: "tenancy",
+      excerpt: "Excerpt 0",
+      publishedAt: "2026-07-01T00:00:00.000Z",
+      author: "Team Cribliv"
+    });
+  });
+
+  it("passes through excerpt/publishedAt/author so the panel can build a lead story", async () => {
+    asMock.mockResolvedValue({
+      items: [
+        {
+          slug: "rent-report",
+          title: "Lucknow Rent Report",
+          category_slug: "data-reports",
+          excerpt: "Rents rose 6% across Gomti Nagar this quarter.",
+          published_at: "2026-07-20T00:00:00.000Z",
+          author: "Team Cribliv"
+        }
+      ]
+    });
+    const body = await (await GET()).json();
+    expect(body.posts[0]).toEqual({
+      slug: "rent-report",
+      title: "Lucknow Rent Report",
+      category: "data-reports",
+      excerpt: "Rents rose 6% across Gomti Nagar this quarter.",
+      publishedAt: "2026-07-20T00:00:00.000Z",
+      author: "Team Cribliv"
+    });
+  });
+
+  it("normalises missing excerpt/publishedAt/author to null rather than undefined", async () => {
+    asMock.mockResolvedValue({
+      items: [{ slug: "bare-post", title: "Bare Post", category_slug: null }]
+    });
+    const body = await (await GET()).json();
+    expect(body.posts[0]).toEqual({
+      slug: "bare-post",
+      title: "Bare Post",
+      category: null,
+      excerpt: null,
+      publishedAt: null,
+      author: null
+    });
   });
 
   it("returns an empty list, not an error, when the blog API throws", async () => {
@@ -53,7 +102,7 @@ describe("GET /api/nav/times", () => {
       ]
     });
     expect((await (await GET()).json()).posts).toEqual([
-      { slug: "ok", title: "Fine", category: null }
+      { slug: "ok", title: "Fine", category: null, excerpt: null, publishedAt: null, author: null }
     ]);
   });
 
