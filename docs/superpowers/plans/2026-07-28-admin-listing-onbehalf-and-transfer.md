@@ -1597,10 +1597,12 @@ import { OwnerController } from "../owner.controller";
  * happens in the service layer against req.user.id.
  */
 const WIZARD_METHODS = [
+  "list",
   "create",
-  "updateListing",
-  "presignPhotos",
-  "completePhotos",
+  "getListing",
+  "update",
+  "presign",
+  "complete",
   "reorderPhotos",
   "submit",
   "generateContent"
@@ -1627,7 +1629,11 @@ Note: confirm the metadata key by reading `apps/api/src/common/roles.decorator.t
 
 - [ ] **Step 3: Add explicit @Roles to each wizard endpoint**
 
-In `apps/api/src/modules/owner/owner.controller.ts`, add `@Roles("owner", "admin")` immediately above each of these decorators — `@Post("listings")`, `@Patch("listings/:listing_id")`, `@Post("listings/:listing_id/photos/presign")`, `@Post("listings/:listing_id/photos/complete")`, `@Patch("listings/:listing_id/photos/reorder")`, `@Post("listings/:listing_id/submit")`, `@Post("listings/generate-content")` — and update the class comment at line 64:
+In `apps/api/src/modules/owner/owner.controller.ts`, add `@Roles("owner", "admin")` immediately above each of these decorators — `@Get("listings")` (`list`), `@Post("listings")` (`create`), `@Get("listings/:listing_id")` (`getListing`), `@Patch("listings/:listing_id")` (`update`), `@Post("listings/:listing_id/photos/presign")` (`presign`), `@Post("listings/:listing_id/photos/complete")` (`complete`), `@Patch("listings/:listing_id/photos/reorder")` (`reorderPhotos`), `@Post("listings/:listing_id/submit")` (`submit`), `@Post("listings/generate-content")` (`generateContent`) — and update the class comment at line 64:
+
+`list` and `getListing` are included because Task 8's Add Listing tab shows the worker their own
+unfinished drafts and lets them resume one; both read through these endpoints. Every other route on
+this controller — visibility, availability-status, contact-unlocks — stays owner-only.
 
 ```typescript
   // Wizard endpoints also accept `admin`: the same wizard is mounted in the
