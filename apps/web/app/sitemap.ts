@@ -3,7 +3,8 @@ import type { MetadataRoute } from "next";
 import { buildSearchQuery, getApiBaseUrl } from "../lib/api";
 import { fetchAllBlogSlugs } from "../lib/blog-api";
 import { HUB_CITY_SLUGS } from "../lib/nav/cities";
-import { fetchCityPlaces, fetchEnabledCities, type SeoPlace } from "../lib/seo-api";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
+import { fetchCityPlaces, fetchEnabledCities, fetchListings, type SeoPlace } from "../lib/seo-api";
 import {
   buildCityLandmarkEntries,
   buildCityLocalityEntries,
@@ -52,12 +53,30 @@ export async function generateSitemaps(): Promise<Array<{ id: number }>> {
   return chunks.map((_, id) => ({ id }));
 }
 
-function buildCoreChunk(): MetadataRoute.Sitemap {
+async function buildCoreChunk(): Promise<MetadataRoute.Sitemap> {
   const rows: MetadataRoute.Sitemap = [];
 
   rows.push(...entry(BASE_URL, "", { priority: 1.0, freq: "daily" }));
 
-  for (const city of HUB_CITY_SLUGS) {
+  // A city hub enters the sitemap under exactly the condition that makes it
+  // indexable — city-wide inventory at or above the threshold — so the sitemap
+  // never submits a URL the page itself marks noindex.
+  //
+  // Before this, every slug in HUB_CITY_SLUGS was submitted regardless, which
+  // put draft cities (chandigarh, delhi, jaipur) into the sitemap as indexable
+  // hubs. Note /rent-in/ and /pg/ below are deliberately NOT gated: those are
+  // hand-curated editorial pages, not programmatic ones.
+  const cityTotals = await Promise.all(
+    HUB_CITY_SLUGS.map(async (city) => {
+      const res = await fetchListings({ city, page_size: 1 }, { revalidate: 3600 }).catch(() => ({
+        items: [],
+        total: 0
+      }));
+      return { city, total: res.total };
+    })
+  );
+  for (const { city, total } of cityTotals) {
+    if (total < INDEXABLE_MIN_LISTINGS) continue;
     rows.push(...entry(BASE_URL, `/city/${city}`, { priority: 0.8, freq: "daily" }));
   }
 
