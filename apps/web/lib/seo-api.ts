@@ -182,6 +182,40 @@ export async function fetchCityPlaces(
   }
 }
 
+export interface CityMetroStation extends MetroStationRow {
+  /** Derived server-side by the same expression the page resolver matches on. */
+  slug: string;
+  listing_count: number;
+}
+
+/**
+ * The city's OWN metro stations, with line topology, coordinates and counts.
+ *
+ * Use this for anything that renders station links or picks a nearest station.
+ *
+ * Do NOT reach for the map's `/map/metro` endpoint here: it returns whole metro
+ * LINES that merely touch a city — correct for drawing a map, but the reason
+ * phantom Delhi stations (kashmere-gate, rajiv-chowk) were once linked under
+ * Faridabad and Ghaziabad and rendered as HTTP-200 soft 404s. A `seo-api`
+ * wrapper around it used to live here and has been deleted so it cannot be
+ * picked up again by mistake.
+ */
+export async function fetchCityMetroStations(
+  citySlug: string,
+  opts: { revalidate?: number } = {}
+): Promise<CityMetroStation[]> {
+  try {
+    const res = await fetchApi<{ items: CityMetroStation[] }>(
+      `/seo/cities/${encodeURIComponent(citySlug)}/metro-stations`,
+      undefined,
+      { server: true, revalidate: opts.revalidate }
+    );
+    return res.items ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchLocality(
   citySlug: string,
   localitySlug: string,
@@ -266,39 +300,6 @@ export async function fetchMetroStation(
     );
   } catch {
     return null;
-  }
-}
-
-export async function fetchMetroStationsForCity(
-  city: string,
-  opts: { revalidate?: number } = {}
-): Promise<MetroStationRow[]> {
-  try {
-    // /map/metro returns stations keyed as `name`, not `station_name`. Map
-    // them into the SEO row shape so callers can rely on station_name.
-    const res = await fetchApi<{
-      lines: Array<{
-        line_name: string;
-        line_color: string;
-        stations: Array<{ id: number; name: string; lat: number; lng: number; sequence: number }>;
-      }>;
-    }>(`/map/metro?city=${encodeURIComponent(city)}`, undefined, {
-      server: true,
-      revalidate: opts.revalidate
-    });
-    return (res.lines ?? []).flatMap((line) =>
-      line.stations.map((s) => ({
-        id: s.id,
-        station_name: s.name,
-        line_name: line.line_name,
-        line_color: line.line_color,
-        lat: s.lat,
-        lng: s.lng,
-        sequence: s.sequence
-      }))
-    );
-  } catch {
-    return [];
   }
 }
 

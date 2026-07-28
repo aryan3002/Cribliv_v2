@@ -9,7 +9,7 @@ import {
   fetchLocalities,
   fetchLandmarks,
   fetchListings,
-  fetchMetroStationsForCity,
+  fetchCityMetroStations,
   fetchEnabledCities
 } from "../../../../lib/seo-api";
 import { intentsByCategory } from "../../../../lib/intent-filters";
@@ -256,9 +256,17 @@ export default async function CityPage({
     ? await Promise.all([
         fetchLocalities(params.citySlug, { revalidate: 3600 }),
         fetchLandmarks(params.citySlug, undefined, { revalidate: 3600 }),
-        fetchMetroStationsForCity(params.citySlug, { revalidate: 3600 })
+        fetchCityMetroStations(params.citySlug, { revalidate: 3600 })
       ])
     : [[], [], []];
+
+  // Only stations with inventory get a rail chip: a chip leading to a station
+  // page with zero listings is a dead end for the visitor and a noindex page for
+  // the crawler. Station-to-station prev/next links (station-view) deliberately
+  // keep thin stations, so a metro line reads without gaps.
+  const railMetros = liveMetros.filter(
+    (m) => m.station_name && m.listing_count >= INDEXABLE_MIN_LISTINGS
+  );
 
   const intentGroups = isProgrammatic ? intentsByCategory("locality") : [];
 
@@ -638,24 +646,22 @@ export default async function CityPage({
         )}
 
         {/* Programmatic SEO: metro stations grid */}
-        {isProgrammatic && liveMetros.filter((m) => m.station_name).length > 0 && (
+        {isProgrammatic && railMetros.length > 0 && (
           <section style={{ marginBottom: "var(--space-10)" }}>
             <h3 style={{ marginBottom: "var(--space-4)" }}>
               {isHindi ? "मेट्रो स्टेशन के पास" : "Browse by metro station"}
             </h3>
             <div className="chip-row" style={{ flexWrap: "wrap" }}>
-              {liveMetros
-                .filter((m) => m.station_name)
-                .map((m) => (
-                  <Link
-                    key={m.id}
-                    href={`/${params.locale}/city/${params.citySlug}/metro/${m.station_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-                    className="chip-btn"
-                    title={m.line_name}
-                  >
-                    {m.station_name}
-                  </Link>
-                ))}
+              {railMetros.map((m) => (
+                <Link
+                  key={m.id}
+                  href={`/${params.locale}/city/${params.citySlug}/metro/${m.slug}`}
+                  className="chip-btn"
+                  title={m.line_name}
+                >
+                  {m.station_name}
+                </Link>
+              ))}
             </div>
           </section>
         )}

@@ -144,7 +144,44 @@ describe("sitemap", () => {
     // /map/metro returns whole metro LINES touching a city, which is why
     // Faridabad shipped 2,916 metro URLs while having zero stations.
     expect(mocks.fetchCityPlaces).toHaveBeenCalledTimes(1);
-    expect(mocks).not.toHaveProperty("fetchMetroStationsForCity");
+  });
+
+  it("core chunk omits city hubs for cities without inventory", async () => {
+    // Draft cities (chandigarh, delhi, jaipur) and enabled-but-empty NCR cities
+    // were submitted as indexable hubs. Verified live: /en/city/varanasi served
+    // `index, follow` with fabricated locality names.
+    mocks.fetchListings.mockImplementation(async (params: Record<string, unknown>) => ({
+      items: [],
+      total: params.city === "lucknow" ? 9 : 0
+    }));
+
+    const rows = await sitemap({ id: 0 });
+    const urls = rows.map((row) => row.url);
+
+    expect(urls.some((u) => u.endsWith("/en/city/lucknow"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/en/city/chandigarh"))).toBe(false);
+    expect(urls.some((u) => u.endsWith("/en/city/delhi"))).toBe(false);
+    expect(urls.some((u) => u.endsWith("/en/city/jaipur"))).toBe(false);
+  });
+
+  it("core chunk keeps the curated /rent-in and /pg city pages ungated", async () => {
+    // Deliberate scope boundary: those are hand-curated editorial pages, not
+    // programmatic ones, so inventory does not decide whether they belong.
+    mocks.fetchListings.mockResolvedValue({ items: [], total: 0 });
+
+    const rows = await sitemap({ id: 0 });
+    const urls = rows.map((row) => row.url);
+
+    expect(urls.some((u) => u.endsWith("/en/rent-in/chandigarh"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/en/pg/chandigarh"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/en/city/chandigarh"))).toBe(false);
+  });
+
+  it("core chunk counts city inventory with an ISR-cacheable fetch", async () => {
+    await sitemap({ id: 0 });
+
+    const [, opts] = mocks.fetchListings.mock.calls[0];
+    expect(opts).toMatchObject({ revalidate: 3600 });
   });
 
   it("core chunk omits city hubs for cities without inventory", async () => {
