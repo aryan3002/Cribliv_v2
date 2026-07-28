@@ -988,6 +988,7 @@ export class AdminListingTransferService {
     for (const lead of this.appState.leads.values()) {
       if (lead.listingId === listing.id && lead.ownerUserId === previousOwner) {
         lead.ownerUserId = target.id;
+        lead.transferredAt = Date.now();
         leadsMoved += 1;
       }
     }
@@ -1003,10 +1004,75 @@ export class AdminListingTransferService {
 }
 ```
 
+- [ ] **Step 3b: Give the in-memory path the same free-lead exemption**
+
+Task 1 added `transferred_at` to the `leads` table and excluded those rows from the Postgres
+free-allowance count. This step closes the matching gap in the in-memory path, which only becomes
+reachable now that `transferInMemory` above moves leads.
+
+In `apps/api/src/common/app-state.service.ts`, add the field to `LeadRecord` (near
+`createdAt`, around line 110-127):
+
+```typescript
+  /** Set when the lead changed hands with its listing; excluded from the free-lead allowance. */
+  transferredAt?: number;
+```
+
+Then in `createOwnerLead` (around line 552), exclude inherited leads from the count exactly as the
+DB path does:
+
+```typescript
+const ownerLeadCount = [...this.leads.values()].filter(
+  (lead) => lead.ownerUserId === input.ownerUserId && lead.transferredAt == null
+).length;
+```
+
+Match the surrounding code — read the existing count expression before editing and preserve how its
+result is used.
+
+Add this test to the in-memory describe block:
+
+```typescript
+it("stamps moved leads as transferred so they do not consume the new owner's free allowance", async () => {
+  const { service, appState } = makeMemoryService();
+  (appState as any).leads = new Map([
+    [
+      "lead-1",
+      {
+        id: "lead-1",
+        listingId: LISTING,
+        ownerUserId: OLD_OWNER,
+        tenantUserId: "t-1",
+        status: "new",
+        accessState: "free",
+        createdAt: 1,
+        statusChangedAt: 1
+      }
+    ]
+  ]);
+
+  const result = await service.transferOwner({
+    listingId: LISTING,
+    phoneE164: "+919956729103",
+    adminUserId: "admin-1"
+  });
+
+  expect(result.leads_moved).toBe(1);
+  const moved = (appState as any).leads.get("lead-1");
+  expect(moved.ownerUserId).toBe(result.owner_user_id);
+  expect(moved.transferredAt).toBeGreaterThan(0);
+});
+```
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @cribliv/api exec vitest run src/modules/admin/__tests__/admin-listing-transfer.service.test.ts`
 Expected: PASS. If the in-memory tests fail on `this.appState.leads`, confirm the collection name in `apps/api/src/common/app-state.service.ts` and use the actual property.
+
+Also re-run the AppState tests, since Step 3b touched a shared service:
+
+Run: `pnpm --filter @cribliv/api exec vitest run src/common/__tests__/`
+Expected: PASS
 
 - [ ] **Step 5: Typecheck**
 
