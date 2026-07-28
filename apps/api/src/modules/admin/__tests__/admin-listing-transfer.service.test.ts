@@ -64,10 +64,18 @@ describe("AdminListingTransferService.transferOwner — DB mode", () => {
       adminUserId: "admin-1"
     });
 
-    const updateCall = query.mock.calls.find(([sql]: [string]) => /UPDATE listings/i.test(sql));
+    // Cast rationale: see `userCall` below — the mock's declared (sql: string)
+    // signature makes mock.calls infer as 1-tuples even though Vitest records
+    // every real argument. Assert the actual BOUND VALUES, not just that the
+    // SQL text mentions the column names — the text alone can't catch e.g. the
+    // raw, un-normalised phone being written into the paid-unlock column.
+    const updateCall = query.mock.calls.find(([sql]: [string]) => /UPDATE listings/i.test(sql)) as
+      | [string, unknown[]]
+      | undefined;
     expect(updateCall).toBeDefined();
     expect(updateCall![0]).toContain("owner_user_id");
     expect(updateCall![0]).toContain("contact_phone_encrypted");
+    expect(updateCall![1]).toEqual([LISTING, NEW_OWNER, "+919956729103"]);
 
     expect(result.owner_user_id).toBe(NEW_OWNER);
     expect(result.owner_phone).toBe("+919956729103");
@@ -173,6 +181,14 @@ describe("AdminListingTransferService.transferOwner — DB mode", () => {
 
     expect(result.already_owned).toBe(true);
     expect(query.mock.calls.some(([sql]: [string]) => /UPDATE listings/i.test(sql))).toBe(false);
+
+    // The early-return path still has to close its own transaction — it holds
+    // the FOR UPDATE row lock taken above, and a client released while still
+    // inside an open transaction would carry that lock back into the pool,
+    // blocking every later transfer of this listing on whichever connection
+    // inherits it next.
+    const statements = query.mock.calls.map(([sql]: [string]) => String(sql).trim());
+    expect(statements[statements.length - 1]).toMatch(/^COMMIT/i);
   });
 
   it("refuses a PG listing", async () => {
@@ -202,14 +218,18 @@ describe("AdminListingTransferService.transferOwner — DB mode", () => {
   });
 
   it("refuses an unparseable phone before opening a transaction", async () => {
-    const { service, database } = {
-      ...makeDbService({}),
-      database: undefined as never
-    };
+    const { service, query } = makeDbService({});
 
     await expect(
       service.transferOwner({ listingId: LISTING, phoneE164: "12345", adminUserId: "admin-1" })
     ).rejects.toMatchObject({ response: { code: "invalid_phone" } });
+
+    // Not just that the rejection happened, but that it happened before any
+    // client.query() call at all — including BEGIN. An implementation that
+    // opened the transaction first and validated after would still reject with
+    // the same code, but would have started a transaction it then has to
+    // unwind; this is the assertion that actually distinguishes the two.
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("refuses transferring to an admin account", async () => {
