@@ -490,6 +490,58 @@ Master's #120 has since made `HUB_CITY_SLUGS` a canonical shared constant
 sourcing the sitemap's hub list from the enabled set, and deleting the invented
 `["Sector 1","Sector 2","Central"]` fallback.
 
+## 7.5 Open item found BY the audit guard: intent children are submitted but noindex
+
+`pnpm seo:audit` (task 8) found this on its first production run, which is the
+clearest possible argument for having built it.
+
+Measured 2026-07-26 on the post-#122 surface:
+
+|                                         |                 |
+| --------------------------------------- | --------------- |
+| City-chunk URLs                         | 3,422           |
+| Hub URLs (locality / metro / landmark)  | **130**         |
+| Intent children                         | **3,292 (96%)** |
+| Sampled intent pages that are `noindex` | roughly half    |
+
+The cause is a half-closed invariant, and it is mine. #122 made each intent page
+compute `noindex` from its **own intent-filtered** count — correct. But
+`buildCityLocalityEntries` / `buildCityMetroEntries` / `buildCityLandmarkEntries`
+still emit the hub **plus every one of its 25–26 intent children** whenever the
+_hub_ qualifies. So the page says noindex and the sitemap submits it anyway.
+
+With ~95 listings of total inventory, most intent combinations cannot clear 3 —
+"co-living near La Martiniere", "luxury near Sachivalaya metro". Submitting 26
+variants of a place that itself has 3–5 listings is thin by construction.
+
+**Recommended fix — stop submitting intent children at all.** Emit hubs only, and
+let intent pages be discovered through the on-page intent rails. That takes the
+programmatic sitemap from 3,734 to roughly 200 URLs, every one of which is a page
+with real inventory behind it. Intent pages stay crawlable and can still rank;
+they just stop being _asserted_ as index-worthy in bulk.
+
+The alternative — computing a per-intent count for every place — means 26× the
+aggregate queries to gate pages that mostly will not qualify anyway. Not worth it
+at this inventory level; revisit if a city ever has enough supply that intent
+variants clear the bar on their own.
+
+**Not applied in task 8's PR.** Cutting 96% of submitted URLs is a product call,
+not a cleanup, and it belongs in its own reviewable change.
+
+## 7.6 Open question: `/hi/` pages are canonicalised to `/en/` yet still submitted
+
+`buildAlternates` (`apps/web/lib/seo.ts`) hardcodes the `/en/` path as canonical
+for **every** locale, so each Hindi page declares its English twin as canonical
+while the sitemap submits both. Canonicalising a page away and then asking Google
+to index it are contradictory instructions, and roughly half the submitted URLs
+are `/hi/`.
+
+Either the Hindi pages should be self-canonical with `hreflang` linking the pair
+(the standard shape, and what makes a Hindi surface worth having), or they should
+be dropped from the sitemap. `seo-audit.mjs` deliberately accepts the current
+shape so it does not cry wolf on half the surface — but this needs a decision,
+not silence.
+
 ## 8. Open item: the 67% "other file type" crawl share
 
 HTML is 21% of crawl; "other" is 67% (≈106,000 requests). The leading hypothesis is
