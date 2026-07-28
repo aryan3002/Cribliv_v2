@@ -27,6 +27,7 @@ const ROWS: SeoCityConfigVm[] = [
     landmarkCount: 12,
     metroCount: 21,
     indexableCount: 18,
+    thinCount: 5,
     enabledAt: "2026-07-03T00:00:00.000Z",
     notes: "reference",
     updatedAt: "2026-07-03T01:00:00.000Z"
@@ -39,6 +40,7 @@ const ROWS: SeoCityConfigVm[] = [
     landmarkCount: 14,
     metroCount: 8,
     indexableCount: 16,
+    thinCount: 100,
     enabledAt: null,
     notes: null,
     updatedAt: "2026-07-03T02:00:00.000Z"
@@ -50,6 +52,23 @@ beforeEach(() => {
 });
 
 describe("SeoProgrammaticPages", () => {
+  it("headline counts only LIVE cities, not drafts", async () => {
+    mockedList.mockResolvedValueOnce(ROWS);
+
+    render(<SeoProgrammaticPages accessToken="tok" onToast={vi.fn()} />);
+    await screen.findByText("Lucknow");
+
+    // Lucknow is live (18 indexable / 5 thin); Noida is draft (16 / 100) and its
+    // pages 404, so it must not inflate either headline. Summing every row is
+    // what made the old "Indexable" card describe pages nobody can reach.
+    const grid = document.querySelector(".admin-stat-grid") as HTMLElement;
+    expect(grid).toBeTruthy();
+    expect(grid.textContent).toContain("18");
+    expect(grid.textContent).toContain("5");
+    expect(grid.textContent).not.toContain("34");
+    expect(grid.textContent).not.toContain("105");
+  });
+
   it("renders one row per city with counts", async () => {
     mockedList.mockResolvedValueOnce(ROWS);
 

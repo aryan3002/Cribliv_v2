@@ -32,7 +32,14 @@ describe("fetchListingCard", () => {
 
     const card = await fetchListingCard("L1");
 
-    expect(mockedFetch).toHaveBeenCalledWith("/listings/L1", undefined, { server: true });
+    // track_view=0 is the point: rendering an embed card is not a listing view,
+    // and this endpoint is the only place a view is persisted. Without it, every
+    // render of an article inflated the embedded listings' view counts.
+    expect(mockedFetch).toHaveBeenCalledWith(
+      "/listings/L1?track_view=0",
+      undefined,
+      expect.objectContaining({ server: true })
+    );
     expect(card).toMatchObject({
       id: "L1",
       title: "2BHK in Gomti Nagar",

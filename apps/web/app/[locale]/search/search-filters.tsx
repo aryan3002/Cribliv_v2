@@ -19,7 +19,7 @@ interface City {
 interface SearchFiltersProps {
   locale: string;
   filters: Record<string, string>;
-  cities: City[];
+  cities: readonly City[];
   sortOptions: SortOption[];
 }
 

@@ -12,8 +12,5 @@
     "lint": "echo 'shared-types lint placeholder'",
     "test": "echo 'shared-types test placeholder'",
     "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "zod": "^4.4.3"
   }
 }

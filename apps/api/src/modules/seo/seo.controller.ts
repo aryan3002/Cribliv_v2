@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Inject, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { SeoAggregatesService } from "./seo-aggregates.service";
+import { SeoPlacesService } from "./seo-places.service";
 import { SeoCityConfigService } from "./seo-city-config.service";
 import { SeoCopyService } from "./seo-copy.service";
 import { ok } from "../../common/response";
@@ -10,6 +11,7 @@ import { CopyInputsDto } from "./dto/copy-inputs.dto";
 export class SeoController {
   constructor(
     @Inject(SeoAggregatesService) private readonly aggregates: SeoAggregatesService,
+    @Inject(SeoPlacesService) private readonly places: SeoPlacesService,
     @Inject(SeoCityConfigService) private readonly cityConfig: SeoCityConfigService,
     @Inject(SeoCopyService) private readonly copy: SeoCopyService
   ) {}
@@ -49,6 +51,32 @@ export class SeoController {
   @Get("cities")
   async listCities() {
     return ok({ items: await this.cityConfig.listEnabled() });
+  }
+
+  /**
+   * Every place in a city with its live listing count and a server-computed
+   * `indexable` flag. The sitemap consumes this and filters on `indexable` — it
+   * must never re-derive the threshold itself.
+   */
+  @Get("cities/:citySlug/places")
+  async listCityPlaces(@Param("citySlug") citySlug: string) {
+    return ok(await this.places.placesForCity(citySlug));
+  }
+
+  /**
+   * The city's OWN metro stations, with line topology, coordinates and listing
+   * counts.
+   *
+   * Distinct from `/map/metro`, which returns whole metro *lines* that touch a
+   * city — correct for drawing a map, but the reason phantom Delhi stations were
+   * linked under Faridabad. Any rail that renders station links or computes a
+   * nearest station must use this instead. `SeoPlace` from
+   * `/cities/:slug/places` deliberately carries no geometry or line data, which
+   * is why this returns the richer row rather than extending that shape.
+   */
+  @Get("cities/:citySlug/metro-stations")
+  async listCityMetroStations(@Param("citySlug") citySlug: string) {
+    return ok({ items: await this.aggregates.metroStationsWithCountsForCity(citySlug) });
   }
 
   /**

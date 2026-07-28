@@ -4,12 +4,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "../../../auth";
 import { buildSearchQuery, fetchApi } from "../../../lib/api";
+import { HUB_CITIES } from "../../../lib/nav/cities";
 import { PG_CITY_CONTENT } from "../../../lib/pg-city-content";
 import { SearchFilters } from "./search-filters";
 import { SearchResultsMap } from "./SearchResultsMap";
 import { IntentSearchBar } from "../../../components/search/IntentSearchBar";
 import { ListingCardItem, type ListingCardData } from "../../../components/listing-card";
 import { GuestGate } from "../../../components/guest-gate";
+import { IntentChipRail } from "../../../components/header/intent-chip-rail";
 import { isUnavailableListingsEnabled } from "../../../lib/unavailable-listings-flag";
 // NOTE: must come from the plain lib module, NOT components/guest-gate — a
 // value re-exported through a "use client" file arrives in this Server
@@ -49,17 +51,6 @@ function toDisplayCity(slug: string): string {
 }
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
-
-const CITIES = [
-  { slug: "delhi", label: "Delhi" },
-  { slug: "gurugram", label: "Gurugram" },
-  { slug: "noida", label: "Noida" },
-  { slug: "ghaziabad", label: "Ghaziabad" },
-  { slug: "faridabad", label: "Faridabad" },
-  { slug: "chandigarh", label: "Chandigarh" },
-  { slug: "jaipur", label: "Jaipur" },
-  { slug: "lucknow", label: "Lucknow" }
-];
 
 const SORT_OPTIONS = [
   { key: "relevance", label: "Relevance" },
@@ -153,7 +144,9 @@ function normalizeSearchParams(searchParams: Record<string, string | string[] | 
 }
 
 function cityLabel(slug: string): string {
-  return CITIES.find((c) => c.slug === slug)?.label ?? slug.charAt(0).toUpperCase() + slug.slice(1);
+  return (
+    HUB_CITIES.find((c) => c.slug === slug)?.label ?? slug.charAt(0).toUpperCase() + slug.slice(1)
+  );
 }
 
 function citySlugFromQuery(query: string): string | null {
@@ -163,7 +156,7 @@ function citySlugFromQuery(query: string): string | null {
     .replace(/^["']|["']$/g, "");
   if (!normalized) return null;
   return (
-    CITIES.find((city) => city.slug === normalized || city.label.toLowerCase() === normalized)
+    HUB_CITIES.find((city) => city.slug === normalized || city.label.toLowerCase() === normalized)
       ?.slug ?? null
   );
 }
@@ -310,6 +303,17 @@ export default async function SearchResultsPage({
 
   return (
     <div className="tenant-results-page">
+      {/* Mobile-only (<900px): the desktop Rent mega-menu panel never mounts
+          below that breakpoint (header.tsx's useDesktopNav), so this is how
+          phone users reach the same intent links one tap away. City is the
+          best guess available on this query-driven page — an explicit
+          ?city=, else the city implied by a free-text query, else lucknow —
+          same fallback SearchResultsMap already uses just below. */}
+      <IntentChipRail
+        locale={params.locale as Locale}
+        citySlug={mapCity || response.items[0]?.city || "lucknow"}
+        surface="rent"
+      />
       {/* ── Inline Search + Header ── */}
       <section className="tenant-results-hero">
         <div className="container">
@@ -351,7 +355,7 @@ export default async function SearchResultsPage({
                 <SearchFilters
                   locale={params.locale}
                   filters={filters}
-                  cities={CITIES}
+                  cities={HUB_CITIES}
                   sortOptions={SORT_OPTIONS}
                 />
               </div>
@@ -411,7 +415,7 @@ export default async function SearchResultsPage({
               Or try one of these popular cities:
             </p>
             <div className="error-state__cities">
-              {CITIES.slice(0, 4).map((city) => (
+              {HUB_CITIES.slice(0, 4).map((city) => (
                 <Link
                   key={city.slug}
                   href={`/${params.locale}/search?city=${city.slug}` as Route}

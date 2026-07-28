@@ -19,6 +19,7 @@ import { useFlag } from "../lib/feature-flags";
 import { t, type Locale } from "../lib/i18n";
 import { joinAvailabilityWaitlist, type AvailabilityAlertResult } from "../lib/availability-api";
 import { CreditPurchaseDialog, type CreditPurchaseCapturedResult } from "./credit-purchase-dialog";
+import { useNamePrompt } from "./name-capture/name-prompt-provider";
 
 interface UnlockContactPanelProps {
   listingId: string;
@@ -95,6 +96,7 @@ export function UnlockContactPanel({
 }: UnlockContactPanelProps) {
   // NextAuth session — used as auth source when localStorage token is absent
   const { data: nextAuthSession, status: sessionStatus } = useSession();
+  const { requireName } = useNamePrompt();
   const callbackMode = useFlag("ff_callback_leads");
   const unavailableListingsFlag = useFlag("ff_unavailable_listings");
   // Takes precedence over both callbackMode and the legacy unlock flow below
@@ -229,8 +231,10 @@ export function UnlockContactPanel({
       // isUnavailable takes precedence: same OTP challenge, different
       // terminal action — join the waitlist instead of unlocking the number.
       if (isUnavailable) {
+        // No name gate: a waitlist join is not owner contact.
         await joinWaitlist(verified.access_token);
       } else {
+        if (!(await requireName({ token: verified.access_token }))) return;
         await unlockContact(verified.access_token);
       }
     } catch (err) {
@@ -338,6 +342,9 @@ export function UnlockContactPanel({
       setAuthStep("otp_send");
       return;
     }
+    // The owner sees this name on the lead. Resolved from the API, not the
+    // session: this panel's users may hold a localStorage-only session.
+    if (!(await requireName({ token: accessToken }))) return;
     await unlockContact(accessToken);
   }
 
@@ -672,6 +679,7 @@ export function UnlockContactPanel({
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
         <button
           className="btn btn--primary"
+          data-testid="unlock-cta"
           onClick={onUnlockClick}
           disabled={loading || sessionStatus === "loading"}
           style={{ width: "100%" }}

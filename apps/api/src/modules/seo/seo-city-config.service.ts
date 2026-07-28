@@ -1,10 +1,9 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { DatabaseService } from "../../common/database.service";
 import { SeoAggregatesService } from "./seo-aggregates.service";
 import { readFeatureFlags } from "../../config/feature-flags";
 import { IndexingService } from "./indexing.service";
-
-export const INDEXABLE_MIN = 3;
 
 export interface SeoCityConfigRow {
   city_slug: string;
@@ -23,13 +22,31 @@ export interface SeoCityConfigWithCity extends SeoCityConfigRow {
   name_en: string;
   name_hi: string;
   is_active: boolean;
+  /**
+   * Live-computed, not a stored column — `listAllWithCounts` spreads it in from
+   * `computeCounts`. Declared here so the admin response shape is explicit
+   * rather than an accidental extra key from a spread.
+   */
+  thin_count: number;
 }
 
 export interface RefreshedCounts {
   locality_count: number;
   landmark_count: number;
   metro_count: number;
+  /**
+   * Places clearing the listing threshold across ALL three kinds — localities,
+   * metro stations and landmarks. This used to count localities only, so the
+   * admin's headline ignored ~32k of the surface it was supposed to describe.
+   */
   indexable_count: number;
+  /**
+   * Places that exist but are below the threshold, so they render `noindex` and
+   * stay out of the sitemap. This is the number that should gate an Enable
+   * decision: a city with 300 thin places and 0 indexable ones adds nothing.
+   * Computed live only — there is no column for it.
+   */
+  thin_count: number;
 }
 
 @Injectable()
@@ -101,22 +118,29 @@ export class SeoCityConfigService {
         locality_count: 0,
         landmark_count: 0,
         metro_count: 0,
-        indexable_count: 0
+        indexable_count: 0,
+        thin_count: 0
       };
     }
 
-    const [localities, metros, landmarkCount] = await Promise.all([
+    const [localities, metros, landmarks] = await Promise.all([
       this.aggregates.localitiesForCity(citySlug),
-      this.aggregates.metroStationsForCity(citySlug),
-      this.countLandmarks(citySlug)
+      this.aggregates.metroStationsWithCountsForCity(citySlug),
+      this.aggregates.landmarksWithCountsForCity(citySlug)
     ]);
+
+    const passes = (count: number) => count >= INDEXABLE_MIN_LISTINGS;
+    const indexableLocalities = localities.filter((row) => passes(row.listing_count)).length;
+    const indexableMetro = metros.filter((row) => passes(row.listing_count)).length;
+    const indexableLandmarks = landmarks.filter((row) => passes(row.listing_count)).length;
+    const indexable = indexableLocalities + indexableMetro + indexableLandmarks;
 
     return {
       locality_count: localities.length,
-      landmark_count: landmarkCount,
+      landmark_count: landmarks.length,
       metro_count: metros.length,
-      indexable_count: localities.filter((locality) => locality.listing_count >= INDEXABLE_MIN)
-        .length
+      indexable_count: indexable,
+      thin_count: localities.length + metros.length + landmarks.length - indexable
     };
   }
 
@@ -151,7 +175,14 @@ export class SeoCityConfigService {
          landmark_count = EXCLUDED.landmark_count,
          metro_count = EXCLUDED.metro_count,
          indexable_count = EXCLUDED.indexable_count,
-         enabled_at = CASE WHEN $2 THEN now() ELSE NULL END,
+         -- Keep the date this city was FIRST enabled. Setting it to NULL on
+         -- disable destroyed the history the admin table displays, and stamping
+         -- now() on every re-enable would misreport how long a city has been
+         -- live. COALESCE stamps only the first enable; disabling leaves it.
+         enabled_at = CASE
+           WHEN $2 THEN COALESCE(seo_city_config.enabled_at, now())
+           ELSE seo_city_config.enabled_at
+         END,
          updated_at = now()
        RETURNING city_slug,
                  programmatic_enabled,
@@ -191,20 +222,5 @@ export class SeoCityConfigService {
     }
 
     return rows[0] ?? null;
-  }
-
-  private async countLandmarks(citySlug: string): Promise<number> {
-    try {
-      const { rows } = await this.database.query<{ count: number }>(
-        `SELECT COUNT(*)::int AS count
-         FROM landmarks lm
-         JOIN cities c ON c.id = lm.city_id
-         WHERE c.slug = $1`,
-        [citySlug]
-      );
-      return Number(rows[0]?.count ?? 0);
-    } catch {
-      return 0;
-    }
   }
 }

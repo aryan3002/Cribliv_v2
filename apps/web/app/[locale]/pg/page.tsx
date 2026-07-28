@@ -17,6 +17,8 @@ import { PgListingCard } from "../../../components/pg/PgListingCard";
 import { PgSearchTracker } from "../../../components/pg/PgSearchTracker";
 import { pgCardToSearchMapListing } from "../../../lib/pg-map-adapter";
 import { SearchResultsMap } from "../search/SearchResultsMap";
+import { IntentChipRail } from "../../../components/header/intent-chip-rail";
+import type { Locale } from "../../../lib/i18n";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -63,6 +65,16 @@ export default async function PgSearchPage({
 
   return (
     <div className="tenant-results-page tenant-results-page--pg">
+      {/* Mobile-only (<900px): the desktop PG & Co-living mega-menu panel
+          never mounts below that breakpoint (header.tsx's useDesktopNav), so
+          this is how phone users reach the same intent links one tap away.
+          Same city fallback chain as the map below: an explicit ?city=,
+          else the results' own city, else lucknow. */}
+      <IntentChipRail
+        locale={params.locale as Locale}
+        citySlug={filters.city || response.items[0]?.city || "lucknow"}
+        surface="pg"
+      />
       <section className="tenant-results-hero tenant-results-hero--pg">
         <div className="container">
           <div className="tenant-results-hero__shell">

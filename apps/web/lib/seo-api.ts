@@ -140,15 +140,92 @@ export async function fetchEnabledCities(opts: { revalidate?: number } = {}): Pr
   }
 }
 
+export interface SeoPlace {
+  slug: string;
+  name_en: string;
+  name_hi: string | null;
+  listing_count: number;
+  indexable: boolean;
+}
+
+export interface CityPlaces {
+  city_slug: string;
+  localities: SeoPlace[];
+  metro_stations: SeoPlace[];
+  landmarks: SeoPlace[];
+}
+
+/**
+ * Every place in a city with a server-computed `indexable` flag. This is the
+ * sitemap's only source for which programmatic URLs may be submitted — do not
+ * re-apply a listing threshold on the web side, and do not go back to
+ * `/map/metro`, which returns whole metro lines rather than a city's stations.
+ */
+export async function fetchCityPlaces(
+  citySlug: string,
+  opts: { revalidate?: number } = {}
+): Promise<CityPlaces> {
+  try {
+    const res = await fetchApi<CityPlaces>(
+      `/seo/cities/${encodeURIComponent(citySlug)}/places`,
+      undefined,
+      { server: true, revalidate: opts.revalidate }
+    );
+    return {
+      city_slug: res.city_slug ?? citySlug,
+      localities: res.localities ?? [],
+      metro_stations: res.metro_stations ?? [],
+      landmarks: res.landmarks ?? []
+    };
+  } catch {
+    return { city_slug: citySlug, localities: [], metro_stations: [], landmarks: [] };
+  }
+}
+
+export interface CityMetroStation extends MetroStationRow {
+  /** Derived server-side by the same expression the page resolver matches on. */
+  slug: string;
+  listing_count: number;
+}
+
+/**
+ * The city's OWN metro stations, with line topology, coordinates and counts.
+ *
+ * Use this for anything that renders station links or picks a nearest station.
+ *
+ * Do NOT reach for the map's `/map/metro` endpoint here: it returns whole metro
+ * LINES that merely touch a city — correct for drawing a map, but the reason
+ * phantom Delhi stations (kashmere-gate, rajiv-chowk) were once linked under
+ * Faridabad and Ghaziabad and rendered as HTTP-200 soft 404s. A `seo-api`
+ * wrapper around it used to live here and has been deleted so it cannot be
+ * picked up again by mistake.
+ */
+export async function fetchCityMetroStations(
+  citySlug: string,
+  opts: { revalidate?: number } = {}
+): Promise<CityMetroStation[]> {
+  try {
+    const res = await fetchApi<{ items: CityMetroStation[] }>(
+      `/seo/cities/${encodeURIComponent(citySlug)}/metro-stations`,
+      undefined,
+      { server: true, revalidate: opts.revalidate }
+    );
+    return res.items ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchLocality(
   citySlug: string,
-  localitySlug: string
+  localitySlug: string,
+  opts: { revalidate?: number } = {}
 ): Promise<{ locality: LocalityRow; aggregates: PageAggregates } | null> {
   try {
     const res = await fetchApi<{ locality: LocalityRow; aggregates: PageAggregates } | null>(
       `/seo/localities/${encodeURIComponent(citySlug)}/${encodeURIComponent(localitySlug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
     return res ?? null;
   } catch {
@@ -176,13 +253,14 @@ export async function fetchLandmarks(
 
 export async function fetchLandmark(
   citySlug: string,
-  landmarkSlug: string
+  landmarkSlug: string,
+  opts: { revalidate?: number } = {}
 ): Promise<LandmarkRow | null> {
   try {
     return await fetchApi<LandmarkRow>(
       `/landmarks/${encodeURIComponent(citySlug)}/${encodeURIComponent(landmarkSlug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
   } catch {
     return null;
@@ -192,7 +270,7 @@ export async function fetchLandmark(
 export async function fetchLandmarkListings(
   citySlug: string,
   landmarkSlug: string,
-  opts: { radiusKm?: number; limit?: number } = {}
+  opts: { radiusKm?: number; limit?: number; revalidate?: number } = {}
 ): Promise<{ items: ListingCard[]; radius_km: number; landmark: LandmarkRow } | null> {
   try {
     const qs = new URLSearchParams();
@@ -202,7 +280,7 @@ export async function fetchLandmarkListings(
     return await fetchApi(
       `/landmarks/${encodeURIComponent(citySlug)}/${encodeURIComponent(landmarkSlug)}/listings${suffix}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
   } catch {
     return null;
@@ -211,60 +289,29 @@ export async function fetchLandmarkListings(
 
 export async function fetchMetroStation(
   city: string,
-  stationSlug: string
+  stationSlug: string,
+  opts: { revalidate?: number } = {}
 ): Promise<{ station: MetroStationRow; aggregates: PageAggregates } | null> {
   try {
     return await fetchApi(
       `/seo/metro/${encodeURIComponent(city)}/${encodeURIComponent(stationSlug)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
   } catch {
     return null;
   }
 }
 
-export async function fetchMetroStationsForCity(
-  city: string,
-  opts: { revalidate?: number } = {}
-): Promise<MetroStationRow[]> {
-  try {
-    // /map/metro returns stations keyed as `name`, not `station_name`. Map
-    // them into the SEO row shape so callers can rely on station_name.
-    const res = await fetchApi<{
-      lines: Array<{
-        line_name: string;
-        line_color: string;
-        stations: Array<{ id: number; name: string; lat: number; lng: number; sequence: number }>;
-      }>;
-    }>(`/map/metro?city=${encodeURIComponent(city)}`, undefined, {
-      server: true,
-      revalidate: opts.revalidate
-    });
-    return (res.lines ?? []).flatMap((line) =>
-      line.stations.map((s) => ({
-        id: s.id,
-        station_name: s.name,
-        line_name: line.line_name,
-        line_color: line.line_color,
-        lat: s.lat,
-        lng: s.lng,
-        sequence: s.sequence
-      }))
-    );
-  } catch {
-    return [];
-  }
-}
-
 export async function fetchListings(
-  params: Record<string, string | number | boolean | undefined>
+  params: Record<string, string | number | boolean | undefined>,
+  opts: { revalidate?: number } = {}
 ): Promise<{ items: ListingCard[]; total: number }> {
   try {
     const res = await fetchApi<SearchResponse>(
       `/listings/search?${buildSearchQuery(params)}`,
       undefined,
-      { server: true }
+      { server: true, revalidate: opts.revalidate }
     );
     return { items: res.items, total: res.total };
   } catch {
@@ -291,6 +338,7 @@ export async function fetchSeoCopy(input: {
     nearest_metro?: { name: string; walk_minutes: number } | null;
     parent_locality?: string | null;
   };
+  revalidate?: number;
 }): Promise<SeoCopy | null> {
   try {
     // Public read only — the batch generator (admin) pre-populates copy; the
@@ -298,7 +346,8 @@ export async function fetchSeoCopy(input: {
     // used; the rest of the input stays for the caller's own convenience.
     const params = new URLSearchParams({ path: input.pagePath, locale: input.locale });
     return await fetchApi<SeoCopy | null>(`/seo/copy?${params.toString()}`, undefined, {
-      server: true
+      server: true,
+      revalidate: input.revalidate
     });
   } catch {
     return null;

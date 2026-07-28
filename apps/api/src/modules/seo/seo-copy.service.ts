@@ -380,7 +380,7 @@ ${groundingFacts}
 Generate JSON with this exact shape:
 {
   "h1": "string, ≤70 chars, includes place name",
-  "meta_title": "string, ≤60 chars, ends with — Cribliv",
+  "meta_title": "string, ≤60 chars, leads with the place name and city. Do NOT append the brand — the site adds ' | Cribliv' itself, so including it double-brands the search result and wastes ~10 visible characters",
   "meta_description": "string, 140–155 chars, mentions a concrete fact like rent or count",
   "intro_paragraph": "string, ${MAX_INTRO_WORDS} words max, character of area + who lives there + connectivity",
   "nearby_blurb": "string, ~50 words, what's around — only use named places from the facts",

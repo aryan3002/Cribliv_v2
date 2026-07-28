@@ -8,6 +8,13 @@ vi.mock("next/navigation", () => ({
   notFound: vi.fn(),
   usePathname: () => "/en"
 }));
+// NamePromptProvider (mounted in the real layout, unmocked below since this
+// test cares about the real ToastProvider wiring) calls useSession() itself,
+// which throws outside a <SessionProvider>. Stub it unauthenticated so the
+// ambient prompt stays closed and this test's own concern is undisturbed.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ status: "unauthenticated", data: null })
+}));
 vi.mock("../../../components/locale-chrome", () => ({
   LocaleChrome: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }));

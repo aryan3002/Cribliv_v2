@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
   Optional,
   UnauthorizedException
 } from "@nestjs/common";
@@ -25,6 +26,7 @@ import {
   OtpVerifyError,
   type OtpSendResult
 } from "./otp/otp-provider.interface";
+import type { UpdateProfileBody } from "./dto/update-profile.dto";
 
 const OTP_PURPOSES = ["login", "contact_unlock", "owner_verify"] as const;
 
@@ -559,10 +561,18 @@ export class AuthService {
     };
   }
 
-  async updateProfile(
-    userId: string,
-    body: { full_name?: string; preferred_language?: "en" | "hi"; whatsapp_opt_in?: boolean }
-  ) {
+  /**
+   * Body arrives already normalised and validated by UpdateProfileSchema
+   * (see dto/update-profile.dto.ts). No string handling happens here — doing it
+   * in one place is what keeps the DB and in-memory branches from drifting.
+   *
+   * full_name is tri-state: absent (leave alone), null (clear), string (set).
+   * COALESCE cannot express "clear", so an explicit provided-flag is passed.
+   */
+  async updateProfile(userId: string, body: UpdateProfileBody) {
+    const nameProvided = Object.prototype.hasOwnProperty.call(body, "full_name");
+    const nextName = body.full_name ?? null;
+
     if (this.database.isEnabled()) {
       const result = await this.database.query<{
         id: string;
@@ -573,7 +583,7 @@ export class AuthService {
         `
         UPDATE users
         SET
-          full_name = COALESCE($2, full_name),
+          full_name = CASE WHEN $5 THEN $2 ELSE full_name END,
           preferred_language = COALESCE($3::lang_code, preferred_language),
           whatsapp_opt_in = COALESCE($4, whatsapp_opt_in),
           updated_at = now()
@@ -582,29 +592,38 @@ export class AuthService {
         `,
         [
           userId,
-          body.full_name ?? null,
+          nextName,
           body.preferred_language ?? null,
-          typeof body.whatsapp_opt_in === "boolean" ? body.whatsapp_opt_in : null
+          typeof body.whatsapp_opt_in === "boolean" ? body.whatsapp_opt_in : null,
+          nameProvided
         ]
       );
 
-      if (result.rowCount && result.rows[0]) {
-        return result.rows[0];
+      if (!result.rowCount || !result.rows[0]) {
+        // Previously this fell through to the in-memory branch and returned {},
+        // so a bad id looked like a successful no-op update.
+        throw new NotFoundException({ code: "user_not_found", message: "User not found" });
       }
+      return result.rows[0];
     }
 
     const user = this.appState.users.get(userId);
     if (!user) {
-      return {};
+      throw new NotFoundException({ code: "user_not_found", message: "User not found" });
     }
 
-    user.full_name = body.full_name ?? user.full_name;
+    if (nameProvided) {
+      // AppStateService types full_name as string | undefined while Postgres
+      // uses string | null; normalise to null so both branches return the same
+      // empty representation to the client.
+      user.full_name = nextName ?? undefined;
+    }
     user.preferred_language = body.preferred_language ?? user.preferred_language;
     user.whatsapp_opt_in = body.whatsapp_opt_in ?? user.whatsapp_opt_in;
 
     return {
       id: user.id,
-      full_name: user.full_name,
+      full_name: user.full_name ?? null,
       preferred_language: user.preferred_language,
       whatsapp_opt_in: user.whatsapp_opt_in ?? false
     };

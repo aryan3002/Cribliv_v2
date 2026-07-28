@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
+    "seo:audit": "node scripts/seo-audit.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
@@ -42,6 +43,7 @@
     "@playwright/test": "^1.49.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/google.maps": "^3.58.1",
     "@types/node": "^22.7.4",
     "@types/react": "^18.3.11",

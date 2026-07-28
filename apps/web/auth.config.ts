@@ -32,6 +32,7 @@ interface MeResponse {
   phone_e164: string;
   role: UserRole;
   preferred_language: "en" | "hi";
+  full_name: string | null;
   wallet_balance: number;
   promotional_credits_remaining?: number;
   promotional_credits_expires_at?: string | null;
@@ -239,6 +240,9 @@ export const authConfig: NextAuthConfig = {
           if (res.ok) {
             const payload = (await res.json()) as { data: MeResponse };
             session.user.role = payload.data.role;
+            // Server-authoritative on every session read, so a name saved in one
+            // tab shows up in the others within the SessionProvider's 30s refetch.
+            session.user.name = payload.data.full_name ?? undefined;
             session.walletBalance = payload.data.wallet_balance ?? 0;
             session.promotionalCredits = {
               remaining: payload.data.promotional_credits_remaining ?? 0,

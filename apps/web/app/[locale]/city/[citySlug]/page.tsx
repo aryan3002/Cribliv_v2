@@ -3,13 +3,18 @@ import Link from "next/link";
 import { ArrowRight, MapPin } from "lucide-react";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { ListingCardItem } from "../../../../components/listing-card";
+import { HUB_CITY_SLUGS } from "../../../../lib/nav/cities";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import {
   fetchLocalities,
   fetchLandmarks,
-  fetchMetroStationsForCity,
+  fetchListings,
+  fetchCityMetroStations,
   fetchEnabledCities
 } from "../../../../lib/seo-api";
 import { intentsByCategory } from "../../../../lib/intent-filters";
+import { IntentChipRail } from "../../../../components/header/intent-chip-rail";
+import type { Locale } from "../../../../lib/i18n";
 
 interface ListingCard {
   id: string;
@@ -41,19 +46,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 // search fallback instead of its locality/metro/landmark discovery grids.
 export const revalidate = 3600;
 
-const CITIES = [
-  "delhi",
-  "gurugram",
-  "noida",
-  "ghaziabad",
-  "faridabad",
-  "chandigarh",
-  "jaipur",
-  "lucknow"
-];
-
 export function generateStaticParams() {
-  return CITIES.flatMap((city) => [
+  return HUB_CITY_SLUGS.flatMap((city) => [
     { locale: "en", citySlug: city },
     { locale: "hi", citySlug: city }
   ]);
@@ -75,9 +69,28 @@ export async function generateMetadata({
     ? `${cityCapitalized} में सत्यापित किराये के मकान, PG और फ्लैट खोजें। AI-संचालित खोज, मालिक सत्यापन और 12-घंटे रिफंड गारंटी।`
     : `Find verified flats, PGs, and houses for rent in ${cityCapitalized}. AI-powered search with owner verification and 12-hour refund guarantee.`;
 
+  // City-wide active inventory decides whether this hub may be indexed. The
+  // threshold is city-wide rather than per-locality because a hub legitimately
+  // aggregates across its localities.
+  //
+  // The root layout sets `robots: { index: true, follow: true }`
+  // (apps/web/app/layout.tsx), so a thin hub must set `index: false`
+  // EXPLICITLY — omitting robots inherits that positive default. Verified on
+  // production: /en/city/varanasi served `index, follow` with fabricated
+  // locality names.
+  //
+  // ISR-cached at the hub's own 3600s window; a no-store fetch here would force
+  // the whole static hub into per-request dynamic rendering.
+  const cityInventory = await fetchListings(
+    { city: params.citySlug, page_size: 1 },
+    { revalidate: 3600 }
+  );
+  const thin = cityInventory.total < INDEXABLE_MIN_LISTINGS;
+
   return {
     title,
     description,
+    robots: thin ? { index: false, follow: true } : undefined,
     alternates: {
       canonical: `${BASE_URL}/en/city/${params.citySlug}`,
       languages: {
@@ -223,7 +236,12 @@ export default async function CityPage({
   const cityMeta = CITY_META[params.citySlug] ?? null;
   const budgetChips = ["Under ₹8,000", "₹8k-₹15k", "₹15k-₹25k", "₹25k+"];
   const typeChips = ["Flat/House", "PG", "1 BHK", "2 BHK", "Furnished"];
-  const localities = CITY_LOCALITIES[params.citySlug] ?? ["Sector 1", "Sector 2", "Central"];
+  // No invented fallback. This used to default to
+  // ["Sector 1", "Sector 2", "Central"], which rendered fabricated place names
+  // as real "Popular Areas in <city>" links for any city outside
+  // CITY_LOCALITIES — verified live on /en/city/varanasi. An empty list hides
+  // the section entirely instead.
+  const localities = CITY_LOCALITIES[params.citySlug] ?? [];
 
   // Programmatic SEO enrichment — shown for any city enabled via the admin
   // toggle (fetchEnabledCities), not just Lucknow. Each fetch is best-effort
@@ -238,9 +256,17 @@ export default async function CityPage({
     ? await Promise.all([
         fetchLocalities(params.citySlug, { revalidate: 3600 }),
         fetchLandmarks(params.citySlug, undefined, { revalidate: 3600 }),
-        fetchMetroStationsForCity(params.citySlug, { revalidate: 3600 })
+        fetchCityMetroStations(params.citySlug, { revalidate: 3600 })
       ])
     : [[], [], []];
+
+  // Only stations with inventory get a rail chip: a chip leading to a station
+  // page with zero listings is a dead end for the visitor and a noindex page for
+  // the crawler. Station-to-station prev/next links (station-view) deliberately
+  // keep thin stations, so a metro line reads without gaps.
+  const railMetros = liveMetros.filter(
+    (m) => m.station_name && m.listing_count >= INDEXABLE_MIN_LISTINGS
+  );
 
   const intentGroups = isProgrammatic ? intentsByCategory("locality") : [];
 
@@ -323,6 +349,12 @@ export default async function CityPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+
+      {/* Mobile-only (<900px): the desktop Rent mega-menu panel never mounts
+          below that breakpoint (header.tsx's useDesktopNav), so this is how
+          phone users reach the same intent links one tap away. This hub is a
+          city's general rentals landing page (flats & houses), hence "rent". */}
+      <IntentChipRail locale={params.locale as Locale} citySlug={params.citySlug} surface="rent" />
 
       {/* City Hero */}
       <section
@@ -614,24 +646,22 @@ export default async function CityPage({
         )}
 
         {/* Programmatic SEO: metro stations grid */}
-        {isProgrammatic && liveMetros.filter((m) => m.station_name).length > 0 && (
+        {isProgrammatic && railMetros.length > 0 && (
           <section style={{ marginBottom: "var(--space-10)" }}>
             <h3 style={{ marginBottom: "var(--space-4)" }}>
               {isHindi ? "मेट्रो स्टेशन के पास" : "Browse by metro station"}
             </h3>
             <div className="chip-row" style={{ flexWrap: "wrap" }}>
-              {liveMetros
-                .filter((m) => m.station_name)
-                .map((m) => (
-                  <Link
-                    key={m.id}
-                    href={`/${params.locale}/city/${params.citySlug}/metro/${m.station_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-                    className="chip-btn"
-                    title={m.line_name}
-                  >
-                    {m.station_name}
-                  </Link>
-                ))}
+              {railMetros.map((m) => (
+                <Link
+                  key={m.id}
+                  href={`/${params.locale}/city/${params.citySlug}/metro/${m.slug}`}
+                  className="chip-btn"
+                  title={m.line_name}
+                >
+                  {m.station_name}
+                </Link>
+              ))}
             </div>
           </section>
         )}
@@ -663,55 +693,58 @@ export default async function CityPage({
           </section>
         )}
 
-        {/* Locality Clusters */}
-        <section style={{ marginBottom: "var(--space-10)" }}>
-          <h3
-            style={{
-              marginBottom: "var(--space-4)",
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)"
-            }}
-          >
-            {cityMeta && (
-              <MapPin
-                size={18}
-                style={{ color: "var(--brand)", flexShrink: 0 }}
-                aria-hidden="true"
-              />
-            )}
-            {isHindi ? "लोकप्रिय इलाके" : `Popular Areas in ${cityCapitalized}`}
-          </h3>
-          <div
-            className="listing-grid"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
-          >
-            {localities.map((loc) => (
-              <a
-                key={loc}
-                href={`/${params.locale}/search?city=${params.citySlug}&q=${encodeURIComponent(loc)}`}
-                className="card"
-                style={{ textDecoration: "none", padding: "var(--space-5)", textAlign: "center" }}
-              >
-                {cityMeta && (
-                  <MapPin
-                    size={14}
-                    style={{
-                      color: "var(--brand)",
-                      marginBottom: "var(--space-1)",
-                      display: "block",
-                      margin: "0 auto var(--space-1)"
-                    }}
-                    aria-hidden="true"
-                  />
-                )}
-                <span className="body-sm text-brand" style={{ fontWeight: 600 }}>
-                  {loc}
-                </span>
-              </a>
-            ))}
-          </div>
-        </section>
+        {/* Locality Clusters — hidden entirely when we have no real localities
+            for this city, rather than inventing placeholder names. */}
+        {localities.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <h3
+              style={{
+                marginBottom: "var(--space-4)",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)"
+              }}
+            >
+              {cityMeta && (
+                <MapPin
+                  size={18}
+                  style={{ color: "var(--brand)", flexShrink: 0 }}
+                  aria-hidden="true"
+                />
+              )}
+              {isHindi ? "लोकप्रिय इलाके" : `Popular Areas in ${cityCapitalized}`}
+            </h3>
+            <div
+              className="listing-grid"
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
+            >
+              {localities.map((loc) => (
+                <a
+                  key={loc}
+                  href={`/${params.locale}/search?city=${params.citySlug}&q=${encodeURIComponent(loc)}`}
+                  className="card"
+                  style={{ textDecoration: "none", padding: "var(--space-5)", textAlign: "center" }}
+                >
+                  {cityMeta && (
+                    <MapPin
+                      size={14}
+                      style={{
+                        color: "var(--brand)",
+                        marginBottom: "var(--space-1)",
+                        display: "block",
+                        margin: "0 auto var(--space-1)"
+                      }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span className="body-sm text-brand" style={{ fontWeight: 600 }}>
+                    {loc}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* FAQ */}
         <section>

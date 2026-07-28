@@ -52,10 +52,14 @@ export function SeoProgrammaticPages({ accessToken, onToast }: Props) {
   }, [accessToken, reloadKey]);
 
   const stats = useMemo(() => {
+    // Only LIVE cities count toward the surface. The headline used to sum every
+    // row, so draft cities — whose pages 404 — inflated the indexable figure.
+    const live = rows.filter((row) => row.programmaticEnabled);
     return {
       configured: rows.length,
-      live: rows.filter((row) => row.programmaticEnabled).length,
-      indexable: rows.reduce((sum, row) => sum + row.indexableCount, 0)
+      live: live.length,
+      indexable: live.reduce((sum, row) => sum + row.indexableCount, 0),
+      thin: live.reduce((sum, row) => sum + row.thinCount, 0)
     };
   }, [rows]);
 
@@ -187,9 +191,15 @@ export function SeoProgrammaticPages({ accessToken, onToast }: Props) {
       </div>
 
       <div className="admin-stat-grid">
-        <StatCard label="Cities configured" value={formatNumber(stats.configured)} />
+        {/* "Cities" not "configured": this is every row in the cities table,
+            whether or not it has a seo_city_config row. */}
+        <StatCard label="Cities" value={formatNumber(stats.configured)} />
         <StatCard label="Live" value={formatNumber(stats.live)} tone="trust" />
-        <StatCard label="Indexable" value={formatNumber(stats.indexable)} tone="brand" />
+        {/* Live cities only, and across localities + metro + landmarks. */}
+        <StatCard label="Indexable places" value={formatNumber(stats.indexable)} tone="brand" />
+        {/* The number that should gate an Enable decision: places that exist but
+            render noindex and stay out of the sitemap. */}
+        <StatCard label="Thin (noindex)" value={formatNumber(stats.thin)} tone="warn" />
       </div>
 
       <DataTable

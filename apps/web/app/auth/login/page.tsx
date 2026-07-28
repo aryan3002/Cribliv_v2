@@ -4,6 +4,7 @@ import { signIn, getSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, Suspense } from "react";
 import type { UserRole } from "../../../auth.config";
+import { BrandLockup } from "../../../components/brand/brand-lockup";
 import { describeOtpChannel, type OtpSendData } from "../../../lib/otp-channel";
 import { OtpChannelActions } from "../../../components/auth/otp-channel-actions";
 
@@ -228,13 +229,8 @@ function LoginPageInner() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-card__logo">
-          <span
-            className="logo-dot"
-            style={{ display: "inline-block", marginRight: 6, verticalAlign: "middle" }}
-            aria-hidden="true"
-          />
-          Cribliv
+        <div className="auth-card__brand">
+          <BrandLockup size="lg" glow />
         </div>
         <h1 className="auth-card__title">Welcome</h1>
         <p className="auth-card__subtitle">Sign in to save listings &amp; unlock owner contacts</p>

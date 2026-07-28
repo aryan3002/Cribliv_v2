@@ -1,36 +1,29 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { ProgrammaticPage, coalesceCopy } from "../../../../../components/seo/programmatic-page";
-import {
-  fetchEnabledCities,
-  fetchLandmarks,
-  fetchListings,
-  fetchLocalities,
-  fetchLocality,
-  fetchMetroStationsForCity,
-  fetchSeoCopy
-} from "../../../../../lib/seo-api";
-import { buildBreadcrumb, buildPlace } from "../../../../../lib/structured-data";
-import { buildPageMetadata, isValidSlug } from "../../../../../lib/seo";
-import { isAdminPreview } from "../../../../../lib/admin-preview";
-import {
-  buildLocalityTemplateCopy,
-  nearestMetroForLocality
-} from "../../../../../lib/seo-template-copy";
+import { fetchEnabledCities, fetchLocality, fetchSeoCopy } from "../../../../../lib/seo-api";
+import { buildPageMetadata, stripBrandSuffix } from "../../../../../lib/seo";
+import { buildLocalityTemplateCopy } from "../../../../../lib/seo-template-copy";
+import { LocalityHubView } from "./locality-view";
 
 // ISR: revalidate every 24h. On-demand revalidation triggered when listings change.
 export const revalidate = 86400;
 
+// Required for the `revalidate` above to cache the PAGE rather than just its
+// fetches: without generateStaticParams a route under a dynamic segment renders
+// per request, so all ~33k programmatic URLs cost a serverless invocation each.
+// Returning [] is deliberate and costs nothing at build time — every path is
+// generated on first request and then served from the ISR cache.
+export function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({
-  params,
-  searchParams
+  params
 }: {
   params: { locale: string; citySlug: string; locality: string };
-  searchParams: { adminPreview?: string | string[] };
 }): Promise<Metadata> {
   const locale = params.locale === "hi" ? "hi" : "en";
-  const enabledCities = await fetchEnabledCities();
-  if (!enabledCities.has(params.citySlug) && !(await isAdminPreview(searchParams))) {
+  const enabledCities = await fetchEnabledCities({ revalidate });
+  if (!enabledCities.has(params.citySlug)) {
     return buildPageMetadata({
       title: "Not found",
       description: "This page is not available.",
@@ -39,7 +32,7 @@ export async function generateMetadata({
       noindex: true
     });
   }
-  const data = await fetchLocality(params.citySlug, params.locality);
+  const data = await fetchLocality(params.citySlug, params.locality, { revalidate });
   if (!data) {
     return buildPageMetadata({
       title: "Locality not found",
@@ -69,11 +62,15 @@ export async function generateMetadata({
       ...data.aggregates,
       nearest_metro: null,
       parent_locality: data.locality.parent_locality_slug
-    }
+    },
+    revalidate
   });
 
   return buildPageMetadata({
-    title: stored?.meta_title?.trim() || template.meta_title,
+    // Stored copy written before the title fix ends in "— Cribliv", and the root
+    // layout appends "| Cribliv" — hence the live double-brand. Strip it here so
+    // existing seo_copy rows are repaired without a prod data migration.
+    title: stripBrandSuffix(stored?.meta_title?.trim() || template.meta_title),
     description: stored?.meta_description?.trim() || template.meta_description,
     pathname: `/city/${params.citySlug}/${params.locality}`,
     locale,
@@ -82,158 +79,9 @@ export async function generateMetadata({
 }
 
 export default async function LocalityHubPage({
-  params,
-  searchParams
+  params
 }: {
   params: { locale: string; citySlug: string; locality: string };
-  searchParams: { adminPreview?: string | string[] };
 }) {
-  const enabledCities = await fetchEnabledCities();
-  if (!enabledCities.has(params.citySlug) && !(await isAdminPreview(searchParams))) notFound();
-  if (!isValidSlug(params.locality)) notFound();
-  const locale: "en" | "hi" = params.locale === "hi" ? "hi" : "en";
-
-  const data = await fetchLocality(params.citySlug, params.locality);
-  if (!data) notFound();
-  const placeName = locale === "hi" ? data.locality.name_hi : data.locality.name_en;
-  const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
-
-  const [listings, siblingLocalities, landmarks, metros] = await Promise.all([
-    fetchListings({
-      city: params.citySlug,
-      locality: data.locality.slug,
-      page_size: 12
-    }),
-    fetchLocalities(params.citySlug),
-    fetchLandmarks(params.citySlug),
-    fetchMetroStationsForCity(params.citySlug)
-  ]);
-
-  // Compute simple distance ordering for related items (cheap, server-side).
-  const haversine = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371;
-    const toRad = (n: number) => (n * Math.PI) / 180;
-    const dLat = toRad(lat2 - lat1);
-    const dLng = toRad(lng2 - lng1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
-
-  const here = { lat: data.locality.lat ?? 0, lng: data.locality.lng ?? 0 };
-  const nearbyMetros = (metros || [])
-    .filter((m) => m.station_name)
-    .map((m) => ({ ...m, dist: haversine(here.lat, here.lng, m.lat, m.lng) }))
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, 5);
-  const nearbyLandmarks = (landmarks || [])
-    .map((l) => ({ ...l, dist: haversine(here.lat, here.lng, l.lat, l.lng) }))
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, 6);
-  const nearbyLocalities = (siblingLocalities || [])
-    .filter((l) => l.slug !== data.locality.slug && l.lat != null && l.lng != null)
-    .map((l) => ({ ...l, dist: haversine(here.lat, here.lng, l.lat ?? 0, l.lng ?? 0) }))
-    .sort((a, b) => a.dist - b.dist)
-    .slice(0, 6);
-
-  // AI copy (best effort)
-  const copy = await fetchSeoCopy({
-    pagePath: `/city/${params.citySlug}/${params.locality}`,
-    locale,
-    placeName: { en: data.locality.name_en, hi: data.locality.name_hi },
-    placeKind: "locality",
-    aggregates: {
-      ...data.aggregates,
-      nearest_metro: nearbyMetros[0]
-        ? {
-            name: nearbyMetros[0].station_name,
-            walk_minutes: Math.round(nearbyMetros[0].dist * 12)
-          }
-        : null,
-      parent_locality: data.locality.parent_locality_slug
-    }
-  });
-
-  const templateCopy = buildLocalityTemplateCopy({
-    locale,
-    placeName: { en: data.locality.name_en, hi: data.locality.name_hi },
-    cityName,
-    aggregates: data.aggregates,
-    nearestMetro: nearestMetroForLocality(nearbyMetros, here.lat, here.lng)
-  });
-  const defaults = {
-    h1: templateCopy.h1,
-    intro: templateCopy.intro_paragraph,
-    faqs: templateCopy.faq_items,
-    nearbyBlurb: templateCopy.nearby_blurb || null
-  };
-  const merged = coalesceCopy(copy, defaults);
-
-  const breadcrumbs = [
-    { name: locale === "hi" ? "होम" : "Home", href: `/${locale}` },
-    { name: cityName, href: `/${locale}/city/${params.citySlug}` },
-    { name: placeName, href: `/${locale}/city/${params.citySlug}/${params.locality}` }
-  ];
-
-  const jsonLd: object[] = [
-    buildBreadcrumb(breadcrumbs.map((bc) => ({ name: bc.name, href: bc.href }))),
-    buildPlace({
-      name: placeName,
-      description: merged.intro,
-      lat: data.locality.lat,
-      lng: data.locality.lng,
-      parentAreaName: cityName,
-      url: `/${locale}/city/${params.citySlug}/${params.locality}`
-    })
-  ];
-
-  return (
-    <ProgrammaticPage
-      locale={locale}
-      h1={merged.h1}
-      intro={merged.intro}
-      placeName={placeName}
-      nearbyBlurb={merged.nearbyBlurb}
-      aggregates={data.aggregates}
-      listings={listings.items}
-      viewAllHref={`/${locale}/search?city=${params.citySlug}&locality=${data.locality.slug}`}
-      intentBaseHref={`/${locale}/city/${params.citySlug}/${params.locality}`}
-      intentSurface="locality"
-      relatedSections={[
-        {
-          title: locale === "hi" ? "नजदीकी मेट्रो स्टेशन" : "Nearby metro stations",
-          items: nearbyMetros.map((m) => ({
-            href: `/${locale}/city/${params.citySlug}/metro/${m.station_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-            label: m.station_name,
-            sublabel: `${m.line_name} • ${m.dist.toFixed(1)} km`
-          })),
-          emptyHint: locale === "hi" ? "अभी कोई मेट्रो डेटा नहीं।" : "No metro data yet."
-        },
-        {
-          title: locale === "hi" ? "नजदीकी जगहें" : "Nearby landmarks",
-          items: nearbyLandmarks.map((l) => ({
-            href: `/${locale}/city/${params.citySlug}/near/${l.slug}`,
-            label: locale === "hi" ? l.name_hi : l.name_en,
-            sublabel: `${l.dist.toFixed(1)} km`
-          }))
-        },
-        {
-          title: locale === "hi" ? "अन्य इलाके" : "Other localities nearby",
-          items: nearbyLocalities.map((l) => ({
-            href: `/${locale}/city/${params.citySlug}/${l.slug}`,
-            label: locale === "hi" ? l.name_hi : l.name_en,
-            sublabel: `${l.dist.toFixed(1)} km`
-          }))
-        }
-      ]}
-      faqItems={merged.faqs}
-      jsonLd={jsonLd}
-      ctaHref={`/${locale}/search?city=${params.citySlug}&locality=${data.locality.slug}`}
-      ctaLabel={
-        locale === "hi" ? `${placeName} में सभी लिस्टिंग देखें` : `See all rentals in ${placeName}`
-      }
-      breadcrumbs={breadcrumbs}
-    />
-  );
+  return <LocalityHubView params={params} revalidate={revalidate} />;
 }

@@ -23,6 +23,16 @@ test.describe("callback leads (flag on)", () => {
     const listingId = (await search.json()).data.items[0].id as string;
 
     const session = await loginWithOtp(request, "+919999999902");
+    // The Request Callback click below is the same button as Unlock Number
+    // (unlock-contact-panel.tsx, data-testid="unlock-cta") and now passes
+    // through the name-capture contact gate (requireName). The seeded tenant
+    // isn't guaranteed to have a name on a freshly-seeded DB, so set one
+    // explicitly rather than assume — this test is about the callback flow,
+    // not the name gate (see apps/web/tests/name-capture.spec.ts for that).
+    await request.patch(`${getApiBaseUrl()}/users/me`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      data: { full_name: "Callback Leads Tenant" }
+    });
     await page.goto(`/en/listing/${listingId}`);
     await setSessionOnPage(page, session);
     await page.reload();

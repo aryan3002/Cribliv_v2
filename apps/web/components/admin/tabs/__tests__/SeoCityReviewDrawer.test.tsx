@@ -47,6 +47,7 @@ const CITY: SeoCityConfigVm = {
   landmarkCount: 14,
   metroCount: 8,
   indexableCount: 16,
+  thinCount: 0,
   enabledAt: null,
   notes: "pending review",
   updatedAt: "2026-07-03T02:00:00.000Z"
@@ -139,8 +140,11 @@ describe("SeoCityReviewDrawer", () => {
     const previewLinks = screen.getAllByRole("link", { name: /preview/i });
     const sector18Preview = previewLinks.find((l) => l.getAttribute("href")?.includes("sector-18"));
     expect(sector18Preview).toBeDefined();
-    expect(sector18Preview?.getAttribute("href")).toContain("?adminPreview=1");
-    expect(sector18Preview?.getAttribute("href")).toContain("/city/noida/sector-18");
+    // Must target the admin-only preview tree, NOT the public path with a query
+    // param: a `searchParams` read forces the public route to render per request,
+    // which is what previously opted all ~33k programmatic URLs out of ISR.
+    expect(sector18Preview?.getAttribute("href")).toContain("/seo-preview/city/noida/sector-18");
+    expect(sector18Preview?.getAttribute("href")).not.toContain("adminPreview");
     expect(sector18Preview?.getAttribute("target")).toBe("_blank");
     expect(sector18Preview?.getAttribute("rel")).toContain("noopener");
   });
@@ -188,8 +192,10 @@ describe("SeoCityReviewDrawer", () => {
     const landmarkPreview = previewLinks.find((l) =>
       l.getAttribute("href")?.includes("dlf-mall-of-india")
     );
-    expect(landmarkPreview?.getAttribute("href")).toContain("/city/noida/near/dlf-mall-of-india");
-    expect(landmarkPreview?.getAttribute("href")).toContain("?adminPreview=1");
+    expect(landmarkPreview?.getAttribute("href")).toContain(
+      "/seo-preview/city/noida/near/dlf-mall-of-india"
+    );
+    expect(landmarkPreview?.getAttribute("href")).not.toContain("adminPreview");
   });
 
   it("switches to the Metro tab and fetches metro rows with a slugified preview link", async () => {
@@ -214,8 +220,10 @@ describe("SeoCityReviewDrawer", () => {
 
     const previewLinks = screen.getAllByRole("link", { name: /preview/i });
     const metroPreview = previewLinks.find((l) => l.getAttribute("href")?.includes("/metro/"));
-    expect(metroPreview?.getAttribute("href")).toContain("/city/noida/metro/botanical-garden");
-    expect(metroPreview?.getAttribute("href")).toContain("?adminPreview=1");
+    expect(metroPreview?.getAttribute("href")).toContain(
+      "/seo-preview/city/noida/metro/botanical-garden"
+    );
+    expect(metroPreview?.getAttribute("href")).not.toContain("adminPreview");
   });
 
   it("filters localities by the search box", async () => {

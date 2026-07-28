@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -13,6 +14,7 @@ import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
 import { ok } from "../../common/response";
 import { AuthGuard } from "../../common/auth.guard";
+import { UpdateProfileSchema } from "./dto/update-profile.dto";
 
 @Controller()
 export class AuthController {
@@ -60,12 +62,15 @@ export class AuthController {
 
   @UseGuards(AuthGuard)
   @Patch("users/me")
-  async updateProfile(
-    @Req() req: { user: { id: string } },
-    @Body()
-    body: { full_name?: string; preferred_language?: "en" | "hi"; whatsapp_opt_in?: boolean }
-  ) {
-    return ok(await this.authService.updateProfile(req.user.id, body));
+  async updateProfile(@Req() req: { user: { id: string } }, @Body() body: unknown) {
+    const parsed = UpdateProfileSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        code: "invalid_payload",
+        message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")
+      });
+    }
+    return ok(await this.authService.updateProfile(req.user.id, parsed.data));
   }
 
   /**

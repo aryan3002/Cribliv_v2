@@ -5,14 +5,33 @@ import styles from "../cribliv-times.module.css";
 import { Masthead } from "../_components/Masthead";
 import { formatDate, cityLabel, deskLabel, formatRent } from "../_components/blog-format";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
-import { fetchBlogPost } from "../../../../lib/blog-api";
+import { fetchBlogPost, fetchAllBlogSlugs } from "../../../../lib/blog-api";
+import { stripBrandSuffix } from "../../../../lib/seo";
+import { locales } from "../../../../lib/i18n";
 import { prepareBlogBody } from "../../../../lib/blog-body";
 import { hasBlogEmbeds } from "../../../../lib/blog-embeds";
 import { BlogBody } from "../../../../components/blog/BlogBody";
 import { EDITORIAL_AUTHOR, authorPath } from "../../../../lib/blog-author";
 import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/structured-data";
 
+// Two things are required for an article to be served from cache, and this route
+// previously had neither despite the export below. First, every fetch in the
+// tree must be cacheable — the post fetch, the bridge-listing fetch and the
+// embed-card fetches all used `no-store`, and one uncached fetch opts the whole
+// route into per-request SSR. Second, the route needs generateStaticParams:
+// without it a page under a dynamic segment re-renders per request regardless of
+// how well its fetches are cached, so we would pay CPU on every article view.
 export const revalidate = 3600;
+
+// Prerender the articles that exist at build time. Posts published later (the
+// AI generation pipeline adds them continuously) are NOT listed here and are
+// rendered on first request, then cached for `revalidate` — which is exactly the
+// behaviour we want, and is why this list being incomplete is fine. It degrades
+// to [] if the API is unreachable during the build; the route still ISRs.
+export async function generateStaticParams() {
+  const slugs = await fetchAllBlogSlugs();
+  return locales.flatMap((locale) => slugs.map((slug) => ({ locale, slug })));
+}
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 
@@ -30,10 +49,12 @@ export async function generateMetadata({
 }: {
   params: { locale: string; slug: string };
 }): Promise<Metadata> {
-  const data = await fetchBlogPost(params.slug);
+  const data = await fetchBlogPost(params.slug, { revalidate });
   if (!data) return { title: "Not found" };
   const { post } = data;
-  const title = post.meta_title || post.title;
+  // AI-generated post meta_titles sometimes append the brand despite the prompt
+  // telling them not to; the layout template adds it regardless.
+  const title = stripBrandSuffix(post.meta_title || post.title);
   const description = post.meta_description || post.excerpt || undefined;
   return {
     title,
@@ -65,7 +86,7 @@ export default async function BlogDetailPage({
 }) {
   const locale = params.locale;
   const hi = locale === "hi";
-  const data = await fetchBlogPost(params.slug);
+  const data = await fetchBlogPost(params.slug, { revalidate });
   if (!data) notFound();
   const { post, related } = data;
 
@@ -85,7 +106,7 @@ export default async function BlogDetailPage({
       const res = await fetchApi<{ items: BridgeListing[] }>(
         `/listings/search?${query}`,
         undefined,
-        { server: true }
+        { revalidate }
       );
       bridgeListings = (res.items ?? []).slice(0, 3);
     } catch {
@@ -157,7 +178,7 @@ export default async function BlogDetailPage({
 
         {hasBlogEmbeds(body) ? (
           <div className={styles.articleBody}>
-            <BlogBody html={body} locale={locale} slug={post.slug} />
+            <BlogBody html={body} locale={locale} slug={post.slug} revalidate={revalidate} />
           </div>
         ) : (
           <div className={styles.articleBody} dangerouslySetInnerHTML={{ __html: body }} />

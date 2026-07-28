@@ -97,7 +97,7 @@ export function searchPgListings(
 
 export function getPgPublicListing(
   id: string,
-  opts: { server?: boolean } = {}
+  opts: { server?: boolean; revalidate?: number } = {}
 ): Promise<PgPublicDetail> {
   return fetchApi<PgPublicDetail>(`/pg/listings/${id}`, undefined, opts);
 }

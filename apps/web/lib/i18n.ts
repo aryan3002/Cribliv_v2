@@ -17,7 +17,36 @@ const dictionary: Dictionary = {
     hi: "अपनी जरूरत लिखें, जैसे साइबर सिटी के पास 2BHK, 35k तक"
   },
   navSearch: { en: "Search", hi: "खोजें" },
+  navSearchPlaceholder: { en: "Search rentals", hi: "किराया खोजें" },
+  // The same pill on /pg, where "rentals" would misdescribe the surface the
+  // link actually keeps the visitor on (components/header/search-pill.tsx).
+  navSearchPlaceholderPg: { en: "Search PGs", hi: "पीजी खोजें" },
   navSaved: { en: "Saved", hi: "सेव किए" },
+  // Mega-menu triggers. CriblMap and Cribliv Times are brand names and stay
+  // untranslated, matching menuMap in this same dictionary.
+  navMenuRent: { en: "Rent", hi: "किराया" },
+  navMenuPg: { en: "PG & Co-living", hi: "पीजी और को-लिविंग" },
+  navMenuOwners: { en: "For owners", hi: "मकान मालिकों के लिए" },
+  // Hamburger-sheet city switcher (components/header/mobile-city-section.tsx)
+  // — the mobile counterpart to the desktop city chip's trigger. The current
+  // city itself (e.g. "Lucknow") is a proper noun and stays untranslated,
+  // same as every HUB_CITIES label; this is only the static prefix text.
+  menuChangeCity: { en: "Change city", hi: "शहर बदलें" },
+  // Mobile-only intent chip rail (components/header/intent-chip-rail.tsx) —
+  // accessible name for the row of quick-filter chips shown below 900px on
+  // the browse pages, where the desktop mega-menu panels never mount.
+  navIntentRailLabel: { en: "Quick filters", hi: "त्वरित फिल्टर" },
+  // Cribliv Times hover panel's front-page-in-miniature (components/header/
+  // times-panel.tsx): "Desks" (first column) comes pre-translated from
+  // buildTimesPanel via lib/blog-desks.ts. These two label the rest — the
+  // secondary-headlines rail (matching the blog hub page's own rail heading,
+  // app/[locale]/blog/page.tsx) and the footer link into the blog itself.
+  navTimesAlsoReported: { en: "Also Reported", hi: "और खबरें" },
+  navTimesReadAll: { en: "Read Cribliv Times", hi: "क्रिबलिव टाइम्स पढ़ें" },
+  // Kicker fallback for a post whose category isn't one of the four seeded
+  // desks (lib/blog-desks.ts) — mirrors the blog hub's own deskLabel()
+  // fallback (app/[locale]/blog/_components/blog-format.ts).
+  navTimesReport: { en: "Report", hi: "रिपोर्ट" },
   navPostProperty: { en: "Post Property", hi: "प्रॉपर्टी पोस्ट करें" },
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
   navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },
@@ -1040,6 +1069,43 @@ const dictionary: Dictionary = {
   currentlyUnavailable: {
     en: "Currently unavailable · get notified when they're back",
     hi: "फ़िलहाल अनुपलब्ध · वापस आने पर सूचना पाएं"
+  },
+  // ── Signup name capture ─────────────────────────────────────────────────────
+  nameCaptureTitle: { en: "What should we call you?", hi: "हम आपको क्या कहें?" },
+  nameCaptureTitleRequired: {
+    en: "Add your name to continue",
+    hi: "जारी रखने के लिए अपना नाम जोड़ें"
+  },
+  nameCaptureBodyTenant: {
+    en: "Owners see your name when you contact them, so they know who's calling.",
+    hi: "जब आप ओनर से संपर्क करते हैं तो उन्हें आपका नाम दिखता है, ताकि वे जानें कि कौन कॉल कर रहा है।"
+  },
+  nameCaptureBodyOwner: {
+    en: "Seekers see your name on your listings. Listings with a name get more enquiries.",
+    hi: "खोजने वालों को आपकी लिस्टिंग पर आपका नाम दिखता है। नाम वाली लिस्टिंग को ज़्यादा पूछताछ मिलती है।"
+  },
+  nameCaptureBodyContact: {
+    en: "The owner will see this name when you contact them.",
+    hi: "जब आप संपर्क करेंगे तो ओनर को यह नाम दिखेगा।"
+  },
+  nameCaptureLabel: { en: "Your name", hi: "आपका नाम" },
+  nameCapturePlaceholder: { en: "e.g. Asha Devi", hi: "उदा. आशा देवी" },
+  nameCaptureSave: { en: "Save", hi: "सेव करें" },
+  nameCaptureSaving: { en: "Saving…", hi: "सेव हो रहा है…" },
+  nameCaptureSaveAndContinue: { en: "Save and continue", hi: "सेव करें और जारी रखें" },
+  nameCaptureSkip: { en: "Not now", hi: "अभी नहीं" },
+  nameCaptureClose: { en: "Close", hi: "बंद करें" },
+  nameCaptureError: {
+    en: "Couldn't save your name. Please try again.",
+    hi: "आपका नाम सेव नहीं हो सका। कृपया फिर कोशिश करें।"
+  },
+  nameCaptureTooShort: {
+    en: "Please enter at least 2 characters.",
+    hi: "कृपया कम से कम 2 अक्षर दर्ज करें।"
+  },
+  nameCaptureInvalid: {
+    en: "Please enter a valid name.",
+    hi: "कृपया एक मान्य नाम दर्ज करें।"
   }
 };
 

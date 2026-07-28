@@ -1,5 +1,6 @@
 "use client";
 
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { useEffect, useState } from "react";
 import { Drawer } from "../primitives/Drawer";
 import { DataTable, type Column } from "../primitives/DataTable";
@@ -257,7 +258,12 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
 
   const enabled = city.programmaticEnabled;
   const q = search.trim().toLowerCase();
-  const previewBase = `/en/city/${city.citySlug}`;
+  // Admin-only preview tree, NOT the public path. Preview used to be
+  // `/en/city/<city>/<slug>?adminPreview=1`, but a page that declares
+  // `searchParams` is forced to render per request by Next, which opted all ~33k
+  // public programmatic URLs out of ISR. The escape hatch now lives on its own
+  // dynamic route so the public pages can be cached. See lib/admin-preview.ts.
+  const previewBase = `/en/seo-preview/city/${city.citySlug}`;
 
   const localityCols: Column<SeoLocalityRow>[] = [
     {
@@ -275,7 +281,7 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
       key: "indexable",
       header: "Indexable",
       align: "center",
-      render: (r) => (r.listing_count >= 3 ? "✓" : "✗")
+      render: (r) => (r.listing_count >= INDEXABLE_MIN_LISTINGS ? "✓" : "✗")
     },
     {
       key: "copy",
@@ -308,7 +314,7 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
             >
               Edit
             </button>
-            <PreviewLink href={`${previewBase}/${r.slug}?adminPreview=1`} />
+            <PreviewLink href={`${previewBase}/${r.slug}`} />
           </div>
         );
       }
@@ -332,7 +338,7 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
       key: "preview",
       header: "",
       align: "right",
-      render: (r) => <PreviewLink href={`${previewBase}/near/${r.slug}?adminPreview=1`} />
+      render: (r) => <PreviewLink href={`${previewBase}/near/${r.slug}`} />
     }
   ];
 
@@ -344,9 +350,7 @@ export function SeoCityReviewDrawer({ city, accessToken, onClose, onToast, onCha
       key: "preview",
       header: "",
       align: "right",
-      render: (r) => (
-        <PreviewLink href={`${previewBase}/metro/${metroSlug(r.station_name)}?adminPreview=1`} />
-      )
+      render: (r) => <PreviewLink href={`${previewBase}/metro/${metroSlug(r.station_name)}`} />
     }
   ];
 

@@ -2,15 +2,9 @@ import type { MetadataRoute } from "next";
 
 import { buildSearchQuery, getApiBaseUrl } from "../lib/api";
 import { fetchAllBlogSlugs } from "../lib/blog-api";
-import {
-  fetchEnabledCities,
-  fetchLandmarks,
-  fetchLocalities,
-  fetchMetroStationsForCity,
-  type LandmarkRow,
-  type LocalityRow,
-  type MetroStationRow
-} from "../lib/seo-api";
+import { HUB_CITY_SLUGS } from "../lib/nav/cities";
+import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
+import { fetchCityPlaces, fetchEnabledCities, fetchListings, type SeoPlace } from "../lib/seo-api";
 import {
   buildCityLandmarkEntries,
   buildCityLocalityEntries,
@@ -20,17 +14,6 @@ import {
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com";
 const FALLBACK_CITIES = ["lucknow"];
-
-const HUB_CITIES = [
-  "delhi",
-  "gurugram",
-  "noida",
-  "ghaziabad",
-  "faridabad",
-  "chandigarh",
-  "jaipur",
-  "lucknow"
-];
 
 type ChunkDescriptor =
   | { kind: "core" }
@@ -70,23 +53,41 @@ export async function generateSitemaps(): Promise<Array<{ id: number }>> {
   return chunks.map((_, id) => ({ id }));
 }
 
-function buildCoreChunk(): MetadataRoute.Sitemap {
+async function buildCoreChunk(): Promise<MetadataRoute.Sitemap> {
   const rows: MetadataRoute.Sitemap = [];
 
   rows.push(...entry(BASE_URL, "", { priority: 1.0, freq: "daily" }));
 
-  for (const city of HUB_CITIES) {
+  // A city hub enters the sitemap under exactly the condition that makes it
+  // indexable — city-wide inventory at or above the threshold — so the sitemap
+  // never submits a URL the page itself marks noindex.
+  //
+  // Before this, every slug in HUB_CITY_SLUGS was submitted regardless, which
+  // put draft cities (chandigarh, delhi, jaipur) into the sitemap as indexable
+  // hubs. Note /rent-in/ and /pg/ below are deliberately NOT gated: those are
+  // hand-curated editorial pages, not programmatic ones.
+  const cityTotals = await Promise.all(
+    HUB_CITY_SLUGS.map(async (city) => {
+      const res = await fetchListings({ city, page_size: 1 }, { revalidate: 3600 }).catch(() => ({
+        items: [],
+        total: 0
+      }));
+      return { city, total: res.total };
+    })
+  );
+  for (const { city, total } of cityTotals) {
+    if (total < INDEXABLE_MIN_LISTINGS) continue;
     rows.push(...entry(BASE_URL, `/city/${city}`, { priority: 0.8, freq: "daily" }));
   }
 
   rows.push(...entry(BASE_URL, "/search", { priority: 0.7, freq: "daily" }));
   rows.push(...entry(BASE_URL, "/map", { priority: 0.75, freq: "daily" }));
-  for (const city of HUB_CITIES) {
+  for (const city of HUB_CITY_SLUGS) {
     rows.push(...entry(BASE_URL, `/rent-in/${city}`, { priority: 0.7 }));
   }
 
   rows.push(...entry(BASE_URL, "/pg", { priority: 0.7, freq: "daily" }));
-  for (const city of HUB_CITIES) {
+  for (const city of HUB_CITY_SLUGS) {
     rows.push(...entry(BASE_URL, `/pg/${city}`, { priority: 0.7 }));
   }
 
@@ -152,23 +153,22 @@ async function buildListingsChunk(): Promise<MetadataRoute.Sitemap> {
 }
 
 async function buildCityChunk(citySlug: string): Promise<MetadataRoute.Sitemap> {
-  const [localities, landmarks, stations] = await Promise.all([
-    fetchLocalities(citySlug).catch((): LocalityRow[] => []),
-    fetchLandmarks(citySlug).catch((): LandmarkRow[] => []),
-    fetchMetroStationsForCity(citySlug).catch((): MetroStationRow[] => [])
-  ]);
+  // One call, one definition of `indexable`. Metro stations used to come from
+  // /map/metro, which returns whole metro LINES touching the city — that is why
+  // Faridabad shipped 2,916 metro URLs while having zero stations of its own,
+  // every one of them an HTTP-200 soft 404.
+  // A thrown error here would make the whole chunk a 500, which Google treats
+  // far worse than an empty urlset. fetchCityPlaces already swallows failures;
+  // this is belt-and-braces for the crawl-critical path.
+  const places = await fetchCityPlaces(citySlug, { revalidate: 86400 }).catch(() => null);
+  if (!places) return [];
+
+  const indexable = (list: SeoPlace[]) => list.filter((place) => place.indexable);
 
   return [
-    ...buildCityLocalityEntries(
-      BASE_URL,
-      citySlug,
-      localities.map((locality) => ({
-        slug: locality.slug,
-        listing_count: locality.listing_count ?? 0
-      }))
-    ),
-    ...buildCityMetroEntries(BASE_URL, citySlug, stations),
-    ...buildCityLandmarkEntries(BASE_URL, citySlug, landmarks)
+    ...buildCityLocalityEntries(BASE_URL, citySlug, indexable(places.localities)),
+    ...buildCityMetroEntries(BASE_URL, citySlug, indexable(places.metro_stations)),
+    ...buildCityLandmarkEntries(BASE_URL, citySlug, indexable(places.landmarks))
   ];
 }
 
