@@ -11,6 +11,7 @@ import {
   FileText,
   Globe,
   House,
+  HousePlus,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -40,6 +41,7 @@ export type AdminTab =
   | "pg-properties"
   | "manage-pg-requests"
   | "homes"
+  | "add-listing"
   | "fraud"
   | "seo"
   | "search-performance"
@@ -80,6 +82,7 @@ export function AdminSidebar({ active, onChange, counts }: Props) {
     { id: "pg-properties", label: "PG Listings", icon: Building2 },
     { id: "manage-pg-requests", label: "Manage PG Requests", icon: ClipboardCheck },
     { id: "homes", label: "Verified Homes", icon: House },
+    { id: "add-listing", label: "Add Listing", icon: HousePlus },
     { id: "users", label: "Users", icon: Users },
     { id: "seo", label: "Programmatic SEO", icon: Globe },
     { id: "search-performance", label: "Search Performance", icon: TrendingUp },

@@ -25,6 +25,7 @@ import { BlogReviewTab } from "../tabs/BlogReviewTab";
 import { SystemTab } from "../tabs/SystemTab";
 import { AdminTotpPanel } from "../security/AdminTotpPanel";
 import { AdminHomesTab } from "../homes/AdminHomesTab";
+import { AddListingTab } from "../tabs/AddListingTab";
 
 interface Props {
   accessToken: string;
@@ -44,6 +45,7 @@ const TAB_TITLES: Record<AdminTab, string> = {
   "pg-properties": "PG Listings",
   "manage-pg-requests": "Manage PG Requests",
   homes: "Verified Homes",
+  "add-listing": "Add Listing",
   fraud: "Fraud Intelligence",
   seo: "Programmatic SEO",
   "search-performance": "Search Performance",
@@ -182,6 +184,13 @@ export function AdminShell({ accessToken }: Props) {
             onToast={push}
           />
         );
+      case "add-listing":
+        // No key tied to refreshNonce (unlike the other cases): this tab hosts
+        // the ListingWizard, which keeps in-flight photo uploads in plain React
+        // state (only form/step/listingId are persisted to sessionStorage).
+        // Force-remounting on every topbar "Refresh" click would silently
+        // drop any photos the worker had already queued or uploaded.
+        return <AddListingTab />;
       case "fraud":
         return <FraudTab key={`fr-${k}`} accessToken={accessToken} onToast={push} />;
       case "seo":
