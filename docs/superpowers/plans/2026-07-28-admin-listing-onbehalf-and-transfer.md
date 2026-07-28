@@ -271,6 +271,22 @@ describe("normalizeIndianPhone", () => {
     expect(normalizeIndianPhone("99567291035")).toBeNull();
   });
 
+  it("rejects a 10-digit number that does not start 6-9", () => {
+    // No Indian mobile subscriber number starts 0-5. Returning a well-formed
+    // +91XXXXXXXXXX for these would be worse than rejecting them: callers treat
+    // non-null as validated, so a listing could be handed to a number nobody holds.
+    expect(normalizeIndianPhone("1234567890")).toBeNull();
+    expect(normalizeIndianPhone("5000000000")).toBeNull();
+    expect(normalizeIndianPhone("+911234567890")).toBeNull();
+    expect(normalizeIndianPhone("910123456789")).toBeNull();
+  });
+
+  it("accepts each valid leading digit", () => {
+    for (const lead of ["6", "7", "8", "9"]) {
+      expect(normalizeIndianPhone(`${lead}956729103`)).toBe(`+91${lead}956729103`);
+    }
+  });
+
   it("rejects non-numeric junk and empty input", () => {
     expect(normalizeIndianPhone("not a phone")).toBeNull();
     expect(normalizeIndianPhone("")).toBeNull();
@@ -316,7 +332,12 @@ export function normalizeIndianPhone(input: string): string | null {
     s = s.replace(/^0+/, "");
   }
 
-  if (!/^\d{10}$/.test(s)) return null;
+  // Indian mobile subscriber numbers start 6-9. Matches the existing normaliser
+  // at apps/api/src/migration/v1/phone.ts:11 and the PHONE_REGEX in
+  // rent-agreement/validators/india-rules.validator.ts:5. Note the admin
+  // controller's own check (admin.controller.ts:873) is only /^\+91\d{10}$/, so
+  // it would NOT catch an impossible number — this is the gate that does.
+  if (!/^[6-9]\d{9}$/.test(s)) return null;
   return `+91${s}`;
 }
 ```
