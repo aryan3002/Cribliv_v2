@@ -68,8 +68,20 @@ const REALTIME_FLAG_ENABLED =
   REALTIME_FLAG_ENV === "yes" ||
   REALTIME_FLAG_ENV === "on";
 
-function friendlyApiMessage(err: unknown): string {
+function friendlyApiMessage(err: unknown, mode: "owner" | "admin"): string {
   if (err instanceof ApiError) {
+    // Admin mode's 400s are business-rule rejections from publish-on-behalf
+    // (invalid_phone, cannot_transfer_to_admin, target_blocked,
+    // pg_not_supported — admin-listing-transfer.service.ts) or from the
+    // relaxed-to-admin draft endpoints. The generic "couldn't save your
+    // draft" text below is actively wrong for these: it blames a draft save
+    // that already succeeded and tells the worker to retry at the end,
+    // which will fail identically every time on the same rejection.
+    // ApiError.message carries the server's real text verbatim (see
+    // lib/api.ts:74-78), so surface that instead of guessing.
+    if (mode === "admin" && err.status === 400) {
+      return err.message;
+    }
     switch (err.status) {
       case 400:
         return "Couldn't save your draft right now. Your progress is still here. Try submitting again at the end.";
@@ -457,7 +469,7 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
       trackEvent("owner_listing_draft_saved", { listing_id: listingId, is_new: false });
       return listingId;
     } catch (err) {
-      setError(friendlyApiMessage(err));
+      setError(friendlyApiMessage(err, mode));
       if (err instanceof ApiError && err.status === 401) void signOut({ redirect: false });
       return null;
     } finally {
@@ -543,7 +555,7 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
       sessionStorage.removeItem(STORAGE_KEY);
       onPublished(draftId);
     } catch (err) {
-      setError(friendlyApiMessage(err));
+      setError(friendlyApiMessage(err, mode));
       if (err instanceof ApiError && err.status === 401) void signOut({ redirect: false });
     } finally {
       setSaving(false);

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ListingWizard } from "../ListingWizard";
 import { createOwnerListing, submitOwnerListing, updateOwnerListing } from "../../../lib/owner-api";
 import { publishListingOnBehalf } from "../../../lib/admin-api";
+import { ApiError } from "../../../lib/api";
 import { EMPTY_FORM } from "../types";
 
 /**
@@ -141,6 +142,49 @@ describe("ListingWizard publish branch", () => {
     );
     expect(submitOwnerListingMock).not.toHaveBeenCalled();
     await waitFor(() => expect(onPublished).toHaveBeenCalledWith("draft-xyz-789"));
+  });
+
+  // Finding 3 (2026-07-28 review): friendlyApiMessage used to map every 400
+  // to a generic "couldn't save your draft" string, regardless of mode. On
+  // the admin publish path that's actively wrong for invalid_phone /
+  // cannot_transfer_to_admin / target_blocked / pg_not_supported — it blames
+  // a draft save that already succeeded and tells the worker to retry
+  // "at the end", which fails identically every time on the same
+  // business-rule rejection. Admin-mode 400s must now surface the server's
+  // own ApiError.message instead.
+  it("admin mode: surfaces the server's own message for a business-rule 400, not the generic draft-save text", async () => {
+    seedReviewStepDraft("admin");
+    createOwnerListingMock.mockResolvedValue({ listingId: "draft-1", status: "draft" });
+    publishListingOnBehalfMock.mockRejectedValue(
+      new ApiError("That number belongs to an admin account", {
+        status: 400,
+        code: "cannot_transfer_to_admin"
+      })
+    );
+
+    render(<ListingWizard locale="en" mode="admin" onPublished={vi.fn()} />);
+
+    const phoneInput = await screen.findByLabelText(/owner's phone/i);
+    fireEvent.change(phoneInput, { target: { value: "9876543210" } });
+    fireEvent.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    expect(await screen.findByText("That number belongs to an admin account")).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't save your draft right now/i)).not.toBeInTheDocument();
+  });
+
+  it("owner mode: a business-rule 400 during submit still shows the generic draft-save text, not the raw server message", async () => {
+    seedReviewStepDraft("owner");
+    createOwnerListingMock.mockResolvedValue({ listingId: "draft-owner-2", status: "draft" });
+    submitOwnerListingMock.mockRejectedValue(
+      new ApiError("some internal validation code", { status: 400, code: "validation_error" })
+    );
+
+    render(<ListingWizard locale="en" mode="owner" onPublished={vi.fn()} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /submit for review/i }));
+
+    expect(await screen.findByText(/couldn't save your draft right now/i)).toBeInTheDocument();
+    expect(screen.queryByText("some internal validation code")).not.toBeInTheDocument();
   });
 
   it("owner mode: calls submitOwnerListing and never publishListingOnBehalf", async () => {
