@@ -1354,7 +1354,10 @@ export interface SeoCityConfigVm {
   localityCount: number;
   landmarkCount: number;
   metroCount: number;
+  /** Places clearing the listing threshold across localities, metro AND landmarks. */
   indexableCount: number;
+  /** Places that exist but render `noindex` and stay out of the sitemap. */
+  thinCount: number;
   enabledAt: string | null;
   notes: string | null;
   updatedAt: string | null;
@@ -1368,6 +1371,7 @@ interface SeoCityConfigRaw {
   landmark_count: number;
   metro_count: number;
   indexable_count: number;
+  thin_count?: number | null;
   enabled_at: string | null;
   notes: string | null;
   updated_at: string | null;
@@ -1382,6 +1386,7 @@ function mapSeoCityRow(row: SeoCityConfigRaw): SeoCityConfigVm {
     landmarkCount: row.landmark_count,
     metroCount: row.metro_count,
     indexableCount: row.indexable_count,
+    thinCount: row.thin_count ?? 0,
     enabledAt: row.enabled_at,
     notes: row.notes,
     updatedAt: row.updated_at

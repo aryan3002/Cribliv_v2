@@ -4,7 +4,7 @@ import {
   fetchEnabledCities,
   fetchListings,
   fetchMetroStation,
-  fetchMetroStationsForCity
+  fetchCityMetroStations
 } from "../../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../../lib/structured-data";
 import { isValidSlug } from "../../../../../../lib/seo";
@@ -63,7 +63,11 @@ export async function MetroStationView({
       },
       { revalidate }
     ),
-    fetchMetroStationsForCity(params.citySlug, { revalidate })
+    // The city's OWN stations. /map/metro returned whole lines touching the
+    // city, so this rail linked to stations the city does not have — phantom
+    // URLs that render as soft 404s. Thin stations are intentionally KEPT here:
+    // prev/next is line navigation, and dropping them would gap the sequence.
+    fetchCityMetroStations(params.citySlug, { revalidate })
   ]);
 
   // Find prev/next on same line
@@ -75,7 +79,7 @@ export async function MetroStationView({
     .filter((s) => s.station_name && s.station_name !== stationName)
     .slice(Math.max(0, idx - 3), idx + 4)
     .map((s) => ({
-      href: `/${locale}/city/${params.citySlug}/metro/${s.station_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      href: `/${locale}/city/${params.citySlug}/metro/${s.slug}`,
       label: s.station_name,
       sublabel: s.line_name
     }));

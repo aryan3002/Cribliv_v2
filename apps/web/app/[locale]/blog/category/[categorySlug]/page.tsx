@@ -31,7 +31,9 @@ export async function generateMetadata({
     ? `Cribliv Times के ${desk} डेस्क से किराया रिपोर्ट और गाइड।`
     : `Reporting and guides from the ${desk} desk of Cribliv Times.`;
   return {
-    title,
+    // `absolute` so the layout does not append "| Cribliv" after the masthead's
+    // own name — "Local Guides · Cribliv Times | Cribliv" said the brand twice.
+    title: { absolute: title },
     description,
     alternates: {
       canonical: `${BASE_URL}/en/blog/category/${params.categorySlug}`,

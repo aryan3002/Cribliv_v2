@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { fetchEnabledCities, fetchLocality, fetchSeoCopy } from "../../../../../lib/seo-api";
-import { buildPageMetadata } from "../../../../../lib/seo";
+import { buildPageMetadata, stripBrandSuffix } from "../../../../../lib/seo";
 import { buildLocalityTemplateCopy } from "../../../../../lib/seo-template-copy";
 import { LocalityHubView } from "./locality-view";
 
@@ -67,7 +67,10 @@ export async function generateMetadata({
   });
 
   return buildPageMetadata({
-    title: stored?.meta_title?.trim() || template.meta_title,
+    // Stored copy written before the title fix ends in "— Cribliv", and the root
+    // layout appends "| Cribliv" — hence the live double-brand. Strip it here so
+    // existing seo_copy rows are repaired without a prod data migration.
+    title: stripBrandSuffix(stored?.meta_title?.trim() || template.meta_title),
     description: stored?.meta_description?.trim() || template.meta_description,
     pathname: `/city/${params.citySlug}/${params.locality}`,
     locale,

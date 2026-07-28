@@ -55,6 +55,7 @@ describe("admin SEO city API", () => {
         landmarkCount: 12,
         metroCount: 21,
         indexableCount: 18,
+        thinCount: 0,
         enabledAt: "2026-07-03T00:00:00.000Z",
         notes: "reference",
         updatedAt: "2026-07-03T01:00:00.000Z"
@@ -96,6 +97,7 @@ describe("admin SEO city API", () => {
       landmarkCount: 14,
       metroCount: 8,
       indexableCount: 16,
+      thinCount: 0,
       enabledAt: null,
       notes: "paused",
       updatedAt: "2026-07-03T12:00:00.000Z"

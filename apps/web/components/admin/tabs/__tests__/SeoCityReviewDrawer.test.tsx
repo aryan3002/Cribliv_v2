@@ -47,6 +47,7 @@ const CITY: SeoCityConfigVm = {
   landmarkCount: 14,
   metroCount: 8,
   indexableCount: 16,
+  thinCount: 0,
   enabledAt: null,
   notes: "pending review",
   updatedAt: "2026-07-03T02:00:00.000Z"
