@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { LocaleChrome } from "../../components/locale-chrome";
 import { PageviewTracker } from "../../components/analytics/pageview-tracker";
 import { WelcomeCreditsModal } from "../../components/welcome-credits-modal";
+import { NamePromptProvider } from "../../components/name-capture/name-prompt-provider";
 import { ToastProvider } from "../../components/ui/toast/toast-provider";
 import { WhatsappFab } from "../../components/whatsapp-fab";
 import { isValidLocale, type Locale } from "../../lib/i18n";
@@ -62,9 +63,11 @@ export default function LocaleLayout({
         <PageviewTracker locale={params.locale} />
       </Suspense>
       <ToastProvider>
-        <LocaleChrome locale={params.locale as Locale} navData={navData}>
-          {children}
-        </LocaleChrome>
+        <NamePromptProvider locale={params.locale as Locale}>
+          <LocaleChrome locale={params.locale as Locale} navData={navData}>
+            {children}
+          </LocaleChrome>
+        </NamePromptProvider>
         <WelcomeCreditsModal locale={params.locale as Locale} />
         <WhatsappFab />
       </ToastProvider>

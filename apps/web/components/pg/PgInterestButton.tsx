@@ -8,6 +8,7 @@ import { useSession } from "next-auth/react";
 import { Heart, Check } from "lucide-react";
 import { readAuthSession } from "../../lib/client-auth";
 import { expressPgInterest } from "../../lib/pg-public-api";
+import { useNamePrompt } from "../name-capture/name-prompt-provider";
 
 const SHARING_LABEL: Record<string, string> = {
   single: "Single sharing",
@@ -40,6 +41,7 @@ export function PgInterestButton({
 }) {
   const pathname = usePathname();
   const { data: nextAuthSession } = useSession();
+  const { requireName } = useNamePrompt();
   const stored = readAuthSession();
   const token =
     stored?.access_token ??
@@ -88,6 +90,8 @@ export function PgInterestButton({
 
   async function onClick() {
     onBefore?.();
+    // The operator sees this name on the lead.
+    if (!(await requireName({ token: token as string }))) return;
     setState("loading");
     try {
       const res = await expressPgInterest(listingId, token as string, sharing || undefined);

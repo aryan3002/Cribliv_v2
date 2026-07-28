@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const expressPgInterest = vi.fn();
 let __session: { access_token: string } | null = null;
+const requireName = vi.fn();
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/en/pg/lucknow/abc" }));
 vi.mock("next-auth/react", () => ({ useSession: () => ({ data: null }) }));
@@ -10,12 +11,17 @@ vi.mock("../../../lib/client-auth", () => ({ readAuthSession: () => __session })
 vi.mock("../../../lib/pg-public-api", () => ({
   expressPgInterest: (...a: unknown[]) => expressPgInterest(...a)
 }));
+vi.mock("../../name-capture/name-prompt-provider", () => ({
+  useNamePrompt: () => ({ requireName })
+}));
 
 import { PgInterestButton } from "../PgInterestButton";
 
 beforeEach(() => {
   expressPgInterest.mockReset();
   __session = null;
+  requireName.mockReset();
+  requireName.mockResolvedValue(true);
 });
 
 describe("PgInterestButton", () => {
@@ -97,5 +103,40 @@ describe("PgInterestButton", () => {
     fireEvent.click(btn);
     expect(onBefore).toHaveBeenCalled();
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+  });
+
+  it("does not express interest when the name gate refuses", async () => {
+    __session = { access_token: "tok_1" };
+    requireName.mockResolvedValue(false);
+    render(<PgInterestButton listingId="abc" locale="en" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /i'?m interested/i }));
+
+    await waitFor(() => expect(requireName).toHaveBeenCalledWith({ token: "tok_1" }));
+    expect(expressPgInterest).not.toHaveBeenCalled();
+  });
+
+  it("expresses interest once the name gate grants", async () => {
+    __session = { access_token: "tok_1" };
+    requireName.mockResolvedValue(true);
+    expressPgInterest.mockResolvedValue({ interested: true, created: true, lead_id: "l1" });
+    render(<PgInterestButton listingId="abc" locale="en" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /i'?m interested/i }));
+
+    await waitFor(() => expect(screen.getByText(/has your interest/i)).toBeTruthy());
+    expect(expressPgInterest).toHaveBeenCalledWith("abc", "tok_1", undefined);
+  });
+
+  it("does not leave the button spinning when the gate refuses", async () => {
+    __session = { access_token: "tok_1" };
+    requireName.mockResolvedValue(false);
+    render(<PgInterestButton listingId="abc" locale="en" />);
+
+    fireEvent.click(screen.getByRole("button", { name: /i'?m interested/i }));
+
+    // The guard runs before setState("loading"), so the CTA stays clickable.
+    await waitFor(() => expect(requireName).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: /i'?m interested/i })).toBeTruthy();
   });
 });

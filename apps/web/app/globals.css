@@ -5513,6 +5513,10 @@ a.feature-card:hover .icon-circle {
   border-top: 1px solid var(--border);
 }
 
+.name-capture-overlay {
+  z-index: 110;
+}
+
 /* ── Signup reward reveal ───────────────────────────────────────────── */
 .welcome-reward-overlay {
   position: fixed;
@@ -23209,4 +23213,29 @@ a.feature-card:hover .icon-circle {
   .wa-fab:hover {
     transform: none;
   }
+}
+
+/* ── Name capture ─────────────────────────────────────────────────────────── */
+.name-capture-form__body {
+  margin: 0 0 12px;
+  color: var(--text-secondary, #5a6472);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.name-capture-form__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.name-capture-form__error {
+  margin: 8px 0 0;
+  color: var(--danger, #c62828);
+  font-size: 13px;
+}
+.name-capture-form__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
 }

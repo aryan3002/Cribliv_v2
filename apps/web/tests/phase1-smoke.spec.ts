@@ -20,9 +20,21 @@ test("search to listing detail shows unlock gate", async ({ page }) => {
 
 test("insufficient credits shows buy credits path", async ({ page, request }) => {
   const session = await loginAsRole(request, "tenant");
+  const apiBase = process.env.E2E_API_BASE_URL || "http://localhost:4000/v1";
+
+  // The Unlock Number click below now passes through the name-capture
+  // contact gate (unlock-contact-panel.tsx's requireName). The seeded tenant
+  // isn't guaranteed to have a name on a freshly-seeded DB, so set one
+  // explicitly rather than assume — this test is about the insufficient-
+  // credits path, not the name gate (see apps/web/tests/name-capture.spec.ts
+  // for that).
+  await request.patch(`${apiBase}/users/me`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+    data: { full_name: "Phase1 Smoke Tenant" }
+  });
+
   await setSessionOnPage(page, session);
 
-  const apiBase = process.env.E2E_API_BASE_URL || "http://localhost:4000/v1";
   const searchResponse = await request.get(`${apiBase}/listings/search`);
   expect(searchResponse.ok()).toBeTruthy();
   const searchPayload = await searchResponse.json();
