@@ -1,5 +1,13 @@
 "use client";
 
+// Concierge stylesheet — must be imported here directly. This component
+// imports its sibling step files individually rather than through ./index
+// (to avoid a circular import now that this file lives inside the barrel's
+// own directory and is re-exported from it), so index.ts's own
+// `import "./concierge.css"` is never reached by anything in the module
+// graph. Without this line the wizard renders with zero styling.
+import "./concierge.css";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
