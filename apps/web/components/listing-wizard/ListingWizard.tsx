@@ -875,7 +875,12 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
 
   return (
     <section
-      className="wizard-concierge"
+      // Embedded modifier only when mounted inside the admin shell
+      // (mode="admin"). Owner mode keeps the exact same className string
+      // as before ("wizard-concierge") — every embedded-only rule lives
+      // under .wizard-concierge--embedded in concierge.css, so this line
+      // is the only thing that distinguishes the two renders.
+      className={`wizard-concierge${mode === "admin" ? " wizard-concierge--embedded" : ""}`}
       data-voice-active={voiceActive ? "true" : "false"}
       data-maya-expanded={mayaExpanded ? "true" : "false"}
     >
