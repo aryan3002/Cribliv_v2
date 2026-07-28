@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Flat/house only.** Every listing-touching query filters `listing_type = 'flat_house'`. PG is explicitly out of scope (see spec Non-goals).
-- **Both phone columns move together.** No code path may write `owner_user_id` without also writing `contact_phone_encrypted`. This is the entire bug class the feature exists to prevent.
+- **Both phone columns move together (Postgres path).** No Postgres code path may write `owner_user_id` without also writing `contact_phone_encrypted`. This is the entire bug class the feature exists to prevent. The in-memory `AppStateService` fallback is exempt because its `ListingRecord` has no contact-phone field at all — that mode is a DB-less local-boot convenience where no real tenant ever unlocks a contact, so the bug cannot occur there.
 - **Dual-mode services.** Per `CLAUDE.md`, every service checks `DatabaseService.isEnabled()` and implements both the Postgres path and the `AppStateService` in-memory fallback.
 - **Audit via `admin_actions`, not `audit_logs`.** `admin_actions` is the established mechanism (8+ call sites; read back by the admin Activity tab at `admin-homes.service.ts:972`). `audit_logs` exists in the schema but is dead code. This supersedes the spec's Part 1 step 5.
 - **Phone format** is E.164 `+91XXXXXXXXXX`, matching the existing check at `admin.controller.ts:873`.
@@ -1191,18 +1191,16 @@ describe("TransferOwnerModal", () => {
     onTransferred: vi.fn()
   };
 
-  it("blocks submission until a plausible phone is entered", () => {
+  it("does not submit an empty phone", () => {
     const onTransfer = vi.fn();
     render(<TransferOwnerModal {...baseProps} onTransfer={onTransfer} />);
 
-    fireEvent.change(screen.getByLabelText(/owner's phone/i), { target: { value: "12345" } });
     fireEvent.click(screen.getByRole("button", { name: /transfer/i }));
 
     expect(onTransfer).not.toHaveBeenCalled();
-    expect(screen.getByText(/valid 10-digit/i)).toBeInTheDocument();
   });
 
-  it("submits the normalised phone and the name", async () => {
+  it("submits the phone as typed and lets the server normalise it", async () => {
     const onTransfer = vi.fn(async () => ({
       ownerUserId: "owner-9",
       ownerPhone: "+919956729103",
@@ -1218,7 +1216,21 @@ describe("TransferOwnerModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /transfer/i }));
 
     await waitFor(() =>
-      expect(onTransfer).toHaveBeenCalledWith("listing-1", "+919956729103", "Akash Rai")
+      expect(onTransfer).toHaveBeenCalledWith("listing-1", "99567 29103", "Akash Rai")
+    );
+  });
+
+  it("shows the server's rejection when the number is unusable", async () => {
+    const onTransfer = vi.fn(async () => {
+      throw new Error("Enter a valid Indian mobile number");
+    });
+    render(<TransferOwnerModal {...baseProps} onTransfer={onTransfer} />);
+
+    fireEvent.change(screen.getByLabelText(/owner's phone/i), { target: { value: "12345" } });
+    fireEvent.click(screen.getByRole("button", { name: /transfer/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/valid indian mobile number/i)).toBeInTheDocument()
     );
   });
 
@@ -1294,29 +1306,15 @@ export async function transferHomeOwner(
 
 Create `apps/web/components/admin/homes/TransferOwnerModal.tsx`:
 
+The API is the single authority on what a valid phone is — the modal deliberately does not
+re-implement `normalizeIndianPhone`. It posts what the worker typed and renders whatever the server
+says. That costs one round-trip on a typo and makes it impossible for the two implementations to
+drift apart.
+
 ```tsx
 "use client";
 
 import { useState } from "react";
-
-/**
- * Client-side mirror of the API's normaliser (apps/api/src/modules/admin/phone.util.ts).
- * Duplicated deliberately: the server is the authority, this only spares the
- * worker a round-trip on an obvious typo.
- */
-function normalizePhone(input: string): string | null {
-  let s = input.replace(/[\s\-()]/g, "");
-  if (s === "") return null;
-  if (s.startsWith("+")) {
-    if (!s.startsWith("+91")) return null;
-    s = s.slice(3);
-  } else if (s.length === 12 && s.startsWith("91")) {
-    s = s.slice(2);
-  } else if (s.startsWith("0")) {
-    s = s.replace(/^0+/, "");
-  }
-  return /^\d{10}$/.test(s) ? `+91${s}` : null;
-}
 
 export interface TransferOwnerModalProps {
   listingId: string;
@@ -1351,15 +1349,17 @@ export function TransferOwnerModal({
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    const normalized = normalizePhone(phone);
-    if (!normalized) {
-      setError("Enter a valid 10-digit Indian mobile number");
+    // No client-side normalising: the API owns that rule (phone.util.ts) and
+    // rejects with `invalid_phone`. Only the empty case is worth catching here,
+    // since it needs no server to know it is wrong.
+    if (!phone.trim()) {
+      setError("Enter the owner's phone number");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      const result = await onTransfer(listingId, normalized, name.trim() || undefined);
+      const result = await onTransfer(listingId, phone.trim(), name.trim() || undefined);
       onTransferred({ ownerPhone: result.ownerPhone, leadsMoved: result.leadsMoved });
       onClose();
     } catch (err) {
