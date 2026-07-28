@@ -24,12 +24,17 @@ export interface TransferInput {
 /**
  * The single place a flat/house listing ever changes hands.
  *
- * Two columns bind a listing to a person and they must always move together:
- * `owner_user_id` (dashboard, edit rights, new-lead routing, public "Listed by")
- * and `contact_phone_encrypted` (the number a tenant receives after spending a
- * credit — see contacts.service.ts:305). Moving only the first produces a
- * listing whose masked preview shows the new owner while paid unlocks still
- * hand out the old one, so a tenant pays and calls the wrong person.
+ * Three columns bind a listing to a person and they must always move
+ * together: `owner_user_id` (dashboard, edit rights, new-lead routing, public
+ * "Listed by"), `contact_phone_encrypted` (the number a tenant receives after
+ * spending a credit — see contacts.service.ts:305), and `whatsapp_available`
+ * (whether that same paid-unlock response advertises a WhatsApp CTA — see
+ * contacts.service.ts:305 and owner.service.ts:428 for where it's first
+ * written, from the creating user's own opt-in). Moving only `owner_user_id`
+ * produces a listing whose masked preview shows the new owner while paid
+ * unlocks still hand out the old one, so a tenant pays and calls the wrong
+ * person; leaving `whatsapp_available` behind similarly tells a tenant
+ * WhatsApp works for an owner who never opted in.
  *
  * Every change is audited to `admin_actions` (action='transfer_owner'), which
  * the admin home workspace's Activity tab reads back.
@@ -136,10 +141,21 @@ export class AdminListingTransferService {
         };
       }
 
+      // whatsapp_available moves too, sourced from the TARGET user (not
+      // carried over from the old owner): it is written at creation from the
+      // creating user's own whatsapp_opt_in (owner.service.ts:428), read back
+      // on the paid-unlock response (contacts.service.ts:305) and drives the
+      // WhatsApp CTA on the public listing page (listing-host-card.tsx:74).
+      // Leaving it untouched here would let a worker with whatsapp_opt_in=true
+      // publish on behalf of an owner who doesn't use WhatsApp, so a tenant
+      // spends a credit, is told WhatsApp works, and gets silence. The
+      // subquery re-reads the just-upserted row rather than threading a new
+      // bound param through — target.id is already $2.
       await client.query(
         `UPDATE listings
             SET owner_user_id = $2::uuid,
                 contact_phone_encrypted = $3,
+                whatsapp_available = (SELECT whatsapp_opt_in FROM users WHERE id = $2::uuid),
                 ${input.alsoSubmit ? "status = 'pending_review'," : ""}
                 updated_at = now()
           WHERE id = $1::uuid`,

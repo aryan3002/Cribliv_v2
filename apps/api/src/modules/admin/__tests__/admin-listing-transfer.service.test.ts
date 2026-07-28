@@ -82,6 +82,35 @@ describe("AdminListingTransferService.transferOwner — DB mode", () => {
     expect(result.already_owned).toBe(false);
   });
 
+  it("moves whatsapp_available too, sourced from the target user's own opt-in", async () => {
+    const { service, query } = makeDbService({});
+
+    await service.transferOwner({
+      listingId: LISTING,
+      phoneE164: "+919956729103",
+      adminUserId: "admin-1"
+    });
+
+    // whatsapp_available is a third owner-derived column alongside
+    // owner_user_id/contact_phone_encrypted (Finding 2, 2026-07-28 review):
+    // written at creation from the CREATING user's whatsapp_opt_in
+    // (owner.service.ts:428), read back on the paid-unlock response
+    // (contacts.service.ts:305), and driving the public WhatsApp CTA
+    // (listing-host-card.tsx:74). Leaving it behind on transfer lets a
+    // tenant spend a credit, get told WhatsApp works, and hear nothing back
+    // from an owner who never opted in. Assert the SQL shape, not just that
+    // the column name appears somewhere: it must be a subquery keyed off the
+    // TARGET user (the same $2 bound param as owner_user_id), not carried
+    // over from the old owner or copied from the admin's own opt-in.
+    const updateCall = query.mock.calls.find(([sql]: [string]) => /UPDATE listings/i.test(sql)) as
+      | [string, unknown[]]
+      | undefined;
+    expect(updateCall).toBeDefined();
+    expect(updateCall![0]).toMatch(
+      /whatsapp_available\s*=\s*\(SELECT\s+whatsapp_opt_in\s+FROM\s+users\s+WHERE\s+id\s*=\s*\$2::uuid\)/i
+    );
+  });
+
   it("leaves verification_status untouched — the badge describes the property, not the person", async () => {
     const { service, query } = makeDbService({});
 
