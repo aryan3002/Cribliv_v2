@@ -107,6 +107,41 @@ export async function setAdminHomeAvailability(
 }
 
 /**
+ * Hand a flat/house listing to its real owner, identified by phone. Creates the
+ * account if the number is new; the owner is granted the `owner` role on their
+ * first OTP login. Moves the account binding and the callback number together.
+ */
+export async function transferHomeOwner(
+  accessToken: string,
+  listingId: string,
+  phoneE164: string,
+  fullName?: string
+): Promise<{
+  ownerUserId: string;
+  ownerPhone: string;
+  leadsMoved: number;
+  alreadyOwned: boolean;
+}> {
+  const response = await fetchApi<{
+    owner_user_id: string;
+    owner_phone: string;
+    leads_moved: number;
+    already_owned: boolean;
+  }>(`/admin/homes/${listingId}/transfer`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ phone_e164: phoneE164, full_name: fullName })
+  });
+
+  return {
+    ownerUserId: response.owner_user_id,
+    ownerPhone: response.owner_phone,
+    leadsMoved: response.leads_moved,
+    alreadyOwned: response.already_owned
+  };
+}
+
+/**
  * Admin-only waitlist view — includes phone numbers (the owner-facing detail
  * only ever gets `waitlist_count`). Used to power call/export actions in the
  * Verified Homes workspace.

@@ -280,7 +280,13 @@ export function AdminHomeWorkspace({
         {tab === "verification" && (
           <HomeVerificationTab accessToken={accessToken} detail={detail} onToast={onToast} />
         )}
-        {tab === "owner" && <HomeOwnerTab detail={detail} />}
+        {tab === "owner" && (
+          <HomeOwnerTab
+            detail={detail}
+            accessToken={accessToken}
+            onOwnerChanged={() => setReloadKey((key) => key + 1)}
+          />
+        )}
         {tab === "activity" && <HomeActivityTab detail={detail} />}
       </div>
     </WorkspaceFrame>
