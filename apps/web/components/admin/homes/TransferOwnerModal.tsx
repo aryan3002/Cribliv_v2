@@ -115,7 +115,7 @@ export function TransferOwnerModal({
               style={{ width: "100%" }}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="99567 29103"
+              placeholder="98765 43210"
               inputMode="tel"
               disabled={busy}
             />

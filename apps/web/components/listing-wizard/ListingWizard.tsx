@@ -1079,7 +1079,7 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
                     className="cz-input"
                     value={ownerPhone}
                     onChange={(e) => setOwnerPhone(e.target.value)}
-                    placeholder="99567 29103"
+                    placeholder="98765 43210"
                     inputMode="tel"
                     required
                   />

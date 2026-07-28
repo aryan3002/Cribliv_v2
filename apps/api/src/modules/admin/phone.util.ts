@@ -3,7 +3,7 @@
  * table stores (`+91XXXXXXXXXX`, matching the check at admin.controller.ts:873).
  *
  * Admin-entered phone numbers arrive from field workers typing on mobile
- * keyboards, so `99567 29103`, `099567...` and `+91 99567 29103` are all normal
+ * keyboards, so `98765 43210`, `098765...` and `+91 98765 43210` are all normal
  * input. Returns null when the value cannot be read as an Indian mobile number —
  * callers surface that as `invalid_phone` rather than guessing.
  */
