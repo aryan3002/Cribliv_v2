@@ -36,9 +36,17 @@ const dictionary: Dictionary = {
   // accessible name for the row of quick-filter chips shown below 900px on
   // the browse pages, where the desktop mega-menu panels never mount.
   navIntentRailLabel: { en: "Quick filters", hi: "त्वरित फिल्टर" },
-  // Second column of the Cribliv Times hover panel (the first, "Desks", comes
-  // pre-translated from buildTimesPanel via lib/blog-desks.ts).
-  navTimesLatest: { en: "Latest", hi: "नवीनतम" },
+  // Cribliv Times hover panel's front-page-in-miniature (components/header/
+  // times-panel.tsx): "Desks" (first column) comes pre-translated from
+  // buildTimesPanel via lib/blog-desks.ts. These two label the rest — the
+  // secondary-headlines rail (matching the blog hub page's own rail heading,
+  // app/[locale]/blog/page.tsx) and the footer link into the blog itself.
+  navTimesAlsoReported: { en: "Also Reported", hi: "और खबरें" },
+  navTimesReadAll: { en: "Read Cribliv Times", hi: "क्रिबलिव टाइम्स पढ़ें" },
+  // Kicker fallback for a post whose category isn't one of the four seeded
+  // desks (lib/blog-desks.ts) — mirrors the blog hub's own deskLabel()
+  // fallback (app/[locale]/blog/_components/blog-format.ts).
+  navTimesReport: { en: "Report", hi: "रिपोर्ट" },
   navPostProperty: { en: "Post Property", hi: "प्रॉपर्टी पोस्ट करें" },
   navLoginSignup: { en: "Login / Sign up", hi: "लॉगिन / साइन अप" },
   navMyListings: { en: "My Listings", hi: "मेरी लिस्टिंग" },

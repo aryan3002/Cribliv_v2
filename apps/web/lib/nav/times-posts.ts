@@ -2,6 +2,15 @@ export interface TimesPost {
   slug: string;
   title: string;
   category: string | null;
+  // Added so the panel can render a real lead story (kicker + headline + dek
+  // + byline) instead of a bare headline. Optional — not required — so older
+  // fixtures/mocks that only ever set slug/title/category (this file's own
+  // test, times-panel.test.tsx's original suite) keep compiling; the route
+  // handler always sends all three now, defaulting missing upstream data to
+  // null (see apps/web/app/api/nav/times/route.ts).
+  excerpt?: string | null;
+  publishedAt?: string | null;
+  author?: string | null;
 }
 
 let inflight: Promise<TimesPost[]> | null = null;

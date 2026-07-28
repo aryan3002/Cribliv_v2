@@ -24,7 +24,14 @@ export async function GET() {
       .map((item) => ({
         slug: item.slug ?? "",
         title: item.title ?? "",
-        category: item.category_slug ?? null
+        category: item.category_slug ?? null,
+        // Everything below is new (the panel used to render bare headlines
+        // only): excerpt is the lead story's "dek", publishedAt/author feed
+        // its byline. All three are nullable in the upstream BlogListItem
+        // shape, so the panel must already tolerate any of them missing.
+        excerpt: item.excerpt ?? null,
+        publishedAt: item.published_at ?? null,
+        author: item.author ?? null
       }))
       .filter((p) => p.slug.length > 0 && p.title.length > 0)
       .slice(0, MAX_POSTS);
