@@ -70,13 +70,21 @@ export function AdminHomeWorkspace({
   const [tab, setTab] = useState<WorkspaceTab>("overview");
   const unavailableListingsFlagOn = useFlag("ff_unavailable_listings");
 
+  // Reset to the Overview tab only when the admin opens a *different*
+  // listing — not on every reloadKey-triggered refetch of the same listing
+  // (e.g. after a successful owner transfer). Keyed on listingId alone so a
+  // reload-only refresh doesn't bounce the admin off whichever tab they were
+  // reviewing when the refreshed data lands.
+  useEffect(() => {
+    setTab("overview");
+  }, [listingId]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setDetail(null);
     setError(null);
     setNotFound(false);
-    setTab("overview");
 
     void fetchAdminHomeDetail(accessToken, listingId)
       .then((response) => {
