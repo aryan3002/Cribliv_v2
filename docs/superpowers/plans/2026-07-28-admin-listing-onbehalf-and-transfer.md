@@ -1631,9 +1631,12 @@ Note: confirm the metadata key by reading `apps/api/src/common/roles.decorator.t
 
 In `apps/api/src/modules/owner/owner.controller.ts`, add `@Roles("owner", "admin")` immediately above each of these decorators — `@Get("listings")` (`list`), `@Post("listings")` (`create`), `@Get("listings/:listing_id")` (`getListing`), `@Patch("listings/:listing_id")` (`update`), `@Post("listings/:listing_id/photos/presign")` (`presign`), `@Post("listings/:listing_id/photos/complete")` (`complete`), `@Patch("listings/:listing_id/photos/reorder")` (`reorderPhotos`), `@Post("listings/:listing_id/submit")` (`submit`), `@Post("listings/generate-content")` (`generateContent`) — and update the class comment at line 64:
 
-`list` and `getListing` are included because Task 8's Add Listing tab shows the worker their own
-unfinished drafts and lets them resume one; both read through these endpoints. Every other route on
-this controller — visibility, availability-status, contact-unlocks — stays owner-only.
+`getListing` is included because the wizard's own `?edit=` path reads through it, and `list` costs
+nothing alongside it. (An earlier draft justified these by an unfinished-drafts list in Task 8's
+tab; that is deliberately deferred — the wizard's sessionStorage restore already covers the
+interrupted case, and a cross-device drafts list is a separate feature with its own resume/discard
+decisions.) Every other route on this controller — visibility, availability-status,
+contact-unlocks — stays owner-only.
 
 ```typescript
   // Wizard endpoints also accept `admin`: the same wizard is mounted in the
