@@ -82,6 +82,29 @@ export class AdminHomesController {
     );
   }
 
+  /**
+   * Create-on-behalf publish: hand the draft to its owner AND move it into
+   * review, atomically. These cannot be two calls — submitListing() is scoped to
+   * owner_user_id, so after the transfer the acting admin is no longer the owner
+   * and a separate submit would fail.
+   */
+  @Post(":listing_id/publish-on-behalf")
+  async publishOnBehalf(
+    @Req() req: { user: { id: string } },
+    @Param("listing_id") listingId: string,
+    @Body() body: { phone_e164: string; full_name?: string }
+  ) {
+    return ok(
+      await this.transfers.transferOwner({
+        listingId,
+        phoneE164: body.phone_e164,
+        fullName: body.full_name,
+        adminUserId: req.user.id,
+        alsoSubmit: true
+      })
+    );
+  }
+
   // Admin-only waitlist leads — includes phone numbers (owners only ever see
   // a count on their own listing view).
   @Get(":listing_id/waitlist")

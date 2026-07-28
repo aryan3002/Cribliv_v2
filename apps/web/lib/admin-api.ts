@@ -142,6 +142,29 @@ export async function transferHomeOwner(
 }
 
 /**
+ * Publish a draft created on an owner's behalf. Transfers ownership and moves
+ * the listing into review in a single server-side transaction — submitListing()
+ * is scoped to owner_user_id, so once ownership moves a separate submit call
+ * would fail; the API does both atomically behind this one endpoint.
+ */
+export async function publishListingOnBehalf(
+  accessToken: string,
+  listingId: string,
+  phoneE164: string,
+  fullName?: string
+): Promise<{ ownerUserId: string; ownerPhone: string }> {
+  const response = await fetchApi<{ owner_user_id: string; owner_phone: string }>(
+    `/admin/homes/${listingId}/publish-on-behalf`,
+    {
+      method: "POST",
+      headers: authHeaders(accessToken),
+      body: JSON.stringify({ phone_e164: phoneE164, full_name: fullName })
+    }
+  );
+  return { ownerUserId: response.owner_user_id, ownerPhone: response.owner_phone };
+}
+
+/**
  * Admin-only waitlist view — includes phone numbers (the owner-facing detail
  * only ever gets `waitlist_count`). Used to power call/export actions in the
  * Verified Homes workspace.

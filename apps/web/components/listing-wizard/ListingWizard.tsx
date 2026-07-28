@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { trackEvent } from "../../lib/analytics";
 import { t, type Locale } from "../../lib/i18n";
+import { publishListingOnBehalf } from "../../lib/admin-api";
 import {
   completeListingPhotos,
   createSalesLead,
@@ -120,6 +121,12 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
   const [pgPath, setPgPath] = useState<PgPath>(null);
   const [salesAssistNotice, setSalesAssistNotice] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Create-on-behalf hand-off (mode === "admin" only) — collected on the
+  // Review step and sent to /admin/homes/:id/publish-on-behalf instead of the
+  // owner submit endpoint. Not persisted to sessionStorage: re-entered if the
+  // admin reloads mid-draft, same as the rest of a fresh session.
+  const [ownerPhone, setOwnerPhone] = useState("");
+  const [ownerName, setOwnerName] = useState("");
 
   /* ── Voice + animation state ───────────────────────────────────── */
   const [voiceActive, setVoiceActive] = useState(false);
@@ -496,7 +503,23 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
       } else {
         await updateOwnerListing(accessToken, draftId, buildDraftInput());
       }
-      await submitOwnerListing(accessToken, draftId);
+      if (mode === "admin") {
+        // Guard after the draft is saved, not before: the admin's other
+        // entries should still persist even if they forgot the phone, so
+        // they can come back and finish the hand-off without retyping.
+        if (!ownerPhone.trim()) {
+          setError("Enter the owner's phone number");
+          return;
+        }
+        await publishListingOnBehalf(
+          accessToken,
+          draftId,
+          ownerPhone.trim(),
+          ownerName.trim() || undefined
+        );
+      } else {
+        await submitOwnerListing(accessToken, draftId);
+      }
       if (pgPath === "sales_assist") {
         try {
           await createSalesLead(accessToken, {
@@ -1021,6 +1044,43 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
           ) : null}
           {step === 5 ? (
             <ReviewStep form={form} uploads={uploads} pgPath={pgPath} locale={locale} />
+          ) : null}
+
+          {step === 5 && mode === "admin" ? (
+            <div className="wizard-owner-handoff cz-card cz-fade cz-fade--2">
+              <div className="cz-card__eyebrow">Hand off to owner</div>
+              <div className="cz-row">
+                <div className="cz-field">
+                  <label className="cz-label" htmlFor="onbehalf-phone">
+                    Owner&apos;s phone
+                  </label>
+                  <input
+                    id="onbehalf-phone"
+                    className="cz-input"
+                    value={ownerPhone}
+                    onChange={(e) => setOwnerPhone(e.target.value)}
+                    placeholder="99567 29103"
+                    inputMode="tel"
+                    required
+                  />
+                </div>
+                <div className="cz-field">
+                  <label className="cz-label" htmlFor="onbehalf-name">
+                    Owner&apos;s name (optional)
+                  </label>
+                  <input
+                    id="onbehalf-name"
+                    className="cz-input"
+                    value={ownerName}
+                    onChange={(e) => setOwnerName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <p className="cz-card__intent">
+                Publishing hands this listing to that number. Tenants who unlock will call it, not
+                you.
+              </p>
+            </div>
           ) : null}
 
           <div className="cz-nav cz-fade cz-fade--3">

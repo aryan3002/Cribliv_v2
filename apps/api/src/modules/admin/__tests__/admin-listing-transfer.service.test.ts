@@ -302,6 +302,45 @@ describe("AdminListingTransferService.transferOwner — DB mode", () => {
     const updateCall = query.mock.calls.find(([sql]: [string]) => /UPDATE listings/i.test(sql));
     expect(updateCall![0]).toContain("pending_review");
   });
+
+  // Edge case: publish-on-behalf re-run (or same number re-entered) on a
+  // listing that already belongs to the target. The already_owned early
+  // return is gated on `!input.alsoSubmit`, so alsoSubmit skips it and falls
+  // through to the real UPDATE — that fallthrough is what actually flips
+  // status. Without it, clicking "publish" a second time (or on a listing an
+  // admin resumed after an earlier transfer) would silently no-op forever.
+  it("still runs the UPDATE and flips status when alsoSubmit targets the already-current owner", async () => {
+    const { service, query } = makeDbService({
+      listingRow: {
+        id: LISTING,
+        owner_user_id: NEW_OWNER,
+        listing_type: "flat_house",
+        status: "active"
+      }
+    });
+
+    const result = await service.transferOwner({
+      listingId: LISTING,
+      phoneE164: "+919956729103",
+      adminUserId: "admin-1",
+      alsoSubmit: true
+    });
+
+    const updateCall = query.mock.calls.find(([sql]: [string]) => /UPDATE listings/i.test(sql)) as
+      | [string, unknown[]]
+      | undefined;
+    expect(updateCall).toBeDefined();
+    expect(updateCall![0]).toContain("pending_review");
+    expect(result.leads_moved).toBe(0);
+
+    // Pinning current behaviour, not endorsing it as the only sensible shape:
+    // because the alsoSubmit branch never takes the already-owned early
+    // return, `already_owned` reports false here even though the target owned
+    // the listing going in — with alsoSubmit set, this flag only ever means
+    // "the short-circuit path was skipped", not "a transfer actually
+    // happened". Callers must not read it as a no-op signal in this mode.
+    expect(result.already_owned).toBe(false);
+  });
 });
 
 describe("AdminListingTransferService.transferOwner — in-memory mode", () => {
