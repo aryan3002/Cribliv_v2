@@ -94,20 +94,15 @@ export class WhatsAppClient {
       return { success: false, error: "missing_credentials" };
     }
 
-    // A Meta authentication template carries the code TWICE: once in the body
-    // variable ("<CODE> is your verification code") and once in the copy-code
-    // button. D7 exposes these as two different fields, and its docs and its
-    // portal sample each show only one of them — so we send both. Templates
-    // with no button simply carry body_parameter_values.
-    const bodyParameterValues: Record<string, string> = {};
-    (message.bodyParams ?? []).forEach((value, index) => {
-      bodyParameterValues[String(index)] = value;
-    });
-
+    // Authentication templates take the code ONLY in the button's
+    // action_payload — Meta renders the body text ("<CODE> is your verification
+    // code") from that same value, so the template declares zero body
+    // variables. Sending body_parameter_values alongside is rejected with
+    // TEMPLATE_PARAMETER_COUNT_MISMATCH (verified against D7 2026-07-28).
+    // Ordinary templates take the reverse: body values, no buttons.
     const template: Record<string, unknown> = {
       template_id: message.templateName,
-      language: message.languageCode,
-      body_parameter_values: bodyParameterValues
+      language: message.languageCode
     };
 
     if (message.buttonParams?.length) {
@@ -118,6 +113,12 @@ export class WhatsAppClient {
           action_payload: value
         }))
       };
+    } else {
+      const bodyParameterValues: Record<string, string> = {};
+      (message.bodyParams ?? []).forEach((value, index) => {
+        bodyParameterValues[String(index)] = value;
+      });
+      template.body_parameter_values = bodyParameterValues;
     }
 
     const body = {

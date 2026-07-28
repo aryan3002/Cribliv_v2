@@ -29,7 +29,12 @@ describe("WhatsAppClient D7 transport", () => {
     return spy;
   }
 
-  it("posts D7's auth-template shape with the code in BOTH body and button", async () => {
+  /**
+   * Verified against the live D7 API on 2026-07-28: an authentication template
+   * declares zero body variables, so including body_parameter_values alongside
+   * the button is rejected with TEMPLATE_PARAMETER_COUNT_MISMATCH.
+   */
+  it("posts the auth-template shape with the code ONLY in the button", async () => {
     const spy = stub({ request_id: "req_1" });
 
     const result = await new WhatsAppClient().sendTemplate({
@@ -56,7 +61,6 @@ describe("WhatsAppClient D7 transport", () => {
             template: {
               template_id: "cribliv",
               language: "en",
-              body_parameter_values: { "0": "123456" },
               buttons: {
                 actions: [{ action_index: "0", action_type: "url", action_payload: "123456" }]
               }
@@ -66,6 +70,8 @@ describe("WhatsAppClient D7 transport", () => {
         }
       ]
     });
+    // The failure mode this guards against — D7 rejects the send if present.
+    expect(body.messages[0].content.template.body_parameter_values).toBeUndefined();
   });
 
   it("omits the buttons block for templates with no button", async () => {

@@ -23,7 +23,13 @@ import {
  * Docs: https://developers.facebook.com/docs/whatsapp/business-management-api/authentication-templates
  */
 
-const DEFAULT_EXPIRY_SEC = 300;
+/**
+ * Must match the expiry baked into the approved Meta auth template, which
+ * renders "Expires in N minutes" in the message body. The live `cribliv`
+ * template says 10 minutes, so a shorter challenge would reject codes the
+ * user was told were still valid.
+ */
+const DEFAULT_EXPIRY_SEC = 600;
 
 /** Meta error codes meaning this recipient can never receive on WhatsApp. */
 const UNDELIVERABLE_PATTERNS = [/\b131026\b/, /\b131051\b/, /undeliverable/i];
