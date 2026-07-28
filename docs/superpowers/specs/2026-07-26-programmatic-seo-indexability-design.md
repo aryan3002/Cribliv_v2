@@ -137,9 +137,26 @@ in `packages/shared-types` covers SEO, which is why the constant drifted.
   `Rent Flats in Gomti Nagar, Lucknow — Cribliv | Cribliv`. A page-level title
   already carrying the brand is passed through a metadata template that appends it
   again. Directly suppresses non-brand CTR.
-- **Duplicate `robots` tags.** Not-found pages emit both
-  `<meta name="robots" content="noindex, follow">` and
-  `<meta name="robots" content="noindex">`.
+- ~~**Duplicate `robots` tags.**~~ **CORRECTED 2026-07-26 — not our bug, no fix
+  needed.** Re-measured on production: a healthy page (`/city/lucknow/gomti-nagar`)
+  emits **zero** `robots` metas, and only the not-found path emits two
+  (`noindex, follow` from `buildPageMetadata` plus a bare `noindex`). There is no
+  raw `robots` meta anywhere in `apps/web`, so the second tag is **Next.js's own
+  injection on the not-found boundary**. Both agree, and Google takes the most
+  restrictive, so the signal is correct — merely redundant. Do not "fix" this.
+
+- **Double-branded titles — root cause is stored DATA, not code.** The original
+  entry assumed a code bug. Measured 2026-07-26, the real chain is:
+  `apps/api/src/modules/seo/seo-copy.service.ts` prompted the model for a
+  `meta_title` that **"ends with — Cribliv"**, the locality page prefers
+  `stored.meta_title` over its template
+  (`[locality]/page.tsx`), and the root layout appends `| Cribliv` — producing the
+  live `Rent Flats in Gomti Nagar, Lucknow — Cribliv | Cribliv`. Two further
+  code-level cases: `pg/[city]/page.tsx` embedded `| Cribliv` in its own literal
+  (`… | Cribliv | Cribliv` on prod), and the blog category page appended the brand
+  after the masthead's own name (`Local Guides · Cribliv Times | Cribliv`).
+  Fixing only the generator would have left every existing `seo_copy` row broken,
+  so the fix strips the suffix at render as well.
 - **Admin metrics are not decision-grade.** `SeoProgrammaticPages.tsx:54` sums
   `indexableCount` across **draft** cities too; `indexable_count` counts only
   _localities_ clearing the threshold and ignores metro, landmark and all 26 intent
