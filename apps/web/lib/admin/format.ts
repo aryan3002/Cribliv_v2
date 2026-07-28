@@ -69,6 +69,52 @@ export function formatPhone(phone: string | null | undefined): string {
   return phone;
 }
 
+/**
+ * Client-side PREVIEW of what the API's normalizeIndianPhone
+ * (apps/api/src/modules/admin/phone.util.ts) will resolve an admin-entered
+ * phone to, so the admin wizard's Review step can echo "this is who gets the
+ * listing" back to the worker before they publish (2026-07-28 review,
+ * Finding 5 — a confirmation checkpoint before a listing, and its paid-unlock
+ * callback number, hand to whoever this resolves to). Returns null for
+ * anything unparseable rather than guessing at a preview.
+ *
+ * Display-only. This value must NEVER be used to block submission — the API
+ * is still the sole validator. TransferOwnerModal.tsx already documents why
+ * the web side deliberately doesn't re-implement phone VALIDATION (a typo
+ * costs one round-trip on the real endpoint rather than risking the two
+ * implementations drifting apart); this preview is a narrower, additive
+ * thing — read-only, informational, and never rejects input the server
+ * would accept or accepts input the server would reject, because it never
+ * gates anything at all.
+ *
+ * Mirrors the API's rules 1:1 (strip whitespace/hyphens, accept +91/91/0
+ * prefixes, require a 10-digit subscriber number starting 6-9). The two
+ * copies can still drift if one changes without the other — but the failure
+ * mode of drift here is a stale or wrong PREVIEW, never a wrong WRITE: the
+ * real publish call still goes through the API, which re-validates
+ * independently and is the only thing that actually moves the listing. If
+ * this drifts in practice, the fix is consolidating both copies into
+ * packages/shared-types (dependency-free, already imported by both apps —
+ * see CLAUDE.md's "shared-types must stay dependency-free" note) rather than
+ * hand-syncing two copies indefinitely.
+ */
+export function previewNormalizedIndianPhone(input: string): string | null {
+  let s = String(input ?? "").replace(/[\s\-()]/g, "");
+  if (s === "") return null;
+
+  if (s.startsWith("+")) {
+    if (!s.startsWith("+91")) return null;
+    s = s.slice(3);
+  } else if (s.length === 12 && s.startsWith("91")) {
+    s = s.slice(2);
+  } else if (s.startsWith("0")) {
+    s = s.replace(/^0+/, "");
+  }
+
+  if (!/^[6-9]\d{9}$/.test(s)) return null;
+  return formatPhone(`+91${s}`);
+}
+
 export function formatHourBucket(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString("en-IN", { hour: "2-digit", hour12: false });

@@ -14,6 +14,7 @@ import { useSession, signOut } from "next-auth/react";
 import { trackEvent } from "../../lib/analytics";
 import { t, type Locale } from "../../lib/i18n";
 import { publishListingOnBehalf } from "../../lib/admin-api";
+import { previewNormalizedIndianPhone } from "../../lib/admin/format";
 import {
   completeListingPhotos,
   createSalesLead,
@@ -139,6 +140,12 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
   // admin reloads mid-draft, same as the rest of a fresh session.
   const [ownerPhone, setOwnerPhone] = useState("");
   const [ownerName, setOwnerName] = useState("");
+  // Confirmation checkpoint before publish hands the listing (and its
+  // paid-unlock callback number) to whoever this resolves to — 2026-07-28
+  // review, Finding 5. Display-only: null just means nothing renders yet,
+  // never a rejection. See previewNormalizedIndianPhone's own doc comment
+  // for why this mirrors, rather than imports, the API's normaliser.
+  const ownerPhonePreview = previewNormalizedIndianPhone(ownerPhone);
 
   /* ── Voice + animation state ───────────────────────────────────── */
   const [voiceActive, setVoiceActive] = useState(false);
@@ -1076,6 +1083,11 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
                     inputMode="tel"
                     required
                   />
+                  {ownerPhonePreview ? (
+                    <p className="cz-help">
+                      This listing will be handed to <strong>{ownerPhonePreview}</strong>.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="cz-field">
                   <label className="cz-label" htmlFor="onbehalf-name">

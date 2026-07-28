@@ -187,6 +187,61 @@ describe("ListingWizard publish branch", () => {
     expect(screen.queryByText("some internal validation code")).not.toBeInTheDocument();
   });
 
+  // Finding 5 (2026-07-28 review): a confirmation checkpoint before publish
+  // hands the listing, and its paid-unlock callback number, to whoever the
+  // typed phone resolves to. Display-only — must never block submission
+  // (see previewNormalizedIndianPhone's own doc comment on why the web side
+  // deliberately doesn't re-implement phone VALIDATION).
+  it("admin mode: echoes a normalised phone preview beneath the input as the worker types", async () => {
+    seedReviewStepDraft("admin");
+    createOwnerListingMock.mockResolvedValue({ listingId: "draft-preview-1", status: "draft" });
+
+    render(<ListingWizard locale="en" mode="admin" onPublished={vi.fn()} />);
+
+    const phoneInput = await screen.findByLabelText(/owner's phone/i);
+    fireEvent.change(phoneInput, { target: { value: "98765 43210" } });
+
+    // Matched via each element's own textContent (not the default
+    // getNodeText, which only looks at an element's direct text-node
+    // children and would miss the number sitting inside a nested <strong>)
+    // so this pins the whole rendered sentence, not just a substring.
+    expect(
+      await screen.findByText(
+        (_, element) => element?.textContent === "This listing will be handed to +91 98765 43210."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("admin mode: shows no preview for an unrecognisable number, and does not block publish on it", async () => {
+    seedReviewStepDraft("admin");
+    createOwnerListingMock.mockResolvedValue({ listingId: "draft-preview-2", status: "draft" });
+    publishListingOnBehalfMock.mockResolvedValue({
+      ownerUserId: "owner-1",
+      ownerPhone: "+919876543210"
+    });
+    const onPublished = vi.fn();
+
+    render(<ListingWizard locale="en" mode="admin" onPublished={onPublished} />);
+
+    const phoneInput = await screen.findByLabelText(/owner's phone/i);
+    fireEvent.change(phoneInput, { target: { value: "123" } });
+
+    expect(screen.queryByText(/This listing will be handed to/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    // The raw, unrecognisable string still goes straight to the server — the
+    // preview is informational only and never gates submission.
+    await waitFor(() => expect(publishListingOnBehalfMock).toHaveBeenCalledTimes(1));
+    expect(publishListingOnBehalfMock).toHaveBeenCalledWith(
+      "test-access-token",
+      "draft-preview-2",
+      "123",
+      undefined
+    );
+    await waitFor(() => expect(onPublished).toHaveBeenCalledWith("draft-preview-2"));
+  });
+
   it("owner mode: calls submitOwnerListing and never publishListingOnBehalf", async () => {
     seedReviewStepDraft("owner");
     createOwnerListingMock.mockResolvedValue({ listingId: "draft-owner-1", status: "draft" });
