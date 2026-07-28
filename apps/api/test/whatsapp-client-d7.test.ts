@@ -29,12 +29,12 @@ describe("WhatsAppClient D7 transport", () => {
     return spy;
   }
 
-  it("posts D7's authentication-template shape with the code in action_payload", async () => {
+  it("posts D7's auth-template shape with the code in BOTH body and button", async () => {
     const spy = stub({ request_id: "req_1" });
 
     const result = await new WhatsAppClient().sendTemplate({
       to: "+919044904818",
-      templateName: "3_auth_copy",
+      templateName: "cribliv",
       languageCode: "en",
       bodyParams: ["123456"],
       buttonParams: ["123456"]
@@ -54,8 +54,9 @@ describe("WhatsAppClient D7 transport", () => {
           content: {
             message_type: "TEMPLATE",
             template: {
-              template_id: "3_auth_copy",
+              template_id: "cribliv",
               language: "en",
+              body_parameter_values: { "0": "123456" },
               buttons: {
                 actions: [{ action_index: "0", action_type: "url", action_payload: "123456" }]
               }
@@ -65,6 +66,21 @@ describe("WhatsAppClient D7 transport", () => {
         }
       ]
     });
+  });
+
+  it("omits the buttons block for templates with no button", async () => {
+    const spy = stub({ request_id: "req_3" });
+
+    await new WhatsAppClient().sendTemplate({
+      to: "+919044904818",
+      templateName: "listing_approved",
+      languageCode: "hi",
+      bodyParams: ["Flat 2BHK", "Gomti Nagar"]
+    });
+
+    const template = JSON.parse(spy.mock.calls[0][1].body).messages[0].content.template;
+    expect(template.body_parameter_values).toEqual({ "0": "Flat 2BHK", "1": "Gomti Nagar" });
+    expect(template.buttons).toBeUndefined();
   });
 
   it("falls back to D7_KEY when D7_WHATSAPP_TOKEN is unset", async () => {

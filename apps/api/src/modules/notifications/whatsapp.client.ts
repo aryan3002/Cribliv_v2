@@ -94,24 +94,37 @@ export class WhatsAppClient {
       return { success: false, error: "missing_credentials" };
     }
 
-    // D7 carries the code only in the button's action_payload — unlike Meta,
-    // there is no separate body parameter. Meta fills the visible body text
-    // from the same code on its side.
-    const code = message.buttonParams?.[0] ?? message.bodyParams?.[0] ?? "";
+    // A Meta authentication template carries the code TWICE: once in the body
+    // variable ("<CODE> is your verification code") and once in the copy-code
+    // button. D7 exposes these as two different fields, and its docs and its
+    // portal sample each show only one of them — so we send both. Templates
+    // with no button simply carry body_parameter_values.
+    const bodyParameterValues: Record<string, string> = {};
+    (message.bodyParams ?? []).forEach((value, index) => {
+      bodyParameterValues[String(index)] = value;
+    });
+
+    const template: Record<string, unknown> = {
+      template_id: message.templateName,
+      language: message.languageCode,
+      body_parameter_values: bodyParameterValues
+    };
+
+    if (message.buttonParams?.length) {
+      template.buttons = {
+        actions: message.buttonParams.map((value, index) => ({
+          action_index: String(index),
+          action_type: "url",
+          action_payload: value
+        }))
+      };
+    }
+
     const body = {
       messages: [
         {
           originator: this.d7Originator,
-          content: {
-            message_type: "TEMPLATE",
-            template: {
-              template_id: message.templateName,
-              language: message.languageCode,
-              buttons: {
-                actions: [{ action_index: "0", action_type: "url", action_payload: code }]
-              }
-            }
-          },
+          content: { message_type: "TEMPLATE", template },
           recipients: [{ recipient: message.to, recipient_type: "individual" }]
         }
       ]
