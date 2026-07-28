@@ -8,9 +8,24 @@ interface Props {
   updateField: <K extends keyof WizardForm>(key: K, value: WizardForm[K]) => void;
   /** Fields currently being filled by AI voice agent (gold glow). */
   aiFillingFields?: Set<string>;
+  /**
+   * False only for the admin create-on-behalf wizard: publish-on-behalf
+   * (admin-listing-transfer.service.ts) hard-rejects PG listings with
+   * pg_not_supported, so offering the option there lets a worker fill all
+   * six steps — including photo uploads — and hit an unrecoverable dead end
+   * at publish. Defaults to true so every owner-mode call site (the only
+   * mode this feature is actually built for) is unaffected.
+   */
+  pgOptionEnabled?: boolean;
 }
 
-export function BasicsStep({ form, errors, updateField, aiFillingFields }: Props) {
+export function BasicsStep({
+  form,
+  errors,
+  updateField,
+  aiFillingFields,
+  pgOptionEnabled = true
+}: Props) {
   function fillCls(field: string) {
     return aiFillingFields?.has(field) ? " cz-fill" : "";
   }
@@ -36,7 +51,7 @@ export function BasicsStep({ form, errors, updateField, aiFillingFields }: Props
             onChange={(e) => updateField("listing_type", e.target.value as ListingType)}
           >
             <option value="flat_house">Flat / House</option>
-            <option value="pg">PG / Hostel</option>
+            {pgOptionEnabled ? <option value="pg">PG / Hostel</option> : null}
           </select>
         </div>
 

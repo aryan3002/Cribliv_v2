@@ -1014,6 +1014,7 @@ export function ListingWizard({ locale: localeProp, mode, onPublished }: Listing
               errors={stepErrors}
               updateField={updateField}
               aiFillingFields={aiFillingFields}
+              pgOptionEnabled={mode !== "admin"}
             />
           ) : null}
           {step === 1 ? (
