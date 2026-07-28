@@ -122,6 +122,8 @@ interface LeadRecord {
   ownerNotes?: string | null;
   preferredSharing?: string | null;
   createdAt: number;
+  /** Set when the lead changed hands with its listing; excluded from the free-lead allowance. */
+  transferredAt?: number;
   statusChangedAt: number;
   updatedAt: number;
 }
@@ -549,8 +551,12 @@ export class AppStateService {
       return { lead: existing, created: false };
     }
 
+    // transferredAt excludes leads inherited through an ownership transfer
+    // (AdminListingTransferService) — mirrors the DB path's
+    // `AND transferred_at IS NULL` in leads.service.ts, so a new owner who
+    // inherits a listing with history keeps their own two free leads.
     const ownerLeadCount = [...this.leads.values()].filter(
-      (lead) => lead.ownerUserId === input.ownerUserId
+      (lead) => lead.ownerUserId === input.ownerUserId && lead.transferredAt == null
     ).length;
     const lead: LeadRecord = {
       id: randomUUID(),
