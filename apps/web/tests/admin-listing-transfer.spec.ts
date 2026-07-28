@@ -27,18 +27,60 @@
 // moves contact_phone_encrypted (the in-memory fallback has no such field —
 // see the doc comment on AdminListingTransferService.transferInMemory), so
 // this self-skips rather than asserting a weaker in-memory-only behaviour.
+//
+// SAFETY (2026-07-28 review, Finding 1 — read this before touching
+// DATABASE_URL for a local run): this spec used to hand-code the transfer
+// TARGET's phone as "+919956729103" and its header comment called that "the
+// same fictitious example number" as the transfer modal's placeholder text.
+// It was not fictitious — it is a real customer's number (Akash Rai), and
+// production listing ad204234-4b39-4228-8b49-3b9e91113e16 was transferred to
+// it on 2026-07-28 (see
+// docs/superpowers/specs/2026-07-28-admin-listing-onbehalf-and-transfer-design.md,
+// "Already done"). test.afterEach below unconditionally ran
+// deleteUserAndDependents against that fixed number, autocommitted, gated
+// only on `DATABASE_URL` being *set* — so pointing this suite at a
+// production or prod-restored database would have deleted that real
+// customer's sessions, wallet and full transaction ledger, even if the test
+// failed on its very first line. Two independent fixes:
+//   1. The transfer target's phone is now generated fresh per run
+//      (randOwnerPhone() below) — nothing here is ever a real person's number.
+//   2. All mutation (fixture creation in the test body, DELETEs in afterEach)
+//      additionally requires dbMutationAllowed() below to return true: either
+//      E2E_ALLOW_DB_MUTATION=1 is set, or DATABASE_URL's own database name
+//      contains "test" or "local". A legitimate local run against, say,
+//      "postgres://.../cribliv_test" needs no extra flag; anything else
+//      (including a bare "postgres" or unrecognised name) is refused rather
+//      than guessed at, and the test skips with an explanation instead of
+//      running.
 import { createRequire } from "node:module";
 import path from "node:path";
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { loginAsRole, loginWithOtp, setSessionOnPage } from "./utils/auth";
 
 /**
- * Not one of the seeded test accounts (ROLE_PHONE in utils/auth.ts only
- * covers ...901-...904), so the transfer below must create this account from
- * scratch. Matches the modal's own placeholder text ("99567 29103") — both
- * are the same fictitious example number, not a coincidence.
+ * A fresh, never-seeded number for the transfer TARGET owner, generated per
+ * run — never a hard-coded literal (see the SAFETY note in the file header
+ * for why). Not one of the seeded test accounts either (ROLE_PHONE in
+ * utils/auth.ts only covers ...901-...904), so the transfer below must
+ * create this account from scratch regardless.
+ *
+ * Uses a fixed "+9196" prefix, disjoint from randPhone()'s "+9197" (below) —
+ * both are drawn in the same test run for different accounts (tenant vs.
+ * transfer target), and giving them different prefixes makes a collision
+ * between the two structurally impossible rather than merely unlikely.
  */
-const NEW_OWNER_PHONE = "+919956729103";
+function randOwnerPhone(): string {
+  return `+9196${String(Math.floor(Math.random() * 1e8)).padStart(8, "0")}`;
+}
+
+/**
+ * The digits a worker would type into the transfer modal's phone field for a
+ * given E.164 number: no "+91", grouped 5+5 (matches the modal's own
+ * placeholder style, e.g. "12345 67890").
+ */
+function toTypedPhone(e164: string): string {
+  return `${e164.slice(3, 8)} ${e164.slice(8)}`;
+}
 
 /**
  * HomeOwnerTab displays the phone through formatPhone() (lib/admin/format.ts),
@@ -46,7 +88,9 @@ const NEW_OWNER_PHONE = "+919956729103";
  * display. Assert against that rendered form — the raw E.164 string is never
  * in the DOM verbatim once formatted.
  */
-const NEW_OWNER_PHONE_DISPLAY = `+91 ${NEW_OWNER_PHONE.slice(3, 8)} ${NEW_OWNER_PHONE.slice(8)}`;
+function toDisplayPhone(e164: string): string {
+  return `+91 ${e164.slice(3, 8)} ${e164.slice(8)}`;
+}
 
 function getApiBaseUrl() {
   const raw = process.env.E2E_API_BASE_URL || "http://localhost:4000/v1";
@@ -215,7 +259,39 @@ async function createLeadOnListing(
 }
 
 /** What this test creates, tracked so afterEach can remove it even after a mid-test failure. */
-const created: { listingId?: string; tenantPhone?: string } = {};
+const created: { listingId?: string; tenantPhone?: string; newOwnerPhone?: string } = {};
+
+/**
+ * Whether this spec may run its mutating SQL — fixture creation in the test
+ * body, DELETEs in afterEach — against whatever DATABASE_URL points to.
+ *
+ * True when either:
+ *   - E2E_ALLOW_DB_MUTATION=1 is set (explicit, no guessing), or
+ *   - DATABASE_URL's own database name self-identifies as non-production
+ *     (contains "test" or "local", e.g. "cribliv_test", "cribliv_local").
+ *
+ * False otherwise — INCLUDING when DATABASE_URL fails to parse as a URL.
+ * An unparseable connection string is not treated as a green light.
+ *
+ * This is deliberately independent of, and in addition to, randOwnerPhone()
+ * no longer using a real person's number (see the file header's SAFETY
+ * note): that fix means this spec's DELETEs can no longer land on a specific
+ * known real customer, but without this guard too, a stray production
+ * DATABASE_URL would still have this suite silently creating and deleting
+ * rows — users, listings, leads, contact_unlocks — against a live database
+ * nobody meant to point a test at.
+ */
+function dbMutationAllowed(): boolean {
+  if (process.env.E2E_ALLOW_DB_MUTATION === "1") return true;
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) return false;
+  try {
+    const dbName = new URL(databaseUrl).pathname.replace(/^\//, "");
+    return /test|local/i.test(dbName);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Deletes every row this test could have created for one phone number's
@@ -251,7 +327,22 @@ async function deleteUserAndDependents(client: MinimalPgClient, phone: string): 
 
 test.afterEach(async () => {
   if (!process.env.DATABASE_URL) return; // matches the test's own skip guard — nothing was created.
-  const { listingId, tenantPhone } = created;
+  if (!dbMutationAllowed()) {
+    // Loud, not silent, and definitely not a delete. Reaching this line at
+    // all means DATABASE_URL was set but dbMutationAllowed() said no — the
+    // test itself should already have skipped via the second test.skip
+    // below, so this is a second, independent line of defense: refuse to
+    // guess, leave whatever rows exist in place.
+    // eslint-disable-next-line no-console
+    console.error(
+      "[admin-listing-transfer.spec.ts] afterEach: refusing to run cleanup DELETEs. " +
+        "DATABASE_URL is set but neither E2E_ALLOW_DB_MUTATION=1 is set nor does its " +
+        "database name contain 'test' or 'local'. Any rows this run created were left in place — " +
+        "see the SAFETY note at the top of this file."
+    );
+    return;
+  }
+  const { listingId, tenantPhone, newOwnerPhone } = created;
   await withPgClient(async (client) => {
     // Deletion order respects the FK graph (queried directly off this
     // schema, not assumed): listing_locations/photos/leads/fraud_flags/etc.
@@ -277,7 +368,9 @@ test.afterEach(async () => {
       );
       await client.query(`DELETE FROM listings WHERE id = $1::uuid`, [listingId]);
     }
-    await deleteUserAndDependents(client, NEW_OWNER_PHONE);
+    if (newOwnerPhone) {
+      await deleteUserAndDependents(client, newOwnerPhone);
+    }
     if (tenantPhone) {
       await deleteUserAndDependents(client, tenantPhone);
     }
@@ -290,6 +383,19 @@ test("admin transfers a listing and the new owner can see it", async ({ page, re
     "requires a live Postgres — set DATABASE_URL to the same database the API server under " +
       "test is using (mirrors the DB-backed describe block in admin-lead-center.spec.ts)"
   );
+  test.skip(
+    !dbMutationAllowed(),
+    "refusing to run: this spec creates and deletes real rows (users, listings, leads, " +
+      "wallets, contact_unlocks). Point DATABASE_URL at a database whose name contains " +
+      "'test' or 'local', or set E2E_ALLOW_DB_MUTATION=1 to confirm the current one is safe " +
+      "to mutate — see the SAFETY note at the top of this file."
+  );
+
+  // Generated first, and recorded for afterEach immediately — before any
+  // `await` that could throw — so a mid-test failure still leaves afterEach
+  // knowing which (fake, freshly-minted) number to clean up.
+  const newOwnerPhone = randOwnerPhone();
+  created.newOwnerPhone = newOwnerPhone;
 
   const title = `Transfer E2E ${Date.now()}`;
   const owner = await loginAsRole(request, "owner");
@@ -325,8 +431,8 @@ test("admin transfers a listing and the new owner can see it", async ({ page, re
 
   await page.getByRole("button", { name: "Transfer ownership", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: /transfer ownership/i });
-  await dialog.getByLabel(/owner's phone/i).fill("99567 29103");
-  await dialog.getByLabel(/owner's name/i).fill("Akash Rai");
+  await dialog.getByLabel(/owner's phone/i).fill(toTypedPhone(newOwnerPhone));
+  await dialog.getByLabel(/owner's name/i).fill("Test Owner");
   await dialog.getByRole("button", { name: "Transfer ownership", exact: true }).click();
 
   // The workspace refetches in place (HomeOwnerTab's onOwnerChanged bumps
@@ -334,8 +440,8 @@ test("admin transfers a listing and the new owner can see it", async ({ page, re
   // so the Owner tab now shows the new owner without navigating away. NOTE:
   // both of these resolve through owner_user_id (see file header) — they do
   // NOT exercise contact_phone_encrypted. That's asserted directly below.
-  await expect(page.getByText(NEW_OWNER_PHONE_DISPLAY)).toBeVisible();
-  await expect(page.getByText("Akash Rai")).toBeVisible();
+  await expect(page.getByText(toDisplayPhone(newOwnerPhone))).toBeVisible();
+  await expect(page.getByText("Test Owner")).toBeVisible();
 
   // The load-bearing assertion: contact_phone_encrypted is the column a
   // tenant's paid contact-unlock actually hands out (contacts.service.ts:305)
@@ -346,7 +452,7 @@ test("admin transfers a listing and the new owner can see it", async ({ page, re
   const listingRow = await withPgClient((client) =>
     client.query(`SELECT contact_phone_encrypted FROM listings WHERE id = $1::uuid`, [listingId])
   );
-  expect(listingRow.rows[0]?.contact_phone_encrypted).toBe(NEW_OWNER_PHONE);
+  expect(listingRow.rows[0]?.contact_phone_encrypted).toBe(newOwnerPhone);
 
   // The pre-existing lead moved with the listing and is marked transferred_at
   // (admin-listing-transfer.service.ts:152-160), so it won't consume the new
@@ -377,7 +483,7 @@ test("admin transfers a listing and the new owner can see it", async ({ page, re
   // the owner role (admin-listing-transfer.service.ts inserts it directly),
   // so an OTP login for that number lands in the owner dashboard holding the
   // listing.
-  const newOwner = await loginWithOtp(request, NEW_OWNER_PHONE);
+  const newOwner = await loginWithOtp(request, newOwnerPhone);
   await setSessionOnPage(page, newOwner);
   await page.goto("/en/owner/listings");
   await expect(page.getByText(title)).toBeVisible();
