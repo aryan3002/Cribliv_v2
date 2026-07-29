@@ -1,5 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import { MessageCircle, ShieldAlert, UserRound } from "lucide-react";
 import type { AdminHomeDetail } from "@cribliv/shared-types";
+import { transferHomeOwner } from "../../../lib/admin-api";
 import {
   formatDate,
   formatMinutes,
@@ -10,9 +14,19 @@ import {
 import { SectionCard } from "../primitives/SectionCard";
 import { StatCard } from "../primitives/StatCard";
 import { StatusPill } from "../primitives/StatusPill";
+import { TransferOwnerModal } from "./TransferOwnerModal";
 
-export function HomeOwnerTab({ detail }: { detail: AdminHomeDetail }) {
+export function HomeOwnerTab({
+  detail,
+  accessToken,
+  onOwnerChanged
+}: {
+  detail: AdminHomeDetail;
+  accessToken: string;
+  onOwnerChanged: () => void;
+}) {
   const { owner } = detail;
+  const [transferOpen, setTransferOpen] = useState(false);
 
   return (
     <div className="admin-home-workspace__stack">
@@ -45,6 +59,26 @@ export function HomeOwnerTab({ detail }: { detail: AdminHomeDetail }) {
               noDot
             />
           </div>
+          <button
+            type="button"
+            className="admin-btn admin-btn--ghost"
+            onClick={() => setTransferOpen(true)}
+          >
+            Transfer ownership
+          </button>
+          {transferOpen ? (
+            <TransferOwnerModal
+              listingId={detail.listing.id}
+              currentOwnerName={owner.name}
+              currentOwnerPhone={owner.phone}
+              accessToken={accessToken}
+              onClose={() => setTransferOpen(false)}
+              onTransferred={onOwnerChanged}
+              onTransfer={(listingId, phone, fullName) =>
+                transferHomeOwner(accessToken, listingId, phone, fullName)
+              }
+            />
+          ) : null}
         </SectionCard>
 
         <SectionCard title="Portfolio" subtitle="All flat and house listings">

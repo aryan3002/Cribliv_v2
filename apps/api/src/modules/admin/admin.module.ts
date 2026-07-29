@@ -19,6 +19,7 @@ import { AdminReviewService } from "./admin-review.service";
 import { VerificationArtifactSasIssuer } from "./verification-artifact-sas.issuer";
 import { AdminHomesController } from "./admin-homes.controller";
 import { AdminHomesService } from "./admin-homes.service";
+import { AdminListingTransferService } from "./admin-listing-transfer.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
 import { SeoModule } from "../seo/seo.module";
@@ -64,7 +65,8 @@ import { AvailabilityAlertsModule } from "../availability-alerts/availability-al
     // issuer, DatabaseService-only review service — local providers.
     VerificationArtifactSasIssuer,
     AdminReviewService,
-    AdminHomesService
+    AdminHomesService,
+    AdminListingTransferService
   ]
 })
 export class AdminModule {}

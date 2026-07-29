@@ -38,6 +38,48 @@
   isolation: isolate;
 }
 
+/* ── Embedded mode (mounted inside the admin shell, mode="admin") ─────
+   The admin shell already supplies a page topbar (title, refresh, Cmd+K)
+   and its own scrolling chrome, and AddListingTab supplies the
+   explanatory copy — so when embedded, the wizard should not also force
+   a full extra viewport of height, repeat its own page-title header, or
+   let its floating mobile voice trigger fight the admin shell's fixed
+   toast for the same screen corner.
+
+   Every rule below is scoped under .wizard-concierge--embedded, applied
+   only in ListingWizard.tsx when mode === "admin". The plain
+   .wizard-concierge selector above (owner mode, full-page route) is
+   completely untouched by this block. */
+.wizard-concierge--embedded {
+  /* Size to content instead of demanding an entire extra viewport on top
+     of the admin topbar + sidebar. */
+  min-height: 0;
+}
+
+.wizard-concierge--embedded .cz-topbar {
+  /* The admin topbar already shows the page title ("Add Listing"), and
+     AddListingTab's own SectionCard already explains the flow — this
+     block (eyebrow + "Create your listing" H1 + subtitle + the compact
+     "Talk to Maya" toggle) would just be a third, redundant title bar.
+     Voice stays reachable either way: the docked VoiceCoPilot panel
+     below always renders its own persistent "Tap to talk to Maya" mic
+     button (see VoiceCoPilot.tsx's .cz-mic-btn) regardless of this
+     toggle, on both desktop (always-visible cz-maya-desktop panel) and
+     mobile (the cz-maya-mobile__bubble below). */
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .wizard-concierge--embedded .cz-maya-mobile__bubble {
+    /* Move the collapsed Maya trigger to the opposite corner from the
+       admin shell's own toast (.admin-toast: bottom:20px right:20px
+       z-index:95 in admin.css), which otherwise shares this exact
+       bottom-right pocket with this bubble (bottom:20px right:16px). */
+    left: 16px;
+    right: auto;
+  }
+}
+
 /* ── Layout shell ───────────────────────────────────────────────────── */
 .cz-shell {
   position: relative;

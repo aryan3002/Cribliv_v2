@@ -106,8 +106,13 @@ export class LeadsService {
       // First 2 leads per owner (lifetime) arrive free/un-blurred — the owner's
       // taste of lead quality. Racing concurrent leads can occasionally grant a
       // 3rd freebie; acceptable at current scale.
+      //
+      // `transferred_at IS NULL` excludes leads inherited through an ownership
+      // transfer (migration 0069): a new owner who inherits a listing with
+      // history keeps their own two free leads.
       const ownerLeadCount = await this.database.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM leads WHERE owner_user_id = $1::uuid`,
+        `SELECT count(*)::int AS n FROM leads
+          WHERE owner_user_id = $1::uuid AND transferred_at IS NULL`,
         [params.owner_user_id]
       );
       const accessState = Number(ownerLeadCount.rows[0]?.n ?? 0) < 2 ? "free" : "locked";

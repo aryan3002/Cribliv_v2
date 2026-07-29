@@ -25,7 +25,8 @@ pnpm test
 
 # Single app tests
 pnpm --filter @cribliv/api test          # Vitest integration tests
-pnpm --filter @cribliv/web test          # Playwright E2E
+pnpm --filter @cribliv/web test          # Vitest component tests
+pnpm --filter @cribliv/web test:e2e      # Playwright E2E
 
 # E2E one-time setup
 pnpm --filter @cribliv/web exec playwright install

@@ -35,21 +35,30 @@ export class OwnerController {
     private readonly contentGenerator: ListingContentGeneratorService
   ) {}
 
+  // Wizard endpoints also accept `admin`: the same wizard is mounted in the
+  // admin portal for create-on-behalf. Ownership is still enforced in the
+  // service layer, which scopes every query to owner_user_id = req.user.id, so
+  // an admin caller reaches only their own drafts. Everything else on this
+  // controller stays owner-only — see class @Roles. (SEC-H1)
+  @Roles("owner", "admin")
   @Get("listings")
   async list(@Req() req: { user: { id: string } }, @Query("status") status?: string): Promise<any> {
     return ok(await this.ownerService.listOwnerListings(req.user.id, status));
   }
 
+  @Roles("owner", "admin")
   @Post("listings")
   async create(@Req() req: { user: { id: string } }, @Body() body: CreateListingDto) {
     return ok(await this.ownerService.createListing(req.user.id, body));
   }
 
+  @Roles("owner", "admin")
   @Get("listings/:listing_id")
   async getListing(@Req() req: { user: { id: string } }, @Param("listing_id") listingId: string) {
     return ok(await this.ownerService.getOwnerListing(req.user.id, listingId));
   }
 
+  @Roles("owner", "admin")
   @Patch("listings/:listing_id")
   async update(
     @Req() req: { user: { id: string } },
@@ -59,10 +68,7 @@ export class OwnerController {
     return ok(await this.ownerService.updateListing(req.user.id, listingId, body));
   }
 
-  // PG wizard uploads photos through these owner routes (listing is owner-scoped
-  // by owner_user_id, so an operator can only touch their own PG listing). The
-  // rest of the owner controller is owner-only — see class @Roles. (SEC-H1)
-  @Roles("owner", "pg_operator")
+  @Roles("owner", "pg_operator", "admin")
   @Post("listings/:listing_id/photos/presign")
   async presign(
     @Req() req: { user: { id: string } },
@@ -75,7 +81,7 @@ export class OwnerController {
     return ok(await this.ownerService.presignPhotos(req.user.id, listingId, idem, body.files));
   }
 
-  @Roles("owner", "pg_operator")
+  @Roles("owner", "pg_operator", "admin")
   @Post("listings/:listing_id/photos/complete")
   async complete(
     @Req() req: { user: { id: string } },
@@ -95,7 +101,7 @@ export class OwnerController {
     return ok(await this.ownerService.completePhotos(req.user.id, listingId, idem, body.files));
   }
 
-  @Roles("owner", "pg_operator")
+  @Roles("owner", "pg_operator", "admin")
   @Patch("listings/:listing_id/photos/reorder")
   async reorderPhotos(
     @Req() req: { user: { id: string } },
@@ -108,6 +114,7 @@ export class OwnerController {
     return ok(await this.ownerService.reorderPhotos(req.user.id, listingId, idem, body.items));
   }
 
+  @Roles("owner", "admin")
   @Post("listings/:listing_id/submit")
   async submit(
     @Req() req: { user: { id: string } },
@@ -150,6 +157,7 @@ export class OwnerController {
     return ok(await this.contactsService.markOwnerResponded(req.user.id, unlockId, body.channel));
   }
 
+  @Roles("owner", "admin")
   @Post("listings/generate-content")
   async generateContent(@Body() body: GenerateContentInput) {
     const result = await this.contentGenerator.generate(body);
