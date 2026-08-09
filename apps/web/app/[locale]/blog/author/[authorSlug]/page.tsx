@@ -6,6 +6,7 @@ import { Masthead } from "../../_components/Masthead";
 import { formatDate } from "../../_components/blog-format";
 import { fetchBlogList } from "../../../../../lib/blog-api";
 import { EDITORIAL_AUTHOR } from "../../../../../lib/blog-author";
+import { stripBrandSuffix } from "../../../../../lib/seo";
 
 export const revalidate = 3600;
 
@@ -92,7 +93,7 @@ export default async function AuthorPage({
           <p className={styles.relatedHead}>{hi ? "हाल की रिपोर्ट" : "Recent Reporting"}</p>
           {byAuthor.map((post) => (
             <div className={styles.relatedItem} key={post.slug}>
-              <Link href={`/${locale}/blog/${post.slug}`}>{post.title}</Link>
+              <Link href={`/${locale}/blog/${post.slug}`}>{stripBrandSuffix(post.title)}</Link>
             </div>
           ))}
         </div>

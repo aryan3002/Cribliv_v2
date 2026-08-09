@@ -216,6 +216,25 @@
   gap: 10px;
   padding: 7px 0;
   border-bottom: 1px dotted var(--rule);
+  text-decoration: none;
+  color: inherit;
+}
+.numRow:hover .numValue {
+  color: var(--flag);
+}
+.numMore {
+  display: block;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--flag);
+  text-decoration: none;
+  padding: 9px 0 8px;
+}
+.numMore:hover {
+  color: var(--ink);
 }
 .numLabel {
   font-size: 14px;
@@ -302,6 +321,188 @@
   letter-spacing: 0.06em;
   color: var(--ink-soft);
   margin-top: 9px;
+}
+
+/* ── Sub-leads (fill the lead column) ──────── */
+.subLeads {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 3px double var(--ink);
+  margin-top: 18px;
+}
+.subLead {
+  padding: 14px clamp(12px, 1.8vw, 20px) 4px 0;
+  border-right: 1px solid var(--rule);
+  text-decoration: none;
+  color: inherit;
+}
+.subLead:nth-child(even) {
+  border-right: 0;
+  padding-left: clamp(12px, 1.8vw, 20px);
+  padding-right: 0;
+}
+.subLead:nth-child(n + 3) {
+  border-top: 1px solid var(--rule);
+}
+.subLead h4 {
+  font-size: clamp(18px, 2vw, 22px);
+  line-height: 1.08;
+  margin: 6px 0 7px;
+  text-wrap: balance;
+}
+.subLead:hover h4 {
+  color: var(--flag);
+}
+.subLead p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #3a352f;
+}
+
+/* Teaser excerpts print at most three lines — the full text belongs to the
+   article page, and unclamped AI-generated excerpts unbalance the columns. */
+.railItem p,
+.subLead p,
+.stripItem p,
+.deskCard p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Embedded classifieds (article body) ───── */
+.embedAd {
+  display: block;
+  border: 1px solid var(--ink);
+  background: var(--paper-panel);
+  text-decoration: none;
+  color: var(--ink);
+  font-family: var(--serif);
+}
+.embedAdPhoto {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-bottom: 1px solid var(--ink);
+  /* prints in halftone grey; develops into colour on hover */
+  filter: grayscale(1) sepia(0.06) contrast(1.05);
+  transition: filter 0.35s ease;
+}
+.embedAd:hover .embedAdPhoto {
+  filter: none;
+}
+.embedAdBody {
+  padding: 11px 14px 13px;
+}
+.embedAdKicker {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-soft);
+}
+.embedAdStamp {
+  color: var(--flag);
+  border: 1.5px solid var(--flag);
+  border-radius: 2px;
+  padding: 1px 6px;
+  transform: rotate(-2deg);
+  white-space: nowrap;
+}
+.embedAdTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 7px;
+}
+.embedAdTitle {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.12;
+  font-weight: 700;
+  text-wrap: balance;
+  /* owner-written titles can run long — two lines is a classified, not a story */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.embedAd:hover .embedAdTitle {
+  color: var(--flag);
+}
+.embedAdPrice {
+  font-weight: 700;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+.embedAdPrice small {
+  display: block;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.embedAdDetails {
+  margin: 6px 0 0;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+.embedAdCta {
+  display: inline-block;
+  margin-top: 10px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--flag);
+}
+
+/* ── Desk bands (front-page sections) ──────── */
+.bandHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  border-top: 3px double var(--ink);
+  border-bottom: 1px solid var(--ink);
+  margin-top: 26px;
+  padding: 8px 0 6px;
+}
+.bandTitle {
+  font-family: var(--serif);
+  font-size: clamp(20px, 3vw, 28px);
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.bandMore {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--flag);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bandMore:hover {
+  color: var(--ink);
 }
 
 /* ── Classifieds (monetization bridge) ─────── */
@@ -533,6 +734,38 @@
   padding-top: 10px;
   margin-top: 22px;
 }
+.shareRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 0;
+  margin-top: 18px;
+}
+.shareLabel {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-soft);
+}
+.shareLink {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--flag);
+  text-decoration: none;
+}
+.shareLink:hover {
+  color: var(--ink);
+}
+
 .faqHead {
   font-family: var(--serif);
   font-size: 24px;
@@ -687,6 +920,20 @@
   }
   .strip {
     grid-template-columns: 1fr;
+  }
+  .subLeads {
+    grid-template-columns: 1fr;
+  }
+  .subLead {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    padding-right: 0;
+  }
+  .subLead:nth-child(even) {
+    padding-left: 0;
+  }
+  .subLead:nth-child(n + 3) {
+    border-top: 0;
   }
   .stripItem {
     border-right: 0;

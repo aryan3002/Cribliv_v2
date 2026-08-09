@@ -1,6 +1,7 @@
 import Link from "next/link";
 import styles from "../cribliv-times.module.css";
 import { BLOG_DESKS } from "../../../../lib/blog-desks";
+import { editionParts } from "./blog-format";
 
 // The four seeded blog_categories become CRIBLIV TIMES "desks".
 export const DESKS: Array<{ slug: string | null; en: string; hi: string }> = [
@@ -18,12 +19,15 @@ export function Masthead({
   dateLabel: string;
 }) {
   const hi = locale === "hi";
+  const edition = editionParts();
   return (
     <>
       <div className={styles.plateRule} />
       <header className={styles.plate}>
         <div className={styles.ears}>
-          <span>Vol. I &nbsp;·&nbsp; No. 1</span>
+          <span>
+            Vol. {edition.vol} &nbsp;·&nbsp; No. {edition.no}
+          </span>
           <span>{hi ? "हिन्दी संस्करण" : "City Edition"}</span>
         </div>
         <Link href={`/${locale}/blog`} className={styles.nameplate}>

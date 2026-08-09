@@ -5,6 +5,7 @@ import styles from "../../cribliv-times.module.css";
 import { Masthead, DESKS } from "../../_components/Masthead";
 import { formatDate, deskLabel } from "../../_components/blog-format";
 import { fetchBlogList } from "../../../../../lib/blog-api";
+import { stripBrandSuffix } from "../../../../../lib/seo";
 
 export const revalidate = 3600;
 
@@ -82,7 +83,7 @@ export default async function DeskPage({
           {items.map((post) => (
             <Link className={styles.deskCard} href={`/${locale}/blog/${post.slug}`} key={post.slug}>
               <p className={styles.kicker}>{formatDate(post.published_at, locale)}</p>
-              <h3>{post.title}</h3>
+              <h3>{stripBrandSuffix(post.title)}</h3>
               {post.excerpt ? <p>{post.excerpt}</p> : null}
             </Link>
           ))}
