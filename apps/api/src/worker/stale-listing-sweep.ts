@@ -69,11 +69,20 @@ export async function runStaleListingSweep(
   if (candidates === 0) return { paused: 0, candidates, active, cap, skipped: null };
   if (candidates > cap) return { paused: 0, candidates, active, cap, skipped: "cap_exceeded" };
 
+  // The cap is enforced by the statement, not just checked beforehand: the
+  // UPDATE re-evaluates the predicate, so without LIMIT a listing crossing the
+  // 30-day line between the census and here could push the batch over.
   const result = await pool.query<{ id: string }>(
     `UPDATE listings
         SET status = 'paused', updated_at = now()
-      WHERE ${staleWhere}
-      RETURNING id::text AS id`
+      WHERE id IN (
+        SELECT id FROM listings
+         WHERE ${staleWhere}
+         ORDER BY last_owner_activity_at ASC
+         LIMIT $1
+      )
+      RETURNING id::text AS id`,
+    [cap]
   );
 
   for (const row of result.rows) {

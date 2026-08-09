@@ -110,6 +110,21 @@ describe("runStaleListingSweep", () => {
     expect(didPause(queries)).toBe(false);
   });
 
+  // The cap must be enforced by the statement itself, not merely checked before
+  // it — otherwise a listing going stale between the census and the UPDATE can
+  // push the batch over the limit.
+  it("bounds the update statement by the cap", async () => {
+    const { pool } = createPool({ active: 100, stale: 4 }, ["a", "b", "c", "d"]);
+
+    await runStaleListingSweep(pool, ON);
+
+    const update = (pool.query as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => String(call[0]).includes("UPDATE listings")
+    );
+    expect(String(update?.[0])).toMatch(/LIMIT \$1/);
+    expect(update?.[1]).toEqual([10]);
+  });
+
   it("records a fraud flag for every paused listing", async () => {
     const { pool, queries } = createPool({ active: 100, stale: 2 }, ["a", "b"]);
 
