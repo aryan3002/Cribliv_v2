@@ -64,12 +64,23 @@ const nextConfig = {
     // "ldai-colony" below: the DB row must be renamed BEFORE this ships, else
     // the redirect lands on a 404.
     const BLOG_SLUG_FIXES = [["full-rental-senario", "full-rental-scenario"]];
+    // 2026-08 byline rebrand: the indexed persona author page 301s to the desk.
+    const AUTHOR_SLUG_FIXES = [["aditi-sharma", "cribliv-data-desk"]];
     const redirects = [];
     for (const [bad, good] of BLOG_SLUG_FIXES) {
       for (const locale of ["en", "hi"]) {
         redirects.push({
           source: `/${locale}/blog/${bad}`,
           destination: `/${locale}/blog/${good}`,
+          permanent: true
+        });
+      }
+    }
+    for (const [bad, good] of AUTHOR_SLUG_FIXES) {
+      for (const locale of ["en", "hi"]) {
+        redirects.push({
+          source: `/${locale}/blog/author/${bad}`,
+          destination: `/${locale}/blog/author/${good}`,
           permanent: true
         });
       }

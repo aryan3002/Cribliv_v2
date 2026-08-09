@@ -192,6 +192,8 @@ export interface ArticleInput {
   description?: string | null;
   authorName: string;
   authorUrl: string;
+  /** "Organization" for the house data desk byline; defaults to "Person". */
+  authorType?: "Person" | "Organization";
   datePublished?: string | null;
   dateModified?: string | null;
   image?: string | null;
@@ -207,7 +209,11 @@ export function buildArticle(input: ArticleInput): JsonLd {
     "@type": "Article",
     headline: input.headline,
     mainEntityOfPage: abs(input.url),
-    author: { "@type": "Person", name: input.authorName, url: abs(input.authorUrl) },
+    author: {
+      "@type": input.authorType ?? "Person",
+      name: input.authorName,
+      url: abs(input.authorUrl)
+    },
     publisher: {
       "@type": "Organization",
       name: "Cribliv",

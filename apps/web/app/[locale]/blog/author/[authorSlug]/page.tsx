@@ -5,7 +5,7 @@ import styles from "../../cribliv-times.module.css";
 import { Masthead } from "../../_components/Masthead";
 import { formatDate } from "../../_components/blog-format";
 import { fetchBlogList } from "../../../../../lib/blog-api";
-import { EDITORIAL_AUTHOR } from "../../../../../lib/blog-author";
+import { EDITORIAL_AUTHOR, isEditorialAuthor } from "../../../../../lib/blog-author";
 import { stripBrandSuffix } from "../../../../../lib/seo";
 
 export const revalidate = 3600;
@@ -51,23 +51,25 @@ export default async function AuthorPage({
   const hi = locale === "hi";
 
   const { items } = await fetchBlogList({ page_size: 12 }, { revalidate });
-  const byAuthor = items.filter((post) => post.author === EDITORIAL_AUTHOR.name).slice(0, 6);
+  // Legacy rows may still carry the pre-rebrand persona byline until the
+  // migration-0070 backfill runs; both belong to the desk.
+  const byAuthor = items.filter((post) => isEditorialAuthor(post.author)).slice(0, 6);
 
-  const personJsonLd = {
+  // The desk is a team, not a person — schema.org Organization, part of Cribliv.
+  const deskJsonLd = {
     "@context": "https://schema.org",
-    "@type": "Person",
+    "@type": "Organization",
     name: EDITORIAL_AUTHOR.name,
-    jobTitle: EDITORIAL_AUTHOR.role,
     description: hi ? EDITORIAL_AUTHOR.bio_hi : EDITORIAL_AUTHOR.bio_en,
     url: `${BASE_URL}/${locale}/blog/author/${EDITORIAL_AUTHOR.slug}`,
-    worksFor: { "@type": "Organization", name: "Cribliv", url: BASE_URL }
+    parentOrganization: { "@type": "Organization", name: "Cribliv", url: BASE_URL }
   };
 
   return (
     <div className={styles.paper}>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(deskJsonLd) }}
       />
       <Masthead
         locale={locale}

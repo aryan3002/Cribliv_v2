@@ -9,7 +9,7 @@ const story = (slug: string): BlogListItem => ({
   category_slug: "data-reports",
   city_slug: "lucknow",
   hero_image_path: null,
-  author: "Aditi Sharma",
+  author: "Cribliv Data Desk",
   published_at: "2026-08-01T00:00:00Z",
   data_asof: null
 });
