@@ -192,6 +192,26 @@
   line-height: 1.62;
   margin: 0;
 }
+.heroFigure {
+  margin: 0 0 18px;
+}
+.heroFigure .hero {
+  margin-bottom: 6px;
+}
+.heroCaption {
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.heroCaption a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.heroCaption a:hover {
+  color: var(--flag);
+}
 
 /* ── Rail ──────────────────────────────────── */
 .numbers {
