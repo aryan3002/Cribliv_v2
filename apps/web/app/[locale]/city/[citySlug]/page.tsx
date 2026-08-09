@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, MapPin } from "lucide-react";
+import { ArrowRight, MapPin, Newspaper } from "lucide-react";
 import { fetchApi, buildSearchQuery } from "../../../../lib/api";
 import { ListingCardItem } from "../../../../components/listing-card";
 import { HUB_CITY_SLUGS } from "../../../../lib/nav/cities";
@@ -13,6 +13,9 @@ import {
   fetchEnabledCities
 } from "../../../../lib/seo-api";
 import { intentsByCategory } from "../../../../lib/intent-filters";
+import { fetchBlogList } from "../../../../lib/blog-api";
+import { stripBrandSuffix } from "../../../../lib/seo";
+import { deskLabelFor } from "../../../../lib/blog-crosslink";
 import { IntentChipRail } from "../../../../components/header/intent-chip-rail";
 import type { Locale } from "../../../../lib/i18n";
 
@@ -252,13 +255,17 @@ export default async function CityPage({
   // hub's own SLA), not per request.
   const enabledCities = await fetchEnabledCities({ revalidate: 3600 });
   const isProgrammatic = enabledCities.has(params.citySlug);
-  const [liveLocalities, liveLandmarks, liveMetros] = isProgrammatic
+  const [liveLocalities, liveLandmarks, liveMetros, timesStories] = isProgrammatic
     ? await Promise.all([
         fetchLocalities(params.citySlug, { revalidate: 3600 }),
         fetchLandmarks(params.citySlug, undefined, { revalidate: 3600 }),
-        fetchCityMetroStations(params.citySlug, { revalidate: 3600 })
+        fetchCityMetroStations(params.citySlug, { revalidate: 3600 }),
+        // CRIBLIV TIMES stories for this city — the hub feeds the paper.
+        fetchBlogList({ city: params.citySlug, page_size: 4 }, { revalidate: 3600 })
+          .then((r) => r.items)
+          .catch(() => [])
       ])
-    : [[], [], []];
+    : [[], [], [], []];
 
   // Only stations with inventory get a rail chip: a chip leading to a station
   // page with zero listings is a dead end for the visitor and a noindex page for
@@ -605,6 +612,60 @@ export default async function CityPage({
                   )}
                 </Link>
               ))}
+            </div>
+          </section>
+        )}
+
+        {/* Programmatic SEO: CRIBLIV TIMES stories for this city */}
+        {isProgrammatic && timesStories.length > 0 && (
+          <section style={{ marginBottom: "var(--space-10)" }}>
+            <h3
+              style={{
+                marginBottom: "var(--space-4)",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)"
+              }}
+            >
+              <Newspaper size={18} style={{ color: "var(--brand)" }} aria-hidden="true" />
+              {isHindi ? "Cribliv Times से रिपोर्ट" : "From the Cribliv Times"}
+            </h3>
+            <div
+              className="listing-grid"
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}
+            >
+              {timesStories.map((story) => (
+                <Link
+                  key={story.slug}
+                  href={`/${params.locale}/blog/${story.slug}`}
+                  className="card"
+                  style={{ textDecoration: "none", padding: "var(--space-4)" }}
+                >
+                  <div
+                    className="body-sm text-secondary"
+                    style={{
+                      fontSize: 11,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      marginBottom: 4
+                    }}
+                  >
+                    {deskLabelFor(story.category_slug, isHindi)}
+                  </div>
+                  <div style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.3 }}>
+                    {stripBrandSuffix(story.title)}
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div style={{ marginTop: "var(--space-3)" }}>
+              <Link
+                href={`/${params.locale}/blog`}
+                className="body-sm"
+                style={{ color: "var(--brand)", fontWeight: 600, textDecoration: "none" }}
+              >
+                {isHindi ? "पूरा अख़बार पढ़ें →" : "Read the paper →"}
+              </Link>
             </div>
           </section>
         )}

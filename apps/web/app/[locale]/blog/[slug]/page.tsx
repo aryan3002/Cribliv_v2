@@ -42,6 +42,7 @@ interface BridgeListing {
   locality?: string | null;
   listing_type: "flat_house" | "pg";
   monthly_rent: number;
+  cover_photo?: string | null;
 }
 
 export async function generateMetadata({
@@ -74,8 +75,11 @@ export async function generateMetadata({
       type: "article",
       url: `${BASE_URL}/${params.locale}/blog/${post.slug}`,
       siteName: "Cribliv",
-      locale: params.locale === "hi" ? "hi_IN" : "en_IN",
-      images: post.hero_image_path ? [{ url: post.hero_image_path }] : undefined
+      locale: params.locale === "hi" ? "hi_IN" : "en_IN"
+      // No `images` key: even an explicit `undefined` here blocks Next from
+      // merging in the file-based opengraph-image.tsx card (verified — the
+      // front page, which omits the key, gets its card; this page did not).
+      // The branded Times card should win for every story anyway.
     },
     twitter: { card: "summary_large_image", title, description }
   };
@@ -128,6 +132,15 @@ export default async function BlogDetailPage({
   const authorIsPersona = post.author === EDITORIAL_AUTHOR.name;
   const sourceLabels = (post.sources || []).map((s) => s.label).filter(Boolean);
 
+  // Most AI-generated posts publish without art, and Google Discover only
+  // surfaces stories with a large in-article image. When there's no hero,
+  // print a photograph from a live listing in the story's city — captioned and
+  // linked, in the "every figure sourced from live listings" spirit.
+  const heroListing = !post.hero_image_path
+    ? (bridgeListings.find((b) => b.cover_photo) ?? null)
+    : null;
+  const heroSrc = post.hero_image_path ?? heroListing?.cover_photo ?? null;
+
   const articleJsonLd = buildArticle({
     headline,
     description: post.meta_description || post.excerpt,
@@ -135,7 +148,7 @@ export default async function BlogDetailPage({
     authorUrl: authorPath(hi ? "hi" : "en"),
     datePublished: post.published_at,
     dateModified: post.updated_at,
-    image: post.hero_image_path,
+    image: heroSrc,
     url: `/${locale}/blog/${post.slug}`
   });
   const breadcrumbJsonLd = buildBreadcrumb([
@@ -179,6 +192,21 @@ export default async function BlogDetailPage({
         {post.hero_image_path ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img className={styles.hero} src={post.hero_image_path} alt={headline} />
+        ) : heroListing?.cover_photo ? (
+          <figure className={styles.heroFigure}>
+            <Link href={`/${locale}/listing/${heroListing.id}?ref=blog-${post.slug}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className={styles.hero} src={heroListing.cover_photo} alt={heroListing.title} />
+            </Link>
+            <figcaption className={styles.heroCaption}>
+              {hi ? "चित्र: " : "Pictured: "}
+              <Link href={`/${locale}/listing/${heroListing.id}?ref=blog-${post.slug}`}>
+                {heroListing.title}
+              </Link>
+              {" · "}
+              {hi ? "लाइव लिस्टिंग" : "a live Cribliv listing"}
+            </figcaption>
+          </figure>
         ) : null}
 
         {hasBlogEmbeds(body) ? (

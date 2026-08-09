@@ -15,6 +15,9 @@ import { ListingThingsToKnow } from "../../../../components/listing/listing-thin
 import { ListingLocation } from "../../../../components/listing/listing-location";
 import { ListingDemandBadge } from "../../../../components/listing/listing-demand-badge";
 import { SimilarListings } from "../../../../components/listing/similar-listings";
+import { timesStoriesForLocality, deskLabelFor } from "../../../../lib/blog-crosslink";
+import { stripBrandSuffix } from "../../../../lib/seo";
+import type { BlogListItem } from "../../../../lib/blog-api";
 import { ListingToolbarActions } from "../../../../components/listing/listing-toolbar-actions";
 import Link from "next/link";
 import {
@@ -236,6 +239,24 @@ export default async function ListingDetailPage({
     } catch {
       pricingIntel = null;
     }
+  }
+
+  // CRIBLIV TIMES stories about this listing's locality (best-effort, cached):
+  // the seeker researching an area is exactly the reader the paper wants, and
+  // the story links back into search. listing.locality is a display name, so
+  // slugify before matching against post slugs.
+  const localitySlug = (listing.locality ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  let timesStories: BlogListItem[] = [];
+  try {
+    timesStories = await timesStoriesForLocality(listing.city, localitySlug, {
+      revalidate: 3600,
+      limit: 2
+    });
+  } catch {
+    // the listing page never breaks for the paper's sake
   }
 
   // JSON-LD — RealEstateListing carries photos, geo and a per-month Offer.
@@ -674,6 +695,42 @@ export default async function ListingDetailPage({
             excludeId={listing.id}
           />
         </section>
+
+        {/* CRIBLIV TIMES: area reporting for this listing's locality */}
+        {timesStories.length > 0 && (
+          <section className="ld-section">
+            <h3 style={{ marginBottom: "var(--space-3)" }}>
+              {locale === "hi"
+                ? `${toTitleCase((listing.locality || listing.city).replace(/-/g, " "))} पर रिपोर्ट`
+                : `Reading up on ${toTitleCase((listing.locality || listing.city).replace(/-/g, " "))}?`}
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+              {timesStories.map((story) => (
+                <Link
+                  key={story.slug}
+                  href={`/${locale}/blog/${story.slug}` as Route}
+                  className="card"
+                  style={{
+                    textDecoration: "none",
+                    padding: "var(--space-3) var(--space-4)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: "var(--space-3)",
+                    flexWrap: "wrap"
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    {stripBrandSuffix(story.title)}
+                  </span>
+                  <span className="body-sm text-secondary" style={{ fontSize: 11 }}>
+                    {deskLabelFor(story.category_slug, locale === "hi")} · Cribliv Times
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* Mobile CTA bar */}
