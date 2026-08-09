@@ -172,11 +172,17 @@ export default async function BlogHubPage({ params }: { params: { locale: string
   const rentIndex = await fetchRentIndex();
 
   const lead = items[0] ?? null;
-  const railStories = items.slice(1, 4);
-  const stripStories = items.slice(4, 7);
+  // Six sub-features (three 2-up rows) under the lead: without them the lead
+  // column (headline + dek only when there's no hero photo) runs far shorter
+  // than the rail and the grid prints a column of blank paper. Slightly
+  // overfilling the lead column is deliberate — leftover air then sits under
+  // the rail, where a sidebar ending early reads as normal.
+  const subLeads = items.slice(1, 7);
+  const railStories = items.slice(7, 10);
+  const stripStories = items.slice(10, 13);
   // Everything below the fold, grouped by desk so no published story is
   // unreachable from the front page.
-  const rest = items.slice(7);
+  const rest = items.slice(13);
   const deskBands = BLOG_DESKS.map((desk) => ({
     desk,
     stories: rest.filter((story) => story.category_slug === desk.slug).slice(0, 6)
@@ -226,6 +232,25 @@ export default async function BlogHubPage({ params }: { params: { locale: string
                 src={lead.hero_image_path}
                 alt={stripBrandSuffix(lead.title)}
               />
+            ) : null}
+            {subLeads.length > 0 ? (
+              <div className={styles.subLeads}>
+                {subLeads.map((story) => (
+                  <Link
+                    className={styles.subLead}
+                    href={`/${locale}/blog/${story.slug}`}
+                    key={story.slug}
+                  >
+                    <p className={styles.kicker}>{deskLabel(story.category_slug, hi)}</p>
+                    <h4>{stripBrandSuffix(story.title)}</h4>
+                    {story.excerpt ? <p>{story.excerpt}</p> : null}
+                    <div className={styles.bylineSm}>
+                      {hi ? "द्वारा " : "By "}
+                      {story.author}
+                    </div>
+                  </Link>
+                ))}
+              </div>
             ) : null}
           </div>
 

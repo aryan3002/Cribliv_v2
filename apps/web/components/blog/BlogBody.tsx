@@ -1,7 +1,6 @@
 import { parseBlogEmbeds, type BlogSegment } from "../../lib/blog-embeds";
 import { fetchListingCard, fetchPgCard } from "../../lib/blog-embed-cards";
-import { ListingCardItem } from "../listing-card";
-import { PgListingCard } from "../pg/PgListingCard";
+import { TimesEmbedCard } from "./TimesEmbedCard";
 
 type ListingSeg = Extract<BlogSegment, { type: "listing" }>;
 type PgSeg = Extract<BlogSegment, { type: "pg" }>;
@@ -10,7 +9,7 @@ type PgSeg = Extract<BlogSegment, { type: "pg" }>;
 // fan out into hundreds of requests.
 const MAX_EMBEDS = 12;
 
-const wrapStyle = { margin: "1.75rem 0", maxWidth: 460 } as const;
+const wrapStyle = { margin: "1.75rem auto", maxWidth: 460 } as const;
 
 /**
  * Server component that renders a prepared blog body, expanding `{{listing:…}}`
@@ -80,11 +79,7 @@ export async function BlogBody({
           if (!card) return null;
           return (
             <div key={i} style={wrapStyle} data-blog-embed="listing">
-              <ListingCardItem
-                listing={card}
-                locale={locale}
-                heartSlot={<span aria-hidden="true" />}
-              />
+              <TimesEmbedCard listing={card} locale={locale} />
             </div>
           );
         }
@@ -92,7 +87,7 @@ export async function BlogBody({
         if (!card) return null;
         return (
           <div key={i} style={wrapStyle} data-blog-embed="pg">
-            <PgListingCard listing={card} locale={locale} />
+            <TimesEmbedCard pg={card} locale={locale} />
           </div>
         );
       })}
