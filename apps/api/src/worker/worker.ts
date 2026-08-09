@@ -22,6 +22,7 @@ import {
   emitSignupCreditExpiryTelemetry,
   runSignupCreditExpirySweepDb
 } from "./signup-credit-sweep";
+import { runStaleListingSweep } from "./stale-listing-sweep";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const SIGNUP_CREDIT_EXPIRY_SWEEP_MS = 60 * 60 * 1000;
@@ -1224,29 +1225,16 @@ async function run() {
   if (pool) {
     const runStaleSweep = async () => {
       try {
-        const result = await pool.query(
-          `UPDATE listings
-           SET status = 'paused', updated_at = now()
-           WHERE status = 'active'
-             AND last_owner_activity_at < now() - interval '30 days'
-           RETURNING id::text`
-        );
-        const count = result.rowCount ?? 0;
-        if (count > 0) {
-          for (const row of result.rows) {
-            await pool
-              .query(
-                `INSERT INTO fraud_flags (listing_id, flag_type, severity, details)
-               VALUES ($1::uuid, 'stale', 'low', '{"reason":"no_activity_30d"}'::jsonb)`,
-                [row.id]
-              )
-              .catch(() => {});
-          }
-        }
-        console.log(
+        const result = await runStaleListingSweep(pool);
+        const log = result.skipped === "cap_exceeded" ? console.error : console.log;
+        log(
           JSON.stringify({
             job: "stale_listing_sweep",
-            paused_count: count,
+            paused_count: result.paused,
+            candidate_count: result.candidates,
+            active_count: result.active,
+            cap: result.cap,
+            skipped: result.skipped,
             timestamp: new Date().toISOString()
           })
         );
@@ -1261,8 +1249,9 @@ async function run() {
       }
     };
 
-    // Run once on startup, then daily
-    runStaleSweep();
+    // Daily only — deliberately NOT on startup. This job pauses listings, and
+    // firing it on boot meant every deploy and every container restart took
+    // another swing at the catalogue.
     setInterval(runStaleSweep, STALE_SWEEP_MS);
 
     // ── Broker detection sweep (weekly) ──
