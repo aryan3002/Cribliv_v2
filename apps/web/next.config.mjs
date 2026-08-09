@@ -60,7 +60,20 @@ const nextConfig = {
       // renamed to "lda-colony", else this redirects to a 404.
       ["ldai-colony", "lda-colony"]
     ];
+    // Blog slugs published with typos. Same deploy-ordering rule as
+    // "ldai-colony" below: the DB row must be renamed BEFORE this ships, else
+    // the redirect lands on a 404.
+    const BLOG_SLUG_FIXES = [["full-rental-senario", "full-rental-scenario"]];
     const redirects = [];
+    for (const [bad, good] of BLOG_SLUG_FIXES) {
+      for (const locale of ["en", "hi"]) {
+        redirects.push({
+          source: `/${locale}/blog/${bad}`,
+          destination: `/${locale}/blog/${good}`,
+          permanent: true
+        });
+      }
+    }
     for (const [bad, good] of SOURCES) {
       for (const locale of ["en", "hi"]) {
         redirects.push({

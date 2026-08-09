@@ -119,12 +119,15 @@ export default async function BlogDetailPage({
   // whose stored hrefs are locale-relative (`/rent-in/lucknow`) and would 404
   // without a `/{locale}` segment. See lib/blog-body.ts.
   const body = prepareBlogBody((hi && post.body_hi) || post.body_en || "", locale);
+  // Stored titles sometimes carry the "| Cribliv" SEO suffix; that belongs in
+  // the <title> template, never in a printed headline.
+  const headline = stripBrandSuffix(post.title);
   const dateLabel = formatDate(post.published_at ?? post.updated_at, locale);
   const authorIsPersona = post.author === EDITORIAL_AUTHOR.name;
   const sourceLabels = (post.sources || []).map((s) => s.label).filter(Boolean);
 
   const articleJsonLd = buildArticle({
-    headline: post.title,
+    headline,
     description: post.meta_description || post.excerpt,
     authorName: post.author,
     authorUrl: authorPath(hi ? "hi" : "en"),
@@ -135,7 +138,7 @@ export default async function BlogDetailPage({
   });
   const breadcrumbJsonLd = buildBreadcrumb([
     { name: "Cribliv Times", href: `/${locale}/blog` },
-    { name: post.title, href: `/${locale}/blog/${post.slug}` }
+    { name: headline, href: `/${locale}/blog/${post.slug}` }
   ]);
   const jsonLdNodes = [articleJsonLd, breadcrumbJsonLd];
   if (post.faq_items?.length) jsonLdNodes.push(buildFaqPage(post.faq_items));
@@ -159,7 +162,7 @@ export default async function BlogDetailPage({
         <p className={`${styles.kicker} ${styles.articleKicker}`}>
           {deskLabel(post.category_slug, hi)}
         </p>
-        <h1 className={styles.articleTitle}>{post.title}</h1>
+        <h1 className={styles.articleTitle}>{headline}</h1>
         <div className={styles.articleByline}>
           {post.city_slug ? <>{cityLabel(post.city_slug)} · </> : null}
           {hi ? "द्वारा " : "By "}
@@ -173,7 +176,7 @@ export default async function BlogDetailPage({
 
         {post.hero_image_path ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img className={styles.hero} src={post.hero_image_path} alt={post.title} />
+          <img className={styles.hero} src={post.hero_image_path} alt={headline} />
         ) : null}
 
         {hasBlogEmbeds(body) ? (
@@ -265,7 +268,7 @@ export default async function BlogDetailPage({
           <p className={styles.relatedHead}>{hi ? "संबंधित रिपोर्ट" : "Related Reporting"}</p>
           {related.map((rel) => (
             <div className={styles.relatedItem} key={rel.slug}>
-              <Link href={`/${locale}/blog/${rel.slug}`}>{rel.title}</Link>
+              <Link href={`/${locale}/blog/${rel.slug}`}>{stripBrandSuffix(rel.title)}</Link>
             </div>
           ))}
         </div>
