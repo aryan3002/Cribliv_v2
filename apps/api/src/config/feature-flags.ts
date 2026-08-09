@@ -92,6 +92,14 @@ export interface FeatureFlags {
   ff_admin_lead_center: boolean;
   /** Unavailable listings + notify-when-available waitlist (flats/houses). */
   ff_unavailable_listings: boolean;
+  /**
+   * Worker job that auto-pauses listings with no owner activity for 30 days.
+   * Ships OFF: `last_owner_activity_at` only advances when an owner edits their
+   * own listing, so migrated v1 inventory and admin-created homes — whose owners
+   * never sign in to v2 — go stale on a timer and get pulled from search. On
+   * 2026-08-09 that paused effectively the entire catalogue in one run.
+   */
+  ff_stale_listing_sweep: boolean;
 }
 
 export const defaultFeatureFlags: FeatureFlags = {
@@ -179,7 +187,8 @@ export const defaultFeatureFlags: FeatureFlags = {
   ff_seo_gsc: false,
   ff_callback_leads: false,
   ff_admin_lead_center: false,
-  ff_unavailable_listings: false
+  ff_unavailable_listings: false,
+  ff_stale_listing_sweep: false
 };
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -449,6 +458,10 @@ export function readFeatureFlags(): FeatureFlags {
     ff_unavailable_listings: parseBooleanEnv(
       "FF_UNAVAILABLE_LISTINGS",
       defaultFeatureFlags.ff_unavailable_listings
+    ),
+    ff_stale_listing_sweep: parseBooleanEnv(
+      "FF_STALE_LISTING_SWEEP",
+      defaultFeatureFlags.ff_stale_listing_sweep
     )
   };
 }

@@ -69,9 +69,15 @@ export class FraudService {
 
   /**
    * Worker: detect and auto-pause stale listings (active > STALE_DAYS with no owner activity).
+   *
+   * Currently unwired — the live job is `runStaleListingSweep` in
+   * worker/stale-listing-sweep.ts, which also carries the mass-wipe circuit
+   * breaker. This copy is flag-gated too so wiring it up can't silently
+   * reintroduce the 2026-08-09 catalogue wipe.
    */
   async sweepStaleListings(): Promise<number> {
     if (!this.database.isEnabled()) return 0;
+    if (!readFeatureFlags().ff_stale_listing_sweep) return 0;
 
     const result = await this.database.query<{ id: string }>(
       `UPDATE listings
