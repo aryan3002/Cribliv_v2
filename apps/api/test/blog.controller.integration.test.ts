@@ -29,7 +29,7 @@ const publishedRow = {
   quality_breakdown: {},
   faq_items: [],
   hero_image_path: null,
-  author: "Aditi Sharma",
+  author: "Cribliv Data Desk",
   sources: [],
   data_asof: "2026-07-01",
   script: "en",
@@ -50,7 +50,7 @@ const fakeBlog = {
         category_slug: "data-reports",
         city_slug: "lucknow",
         hero_image_path: null,
-        author: "Aditi Sharma",
+        author: "Cribliv Data Desk",
         published_at: "2026-07-02",
         data_asof: "2026-07-01"
       }

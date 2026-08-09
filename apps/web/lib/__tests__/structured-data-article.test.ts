@@ -6,8 +6,9 @@ describe("buildArticle", () => {
     const a = buildArticle({
       headline: "2BHK rent in Gomti Nagar",
       description: "What tenants pay",
-      authorName: "Aditi Sharma",
-      authorUrl: "/en/blog/author/aditi-sharma",
+      authorName: "Cribliv Data Desk",
+      authorType: "Organization",
+      authorUrl: "/en/blog/author/cribliv-data-desk",
       datePublished: "2026-07-02",
       dateModified: "2026-07-03",
       image: "/images/blog/hero.jpg",
@@ -15,18 +16,31 @@ describe("buildArticle", () => {
     });
     expect(a["@type"]).toBe("Article");
     expect(a.headline).toBe("2BHK rent in Gomti Nagar");
-    expect((a.author as Record<string, unknown>)["@type"]).toBe("Person");
-    expect((a.author as Record<string, unknown>).name).toBe("Aditi Sharma");
+    expect((a.author as Record<string, unknown>)["@type"]).toBe("Organization");
+    expect((a.author as Record<string, unknown>).name).toBe("Cribliv Data Desk");
     expect((a.publisher as Record<string, unknown>)["@type"]).toBe("Organization");
     expect(String(a.mainEntityOfPage)).toContain("/en/blog/2bhk-rent-gomti-nagar");
-    expect(String((a.author as Record<string, unknown>).url)).toContain("/author/aditi-sharma");
+    expect(String((a.author as Record<string, unknown>).url)).toContain(
+      "/author/cribliv-data-desk"
+    );
+  });
+
+  it("defaults the author to a Person when no type is given", () => {
+    const a = buildArticle({
+      headline: "Guest column",
+      authorName: "A Guest Writer",
+      authorUrl: "/en/blog/author/cribliv-data-desk",
+      datePublished: "2026-07-02",
+      url: "/en/blog/guest-column"
+    });
+    expect((a.author as Record<string, unknown>)["@type"]).toBe("Person");
   });
 
   it("defaults dateModified to datePublished and omits missing fields", () => {
     const a = buildArticle({
       headline: "Deposit rules",
-      authorName: "Aditi Sharma",
-      authorUrl: "/en/blog/author/aditi-sharma",
+      authorName: "Cribliv Data Desk",
+      authorUrl: "/en/blog/author/cribliv-data-desk",
       datePublished: "2026-07-02",
       url: "/en/blog/deposit-rules"
     });

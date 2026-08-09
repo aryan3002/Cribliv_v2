@@ -26,7 +26,7 @@ const ROW = {
   quality_breakdown: { score: 0.9, passed: true, checks: [] },
   faq_items: [],
   hero_image_path: null,
-  author: "Aditi Sharma",
+  author: "Cribliv Data Desk",
   sources: [],
   data_asof: "2026-07-01",
   script: "en",

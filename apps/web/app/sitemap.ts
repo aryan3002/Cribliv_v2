@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { buildSearchQuery, getApiBaseUrl } from "../lib/api";
 import { fetchAllBlogSlugs } from "../lib/blog-api";
+import { EDITORIAL_AUTHOR } from "../lib/blog-author";
 import { HUB_CITY_SLUGS } from "../lib/nav/cities";
 import { INDEXABLE_MIN_LISTINGS } from "@cribliv/shared-types";
 import { fetchCityPlaces, fetchEnabledCities, fetchListings, type SeoPlace } from "../lib/seo-api";
@@ -180,7 +181,12 @@ async function buildBlogChunk(): Promise<MetadataRoute.Sitemap> {
   for (const desk of BLOG_DESKS) {
     rows.push(...entry(BASE_URL, `/blog/category/${desk}`, { priority: 0.6, freq: "weekly" }));
   }
-  rows.push(...entry(BASE_URL, "/blog/author/aditi-sharma", { priority: 0.4, freq: "monthly" }));
+  rows.push(
+    ...entry(BASE_URL, `/blog/author/${EDITORIAL_AUTHOR.slug}`, {
+      priority: 0.4,
+      freq: "monthly"
+    })
+  );
   try {
     for (const slug of await fetchAllBlogSlugs()) {
       rows.push(...entry(BASE_URL, `/blog/${slug}`, { priority: 0.7, freq: "weekly" }));

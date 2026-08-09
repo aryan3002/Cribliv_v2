@@ -11,7 +11,7 @@ import { locales } from "../../../../lib/i18n";
 import { prepareBlogBody } from "../../../../lib/blog-body";
 import { hasBlogEmbeds } from "../../../../lib/blog-embeds";
 import { BlogBody } from "../../../../components/blog/BlogBody";
-import { EDITORIAL_AUTHOR, authorPath } from "../../../../lib/blog-author";
+import { authorPath, displayAuthor, isEditorialAuthor } from "../../../../lib/blog-author";
 import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/structured-data";
 
 // Two things are required for an article to be served from cache, and this route
@@ -129,7 +129,8 @@ export default async function BlogDetailPage({
   // the <title> template, never in a printed headline.
   const headline = stripBrandSuffix(post.title);
   const dateLabel = formatDate(post.published_at ?? post.updated_at, locale);
-  const authorIsPersona = post.author === EDITORIAL_AUTHOR.name;
+  const authorIsDesk = isEditorialAuthor(post.author);
+  const authorName = displayAuthor(post.author);
   const sourceLabels = (post.sources || []).map((s) => s.label).filter(Boolean);
 
   // Most AI-generated posts publish without art, and Google Discover only
@@ -144,7 +145,9 @@ export default async function BlogDetailPage({
   const articleJsonLd = buildArticle({
     headline,
     description: post.meta_description || post.excerpt,
-    authorName: post.author,
+    authorName,
+    // The desk is a team, not a person — say so in the schema too.
+    authorType: authorIsDesk ? "Organization" : "Person",
     authorUrl: authorPath(hi ? "hi" : "en"),
     datePublished: post.published_at,
     dateModified: post.updated_at,
@@ -181,10 +184,10 @@ export default async function BlogDetailPage({
         <div className={styles.articleByline}>
           {post.city_slug ? <>{cityLabel(post.city_slug)} · </> : null}
           {hi ? "द्वारा " : "By "}
-          {authorIsPersona ? (
-            <Link href={authorPath(hi ? "hi" : "en")}>{post.author}</Link>
+          {authorIsDesk ? (
+            <Link href={authorPath(hi ? "hi" : "en")}>{authorName}</Link>
           ) : (
-            post.author
+            authorName
           )}
           {dateLabel ? ` · ${dateLabel}` : ""}
         </div>

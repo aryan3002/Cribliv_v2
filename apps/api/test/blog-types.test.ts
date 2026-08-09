@@ -3,9 +3,9 @@ import { EDITORIAL_AUTHOR } from "../src/modules/blog/blog.types";
 import type { BlogPostRow, QualityBreakdown } from "../src/modules/blog/blog.types";
 
 describe("blog.types", () => {
-  it("exposes the named editorial persona for E-E-A-T", () => {
-    expect(EDITORIAL_AUTHOR.name).toBe("Aditi Sharma");
-    expect(EDITORIAL_AUTHOR.slug).toBe("aditi-sharma");
+  it("exposes the house data-desk byline for E-E-A-T", () => {
+    expect(EDITORIAL_AUTHOR.name).toBe("Cribliv Data Desk");
+    expect(EDITORIAL_AUTHOR.slug).toBe("cribliv-data-desk");
   });
 
   it("QualityBreakdown + BlogPostRow shapes compose", () => {

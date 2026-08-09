@@ -5,7 +5,7 @@ import { Masthead } from "./_components/Masthead";
 import { formatDate, cityLabel, deskLabel, formatRent } from "./_components/blog-format";
 import { fetchBlogList, type BlogListItem } from "../../../lib/blog-api";
 import { fetchApi, buildSearchQuery } from "../../../lib/api";
-import { authorPath } from "../../../lib/blog-author";
+import { authorPath, displayAuthor } from "../../../lib/blog-author";
 import { stripBrandSuffix } from "../../../lib/seo";
 import { BLOG_DESKS } from "../../../lib/blog-desks";
 import { buildOrganization, buildWebSiteSearch } from "../../../lib/structured-data";
@@ -224,7 +224,9 @@ export default async function BlogHubPage({ params }: { params: { locale: string
                 <span className={styles.dateline}>{cityLabel(lead.city_slug)} · </span>
               ) : null}
               {hi ? "द्वारा " : "By "}
-              <Link href={authorPath(locale === "hi" ? "hi" : "en")}>{lead.author}</Link>
+              <Link href={authorPath(locale === "hi" ? "hi" : "en")}>
+                {displayAuthor(lead.author)}
+              </Link>
               {dateLabel ? ` · ${dateLabel}` : ""}
             </div>
             {lead.hero_image_path ? (
@@ -248,7 +250,7 @@ export default async function BlogHubPage({ params }: { params: { locale: string
                     {story.excerpt ? <p>{story.excerpt}</p> : null}
                     <div className={styles.bylineSm}>
                       {hi ? "द्वारा " : "By "}
-                      {story.author}
+                      {displayAuthor(story.author)}
                     </div>
                   </Link>
                 ))}
@@ -318,7 +320,7 @@ export default async function BlogHubPage({ params }: { params: { locale: string
                 {story.excerpt ? <p>{story.excerpt}</p> : null}
                 <div className={styles.bylineSm}>
                   {hi ? "द्वारा " : "By "}
-                  {story.author}
+                  {displayAuthor(story.author)}
                 </div>
               </Link>
             ))}
@@ -348,7 +350,7 @@ export default async function BlogHubPage({ params }: { params: { locale: string
                 {story.excerpt ? <p>{story.excerpt}</p> : null}
                 <div className={styles.bylineSm}>
                   {hi ? "द्वारा " : "By "}
-                  {story.author}
+                  {displayAuthor(story.author)}
                   {storyDate(story) ? ` · ${storyDate(story)}` : ""}
                 </div>
               </Link>

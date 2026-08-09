@@ -106,12 +106,15 @@ export interface BlogListItem {
   data_asof: string | null;
 }
 
+// The byline is the desk, not a persona (2026-08 rebrand, migration 0070):
+// reports come from live listing data with AI assistance and human review, and
+// the byline says so. Mirrors apps/web/lib/blog-author.ts.
 export const EDITORIAL_AUTHOR = {
-  name: "Aditi Sharma",
-  slug: "aditi-sharma",
-  role: "Rental Markets Editor, Cribliv",
+  name: "Cribliv Data Desk",
+  slug: "cribliv-data-desk",
+  role: "The data desk of Cribliv Times",
   bio_en:
-    "Aditi Sharma covers India's rental markets for Cribliv, turning live listing data into practical guidance for tenants. She has tracked rents across Lucknow and the NCR since 2023.",
+    "The Cribliv Data Desk turns live listing data into rent reports, locality guides and tenant-rights explainers for renters across India. Every figure is sourced from listings live on Cribliv; reports are produced with AI assistance and reviewed by the Cribliv team before publishing.",
   bio_hi:
-    "अदिति शर्मा Cribliv के लिए भारत के किराया बाज़ार पर लिखती हैं और लाइव लिस्टिंग डेटा को किरायेदारों के लिए व्यावहारिक सलाह में बदलती हैं।"
+    "Cribliv डेटा डेस्क लाइव लिस्टिंग डेटा को किराया रिपोर्ट, इलाके की गाइड और किरायेदार-अधिकार लेखों में बदलता है। हर आँकड़ा Cribliv पर लाइव लिस्टिंग से आता है।"
 } as const;
