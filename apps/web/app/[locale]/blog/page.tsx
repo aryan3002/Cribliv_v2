@@ -41,6 +41,8 @@ export async function generateMetadata({
   return {
     title,
     description,
+    // Google Discover requires large image previews to surface a story at all.
+    robots: { "max-image-preview": "large" },
     alternates: {
       canonical: `${BASE_URL}/en/blog`,
       languages: { en: `${BASE_URL}/en/blog`, hi: `${BASE_URL}/hi/blog` }

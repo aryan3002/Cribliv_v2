@@ -734,6 +734,38 @@
   padding-top: 10px;
   margin-top: 22px;
 }
+.shareRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 10px 0;
+  margin-top: 18px;
+}
+.shareLabel {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-soft);
+}
+.shareLink {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--flag);
+  text-decoration: none;
+}
+.shareLink:hover {
+  color: var(--ink);
+}
+
 .faqHead {
   font-family: var(--serif);
   font-size: 24px;

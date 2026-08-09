@@ -10,7 +10,8 @@ import {
   fetchSeoCopy
 } from "../../../../../lib/seo-api";
 import { buildBreadcrumb, buildPlace } from "../../../../../lib/structured-data";
-import { isValidSlug } from "../../../../../lib/seo";
+import { isValidSlug, stripBrandSuffix } from "../../../../../lib/seo";
+import { timesStoriesForLocality, deskLabelFor } from "../../../../../lib/blog-crosslink";
 import {
   buildLocalityTemplateCopy,
   nearestMetroForLocality
@@ -59,7 +60,7 @@ export async function LocalityHubView({
   const placeName = locale === "hi" ? data.locality.name_hi : data.locality.name_en;
   const cityName = params.citySlug.charAt(0).toUpperCase() + params.citySlug.slice(1);
 
-  const [listings, siblingLocalities, landmarks, metros] = await Promise.all([
+  const [listings, siblingLocalities, landmarks, metros, timesStories] = await Promise.all([
     fetchListings(
       {
         city: params.citySlug,
@@ -72,7 +73,10 @@ export async function LocalityHubView({
     fetchLandmarks(params.citySlug, undefined, { revalidate }),
     // City-scoped: feeding /map/metro's whole-line result into
     // nearestMetroForLocality could name a station in another city entirely.
-    fetchCityMetroStations(params.citySlug, { revalidate })
+    fetchCityMetroStations(params.citySlug, { revalidate }),
+    // CRIBLIV TIMES stories for this locality — the SEO pages are the paper's
+    // biggest distribution surface. Best-effort: [] when the blog is empty.
+    timesStoriesForLocality(params.citySlug, params.locality, { revalidate }).catch(() => [])
   ]);
 
   // Compute simple distance ordering for related items (cheap, server-side).
@@ -168,6 +172,18 @@ export async function LocalityHubView({
       intentBaseHref={`/${locale}/city/${params.citySlug}/${params.locality}`}
       intentSurface="locality"
       relatedSections={[
+        ...(timesStories.length > 0
+          ? [
+              {
+                title: locale === "hi" ? "Cribliv Times से रिपोर्ट" : "From the Cribliv Times",
+                items: timesStories.map((story) => ({
+                  href: `/${locale}/blog/${story.slug}`,
+                  label: stripBrandSuffix(story.title),
+                  sublabel: deskLabelFor(story.category_slug, locale === "hi")
+                }))
+              }
+            ]
+          : []),
         {
           title: locale === "hi" ? "नजदीकी मेट्रो स्टेशन" : "Nearby metro stations",
           items: nearbyMetros.map((m) => ({

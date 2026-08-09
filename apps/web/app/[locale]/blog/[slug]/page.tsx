@@ -59,6 +59,8 @@ export async function generateMetadata({
   return {
     title,
     description,
+    // Google Discover requires large image previews to surface a story at all.
+    robots: { "max-image-preview": "large" },
     alternates: {
       canonical: `${BASE_URL}/en/blog/${post.slug}`,
       languages: {
@@ -194,6 +196,20 @@ export default async function BlogDetailPage({
             {post.data_asof ? ` · ${hi ? "डेटा" : "data as of"} ${post.data_asof}` : ""}
           </p>
         ) : null}
+
+        <div className={styles.shareRow}>
+          <span className={styles.shareLabel}>{hi ? "यह रिपोर्ट भेजें" : "Pass this along"}</span>
+          <a
+            className={styles.shareLink}
+            href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+              `${headline} — ${BASE_URL}/${locale}/blog/${post.slug}`
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {hi ? "WhatsApp पर भेजें →" : "Share on WhatsApp →"}
+          </a>
+        </div>
 
         {post.faq_items?.length ? (
           <>
