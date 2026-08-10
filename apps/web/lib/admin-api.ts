@@ -1,4 +1,5 @@
 import { ApiError, fetchApi, buildSearchQuery, getApiBaseUrl } from "./api";
+import { EDITORIAL_AUTHOR } from "./blog-author";
 import type {
   AdminHomeDetail,
   AdminHomesListParams,
@@ -1998,7 +1999,22 @@ async function blogPostAction(
     method: "POST",
     headers: authHeaders(accessToken)
   });
-  return mapAdminBlogRow(raw);
+  const row = mapAdminBlogRow(raw);
+  // Publishing/archiving changes the public paper, whose pages are ISR-cached
+  // for an hour — without this, a freshly published story is invisible on the
+  // front page until the window rolls (the exact "I published but it doesn't
+  // show" report from 2026-08-10). Approve only changes admin state.
+  if (action === "publish" || action === "archive") {
+    const paths: string[] = [];
+    for (const locale of ["en", "hi"]) {
+      paths.push(`/${locale}/blog`);
+      if (row.slug) paths.push(`/${locale}/blog/${row.slug}`);
+      if (row.categorySlug) paths.push(`/${locale}/blog/category/${row.categorySlug}`);
+      paths.push(`/${locale}/blog/author/${EDITORIAL_AUTHOR.slug}`);
+    }
+    await revalidateSeoPaths(accessToken, paths);
+  }
+  return row;
 }
 
 export interface BlogConversionRow {
