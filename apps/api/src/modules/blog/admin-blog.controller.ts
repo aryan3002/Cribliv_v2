@@ -102,19 +102,34 @@ export class AdminBlogController {
     return ok({ items });
   }
 
-  // Content -> revenue: per-post referral clicks + actual contact-unlocks,
-  // joined by the 'blog-{slug}' source tag. Guarded so it returns [] on any DB
-  // that predates migration 0050 (contact_unlocks.source).
+  // Content -> revenue, per published post: reader views (blog_post_views,
+  // migration 0071), referral clicks and actual contact-unlocks (joined by the
+  // 'blog-{slug}' source tag). Anchored on blog_posts so every published story
+  // appears even before its first click. Guarded so it returns [] on any DB
+  // that predates migration 0050 (contact_unlocks.source); the views join is
+  // separately guarded for DBs that predate 0071.
   @Get("conversion")
   async conversion() {
     try {
+      const hasViews = await this.database
+        .query<{ present: boolean }>(
+          `SELECT to_regclass('public.blog_post_views') IS NOT NULL AS present`
+        )
+        .then((r) => Boolean(r.rows[0]?.present))
+        .catch(() => false);
+      const viewsCte = hasViews
+        ? `views AS (SELECT post_id, SUM(views)::int AS views FROM blog_post_views GROUP BY 1),`
+        : `views AS (SELECT NULL::uuid AS post_id, 0::int AS views WHERE false),`;
+
       const { rows } = await this.database.query<{
         slug: string;
         title: string | null;
+        views: number;
         clicks: number;
         unlocks: number;
       }>(
-        `WITH clicks AS (
+        `WITH ${viewsCte}
+         clicks AS (
            SELECT (metadata->>'source') AS source, COUNT(*)::int AS clicks
            FROM listing_events
            WHERE event_type = 'view' AND metadata->>'source' LIKE 'blog-%'
@@ -127,14 +142,17 @@ export class AdminBlogController {
            GROUP BY 1
          )
          SELECT
-           substr(COALESCE(c.source, u.source), 6) AS slug,
+           p.slug,
            p.title,
+           COALESCE(v.views, 0)::int AS views,
            COALESCE(c.clicks, 0)::int AS clicks,
            COALESCE(u.unlocks, 0)::int AS unlocks
-         FROM clicks c
-         FULL OUTER JOIN unlocks u ON u.source = c.source
-         LEFT JOIN blog_posts p ON p.slug = substr(COALESCE(c.source, u.source), 6)
-         ORDER BY unlocks DESC, clicks DESC
+         FROM blog_posts p
+         LEFT JOIN views v ON v.post_id = p.id
+         LEFT JOIN clicks c ON c.source = 'blog-' || p.slug
+         LEFT JOIN unlocks u ON u.source = 'blog-' || p.slug
+         WHERE p.status = 'published'
+         ORDER BY unlocks DESC, clicks DESC, views DESC, p.slug ASC
          LIMIT 100`
       );
       return ok({ items: rows });

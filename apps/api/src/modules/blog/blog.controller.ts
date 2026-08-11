@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Query } from "@nestjs/common";
+import { Controller, Get, HttpCode, Inject, Param, Post, Query } from "@nestjs/common";
 import { ok } from "../../common/response";
 import { BlogEmbeddingService } from "./blog-embedding.service";
 import { BlogService } from "./blog.service";
@@ -24,6 +24,26 @@ export class BlogController {
       city: city || undefined
     });
     return ok(result);
+  }
+
+  // Declared before ":slug" — Nest matches routes in declaration order.
+  @Get("most-read")
+  async mostRead(@Query("days") days?: string, @Query("limit") limit?: string) {
+    const d = Math.min(Math.max(Number(days) || 7, 1), 30);
+    const l = Math.min(Math.max(Number(limit) || 5, 1), 10);
+    return ok({ items: await this.blog.mostRead(d, l) });
+  }
+
+  /**
+   * Reader-view tally, fired client-side by the article page (the page itself
+   * is ISR-cached, so server renders cannot count readers). Public by design —
+   * same trust model as listing view counting.
+   */
+  @Post(":slug/view")
+  @HttpCode(202)
+  async recordView(@Param("slug") slug: string) {
+    await this.blog.recordView(slug);
+    return ok({});
   }
 
   @Get(":slug")

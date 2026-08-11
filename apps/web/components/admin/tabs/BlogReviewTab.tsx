@@ -122,7 +122,8 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
     let cancelled = false;
     fetchBlogConversion(accessToken)
       .then((rows) => {
-        if (!cancelled) setConversion(rows.filter((r) => r.clicks > 0 || r.unlocks > 0));
+        if (!cancelled)
+          setConversion(rows.filter((r) => r.views > 0 || r.clicks > 0 || r.unlocks > 0));
       })
       .catch(() => {
         /* best-effort — hidden until migration 0050 + traffic exist */
@@ -477,14 +478,15 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
       </SectionCard>
 
       <SectionCard
-        title="Top converting posts"
-        subtitle="Which published posts send readers to listings, and drive real contact-unlocks."
+        title="Readership & conversion"
+        subtitle="Reader views, listing clicks, and real contact-unlocks per published story."
       >
         {conversion.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--ad-text-muted, #64748b)" }}>
                 <th style={{ padding: "6px 8px", fontWeight: 600 }}>Post</th>
+                <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "right" }}>Views</th>
                 <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "right" }}>Clicks</th>
                 <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "right" }}>Unlocks</th>
                 <th style={{ padding: "6px 8px", fontWeight: 600, textAlign: "right" }}>Conv.</th>
@@ -502,6 +504,15 @@ export function BlogReviewTab({ accessToken, onToast }: Props) {
                     >
                       {r.title ?? r.slug}
                     </a>
+                  </td>
+                  <td
+                    style={{
+                      padding: "8px",
+                      textAlign: "right",
+                      color: "var(--ad-text-muted, #64748b)"
+                    }}
+                  >
+                    {r.views}
                   </td>
                   <td style={{ padding: "8px", textAlign: "right" }}>{r.clicks}</td>
                   <td style={{ padding: "8px", textAlign: "right", fontWeight: 700 }}>
