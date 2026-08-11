@@ -2020,12 +2020,14 @@ async function blogPostAction(
 export interface BlogConversionRow {
   slug: string;
   title: string | null;
+  views: number;
   clicks: number;
   unlocks: number;
 }
 
-// Per-post content -> revenue: referral clicks + actual contact-unlocks.
-// Returns [] on any DB that predates migration 0050 (handled server-side).
+// Per-post content -> revenue: reader views + referral clicks + actual
+// contact-unlocks. Returns [] on any DB that predates migration 0050; views
+// are 0 on a DB that predates migration 0071 (handled server-side).
 export async function fetchBlogConversion(accessToken: string): Promise<BlogConversionRow[]> {
   const res = await fetchApi<{ items: BlogConversionRow[] }>("/admin/blog/conversion", {
     headers: authHeaders(accessToken)
@@ -2033,6 +2035,7 @@ export async function fetchBlogConversion(accessToken: string): Promise<BlogConv
   return (res.items ?? []).map((r) => ({
     slug: r.slug,
     title: r.title ?? null,
+    views: Number(r.views) || 0,
     clicks: Number(r.clicks) || 0,
     unlocks: Number(r.unlocks) || 0
   }));

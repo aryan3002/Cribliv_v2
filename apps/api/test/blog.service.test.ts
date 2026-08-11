@@ -108,3 +108,37 @@ describe("BlogService (DB-only)", () => {
     await expect(service.countByStatus("draft")).resolves.toBe(4);
   });
 });
+
+describe("BlogService reader views", () => {
+  it("recordView upserts a daily tally for a published slug", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const { service } = svc(query);
+    await service.recordView("rooms-for-rent-near-me");
+    expect(query).toHaveBeenCalledTimes(1);
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain("INSERT INTO blog_post_views");
+    expect(sql).toContain("status = 'published'");
+    expect(sql).toContain("ON CONFLICT (post_id, day)");
+    expect(params).toEqual(["rooms-for-rent-near-me"]);
+  });
+
+  it("recordView swallows DB errors (pre-0071 schema) and no-ops without a DB", async () => {
+    const failing = vi.fn().mockRejectedValue(new Error("relation does not exist"));
+    const { service } = svc(failing);
+    await expect(service.recordView("x")).resolves.toBeUndefined();
+
+    const { service: memory, query } = svc(vi.fn(), false);
+    await memory.recordView("x");
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("mostRead returns ranked rows and [] on error", async () => {
+    const rows = [{ slug: "a", title: "A", category_slug: "tenancy", views: 9 }];
+    const { service, query } = svc(vi.fn().mockResolvedValue({ rows }));
+    await expect(service.mostRead(7, 5)).resolves.toEqual(rows);
+    expect(query.mock.calls[0][1]).toEqual([7, 5]);
+
+    const { service: broken } = svc(vi.fn().mockRejectedValue(new Error("boom")));
+    await expect(broken.mostRead(7, 5)).resolves.toEqual([]);
+  });
+});

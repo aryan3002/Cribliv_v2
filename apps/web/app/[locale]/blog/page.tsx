@@ -173,6 +173,22 @@ export default async function BlogHubPage({ params }: { params: { locale: string
 
   const rentIndex = await fetchRentIndex();
 
+  // "Most Read" rail box — first-party reader tallies (POST /blog/:slug/view).
+  // Hidden until at least three stories have real readership, so a young paper
+  // never prints an embarrassingly thin chart.
+  let mostRead: Array<{ slug: string; title: string; views: number }> = [];
+  try {
+    const res = await fetchApi<{ items: Array<{ slug: string; title: string; views: number }> }>(
+      `/blog/most-read?days=7&limit=5`,
+      undefined,
+      { revalidate: 3600 }
+    );
+    mostRead = (res.items ?? []).filter((item) => item.views > 0);
+    if (mostRead.length < 3) mostRead = [];
+  } catch {
+    // the paper prints without the chart
+  }
+
   const lead = items[0] ?? null;
   // Six sub-features (three 2-up rows) under the lead: without them the lead
   // column (headline + dek only when there's no hero photo) runs far shorter
@@ -283,6 +299,25 @@ export default async function BlogHubPage({ params }: { params: { locale: string
                 <Link className={styles.numMore} href={`/${locale}/city/${RENT_INDEX_CITY}`}>
                   {hi ? "पूरा इलाका डेटा →" : "Full locality data →"}
                 </Link>
+              </div>
+            ) : null}
+            {mostRead.length > 0 ? (
+              <div className={styles.numbers} style={{ marginBottom: 14 }}>
+                <p className={styles.railHead}>
+                  {hi ? "इस हफ़्ते सबसे ज़्यादा पढ़ी गईं" : "Most Read This Week"}
+                </p>
+                {mostRead.map((item, i) => (
+                  <Link
+                    key={item.slug}
+                    className={styles.numRow}
+                    href={`/${locale}/blog/${item.slug}`}
+                  >
+                    <span className={styles.numLabel}>
+                      {i + 1}. {stripBrandSuffix(item.title)}
+                    </span>
+                    <p className={styles.numValue}>{item.views.toLocaleString("en-IN")}</p>
+                  </Link>
+                ))}
               </div>
             ) : null}
             <p className={styles.railHead}>{hi ? "और खबरें" : "Also Reported"}</p>

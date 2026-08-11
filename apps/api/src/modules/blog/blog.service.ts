@@ -122,6 +122,57 @@ export class BlogService {
     return { items: rows, total: totalRes.rows[0]?.total ?? 0 };
   }
 
+  /**
+   * One reader, one tally. Fired by the article page CLIENT-side: article
+   * routes are ISR-cached, so the API sees at most one server render per cache
+   * window and server-side counting would undercount everything. Unknown or
+   * unpublished slugs are ignored; a metrics write must never fail a reader,
+   * so every error (including a DB that predates migration 0071) is swallowed.
+   */
+  async recordView(slug: string): Promise<void> {
+    if (!this.database.isEnabled()) return;
+    try {
+      await this.database.query(
+        `INSERT INTO blog_post_views (post_id, day, views)
+         SELECT id, CURRENT_DATE, 1 FROM blog_posts
+         WHERE slug = $1 AND status = 'published'
+         ON CONFLICT (post_id, day) DO UPDATE SET views = blog_post_views.views + 1`,
+        [slug]
+      );
+    } catch {
+      // best-effort tally
+    }
+  }
+
+  /** Top published stories by reader views over a rolling day window. */
+  async mostRead(
+    days: number,
+    limit: number
+  ): Promise<Array<{ slug: string; title: string; category_slug: string | null; views: number }>> {
+    if (!this.database.isEnabled()) return [];
+    try {
+      const { rows } = await this.database.query<{
+        slug: string;
+        title: string;
+        category_slug: string | null;
+        views: number;
+      }>(
+        `SELECT p.slug, p.title, cat.slug AS category_slug, SUM(v.views)::int AS views
+         FROM blog_post_views v
+         JOIN blog_posts p ON p.id = v.post_id AND p.status = 'published'
+         LEFT JOIN blog_categories cat ON cat.id = p.category_id
+         WHERE v.day >= CURRENT_DATE - ($1::int - 1)
+         GROUP BY p.slug, p.title, cat.slug
+         ORDER BY views DESC, p.slug ASC
+         LIMIT $2`,
+        [days, limit]
+      );
+      return rows;
+    } catch {
+      return [];
+    }
+  }
+
   async getPublishedBySlug(slug: string): Promise<BlogPostRow | null> {
     if (!this.database.isEnabled()) return null;
     const { rows } = await this.database.query<BlogPostRow>(

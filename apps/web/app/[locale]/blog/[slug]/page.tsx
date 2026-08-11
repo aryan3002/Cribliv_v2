@@ -11,6 +11,7 @@ import { locales } from "../../../../lib/i18n";
 import { prepareBlogBody } from "../../../../lib/blog-body";
 import { hasBlogEmbeds } from "../../../../lib/blog-embeds";
 import { BlogBody } from "../../../../components/blog/BlogBody";
+import { BlogViewPing } from "../../../../components/blog/BlogViewPing";
 import { authorPath, displayAuthor, isEditorialAuthor } from "../../../../lib/blog-author";
 import { buildArticle, buildBreadcrumb, buildFaqPage } from "../../../../lib/structured-data";
 
@@ -171,6 +172,7 @@ export default async function BlogDetailPage({
         />
       ))}
       <Masthead locale={locale} activeCategory={post.category_slug ?? null} dateLabel={dateLabel} />
+      <BlogViewPing slug={post.slug} />
 
       <Link href={`/${locale}/blog`} className={styles.backToFront}>
         {hi ? "← मुख पृष्ठ" : "← Front Page"}
