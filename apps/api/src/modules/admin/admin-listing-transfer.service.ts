@@ -91,7 +91,7 @@ export class AdminListingTransferService {
       if (current.listing_type !== "flat_house") {
         throw new BadRequestException({
           code: "pg_not_supported",
-          message: "PG listings cannot be transferred yet"
+          message: "Use POST /admin/pg/listings/:id/transfer for PG listings"
         });
       }
 
@@ -225,7 +225,7 @@ export class AdminListingTransferService {
     if (listing.listingType !== "flat_house") {
       throw new BadRequestException({
         code: "pg_not_supported",
-        message: "PG listings cannot be transferred yet"
+        message: "Use POST /admin/pg/listings/:id/transfer for PG listings"
       });
     }
 

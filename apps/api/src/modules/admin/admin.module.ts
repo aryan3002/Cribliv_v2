@@ -20,6 +20,7 @@ import { VerificationArtifactSasIssuer } from "./verification-artifact-sas.issue
 import { AdminHomesController } from "./admin-homes.controller";
 import { AdminHomesService } from "./admin-homes.service";
 import { AdminListingTransferService } from "./admin-listing-transfer.service";
+import { AdminPgTransferService } from "./admin-pg-transfer.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
 import { SeoModule } from "../seo/seo.module";
@@ -66,7 +67,10 @@ import { AvailabilityAlertsModule } from "../availability-alerts/availability-al
     VerificationArtifactSasIssuer,
     AdminReviewService,
     AdminHomesService,
-    AdminListingTransferService
+    AdminListingTransferService,
+    // PG ownership transfer. DatabaseService-only — same local-provider
+    // rationale as the other PG admin services above.
+    AdminPgTransferService
   ]
 })
 export class AdminModule {}
