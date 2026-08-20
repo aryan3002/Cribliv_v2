@@ -221,11 +221,18 @@ async function seedPgListing(
 
     // Same id as the head — the projection is 1:1 on id, and every read path
     // (search, maps, contact unlock) joins them on that assumption.
+    // whatsapp_available seeded TRUE here (the OLD operator), deliberately
+    // different from the new operator's default FALSE (users.whatsapp_opt_in
+    // defaults false — infra/migrations/0001_init.sql:160, and the transfer
+    // never sets it explicitly). If old and new both started false, a bug
+    // that carried the previous operator's value over instead of sourcing the
+    // target's own (admin-pg-transfer.service.ts:198) would be invisible: the
+    // column would read false before and after either way.
     await client.query(
       `INSERT INTO listings
          (id, owner_user_id, listing_type, title_en, status, verification_status,
           monthly_rent, pg_property_id, contact_phone_encrypted, whatsapp_available)
-       VALUES ($1::uuid, $2::uuid, 'pg', $3, 'active', 'verified', 12000, $4::uuid, $5, false)`,
+       VALUES ($1::uuid, $2::uuid, 'pg', $3, 'active', 'verified', 12000, $4::uuid, $5, true)`,
       [listingId, operatorUserId, title, propertyId, operatorPhone]
     );
 
@@ -417,7 +424,8 @@ test("admin transfers a PG and every ownership column moves together", async ({
       `SELECT pl.operator_user_id::text AS head_operator,
               pp.operator_id::text      AS property_operator,
               l.contact_phone_encrypted AS projection_phone,
-              l.owner_user_id::text     AS projection_owner
+              l.owner_user_id::text     AS projection_owner,
+              l.whatsapp_available      AS projection_whatsapp
          FROM pg_listings pl
          JOIN listings l ON l.id = pl.id
          LEFT JOIN pg_properties pp ON pp.id = pl.pg_property_id
@@ -431,6 +439,10 @@ test("admin transfers a PG and every ownership column moves together", async ({
   expect(row0.property_operator).toBe(newOperatorUserId);
   expect(row0.projection_owner).toBe(newOperatorUserId);
   expect(row0.projection_phone).toBe(newOperatorPhone);
+  // Seeded true on the OLD operator (above); must now read false, sourced
+  // from the NEW operator's own whatsapp_opt_in (defaults false), never
+  // carried over from the operator being replaced.
+  expect(row0.projection_whatsapp).toBe(false);
 
   // The pre-existing lead moved with the PG and is stamped transferred_at, so
   // it does not consume the new operator's free-lead allowance

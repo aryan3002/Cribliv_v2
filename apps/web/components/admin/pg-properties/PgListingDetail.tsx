@@ -398,9 +398,16 @@ export function PgListingDetail({ accessToken, listingId, onBack, onToast }: Pro
         <OwnerSection
           detail={detail}
           accessToken={accessToken}
-          onTransferred={() => {
-            void refetchDetail();
-            onToast?.("Ownership transferred", "success");
+          onTransferred={async () => {
+            // Await before toasting: the toast and the screen must never
+            // disagree. If the refetch fails, say so instead of showing a
+            // green success toast over a stale Owner tab (see
+            // useAdminPgListing.refetchDetail).
+            const refreshed = await refetchDetail();
+            onToast?.(
+              refreshed ? "Ownership transferred" : "Transferred — reload to see the new operator.",
+              refreshed ? "success" : "error"
+            );
           }}
         />
       )}

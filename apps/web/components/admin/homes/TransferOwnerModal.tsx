@@ -84,13 +84,9 @@ export function TransferOwnerModal({
         role="dialog"
         aria-modal="true"
         aria-label="Transfer ownership"
-        className="admin-drawer"
+        className="admin-drawer admin-drawer--center"
         style={{
           width: "min(440px, 94vw)",
-          top: "50%",
-          right: "50%",
-          transform: "translate(50%, -50%)",
-          bottom: "auto",
           borderRadius: 14
         }}
       >
