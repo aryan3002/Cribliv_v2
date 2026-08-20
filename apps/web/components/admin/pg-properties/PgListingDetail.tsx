@@ -96,6 +96,7 @@ export function PgListingDetail({ accessToken, listingId, onBack, onToast }: Pro
     fullError,
     ensureFull,
     refetchFull,
+    refetchDetail,
     patchFull
   } = useAdminPgListing(accessToken, listingId, rangeDays);
 
@@ -393,7 +394,16 @@ export function PgListingDetail({ accessToken, listingId, onBack, onToast }: Pro
             onToast={onToast}
           />
         ))}
-      {tab === "owner" && <OwnerSection detail={detail} />}
+      {tab === "owner" && (
+        <OwnerSection
+          detail={detail}
+          accessToken={accessToken}
+          onTransferred={() => {
+            void refetchDetail();
+            onToast?.("Ownership transferred", "success");
+          }}
+        />
+      )}
     </div>
   );
 }

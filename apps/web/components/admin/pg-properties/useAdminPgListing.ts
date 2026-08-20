@@ -86,6 +86,14 @@ export function useAdminPgListing(accessToken: string, listingId: string, rangeD
     }
   }, [accessToken, listingId]);
 
+  // Re-read the thin detail after a mutation that changes it (ownership
+  // transfer). Deliberately does NOT re-fetch analytics or `full` — the Owner
+  // tab is the only consumer and a full reload would reset the open tab.
+  const refetchDetail = useCallback(async () => {
+    const d = await fetchAdminPgListing(accessToken, listingId);
+    setDetail(d);
+  }, [accessToken, listingId]);
+
   // Lazy one-shot fetch — called the first time a content tab mounts.
   const ensureFull = useCallback(async () => {
     if (fullRequested.current) return;
@@ -111,6 +119,7 @@ export function useAdminPgListing(accessToken: string, listingId: string, rangeD
     fullError,
     ensureFull,
     refetchFull,
+    refetchDetail,
     patchFull
   };
 }

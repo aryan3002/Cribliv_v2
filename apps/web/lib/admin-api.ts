@@ -143,6 +143,42 @@ export async function transferHomeOwner(
 }
 
 /**
+ * Hand a whole PG to its real operator, identified by phone. Unlike the
+ * flat/house transfer this also moves the property container and everything
+ * hanging off it (rooms, beds, tenant assignments, maintenance), because PG
+ * ownership spans pg_listings, pg_properties and the listings projection.
+ */
+export async function transferPgOperator(
+  accessToken: string,
+  listingId: string,
+  phoneE164: string,
+  fullName?: string
+): Promise<{
+  operatorUserId: string;
+  operatorPhone: string;
+  leadsMoved: number;
+  alreadyOwned: boolean;
+}> {
+  const response = await fetchApi<{
+    operator_user_id: string;
+    operator_phone: string;
+    leads_moved: number;
+    already_owned: boolean;
+  }>(`/admin/pg/listings/${listingId}/transfer`, {
+    method: "POST",
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ phone_e164: phoneE164, full_name: fullName })
+  });
+
+  return {
+    operatorUserId: response.operator_user_id,
+    operatorPhone: response.operator_phone,
+    leadsMoved: response.leads_moved,
+    alreadyOwned: response.already_owned
+  };
+}
+
+/**
  * Publish a draft created on an owner's behalf. Transfers ownership and moves
  * the listing into review in a single server-side transaction — submitListing()
  * is scoped to owner_user_id, so once ownership moves a separate submit call
