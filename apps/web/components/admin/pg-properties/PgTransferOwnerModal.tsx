@@ -88,7 +88,17 @@ export function PgTransferOwnerModal({
           right: "50%",
           transform: "translate(50%, -50%)",
           bottom: "auto",
-          borderRadius: 14
+          borderRadius: 14,
+          // `.admin-drawer` animates `transform` (ad-slide-in-right, for the
+          // right-edge drawer it was written for), and a CSS animation outranks
+          // an inline style in the cascade — so it silently ate the
+          // `translate(50%, -50%)` above and the dialog rendered with its TOP
+          // edge at 50% of the viewport instead of its centre. At 1280x720 that
+          // pushed this modal's footer (and its submit button) below the fold,
+          // unreachable: the dialog is position:fixed, so scrolling cannot bring
+          // it back. Swap in an opacity-only entrance so the centring transform
+          // survives. Caught by admin-pg-transfer.spec.ts.
+          animation: "ad-fade-in 160ms ease both"
         }}
       >
         <header className="admin-drawer__head">
