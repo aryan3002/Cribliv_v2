@@ -496,6 +496,34 @@
   to   { transform: translateX(0); opacity: 1; }
 }
 
+/* ── Drawer, centred modifier (dialogs, not the right-edge drawer) ──────── */
+/*
+ * `.admin-drawer` animates `transform` (ad-slide-in-right, written for the
+ * right-edge drawer), and with `animation-fill-mode: both` that keyframe's
+ * `to { transform: translateX(0) }` permanently outranks an inline
+ * `transform` in the cascade — so an inline `translate(50%, -50%)` on
+ * `.admin-drawer` never applies, and `top: 50%` alone puts the dialog's TOP
+ * edge at viewport centre instead of its true centre. That pushes the
+ * footer (and its submit button) below the fold. The dialog is
+ * `position: fixed`, so scrolling cannot recover it.
+ *
+ * Fix: swap in an opacity-only entrance (ad-fade-in, already defined above)
+ * so the centring transform survives, and cap max-height so
+ * `.admin-drawer__body`'s `overflow-y: auto` has room to engage instead of
+ * the footer running off-screen as the copy grows. Caught by
+ * admin-pg-transfer.spec.ts; shared here so admin-listing-transfer's
+ * TransferOwnerModal gets the same fix rather than relying on its shorter
+ * copy to stay under the fold by accident.
+ */
+.admin-drawer--center {
+  top: 50%;
+  right: 50%;
+  bottom: auto;
+  transform: translate(50%, -50%);
+  max-height: 90vh;
+  animation: ad-fade-in 160ms ease both;
+}
+
 /* ── Empty state ──────────────────────────────────────────────────────── */
 
 .admin-empty {

@@ -68,6 +68,8 @@ function makeCtrl() {
     getVerificationArtifactLink: vi.fn(async () => ({ url: "https://x", expires_at: "t" }))
   } as any;
 
+  const pgTransfer = {} as any;
+
   const ctrl = new AdminController(
     appState,
     database,
@@ -85,7 +87,8 @@ function makeCtrl() {
     pgOverrides,
     pgEdit,
     indexing,
-    review
+    review,
+    pgTransfer
   );
   return { ctrl, pgProps, pgOverrides, pgAnalytics, review };
 }

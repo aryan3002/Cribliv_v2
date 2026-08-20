@@ -1,11 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import type { PgAdminListingDetail } from "@cribliv/shared-types";
 import { SectionCard } from "../../primitives/SectionCard";
 import { formatDate } from "../../../../lib/admin/format";
+import { transferPgOperator } from "../../../../lib/admin-api";
+import { PgTransferOwnerModal } from "../PgTransferOwnerModal";
 
-export function OwnerSection({ detail }: { detail: PgAdminListingDetail }) {
+export function OwnerSection({
+  detail,
+  accessToken,
+  onTransferred
+}: {
+  detail: PgAdminListingDetail;
+  accessToken: string;
+  onTransferred: () => void;
+}) {
   const o = detail.owner;
+  const [transferOpen, setTransferOpen] = useState(false);
   const rows: Array<{ label: string; value: string | null }> = [
     { label: "Name", value: o.name },
     { label: "Phone", value: o.phone },
@@ -44,6 +56,28 @@ export function OwnerSection({ detail }: { detail: PgAdminListingDetail }) {
           </div>
         ))}
       </div>
+
+      <button
+        type="button"
+        className="admin-btn admin-btn--ghost"
+        style={{ marginTop: 16 }}
+        onClick={() => setTransferOpen(true)}
+      >
+        Transfer ownership
+      </button>
+
+      {transferOpen ? (
+        <PgTransferOwnerModal
+          listingId={detail.listing.id}
+          currentOwnerName={o.name}
+          currentOwnerPhone={o.phone}
+          onClose={() => setTransferOpen(false)}
+          onTransferred={onTransferred}
+          onTransfer={(listingId, phone, fullName) =>
+            transferPgOperator(accessToken, listingId, phone, fullName)
+          }
+        />
+      ) : null}
     </SectionCard>
   );
 }

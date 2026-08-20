@@ -21,6 +21,7 @@ import { PgAdminPropertiesService } from "../src/modules/admin/pg-admin-properti
 import { PgAnalyticsOverrideService } from "../src/modules/admin/pg-analytics-override.service";
 import { PgAdminListingEditService } from "../src/modules/admin/pg-admin-listing-edit.service";
 import { AdminReviewService } from "../src/modules/admin/admin-review.service";
+import { AdminPgTransferService } from "../src/modules/admin/admin-pg-transfer.service";
 import { AdminController } from "../src/modules/admin/admin.controller";
 import { IndexingService } from "../src/modules/seo/indexing.service";
 import { listingIndexPaths } from "../src/modules/seo/seo-urls";
@@ -68,7 +69,8 @@ describe("AdminController.listingDecision - seo.queue_indexing enqueue on approv
         { provide: PgAnalyticsOverrideService, useValue: {} },
         { provide: PgAdminListingEditService, useValue: {} },
         { provide: IndexingService, useValue: indexing },
-        { provide: AdminReviewService, useValue: {} }
+        { provide: AdminReviewService, useValue: {} },
+        { provide: AdminPgTransferService, useValue: {} }
       ]
     })
       .overrideGuard(AuthGuard)

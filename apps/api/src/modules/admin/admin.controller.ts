@@ -48,6 +48,7 @@ import { readFeatureFlags } from "../../config/feature-flags";
 import { IndexingService } from "../seo/indexing.service";
 import { listingIndexPaths } from "../seo/seo-urls";
 import { AdminReviewService } from "./admin-review.service";
+import { AdminPgTransferService } from "./admin-pg-transfer.service";
 import { debitWalletCredits, WalletBalanceError } from "../wallet/wallet-balance";
 
 // Clamp the ?days= query param to a sane window; default 30.
@@ -78,7 +79,8 @@ export class AdminController {
     @Inject(PgAnalyticsOverrideService) private readonly pgOverrides: PgAnalyticsOverrideService,
     @Inject(PgAdminListingEditService) private readonly pgEdit: PgAdminListingEditService,
     @Inject(IndexingService) private readonly indexing: IndexingService,
-    @Inject(AdminReviewService) private readonly review: AdminReviewService
+    @Inject(AdminReviewService) private readonly review: AdminReviewService,
+    @Inject(AdminPgTransferService) private readonly pgTransfer: AdminPgTransferService
   ) {}
 
   /* ── Live Operations dashboard ─────────────────────────────────── */
@@ -1278,6 +1280,28 @@ export class AdminController {
   @Get("pg/listings/:id/full")
   async pgListingFull(@Param("id") id: string) {
     return ok(await this.pgEdit.getFullListing(id));
+  }
+
+  /**
+   * Hand a whole PG to its real operator, identified by phone. Creates the
+   * account if the number is new. Moves the PG aggregate head, the property
+   * container and the public projection together — see AdminPgTransferService
+   * for why all three must move at once.
+   */
+  @Post("pg/listings/:id/transfer")
+  async pgListingTransfer(
+    @Req() req: { user: { id: string } },
+    @Param("id") id: string,
+    @Body() body: { phone_e164: string; full_name?: string }
+  ) {
+    return ok(
+      await this.pgTransfer.transferOperator({
+        listingId: id,
+        phoneE164: body.phone_e164,
+        fullName: body.full_name,
+        adminUserId: req.user.id
+      })
+    );
   }
 
   // Edit the listing's pg_details (Details tab).

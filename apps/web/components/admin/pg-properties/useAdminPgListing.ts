@@ -86,6 +86,23 @@ export function useAdminPgListing(accessToken: string, listingId: string, rangeD
     }
   }, [accessToken, listingId]);
 
+  // Re-read the thin detail after a mutation that changes it (ownership
+  // transfer). Deliberately does NOT re-fetch analytics or `full` — the Owner
+  // tab is the only consumer and a full reload would reset the open tab.
+  // Returns whether the refetch succeeded so the caller (a post-mutation
+  // toast) can tell the admin when the screen and the toast might disagree —
+  // e.g. the POST succeeded but this GET then hit a network blip or an
+  // expired session — instead of showing a green "success" over stale data.
+  const refetchDetail = useCallback(async () => {
+    try {
+      const d = await fetchAdminPgListing(accessToken, listingId);
+      setDetail(d);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [accessToken, listingId]);
+
   // Lazy one-shot fetch — called the first time a content tab mounts.
   const ensureFull = useCallback(async () => {
     if (fullRequested.current) return;
@@ -111,6 +128,7 @@ export function useAdminPgListing(accessToken: string, listingId: string, rangeD
     fullError,
     ensureFull,
     refetchFull,
+    refetchDetail,
     patchFull
   };
 }

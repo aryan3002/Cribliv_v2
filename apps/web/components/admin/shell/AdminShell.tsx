@@ -170,7 +170,15 @@ export function AdminShell({ accessToken }: Props) {
       case "pg-listings":
         return <PgListingsTab key={`pg-${k}`} accessToken={accessToken} />;
       case "pg-properties":
-        return <PgPropertiesTab key={`pgp-${k}`} accessToken={accessToken} />;
+        return (
+          <PgPropertiesTab
+            key={`pgp-${k}`}
+            accessToken={accessToken}
+            onToast={(message, kind) =>
+              push(message, kind === "success" ? "trust" : kind === "error" ? "danger" : undefined)
+            }
+          />
+        );
       case "manage-pg-requests":
         return <ManagePgRequestsTab key={`pgm-${k}`} accessToken={accessToken} onToast={push} />;
       case "homes":

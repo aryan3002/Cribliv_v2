@@ -21,6 +21,7 @@ import { PgListingDetail } from "../pg-properties/PgListingDetail";
 
 interface Props {
   accessToken: string;
+  onToast?: (msg: string, kind?: "success" | "error") => void;
 }
 
 function AnalyticsDot({ cut }: { cut: boolean }) {
@@ -145,7 +146,7 @@ function PublicActions({ item }: { item: PgAdminListingListItem }) {
   );
 }
 
-export function PgPropertiesTab({ accessToken }: Props) {
+export function PgPropertiesTab({ accessToken, onToast }: Props) {
   const [data, setData] = useState<PgAdminListingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -334,6 +335,7 @@ export function PgPropertiesTab({ accessToken }: Props) {
         accessToken={accessToken}
         listingId={selected}
         onBack={() => setSelected(null)}
+        onToast={onToast}
       />
     );
   }
