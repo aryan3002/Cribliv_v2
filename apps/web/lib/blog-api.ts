@@ -101,7 +101,10 @@ export async function fetchAllBlogSlugs(): Promise<string[]> {
   try {
     for (let page = 1; page <= 20; page += 1) {
       const { items, total } = await fetchBlogList({ page, page_size: 50 });
-      for (const item of items) slugs.push(item.slug);
+      // A post with an empty slug (bad row) would emit `/{locale}/blog` as an
+      // export path, which mismatches `/[locale]/blog/[slug]` and fails the
+      // whole build — skip it rather than let one bad row block deploys.
+      for (const item of items) if (item.slug) slugs.push(item.slug);
       if (items.length === 0 || page * 50 >= total) break;
     }
   } catch {
