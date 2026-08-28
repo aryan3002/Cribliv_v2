@@ -1,6 +1,77 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { HomeHeroMap } from "../../../components/home-hero-map";
+
+vi.mock("next/dynamic", () => ({
+  default: () =>
+    function MockDynamic({ children }: { children?: React.ReactNode }) {
+      return <>{children ?? null}</>;
+    }
+}));
+
+vi.mock("../../../lib/api", () => ({
+  fetchApi: vi.fn()
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ status: "unauthenticated", data: null })
+}));
+
+import { fetchApi } from "../../../lib/api";
+import HomePage from "../page";
+
+const mockedFetchApi = vi.mocked(fetchApi);
+
+const LISTING = {
+  id: "l1",
+  title: "Spacious 2BHK Unfurnished Flat in Rashmi Khand Road, Lucknow",
+  city: "lucknow",
+  locality: "Rashmi Khand",
+  listing_type: "flat_house",
+  monthly_rent: 16000,
+  bhk: 2,
+  verification_status: "verified",
+  cover_photo: "https://example.com/photo.jpg"
+};
+
+function primeLiveMarket() {
+  mockedFetchApi.mockImplementation(async (url: string) => {
+    if (url.includes("/listings/search/map")) {
+      return [
+        {
+          id: "p1",
+          lat: 26.85,
+          lng: 80.95,
+          monthly_rent: 14000,
+          listing_type: "flat_house",
+          bhk: 2,
+          verification_status: "verified",
+          furnishing: null,
+          city: "lucknow",
+          locality: null,
+          locality_slug: null
+        }
+      ];
+    }
+    if (url.includes("verified_only=true")) return { items: [], total: 88, page: 1, page_size: 1 };
+    if (url.includes("city=lucknow") && url.includes("page_size=1"))
+      return { items: [], total: 92, page: 1, page_size: 1 };
+    if (url.includes("city=lucknow") && url.includes("listing_type=flat_house"))
+      return { items: [LISTING], total: 92, page: 1, page_size: 20 };
+    return { items: [], total: 0, page: 1, page_size: 1 };
+  });
+}
+
+function primeEmptyMarket() {
+  mockedFetchApi.mockImplementation(async (url: string) => {
+    if (url.includes("/listings/search/map")) return [];
+    return { items: [], total: 0, page: 1, page_size: 1 };
+  });
+}
+
+beforeEach(() => {
+  primeLiveMarket();
+});
 
 const MARKERS = [
   { id: "a", xPct: 40, yPct: 30, rentLabel: "₹14,000" },
@@ -44,5 +115,42 @@ describe("HomeHeroMap", () => {
     expect(card).toBeTruthy();
     expect(card?.textContent).toContain("₹20,000");
     expect(card?.getAttribute("href")).toBe("/en/listing/l1");
+  });
+});
+
+describe("living map homepage", () => {
+  it("weaves the live verified count into a sentence, not a stat card", async () => {
+    const ui = await HomePage({ params: { locale: "en" } });
+    const { container } = render(ui);
+    expect(container.textContent).toContain("88 verified homes");
+    expect(container.querySelector(".home-market-band")).toBeNull();
+    expect(container.querySelector(".impact-grid")).toBeNull();
+    expect(container.querySelector(".hero-map")).toBeTruthy();
+    expect(container.querySelectorAll(".hero-map__marker").length).toBe(1);
+  });
+
+  it("never renders dev-facing copy or error states", async () => {
+    const ui = await HomePage({ params: { locale: "en" } });
+    const { container } = render(ui);
+    const text = container.textContent ?? "";
+    for (const banned of [
+      "search API",
+      "backend",
+      "hardcoded",
+      "Live backend proof",
+      "testimonial",
+      "unavailable right now"
+    ]) {
+      expect(text).not.toContain(banned);
+    }
+  });
+
+  it("drops the count sentence when the market comes back empty", async () => {
+    primeEmptyMarket();
+    const ui = await HomePage({ params: { locale: "en" } });
+    const { container } = render(ui);
+    expect(container.textContent).not.toMatch(/verified homes/);
+    expect(container.textContent).not.toMatch(/\b0 (verified|live)/);
+    expect(container.querySelectorAll(".hero-map__marker")).toHaveLength(0);
   });
 });
