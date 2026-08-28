@@ -23474,3 +23474,133 @@ a.feature-card:hover .icon-circle {
   align-items: center;
   margin-top: 16px;
 }
+
+/* ── Living Map homepage ─────────────────────────────────────────────── */
+:root {
+  --hero-map-bg: #eef2f7;
+  --hero-map-road: #d8dfe9;
+  --hero-map-road-major: #c6cfdc;
+  --hero-map-water: #d5e4f4;
+  --hero-map-block: #dde4ee;
+  --hero-map-park: #dfe8dd;
+}
+
+.hero-map {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.hero-map__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-map__markers {
+  position: absolute;
+  inset: 0;
+}
+.hero-map__marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hero-map__marker::after {
+  content: "";
+  width: 2px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  margin-top: 1px;
+}
+.hero-map__marker-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+}
+.hero-map__marker-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--trust);
+  box-shadow: 0 0 0 3px rgba(13, 159, 79, 0.18);
+}
+.hero-map__card {
+  position: absolute;
+  right: 7%;
+  bottom: 12%;
+  width: 230px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+}
+.hero-map__card-media {
+  display: block;
+  height: 110px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.hero-map__card-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--trust-dark);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  padding: 3px 9px;
+  backdrop-filter: blur(6px);
+}
+.hero-map__card-body {
+  display: block;
+  padding: 10px 12px 12px;
+}
+.hero-map__card-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.hero-map__card-rent {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 800;
+}
+.hero-map__card-rent em {
+  font-style: normal;
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+@media (max-width: 900px) {
+  .hero-map__marker:nth-child(n + 4) {
+    display: none;
+  }
+  .hero-map__card {
+    display: none;
+  }
+}
