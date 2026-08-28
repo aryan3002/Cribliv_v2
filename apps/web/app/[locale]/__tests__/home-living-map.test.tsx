@@ -145,6 +145,28 @@ describe("living map homepage", () => {
     }
   });
 
+  it("renders the verification story, Maya chips, and owner band; old sections are gone", async () => {
+    const ui = await HomePage({ params: { locale: "en" } });
+    const { container } = render(ui);
+
+    expect(container.querySelector(".home-verify")).toBeTruthy();
+    expect(container.textContent).toContain("How a home gets verified");
+    // 88 of 92 → 96% woven into a sentence
+    expect(container.textContent).toContain("96% of live listings are verified");
+
+    const chips = container.querySelectorAll(".home-maya__chip");
+    expect(chips.length).toBeGreaterThanOrEqual(3);
+    expect(chips[0].getAttribute("href")).toContain("/en/search?q=");
+
+    expect(container.querySelector(".home-owner-band")).toBeTruthy();
+    // deleted sections
+    expect(container.querySelector("[data-testid='home-how-it-works']")).toBeNull();
+    expect(container.querySelector(".ai-showcase")).toBeNull();
+    expect(container.querySelector(".browse-bento")).toBeNull();
+    expect(container.querySelector(".home-proof-grid")).toBeNull();
+    expect(container.querySelector(".cta-banner")).toBeNull();
+  });
+
   it("drops the count sentence when the market comes back empty", async () => {
     primeEmptyMarket();
     const ui = await HomePage({ params: { locale: "en" } });
