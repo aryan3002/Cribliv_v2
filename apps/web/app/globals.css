@@ -21559,6 +21559,8 @@ a.feature-card:hover .icon-circle {
   padding-block: 56px;
 }
 .home-owner-band h2 {
+  /* Global heading rules set a dark ink color — restate white for the dark band. */
+  color: #fff;
   font-family: var(--font-heading);
   font-size: clamp(26px, 3vw, 34px);
   font-weight: 800;
