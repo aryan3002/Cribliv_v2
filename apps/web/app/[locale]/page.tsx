@@ -25,6 +25,7 @@ import { ListingCarousel } from "../../components/listing-carousel";
 import { type ListingCardData } from "../../components/listing-card";
 import { ListeningHomePage } from "./listening-home";
 import { resolveHomeCity } from "../../lib/home-city-config";
+import { fetchBlogList, type BlogListItem } from "../../lib/blog-api";
 import type { HeroPin } from "../../lib/hero-query";
 import { selectHeroMarkers } from "../../lib/hero-map-markers";
 import {
@@ -246,20 +247,49 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
     }
   }
 
+  type LocalityRow = {
+    locality_id: number;
+    locality_name: string;
+    listing_count: number;
+    city_slug: string;
+  };
+  async function safeFetchLocalities(): Promise<LocalityRow[]> {
+    try {
+      const res = await fetchApi<LocalityRow[]>(
+        "/listings/search/popular-localities?city=lucknow&limit=10",
+        undefined,
+        { revalidate }
+      );
+      return Array.isArray(res) ? res.filter((row) => row.locality_name && row.city_slug) : [];
+    } catch {
+      return [];
+    }
+  }
+
   // The Lucknow total comes from the CITIES loop below (same query), so it is
   // not fetched a second time here.
-  const [homesBucket, verifiedLucknowBucket, cityBuckets, heroPins] = await Promise.all([
-    safeFetchListingBucket("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
-    safeFetchListingBucket("city=lucknow&verified_only=true&page_size=1&page=1"),
-    Promise.all(
-      CITIES.map(async (city) => {
-        const slug = city.name.toLowerCase();
-        const bucket = await safeFetchListingBucket(`city=${slug}&page_size=1&page=1`);
-        return { slug, total: bucket.total };
-      })
-    ),
-    safeFetchHeroPins()
-  ]);
+  const [homesBucket, pgBucket, verifiedLucknowBucket, cityBuckets, heroPins, localities, posts] =
+    await Promise.all([
+      safeFetchListingBucket("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
+      safeFetchListingBucket("city=lucknow&listing_type=pg&sort=newest&page=1"),
+      safeFetchListingBucket("city=lucknow&verified_only=true&page_size=1&page=1"),
+      Promise.all(
+        CITIES.map(async (city) => {
+          const slug = city.name.toLowerCase();
+          const bucket = await safeFetchListingBucket(`city=${slug}&page_size=1&page=1`);
+          return { slug, total: bucket.total };
+        })
+      ),
+      safeFetchHeroPins(),
+      safeFetchLocalities(),
+      fetchBlogList({ page_size: 3 }, { revalidate })
+        .then((res): BlogListItem[] => res.items.slice(0, 3))
+        .catch((): BlogListItem[] => [])
+    ]);
+  const pgMinRent = pgBucket.items
+    .map((l) => l.monthly_rent ?? 0)
+    .filter((rent) => rent > 0)
+    .reduce((min, rent) => (min === 0 || rent < min ? rent : min), 0);
   const cityTotals = new Map(cityBuckets.map((city) => [city.slug, city.total]));
   const listingHref = (listing: ListingCardData) =>
     listing.listing_type === "pg" && listing.city
@@ -509,22 +539,76 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
         </AnimateOnScroll>
       )}
 
-      {/* ── Live homes rail ── */}
-      {homesBucket.items.length > 0 && (
+      {/* ── Live listings rails ── */}
+      {(homesBucket.items.length > 0 || pgBucket.items.length > 0) && (
         <AnimateOnScroll>
           <section className="home-section home-section--listings">
             <div className="container home-carousel-stack">
-              <ListingCarousel
-                locale={params.locale}
-                title={isHindi ? "आज ही बात करने लायक घर" : "Homes you can call about today"}
-                subtitle={
-                  isHindi
-                    ? "सीधे लाइव बाज़ार से — मालिक पोस्ट करते हैं, घर किराए पर उठते ही हट जाते हैं।"
-                    : "Straight from the live market — updated as owners post and homes get rented."
-                }
-                viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house`}
-                items={homesBucket.items}
-              />
+              {homesBucket.items.length > 0 && (
+                <ListingCarousel
+                  locale={params.locale}
+                  title={isHindi ? "आज ही बात करने लायक घर" : "Homes you can call about today"}
+                  subtitle={
+                    isHindi
+                      ? "सीधे लाइव बाज़ार से — मालिक पोस्ट करते हैं, घर किराए पर उठते ही हट जाते हैं।"
+                      : "Straight from the live market — updated as owners post and homes get rented."
+                  }
+                  viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house`}
+                  items={homesBucket.items}
+                />
+              )}
+              {pgBucket.items.length > 0 && (
+                <ListingCarousel
+                  locale={params.locale}
+                  title={
+                    isHindi
+                      ? "हर कैंपस के पास PG और को-लिविंग"
+                      : "PGs & co-living near every campus"
+                  }
+                  subtitle={
+                    pgMinRent > 0
+                      ? isHindi
+                        ? `गर्ल्स, बॉयज़ और को-एड PG — ₹${pgMinRent.toLocaleString("en-IN")}/माह से।`
+                        : `Girls, boys, and co-ed PGs from ₹${pgMinRent.toLocaleString("en-IN")}/month.`
+                      : isHindi
+                        ? "खाने और वाईफाई के साथ गर्ल्स, बॉयज़ और को-एड PG।"
+                        : "Girls, boys, and co-ed PGs with meals and WiFi."
+                  }
+                  viewAllHref={`/${params.locale}/pg/lucknow`}
+                  items={pgBucket.items}
+                />
+              )}
+            </div>
+          </section>
+        </AnimateOnScroll>
+      )}
+
+      {/* ── Popular localities (only when the live data is actually there) ── */}
+      {localities.length >= 4 && (
+        <AnimateOnScroll>
+          <section className="home-section home-localities">
+            <div className="container">
+              <span className="home-section__eyebrow">
+                {isHindi ? "लखनऊ में लोकप्रिय" : "Popular in Lucknow"}
+              </span>
+              <h2 className="home-section__title">
+                {isHindi ? "लोकेलिटी से खोजें" : "Browse by locality"}
+              </h2>
+              <div className="home-locality-row">
+                {localities.map((loc) => (
+                  <Link
+                    key={loc.locality_id}
+                    href={
+                      `/${params.locale}/search?city=${loc.city_slug}&q=${encodeURIComponent(loc.locality_name)}` as Route
+                    }
+                    className="home-locality-chip"
+                  >
+                    <MapPin size={13} aria-hidden="true" />
+                    {loc.locality_name}
+                    {loc.listing_count > 0 && <span>{loc.listing_count}</span>}
+                  </Link>
+                ))}
+              </div>
             </div>
           </section>
         </AnimateOnScroll>
@@ -640,6 +724,47 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
           </div>
         </section>
       </AnimateOnScroll>
+
+      {/* ── Cribliv Times ── */}
+      {posts.length > 0 && (
+        <AnimateOnScroll>
+          <section className="home-section home-times">
+            <div className="container">
+              <div className="home-section__head">
+                <div>
+                  <span className="home-section__eyebrow">Cribliv Times</span>
+                  <h2 className="home-section__title">
+                    {isHindi ? "किराए से पहले बाज़ार समझें" : "Know the market before you rent"}
+                  </h2>
+                </div>
+                <Link href={`/${params.locale}/blog` as Route} className="home-section__action">
+                  {isHindi ? "सभी पढ़ें" : "Read Cribliv Times"} <ArrowRight size={14} />
+                </Link>
+              </div>
+              <div className="home-times__grid">
+                {posts.map((post) => (
+                  <Link
+                    key={post.slug}
+                    href={`/${params.locale}/blog/${post.slug}` as Route}
+                    className="home-times__card"
+                  >
+                    {post.category_slug && (
+                      <span className="home-times__kicker">
+                        {post.category_slug.replace(/-/g, " ")}
+                      </span>
+                    )}
+                    <h3>{post.title}</h3>
+                    {post.excerpt && <p>{post.excerpt}</p>}
+                    <span className="home-times__read">
+                      {isHindi ? "पढ़ें" : "Read"} <ArrowRight size={13} aria-hidden="true" />
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </section>
+        </AnimateOnScroll>
+      )}
 
       {/* ── Owner band ── */}
       <section className="home-owner-band">

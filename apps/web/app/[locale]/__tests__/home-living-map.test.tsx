@@ -34,6 +34,62 @@ const LISTING = {
   cover_photo: "https://example.com/photo.jpg"
 };
 
+const PG_LISTING = {
+  id: "pg1",
+  title: "Girls Hostel near BBD University",
+  city: "lucknow",
+  locality: "Faizabad Road",
+  listing_type: "pg",
+  monthly_rent: 7000,
+  verification_status: "verified",
+  cover_photo: "https://example.com/pg.jpg"
+};
+
+const LOCALITIES = ["Gomti Nagar", "Indira Nagar", "Alambagh", "Hazratganj", "Aliganj"].map(
+  (name, i) => ({
+    locality_id: i + 1,
+    locality_name: name,
+    listing_count: 10 - i,
+    city_slug: "lucknow"
+  })
+);
+
+const POSTS = [
+  {
+    slug: "rent-trends-gomti-nagar",
+    title: "Rent trends in Gomti Nagar",
+    excerpt: "Where rents are heading.",
+    category_slug: "data-reports",
+    city_slug: "lucknow",
+    hero_image_path: null,
+    author: "Team Cribliv",
+    published_at: "2026-08-20T00:00:00.000Z",
+    data_asof: null
+  },
+  {
+    slug: "pg-vs-flat",
+    title: "PG or flat? A student's guide",
+    excerpt: "The honest trade-offs.",
+    category_slug: "guides",
+    city_slug: "lucknow",
+    hero_image_path: null,
+    author: "Team Cribliv",
+    published_at: "2026-08-18T00:00:00.000Z",
+    data_asof: null
+  },
+  {
+    slug: "lda-colony-guide",
+    title: "Living in LDA Colony",
+    excerpt: "A locality deep-dive.",
+    category_slug: null,
+    city_slug: "lucknow",
+    hero_image_path: null,
+    author: "Team Cribliv",
+    published_at: "2026-08-15T00:00:00.000Z",
+    data_asof: null
+  }
+];
+
 function primeLiveMarket() {
   mockedFetchApi.mockImplementation(async (url: string) => {
     if (url.includes("/listings/search/map")) {
@@ -53,9 +109,13 @@ function primeLiveMarket() {
         }
       ];
     }
+    if (url.includes("popular-localities")) return LOCALITIES;
+    if (url.startsWith("/blog")) return { items: POSTS, total: 3 };
     if (url.includes("verified_only=true")) return { items: [], total: 88, page: 1, page_size: 1 };
     if (url.includes("city=lucknow") && url.includes("page_size=1"))
       return { items: [], total: 92, page: 1, page_size: 1 };
+    if (url.includes("city=lucknow") && url.includes("listing_type=pg"))
+      return { items: [PG_LISTING], total: 34, page: 1, page_size: 20 };
     if (url.includes("city=lucknow") && url.includes("listing_type=flat_house"))
       return { items: [LISTING], total: 92, page: 1, page_size: 20 };
     return { items: [], total: 0, page: 1, page_size: 1 };
@@ -180,5 +240,33 @@ describe("living map homepage", () => {
     expect(container.textContent).not.toMatch(/verified homes/);
     expect(container.textContent).not.toMatch(/\b0 (verified|live)/);
     expect(container.querySelectorAll(".hero-map__marker")).toHaveLength(0);
+  });
+
+  it("renders the PG rail, locality chips, and Cribliv Times strip from live data", async () => {
+    const ui = await HomePage({ params: { locale: "en" } });
+    const { container } = render(ui);
+
+    expect(container.textContent).toContain("PGs & co-living near every campus");
+    expect(container.textContent).toContain("Girls Hostel near BBD University");
+
+    const chips = container.querySelectorAll(".home-locality-chip");
+    expect(chips.length).toBe(5);
+    expect(chips[0].getAttribute("href")).toContain("/en/search?city=lucknow&q=");
+    expect(chips[0].textContent).toContain("Gomti Nagar");
+
+    const posts = container.querySelectorAll(".home-times__card");
+    expect(posts).toHaveLength(3);
+    expect(posts[0].getAttribute("href")).toBe("/en/blog/rent-trends-gomti-nagar");
+    expect(container.textContent).toContain("Rent trends in Gomti Nagar");
+  });
+
+  it("hides the PG rail, locality chips, and Times strip when their data is missing", async () => {
+    primeEmptyMarket();
+    const ui = await HomePage({ params: { locale: "en" } });
+    const { container } = render(ui);
+    expect(container.querySelector(".home-locality-chip")).toBeNull();
+    expect(container.querySelector(".home-times__card")).toBeNull();
+    expect(container.textContent).not.toContain("PGs & co-living");
+    expect(container.textContent).not.toMatch(/unavailable/i);
   });
 });

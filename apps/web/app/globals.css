@@ -21609,3 +21609,105 @@ a.feature-card:hover .icon-circle {
     align-items: flex-start;
   }
 }
+
+.home-locality-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+.home-locality-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  border-radius: var(--radius-full);
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: none;
+  box-shadow: var(--shadow-xs);
+}
+.home-locality-chip:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.home-locality-chip svg {
+  color: var(--brand);
+}
+.home-locality-chip span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-full);
+  padding: 1px 8px;
+}
+.home-times {
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.home-times__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 26px;
+}
+.home-times__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--shadow-xs);
+}
+.home-times__card:hover {
+  box-shadow: var(--shadow-md);
+}
+.home-times__kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.home-times__card h3 {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.home-times__card p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-tertiary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.home-times__read {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--brand);
+}
+@media (max-width: 900px) {
+  .home-times__grid {
+    grid-template-columns: 1fr;
+  }
+}
