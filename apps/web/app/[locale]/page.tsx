@@ -421,74 +421,90 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             </div>
 
             <div className="home-city-grid">
-              {CITIES.map((city) => {
-                const Icon = city.icon;
-                const isFeatured = city.name === "Lucknow";
-                const total = cityTotals.get(city.name.toLowerCase()) ?? 0;
-                const hasLiveInventory = total > 0;
-                const countLabel = hasLiveInventory
-                  ? `${formatCompactCount(total)} live rentals`
-                  : "Browse city";
-                return (
-                  <Link
-                    key={city.name}
-                    href={`/${params.locale}/city/${city.name.toLowerCase()}` as Route}
-                    className={`home-city-card ${
-                      hasLiveInventory ? "home-city-card--live" : "home-city-card--empty"
-                    }${isFeatured ? " home-city-card--featured" : ""}`}
-                  >
-                    <div className="home-city-card__art">
-                      <span
-                        className="home-city-card__map"
-                        style={{
-                          backgroundImage: `url('/images/cities/${city.photo}-map.jpg'), ${city.gradient}`
-                        }}
-                        aria-hidden="true"
-                      />
-                      <div className="home-city-card__grid" aria-hidden="true" />
-                      <span className="home-city-card__shape" aria-hidden="true" />
-                      <span
-                        className={`home-city-card__pin home-city-card__status-dot ${
-                          hasLiveInventory
-                            ? "home-city-card__status-dot--live"
-                            : "home-city-card__status-dot--muted"
-                        }`}
-                        aria-hidden="true"
-                      >
-                        <Icon size={13} />
-                      </span>
-                      <span className="home-city-card__arrow" aria-hidden="true">
-                        <ArrowRight size={20} />
-                      </span>
-                      <span className="home-city-card__map-label">Cribliv</span>
-                    </div>
-                    <div className="home-city-card__body">
-                      {isFeatured && (
-                        <span className="home-city-card__flag">
-                          <Star size={13} aria-hidden="true" />
-                          {isHindi ? "प्रमुख शहर" : "Flagship city"}
+              {CITIES.filter((city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) > 0).map(
+                (city) => {
+                  const Icon = city.icon;
+                  const isFeatured = city.name === "Lucknow";
+                  const total = cityTotals.get(city.name.toLowerCase()) ?? 0;
+                  const countLabel = isHindi
+                    ? `${formatCompactCount(total)} लाइव किराया`
+                    : `${formatCompactCount(total)} live rental${total === 1 ? "" : "s"}`;
+                  return (
+                    <Link
+                      key={city.name}
+                      href={`/${params.locale}/city/${city.name.toLowerCase()}` as Route}
+                      className={`home-city-card home-city-card--live${
+                        isFeatured ? " home-city-card--featured" : ""
+                      }`}
+                    >
+                      <div className="home-city-card__art">
+                        <span
+                          className="home-city-card__map"
+                          style={{
+                            backgroundImage: `url('/images/cities/${city.photo}-map.jpg'), ${city.gradient}`
+                          }}
+                          aria-hidden="true"
+                        />
+                        <div className="home-city-card__grid" aria-hidden="true" />
+                        <span className="home-city-card__shape" aria-hidden="true" />
+                        <span
+                          className="home-city-card__pin home-city-card__status-dot home-city-card__status-dot--live"
+                          aria-hidden="true"
+                        >
+                          <Icon size={13} />
                         </span>
-                      )}
-                      <span className="home-city-card__name">{city.name}</span>
-                      <span className="home-city-card__count">{countLabel}</span>
-                      {isFeatured && (
-                        <>
-                          <span className="home-city-card__tagline">
-                            {isHindi
-                              ? "हमारा सबसे बड़ा बाज़ार — Cribliv पर सबसे ज़्यादा लाइव घर।"
-                              : "Our biggest market — the most live homes on Cribliv."}
+                        <span className="home-city-card__arrow" aria-hidden="true">
+                          <ArrowRight size={20} />
+                        </span>
+                        <span className="home-city-card__map-label">Cribliv</span>
+                      </div>
+                      <div className="home-city-card__body">
+                        {isFeatured && (
+                          <span className="home-city-card__flag">
+                            <Star size={13} aria-hidden="true" />
+                            {isHindi ? "प्रमुख शहर" : "Flagship city"}
                           </span>
-                          <span className="home-city-card__cta">
-                            {isHindi ? "लखनऊ देखें" : "Explore Lucknow"}
-                            <ArrowRight size={15} aria-hidden="true" />
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
+                        )}
+                        <span className="home-city-card__name">{city.name}</span>
+                        <span className="home-city-card__count">{countLabel}</span>
+                        {isFeatured && (
+                          <>
+                            <span className="home-city-card__tagline">
+                              {isHindi
+                                ? "हमारा सबसे बड़ा बाज़ार — Cribliv पर सबसे ज़्यादा लाइव घर।"
+                                : "Our biggest market — the most live homes on Cribliv."}
+                            </span>
+                            <span className="home-city-card__cta">
+                              {isHindi ? "लखनऊ देखें" : "Explore Lucknow"}
+                              <ArrowRight size={15} aria-hidden="true" />
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                }
+              )}
             </div>
+
+            {CITIES.some((city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) === 0) && (
+              <div className="home-city-soon">
+                <span className="home-city-soon__label">
+                  {isHindi ? "आगे विस्तार:" : "Expanding next:"}
+                </span>
+                {CITIES.filter((city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) === 0).map(
+                  (city) => (
+                    <Link
+                      key={city.name}
+                      href={`/${params.locale}/city/${city.name.toLowerCase()}` as Route}
+                      className="home-city-soon__chip"
+                    >
+                      {city.name}
+                    </Link>
+                  )
+                )}
+              </div>
+            )}
           </div>
         </section>
       </AnimateOnScroll>

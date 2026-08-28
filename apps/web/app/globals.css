@@ -23701,3 +23701,30 @@ a.feature-card:hover .icon-circle {
     padding-block: 56px 48px;
   }
 }
+
+.home-city-soon {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.home-city-soon__label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.home-city-soon__chip {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 5px 13px;
+  text-decoration: none;
+}
+.home-city-soon__chip:hover {
+  color: var(--brand);
+  border-color: var(--brand);
+}
