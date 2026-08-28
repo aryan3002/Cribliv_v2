@@ -78,9 +78,9 @@ test.describe("listening hero homepage", () => {
 test.describe("flag off guard", () => {
   test.skip(FLAG_ON, "guard only applies to flag-off runs");
 
-  test("old homepage renders when the flag is off", async ({ page }) => {
+  test("Living Map homepage renders when the flag is off", async ({ page }) => {
     await page.goto("/en");
-    await expect(page.locator(".home-market-grid")).toBeVisible();
+    await expect(page.locator(".hero-living__title")).toBeVisible();
     await expect(page.locator(".hero-listen__title")).toHaveCount(0);
   });
 });
