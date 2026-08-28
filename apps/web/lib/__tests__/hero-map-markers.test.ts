@@ -56,6 +56,18 @@ describe("selectHeroMarkers", () => {
     expect(spread.length).toBe(1);
   });
 
+  it("samples the whole rent range instead of only the cheapest pins", () => {
+    const rents = [2200, 3000, 3500, 4000, 14000, 16000, 20000, 25000];
+    const pins = rents.map((rent, i) =>
+      pin({ id: `r${rent}`, monthly_rent: rent, lat: 26.78 + i * 0.02, lng: 80.87 + i * 0.02 })
+    );
+    const labels = selectHeroMarkers(pins, BOUNDS, { maxMarkers: 4, minGapPct: 2 }).map(
+      (m) => m.rentLabel
+    );
+    expect(labels).toContain("₹2,200");
+    expect(labels).toContain("₹25,000");
+  });
+
   it("prefers verified pins when thinning", () => {
     const markers = selectHeroMarkers(
       [
