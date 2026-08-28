@@ -68,6 +68,38 @@ describe("selectHeroMarkers", () => {
     expect(labels).toContain("₹25,000");
   });
 
+  it("gives verified pins every slot before any unverified pin", () => {
+    const verified = [10000, 11000, 12000, 13000].map((rent, i) =>
+      pin({ id: `v${rent}`, monthly_rent: rent, lat: 26.8 + i * 0.02, lng: 80.88 + i * 0.02 })
+    );
+    const unverified = [1000, 2000, 30000, 40000].map((rent, i) =>
+      pin({
+        id: `u${rent}`,
+        monthly_rent: rent,
+        lat: 26.81 + i * 0.02,
+        lng: 80.96 + i * 0.01,
+        verification_status: "pending"
+      })
+    );
+    const markers = selectHeroMarkers([...unverified, ...verified], BOUNDS, {
+      maxMarkers: 4,
+      minGapPct: 2
+    });
+    expect(markers.map((m) => m.id).sort()).toEqual(["v10000", "v11000", "v12000", "v13000"]);
+  });
+
+  it("honours a left keep-out so pills stay clear of the hero copy column", () => {
+    const west = pin({ id: "west", lng: 80.87 });
+    const east = pin({ id: "east", lng: 81.03 });
+    const markers = selectHeroMarkers([west, east], BOUNDS, { minXPct: 55 });
+    expect(markers.map((m) => m.id)).toEqual(["east"]);
+  });
+
+  it("skips pins whose pill would be clipped by the hero's top edge", () => {
+    const markers = selectHeroMarkers([pin({ id: "north", lat: 26.945 })], BOUNDS);
+    expect(markers).toEqual([]);
+  });
+
   it("prefers verified pins when thinning", () => {
     const markers = selectHeroMarkers(
       [

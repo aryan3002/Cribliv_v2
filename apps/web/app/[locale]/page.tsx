@@ -1,6 +1,6 @@
 import type { Metadata, Route } from "next";
 import dynamic from "next/dynamic";
-import { t, locales, type Locale } from "../../lib/i18n";
+import { locales, type Locale } from "../../lib/i18n";
 import { fetchApi } from "../../lib/api";
 import Link from "next/link";
 import {
@@ -27,7 +27,11 @@ import { ListeningHomePage } from "./listening-home";
 import { resolveHomeCity } from "../../lib/home-city-config";
 import type { HeroPin } from "../../lib/hero-query";
 import { selectHeroMarkers } from "../../lib/hero-map-markers";
-import { HomeHeroMap } from "../../components/home-hero-map";
+import {
+  HomeHeroMap,
+  LUCKNOW_GOMTI_PATH,
+  LUCKNOW_STREET_PATHS
+} from "../../components/home-hero-map";
 
 /* City photos: Unsplash free license — unsplash.com/license */
 
@@ -225,25 +229,27 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
   }
 
   // Live price markers for the hero map: real listings inside the Lucknow
-  // bounds, projected onto the stylized SVG canvas. A failed fetch means the
-  // map simply renders without pills.
+  // bounds, projected onto the stylized SVG canvas. A failed fetch — or an
+  // unexpected non-array body — means the map simply renders without pills.
   const heroCity = resolveHomeCity({ cookieCity: null, geoCity: null });
-  let heroPins: HeroPin[] = [];
-  try {
-    heroPins = await fetchApi<HeroPin[]>(
-      `/listings/search/map?sw_lat=${heroCity.bounds.sw.lat}&sw_lng=${heroCity.bounds.sw.lng}` +
-        `&ne_lat=${heroCity.bounds.ne.lat}&ne_lng=${heroCity.bounds.ne.lng}&limit=80`,
-      undefined,
-      { revalidate }
-    );
-  } catch {
-    /* markers simply don't render */
+  async function safeFetchHeroPins(): Promise<HeroPin[]> {
+    try {
+      const res = await fetchApi<HeroPin[]>(
+        `/listings/search/map?sw_lat=${heroCity.bounds.sw.lat}&sw_lng=${heroCity.bounds.sw.lng}` +
+          `&ne_lat=${heroCity.bounds.ne.lat}&ne_lng=${heroCity.bounds.ne.lng}&limit=30`,
+        undefined,
+        { revalidate }
+      );
+      return Array.isArray(res) ? res : [];
+    } catch {
+      return [];
+    }
   }
-  const heroMarkers = selectHeroMarkers(heroPins, heroCity.bounds);
 
-  const [homesBucket, allLucknowBucket, verifiedLucknowBucket, cityBuckets] = await Promise.all([
+  // The Lucknow total comes from the CITIES loop below (same query), so it is
+  // not fetched a second time here.
+  const [homesBucket, verifiedLucknowBucket, cityBuckets, heroPins] = await Promise.all([
     safeFetchListingBucket("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
-    safeFetchListingBucket("city=lucknow&page_size=1&page=1"),
     safeFetchListingBucket("city=lucknow&verified_only=true&page_size=1&page=1"),
     Promise.all(
       CITIES.map(async (city) => {
@@ -251,7 +257,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
         const bucket = await safeFetchListingBucket(`city=${slug}&page_size=1&page=1`);
         return { slug, total: bucket.total };
       })
-    )
+    ),
+    safeFetchHeroPins()
   ]);
   const cityTotals = new Map(cityBuckets.map((city) => [city.slug, city.total]));
   const listingHref = (listing: ListingCardData) =>
@@ -259,14 +266,30 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
       ? `/${params.locale}/pg/${listing.city}/${listing.id}`
       : `/${params.locale}/listing/${listing.id}`;
 
-  const listingsTotal = allLucknowBucket.total;
+  const listingsTotal = cityTotals.get("lucknow") ?? 0;
   const verifiedTotal = verifiedLucknowBucket.total;
   const verifiedPct = listingsTotal > 0 ? Math.round((verifiedTotal / listingsTotal) * 100) : null;
-  const heroCount = verifiedTotal > 0 ? verifiedTotal : listingsTotal;
+  // The hero sentence says "verified homes", so it only ever shows the
+  // verified count — never the unfiltered total under that label — and, like
+  // the listening hero, it hides (with the pills) below the thin-market
+  // threshold from the city config rather than advertising a near-empty map.
+  const heroMarketIsThin = listingsTotal < heroCity.minHeroInventory;
+  const heroCount = heroMarketIsThin ? 0 : verifiedTotal;
+  // minXPct keeps pills clear of the headline/search column on the left;
+  // 6 pills reads as "alive" without cluttering wide screens.
+  const heroMarkers = heroMarketIsThin
+    ? []
+    : selectHeroMarkers(heroPins, heroCity.bounds, { maxMarkers: 6, minXPct: 55 });
   const featuredListing =
     homesBucket.items.find(
       (l) => l.cover_photo && l.verification_status === "verified" && (l.monthly_rent ?? 0) > 0
     ) ?? null;
+  // Cities are partitioned once so the live-card predicate and the
+  // "expanding next" predicate can never drift apart.
+  const liveCities = CITIES.filter((city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) > 0);
+  const upcomingCities = CITIES.filter(
+    (city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) === 0
+  );
 
   const organizationJsonLd = {
     "@context": "https://schema.org",
@@ -314,12 +337,6 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
 
       {/* ── Living Map hero ── */}
       <section className="hero-living" aria-label={isHindi ? "घर खोजें" : "Search homes"}>
-        <HomeHeroMap
-          markers={heroMarkers}
-          featured={featuredListing}
-          featuredHref={featuredListing ? listingHref(featuredListing) : null}
-          locale={params.locale}
-        />
         <div className="container hero-living__inner">
           <p className="hero-living__eyebrow">
             <span className="hero-living__live-dot" aria-hidden="true" />
@@ -361,39 +378,53 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             </span>
             <span>{isHindi ? "कोई ब्रोकर नहीं" : "No brokers"}</span>
             <span>
-              <Mic size={13} />{" "}
-              {isHindi ? "हिंदी + English वॉइस खोज" : "हिंदी + English voice search"}
+              {/* Deliberately bilingual in both locales — the mixed script IS
+                  the message (voice search works in either language). */}
+              <Mic size={13} /> हिंदी + English voice search
             </span>
           </div>
         </div>
+        {/* Rendered after the copy so the featured-card link comes after the
+            h1 and search box in focus/reading order; z-index puts the map
+            canvas behind the copy and the card above it. */}
+        <HomeHeroMap
+          markers={heroMarkers}
+          featured={featuredListing}
+          featuredHref={featuredListing ? listingHref(featuredListing) : null}
+          locale={params.locale}
+        />
       </section>
 
       {/* ── Top Cities ── */}
-      <AnimateOnScroll>
-        <section className="home-section home-section--cities">
-          <div className="container">
-            <div className="home-section__head">
-              <div>
-                <span className="home-section__eyebrow">
-                  {isHindi ? "शहर खोजें" : "Top Locations"}
-                </span>
-                <h2 className="home-section__title">
-                  {isHindi ? "लोकप्रिय शहर" : "Explore Top Cities"}
-                </h2>
-                <p className="home-section__lede">
-                  {isHindi
-                    ? "उत्तर भारत के प्रमुख शहरों में लाइव किराये के परिणाम।"
-                    : "Live rental results across North India, organized by where people search."}
-                </p>
+      {/* Hidden entirely when no city reports live inventory (e.g. the search
+          API is down during regeneration) — an empty grid under a "live
+          results" header, with every city demoted to a chip, reads as "we
+          have nothing anywhere". */}
+      {liveCities.length > 0 && (
+        <AnimateOnScroll>
+          <section className="home-section home-section--cities">
+            <div className="container">
+              <div className="home-section__head">
+                <div>
+                  <span className="home-section__eyebrow">
+                    {isHindi ? "शहर खोजें" : "Top Locations"}
+                  </span>
+                  <h2 className="home-section__title">
+                    {isHindi ? "लोकप्रिय शहर" : "Explore Top Cities"}
+                  </h2>
+                  <p className="home-section__lede">
+                    {isHindi
+                      ? "उत्तर भारत के प्रमुख शहरों में लाइव किराये के परिणाम।"
+                      : "Live rental results across North India, organized by where people search."}
+                  </p>
+                </div>
+                <Link href={`/${params.locale}/search` as Route} className="home-section__action">
+                  {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
+                </Link>
               </div>
-              <Link href={`/${params.locale}/search` as Route} className="home-section__action">
-                {isHindi ? "सभी देखें" : "View all"} <ArrowRight size={14} />
-              </Link>
-            </div>
 
-            <div className="home-city-grid">
-              {CITIES.filter((city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) > 0).map(
-                (city) => {
+              <div className="home-city-grid">
+                {liveCities.map((city) => {
                   const Icon = city.icon;
                   const isFeatured = city.name === "Lucknow";
                   const total = cityTotals.get(city.name.toLowerCase()) ?? 0;
@@ -454,17 +485,15 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                       </div>
                     </Link>
                   );
-                }
-              )}
-            </div>
+                })}
+              </div>
 
-            {CITIES.some((city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) === 0) && (
-              <div className="home-city-soon">
-                <span className="home-city-soon__label">
-                  {isHindi ? "आगे विस्तार:" : "Expanding next:"}
-                </span>
-                {CITIES.filter((city) => (cityTotals.get(city.name.toLowerCase()) ?? 0) === 0).map(
-                  (city) => (
+              {upcomingCities.length > 0 && (
+                <div className="home-city-soon">
+                  <span className="home-city-soon__label">
+                    {isHindi ? "आगे विस्तार:" : "Expanding next:"}
+                  </span>
+                  {upcomingCities.map((city) => (
                     <Link
                       key={city.name}
                       href={`/${params.locale}/city/${city.name.toLowerCase()}` as Route}
@@ -472,13 +501,13 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                     >
                       {city.name}
                     </Link>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-      </AnimateOnScroll>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </AnimateOnScroll>
+      )}
 
       {/* ── Live homes rail ── */}
       {homesBucket.items.length > 0 && (
@@ -622,12 +651,9 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
           focusable="false"
         >
           <g stroke="rgba(159,178,204,0.35)" strokeWidth="2.5" fill="none">
-            <path d="M-30,80 L1460,140" />
-            <path d="M-30,450 L1460,380" />
-            <path d="M-40,720 L1460,660" />
-            <path d="M260,-20 L400,820" />
-            <path d="M880,-20 L800,830" />
-            <path d="M-40,340 C220,290 380,420 600,380 C830,340 900,460 1120,430" />
+            {[...LUCKNOW_STREET_PATHS, LUCKNOW_GOMTI_PATH].map((d) => (
+              <path key={d} d={d} />
+            ))}
           </g>
         </svg>
         <div className="container home-owner-band__inner">

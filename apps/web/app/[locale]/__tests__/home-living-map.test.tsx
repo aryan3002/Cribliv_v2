@@ -41,7 +41,7 @@ function primeLiveMarket() {
         {
           id: "p1",
           lat: 26.85,
-          lng: 80.95,
+          lng: 81.0,
           monthly_rent: 14000,
           listing_type: "flat_house",
           bhk: 2,
@@ -151,6 +151,12 @@ describe("living map homepage", () => {
 
     expect(container.querySelector(".home-verify")).toBeTruthy();
     expect(container.textContent).toContain("How a home gets verified");
+    const steps = container.querySelectorAll(".home-verify__step");
+    expect(steps).toHaveLength(3);
+    steps.forEach((step) => {
+      expect(step.querySelector("h3")?.textContent).toBeTruthy();
+      expect(step.querySelector("p")?.textContent).toBeTruthy();
+    });
     // 88 of 92 → 96% woven into a sentence
     expect(container.textContent).toContain("96% of live listings are verified");
 

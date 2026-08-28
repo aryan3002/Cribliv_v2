@@ -71,10 +71,19 @@ export async function fetchBlogList(
   if (params.city) qs.set("city", params.city);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   try {
-    return await fetchApi<{ items: BlogListItem[]; total: number }>(`/blog${suffix}`, undefined, {
-      server: true,
-      revalidate: opts.revalidate
-    });
+    const res = await fetchApi<{ items: BlogListItem[]; total: number }>(
+      `/blog${suffix}`,
+      undefined,
+      {
+        server: true,
+        revalidate: opts.revalidate
+      }
+    );
+    // Drop rows with an empty slug at the source: every consumer builds
+    // /{locale}/blog/{slug} links from these items, and a slugless row turns
+    // into a self-link on the index pages and a `/{locale}/blog` export path
+    // that mismatches `/[locale]/blog/[slug]` and fails the whole build.
+    return { ...res, items: (res.items ?? []).filter((item) => item.slug) };
   } catch {
     return { items: [], total: 0 };
   }
@@ -101,10 +110,7 @@ export async function fetchAllBlogSlugs(): Promise<string[]> {
   try {
     for (let page = 1; page <= 20; page += 1) {
       const { items, total } = await fetchBlogList({ page, page_size: 50 });
-      // A post with an empty slug (bad row) would emit `/{locale}/blog` as an
-      // export path, which mismatches `/[locale]/blog/[slug]` and fails the
-      // whole build — skip it rather than let one bad row block deploys.
-      for (const item of items) if (item.slug) slugs.push(item.slug);
+      for (const item of items) slugs.push(item.slug);
       if (items.length === 0 || page * 50 >= total) break;
     }
   } catch {

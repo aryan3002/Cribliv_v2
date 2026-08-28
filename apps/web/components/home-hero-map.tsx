@@ -5,11 +5,40 @@
 // their coordinates; the featured card is a real listing. Everything except
 // the featured card link is aria-hidden.
 import Link from "next/link";
+import Image from "next/image";
 import type { Route } from "next";
 import { CheckCircle2 } from "lucide-react";
 import type { Locale } from "../lib/i18n";
 import type { HeroMapMarker } from "../lib/hero-map-markers";
 import type { ListingCardData } from "./listing-card";
+
+// Shared geography (viewBox 0 0 1400 800). The owner band draws the same
+// streets at a different stroke — import these rather than copying the path
+// strings, so redrawing the city updates every backdrop at once.
+export const LUCKNOW_GOMTI_PATH =
+  "M-40,340 C220,290 380,420 600,380 C830,340 900,460 1120,430 C1280,410 1360,470 1460,450";
+export const LUCKNOW_ARTERIAL_PATHS = [
+  "M120,-20 L340,820",
+  "M-40,180 L1460,260",
+  "M700,-30 L560,830",
+  "M-30,620 L1450,540",
+  "M1050,-30 L1180,830"
+];
+export const LUCKNOW_STREET_PATHS = [
+  "M-30,80 L1460,140",
+  "M-30,450 L1460,380",
+  "M-40,720 L1460,660",
+  "M260,-20 L400,820",
+  "M480,-20 L430,830",
+  "M880,-20 L800,830",
+  "M1250,-20 L1330,830",
+  "M-20,290 L560,330",
+  "M620,520 L1460,470",
+  "M180,540 C300,500 420,580 520,545",
+  "M900,180 C1000,240 1120,190 1240,230",
+  "M340,120 L640,190",
+  "M980,560 L1220,640"
+];
 
 export function HomeHeroMap({
   markers,
@@ -36,35 +65,21 @@ export function HomeHeroMap({
         <rect width="1400" height="800" fill="var(--hero-map-bg)" />
         {/* Gomti */}
         <path
-          d="M-40,340 C220,290 380,420 600,380 C830,340 900,460 1120,430 C1280,410 1360,470 1460,450"
+          d={LUCKNOW_GOMTI_PATH}
           stroke="var(--hero-map-water)"
           strokeWidth="34"
           fill="none"
           strokeLinecap="round"
         />
-        {/* arterials */}
         <g stroke="var(--hero-map-road-major)" strokeWidth="5" fill="none" opacity="0.9">
-          <path d="M120,-20 L340,820" />
-          <path d="M-40,180 L1460,260" />
-          <path d="M700,-30 L560,830" />
-          <path d="M-30,620 L1450,540" />
-          <path d="M1050,-30 L1180,830" />
+          {LUCKNOW_ARTERIAL_PATHS.map((d) => (
+            <path key={d} d={d} />
+          ))}
         </g>
-        {/* streets */}
         <g stroke="var(--hero-map-road)" strokeWidth="2.5" fill="none">
-          <path d="M-30,80 L1460,140" />
-          <path d="M-30,450 L1460,380" />
-          <path d="M-40,720 L1460,660" />
-          <path d="M260,-20 L400,820" />
-          <path d="M480,-20 L430,830" />
-          <path d="M880,-20 L800,830" />
-          <path d="M1250,-20 L1330,830" />
-          <path d="M-20,290 L560,330" />
-          <path d="M620,520 L1460,470" />
-          <path d="M180,540 C300,500 420,580 520,545" />
-          <path d="M900,180 C1000,240 1120,190 1240,230" />
-          <path d="M340,120 L640,190" />
-          <path d="M980,560 L1220,640" />
+          {LUCKNOW_STREET_PATHS.map((d) => (
+            <path key={d} d={d} />
+          ))}
         </g>
         {/* blocks + parks */}
         <g fill="var(--hero-map-block)">
@@ -99,11 +114,17 @@ export function HomeHeroMap({
 
       {showCard && featured && featuredHref && (
         <Link href={featuredHref as Route} className="hero-map__card">
-          <span
-            className="hero-map__card-media"
-            style={{ backgroundImage: `url('${featured.cover_photo}')` }}
-            aria-hidden="true"
-          >
+          <span className="hero-map__card-media">
+            {/* A real image element (not a CSS background) so it can be
+                sized/optimized and the fixed box can never shift layout. */}
+            <Image
+              src={featured.cover_photo ?? ""}
+              alt=""
+              width={230}
+              height={110}
+              sizes="230px"
+              className="hero-map__card-img"
+            />
             {featured.verification_status === "verified" && (
               <span className="hero-map__card-badge">
                 <CheckCircle2 size={11} aria-hidden="true" />
