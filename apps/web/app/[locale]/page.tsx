@@ -5,9 +5,6 @@ import { fetchApi } from "../../lib/api";
 import Link from "next/link";
 import {
   ShieldCheck,
-  Camera,
-  PhoneCall,
-  Clock,
   Building2,
   Landmark,
   Building,
@@ -17,6 +14,7 @@ import {
   Castle,
   Star,
   Sunrise,
+  Sofa,
   ArrowRight,
   Sparkles,
   Mic
@@ -268,24 +266,35 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
 
   // The Lucknow total comes from the CITIES loop below (same query), so it is
   // not fetched a second time here.
-  const [homesBucket, pgBucket, verifiedLucknowBucket, cityBuckets, heroPins, localities, posts] =
-    await Promise.all([
-      safeFetchListingBucket("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
-      safeFetchListingBucket("city=lucknow&listing_type=pg&sort=newest&page=1"),
-      safeFetchListingBucket("city=lucknow&verified_only=true&page_size=1&page=1"),
-      Promise.all(
-        CITIES.map(async (city) => {
-          const slug = city.name.toLowerCase();
-          const bucket = await safeFetchListingBucket(`city=${slug}&page_size=1&page=1`);
-          return { slug, total: bucket.total };
-        })
-      ),
-      safeFetchHeroPins(),
-      safeFetchLocalities(),
-      fetchBlogList({ page_size: 3 }, { revalidate })
-        .then((res): BlogListItem[] => res.items.slice(0, 3))
-        .catch((): BlogListItem[] => [])
-    ]);
+  const [
+    homesBucket,
+    pgBucket,
+    furnishedBucket,
+    verifiedLucknowBucket,
+    cityBuckets,
+    heroPins,
+    localities,
+    posts
+  ] = await Promise.all([
+    safeFetchListingBucket("city=lucknow&listing_type=flat_house&sort=verified&page=1"),
+    safeFetchListingBucket("city=lucknow&listing_type=pg&sort=newest&page=1"),
+    safeFetchListingBucket(
+      "city=lucknow&listing_type=flat_house&furnishing=fully_furnished&page_size=1&page=1"
+    ),
+    safeFetchListingBucket("city=lucknow&verified_only=true&page_size=1&page=1"),
+    Promise.all(
+      CITIES.map(async (city) => {
+        const slug = city.name.toLowerCase();
+        const bucket = await safeFetchListingBucket(`city=${slug}&page_size=1&page=1`);
+        return { slug, total: bucket.total };
+      })
+    ),
+    safeFetchHeroPins(),
+    safeFetchLocalities(),
+    fetchBlogList({ page_size: 3 }, { revalidate })
+      .then((res): BlogListItem[] => res.items.slice(0, 3))
+      .catch((): BlogListItem[] => [])
+  ]);
   const pgMinRent = pgBucket.items
     .map((l) => l.monthly_rent ?? 0)
     .filter((rent) => rent > 0)
@@ -614,6 +623,90 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
         </AnimateOnScroll>
       )}
 
+      {/* ── Browse by type ── */}
+      <AnimateOnScroll>
+        <section className="home-section home-types">
+          <div className="container">
+            <div className="home-section__head">
+              <div>
+                <span className="home-section__eyebrow">
+                  {isHindi ? "प्रकार से खोजें" : "Browse by type"}
+                </span>
+                <h2 className="home-section__title">
+                  {isHindi ? "आप किस तरह रहना चाहते हैं?" : "What kind of place are you after?"}
+                </h2>
+              </div>
+              <Link href={`/${params.locale}/search` as Route} className="home-section__action">
+                {isHindi ? "सभी देखें" : "Browse all"} <ArrowRight size={14} />
+              </Link>
+            </div>
+            <div className="home-types__grid">
+              {[
+                {
+                  href: `/${params.locale}/search?listing_type=flat_house`,
+                  icon: Building,
+                  title: isHindi ? "फ्लैट और मकान" : "Flats & Houses",
+                  desc: isHindi
+                    ? "1BHK से 4BHK तक, फोटो, किराए और वेरिफिकेशन के साथ।"
+                    : "1BHK to 4BHK, with photos, rent, and verification.",
+                  total: homesBucket.total
+                },
+                {
+                  href: `/${params.locale}/pg`,
+                  icon: Home,
+                  title: isHindi ? "PG और हॉस्टल" : "PGs & Hostels",
+                  desc: isHindi
+                    ? "खाना, वाईफाई और साझा सुविधाएं।"
+                    : "Meals, WiFi, and shared living.",
+                  total: pgBucket.total
+                },
+                {
+                  href: `/${params.locale}/search?listing_type=flat_house&furnishing=fully_furnished`,
+                  icon: Sofa,
+                  title: isHindi ? "फर्निश्ड घर" : "Furnished Homes",
+                  desc: isHindi ? "फर्नीचर के साथ, बस आकर रहिए।" : "Move-in ready with furniture.",
+                  total: furnishedBucket.total
+                }
+              ].map((type) => {
+                const Icon = type.icon;
+                return (
+                  <Link key={type.title} href={type.href as Route} className="home-type-card">
+                    <svg
+                      className="home-type-card__map"
+                      viewBox="200 100 900 600"
+                      preserveAspectRatio="xMidYMid slice"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <g stroke="var(--hero-map-road)" strokeWidth="3" fill="none">
+                        {[...LUCKNOW_STREET_PATHS, LUCKNOW_GOMTI_PATH].map((d) => (
+                          <path key={d} d={d} />
+                        ))}
+                      </g>
+                    </svg>
+                    <span className="home-type-card__pin" aria-hidden="true">
+                      <Icon size={14} />
+                    </span>
+                    <span className="home-type-card__arrow" aria-hidden="true">
+                      <ArrowRight size={18} />
+                    </span>
+                    <span className="home-type-card__name">{type.title}</span>
+                    {type.total > 0 && (
+                      <span className="home-type-card__count">
+                        {isHindi
+                          ? `${formatCompactCount(type.total)} लाइव`
+                          : `${formatCompactCount(type.total)} live`}
+                      </span>
+                    )}
+                    <span className="home-type-card__desc">{type.desc}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </AnimateOnScroll>
+
       {/* ── How verification works ── */}
       <AnimateOnScroll>
         <section className="home-section home-verify">
@@ -627,38 +720,35 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             <div className="home-verify__grid">
               {[
                 {
-                  icon: Camera,
+                  num: "01",
                   title: isHindi ? "फोटो जांची जाती हैं" : "Photos checked",
                   desc: isHindi
                     ? "असली प्रॉपर्टी की असली फोटो। कोई स्टॉक इमेज नहीं, कोई झांसा नहीं।"
                     : "Real photos from the actual property. No stock images, no bait listings."
                 },
                 {
-                  icon: PhoneCall,
+                  num: "02",
                   title: isHindi ? "मालिक कन्फर्म होता है" : "Owner confirmed",
                   desc: isHindi
                     ? "लिस्टिंग लाइव होने से पहले मालिक का फोन वेरिफाई होता है, ताकि आप सही इंसान से बात करें।"
                     : "We verify the owner's phone before a listing goes live, so you call the right person."
                 },
                 {
-                  icon: Clock,
+                  num: "03",
                   title: isHindi ? "उपलब्धता लाइव रहती है" : "Availability live",
                   desc: isHindi
                     ? "किराए पर उठ चुके घर साइट से हट जाते हैं। जो दिखता है, वही मिलता है।"
                     : "Rented-out homes leave the site. What you see is what you can actually get."
                 }
-              ].map((step) => {
-                const Icon = step.icon;
-                return (
-                  <div key={step.title} className="home-verify__step">
-                    <span className="home-verify__icon" aria-hidden="true">
-                      <Icon size={17} />
-                    </span>
-                    <h3>{step.title}</h3>
-                    <p>{step.desc}</p>
-                  </div>
-                );
-              })}
+              ].map((step) => (
+                <div key={step.num} className="home-verify__step">
+                  <span className="home-verify__num" aria-hidden="true">
+                    {step.num}
+                  </span>
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
+                </div>
+              ))}
             </div>
             {verifiedPct != null && verifiedPct > 0 && (
               <p className="home-verify__fact">

@@ -242,6 +242,23 @@ describe("living map homepage", () => {
     expect(container.querySelectorAll(".hero-map__marker")).toHaveLength(0);
   });
 
+  it("renders the browse-by-type cards with live counts and no icon-chip verify cards", async () => {
+    const ui = await HomePage({ params: { locale: "en" } });
+    const { container } = render(ui);
+
+    const typeCards = container.querySelectorAll(".home-type-card");
+    expect(typeCards).toHaveLength(3);
+    expect(typeCards[0].getAttribute("href")).toContain("listing_type=flat_house");
+    expect(typeCards[0].textContent).toContain("Flats & Houses");
+    expect(typeCards[0].textContent).toContain("92 live");
+    expect(typeCards[1].getAttribute("href")).toBe("/en/pg");
+    expect(typeCards[1].textContent).toContain("34 live");
+
+    // verify steps are numbered editorial entries, not icon chips
+    expect(container.querySelectorAll(".home-verify__num")).toHaveLength(3);
+    expect(container.querySelector(".home-verify__icon")).toBeNull();
+  });
+
   it("renders the PG rail, locality chips, and Cribliv Times strip from live data", async () => {
     const ui = await HomePage({ params: { locale: "en" } });
     const { container } = render(ui);
