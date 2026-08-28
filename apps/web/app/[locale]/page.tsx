@@ -387,13 +387,13 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             <p className="hero-living__count">
               {isHindi ? (
                 <>
-                  <strong>{heroCount} सत्यापित घर</strong> अभी लखनऊ में लाइव हैं — फोटो, किराया और
+                  <strong>{heroCount} सत्यापित घर</strong> अभी लखनऊ में लाइव हैं। फोटो, किराया और
                   मालिक, सब जांचे हुए।
                 </>
               ) : (
                 <>
-                  <strong>{heroCount} verified homes</strong> are live in Lucknow right now —
-                  photos, rent, and owner checked.
+                  <strong>{heroCount} verified homes</strong> are live in Lucknow right now, each
+                  checked for photos, rent, and owner.
                 </>
               )}
             </p>
@@ -503,8 +503,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                           <>
                             <span className="home-city-card__tagline">
                               {isHindi
-                                ? "हमारा सबसे बड़ा बाज़ार — Cribliv पर सबसे ज़्यादा लाइव घर।"
-                                : "Our biggest market — the most live homes on Cribliv."}
+                                ? "हमारा सबसे बड़ा बाज़ार, Cribliv पर सबसे ज़्यादा लाइव घर।"
+                                : "Our biggest market, with the most live homes on Cribliv."}
                             </span>
                             <span className="home-city-card__cta">
                               {isHindi ? "लखनऊ देखें" : "Explore Lucknow"}
@@ -550,8 +550,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   title={isHindi ? "आज ही बात करने लायक घर" : "Homes you can call about today"}
                   subtitle={
                     isHindi
-                      ? "सीधे लाइव बाज़ार से — मालिक पोस्ट करते हैं, घर किराए पर उठते ही हट जाते हैं।"
-                      : "Straight from the live market — updated as owners post and homes get rented."
+                      ? "सीधे लाइव बाज़ार से: मालिक पोस्ट करते हैं, घर किराए पर उठते ही हट जाते हैं।"
+                      : "Straight from the live market, updated as owners post and homes get rented."
                   }
                   viewAllHref={`/${params.locale}/search?city=lucknow&listing_type=flat_house`}
                   items={homesBucket.items}
@@ -568,7 +568,7 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   subtitle={
                     pgMinRent > 0
                       ? isHindi
-                        ? `गर्ल्स, बॉयज़ और को-एड PG — ₹${pgMinRent.toLocaleString("en-IN")}/माह से।`
+                        ? `₹${pgMinRent.toLocaleString("en-IN")}/माह से गर्ल्स, बॉयज़ और को-एड PG।`
                         : `Girls, boys, and co-ed PGs from ₹${pgMinRent.toLocaleString("en-IN")}/month.`
                       : isHindi
                         ? "खाने और वाईफाई के साथ गर्ल्स, बॉयज़ और को-एड PG।"
@@ -630,8 +630,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                   icon: Camera,
                   title: isHindi ? "फोटो जांची जाती हैं" : "Photos checked",
                   desc: isHindi
-                    ? "असली प्रॉपर्टी की असली फोटो — कोई स्टॉक इमेज नहीं, कोई झांसा नहीं।"
-                    : "Real photos from the actual property — no stock images, no bait listings."
+                    ? "असली प्रॉपर्टी की असली फोटो। कोई स्टॉक इमेज नहीं, कोई झांसा नहीं।"
+                    : "Real photos from the actual property. No stock images, no bait listings."
                 },
                 {
                   icon: PhoneCall,
@@ -665,12 +665,12 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
                 {isHindi ? (
                   <>
                     <strong>लाइव लिस्टिंग में से {verifiedPct}% वेरिफाइड हैं।</strong> Cribliv पर
-                    है, तो असली है — यही तो बात है।
+                    है, तो असली है। यही तो बात है।
                   </>
                 ) : (
                   <>
                     <strong>{verifiedPct}% of live listings are verified.</strong> If it&apos;s on
-                    Cribliv, it&apos;s real — that&apos;s the whole point.
+                    Cribliv, it&apos;s real. That&apos;s the whole point.
                   </>
                 )}
               </p>
@@ -696,8 +696,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
               </span>
               <h2 className="home-section__title">
                 {isHindi
-                  ? "बस बताइए क्या चाहिए — हिंदी या English"
-                  : "Just say what you need — Hindi or English"}
+                  ? "बस बताइए क्या चाहिए, हिंदी में या English में"
+                  : "Just say what you need, in Hindi or English"}
               </h2>
               <div className="home-maya__chips">
                 {[
@@ -790,8 +790,8 @@ export default async function HomePage({ params }: { params: { locale: Locale } 
             </h2>
             <p>
               {isHindi
-                ? "वेरिफाइड किरायेदार, कोई ब्रोकर का खेल नहीं — और जब तक कोई सीरियस न हो, आपका नंबर प्राइवेट रहता है।"
-                : "Verified tenants, no broker games — and your number stays private until someone's serious."}
+                ? "वेरिफाइड किरायेदार, कोई ब्रोकर का खेल नहीं। और जब तक कोई सीरियस न हो, आपका नंबर प्राइवेट रहता है।"
+                : "Verified tenants, no broker games, and your number stays private until someone's serious."}
             </p>
           </div>
           <div className="home-owner-band__cta">

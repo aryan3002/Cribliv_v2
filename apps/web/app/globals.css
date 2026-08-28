@@ -21377,8 +21377,41 @@ a.feature-card:hover .icon-circle {
   color: var(--text-primary);
 }
 .hero-living__search {
+  position: relative;
   margin-top: 30px;
-  max-width: 620px;
+  max-width: 660px;
+}
+
+/* Aurora ring behind the search card, so it reads as the hero's centerpiece
+   rather than a plain input. Sits behind the card (z -1 within the inner
+   stacking context) and dims while the dropdown is open so the blur doesn't
+   haze the suggestion rows. */
+.hero-living__search::before,
+.hero-living__search::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(34px);
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.hero-living__search::before {
+  inset: -26px 40% -26px -28px;
+  background: radial-gradient(closest-side, rgba(0, 102, 255, 0.3), transparent 72%);
+}
+.hero-living__search::after {
+  inset: -26px -28px -26px 45%;
+  background: radial-gradient(closest-side, rgba(255, 90, 95, 0.18), transparent 72%);
+}
+.hero-living__search:has(.search-dropdown)::before,
+.hero-living__search:has(.search-dropdown)::after {
+  opacity: 0.15;
+}
+.hero-living__search .hero-search__input-row {
+  box-shadow:
+    0 18px 44px rgba(15, 36, 74, 0.16),
+    0 2px 8px rgba(15, 36, 74, 0.06);
 }
 .hero-living__chips {
   display: flex;
