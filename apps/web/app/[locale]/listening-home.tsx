@@ -105,6 +105,12 @@ export async function ListeningHomePage({ locale }: { locale: Locale }) {
 
   const isHindi = locale === "hi";
 
+  // Additive motion layer for the hero (Maya orb in the search bar + rolling
+  // match-count). Default OFF — when off, the hero renders exactly as today.
+  const heroMotionV2 =
+    process.env.NEXT_PUBLIC_FF_HERO_MOTION_V2 === "1" ||
+    process.env.NEXT_PUBLIC_FF_HERO_MOTION_V2 === "true";
+
   return (
     <>
       <script
@@ -138,6 +144,7 @@ export async function ListeningHomePage({ locale }: { locale: Locale }) {
             pins={pins}
             totalCount={totalCount}
             showCount={showCount}
+            motionV2={heroMotionV2}
           />
         </div>
       </section>
