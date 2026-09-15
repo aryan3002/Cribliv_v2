@@ -34,6 +34,38 @@ Built in NEW sub, RG `cribliv-prod` (centralindia) — old prod untouched and st
 Cutover for the backend-only scope = §4 with step 5 as a Vercel env change to the new API URL + redeploy.
 Before the final restore, drop and recreate the `cribliv` DB on the new server (the rehearsal data is already in it).
 
+## Cutover attempt 1 — 2026-09-16, ROLLED BACK (not a migration fault)
+
+Timeline (UTC): freeze 23:19:56 → final dump 23:21:39–23:22:54 (4.1 MB) → restore done 23:26:47 →
+**all 83 tables matched exactly** (339 users / 103 listings / 182 leads) → blobs 955 + 6, 0 pending →
+new API verified (health ok, 93 active listings, photos on `criblivphotos`, AI route ok on gpt-4o, worker 1 replica) →
+Vercel env swapped → **Vercel production build FAILED** → rolled back 23:43:06, old API 200 by 23:43:26.
+**Downtime ≈ 23.5 min. No data lost** (old DB took no writes while frozen; new DB was a copy).
+
+Rollback performed: `az containerapp revision activate` on `cribliv-api--0000168` + `cribliv-worker--0000024`,
+Vercel prod env restored to the OLD API URL.
+
+### Why the build failed — PRE-EXISTING master break, unrelated to Azure
+
+`Error: The provided export path '/en/blog' doesn't match the '/[locale]/blog/[slug]' page.`
+
+- Reproduced **locally against the OLD API** → identical failure. Not caused by the migration.
+- Cause: blog post `448851c6-759c-432a-9232-c6d14b27d179` (Hindi, published 2026-08-21) has an **empty `slug`**.
+  `fetchAllBlogSlugs()` (`apps/web/lib/blog-api.ts`) pushes `item.slug` unfiltered → `generateStaticParams()` emits
+  `{locale:'en', slug:''}` → export path `/en/blog` collides with the blog index route.
+- Hidden because production still serves a **50-day-old build (Jul 28)**; nothing has successfully deployed since.
+- **Therefore any merge to master today fails the Vercel production build — including PR #143.**
+
+Fix before attempt 2: filter blank slugs in `fetchAllBlogSlugs` (code), and optionally give that post a real slug
+or unpublish it (prod data change — needs owner approval).
+
+### Attempt 2 checklist (everything else is still built and valid)
+
+Re-do only: freeze → drop/recreate `cribliv` on new server → final dump/restore → blob delta → worker to 1 →
+Vercel env to NEW URL → redeploy → verify → merge PR #143.
+`AZURE_CREDENTIALS` is **already swapped** to the new-sub service principal (2026-09-15 23:37).
+Both Vercel API vars are currently **Production-scope only** (were "Preview, Production") — restore Preview scope in cleanup.
+
 ## 0. Inventory (verified 2026-09-13)
 
 | Component         | OLD                                                                                             | NEW (proposed)                                                   |
@@ -120,6 +152,26 @@ All commands use `--subscription 6b65d070-…` explicitly.
 6. Update external callbacks (Razorpay webhook etc. from pre-flight list).
 7. CI switch — create a service principal scoped to `cribliv-prod` RG on the NEW sub, replace GitHub secret `AZURE_CREDENTIALS`, then merge the PR that updates `ACR_NAME`/`RESOURCE_GROUP` in `.github/workflows/ci.yml`, `infra/deploy.sh`, `infra/azure-setup.sh`, `infra/azure-storage-cors.sh` default. Confirm the `deploy-api` run lands on the new app.
 8. Smoke test on cribliv.com: homepage counts, search, listing photos, login OTP, owner photo upload, admin login, Maya.
+
+### Rollback values (captured 2026-09-16, pre-cutover)
+
+Vercel prod (project `cribliv-v2-web`, team `aryan3002s-projects`) — both vars are **Sensitive**, so they can be
+overwritten but never read back. Restore them to the OLD API:
+
+```
+NEXT_PUBLIC_API_BASE_URL = https://cribliv-api.ashyplant-d0cd3af5.centralindia.azurecontainerapps.io/v1
+API_BASE_URL             = https://cribliv-api.ashyplant-d0cd3af5.centralindia.azurecontainerapps.io/v1
+```
+
+NEW value for both = `https://cribliv-api.greenflower-1ce3f92d.centralindia.azurecontainerapps.io/v1`
+(a redeploy is required either way — these are baked into the build).
+
+Vercel prod has **no** `AZURE_STORAGE_ACCOUNT_NAME` / `PHOTO_PUBLIC_BASE_URL` / photo vars — the CSP allows photos via
+the `*.blob.core.windows.net` wildcard, so the storage account rename needs no Vercel change.
+
+Old stack restore: `az containerapp update -n cribliv-api -g Cribliv --subscription 462382ee-… --min-replicas 1 --max-replicas 2`
+and `… -n cribliv-worker … --min-replicas 1 --max-replicas 1` (old worker image is the July build `0b71f31-20260716072314`).
+GitHub: restore the previous `AZURE_CREDENTIALS` (old-sub SP) and revert PR #143.
 
 ### Rollback (any time before old stack is deleted)
 
