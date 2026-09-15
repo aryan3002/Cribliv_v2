@@ -11,8 +11,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-RESOURCE_GROUP="Cribliv"
-ACR_NAME="criblivacr"
+RESOURCE_GROUP="cribliv-prod"
+ACR_NAME="criblivprodacr"
 API_APP_NAME="cribliv-api"
 WORKER_APP_NAME="cribliv-worker"
 
