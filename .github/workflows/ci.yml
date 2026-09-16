@@ -69,6 +69,7 @@ jobs:
       # AZURE_CREDENTIALS secret must be a service principal on that subscription.
       ACR_NAME: criblivprodacr
       APP_NAME: cribliv-api
+      WORKER_APP_NAME: cribliv-worker
       RESOURCE_GROUP: cribliv-prod
     steps:
       - uses: actions/checkout@v4
@@ -85,9 +86,22 @@ jobs:
             --image cribliv-api:${{ github.sha }} \
             .
 
-      - name: Deploy to Container Apps
+      - name: Deploy API to Container Apps
         run: |
           az containerapp update \
             --name ${{ env.APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_NAME }}.azurecr.io/cribliv-api:${{ github.sha }}
+
+      # The worker runs the SAME image with a `node dist/worker/worker.js`
+      # command override (set on the app, preserved by --image updates). Until
+      # 2026-09 this step didn't exist, so only the API was ever rolled: the
+      # worker silently stayed on whatever image it was last given — 2 months
+      # stale on the old subscription, running different code than the API
+      # against the same database. Deploy both or they drift again.
+      - name: Deploy worker to Container Apps
+        run: |
+          az containerapp update \
+            --name ${{ env.WORKER_APP_NAME }} \
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.ACR_NAME }}.azurecr.io/cribliv-api:${{ github.sha }}
