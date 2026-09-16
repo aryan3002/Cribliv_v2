@@ -34,6 +34,31 @@ Built in NEW sub, RG `cribliv-prod` (centralindia) — old prod untouched and st
 Cutover for the backend-only scope = §4 with step 5 as a Vercel env change to the new API URL + redeploy.
 Before the final restore, drop and recreate the `cribliv` DB on the new server (the rehearsal data is already in it).
 
+## ✅ Cutover attempt 2 — 2026-09-16, SUCCEEDED. cribliv.com is on the sponsored subscription.
+
+Timeline (UTC): blog fix #144 merged 00:11 → Vercel prod build Ready (first successful deploy since 28 Jul) →
+new DB reset → **freeze 00:22:53** → dump 00:23:19–00:24:39 (4.1 MB) → restore 00:28:31 →
+**all 83 tables matched** (339 users / 103 listings / 182 leads, 0 blank slugs) → blobs 955 + 6 →
+new worker to 1 replica, API restarted 00:34:29 → Vercel env → NEW API → #143 merged 00:36 →
+prod build Ready **00:40:33**. **Downtime ≈ 18 min.**
+
+Verified live: CSP `connect-src` shows the `greenflower` host; `/en`, `/hi`, `/en/blog`, `/en/search`, article pages all 200;
+search page renders 20 listings + 61 `criblivphotos` refs; new API health/search/blog/AI(gpt-4o)/localities all pass;
+CI `deploy-api` **succeeded** on the new sub and rolled image `0450f05`.
+
+Old stack: **deactivated, not deleted** (`cribliv-api--0000168`, `cribliv-worker--0000024`), DB frozen at 00:22:53.
+Rollback = `az containerapp revision activate` both + Vercel vars back to the `ashyplant` URL + redeploy.
+Writes made on the new stack after 00:40 would be lost in a rollback — decide within the first hour.
+
+### Post-cutover follow-ups
+
+- [ ] New **worker** still runs `criblivprodacr…:latest` (built from 803b283); CI only deploys the API, so it drifts exactly like the old one did. Roll it to the master image when convenient.
+- [ ] gpt-4.1 quota request → then move `cribliv-chat` to gpt-4.1 on `cribliv-prod-openai` (southindia) and repoint `AZURE_OPENAI_ENDPOINT` + key on API **and** worker.
+- [ ] Delete eval deployments `eval-gpt54mini`, `eval-gpt5mini` on `cribliv-prod-realtime`.
+- [ ] Owner to smoke-test the paths automation can't: OTP login, owner photo upload, admin login, Maya voice, a paid contact unlock.
+- [ ] After ~1 week: delete old RGs `Cribliv`, `CriblivV2_production`, and v1 leftovers in `Cribliv-migration` (final `pg_dump` to cold storage first).
+- [ ] Optional: `api.cribliv.com` custom domain so the next move is a DNS change.
+
 ## Cutover attempt 1 — 2026-09-16, ROLLED BACK (not a migration fault)
 
 Timeline (UTC): freeze 23:19:56 → final dump 23:21:39–23:22:54 (4.1 MB) → restore done 23:26:47 →
