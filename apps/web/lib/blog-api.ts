@@ -101,7 +101,15 @@ export async function fetchAllBlogSlugs(): Promise<string[]> {
   try {
     for (let page = 1; page <= 20; page += 1) {
       const { items, total } = await fetchBlogList({ page, page_size: 50 });
-      for (const item of items) slugs.push(item.slug);
+      // A published post with a blank slug (one exists in prod) would yield
+      // `{ locale, slug: "" }` from generateStaticParams, which Next exports as
+      // "/en/blog" — colliding with the blog index route and failing the whole
+      // production build with an export-path mismatch. Drop them here, the one
+      // place every static-param and sitemap consumer funnels through.
+      for (const item of items) {
+        const slug = (item.slug ?? "").trim();
+        if (slug) slugs.push(slug);
+      }
       if (items.length === 0 || page * 50 >= total) break;
     }
   } catch {
