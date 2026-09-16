@@ -681,13 +681,13 @@ async function runRankingRecompute(pool: Pool): Promise<number> {
 
       -- completeness_score: 7 key fields
       (
-        (CASE WHEN l.title_en       IS NOT NULL AND l.title_en       != '' THEN 1 ELSE 0 END
-        + CASE WHEN l.description_en IS NOT NULL AND l.description_en != '' THEN 1 ELSE 0 END
-        + CASE WHEN l.monthly_rent   IS NOT NULL THEN 1 ELSE 0 END
-        + CASE WHEN l.deposit        IS NOT NULL THEN 1 ELSE 0 END
-        + CASE WHEN l.bhk            IS NOT NULL THEN 1 ELSE 0 END
-        + CASE WHEN l.furnishing     IS NOT NULL THEN 1 ELSE 0 END
-        + CASE WHEN l.area_sqft      IS NOT NULL THEN 1 ELSE 0 END)::float / 7.0
+        (CASE WHEN l.title_en         IS NOT NULL AND l.title_en         != '' THEN 1 ELSE 0 END
+        + CASE WHEN l.description_en   IS NOT NULL AND l.description_en   != '' THEN 1 ELSE 0 END
+        + CASE WHEN l.monthly_rent     IS NOT NULL THEN 1 ELSE 0 END
+        + CASE WHEN l.security_deposit IS NOT NULL THEN 1 ELSE 0 END
+        + CASE WHEN l.bhk              IS NOT NULL THEN 1 ELSE 0 END
+        + CASE WHEN l.furnishing       IS NOT NULL THEN 1 ELSE 0 END
+        + CASE WHEN l.area_sqft        IS NOT NULL THEN 1 ELSE 0 END)::float / 7.0
       ) AS completeness_score,
 
       -- engagement_score: normalized saves+unlocks, floor 0.5 for new listings
@@ -717,7 +717,7 @@ async function runRankingRecompute(pool: Pool): Promise<number> {
           (CASE WHEN l.title_en IS NOT NULL AND l.title_en != '' THEN 1 ELSE 0 END
           + CASE WHEN l.description_en IS NOT NULL AND l.description_en != '' THEN 1 ELSE 0 END
           + CASE WHEN l.monthly_rent IS NOT NULL THEN 1 ELSE 0 END
-          + CASE WHEN l.deposit IS NOT NULL THEN 1 ELSE 0 END
+          + CASE WHEN l.security_deposit IS NOT NULL THEN 1 ELSE 0 END
           + CASE WHEN l.bhk IS NOT NULL THEN 1 ELSE 0 END
           + CASE WHEN l.furnishing IS NOT NULL THEN 1 ELSE 0 END
           + CASE WHEN l.area_sqft IS NOT NULL THEN 1 ELSE 0 END)::float / 7.0

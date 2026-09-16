@@ -111,7 +111,7 @@ export class RankingService {
            (CASE WHEN l.title_en IS NOT NULL AND l.title_en != '' THEN 1 ELSE 0 END
             + CASE WHEN l.description_en IS NOT NULL AND l.description_en != '' THEN 1 ELSE 0 END
             + CASE WHEN l.monthly_rent IS NOT NULL THEN 1 ELSE 0 END
-            + CASE WHEN l.deposit IS NOT NULL THEN 1 ELSE 0 END
+            + CASE WHEN l.security_deposit IS NOT NULL THEN 1 ELSE 0 END
             + CASE WHEN l.bhk IS NOT NULL THEN 1 ELSE 0 END
             + CASE WHEN l.furnishing IS NOT NULL THEN 1 ELSE 0 END
             + CASE WHEN l.area_sqft IS NOT NULL THEN 1 ELSE 0 END) AS filled_fields,
