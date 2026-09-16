@@ -12,13 +12,13 @@
 # then re-adds the ones below. Re-run after adding/removing allowed origins.
 #
 # Required env vars (or defaults shown):
-#   AZURE_STORAGE_ACCOUNT_NAME   default: criblivimgstorage
+#   AZURE_STORAGE_ACCOUNT_NAME   default: criblivphotos
 #   AZURE_STORAGE_ACCOUNT_KEY    REQUIRED — pulled from set-env-vars.sh
 #   CORS_BLOB_ALLOWED_ORIGINS    default: localhost + Vercel prod + previews
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-ACCOUNT_NAME="${AZURE_STORAGE_ACCOUNT_NAME:-criblivimgstorage}"
+ACCOUNT_NAME="${AZURE_STORAGE_ACCOUNT_NAME:-criblivphotos}"
 ACCOUNT_KEY="${AZURE_STORAGE_ACCOUNT_KEY:-}"
 
 if [[ -z "${ACCOUNT_KEY}" ]]; then

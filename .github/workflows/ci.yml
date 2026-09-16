@@ -64,10 +64,12 @@ jobs:
       group: deploy-api-${{ github.ref }}
       cancel-in-progress: false
     env:
-      # ── Match infra/azure-setup.sh (RESOURCE_GROUP="Cribliv", ACR_NAME="criblivacr", API_APP_NAME="cribliv-api") ──
-      ACR_NAME: criblivacr
+      # ── Match infra/azure-setup.sh (RESOURCE_GROUP="cribliv-prod", ACR_NAME="criblivprodacr", API_APP_NAME="cribliv-api") ──
+      # Sponsored subscription 6b65d070-… since the Sept 2026 migration; the
+      # AZURE_CREDENTIALS secret must be a service principal on that subscription.
+      ACR_NAME: criblivprodacr
       APP_NAME: cribliv-api
-      RESOURCE_GROUP: Cribliv
+      RESOURCE_GROUP: cribliv-prod
     steps:
       - uses: actions/checkout@v4
 

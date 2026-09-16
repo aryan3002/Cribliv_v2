@@ -10,9 +10,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-RESOURCE_GROUP="Cribliv"
+RESOURCE_GROUP="cribliv-prod"
 LOCATION="centralindia"
-ACR_NAME="criblivacr"
+ACR_NAME="criblivprodacr"
 APP_ENV="cribliv-env"
 API_APP_NAME="cribliv-api"
 WORKER_APP_NAME="cribliv-worker"
