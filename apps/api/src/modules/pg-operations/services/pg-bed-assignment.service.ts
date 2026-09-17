@@ -24,6 +24,7 @@ import type { PoolClient } from "pg";
 
 import { DatabaseService } from "../../../common/database.service";
 import { transaction } from "../../../common/transaction";
+import { IST_TODAY_SQL } from "../../../common/date";
 import { NotificationService } from "../../notifications/notification.service";
 import { PgMaintenanceService } from "./pg-maintenance.service";
 
@@ -541,7 +542,7 @@ export class PgBedAssignmentService {
                   emergency_contact = $6::jsonb,
                   status = 'active',
                   expected_move_in_date = COALESCE($7::date, expected_move_in_date),
-                  move_in_date = COALESCE($8::date, CURRENT_DATE),
+                  move_in_date = COALESCE($8::date, ${IST_TODAY_SQL}),
                   monthly_rent_paise = $9::bigint,
                   security_deposit_paise = $10::bigint,
                   operator_notes = $11
@@ -570,7 +571,7 @@ export class PgBedAssignmentService {
               monthly_rent_paise, security_deposit_paise, operator_notes, created_by)
            VALUES
              ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7::jsonb, 'active', $8::date,
-              COALESCE($9::date, CURRENT_DATE), $10::bigint, $11::bigint, $12, $13::uuid)
+              COALESCE($9::date, ${IST_TODAY_SQL}), $10::bigint, $11::bigint, $12, $13::uuid)
            RETURNING *`,
             [
               propertyId,
@@ -652,7 +653,7 @@ export class PgBedAssignmentService {
         const updated = await client.query<AssignmentRow>(
           `UPDATE pg_bed_assignments
             SET status = $2::pg_assignment_status,
-                move_out_date = CASE WHEN $2 = 'moved_out' THEN CURRENT_DATE ELSE move_out_date END
+                move_out_date = CASE WHEN $2 = 'moved_out' THEN ${IST_TODAY_SQL} ELSE move_out_date END
           WHERE id = $1::uuid
           RETURNING *`,
           [assignmentId, target]
@@ -660,7 +661,7 @@ export class PgBedAssignmentService {
         await client.query(
           `UPDATE pg_beds
             SET status = $2::pg_bed_status,
-                available_from = CASE WHEN $2 = 'vacant' THEN CURRENT_DATE ELSE NULL END
+                available_from = CASE WHEN $2 = 'vacant' THEN ${IST_TODAY_SQL} ELSE NULL END
           WHERE id = $1::uuid`,
           [current.bed_id, bedStatus]
         );
@@ -911,7 +912,7 @@ export class PgBedAssignmentService {
         const updated = await client.query<AssignmentRow>(
           `UPDATE pg_bed_assignments
             SET status = 'notice_served',
-                notice_served_date = CURRENT_DATE,
+                notice_served_date = ${IST_TODAY_SQL},
                 notice_end_date = $2::date
           WHERE id = $1::uuid
           RETURNING *`,
@@ -970,7 +971,7 @@ export class PgBedAssignmentService {
         const updated = await client.query<AssignmentRow>(
           `UPDATE pg_bed_assignments
             SET status = $2::pg_assignment_status,
-                move_out_date = CASE WHEN $2 = 'moved_out' THEN CURRENT_DATE ELSE move_out_date END
+                move_out_date = CASE WHEN $2 = 'moved_out' THEN ${IST_TODAY_SQL} ELSE move_out_date END
           WHERE id = $1::uuid
           RETURNING *`,
           [assignmentId, target]
@@ -978,7 +979,7 @@ export class PgBedAssignmentService {
         await client.query(
           `UPDATE pg_beds
             SET status = $2::pg_bed_status,
-                available_from = CASE WHEN $2 = 'vacant' THEN CURRENT_DATE ELSE NULL END
+                available_from = CASE WHEN $2 = 'vacant' THEN ${IST_TODAY_SQL} ELSE NULL END
           WHERE id = $1::uuid`,
           [current.bed_id, bedStatus]
         );
