@@ -161,6 +161,11 @@ export interface PgServeNoticeInput {
   notice_end_date: string;
 }
 
+export interface PgMoveOutInput {
+  /** IST calendar date the tenant actually left; defaults to today. Must be ≥ move_in_date and ≤ today. */
+  move_out_date?: string | null;
+}
+
 export interface PgBedAssignment {
   id: string;
   pg_property_id: string;

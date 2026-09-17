@@ -16,6 +16,7 @@ import type {
   PgBedAssignmentListFilters,
   PgBedAssignmentOccupantInput,
   PgBedAssignmentStatus,
+  PgMoveOutInput,
   PgOperatorBedDetail,
   PgOperatorBedDetailRoom,
   PgServeNoticeInput
@@ -24,7 +25,7 @@ import type { PoolClient } from "pg";
 
 import { DatabaseService } from "../../../common/database.service";
 import { transaction } from "../../../common/transaction";
-import { IST_TODAY_SQL } from "../../../common/date";
+import { IST_TODAY_SQL, compareIsoDates, isIsoDate, todayIst } from "../../../common/date";
 import { NotificationService } from "../../notifications/notification.service";
 import { PgMaintenanceService } from "./pg-maintenance.service";
 
@@ -276,6 +277,22 @@ export class PgBedAssignmentService {
         throw new BadRequestException({ code: "invalid_assignment_amount" });
       }
     }
+  }
+
+  private resolveMoveOutDate(
+    input: PgMoveOutInput | undefined,
+    moveInDate: Date | string | null
+  ): string | null {
+    const value = input?.move_out_date ?? null;
+    if (value === null) return null;
+    if (!isIsoDate(value) || compareIsoDates(value, todayIst()) > 0) {
+      throw new BadRequestException({ code: "invalid_move_out_date" });
+    }
+    const moveIn = moveInDate === null ? null : toDate(moveInDate);
+    if (moveIn !== null && compareIsoDates(value, moveIn) < 0) {
+      throw new BadRequestException({ code: "invalid_move_out_date" });
+    }
+    return value;
   }
 
   private assertTransition(
@@ -641,7 +658,8 @@ export class PgBedAssignmentService {
     allowed: readonly PgBedAssignmentStatus[],
     target: PgBedAssignmentStatus,
     eventType: string,
-    bedStatus: "occupied" | "vacant"
+    bedStatus: "occupied" | "vacant",
+    moveOut?: PgMoveOutInput
   ): Promise<TransitionResult> {
     return transaction(
       this.db,
@@ -650,13 +668,19 @@ export class PgBedAssignmentService {
         const current = await this.lockOperatorAssignment(client, propertyId, assignmentId);
         this.assertTransition(current.status, allowed, target);
 
+        const moveOutDate =
+          target === "moved_out" ? this.resolveMoveOutDate(moveOut, current.move_in_date) : null;
+
         const updated = await client.query<AssignmentRow>(
           `UPDATE pg_bed_assignments
             SET status = $2::pg_assignment_status,
-                move_out_date = CASE WHEN $2 = 'moved_out' THEN ${IST_TODAY_SQL} ELSE move_out_date END
+                move_out_date = CASE
+                  WHEN $2 = 'moved_out' THEN COALESCE($3::date, ${IST_TODAY_SQL})
+                  ELSE move_out_date
+                END
           WHERE id = $1::uuid
           RETURNING *`,
-          [assignmentId, target]
+          [assignmentId, target, moveOutDate]
         );
         await client.query(
           `UPDATE pg_beds
@@ -673,7 +697,7 @@ export class PgBedAssignmentService {
           operatorId,
           current.status,
           target,
-          { bed_id: current.bed_id }
+          { bed_id: current.bed_id, ...(moveOutDate ? { move_out_date: moveOutDate } : {}) }
         );
         return {
           assignment: toAssignment(updated.rows[0]),
@@ -718,7 +742,8 @@ export class PgBedAssignmentService {
   async confirmMoveOut(
     operatorId: string,
     propertyId: string,
-    assignmentId: string
+    assignmentId: string,
+    input?: PgMoveOutInput
   ): Promise<PgBedAssignment> {
     if (!this.db.isEnabled()) throw this.unavailable();
     const result = await this.operatorTransition(
@@ -728,7 +753,8 @@ export class PgBedAssignmentService {
       ["move_out_pending_confirmation"],
       "moved_out",
       "move_out_confirmed",
-      "vacant"
+      "vacant",
+      input
     );
     return result.assignment;
   }
@@ -736,7 +762,8 @@ export class PgBedAssignmentService {
   async operatorDirectMoveOut(
     operatorId: string,
     propertyId: string,
-    assignmentId: string
+    assignmentId: string,
+    input?: PgMoveOutInput
   ): Promise<PgBedAssignment> {
     if (!this.db.isEnabled()) throw this.unavailable();
     const result = await this.operatorTransition(
@@ -746,7 +773,8 @@ export class PgBedAssignmentService {
       ["active", "notice_served", "move_out_requested", "move_out_pending_confirmation"],
       "moved_out",
       "operator_direct_move_out",
-      "vacant"
+      "vacant",
+      input
     );
     return result.assignment;
   }
