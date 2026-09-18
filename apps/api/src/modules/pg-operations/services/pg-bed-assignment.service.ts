@@ -677,7 +677,9 @@ export class PgBedAssignmentService {
                 move_out_date = CASE
                   WHEN $2 = 'moved_out' THEN COALESCE($3::date, ${IST_TODAY_SQL})
                   ELSE move_out_date
-                END
+                END,
+                notice_served_date = CASE WHEN $2 = 'active' THEN NULL ELSE notice_served_date END,
+                notice_end_date    = CASE WHEN $2 = 'active' THEN NULL ELSE notice_end_date END
           WHERE id = $1::uuid
           RETURNING *`,
           [assignmentId, target, moveOutDate]
@@ -792,6 +794,29 @@ export class PgBedAssignmentService {
       ["move_out_pending_confirmation"],
       "active",
       "move_out_cancelled",
+      "occupied"
+    );
+    return result.assignment;
+  }
+
+  /**
+   * The tenant is staying after all. Today the only route back from
+   * `notice_served` is request-move-out-then-cancel; this is the direct one.
+   * Clears both notice dates so the rent billing window reopens (spec §5.2).
+   */
+  async cancelNotice(
+    operatorId: string,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<PgBedAssignment> {
+    if (!this.db.isEnabled()) throw this.unavailable();
+    const result = await this.operatorTransition(
+      operatorId,
+      propertyId,
+      assignmentId,
+      ["notice_served", "move_out_requested"],
+      "active",
+      "notice_cancelled",
       "occupied"
     );
     return result.assignment;

@@ -144,4 +144,13 @@ export class PgAssignmentController {
   ) {
     return ok(await this.assignments.cancelMoveOut(user.id, propertyId, assignmentId));
   }
+
+  @Post(":propertyId/assignments/:id/cancel-notice")
+  async cancelNotice(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") assignmentId: string
+  ) {
+    return ok(await this.assignments.cancelNotice(user.id, propertyId, assignmentId));
+  }
 }

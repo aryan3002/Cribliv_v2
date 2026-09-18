@@ -62,6 +62,9 @@ describe("PG bed assignments without a database", () => {
     await expect(service.cancelMoveOut(operatorId, propertyId, assignmentId)).rejects.toMatchObject(
       unavailable
     );
+    await expect(service.cancelNotice(operatorId, propertyId, assignmentId)).rejects.toMatchObject(
+      unavailable
+    );
     await expect(service.getBedDetail(operatorId, propertyId, bedId)).rejects.toMatchObject(
       unavailable
     );
@@ -892,6 +895,89 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
       { from_status: "active", to_status: "move_out_pending_confirmation" },
       { from_status: "move_out_pending_confirmation", to_status: "active" }
     ]);
+  });
+
+  it("clears the notice dates when a pending move-out is cancelled", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902" })
+    );
+    await service.serveNotice(tenantId, active.id, { notice_end_date: "2099-02-15" });
+    await service.operatorMoveOutRequest(operatorId, fixture.propertyId, active.id);
+
+    const back = await service.cancelMoveOut(operatorId, fixture.propertyId, active.id);
+    expect(back).toMatchObject({
+      status: "active",
+      notice_served_date: null,
+      notice_end_date: null,
+      move_out_date: null
+    });
+    expect(await bedStatus(fixture.bedIds[0])).toBe("occupied");
+  });
+
+  it("lets the operator cancel a served notice straight back to active", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902" })
+    );
+    await service.serveNotice(tenantId, active.id, { notice_end_date: "2099-02-15" });
+
+    const staying = await service.cancelNotice(operatorId, fixture.propertyId, active.id);
+    expect(staying).toMatchObject({
+      status: "active",
+      notice_served_date: null,
+      notice_end_date: null
+    });
+    expect(await bedStatus(fixture.bedIds[0])).toBe("occupied");
+    expect(await events(active.id)).toMatchObject([
+      { from_status: null, to_status: "active", initiator: "operator" },
+      { from_status: "active", to_status: "notice_served", initiator: "tenant" },
+      {
+        event_type: "notice_cancelled",
+        from_status: "notice_served",
+        to_status: "active",
+        initiator: "operator"
+      }
+    ]);
+
+    // also allowed from a tenant move-out request
+    await service.tenantMoveOutRequest(tenantId, active.id);
+    const stayingAgain = await service.cancelNotice(operatorId, fixture.propertyId, active.id);
+    expect(stayingAgain.status).toBe("active");
+
+    // not allowed from active or pending confirmation
+    await expect(
+      service.cancelNotice(operatorId, fixture.propertyId, active.id)
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_transition" } });
+    await service.operatorMoveOutRequest(operatorId, fixture.propertyId, active.id);
+    await expect(
+      service.cancelNotice(operatorId, fixture.propertyId, active.id)
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_transition" } });
+  });
+
+  it("exposes cancel-notice as an operator endpoint", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902" })
+    );
+    await service.serveNotice(tenantId, active.id, { notice_end_date: "2099-02-15" });
+
+    const res = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/assignments/${active.id}/cancel-notice`
+      )
+      .set("x-test-identity", "operator");
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ status: "active", notice_end_date: null });
   });
 
   it("cancels a reservation, frees the bed, and writes an event", async () => {
