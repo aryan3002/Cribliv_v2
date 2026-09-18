@@ -1,10 +1,16 @@
 import { ForbiddenException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import type { PoolClient } from "pg";
+import type { QueryResult, QueryResultRow } from "pg";
 
 import type { DatabaseService } from "../../../common/database.service";
 import { readFeatureFlags } from "../../../config/feature-flags";
 
-export type Queryable = Pick<PoolClient, "query">;
+/** The one query surface both a transaction `PoolClient` and `DatabaseService` satisfy. */
+export interface Queryable {
+  query<T extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params?: unknown[]
+  ): Promise<QueryResult<T>>;
+}
 
 export interface RentActor {
   id: string | null;

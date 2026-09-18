@@ -133,15 +133,8 @@ export class RentSettingsService {
 
   async get(operatorId: string, propertyId: string): Promise<PgRentSettings | null> {
     requireDb(this.db);
-    // DatabaseService.query only supports the (text, params) call form, while
-    // `Queryable` is `Pick<PoolClient, "query">` and therefore carries pg's full
-    // overload set (QueryConfig/Submittable forms) that DatabaseService never
-    // implements. Every other Queryable in this file is a real transaction
-    // PoolClient; this is the one read outside a transaction, so the type is
-    // asserted rather than widened, to avoid touching rent-guards.ts.
-    const asQueryable = this.db as unknown as Queryable;
-    await assertManagedOwnership(asQueryable, operatorId, propertyId);
-    const row = await this.getRow(asQueryable, propertyId);
+    await assertManagedOwnership(this.db, operatorId, propertyId);
+    const row = await this.getRow(this.db, propertyId);
     return row ? toSettingsDto(row) : null;
   }
 
