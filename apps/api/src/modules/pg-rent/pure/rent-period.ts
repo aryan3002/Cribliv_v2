@@ -103,3 +103,38 @@ export function nextPeriod(lastEnd: string, spec: PeriodSpec): Period {
   const start = addDays(lastEnd, 1);
   return { start, end: periodEndFor(start, spec) };
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS_LONG = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December"
+];
+
+/** Human label for a period. Natural calendar months read "September 2026"; anything else is a range. */
+export function periodLabel(period: Period, spec: PeriodSpec): string {
+  const [sy, sm, sd] = [
+    Number(period.start.slice(0, 4)),
+    Number(period.start.slice(5, 7)),
+    Number(period.start.slice(8, 10))
+  ];
+  const [ey, em, ed] = [
+    Number(period.end.slice(0, 4)),
+    Number(period.end.slice(5, 7)),
+    Number(period.end.slice(8, 10))
+  ];
+  if (spec.cycleMode === "calendar_month" && isNaturalPeriod(period, spec)) {
+    return `${MONTHS_LONG[sm - 1]} ${sy}`;
+  }
+  if (sy === ey) return `${sd} ${MONTHS[sm - 1]} – ${ed} ${MONTHS[em - 1]} ${sy}`;
+  return `${sd} ${MONTHS[sm - 1]} ${sy} – ${ed} ${MONTHS[em - 1]} ${ey}`;
+}

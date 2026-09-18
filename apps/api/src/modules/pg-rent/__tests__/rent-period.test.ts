@@ -7,7 +7,8 @@ import {
   naturalDueDate,
   naturalPeriodContaining,
   nextPeriod,
-  periodEndFor
+  periodEndFor,
+  periodLabel
 } from "../pure/rent-period";
 
 const calendar = { cycleMode: "calendar_month", anchorDay: 1 } as const;
@@ -151,5 +152,22 @@ describe("nextPeriod", () => {
     expect(nextPeriod("2026-10-31", calendar)).toEqual({ start: "2026-11-01", end: "2026-11-30" });
     expect(nextPeriod("2026-10-31", anniv12)).toEqual({ start: "2026-11-01", end: "2026-11-11" });
     expect(nextPeriod("2026-11-11", anniv12)).toEqual({ start: "2026-11-12", end: "2026-12-11" });
+  });
+});
+
+describe("periodLabel", () => {
+  it("names a natural calendar month, otherwise a day range", () => {
+    expect(periodLabel({ start: "2026-09-01", end: "2026-09-30" }, calendar)).toBe(
+      "September 2026"
+    );
+    expect(periodLabel({ start: "2026-09-12", end: "2026-09-30" }, calendar)).toBe(
+      "12 Sep – 30 Sep 2026"
+    );
+    expect(periodLabel({ start: "2026-09-12", end: "2026-10-11" }, anniv12)).toBe(
+      "12 Sep – 11 Oct 2026"
+    );
+    expect(periodLabel({ start: "2026-12-12", end: "2027-01-11" }, anniv12)).toBe(
+      "12 Dec 2026 – 11 Jan 2027"
+    );
   });
 });
