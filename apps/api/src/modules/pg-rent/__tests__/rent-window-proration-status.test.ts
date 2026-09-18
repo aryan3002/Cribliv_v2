@@ -110,6 +110,16 @@ describe("prorate (spec §5.3)", () => {
       factor: 15 / 30
     });
   });
+  it("rounds an exact half-rupee tie up (spec invariant 9), not down via float drift", () => {
+    const calendar = { cycleMode: "calendar_month" as const, anchorDay: 1 };
+    // Feb 2026 has 28 days; 1400 × 17 ÷ 28 = 850 paise exactly → ₹9
+    expect(
+      prorate(1400, { start: "2026-02-01", end: "2026-02-17" }, calendar, "actual_days")
+    ).toEqual({
+      amountPaise: 900,
+      factor: 17 / 28
+    });
+  });
 });
 
 describe("invoiceStatus (invariant 4, equality not ≥)", () => {

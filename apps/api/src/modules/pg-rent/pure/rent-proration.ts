@@ -28,5 +28,5 @@ export function prorate(
           return daysInclusive(natural.start, natural.end);
         })();
   const factor = days / denominator;
-  return { amountPaise: roundToRupee(rentPaise * factor), factor };
+  return { amountPaise: roundToRupee((rentPaise * days) / denominator), factor };
 }
