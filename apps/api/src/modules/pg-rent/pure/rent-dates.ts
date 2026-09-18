@@ -64,3 +64,5 @@ export function addMonthsToFirst(firstOfMonthIso: string, n: number): string {
 export function dayOf(iso: string): number {
   return parse(iso)[2];
 }
+
+export { compareIsoDates as compareIso } from "../../../common/date";
