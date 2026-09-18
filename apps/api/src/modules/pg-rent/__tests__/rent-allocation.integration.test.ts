@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DatabaseService } from "../../../common/database.service";
 import { transaction } from "../../../common/transaction";
+import { toIsoDate } from "../dto/common";
 import { RentAllocationService } from "../services/rent-allocation.service";
 import { SYSTEM_ACTOR } from "../services/rent-guards";
 import { assertRentInvariants } from "./helpers/assert-rent-invariants";
@@ -91,6 +92,23 @@ describe.skipIf(!HAS_DB)("RentAllocationService.applyUnallocatedCredit", () => {
       [invoice]
     );
     expect(events.rows).toEqual([{ event_type: "allocation.changed" }]);
+
+    // settled_on is written once, on the day the balance first reached zero, and never moved.
+    const firstSettled = (
+      await db.query<{ settled_on: Date | string }>(
+        `SELECT settled_on FROM pg_rent_invoices WHERE id = $1::uuid`,
+        [invoice]
+      )
+    ).rows[0].settled_on;
+    expect(toIsoDate(firstSettled)).toBe("2026-09-05"); // p2's paid_on — the payment that closed it
+    await transaction(db, (client) => service.recomputeInvoice(client, invoice, "2026-09-30"));
+    const again = (
+      await db.query<{ settled_on: Date | string }>(
+        `SELECT settled_on FROM pg_rent_invoices WHERE id = $1::uuid`,
+        [invoice]
+      )
+    ).rows[0].settled_on;
+    expect(toIsoDate(again)).toBe("2026-09-05");
 
     // ₹300 of p2 remains; a second invoice takes it and stays partially paid
     const invoice2 = await insertInvoice(80000, "T-INV-0002");

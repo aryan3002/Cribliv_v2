@@ -32,6 +32,25 @@ export class RentAllocationService {
    * Spec §5.4 step 4 / §6.2 step 3. Unallocated credit = confirmed inflows'
    * amount − Σ allocations (to invoices AND to outflows, invariant 3), oldest
    * paid_on first. Never touches drafts or cancelled invoices.
+   *
+   * Locking contract (binding on slice 1b and every future writer of
+   * pg_rent_payment_allocations):
+   * 1. Lock order is always invoice row → source pg_rent_payments row(s).
+   *    This method takes the invoice's FOR UPDATE lock first, then locks the
+   *    candidate inflow payments; never lock in the reverse order (a writer
+   *    that locks payment → invoice can deadlock against a concurrent call
+   *    to this method).
+   * 2. Before inserting, updating or deleting any pg_rent_payment_allocations
+   *    row, first `SELECT … FOR UPDATE` the source inflow payment row(s),
+   *    then read Σ allocations for that payment in a separate statement.
+   *    Under READ COMMITTED, the second statement's snapshot is taken after
+   *    the lock wait, so it sees every allocation committed by whoever held
+   *    the lock before you — reading Σ allocations without first locking the
+   *    payment (or reading it in the same snapshot as an earlier, unlocked
+   *    read) can double-spend the same unallocated credit across concurrent
+   *    callers.
+   * 3. recomputeInvoice re-takes the invoice's FOR UPDATE lock itself, so it
+   *    is safe to call standalone (not only from inside this method).
    */
   async applyUnallocatedCredit(
     client: PoolClient,
