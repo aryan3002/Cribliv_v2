@@ -12,7 +12,8 @@ import {
 } from "@nestjs/common";
 import type {
   PgBedAssignmentListFilters,
-  PgBedAssignmentOccupantInput
+  PgBedAssignmentOccupantInput,
+  PgMoveOutInput
 } from "@cribliv/shared-types";
 
 import { AuthGuard } from "../../common/auth.guard";
@@ -111,18 +112,28 @@ export class PgAssignmentController {
   async confirmMoveOut(
     @AuthUser() user: UserContext,
     @Param("propertyId") propertyId: string,
-    @Param("id") assignmentId: string
+    @Param("id") assignmentId: string,
+    @Body() body: PgMoveOutInput | undefined
   ) {
-    return ok(await this.assignments.confirmMoveOut(user.id, propertyId, assignmentId));
+    return ok(
+      await this.assignments.confirmMoveOut(user.id, propertyId, assignmentId, {
+        move_out_date: body?.move_out_date ?? null
+      })
+    );
   }
 
   @Post(":propertyId/assignments/:id/move-out-now")
   async moveOutNow(
     @AuthUser() user: UserContext,
     @Param("propertyId") propertyId: string,
-    @Param("id") assignmentId: string
+    @Param("id") assignmentId: string,
+    @Body() body: PgMoveOutInput | undefined
   ) {
-    return ok(await this.assignments.operatorDirectMoveOut(user.id, propertyId, assignmentId));
+    return ok(
+      await this.assignments.operatorDirectMoveOut(user.id, propertyId, assignmentId, {
+        move_out_date: body?.move_out_date ?? null
+      })
+    );
   }
 
   @Post(":propertyId/assignments/:id/cancel-move-out")
@@ -132,5 +143,14 @@ export class PgAssignmentController {
     @Param("id") assignmentId: string
   ) {
     return ok(await this.assignments.cancelMoveOut(user.id, propertyId, assignmentId));
+  }
+
+  @Post(":propertyId/assignments/:id/cancel-notice")
+  async cancelNotice(
+    @AuthUser() user: UserContext,
+    @Param("propertyId") propertyId: string,
+    @Param("id") assignmentId: string
+  ) {
+    return ok(await this.assignments.cancelNotice(user.id, propertyId, assignmentId));
   }
 }

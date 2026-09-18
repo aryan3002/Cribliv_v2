@@ -29,6 +29,7 @@ import type {
   PgManageRequestStatus,
   PgManagedPropertyDetail,
   PgManagedPropertySummary,
+  PgMoveOutInput,
   PgOccupancySummary,
   PgOperatorBedDetail,
   PgRoom,
@@ -474,23 +475,48 @@ export function operatorMoveOutRequest(propertyId: string, assignmentId: string,
   );
 }
 
-export function confirmAssignmentMoveOut(propertyId: string, assignmentId: string, token?: string) {
+export function confirmAssignmentMoveOut(
+  propertyId: string,
+  assignmentId: string,
+  input: PgMoveOutInput = {},
+  token?: string
+) {
   return fetchApi<PgBedAssignment>(
     `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/confirm-move-out`,
-    { method: "POST", headers: authHeaders(token) }
+    {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(input)
+    }
   );
 }
 
-export function moveOutAssignmentNow(propertyId: string, assignmentId: string, token?: string) {
+export function moveOutAssignmentNow(
+  propertyId: string,
+  assignmentId: string,
+  input: PgMoveOutInput = {},
+  token?: string
+) {
   return fetchApi<PgBedAssignment>(
     `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/move-out-now`,
-    { method: "POST", headers: authHeaders(token) }
+    {
+      method: "POST",
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      body: JSON.stringify(input)
+    }
   );
 }
 
 export function cancelAssignmentMoveOut(propertyId: string, assignmentId: string, token?: string) {
   return fetchApi<PgBedAssignment>(
     `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/cancel-move-out`,
+    { method: "POST", headers: authHeaders(token) }
+  );
+}
+
+export function cancelAssignmentNotice(propertyId: string, assignmentId: string, token?: string) {
+  return fetchApi<PgBedAssignment>(
+    `/pg-operator/properties/${propertyId}/assignments/${assignmentId}/cancel-notice`,
     { method: "POST", headers: authHeaders(token) }
   );
 }

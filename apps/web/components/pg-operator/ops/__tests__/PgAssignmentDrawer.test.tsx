@@ -291,6 +291,7 @@ describe("PgAssignmentDrawer", () => {
       expect(mocks.moveOutAssignmentNow).toHaveBeenCalledWith(
         "property-1",
         "assignment-a",
+        {},
         "token-1"
       )
     );

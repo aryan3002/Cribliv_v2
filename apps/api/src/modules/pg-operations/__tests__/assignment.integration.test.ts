@@ -9,6 +9,7 @@ import request from "supertest";
 import { AppModule } from "../../../app.module";
 import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
+import { todayIst } from "../../../common/date";
 import type { Role } from "../../../common/types";
 import type { NotificationService } from "../../notifications/notification.service";
 import { PgBedAssignmentService } from "../services/pg-bed-assignment.service";
@@ -59,6 +60,9 @@ describe("PG bed assignments without a database", () => {
       service.operatorDirectMoveOut(operatorId, propertyId, assignmentId)
     ).rejects.toMatchObject(unavailable);
     await expect(service.cancelMoveOut(operatorId, propertyId, assignmentId)).rejects.toMatchObject(
+      unavailable
+    );
+    await expect(service.cancelNotice(operatorId, propertyId, assignmentId)).rejects.toMatchObject(
       unavailable
     );
     await expect(service.getBedDetail(operatorId, propertyId, bedId)).rejects.toMatchObject(
@@ -498,6 +502,131 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
     ]);
   });
 
+  it("writes move-in, move-out, notice and available-from dates as IST calendar dates", async () => {
+    const fixture = await createFixture();
+    const today = todayIst();
+
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902", move_in_date: null })
+    );
+    expect(active.move_in_date).toBe(today);
+
+    const noticed = await service.serveNotice(tenantId, active.id, {
+      notice_end_date: "2099-02-15"
+    });
+    expect(noticed.notice_served_date).toBe(today);
+
+    const movedOut = await service.operatorDirectMoveOut(operatorId, fixture.propertyId, active.id);
+    expect(movedOut.move_out_date).toBe(today);
+
+    const bed = await db.query<{ available_from: Date | string | null }>(
+      `SELECT to_char(available_from, 'YYYY-MM-DD') AS available_from
+         FROM pg_beds WHERE id = $1::uuid`,
+      [fixture.bedIds[0]]
+    );
+    expect(bed.rows[0].available_from).toBe(today);
+
+    // The session date and the IST date must agree on what was written: the
+    // column holds an IST day even when the DB session runs in UTC.
+    const check = await db.query<{ same: boolean }>(
+      `SELECT move_out_date = (now() AT TIME ZONE 'Asia/Kolkata')::date AS same
+         FROM pg_bed_assignments WHERE id = $1::uuid`,
+      [active.id]
+    );
+    expect(check.rows[0].same).toBe(true);
+  });
+
+  it("accepts an explicit move-out date on confirm and direct move-out, bounded by move-in and today", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902", move_in_date: "2026-01-10" })
+    );
+
+    await expect(
+      service.operatorDirectMoveOut(operatorId, fixture.propertyId, active.id, {
+        move_out_date: "2026-01-09"
+      })
+    ).rejects.toMatchObject({ response: { code: "invalid_move_out_date" } });
+    await expect(
+      service.operatorDirectMoveOut(operatorId, fixture.propertyId, active.id, {
+        move_out_date: "2099-01-01"
+      })
+    ).rejects.toMatchObject({ response: { code: "invalid_move_out_date" } });
+    await expect(
+      service.operatorDirectMoveOut(operatorId, fixture.propertyId, active.id, {
+        move_out_date: "2026-1-9"
+      })
+    ).rejects.toMatchObject({ response: { code: "invalid_move_out_date" } });
+
+    const movedOut = await service.operatorDirectMoveOut(
+      operatorId,
+      fixture.propertyId,
+      active.id,
+      {
+        move_out_date: "2026-01-31"
+      }
+    );
+    expect(movedOut.status).toBe("moved_out");
+    expect(movedOut.move_out_date).toBe("2026-01-31");
+
+    // confirm-move-out path, via the pending state
+    const second = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[1],
+      occupant({ occupant_phone_e164: "+919999999902", move_in_date: "2026-02-01" })
+    );
+    await service.operatorMoveOutRequest(operatorId, fixture.propertyId, second.id);
+    const confirmed = await service.confirmMoveOut(operatorId, fixture.propertyId, second.id, {
+      move_out_date: "2026-02-20"
+    });
+    expect(confirmed.move_out_date).toBe("2026-02-20");
+
+    // omitted date still means today (IST)
+    const third = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[2],
+      occupant({ occupant_phone_e164: "+919999999902", move_in_date: "2026-02-01" })
+    );
+    const todayOut = await service.operatorDirectMoveOut(operatorId, fixture.propertyId, third.id);
+    expect(todayOut.move_out_date).toBe(todayIst());
+  });
+
+  it("exposes the move-out date through both operator endpoints", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902", move_in_date: "2026-03-01" })
+    );
+
+    const bad = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/assignments/${active.id}/move-out-now`
+      )
+      .set("x-test-identity", "operator")
+      .send({ move_out_date: "2026-02-01" });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error?.code ?? bad.body.code).toBe("invalid_move_out_date");
+
+    const good = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/assignments/${active.id}/move-out-now`
+      )
+      .set("x-test-identity", "operator")
+      .send({ move_out_date: "2026-03-15" });
+    expect(good.status).toBe(201);
+    expect(good.body.data.move_out_date).toBe("2026-03-15");
+  });
+
   it("returns a bed detail read model with the current assignment and assignment history", async () => {
     const fixture = await createFixture();
     const active = await service.moveIn(
@@ -766,6 +895,89 @@ describe.skipIf(!HAS_DB)("PG bed assignments (real Postgres integration)", () =>
       { from_status: "active", to_status: "move_out_pending_confirmation" },
       { from_status: "move_out_pending_confirmation", to_status: "active" }
     ]);
+  });
+
+  it("clears the notice dates when a pending move-out is cancelled", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902" })
+    );
+    await service.serveNotice(tenantId, active.id, { notice_end_date: "2099-02-15" });
+    await service.operatorMoveOutRequest(operatorId, fixture.propertyId, active.id);
+
+    const back = await service.cancelMoveOut(operatorId, fixture.propertyId, active.id);
+    expect(back).toMatchObject({
+      status: "active",
+      notice_served_date: null,
+      notice_end_date: null,
+      move_out_date: null
+    });
+    expect(await bedStatus(fixture.bedIds[0])).toBe("occupied");
+  });
+
+  it("lets the operator cancel a served notice straight back to active", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902" })
+    );
+    await service.serveNotice(tenantId, active.id, { notice_end_date: "2099-02-15" });
+
+    const staying = await service.cancelNotice(operatorId, fixture.propertyId, active.id);
+    expect(staying).toMatchObject({
+      status: "active",
+      notice_served_date: null,
+      notice_end_date: null
+    });
+    expect(await bedStatus(fixture.bedIds[0])).toBe("occupied");
+    expect(await events(active.id)).toMatchObject([
+      { from_status: null, to_status: "active", initiator: "operator" },
+      { from_status: "active", to_status: "notice_served", initiator: "tenant" },
+      {
+        event_type: "notice_cancelled",
+        from_status: "notice_served",
+        to_status: "active",
+        initiator: "operator"
+      }
+    ]);
+
+    // also allowed from a tenant move-out request
+    await service.tenantMoveOutRequest(tenantId, active.id);
+    const stayingAgain = await service.cancelNotice(operatorId, fixture.propertyId, active.id);
+    expect(stayingAgain.status).toBe("active");
+
+    // not allowed from active or pending confirmation
+    await expect(
+      service.cancelNotice(operatorId, fixture.propertyId, active.id)
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_transition" } });
+    await service.operatorMoveOutRequest(operatorId, fixture.propertyId, active.id);
+    await expect(
+      service.cancelNotice(operatorId, fixture.propertyId, active.id)
+    ).rejects.toMatchObject({ response: { code: "invalid_assignment_transition" } });
+  });
+
+  it("exposes cancel-notice as an operator endpoint", async () => {
+    const fixture = await createFixture();
+    const active = await service.moveIn(
+      operatorId,
+      fixture.propertyId,
+      fixture.bedIds[0],
+      occupant({ occupant_phone_e164: "+919999999902" })
+    );
+    await service.serveNotice(tenantId, active.id, { notice_end_date: "2099-02-15" });
+
+    const res = await request(app.getHttpServer())
+      .post(
+        `/v1/pg-operator/properties/${fixture.propertyId}/assignments/${active.id}/cancel-notice`
+      )
+      .set("x-test-identity", "operator");
+    expect(res.status).toBe(201);
+    expect(res.body.data).toMatchObject({ status: "active", notice_end_date: null });
   });
 
   it("cancels a reservation, frees the bed, and writes an event", async () => {
