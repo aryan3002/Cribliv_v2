@@ -279,9 +279,9 @@ export default function PgAssignmentDrawer({
       if (action === "request") {
         await operatorMoveOutRequest(propertyId, selected.id, token);
       } else if (action === "confirm") {
-        await confirmAssignmentMoveOut(propertyId, selected.id, token);
+        await confirmAssignmentMoveOut(propertyId, selected.id, {}, token);
       } else if (action === "direct") {
-        await moveOutAssignmentNow(propertyId, selected.id, token);
+        await moveOutAssignmentNow(propertyId, selected.id, {}, token);
       } else {
         await cancelAssignmentMoveOut(propertyId, selected.id, token);
       }

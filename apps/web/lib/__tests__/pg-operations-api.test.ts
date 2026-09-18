@@ -7,6 +7,7 @@ vi.mock("../api", () => ({ fetchApi }));
 import {
   addMaintenanceComment,
   addResidenceMaintenanceComment,
+  cancelAssignmentNotice,
   completeMaintenancePhotos,
   completeResidenceMaintenancePhotos,
   confirmAssignmentMoveOut,
@@ -106,8 +107,8 @@ describe("pg operations API client", () => {
       "idem-2"
     );
     operatorMoveOutRequest("property-1", "assignment-1", "token-1");
-    confirmAssignmentMoveOut("property-1", "assignment-1", "token-1");
-    moveOutAssignmentNow("property-1", "assignment-1", "token-1");
+    confirmAssignmentMoveOut("property-1", "assignment-1", {}, "token-1");
+    moveOutAssignmentNow("property-1", "assignment-1", {}, "token-1");
     getOperatorBedDetail("property-1", "bed-1", "token-1");
 
     expect(fetchApi).toHaveBeenNthCalledWith(
@@ -486,6 +487,31 @@ describe("pg operations API client", () => {
       10,
       "/pg-operator/properties/property-1/maintenance/analytics",
       expect.objectContaining({ headers: { Authorization: "Bearer token-1" } })
+    );
+  });
+
+  it("posts the move-out date on confirm and direct move-out", async () => {
+    await confirmAssignmentMoveOut("prop-1", "asg-1", { move_out_date: "2026-03-15" }, "tok");
+    expect(fetchApi).toHaveBeenLastCalledWith(
+      "/pg-operator/properties/prop-1/assignments/asg-1/confirm-move-out",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ move_out_date: "2026-03-15" })
+      })
+    );
+
+    await moveOutAssignmentNow("prop-1", "asg-1", undefined, "tok");
+    expect(fetchApi).toHaveBeenLastCalledWith(
+      "/pg-operator/properties/prop-1/assignments/asg-1/move-out-now",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({}) })
+    );
+  });
+
+  it("posts cancel-notice", async () => {
+    await cancelAssignmentNotice("prop-1", "asg-1", "tok");
+    expect(fetchApi).toHaveBeenLastCalledWith(
+      "/pg-operator/properties/prop-1/assignments/asg-1/cancel-notice",
+      expect.objectContaining({ method: "POST" })
     );
   });
 });
