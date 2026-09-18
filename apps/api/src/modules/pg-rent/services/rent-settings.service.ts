@@ -175,7 +175,7 @@ export class RentSettingsService {
       await assertManagedOwnership(client, operatorId, propertyId, true);
       await this.requireRow(client, propertyId, true);
       const updated = await client.query<RentSettingsRow>(
-        `UPDATE pg_rent_settings SET paused_at = now(), pause_reason = 'owner'
+        `UPDATE pg_rent_settings SET paused_at = COALESCE(paused_at, now()), pause_reason = COALESCE(pause_reason, 'owner')
           WHERE pg_property_id = $1::uuid RETURNING ${SETTINGS_COLUMNS}`,
         [propertyId]
       );

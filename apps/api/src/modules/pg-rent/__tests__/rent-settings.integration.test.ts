@@ -234,6 +234,30 @@ describe.skipIf(!HAS_DB)("RentSettingsService (real Postgres)", () => {
     });
   });
 
+  it("pause after a transfer keeps pause_reason = transfer so resume still requires payee (D20)", async () => {
+    const propertyId = await fx.createProperty(operatorId);
+    await service.enable(operatorId, propertyId, {});
+
+    const client = await db.getClient();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE pg_properties SET operator_id = $2::uuid WHERE id = $1::uuid`, [
+        propertyId,
+        otherOperatorId
+      ]);
+      await service.onOwnershipTransferred(client, propertyId, operatorId, otherOperatorId);
+      await client.query("COMMIT");
+    } finally {
+      client.release();
+    }
+
+    const paused = await service.pause(otherOperatorId, propertyId);
+    expect(paused.pause_reason).toBe("transfer");
+    await expect(service.resume(otherOperatorId, propertyId, {})).rejects.toMatchObject({
+      response: expect.objectContaining({ code: "payee_required" })
+    });
+  });
+
   it("is a no-op transfer hook for a property without settings", async () => {
     const propertyId = await fx.createProperty(operatorId);
     const client = await db.getClient();
