@@ -25,6 +25,14 @@ export class RentFixtures {
 
   async teardown(): Promise<void> {
     if (this.propertyIds.length) {
+      // pg_rent_payment_allocations.invoice_id is ON DELETE RESTRICT and the table has no
+      // property column, so the property cascade would be blocked at pg_rent_invoices.
+      await this.db.query(
+        `DELETE FROM pg_rent_payment_allocations
+          WHERE invoice_id IN (SELECT id FROM pg_rent_invoices WHERE pg_property_id = ANY($1::uuid[]))
+             OR payment_id IN (SELECT id FROM pg_rent_payments WHERE pg_property_id = ANY($1::uuid[]))`,
+        [this.propertyIds]
+      );
       await this.db.query(`DELETE FROM pg_properties WHERE id = ANY($1::uuid[])`, [
         this.propertyIds
       ]);

@@ -53,14 +53,6 @@ describe.skipIf(!HAS_DB)("RentAllocationService.applyUnallocatedCredit", () => {
     assignmentId = await fx.createAssignment(propertyId, bedId, { createdBy: operatorId });
   });
   afterAll(async () => {
-    // pg_rent_payment_allocations.invoice_id is ON DELETE RESTRICT; a
-    // pg_properties cascade delete can reach pg_rent_invoices before the
-    // payments->allocations cascade clears these rows, so this is the first
-    // test to write allocations and the first to need this explicit cleanup.
-    await db.query(
-      `DELETE FROM pg_rent_payment_allocations WHERE invoice_id IN (SELECT id FROM pg_rent_invoices WHERE pg_property_id = $1::uuid)`,
-      [propertyId]
-    );
     await fx.teardown();
     await db.onModuleDestroy();
   });
