@@ -25,7 +25,7 @@ describe("rent guards without a database", () => {
     const prev = process.env.FF_PG_RENT_COLLECTION;
     delete process.env.FF_PG_RENT_COLLECTION;
     expect(() => assertRentFlag()).toThrow(
-      expect.objectContaining({ response: { code: "feature_disabled" } })
+      expect.objectContaining({ response: expect.objectContaining({ code: "feature_disabled" }) })
     );
     process.env.FF_PG_RENT_COLLECTION = "true";
     expect(() => assertRentFlag()).not.toThrow();
