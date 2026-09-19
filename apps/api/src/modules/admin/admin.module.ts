@@ -22,6 +22,7 @@ import { AdminHomesService } from "./admin-homes.service";
 import { AdminListingTransferService } from "./admin-listing-transfer.service";
 import { AdminPgTransferService } from "./admin-pg-transfer.service";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { PgRentModule } from "../pg-rent/pg-rent.module";
 import { RentAgreementModule } from "../rent-agreement/rent-agreement.module";
 import { SeoModule } from "../seo/seo.module";
 import { AvailabilityAlertsModule } from "../availability-alerts/availability-alerts.module";
@@ -32,7 +33,13 @@ import { AvailabilityAlertsModule } from "../availability-alerts/availability-al
   // AvailabilityAlertsModule is imported so AdminHomesService can inject
   // AvailabilityAlertsService and reuse listForListing for the admin waitlist
   // leads view (Task 14) — same pattern as ContactsModule/LeadsModule.
-  imports: [NotificationsModule, RentAgreementModule, SeoModule, AvailabilityAlertsModule],
+  imports: [
+    NotificationsModule,
+    RentAgreementModule,
+    SeoModule,
+    AvailabilityAlertsModule,
+    PgRentModule
+  ],
   controllers: [
     AdminController,
     AdminSeoController,

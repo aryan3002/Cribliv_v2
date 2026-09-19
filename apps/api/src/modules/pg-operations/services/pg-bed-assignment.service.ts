@@ -27,6 +27,7 @@ import { DatabaseService } from "../../../common/database.service";
 import { transaction } from "../../../common/transaction";
 import { IST_TODAY_SQL, compareIsoDates, isIsoDate, todayIst } from "../../../common/date";
 import { NotificationService } from "../../notifications/notification.service";
+import { RentInvoiceEngineService } from "../../pg-rent/services/rent-invoice-engine.service";
 import { PgMaintenanceService } from "./pg-maintenance.service";
 
 type AssignmentRow = {
@@ -197,7 +198,10 @@ export class PgBedAssignmentService {
   constructor(
     @Inject(DatabaseService) private readonly db: DatabaseService,
     @Inject(NotificationService) private readonly notifications: NotificationService,
-    @Optional() @Inject(PgMaintenanceService) private readonly maintenance?: PgMaintenanceService
+    @Optional() @Inject(PgMaintenanceService) private readonly maintenance?: PgMaintenanceService,
+    @Optional()
+    @Inject(RentInvoiceEngineService)
+    private readonly rentEngine?: RentInvoiceEngineService
   ) {}
 
   private unavailable(): ServiceUnavailableException {
@@ -341,6 +345,14 @@ export class PgBedAssignmentService {
     } catch {
       // Notifications are deliberately outside the state transaction and best-effort only.
     }
+  }
+
+  /** Spec §5.8: after commit, best-effort, never inside the transaction. */
+  private rentHook(type: string, propertyId: string, assignmentId: string): void {
+    if (!this.rentEngine) return;
+    void this.rentEngine
+      .onAssignmentEvent({ type, propertyId, assignmentId })
+      .catch(() => undefined);
   }
 
   private async lockBed(client: PoolClient, propertyId: string, bedId: string) {
@@ -516,7 +528,7 @@ export class PgBedAssignmentService {
   ): Promise<PgBedAssignment> {
     if (!this.db.isEnabled()) throw this.unavailable();
 
-    return transaction(
+    const created = await transaction(
       this.db,
       async (client) => {
         await this.assertManagedOwnership(operatorId, propertyId, client);
@@ -629,6 +641,8 @@ export class PgBedAssignmentService {
       },
       { uniqueViolationCode: "bed_or_tenant_occupied" }
     );
+    this.rentHook("moved_in", propertyId, created.id);
+    return created;
   }
 
   async list(
@@ -738,6 +752,7 @@ export class PgBedAssignmentService {
         }
       });
     }
+    this.rentHook("operator_move_out_requested", propertyId, assignmentId);
     return result.assignment;
   }
 
@@ -758,6 +773,7 @@ export class PgBedAssignmentService {
       "vacant",
       input
     );
+    this.rentHook("move_out_confirmed", propertyId, assignmentId);
     return result.assignment;
   }
 
@@ -778,6 +794,7 @@ export class PgBedAssignmentService {
       "vacant",
       input
     );
+    this.rentHook("operator_direct_move_out", propertyId, assignmentId);
     return result.assignment;
   }
 
@@ -796,6 +813,7 @@ export class PgBedAssignmentService {
       "move_out_cancelled",
       "occupied"
     );
+    this.rentHook("move_out_cancelled", propertyId, assignmentId);
     return result.assignment;
   }
 
@@ -819,6 +837,7 @@ export class PgBedAssignmentService {
       "notice_cancelled",
       "occupied"
     );
+    this.rentHook("notice_cancelled", propertyId, assignmentId);
     return result.assignment;
   }
 
@@ -1005,6 +1024,7 @@ export class PgBedAssignmentService {
         property_id: result.assignment.pg_property_id
       }
     });
+    this.rentHook("notice_served", result.assignment.pg_property_id, assignmentId);
     return result.assignment;
   }
 
@@ -1075,6 +1095,7 @@ export class PgBedAssignmentService {
         property_id: result.assignment.pg_property_id
       }
     });
+    this.rentHook("tenant_move_out_requested", result.assignment.pg_property_id, assignmentId);
     return result.assignment;
   }
 
@@ -1088,6 +1109,7 @@ export class PgBedAssignmentService {
       "operator_move_out_accepted",
       "vacant"
     );
+    this.rentHook("move_out_confirmed", result.assignment.pg_property_id, assignmentId);
     return result.assignment;
   }
 

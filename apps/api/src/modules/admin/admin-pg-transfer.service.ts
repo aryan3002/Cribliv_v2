@@ -1,5 +1,12 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional
+} from "@nestjs/common";
 import { DatabaseService } from "../../common/database.service";
+import { RentSettingsService } from "../pg-rent/services/rent-settings.service";
 import { normalizeIndianPhone } from "./phone.util";
 
 export interface PgTransferResult {
@@ -50,7 +57,10 @@ export interface PgTransferInput {
  */
 @Injectable()
 export class AdminPgTransferService {
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Optional() @Inject(RentSettingsService) private readonly rentSettings?: RentSettingsService
+  ) {}
 
   async transferOperator(input: PgTransferInput): Promise<PgTransferResult> {
     const phone = normalizeIndianPhone(input.phoneE164);
@@ -184,6 +194,21 @@ export class AdminPgTransferService {
             WHERE id = $1::uuid`,
           [current.pg_property_id, target.id]
         );
+
+        // Rent collection travels with the property; the old owner's payee
+        // identity must not (spec §11.2, D20). Data-driven — no-op without
+        // settings. Runs inside this transaction, so a DB error here rolls
+        // back the whole transfer along with it — correct, since only a
+        // business-rule throw would be forbidden mid-transaction, not a
+        // propagated DB error.
+        if (this.rentSettings) {
+          await this.rentSettings.onOwnershipTransferred(
+            client,
+            current.pg_property_id,
+            current.operator_user_id,
+            target.id
+          );
+        }
       }
 
       // 3/6 — the public read projection. whatsapp_available is sourced from the
