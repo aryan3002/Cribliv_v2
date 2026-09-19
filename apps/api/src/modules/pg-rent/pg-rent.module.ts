@@ -2,8 +2,11 @@ import { Module } from "@nestjs/common";
 
 import { CoreModule } from "../../common/core.module";
 import { GuardsModule } from "../../common/guards.module";
+import { PgRentInvoicesController } from "./controllers/pg-rent-invoices.controller";
+import { PgRentSettingsController } from "./controllers/pg-rent-settings.controller";
 import { RentAllocationService } from "./services/rent-allocation.service";
 import { RentInvoiceEngineService } from "./services/rent-invoice-engine.service";
+import { RentInvoiceService } from "./services/rent-invoice.service";
 import { RentSettingsService } from "./services/rent-settings.service";
 
 // Providers and controllers are appended by later tasks in this plan; the
@@ -11,8 +14,18 @@ import { RentSettingsService } from "./services/rent-settings.service";
 // tested) before any service exists.
 @Module({
   imports: [CoreModule, GuardsModule],
-  controllers: [],
-  providers: [RentSettingsService, RentAllocationService, RentInvoiceEngineService],
-  exports: [RentSettingsService, RentAllocationService, RentInvoiceEngineService]
+  controllers: [PgRentSettingsController, PgRentInvoicesController],
+  providers: [
+    RentSettingsService,
+    RentAllocationService,
+    RentInvoiceEngineService,
+    RentInvoiceService
+  ],
+  exports: [
+    RentSettingsService,
+    RentAllocationService,
+    RentInvoiceEngineService,
+    RentInvoiceService
+  ]
 })
 export class PgRentModule {}
