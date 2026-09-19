@@ -341,6 +341,45 @@ describe.skipIf(!HAS_DB)("RentInvoiceEngineService", () => {
     await assertRentInvariants(db, s.propertyId);
   });
 
+  it("deposit: resolves via the occupied room type's OWN listing, not the property's earliest listing (fix round 1, finding 1)", async () => {
+    const propertyId = await fx.createProperty(operatorId);
+    // Older listing carries a pg_details deposit; the room type actually occupied
+    // lives on a newer listing whose own pg_details deposit is null. The residence
+    // page (pg-residence.service.ts) always resolves via rt.listing_id, so the
+    // engine must not fall back to the older listing's deposit here.
+    await fx.createListingWithDetails(propertyId, operatorId, { depositPaise: 500000 });
+    const newListingId = await fx.createListingWithDetails(propertyId, operatorId, {
+      depositPaise: null
+    });
+    const roomTypeId = await fx.createRoomType(newListingId, {
+      rentPaise: 900000,
+      depositPaise: null
+    });
+    const roomId = await fx.createRoom(propertyId, { roomTypeId, roomNumber: "201" });
+    await settings.enable(operatorId, propertyId, { billing_starts_on: "2026-09-01", due_day: 5 });
+    // The deposit gate requires move_in_date >= enabled_on (todayIst() at enable time),
+    // so the tenant must move in on/after enabled_on for the deposit path to run at all.
+    const enabledOn = (await settings.get(operatorId, propertyId))!.enabled_on;
+    const bedId = await fx.createBed(roomId, "A");
+    const assignmentId = await fx.createAssignment(propertyId, bedId, {
+      createdBy: operatorId,
+      moveIn: enabledOn
+    });
+
+    const r = await engine.generateInvoicesForProperty(propertyId, enabledOn);
+    expect(r.deposits_created).toBe(0);
+    expect((await invoices(assignmentId)).find((i) => i.kind === "deposit")).toBeUndefined();
+    await assertRentInvariants(db, propertyId);
+  });
+
+  it("never bills a moved_out assignment whose move_out_date is missing (fix round 1, finding 2)", async () => {
+    const s = await setupProperty();
+    const a = await tenant(s, "A", { moveIn: "2026-09-01", status: "moved_out" });
+    const r = await engine.generateInvoicesForProperty(s.propertyId, "2026-09-01");
+    expect(r).toMatchObject({ invoices_created: 0, drafts_created: 0 });
+    expect(await invoices(a)).toHaveLength(0);
+  });
+
   it("preview reports the first period per tenant without writing anything", async () => {
     const s = await setupProperty({ settings: { billing_starts_on: "2026-09-17" } });
     const a = await tenant(s, "A", { moveIn: "2026-08-12", occupantName: "Rahul" });

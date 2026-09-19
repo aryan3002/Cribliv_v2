@@ -104,12 +104,17 @@ const ASSIGNMENT_SQL = `
     JOIN pg_beds b ON b.id = a.bed_id
     JOIN pg_rooms r ON r.id = b.room_id
     LEFT JOIN pg_room_types rt ON rt.id = r.room_type_id
+    -- Prefer the room type's own listing (matches pg-residence.service.ts's tenant-facing
+    -- deposit resolution, which is always rt.listing_id): a property can carry several
+    -- pg_listings rows, and an older one's pg_details deposit must not surface here when
+    -- the occupied room type belongs to a different, newer listing. Falls back to the
+    -- property's earliest listing only when the room has no room type at all.
     LEFT JOIN LATERAL (
       SELECT pl.starting_rent_paise, d.security_deposit_paise
         FROM pg_listings pl
         LEFT JOIN pg_details d ON d.listing_id = pl.id
        WHERE pl.pg_property_id = a.pg_property_id
-       ORDER BY pl.created_at ASC
+       ORDER BY (pl.id = rt.listing_id) DESC NULLS LAST, pl.created_at ASC
        LIMIT 1
     ) ld ON true
    WHERE a.pg_property_id = $1::uuid
@@ -307,6 +312,7 @@ export class RentInvoiceEngineService {
   ): Promise<RentPlan | "no_rent" | null> {
     const window = billingWindow(a);
     if (!window) return null;
+    if (a.status === "moved_out" && window.end === null) return null; // moved out without a date: never bill
     const { spec, due } = this.specFor(a, settings);
     const lastEnd = await this.lastRentPeriodEnd(q, a.id);
     const candidate = lastEnd
