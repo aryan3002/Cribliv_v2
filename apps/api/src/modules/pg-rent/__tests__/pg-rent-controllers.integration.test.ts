@@ -101,6 +101,15 @@ describe.skipIf(!HAS_DB)("pg-rent controllers", () => {
     expect(enabled.body.data.generated.invoices_created).toBeGreaterThanOrEqual(1);
   });
 
+  it("preview falls back to the stored billing_starts_on as a plain ISO date", async () => {
+    const preview = await request(app.getHttpServer())
+      .get(`${base()}/enable/preview`)
+      .set(as("operator"));
+    expect(preview.status).toBe(200);
+    expect(preview.body.data.billing_starts_on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(preview.body.data.billing_starts_on).toBe("2026-09-01");
+  });
+
   it("lists and reads invoices in rupees with lines; 403 for another operator; 404 for a foreign id", async () => {
     const list = await request(app.getHttpServer())
       .get(`${base()}/invoices?kind=rent`)
@@ -131,6 +140,8 @@ describe.skipIf(!HAS_DB)("pg-rent controllers", () => {
     expect(ev.body.data.map((e: { event_type: string }) => e.event_type)).toContain(
       "invoice.issued"
     );
+    expect(JSON.stringify(ev.body)).not.toMatch(/_paise/);
+    expect(JSON.stringify(ev.body)).toMatch(/total_inr/);
 
     expect(
       (await request(app.getHttpServer()).get(`${base()}/invoices`).set(as("other"))).status

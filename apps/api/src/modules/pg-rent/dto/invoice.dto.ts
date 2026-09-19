@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+  PgRentEvent,
   PgRentInvoice,
   PgRentInvoiceLine,
   PgRentInvoiceListFilters
@@ -155,3 +156,50 @@ export const RentInvoiceListFiltersSchema = z.object({
   assignment_id: z.string().uuid().optional(),
   billing_month: z.string().refine(isIsoDate).optional()
 }) satisfies z.ZodType<PgRentInvoiceListFilters, PgRentInvoiceListFilters>;
+
+export interface RentEventRow {
+  id: string;
+  entity_type: PgRentEvent["entity_type"];
+  entity_id: string;
+  event_type: string;
+  actor_user_id: string | null;
+  actor_role: PgRentEvent["actor_role"];
+  payload: Record<string, unknown>;
+  created_at: Date | string;
+}
+
+/**
+ * Recursively rewrites every `*_paise` key to `*_inr`, converting its value
+ * through `paiseToInr`. Only applies when the value is a number or numeric
+ * string (Fix round 1, finding 1): a `_paise` key holding `null` is left
+ * untouched rather than guessed at. Non-object values pass through unchanged.
+ */
+export function paiseKeysToInr(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(paiseKeysToInr);
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      if (key.endsWith("_paise") && (typeof v === "number" || typeof v === "string")) {
+        out[`${key.slice(0, -"_paise".length)}_inr`] = paiseToInr(v);
+      } else {
+        out[key] = paiseKeysToInr(v);
+      }
+    }
+    return out;
+  }
+  return value;
+}
+
+/** Event payloads cross the money boundary too (Fix round 1, finding 1): no `_paise` over HTTP. */
+export function toEventDto(row: RentEventRow): PgRentEvent {
+  return {
+    id: row.id,
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    event_type: row.event_type,
+    actor_user_id: row.actor_user_id,
+    actor_role: row.actor_role,
+    payload: paiseKeysToInr(row.payload) as Record<string, unknown>,
+    created_at: toIsoTs(row.created_at) as string
+  };
+}

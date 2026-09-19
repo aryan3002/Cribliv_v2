@@ -8,11 +8,12 @@ import type {
 
 import { DatabaseService } from "../../../common/database.service";
 import { transaction } from "../../../common/transaction";
-import { toIsoTs } from "../dto/common";
 import {
   INVOICE_SELECT,
   LINE_SELECT,
+  toEventDto,
   toInvoiceDto,
+  type RentEventRow,
   type RentInvoiceRow,
   type RentLineRow
 } from "../dto/invoice.dto";
@@ -63,21 +64,12 @@ export class RentInvoiceService {
 
   async events(operatorId: string, propertyId: string, invoiceId: string): Promise<PgRentEvent[]> {
     await this.get(operatorId, propertyId, invoiceId);
-    const rows = await this.db.query<{
-      id: string;
-      entity_type: PgRentEvent["entity_type"];
-      entity_id: string;
-      event_type: string;
-      actor_user_id: string | null;
-      actor_role: PgRentEvent["actor_role"];
-      payload: Record<string, unknown>;
-      created_at: Date;
-    }>(
+    const rows = await this.db.query<RentEventRow>(
       `SELECT id::text, entity_type, entity_id::text, event_type, actor_user_id::text, actor_role, payload, created_at
          FROM pg_rent_events WHERE entity_type = 'invoice' AND entity_id = $1::uuid ORDER BY id`,
       [invoiceId]
     );
-    return rows.rows.map((r) => ({ ...r, created_at: toIsoTs(r.created_at) as string }));
+    return rows.rows.map(toEventDto);
   }
 
   /** Spec §11 "Tenant overrides" + §5.7 "Change rent from next cycle" + §5.2 move-in while null. */

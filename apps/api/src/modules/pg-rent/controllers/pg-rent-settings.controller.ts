@@ -20,7 +20,7 @@ import { ok } from "../../../common/response";
 import { Roles } from "../../../common/roles.decorator";
 import { RolesGuard } from "../../../common/roles.guard";
 import type { UserContext } from "../../../common/types";
-import { parseOrThrow } from "../dto/common";
+import { parseOrThrow, toIsoDate } from "../dto/common";
 import {
   RentEnableInputSchema,
   RentPatchSettingsInputSchema,
@@ -193,7 +193,8 @@ export class PgRentSettingsController {
       enabled_on: today,
       ...(stored ?? {}),
       ...overrides,
-      billing_starts_on: billing_starts_on ?? (stored ? String(stored.billing_starts_on) : today)
+      billing_starts_on:
+        billing_starts_on ?? (stored ? (toIsoDate(stored.billing_starts_on) as string) : today)
     };
     return this.engine.previewForProperty(propertyId, effective, today);
   }
