@@ -23,6 +23,8 @@ import {
   runSignupCreditExpirySweepDb
 } from "./signup-credit-sweep";
 import { runStaleListingSweep } from "./stale-listing-sweep";
+import { runPgRentSweep } from "./pg-rent-sweeps";
+import { todayIst } from "../common/date";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
 const SIGNUP_CREDIT_EXPIRY_SWEEP_MS = 60 * 60 * 1000;
@@ -50,6 +52,7 @@ const GSC_POLLER_MS = 7 * 24 * 60 * 60 * 1000; // weekly
 const BLOG_PLANNER_MS = 7 * 24 * 60 * 60 * 1000; // weekly
 const BLOG_GENERATOR_MS = 24 * 60 * 60 * 1000; // daily
 const BLOG_EMBED_SWEEP_MS = 5 * 60 * 1000; // every 5 minutes
+const PG_RENT_SWEEP_MS = 60 * 60 * 1000; // hourly — invoices + deposits (spec §5.1)
 const DEFAULT_GOOGLE_INDEXING_DAILY_QUOTA = 200;
 
 // ── PG fraud sweep ──────────────────────────────────────────────────────────
@@ -1145,6 +1148,25 @@ async function run() {
         );
       }
     }, AUTO_CLOSE_SWEEP_MS);
+
+    // ── PG rent: invoice + deposit generation (hourly, behind FF_PG_RENT_COLLECTION) ──
+    // Not on startup, for the same reason as the stale-listing sweep: a
+    // deploy loop must not re-run money-adjacent jobs every restart.
+    if (readFeatureFlags().ff_pg_rent_collection) {
+      setInterval(async () => {
+        try {
+          await runPgRentSweep(maintenanceDb, todayIst());
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              job: "pg_rent_sweep",
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      }, PG_RENT_SWEEP_MS);
+    }
   }
 
   setInterval(async () => {
