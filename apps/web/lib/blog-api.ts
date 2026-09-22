@@ -71,10 +71,19 @@ export async function fetchBlogList(
   if (params.city) qs.set("city", params.city);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   try {
-    return await fetchApi<{ items: BlogListItem[]; total: number }>(`/blog${suffix}`, undefined, {
-      server: true,
-      revalidate: opts.revalidate
-    });
+    const res = await fetchApi<{ items: BlogListItem[]; total: number }>(
+      `/blog${suffix}`,
+      undefined,
+      {
+        server: true,
+        revalidate: opts.revalidate
+      }
+    );
+    // Drop rows with an empty slug at the source: every consumer builds
+    // /{locale}/blog/{slug} links from these items, and a slugless row turns
+    // into a self-link on the index pages and a `/{locale}/blog` export path
+    // that mismatches `/[locale]/blog/[slug]` and fails the whole build.
+    return { ...res, items: (res.items ?? []).filter((item) => item.slug) };
   } catch {
     return { items: [], total: 0 };
   }

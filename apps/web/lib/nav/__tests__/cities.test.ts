@@ -92,8 +92,8 @@ describe("city-list drift guards", () => {
 // with string/regex parsing rather than importing/rendering the module. This
 // follows that precedent: read the page source as text and regex the `name:`
 // values out of the CITIES array literal, bounded between the `const CITIES`
-// and `const HOW_IT_WORKS` markers so a `name:` field anywhere else in this
-// 1,100+ line file (FAQs, listing data, etc.) can't leak in.
+// and `function formatCompactCount` markers so a `name:` field anywhere else
+// in this large file (FAQs, listing data, etc.) can't leak in.
 function homepageCityCardSlugs(): string[] {
   const pageSource = readFileSync(resolve(process.cwd(), "app/[locale]/page.tsx"), "utf8");
 
@@ -101,10 +101,10 @@ function homepageCityCardSlugs(): string[] {
   if (start === -1) {
     throw new Error("app/[locale]/page.tsx: `const CITIES = [` marker not found");
   }
-  const end = pageSource.indexOf("const HOW_IT_WORKS = [", start);
+  const end = pageSource.indexOf("function formatCompactCount", start);
   if (end === -1) {
     throw new Error(
-      "app/[locale]/page.tsx: `const HOW_IT_WORKS = [` marker not found after CITIES"
+      "app/[locale]/page.tsx: `function formatCompactCount` marker not found after CITIES"
     );
   }
   const citiesBlock = pageSource.slice(start, end);
