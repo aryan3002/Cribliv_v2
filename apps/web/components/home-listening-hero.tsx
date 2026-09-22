@@ -18,6 +18,7 @@ import { t, type Locale } from "../lib/i18n";
 import { track } from "../lib/track";
 import { VoiceSearchButton } from "./voice-search-button";
 import type { VoiceStage } from "./voice-search-types";
+import { MayaOrb, RollingCount, type OrbState } from "./motion/ListeningHeroMotion";
 
 interface HomeListeningHeroProps {
   locale: Locale;
@@ -25,6 +26,8 @@ interface HomeListeningHeroProps {
   pins: HeroPin[];
   totalCount: number | null;
   showCount: boolean;
+  /** Additive motion layer (Maya orb in the bar + rolling count). Default off. */
+  motionV2?: boolean;
 }
 
 interface CountResponse {
@@ -48,7 +51,8 @@ export default function HomeListeningHero({
   city,
   pins,
   totalCount,
-  showCount
+  showCount,
+  motionV2 = false
 }: HomeListeningHeroProps) {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -79,6 +83,15 @@ export default function HomeListeningHero({
     t(locale, "listenHeroExample2"),
     t(locale, "listenHeroExample3")
   ];
+
+  // motionV2: map the Web-Speech voice stage onto Maya's orb state so the
+  // search icon morphs into her listening orb while the mic is live (Beat 3).
+  const orbState: OrbState =
+    voiceStage === "listening" || voiceStage === "transcribing"
+      ? "listening"
+      : voiceStage === "parsing" || voiceStage === "searching"
+        ? "thinking"
+        : "idle";
 
   // Mount: pin portal host, viewed event.
   useEffect(() => {
@@ -267,10 +280,12 @@ export default function HomeListeningHero({
     if (!showCount) return <>{fill(t(locale, "listenHeroGrowing"), { city: cityLabel })}</>;
     let template: string;
     let n: string;
+    let numeric: number | null = null;
     if (chips.length === 0) {
       if (totalCount === null) return null;
       template = fill(t(locale, "listenHeroCountIdle"), { city: cityLabel });
       n = String(totalCount);
+      numeric = totalCount;
     } else if (matchCount === null) {
       template = t(locale, "listenHeroCountMatching");
       n = "…";
@@ -280,12 +295,24 @@ export default function HomeListeningHero({
     } else {
       template = t(locale, "listenHeroCountReady");
       n = String(matchCount);
+      numeric = matchCount;
     }
     const [before, after = ""] = template.split("{n}");
+    // motionV2 rolls a real number up (Beat 4); otherwise the static span.
+    const numNode =
+      motionV2 && numeric !== null ? (
+        <RollingCount
+          value={numeric}
+          className="hero-listen__counter-num"
+          style={{ color: "#f5b04c", fontWeight: 700 }}
+        />
+      ) : (
+        <span className="hero-listen__counter-num">{n}</span>
+      );
     return (
       <>
         {before}
-        <span className="hero-listen__counter-num">{n}</span>
+        {numNode}
         {after}
       </>
     );
@@ -340,7 +367,16 @@ export default function HomeListeningHero({
           {t(locale, "listenHeroTitle")}
         </label>
         <div className="hero-listen__input-row">
-          <Search size={17} aria-hidden="true" className="hero-listen__input-icon" />
+          {motionV2 ? (
+            // Maya is present in the bar (idle breathing) and morphs to her
+            // listening/thinking state while the mic is live — Beat 3, and she
+            // stays visible so the hero reads as "Maya listens".
+            <span className="hero-listen__input-icon hero-listen__input-orb" aria-hidden="true">
+              <MayaOrb state={orbState} size={24} />
+            </span>
+          ) : (
+            <Search size={17} aria-hidden="true" className="hero-listen__input-icon" />
+          )}
           <input
             id="hero-listen-input"
             className="hero-listen__input"
