@@ -384,6 +384,84 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
     await assertRentInvariants(db, p.propertyId);
   });
 
+  it("per_day fee shrinks (never stays frozen) when recomputed as of an earlier paid_on than the sweep's asOf", async () => {
+    const p = await property({ lateFee: true, kind: "per_day" });
+    const a = await tenant(p, "A");
+    await engine.generateInvoicesForProperty(p.propertyId, "2026-09-01");
+    const sep = (await invoiceRows(a)).find((i) => i.kind === "rent")!.id;
+    // Simulate the sweep having applied a 12-day fee on 2026-09-20 (₹100/day × 12).
+    await db.query(
+      `INSERT INTO pg_rent_invoice_lines (invoice_id, kind, label, amount_paise, source) VALUES ($1::uuid, 'late_fee', 'Late fee', 120000, 'system')`,
+      [sep]
+    );
+    await db.query(
+      `UPDATE pg_rent_invoices SET total_paise = 1020000, late_fee_computed_at = now() WHERE id = $1::uuid`,
+      [sep]
+    );
+
+    // The tenant's cash was actually handed over Sep 10 (due Sep 5, grace ends Sep
+    // 8) — 2 days late, not 12. `frozen` must not gate per_day the way it gates
+    // flat/percent/override: finalizeConfirmed has to shrink the fee to the
+    // as-of-paid_on amount (₹100 × 2 = ₹200), never leave the sweep's 12-day
+    // snapshot (₹1200) charged.
+    const paid = await payments.recordByOperator(
+      operatorId,
+      p.propertyId,
+      { assignment_id: a, amount_inr: 27200, method: "cash", paid_on: "2026-09-10" },
+      randomUUID()
+    );
+    expect(paid.unallocated_inr).toBe(0);
+    expect((await invoiceRows(a)).find((i) => i.id === sep)).toMatchObject({
+      status: "paid",
+      total: "920000", // 900000 rent + 20000 (₹200) as-of fee, not 1020000
+      paid: "920000",
+      settled_on: "2026-09-10"
+    });
+    const ev = await db.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM pg_rent_events WHERE entity_id = $1::uuid AND event_type = 'late_fee.updated'`,
+      [sep]
+    );
+    expect(ev.rows[0].payload).toMatchObject({ from_paise: 120000, to_paise: 20000 });
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("a stale suggestion (auto-apply off) is left alone by finalizeConfirmed, never materialised into a charge", async () => {
+    const p = await property({ lateFee: true, kind: "flat", autoApply: false });
+    const a = await tenant(p, "A");
+    await engine.generateInvoicesForProperty(p.propertyId, "2026-09-01");
+    const sep = (await invoiceRows(a)).find((i) => i.kind === "rent")!.id;
+    // A prior sweep run (Task 6) suggested ₹70 without applying it (auto-apply is
+    // off) — no line, no late_fee_computed_at, just the suggestion column.
+    await db.query(
+      `UPDATE pg_rent_invoices SET suggested_late_fee_paise = 7000 WHERE id = $1::uuid`,
+      [sep]
+    );
+
+    // The flat policy now computes ₹100 (different from the stale ₹70 suggestion),
+    // which would read as computeLateFee's "update" action — but there is still no
+    // real line and no operator/auto-apply approval, so finalizeConfirmed must not
+    // charge anything: it should settle both invoices in full, not leave the rent
+    // invoice partially_paid with a phantom ₹100 fee line it just invented.
+    const paid = await payments.recordByOperator(
+      operatorId,
+      p.propertyId,
+      { assignment_id: a, amount_inr: 27000, method: "cash", paid_on: "2026-09-10" },
+      randomUUID()
+    );
+    expect(paid.unallocated_inr).toBe(0);
+    expect((await invoiceRows(a)).find((i) => i.id === sep)).toMatchObject({
+      status: "paid",
+      total: "900000", // unchanged — no late_fee line was ever created
+      paid: "900000"
+    });
+    const ev = await db.query<{ id: string }>(
+      `SELECT id::text FROM pg_rent_events WHERE entity_id = $1::uuid AND event_type LIKE 'late_fee.%'`,
+      [sep]
+    );
+    expect(ev.rows).toEqual([]); // the suggestion was never touched, no charge was created
+    await assertRentInvariants(db, p.propertyId);
+  });
+
   it("manual re-allocation voids and re-mints the receipt", async () => {
     const p = await property();
     const a = await tenant(p, "A");
@@ -416,6 +494,59 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
       { receipt_number: "TST-0001", void_reason: "reallocated", superseded_by: moved.receipt_id },
       { receipt_number: "TST-0002", void_reason: null, superseded_by: null }
     ]);
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("reallocate expires the pay token on an invoice it closes and refreshes the token on one it reopens", async () => {
+    const p = await property();
+    const a = await tenant(p, "A");
+    await engine.generateInvoicesForProperty(p.propertyId, "2026-09-01");
+    const rows = await invoiceRows(a);
+    const dep = rows.find((i) => i.kind === "deposit")!.id;
+    const sep = rows.find((i) => i.kind === "rent")!.id;
+    async function tokenState(ids: string[]) {
+      const r = await db.query<{ id: string; status: string; expired: boolean }>(
+        `SELECT id::text, status::text, (pay_token_expires_at <= now()) AS expired FROM pg_rent_invoices WHERE id = ANY($1::uuid[])`,
+        [ids]
+      );
+      return Object.fromEntries(
+        r.rows.map((x) => [x.id, { status: x.status, expired: x.expired }])
+      );
+    }
+
+    // Fully pay the deposit only (explicit target) — it closes and its pay
+    // token expires; rent is untouched, still issued with a live token.
+    const paid = await payments.recordByOperator(
+      operatorId,
+      p.propertyId,
+      {
+        assignment_id: a,
+        amount_inr: 18000,
+        method: "upi",
+        paid_on: "2026-09-02",
+        allocations: [{ invoice_id: dep, amount_inr: 18000 }]
+      },
+      randomUUID()
+    );
+    expect(paid.allocations).toHaveLength(1);
+    expect(paid.allocations[0]).toMatchObject({ invoice_id: dep, amount_inr: 18000 });
+    const before = await tokenState([dep, sep]);
+    expect(before[dep]).toEqual({ status: "paid", expired: true });
+    expect(before[sep]).toEqual({ status: "issued", expired: false });
+
+    // Split the same money 9000/9000 across both invoices: rent (full balance)
+    // now closes, deposit (half its balance) reopens.
+    const moved = await payments.reallocate(operatorId, p.propertyId, paid.id, [
+      { invoice_id: sep, amount_inr: 9000 },
+      { invoice_id: dep, amount_inr: 9000 }
+    ]);
+    expect(moved.allocations.find((x) => x.invoice_id === sep)?.amount_inr).toBe(9000);
+    expect(moved.allocations.find((x) => x.invoice_id === dep)?.amount_inr).toBe(9000);
+    const after = await tokenState([dep, sep]);
+    // rent closed by the reallocation → its (previously live) token must expire
+    expect(after[sep]).toEqual({ status: "paid", expired: true });
+    // deposit reopened by the reallocation → its (previously expired) token must refresh
+    expect(after[dep]).toEqual({ status: "partially_paid", expired: false });
     await assertRentInvariants(db, p.propertyId);
   });
 });

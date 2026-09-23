@@ -494,8 +494,17 @@ export class RentPaymentService {
         [paymentId]
       );
       if (funds.rowCount) throw new ConflictException({ code: "reverse_outflow_first" });
-      await this.alloc.removeAllocationsOf(client, paymentId);
-      await this.alloc.allocateInflow(client, paymentId, targets, actor);
+      const removed = await this.alloc.removeAllocationsOf(client, paymentId);
+      // An invoice this reallocation drops money from can reopen (paid → open)
+      // just like a reversal, and one it moves money onto can close (open →
+      // paid) just like finalizeConfirmed — refresh/expire both directions the
+      // same way those two callers already do, or a reopened invoice is left
+      // with a stale expired token (tenant can no longer self-pay it) and a
+      // newly-closed one keeps a live token (tenant can pay an already-settled
+      // invoice again).
+      for (const invoiceId of removed) await this.refreshPayToken(client, invoiceId);
+      const plan = await this.alloc.allocateInflow(client, paymentId, targets, actor);
+      for (const a of plan.allocations) await this.expireTokenIfPaid(client, a.invoiceId);
       if (RECEIPT_SOURCES.has(p.source)) await this.receipts.remint(client, paymentId, actor);
       await writeRentEvent(client, {
         propertyId,
@@ -574,9 +583,22 @@ export class RentPaymentService {
     targets: PgRentAllocationTarget[] | null,
     actor: RentActor
   ): Promise<void> {
-    const p = await this.lockPayment(client, paymentId);
+    // Lock order: invoice rows before the payment row, never the reverse
+    // (rent-allocation.service.ts's binding contract, §§37-45 there — the
+    // engine's sweep locks pg_rent_counters then confirmed inflow payments
+    // via applyUnallocatedCredit, i.e. counters → payments; locking the
+    // payment here before the invoices it settles would open a payments →
+    // counters cycle against that sweep and deadlock). The assignment id is
+    // only needed for routing, so it is read unlocked first — exactly the
+    // pattern allocateInflow already uses below for the same reason.
+    const route = await client.query<{ assignment_id: string }>(
+      `SELECT assignment_id::text FROM pg_rent_payments WHERE id = $1::uuid`,
+      [paymentId]
+    );
+    if (!route.rows[0]) throw new NotFoundException({ code: "payment_not_found" });
     // 1. dry-run to learn which invoices this payment would settle
-    const open = await this.alloc.openInvoices(client, p.assignment_id, true);
+    const open = await this.alloc.openInvoices(client, route.rows[0].assignment_id, true);
+    const p = await this.lockPayment(client, paymentId);
     const wanted = (targets ?? [])
       .filter((t) => open.some((o) => o.invoiceId === t.invoice_id))
       .map((t) => ({
@@ -620,7 +642,18 @@ export class RentPaymentService {
         chargeablePaise: chargeable,
         overridePaise: ctx.invoice.overridePaise,
         existingFeePaise: ctx.feeLinePaise ?? ctx.invoice.suggestedPaise,
-        frozen: ctx.invoice.computedAt !== null
+        // "Compute once" (frozen) only applies to flat/percent/override — a
+        // per_day fee without an override must keep accruing/shrinking as
+        // asOf moves, per computeLateFee's own contract (pure/rent-late-fee.ts)
+        // and the sweep's per_day unit tests, which pass frozen: false on
+        // every per_day case. late_fee_computed_at is stamped by every path
+        // that creates a real line (rent-fee-line.ts), including per_day
+        // ones, so gating solely on it (as before) froze per_day fees after
+        // their very first application — the tenant would be charged the
+        // sweep's snapshot instead of the amount as of this payment's paid_on.
+        frozen:
+          ctx.invoice.computedAt !== null &&
+          (ctx.policy.kind !== "per_day" || ctx.invoice.overridePaise !== null)
       });
       if (decision.action === "remove") {
         await applyFeeDecision(client, this.alloc, ctx, decision, actor, {
@@ -638,7 +671,19 @@ export class RentPaymentService {
         await this.alloc.recomputeInvoice(client, a.invoiceId, p.paid_on);
       } else if (
         decision.action === "update" &&
-        decision.feePaise < (ctx.feeLinePaise ?? Infinity)
+        // Only ever shrink a REAL, already-charged line here. When
+        // ctx.feeLinePaise is null the invoice carries at most a *suggestion*
+        // (suggested_late_fee_paise, written with late_fee_auto_apply off —
+        // rent-fee-line.ts's "suggest" branch never sets late_fee_computed_at
+        // or a line). applyFeeDecision's "line" mode cannot tell a stale
+        // update to an existing line apart from a fresh apply of a bare
+        // suggestion — passing it a null feeLinePaise here would materialise
+        // the suggestion into a real charge nobody (no operator, no
+        // auto-apply) approved, which is not this loop's job: it exists only
+        // to correct a charge this payment is about to settle, never to
+        // invent one.
+        ctx.feeLinePaise !== null &&
+        decision.feePaise < ctx.feeLinePaise
       ) {
         await applyFeeDecision(client, this.alloc, ctx, decision, actor, {
           applyMode: "line",
