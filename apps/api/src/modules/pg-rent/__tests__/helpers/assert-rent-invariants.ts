@@ -63,13 +63,19 @@ export async function assertRentInvariants(
       violations.push(`inv4 invoice ${r.id}: status ${r.status}, expected ${r.expected}`);
   }
 
-  // 5: no overlapping non-cancelled rent periods per assignment
+  // 5: no overlapping non-cancelled rent periods per assignment. A NULL bound
+  // means "no period recorded" (e.g. a hand-inserted test fixture), not an
+  // unbounded period — `daterange(NULL, NULL, '[]')` is the universal range
+  // and would otherwise flag every such invoice as overlapping every other
+  // one, so both invoices must actually carry a period before comparing.
   const overlap = await db.query<{ a: string; b: string }>(
     `SELECT x.id::text AS a, y.id::text AS b
        FROM pg_rent_invoices x JOIN pg_rent_invoices y
          ON x.assignment_id = y.assignment_id AND x.id < y.id
         AND x.kind = 'rent' AND y.kind = 'rent'
         AND x.status <> 'cancelled' AND y.status <> 'cancelled'
+        AND x.period_start IS NOT NULL AND x.period_end IS NOT NULL
+        AND y.period_start IS NOT NULL AND y.period_end IS NOT NULL
         AND daterange(x.period_start, x.period_end, '[]') && daterange(y.period_start, y.period_end, '[]')
       WHERE x.pg_property_id = $1::uuid`,
     [propertyId]
