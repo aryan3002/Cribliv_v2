@@ -227,11 +227,29 @@ describe("planDeallocation (invariant 14, newest first)", () => {
   it("breaks an equal-createdAt tie deterministically (same-transaction allocations)", () => {
     // Postgres now() is the transaction timestamp, so allocations written
     // together can share an identical createdAt to the microsecond.
+    //
+    // Three allocations, listed a1/a3/a2 (NOT ascending by allocationId) on
+    // purpose. A constant comparator — (x,y) => x.createdAt < y.createdAt
+    // ? 1 : -1, which is what the old buggy code did whenever createdAt was
+    // equal — always reports "x before y", and V8's sort implements that as
+    // an unconditional reversal of the input array. For an ascending input
+    // ([a1, a2, ...]) that reversal happens to land on the same order the
+    // correct (allocationId-descending) tiebreak produces, so a test built
+    // on an ascending fixture passes against both the buggy comparator and
+    // the fixed one and proves nothing. This order, and 4 of the other 5
+    // permutations of 3 ids, make the two comparators diverge (verified
+    // empirically for Fix Round 2 — see the task report).
     const tied = [
       {
         allocationId: "a1",
         paymentId: "p1",
-        amountPaise: 300000,
+        amountPaise: 200000,
+        createdAt: "2026-09-10T00:00:00Z"
+      },
+      {
+        allocationId: "a3",
+        paymentId: "p3",
+        amountPaise: 150000,
         createdAt: "2026-09-10T00:00:00Z"
       },
       {
@@ -242,11 +260,11 @@ describe("planDeallocation (invariant 14, newest first)", () => {
       }
     ];
     expect(planDeallocation(100000, tied)).toEqual([
-      { allocationId: "a2", paymentId: "p2", reducePaise: 100000 }
+      { allocationId: "a3", paymentId: "p3", reducePaise: 100000 }
     ]);
-    expect(planDeallocation(400000, tied)).toEqual([
-      { allocationId: "a2", paymentId: "p2", reducePaise: 300000 },
-      { allocationId: "a1", paymentId: "p1", reducePaise: 100000 }
+    expect(planDeallocation(350000, tied)).toEqual([
+      { allocationId: "a3", paymentId: "p3", reducePaise: 150000 },
+      { allocationId: "a2", paymentId: "p2", reducePaise: 200000 }
     ]);
   });
 });
