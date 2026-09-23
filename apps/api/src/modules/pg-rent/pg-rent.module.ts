@@ -25,6 +25,7 @@ import {
   RentReceiptService
 } from "./services/rent-receipt.service";
 import { RentSettingsService } from "./services/rent-settings.service";
+import { RentSettlementService } from "./services/rent-settlement.service";
 
 // Providers and controllers are appended by later tasks in this plan; the
 // arrays start empty so the module can be registered (and AppModule boot
@@ -39,6 +40,7 @@ import { RentSettingsService } from "./services/rent-settings.service";
     RentInvoiceService,
     RentReceiptService,
     RentPaymentService,
+    RentSettlementService,
     { provide: PG_RENT_RECEIPT_RENDERER, useFactory: () => new LazyReceiptRenderer() },
     {
       provide: PG_RENT_PDF_STORAGE,
@@ -72,7 +74,8 @@ import { RentSettingsService } from "./services/rent-settings.service";
     RentInvoiceEngineService,
     RentInvoiceService,
     RentReceiptService,
-    RentPaymentService
+    RentPaymentService,
+    RentSettlementService
   ]
 })
 export class PgRentModule {}

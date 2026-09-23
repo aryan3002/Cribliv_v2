@@ -765,6 +765,36 @@ export class RentInvoiceService {
     return id;
   }
 
+  /**
+   * Task 7: public wrapper for RentSettlementService's settle() — a
+   * settlement invoice carrying only the operator's deduction lines,
+   * fee-exempt, due today, no period bounds. Caller (settle, inside its own
+   * transaction) applies deposit release / unallocated credit afterward.
+   */
+  async insertSettlementInvoice(
+    client: PoolClient,
+    v: {
+      propertyId: string;
+      assignmentId: string;
+      deductions: Array<{ kind: string; label: string; amountPaise: number }>;
+      actor: RentActor;
+    }
+  ): Promise<string> {
+    return this.insertInvoice(client, {
+      propertyId: v.propertyId,
+      assignmentId: v.assignmentId,
+      kind: "settlement",
+      source: "manual",
+      periodStart: null,
+      periodEnd: null,
+      dueDate: todayIst(),
+      lines: v.deductions,
+      eligible: false,
+      tenantNote: null,
+      actor: v.actor
+    });
+  }
+
   async createManual(
     operatorId: string,
     propertyId: string,

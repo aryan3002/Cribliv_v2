@@ -533,39 +533,75 @@ export class RentPaymentService {
       this.db,
       async (client) => {
         await assertManagedOwnership(client, operatorId, propertyId, true);
-        await this.assertAssignment(client, propertyId, input.assignment_id, null);
-        this.assertPaidOn(input.paid_on);
-        const paymentId = await this.insertPayment(client, {
+        return this.recordRefundInTransaction(client, {
           propertyId,
           assignmentId: input.assignment_id,
-          direction: "outflow",
           amountPaise: inrToPaise(input.amount_inr),
           method: input.method,
-          source: "operator",
-          status: "confirmed",
-          claimedInvoiceId: null,
           paidOn: input.paid_on,
           reference: input.reference ?? null,
-          proofPaths: [],
-          note: input.reason,
+          reason: input.reason,
           idempotencyKey,
-          recordedBy: operatorId,
-          confirmedBy: operatorId
+          actor
         });
-        await this.alloc.fundOutflow(client, paymentId);
-        await writeRentEvent(client, {
-          propertyId,
-          entityType: "payment",
-          entityId: paymentId,
-          eventType: "refund.recorded",
-          actor,
-          payload: { amount_paise: inrToPaise(input.amount_inr), reason: input.reason }
-        });
-        return paymentId;
       },
       { uniqueViolationCode: "duplicate_payment" }
     );
     return this.get(operatorId, propertyId, id);
+  }
+
+  /**
+   * Task 7: the body of recordRefund minus the outer transaction/ownership
+   * wrapper, so RentSettlementService.settle() can fund the deposit return
+   * in the same transaction as the release. Still writes `refund.recorded`
+   * itself — fundOutflow deliberately writes no event of its own, so the
+   * audit trail for money leaving the system has to live at this level, and
+   * recordRefund (above) must not duplicate it by calling both this method
+   * and its own writeRentEvent.
+   */
+  async recordRefundInTransaction(
+    client: PoolClient,
+    ctx: {
+      propertyId: string;
+      assignmentId: string;
+      amountPaise: number;
+      method: string;
+      paidOn: string;
+      reference: string | null;
+      reason: string;
+      idempotencyKey: string;
+      actor: RentActor;
+    }
+  ): Promise<string> {
+    await this.assertAssignment(client, ctx.propertyId, ctx.assignmentId, null);
+    this.assertPaidOn(ctx.paidOn);
+    const paymentId = await this.insertPayment(client, {
+      propertyId: ctx.propertyId,
+      assignmentId: ctx.assignmentId,
+      direction: "outflow",
+      amountPaise: ctx.amountPaise,
+      method: ctx.method,
+      source: "operator",
+      status: "confirmed",
+      claimedInvoiceId: null,
+      paidOn: ctx.paidOn,
+      reference: ctx.reference,
+      proofPaths: [],
+      note: ctx.reason,
+      idempotencyKey: ctx.idempotencyKey,
+      recordedBy: ctx.actor.id,
+      confirmedBy: ctx.actor.id
+    });
+    await this.alloc.fundOutflow(client, paymentId);
+    await writeRentEvent(client, {
+      propertyId: ctx.propertyId,
+      entityType: "payment",
+      entityId: paymentId,
+      eventType: "refund.recorded",
+      actor: ctx.actor,
+      payload: { amount_paise: ctx.amountPaise, reason: ctx.reason }
+    });
+    return paymentId;
   }
 
   /** Spec §6.7: manual re-allocation restates what the money was for → void + re-mint. */
