@@ -698,6 +698,14 @@ export class RentInvoiceService {
     );
     if (!a.rows[0]) throw new NotFoundException({ code: "assignment_not_found" });
     if (v.kind === "rent") {
+      // Fix round 1, Important 3: a NULL period_start/period_end makes daterange(NULL,NULL,'[]')
+      // the universal range (confirmed on the dev DB), so a bounds-less rent backfill was either
+      // wrongly refused as period_overlap (when another rent invoice existed) or silently
+      // inserted with NULL bounds (when none did) — the latter violates invariant 5b, which
+      // assumes every rent invoice carries real bounds. createBackfill is the only caller that
+      // can reach kind='rent' here with operator-supplied (optional) bounds; require both.
+      if (v.periodStart === null || v.periodEnd === null)
+        throw new BadRequestException({ code: "period_required" });
       const overlap = await client.query(
         `SELECT 1 FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'rent' AND status <> 'cancelled' AND daterange(period_start, period_end, '[]') && daterange($2::date, $3::date, '[]')`,
         [v.assignmentId, v.periodStart, v.periodEnd]
@@ -858,8 +866,17 @@ export class RentInvoiceService {
         [invoiceId]
       );
       const original = Number(line.rows[0].amount_paise);
+      // Fix round 1, Important 1: a second re-proration (e.g. notice served for the 15th, applied,
+      // then an earlier move-out confirmed for the 10th) must not overwrite an already-reprorated
+      // invoice's `meta.reprorated` baseline — doing so replaced the TRUE original (9000/Sep30)
+      // with the already-shrunk intermediate value (4500/Sep15), so a later restore returned the
+      // tenant to the wrong, smaller amount (silent money loss). The billed amount still updates
+      // every time; only the restore baseline is write-once.
       await client.query(
-        `UPDATE pg_rent_invoice_lines SET amount_paise = $2, meta = meta || $3::jsonb WHERE id = $1::uuid`,
+        `UPDATE pg_rent_invoice_lines
+            SET amount_paise = $2,
+                meta = CASE WHEN meta ? 'reprorated' THEN meta ELSE meta || $3::jsonb END
+          WHERE id = $1::uuid`,
         [
           line.rows[0].id,
           s.to_paise,
@@ -938,6 +955,19 @@ export class RentInvoiceService {
       );
       const r = line.rows[0].meta.reprorated;
       if (!r) throw new ConflictException({ code: "no_suggestion" });
+      // Fix round 1, Critical: onAssignmentEvent runs generateInvoicesForProperty BEFORE this
+      // suggestion is even offered, so on the default production path a "staying" transition can
+      // already have auto-issued a gap invoice for leave_date+1..natural end (the same days this
+      // restore is about to re-cover) and FIFO-allocated floating credit to it. Restoring
+      // period_end back to the original end with no check would create two non-cancelled rent
+      // invoices covering the same days (invariant 5) and double-bill the tenant. Refuse instead;
+      // the operator must resolve the conflicting invoice (e.g. reverse its payment and cancel it)
+      // before retrying.
+      const overlap = await client.query(
+        `SELECT 1 FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'rent' AND status <> 'cancelled' AND id <> $2::uuid AND daterange(period_start, period_end, '[]') && daterange($3::date, $4::date, '[]')`,
+        [inv.assignment_id, invoiceId, inv.period_start, r.original_end]
+      );
+      if (overlap.rowCount) throw new ConflictException({ code: "period_overlap" });
       await client.query(
         `UPDATE pg_rent_invoice_lines SET amount_paise = $2, meta = meta - 'reprorated' WHERE id = $1::uuid`,
         [line.rows[0].id, r.original_paise]

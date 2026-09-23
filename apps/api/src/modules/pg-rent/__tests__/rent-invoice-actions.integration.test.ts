@@ -183,6 +183,11 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
     inv = await invoices.waiveFee(operatorId, p.propertyId, sep.id, "goodwill");
     expect(inv).toMatchObject({ total_inr: 9000, amount_paid_inr: 9000, status: "paid" });
     expect(inv.late_fee_waived_at).not.toBeNull();
+    // Carried requirement 1/2 (fix round 1, Important 2): the fee removal is what closes this
+    // invoice's balance to zero here (no payment settles it), so settled_on must be stamped —
+    // a `paid` invoice with a NULL settled_on is a spec §4.4 violation with no invariant check
+    // of its own to catch it.
+    expect(inv.settled_on).not.toBeNull();
     expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(30000);
 
     const { sep: sep2 } = await tenantWithSeptember(p, "B");
@@ -353,18 +358,17 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
     });
     expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(450000);
 
+    // Fix round 1, Critical — unpaused, real sequence (no settings.pause: a pause here would
+    // switch off a whole production subsystem for the rest of the test instead of exercising it).
     // onAssignmentEvent's own generateInvoicesForProperty call runs against the REAL wall-clock
     // today (todayIst()), not this suite's fixed September 2026 fixture dates. Once the reprorate
     // above shrinks sep's period_end to 2026-09-15, reactivating the assignment re-opens its
     // billing window from that date onward, and on any real run date past the property's due day
-    // the engine would immediately auto-generate and settle a "2026-09-16..30" gap invoice, which
-    // greedily consumes the same floating credit this test's restoreReprorate step means to
-    // reclaim — an assertion about a completely different mechanism (restoreReprorate's own
-    // credit re-application), not something this test is exercising. Pausing generation for the
-    // notice_cancelled call isolates the suggestion-clearing logic (suggestRestore) from that
-    // unrelated, date-sensitive side effect without touching production code or the fixed dates
-    // the rest of this test's assertions depend on.
-    await settings.pause(operatorId, p.propertyId);
+    // the engine auto-generates and settles a "2026-09-16..30" gap invoice for the reopened
+    // window before suggestRestore ever runs — this is the default production path, not a test
+    // artifact. restoreReprorate must therefore refuse to push sep's period_end back to
+    // 2026-09-30: doing so would create two non-cancelled rent invoices covering the same days
+    // (invariant 5) and double-bill the tenant for that tail.
     await db.query(
       `UPDATE pg_bed_assignments SET status = 'active', notice_end_date = NULL WHERE id = $1::uuid`,
       [a]
@@ -374,14 +378,147 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
       propertyId: p.propertyId,
       assignmentId: a
     });
+    const gapInvoices = await invoices.list(operatorId, p.propertyId, {
+      assignment_id: a,
+      kind: "rent"
+    });
+    expect(gapInvoices.some((i) => i.id !== sep.id && i.period_start === "2026-09-16")).toBe(true);
+
     inv = await invoices.get(operatorId, p.propertyId, sep.id);
     expect(inv.reprorate_suggestion).toMatchObject({ mode: "restore", to_inr: 9000 });
+    await expect(invoices.restoreReprorate(operatorId, p.propertyId, sep.id)).rejects.toMatchObject(
+      { response: { code: "period_overlap" } }
+    );
+    // Refused cleanly: sep is untouched (still the reprorated 4500/paid/09-15), the suggestion
+    // is still offered (nothing was cleared), and no invariant is violated because nothing
+    // overlapping was ever committed.
+    inv = await invoices.get(operatorId, p.propertyId, sep.id);
+    expect(inv).toMatchObject({
+      total_inr: 4500,
+      amount_paid_inr: 4500,
+      status: "paid",
+      period_end: "2026-09-15"
+    });
+    expect(inv.reprorate_suggestion).toMatchObject({ mode: "restore", to_inr: 9000 });
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("restoreReprorate succeeds and fully re-applies credit once nothing else occupies the restored period", async () => {
+    const p = await property({ prorate_move_out: true });
+    const { a, sep } = await tenantWithSeptember(p);
+    await payments.recordByOperator(
+      operatorId,
+      p.propertyId,
+      { assignment_id: a, amount_inr: 9000, method: "upi", paid_on: "2026-09-02" },
+      randomUUID()
+    );
+    await db.query(
+      `UPDATE pg_bed_assignments SET status = 'notice_served', notice_end_date = '2026-09-15' WHERE id = $1::uuid`,
+      [a]
+    );
+    await engine.onAssignmentEvent({
+      type: "notice_served",
+      propertyId: p.propertyId,
+      assignmentId: a
+    });
+    let inv = await invoices.applyReprorate(operatorId, p.propertyId, sep.id);
+    expect(inv).toMatchObject({ total_inr: 4500, period_end: "2026-09-15" });
+
+    // The "staying" direction is the one that reopens the billing window and would trigger the
+    // real-clock gap-invoice generation this suite's dates can no longer avoid (see the test
+    // above) — so this test writes the restore suggestion directly, the same technique the brief
+    // itself already uses for late-fee suggestions, to isolate restoreReprorate's own mutation
+    // logic (the thing this test exists to verify) from that unrelated, date-sensitive side
+    // effect of onAssignmentEvent's generation step.
+    await db.query(
+      `UPDATE pg_rent_invoices SET reprorate_suggestion = $2::jsonb WHERE id = $1::uuid`,
+      [
+        sep.id,
+        JSON.stringify({
+          leave_on: "2026-09-30",
+          from_paise: 450000,
+          to_paise: 900000,
+          mode: "restore"
+        })
+      ]
+    );
     inv = await invoices.restoreReprorate(operatorId, p.propertyId, sep.id);
     expect(inv).toMatchObject({
       total_inr: 9000,
       amount_paid_inr: 9000,
       status: "paid",
       reprorate_suggestion: null,
+      period_end: "2026-09-30"
+    });
+    expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(0);
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("re-proration: a later, earlier notice does not overwrite the true original — restore returns to it, not the intermediate value", async () => {
+    const p = await property({ prorate_move_out: true });
+    const { a, sep } = await tenantWithSeptember(p);
+    await payments.recordByOperator(
+      operatorId,
+      p.propertyId,
+      { assignment_id: a, amount_inr: 9000, method: "upi", paid_on: "2026-09-02" },
+      randomUUID()
+    );
+    await db.query(
+      `UPDATE pg_bed_assignments SET status = 'notice_served', notice_end_date = '2026-09-15' WHERE id = $1::uuid`,
+      [a]
+    );
+    await engine.onAssignmentEvent({
+      type: "notice_served",
+      propertyId: p.propertyId,
+      assignmentId: a
+    });
+    let inv = await invoices.applyReprorate(operatorId, p.propertyId, sep.id);
+    expect(inv).toMatchObject({ total_inr: 4500, period_end: "2026-09-15" });
+
+    // The tenant moves the date up further — a second, earlier notice on the SAME invoice.
+    // suggestReprorate's own filters (reprorate_suggestion IS NULL, period_end > leaveOn) allow
+    // this: applyReprorate cleared the suggestion, and 2026-09-10 < the current period_end
+    // (2026-09-15).
+    await db.query(
+      `UPDATE pg_bed_assignments SET notice_end_date = '2026-09-10' WHERE id = $1::uuid`,
+      [a]
+    );
+    await engine.onAssignmentEvent({
+      type: "notice_served",
+      propertyId: p.propertyId,
+      assignmentId: a
+    });
+    inv = await invoices.get(operatorId, p.propertyId, sep.id);
+    expect(inv.reprorate_suggestion).toMatchObject({ leave_on: "2026-09-10", mode: "reprorate" });
+    inv = await invoices.applyReprorate(operatorId, p.propertyId, sep.id);
+    // 10 days of a 30-day September: 9000 * 10 / 30 = 3000 — the SECOND application, over the
+    // ALREADY-reprorated 4500 line, not the original 9000 (the billed amount always updates).
+    expect(inv).toMatchObject({ total_inr: 3000, period_end: "2026-09-10" });
+
+    // Bypass onAssignmentEvent for the same real-clock reason as the test above; write the
+    // restore suggestion directly.
+    await db.query(
+      `UPDATE pg_rent_invoices SET reprorate_suggestion = $2::jsonb WHERE id = $1::uuid`,
+      [
+        sep.id,
+        JSON.stringify({
+          leave_on: "2026-09-30",
+          from_paise: 300000,
+          to_paise: 900000,
+          mode: "restore"
+        })
+      ]
+    );
+    inv = await invoices.restoreReprorate(operatorId, p.propertyId, sep.id);
+    // Before the fix, the second applyReprorate's `meta || …` overwrote meta.reprorated.original_paise
+    // with the already-shrunk 450000 (and original_end with 2026-09-15), so this would have
+    // resolved to 4500/2026-09-15 instead of the true original — silent money loss for the
+    // tenant. The fix (write the reprorated baseline once, on the first application only) means
+    // this restores to the TRUE original: 9000, not 4500 or 3000.
+    expect(inv).toMatchObject({
+      total_inr: 9000,
+      amount_paid_inr: 9000,
+      status: "paid",
       period_end: "2026-09-30"
     });
     expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(0);

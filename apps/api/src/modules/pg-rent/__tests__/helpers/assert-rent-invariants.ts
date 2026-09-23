@@ -76,9 +76,11 @@ export async function assertRentInvariants(
   );
   for (const r of overlap.rows) violations.push(`inv5 invoices ${r.a} and ${r.b} overlap`);
 
-  // 5b: every rent invoice actually carries a period — `RentInvoiceEngineService`
-  // (the only production writer of 'rent' invoices) always sets both bounds,
-  // so a NULL one is a domain anomaly. This also guards inv5 above: a NULL
+  // 5b: every rent invoice actually carries a period. `RentInvoiceEngineService`
+  // always sets both bounds itself; `RentInvoiceService.createBackfill` is the
+  // other production writer of 'rent' invoices and requires both bounds from
+  // the operator (rent-invoice.service.ts's insertInvoice, Fix round 1). A NULL
+  // one is therefore a domain anomaly. This also guards inv5 above: a NULL
   // bound makes `daterange(NULL, NULL, '[]')` the universal range, which
   // would otherwise silently flag a missing-period rent invoice as
   // overlapping every other rent invoice on the assignment regardless of
