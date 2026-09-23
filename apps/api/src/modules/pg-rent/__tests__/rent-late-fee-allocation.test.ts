@@ -189,6 +189,21 @@ describe("planAllocation (spec §6.2)", () => {
   it("with no open invoices everything is credit", () => {
     expect(planAllocation(100000, [], [])).toEqual({ allocations: [], creditPaise: 100000 });
   });
+  it("orders deposit before rent on a due-date tie (KIND_RANK)", () => {
+    // rent1 is listed before dep1 on purpose: array order must not decide
+    // this, only KIND_RANK may — deposit (0) sorts ahead of rent (1).
+    const tiedOpen = [
+      { invoiceId: "rent1", kind: "rent", dueDate: "2026-09-05", balancePaise: 300000 },
+      { invoiceId: "dep1", kind: "deposit", dueDate: "2026-09-05", balancePaise: 300000 }
+    ] as const;
+    expect(planAllocation(400000, [...tiedOpen], [])).toEqual({
+      allocations: [
+        { invoiceId: "dep1", amountPaise: 300000 },
+        { invoiceId: "rent1", amountPaise: 100000 }
+      ],
+      creditPaise: 0
+    });
+  });
 });
 
 describe("planDeallocation (invariant 14, newest first)", () => {
@@ -208,5 +223,30 @@ describe("planDeallocation (invariant 14, newest first)", () => {
   it("refuses to de-allocate more than exists or nothing", () => {
     expect(() => planDeallocation(1000000, allocs)).toThrow(/exceeds/);
     expect(planDeallocation(0, allocs)).toEqual([]);
+  });
+  it("breaks an equal-createdAt tie deterministically (same-transaction allocations)", () => {
+    // Postgres now() is the transaction timestamp, so allocations written
+    // together can share an identical createdAt to the microsecond.
+    const tied = [
+      {
+        allocationId: "a1",
+        paymentId: "p1",
+        amountPaise: 300000,
+        createdAt: "2026-09-10T00:00:00Z"
+      },
+      {
+        allocationId: "a2",
+        paymentId: "p2",
+        amountPaise: 300000,
+        createdAt: "2026-09-10T00:00:00Z"
+      }
+    ];
+    expect(planDeallocation(100000, tied)).toEqual([
+      { allocationId: "a2", paymentId: "p2", reducePaise: 100000 }
+    ]);
+    expect(planDeallocation(400000, tied)).toEqual([
+      { allocationId: "a2", paymentId: "p2", reducePaise: 300000 },
+      { allocationId: "a1", paymentId: "p1", reducePaise: 100000 }
+    ]);
   });
 });
