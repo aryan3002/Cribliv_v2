@@ -822,10 +822,19 @@ export class RentPaymentService {
     );
   }
 
+  /**
+   * Allocations come back in the order they were written, which is the order
+   * the operator and the tenant read on a receipt (deposit before rent).
+   *
+   * `al.seq` (0073) is what actually settles that: allocateFifo writes every
+   * row of one payment inside a single transaction, so they all share
+   * created_at — now() is the transaction timestamp — and created_at alone
+   * leaves the sort tied and the returned order unspecified.
+   */
   private async withAllocations(q: Queryable, rows: RentPaymentRow[]): Promise<PgRentPayment[]> {
     if (!rows.length) return [];
     const allocs = await q.query<RentAllocationRow>(
-      `SELECT ${ALLOCATION_SELECT} FROM pg_rent_payment_allocations al LEFT JOIN pg_rent_invoices i ON i.id = al.invoice_id WHERE al.payment_id = ANY($1::uuid[]) ORDER BY al.created_at`,
+      `SELECT ${ALLOCATION_SELECT} FROM pg_rent_payment_allocations al LEFT JOIN pg_rent_invoices i ON i.id = al.invoice_id WHERE al.payment_id = ANY($1::uuid[]) ORDER BY al.created_at, al.seq`,
       [rows.map((r) => r.id)]
     );
     return rows.map((r) => toPaymentDto(r, allocs.rows));
