@@ -50,18 +50,22 @@ const RECEIPT_SOURCES = new Set(["operator", "tenant_claim", "gateway"]);
  * Lock order for this file (binding, and consistent with
  * rent-allocation.service.ts:37-45's invoice-before-payment contract):
  *
- *   pg_rent_counters  →  pg_rent_invoices  →  pg_rent_payments
+ *   pg_properties  →  pg_rent_counters  →  pg_rent_invoices  →  pg_rent_payments
  *
- * This matches the only other writer of all three: RentInvoiceEngineService's
- * issuance path (issueNextRentIfDue / issueDepositIfDue) always runs
- * lockAssignment → nextInvoiceNumber (pg_rent_counters, UPDATE next_invoice_seq)
- * → INSERT the new invoice (a fresh, uncontended row) → applyUnallocatedCredit,
- * which re-locks that same fresh invoice and then takes
- * `FOR UPDATE OF p` on every EXISTING confirmed inflow payment of the
- * assignment (rent-allocation.service.ts:71-77) — i.e. counters, then an
- * existing payment row, with no existing-invoice lock in between (the
- * invoice it locks is always the one it just inserted in the same
- * transaction, never a pre-existing one).
+ * `pg_properties` is the outermost lock: every writer in this file takes it
+ * first via `assertManagedOwnership(..., true)` (a `FOR UPDATE` on the
+ * property row) before touching anything else. The remaining three match
+ * the only other writer of all of them: RentInvoiceEngineService's issuance
+ * path (issueNextRentIfDue / issueDepositIfDue) takes `pg_properties FOR KEY
+ * SHARE` first (Fix 4, final fix wave), then runs lockAssignment →
+ * nextInvoiceNumber (pg_rent_counters, UPDATE next_invoice_seq) → INSERT the
+ * new invoice (a fresh, uncontended row) → applyUnallocatedCredit, which
+ * re-locks that same fresh invoice and then takes `FOR UPDATE OF p` on every
+ * EXISTING confirmed inflow payment of the assignment
+ * (rent-allocation.service.ts:71-77) — i.e. counters, then an existing
+ * payment row, with no existing-invoice lock in between (the invoice it
+ * locks is always the one it just inserted in the same transaction, never a
+ * pre-existing one).
  *
  * A method here that locks an EXISTING, already-committed payment row
  * (`lockPayment`) before it either (a) takes `pg_rent_counters` FOR UPDATE
@@ -73,6 +77,18 @@ const RECEIPT_SOURCES = new Set(["operator", "tenant_claim", "gateway"]);
  * concurrently against the same assignment/property. `lockCounters` below
  * exists so every method that can mint/remint takes that lock first, before
  * touching anything else this file or the engine also locks.
+ *
+ * The one documented exception to (b): `confirm` (confirmTransaction, :361-370)
+ * takes `lockCounters` then `lockPayment` on a `pending_confirmation` row,
+ * then calls `finalizeConfirmed`, which touches invoices — locking that
+ * payment before it is done touching invoices. This is safe, not a
+ * violation: the engine's `applyUnallocatedCredit` only ever locks CONFIRMED
+ * inflow payments, and the row `confirm` locks is still pending_confirmation
+ * at the moment it takes the lock, so it can never be the existing payment
+ * row the engine's counters → payment edge would also want — the reverse
+ * edge this rule exists to prevent cannot form on that specific row. No
+ * other method here may rely on this reasoning; a payment lock preceding an
+ * invoice touch anywhere else is still the violation (b) describes.
  */
 @Injectable()
 export class RentPaymentService {
@@ -932,9 +948,15 @@ export class RentPaymentService {
       [paymentId]
     );
     if (affected.rows.length) {
-      await client.query(`SELECT 1 FROM pg_rent_invoices WHERE id = ANY($1::uuid[]) FOR UPDATE`, [
-        affected.rows.map((r) => r.invoice_id)
-      ]);
+      // Fix 3 (final fix wave): ORDER BY id so this always acquires the
+      // affected invoices in the same order regardless of the property
+      // mutex — matching openInvoices' `due_date, created_at, id FOR UPDATE`
+      // (rent-allocation.service.ts:183-193), which is otherwise the only
+      // other multi-row invoice lock in the module.
+      await client.query(
+        `SELECT 1 FROM pg_rent_invoices WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`,
+        [affected.rows.map((r) => r.invoice_id)]
+      );
     }
   }
 
