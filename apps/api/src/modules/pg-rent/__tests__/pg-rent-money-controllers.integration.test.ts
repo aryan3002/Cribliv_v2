@@ -20,6 +20,7 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
   let tenantUserId: string;
   let propertyId: string;
   let assignmentId: string;
+  let leavingAssignmentId: string; // For settlement/deposit-release test
   const prevFlag = process.env.FF_PG_RENT_COLLECTION;
 
   const as = (identity: string) => ({ "x-test-identity": identity });
@@ -44,6 +45,15 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
       moveIn: "2026-09-01",
       occupantPhone: "+917700000055",
       occupantName: "Rahul"
+    });
+
+    // Create a second bed/assignment for the settlement test (will move out and settle)
+    const bed2Id = await fx.createBed(roomId, "B");
+    leavingAssignmentId = await fx.createAssignment(propertyId, bed2Id, {
+      createdBy: operatorId,
+      moveIn: "2026-09-01",
+      occupantPhone: "+919999999910",
+      occupantName: "Priya"
     });
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -115,15 +125,12 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
     expect(JSON.stringify(first.body)).not.toMatch(/_paise|pay_token|share_token/);
     expect(
       (
-        await request(app.getHttpServer())
-          .post(`${base()}/payments`)
-          .set(as("operator"))
-          .send({
-            assignment_id: assignmentId,
-            amount_inr: 1,
-            method: "cash",
-            paid_on: "2026-09-02"
-          })
+        await request(app.getHttpServer()).post(`${base()}/payments`).set(as("operator")).send({
+          assignment_id: assignmentId,
+          amount_inr: 1,
+          method: "cash",
+          paid_on: "2026-09-02"
+        })
       ).status
     ).toBe(400); // missing header
 
@@ -172,19 +179,20 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
       .send({ reason: "wrong tenant" });
     expect(reversed.body.data.status).toBe("reversed");
 
-    // Refund - just test that the endpoint exists and works
-    const refund = await request(app.getHttpServer())
+    // Refund exceeding available credit should fail with refund_exceeds_credit
+    const refundBad = await request(app.getHttpServer())
       .post(`${base()}/refunds`)
       .set(as("operator"))
       .set("idempotency-key", randomUUID())
       .send({
         assignment_id: assignmentId,
-        amount_inr: 1000,
+        amount_inr: 100,
         method: "cash",
         paid_on: "2026-09-05",
-        reason: "overpayment"
+        reason: "x"
       });
-    expect(refund.status).toBe(201);
+    expect(refundBad.status).toBe(400);
+    expect(refundBad.body.error?.code ?? refundBad.body.code).toBe("refund_exceeds_credit");
 
     expect(
       (await request(app.getHttpServer()).get(`${base()}/payments`).set(as("other"))).status
@@ -260,6 +268,67 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
           .send({ deductions: [] })
       ).status
     ).toBe(409);
+  });
+
+  it("backfill payment and deposit release create no pg_rent_receipts row", async () => {
+    // Test backfill payment: create a backfill invoice with payment
+    const backfill = await request(app.getHttpServer())
+      .post(`${base()}/invoices`)
+      .set(as("operator"))
+      .set("idempotency-key", randomUUID())
+      .send({
+        source: "backfill",
+        assignment_id: assignmentId,
+        kind: "rent",
+        period_start: "2026-08-01",
+        period_end: "2026-08-31",
+        due_date: "2026-09-10",
+        lines: [{ kind: "rent", label: "August Rent", amount_inr: 9000 }],
+        payment: {
+          amount_inr: 9000,
+          method: "cash",
+          paid_on: "2026-09-05",
+          reference: "backfill payment"
+        }
+      });
+    expect(backfill.status).toBe(201);
+
+    // Assert no pg_rent_receipts for backfill payment
+    const backfillReceiptCount = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM pg_rent_receipts WHERE assignment_id = $1::uuid AND created_at >= now() - INTERVAL '1 minute'`,
+      [assignmentId]
+    );
+    expect(Number(backfillReceiptCount.rows[0]?.count ?? 0)).toBe(0);
+
+    // Test deposit release: move-out settlement with deposit refund
+    // First, mark the leaving assignment as moved out
+    await db.query(
+      `UPDATE pg_bed_assignments SET status = 'moved_out', move_out_on = $1::date WHERE id = $2::uuid`,
+      ["2026-09-15", leavingAssignmentId]
+    );
+
+    // Get settlement statement
+    const settleBase = `/v1/pg-operator/properties/${propertyId}/rent/tenants/${leavingAssignmentId}`;
+    const settlement = await request(app.getHttpServer())
+      .get(`${settleBase}/settlement`)
+      .set(as("operator"));
+    expect(settlement.status).toBe(200);
+    expect(settlement.body.data.status).toBe("can_settle");
+
+    // Execute settlement (should release deposit)
+    const settled = await request(app.getHttpServer())
+      .post(`${settleBase}/settle`)
+      .set(as("operator"))
+      .set("idempotency-key", randomUUID())
+      .send({ deductions: [], return_now: null });
+    expect(settled.status).toBe(201);
+
+    // Assert no pg_rent_receipts for deposit release
+    const releaseReceiptCount = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM pg_rent_receipts WHERE assignment_id = $1::uuid AND created_at >= now() - INTERVAL '1 minute'`,
+      [leavingAssignmentId]
+    );
+    expect(Number(releaseReceiptCount.rows[0]?.count ?? 0)).toBe(0);
   });
 
   it("tenant routes are scoped to the tenant's own assignments", async () => {
