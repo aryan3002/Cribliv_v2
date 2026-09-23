@@ -290,15 +290,20 @@ export class RentInvoiceEngineService {
 
   /**
    * Spec §2 deposit chain: assignment → room type (0065) → listing details.
-   * Rounded before the >0 guard: a sub-50-paise source (e.g. 40 paise) would
-   * round to 0, and a zero-value deposit line must never be created, so such a
-   * source is treated as absent and the chain falls through to the next one.
+   *
+   * NULL means "unset, ask the next link". A non-NULL value is a decision and
+   * ends the walk, so an explicit 0 means this tenant pays no deposit and must
+   * not inherit the room-type default (spec decision 2026-09-23) — the previous
+   * fall-through silently billed a deposit the operator had waived.
+   *
+   * Rounded before the >0 test, so a sub-50-paise source resolves to no deposit
+   * rather than persisting a zero-value line.
    */
   private resolveDeposit(a: AssignmentCtx): number | null {
     for (const v of [a.security_deposit_paise, a.room_type_deposit, a.listing_deposit]) {
       if (v === null) continue;
       const rounded = roundToRupee(Number(v));
-      if (rounded > 0) return rounded;
+      return rounded > 0 ? rounded : null;
     }
     return null;
   }

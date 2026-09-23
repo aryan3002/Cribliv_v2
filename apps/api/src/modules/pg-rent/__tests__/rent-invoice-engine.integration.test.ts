@@ -354,6 +354,23 @@ describe.skipIf(!HAS_DB)("RentInvoiceEngineService", () => {
     await assertRentInvariants(db, s.propertyId);
   });
 
+  it("deposit: an explicit 0 on the assignment means no deposit, it does not fall through", async () => {
+    // Spec decision 2026-09-23: NULL means "unset, use the chain"; an explicit 0 is a
+    // decision — this tenant pays no deposit — and must not inherit the room-type default.
+    const s = await setupProperty({ roomTypeDeposit: 1800000 });
+    const enabledOn = (await settings.get(operatorId, s.propertyId))!.enabled_on;
+    const waived = await tenant(s, "W", { moveIn: enabledOn, depositPaise: 0 });
+    const inherits = await tenant(s, "I", { moveIn: enabledOn });
+
+    const r = await engine.generateInvoicesForProperty(s.propertyId, enabledOn);
+
+    expect((await invoices(waived)).find((i) => i.kind === "deposit")).toBeUndefined();
+    expect((await invoices(inherits)).find((i) => i.kind === "deposit")).toMatchObject({
+      total_paise: "1800000"
+    });
+    expect(r.deposits_created).toBe(1);
+  });
+
   it("deposit: resolves assignment → room type → listing, only for move-ins on/after enabled_on, once", async () => {
     const s = await setupProperty({ roomTypeDeposit: 1800000, listingDeposit: 1000000 });
     const enabledOn = (await settings.get(operatorId, s.propertyId))!.enabled_on;
