@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import type { PoolClient } from "pg";
 import type {
@@ -31,6 +30,7 @@ import { billingWindow, cutToWindow, type BillingWindow } from "../pure/rent-win
 import { RentAllocationService } from "./rent-allocation.service";
 import { writeRentEvent } from "./rent-events";
 import { requireDb, SYSTEM_ACTOR, type Queryable, type RentActor } from "./rent-guards";
+import { newPayToken, nextInvoiceNumber } from "./rent-numbering";
 import { RentSettingsService } from "./rent-settings.service";
 
 export type EngineSettings = Pick<
@@ -123,7 +123,6 @@ const ASSIGNMENT_SQL = `
 
 /** Per run, per assignment: catch-up bound so one stuck property cannot monopolise a sweep. */
 const MAX_INVOICES_PER_ASSIGNMENT_PER_RUN = 24;
-const PAY_TOKEN_DAYS = 45;
 
 @Injectable()
 export class RentInvoiceEngineService {
@@ -417,27 +416,6 @@ export class RentInvoiceEngineService {
     return rows[0] ?? null;
   }
 
-  private async nextInvoiceNumber(
-    client: PoolClient,
-    propertyId: string,
-    prefix: string
-  ): Promise<string> {
-    const r = await client.query<{ seq: number }>(
-      `UPDATE pg_rent_counters SET next_invoice_seq = next_invoice_seq + 1
-        WHERE pg_property_id = $1::uuid RETURNING next_invoice_seq - 1 AS seq`,
-      [propertyId]
-    );
-    if (!r.rows[0]) throw new Error(`pg_rent_counters missing for ${propertyId}`);
-    return `${prefix}-INV-${String(r.rows[0].seq).padStart(4, "0")}`;
-  }
-
-  private payToken(): { token: string; expiresAt: Date } {
-    return {
-      token: randomBytes(32).toString("base64url"),
-      expiresAt: new Date(Date.now() + PAY_TOKEN_DAYS * 24 * 60 * 60 * 1000)
-    };
-  }
-
   private async issueNextRentIfDue(
     client: PoolClient,
     propertyId: string,
@@ -487,8 +465,8 @@ export class RentInvoiceEngineService {
       });
     }
     const total = lines.reduce((sum, l) => sum + l.amount, 0);
-    const number = await this.nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
-    const token = plan.draft ? null : this.payToken();
+    const number = await nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
+    const token = plan.draft ? null : newPayToken();
 
     const inserted = await client.query<{ id: string }>(
       `INSERT INTO pg_rent_invoices
@@ -570,8 +548,8 @@ export class RentInvoiceEngineService {
     if (!a) return false;
     const plan = await this.planDeposit(client, a, settings, today);
     if (!plan) return false;
-    const number = await this.nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
-    const token = this.payToken();
+    const number = await nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
+    const token = newPayToken();
     const inserted = await client.query<{ id: string }>(
       `INSERT INTO pg_rent_invoices
          (pg_property_id, assignment_id, bed_id, room_id, room_number, bed_label, kind, invoice_number,
