@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException
 } from "@nestjs/common";
+import type { PoolClient } from "pg";
 import type {
   PgRentForfeitInput,
   PgRentInvoice,
@@ -199,7 +200,11 @@ export class RentSettlementService {
     };
   }
 
-  /** Spec §6.11 steps 0–5 in one transaction. Idempotent by key (stored on the deposit-release payment). */
+  /**
+   * Spec §6.11 steps 0–5 in one transaction. Idempotent by key — stored on
+   * the deposit-release payment when there was a deposit to release, or on
+   * the settlement invoice itself when there wasn't (fix round 1 / Important 3).
+   */
   async settle(
     operatorId: string,
     propertyId: string,
@@ -209,23 +214,40 @@ export class RentSettlementService {
   ): Promise<PgRentSettlementStatement> {
     requireDb(this.db);
     const actor: RentActor = { id: operatorId, role: "pg_operator" };
+    // Fix round 1 / Important 3: the zero-deposit branch below (step 2) never
+    // creates a deposit_release payment, so a retry with the same key needs a
+    // second place to be recognized — the settlement invoice's own
+    // idempotency_key (pinned in step 3's else-branch when there was nothing
+    // to release).
     const dup = await this.db.query(
-      `SELECT 1 FROM pg_rent_payments WHERE pg_property_id = $1::uuid AND idempotency_key = $2`,
+      `SELECT 1 FROM pg_rent_payments WHERE pg_property_id = $1::uuid AND idempotency_key = $2
+        UNION ALL
+       SELECT 1 FROM pg_rent_invoices WHERE pg_property_id = $1::uuid AND idempotency_key = $2`,
       [propertyId, idempotencyKey]
     );
     if (dup.rowCount) return this.statement(operatorId, propertyId, assignmentId);
 
     await this.engine.generateInvoicesForProperty(propertyId, todayIst(), actor, { assignmentId });
     await transaction(this.db, async (client) => {
-      // Lock order: pg_properties (this call) → pg_rent_counters (none needed
-      // here — settlement never mints a numbered invoice/receipt) →
-      // pg_rent_invoices (deposit + settlement, below) → pg_rent_payments
-      // (deposit release / refund, below). Every UPDATE pg_rent_invoices and
-      // every INSERT INTO pg_rent_events takes an implicit FK FOR KEY SHARE
-      // on the parent pg_properties row, which conflicts with the FOR UPDATE
-      // every operator transaction holds — settle() writes both, so the
-      // property lock must come first (Task 6's production deadlock).
+      // Lock order: pg_properties (this call) → pg_rent_counters (below —
+      // the create branch of step 1 CAN mint a numbered settlement invoice
+      // via insertSettlementInvoice → insertInvoice → nextInvoiceNumber,
+      // which takes pg_rent_counters FOR UPDATE; taking it unconditionally
+      // here, before any pg_rent_invoices lock, matches the binding order at
+      // the top of rent-payment.service.ts and avoids the exact Task 6
+      // deadlock shape: the engine's issueNextRentIfDue holds
+      // pg_rent_counters(P) then inserts an invoice, which needs an implicit
+      // FK FOR KEY SHARE on pg_properties(P) — if this transaction held
+      // pg_properties(P) FOR UPDATE and only reached pg_rent_counters(P)
+      // later, after already touching pg_rent_invoices, the two could
+      // deadlock (40P01). Then → pg_rent_invoices (deposit + settlement,
+      // below) → pg_rent_payments (deposit release / refund, below). Every UPDATE
+      // pg_rent_invoices and every INSERT INTO pg_rent_events takes an
+      // implicit FK FOR KEY SHARE on the parent pg_properties row, which
+      // conflicts with the FOR UPDATE every operator transaction holds —
+      // settle() writes both, so the property lock must come first.
       await assertManagedOwnership(client, operatorId, propertyId, true);
+      await this.lockCounters(client, propertyId);
       const a = await client.query<{ status: string }>(
         `SELECT status::text FROM pg_bed_assignments WHERE id = $1::uuid AND pg_property_id = $2::uuid FOR UPDATE`,
         [assignmentId, propertyId]
@@ -284,13 +306,15 @@ export class RentSettlementService {
         label: d.label,
         amountPaise: inrToPaise(d.amount_inr)
       }));
-      const existing = await client.query<{ id: string }>(
-        `SELECT id::text FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'settlement' AND status <> 'cancelled' FOR UPDATE`,
+      const existing = await client.query<{ id: string; paid: string }>(
+        `SELECT id::text, amount_paid_paise::text AS paid FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'settlement' AND status <> 'cancelled' FOR UPDATE`,
         [assignmentId]
       );
       let settlementId: string;
       if (existing.rows[0]) {
         settlementId = existing.rows[0].id;
+        const paidPaise = Number(existing.rows[0].paid);
+        const newTotal = deductions.reduce((s, d) => s + d.amountPaise, 0);
         await client.query(`DELETE FROM pg_rent_invoice_lines WHERE invoice_id = $1::uuid`, [
           settlementId
         ]);
@@ -300,6 +324,15 @@ export class RentSettlementService {
             [settlementId, d.kind, d.label, d.amountPaise, i, operatorId]
           );
         }
+        // Important 2 (fix round 1): the tenant may already have paid this
+        // invoice in full (or in part) before a re-settle shrinks the
+        // deductions below what's already allocated — same rule as
+        // RentInvoiceService.settleTotal (rent-invoice.service.ts:249-260):
+        // release the excess allocation first (invariant 14), or
+        // recomputeInvoice's invoiceStatus() throws when amount_paid_paise
+        // ends up above the new total.
+        if (paidPaise > newTotal)
+          await this.alloc.deallocateExcess(client, settlementId, paidPaise - newTotal, actor);
         await setInvoiceTotalFromLines(client, settlementId);
         // Same rule as step 0: replacing lines is an operator mutation, not
         // a payment — pass today's IST date so a replace that happens to
@@ -377,15 +410,35 @@ export class RentSettlementService {
           idempotencyKey,
           actor
         });
-      } else {
+      } else if (depositHeld > 0) {
         // the idempotency key still has to live somewhere: pin it on the deposit-release row
         await client.query(
           `UPDATE pg_rent_payments SET idempotency_key = $2 WHERE assignment_id = $1::uuid AND source = 'deposit_release' AND status = 'confirmed' AND idempotency_key IS NULL`,
           [assignmentId, idempotencyKey]
         );
+      } else {
+        // Important 3 (fix round 1): nothing was ever collected toward the
+        // deposit, so step 2 took the applyUnallocatedCredit branch and no
+        // deposit_release payment exists to pin the key on. Anchor it on the
+        // settlement invoice instead — the dup check at the top of this
+        // method consults both tables, so a replay with this exact key is
+        // still recognized and short-circuited instead of duplicating the
+        // invoice.line_updated / settlement.created events.
+        await client.query(
+          `UPDATE pg_rent_invoices SET idempotency_key = $2 WHERE id = $1::uuid AND idempotency_key IS NULL`,
+          [settlementId, idempotencyKey]
+        );
       }
     });
     return this.compute(this.db, propertyId, assignmentId);
+  }
+
+  /** Lock order (see settle()'s comment above): first lock taken by any settle() transaction. */
+  private async lockCounters(client: PoolClient, propertyId: string): Promise<void> {
+    await client.query(
+      `SELECT 1 FROM pg_rent_counters WHERE pg_property_id = $1::uuid FOR UPDATE`,
+      [propertyId]
+    );
   }
 
   /** Spec §6.12: forfeit ≤ credit on a cancelled/reserved assignment → adhoc invoice with a forfeit line, paid from the credit. */
@@ -396,9 +449,19 @@ export class RentSettlementService {
     input: PgRentForfeitInput
   ): Promise<PgRentInvoice> {
     requireDb(this.db);
-    const credit = await this.alloc.unallocatedCredit(this.db, assignmentId);
-    if (inrToPaise(input.amount_inr) > credit)
-      throw new BadRequestException({ code: "forfeit_exceeds_credit" });
+    const amountPaise = inrToPaise(input.amount_inr);
+    // Important 4 (fix round 1): assert ownership before reading this
+    // assignment's credit — checking the amount first made
+    // forfeit_exceeds_credit (400) vs. forbidden (403) a pre-authz oracle
+    // for how much credit an unrelated assignment holds, on a money path.
+    // Locking pg_properties here (matching the brief's own "property first"
+    // rule) also narrows the TOCTOU against createManual's own, separate
+    // transaction below.
+    await transaction(this.db, async (client) => {
+      await assertManagedOwnership(client, operatorId, propertyId, true);
+      const credit = await this.alloc.unallocatedCredit(client, assignmentId);
+      if (amountPaise > credit) throw new BadRequestException({ code: "forfeit_exceeds_credit" });
+    });
     return this.invoices.createManual(operatorId, propertyId, {
       assignment_id: assignmentId,
       kind: "adhoc",

@@ -112,6 +112,11 @@ CREATE TABLE IF NOT EXISTS pg_rent_invoices (
   pay_token_expires_at      timestamptz,
   tenant_note               text,
   internal_note             text,
+  -- Task 7 fix round 1: settle()'s zero-deposit branch (nothing was ever
+  -- collected toward the deposit, so no deposit_release payment is created
+  -- to carry the idempotency key the way the normal path does) anchors its
+  -- idempotency key here instead, on the settlement invoice itself.
+  idempotency_key           text,
   issued_at                 timestamptz,
   paid_at                   timestamptz,
   settled_on                date,
@@ -131,6 +136,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_pg_rent_invoice_deposit
   ON pg_rent_invoices(assignment_id) WHERE kind = 'deposit' AND status <> 'cancelled';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_pg_rent_invoice_settlement
   ON pg_rent_invoices(assignment_id) WHERE kind = 'settlement' AND status <> 'cancelled';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pg_rent_invoice_idem
+  ON pg_rent_invoices(pg_property_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pg_rent_invoices_property_status ON pg_rent_invoices(pg_property_id, status, due_date);
 CREATE INDEX IF NOT EXISTS idx_pg_rent_invoices_billing_month   ON pg_rent_invoices(pg_property_id, billing_month);
 CREATE INDEX IF NOT EXISTS idx_pg_rent_invoices_assignment      ON pg_rent_invoices(assignment_id, due_date);

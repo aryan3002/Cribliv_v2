@@ -190,7 +190,7 @@ describe.skipIf(!HAS_DB)("RentSettlementService", () => {
     );
     // no receipt for the release; the outflow has none either
     const receipts = await db.query(
-      `SELECT 1 FROM pg_rent_receipts r JOIN pg_rent_payments p ON p.id = r.payment_id WHERE p.assignment_id = $1::uuid AND p.source IN ('deposit_release') OR p.direction = 'outflow'`,
+      `SELECT 1 FROM pg_rent_receipts r JOIN pg_rent_payments p ON p.id = r.payment_id WHERE p.assignment_id = $1::uuid AND (p.source IN ('deposit_release') OR p.direction = 'outflow')`,
       [a]
     );
     expect(receipts.rowCount).toBe(0);
@@ -359,6 +359,84 @@ describe.skipIf(!HAS_DB)("RentSettlementService", () => {
     await expect(
       settlement.forfeit(operatorId, propertyId, a, { amount_inr: 600 })
     ).rejects.toMatchObject({ response: { code: "forfeit_exceeds_credit" } });
+    await assertRentInvariants(db, propertyId);
+  });
+
+  it("Important 2 (fix round 1): re-settling with a smaller deduction after the settlement invoice was paid in full releases the excess instead of throwing invariant 14", async () => {
+    const { propertyId, a } = await leavingTenant({ payDeposit: false, payRent: false });
+    let st = await settlement.settle(
+      operatorId,
+      propertyId,
+      a,
+      { deductions: [{ kind: "damage", label: "Broken chair", amount_inr: 1200 }] },
+      randomUUID()
+    );
+    const settlementInvoiceId = st.settlement_invoice_id!;
+    // The tenant pays the ₹1,200 settlement invoice in full via its live pay token.
+    await payments.recordByOperator(
+      operatorId,
+      propertyId,
+      {
+        assignment_id: a,
+        amount_inr: 1200,
+        method: "upi",
+        paid_on: "2026-07-20",
+        allocations: [{ invoice_id: settlementInvoiceId, amount_inr: 1200 }]
+      },
+      randomUUID()
+    );
+    const before = (
+      await db.query<{ status: string; total: string; paid: string }>(
+        `SELECT status::text, total_paise::text AS total, amount_paid_paise::text AS paid FROM pg_rent_invoices WHERE id = $1::uuid`,
+        [settlementInvoiceId]
+      )
+    ).rows[0];
+    expect(before).toEqual({ status: "paid", total: "120000", paid: "120000" });
+
+    // Without deallocateExcess, shrinking the total below amount_paid_paise
+    // throws "invariant 14: amount_paid exceeds total" out of recomputeInvoice.
+    st = await settlement.settle(
+      operatorId,
+      propertyId,
+      a,
+      { deductions: [{ kind: "damage", label: "Broken chair (revised)", amount_inr: 500 }] },
+      randomUUID()
+    );
+    const after = (
+      await db.query<{ status: string; total: string; paid: string }>(
+        `SELECT status::text, total_paise::text AS total, amount_paid_paise::text AS paid FROM pg_rent_invoices WHERE id = $1::uuid`,
+        [settlementInvoiceId]
+      )
+    ).rows[0];
+    expect(after).toEqual({ status: "paid", total: "50000", paid: "50000" });
+    // The released ₹700 (120000 - 50000 paise) landed back as unallocated credit.
+    expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(70000);
+    expect(st).toMatchObject({ status: "settled" });
+    await assertRentInvariants(db, propertyId);
+  });
+
+  it("Important 3 (fix round 1): settle() replay with the same idempotency key does not duplicate ledger events when nothing was ever collected toward the deposit", async () => {
+    const { propertyId, a } = await leavingTenant({ payDeposit: false, payRent: false });
+    const key = randomUUID();
+    const input = {
+      deductions: [{ kind: "damage" as const, label: "Broken chair", amount_inr: 1200 }]
+    };
+    const first = await settlement.settle(operatorId, propertyId, a, input, key);
+
+    const eventCount = async () =>
+      (
+        await db.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM pg_rent_events WHERE pg_property_id = $1::uuid
+            AND event_type IN ('settlement.created','invoice.line_updated','invoice.line_added')`,
+          [propertyId]
+        )
+      ).rows[0].c;
+    const before = await eventCount();
+
+    // Same idempotency key, same call shape — a genuine retry/replay.
+    const second = await settlement.settle(operatorId, propertyId, a, input, key);
+    expect(second).toEqual(first);
+    expect(await eventCount()).toBe(before);
     await assertRentInvariants(db, propertyId);
   });
 });
