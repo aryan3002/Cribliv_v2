@@ -152,6 +152,20 @@ describe.skipIf(!HAS_DB)("PG manage requests (integration)", () => {
 
   afterAll(async () => {
     if (db) {
+      // pg_manage_requests.decided_by is a plain users FK (NO ACTION, migration
+      // 0060) while operator_user_id is ON DELETE CASCADE, so whether the
+      // `DELETE FROM users` below succeeds comes down to the order Postgres
+      // happens to scan these three fixture rows in: reach the operator first
+      // and its cascade clears the request before the decided_by check runs;
+      // reach the admin first and that check fires while the request is still
+      // there, failing the whole teardown with
+      // pg_manage_requests_decided_by_fkey. Clear the requests explicitly so
+      // neither side of that race has anything left to trip on.
+      await db.query(
+        `DELETE FROM pg_manage_requests
+          WHERE operator_user_id = ANY($1::uuid[]) OR decided_by = ANY($1::uuid[])`,
+        [userIds]
+      );
       await db.query(`DELETE FROM admin_actions WHERE admin_user_id = ANY($1::uuid[])`, [userIds]);
       await db.query(`DELETE FROM idempotency_keys WHERE actor_user_id = ANY($1::uuid[])`, [
         userIds
