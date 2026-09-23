@@ -204,6 +204,9 @@ export class PgBedAssignmentService {
     private readonly rentEngine?: RentInvoiceEngineService
   ) {}
 
+  /** In-flight rentHook() work; see rentHooksSettled(). */
+  private readonly pendingRentHooks = new Set<Promise<void>>();
+
   private unavailable(): ServiceUnavailableException {
     return new ServiceUnavailableException({
       code: "operations_requires_db",
@@ -347,12 +350,34 @@ export class PgBedAssignmentService {
     }
   }
 
-  /** Spec §5.8: after commit, best-effort, never inside the transaction. */
+  /**
+   * Spec §5.8: after commit, best-effort, never inside the transaction.
+   *
+   * Callers deliberately do not await this — a move-in response must not block
+   * on invoice generation. The promise is kept in `pendingRentHooks` so that
+   * `rentHooksSettled()` can wait for the real completion; it is dropped again
+   * as soon as it settles, so the set stays empty while the API is idle.
+   */
   private rentHook(type: string, propertyId: string, assignmentId: string): void {
     if (!this.rentEngine) return;
-    void this.rentEngine
+    const work = this.rentEngine
       .onAssignmentEvent({ type, propertyId, assignmentId })
       .catch(() => undefined);
+    this.pendingRentHooks.add(work);
+    void work.finally(() => this.pendingRentHooks.delete(work));
+  }
+
+  /**
+   * Resolves once every rent hook fired so far has finished, including any a
+   * running hook started. Integration tests use it to observe the invoices a
+   * transition generates: the hook is fire-and-forget, so without this the only
+   * options are a fixed sleep (a guess that fails under load) or polling.
+   * Nothing in the request path awaits it.
+   */
+  async rentHooksSettled(): Promise<void> {
+    while (this.pendingRentHooks.size > 0) {
+      await Promise.all([...this.pendingRentHooks]);
+    }
   }
 
   private async lockBed(client: PoolClient, propertyId: string, bedId: string) {

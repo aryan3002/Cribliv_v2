@@ -2,10 +2,12 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DatabaseService } from "../../../common/database.service";
+import { transaction } from "../../../common/transaction";
 import { RentAllocationService } from "../services/rent-allocation.service";
 import { RentInvoiceEngineService } from "../services/rent-invoice-engine.service";
 import { RentPaymentService } from "../services/rent-payment.service";
 import { RentReceiptService } from "../services/rent-receipt.service";
+import { SYSTEM_ACTOR } from "../services/rent-guards";
 import { RentSettingsService } from "../services/rent-settings.service";
 import { assertRentInvariants } from "./helpers/assert-rent-invariants";
 import { enableRentAsOf, RentFixtures } from "./helpers/rent-fixtures";
@@ -20,6 +22,7 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
   let settings: RentSettingsService;
   let engine: RentInvoiceEngineService;
   let payments: RentPaymentService;
+  const alloc = new RentAllocationService();
 
   async function property(
     opts: { lateFee?: boolean; kind?: "flat" | "per_day"; autoApply?: boolean } = {}
@@ -77,7 +80,6 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
     operatorId = await fx.createUser("pg_operator");
     tenantUserId = await fx.createUser("tenant", "+917700000099");
     settings = new RentSettingsService(db);
-    const alloc = new RentAllocationService();
     engine = new RentInvoiceEngineService(db, settings, alloc);
     payments = new RentPaymentService(db, settings, alloc, new RentReceiptService(db));
   });
@@ -130,6 +132,39 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
       ["rent", "partially_paid"]
     ]);
     await assertRentInvariants(db, p.propertyId);
+  });
+
+  /**
+   * Allocation order is business order — the deposit line before the rent line,
+   * the way operator and tenant read it off a receipt — and it is insertion
+   * order, because allocateInflow writes the plan in that order.
+   *
+   * Both rows land in one transaction, so they share created_at (now() is the
+   * transaction timestamp) and created_at alone leaves the sort tied. A partial
+   * de-allocation is what makes the tie bite deterministically: it UPDATEs the
+   * deposit allocation rather than deleting it, which rewrites the row at a
+   * later physical position, and a tied sort hands back heap order — reversed.
+   * `al.seq` (migration 0073) is the tiebreak that survives that; ctid cannot
+   * be, since the UPDATE is precisely what moves it.
+   */
+  it("keeps a split payment's allocations in insertion order after a partial de-allocation", async () => {
+    const p = await property();
+    const a = await tenant(p, "E");
+    await engine.generateInvoicesForProperty(p.propertyId, "2026-09-01"); // deposit 18000 + Sep 9000
+    const [deposit] = await invoiceRows(a);
+
+    const paid = await payments.recordByOperator(
+      operatorId,
+      p.propertyId,
+      { assignment_id: a, amount_inr: 20000, method: "cash", paid_on: "2026-09-02" },
+      randomUUID()
+    );
+    expect(paid.allocations.map((x) => x.amount_inr)).toEqual([18000, 2000]);
+
+    await transaction(db, (c) => alloc.deallocateExcess(c, deposit.id, 500000, SYSTEM_ACTOR));
+
+    const after = await payments.get(operatorId, p.propertyId, paid.id);
+    expect(after.allocations.map((x) => x.amount_inr)).toEqual([13000, 2000]);
   });
 
   it("tenant claim → pending, one per invoice, owner confirms with an edited amount; reject needs a reason", async () => {
