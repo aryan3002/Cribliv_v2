@@ -96,6 +96,7 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
     );
   });
   afterAll(async () => {
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

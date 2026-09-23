@@ -9,6 +9,7 @@ import { RentInvoiceEngineService } from "../services/rent-invoice-engine.servic
 import { RentPaymentService } from "../services/rent-payment.service";
 import { RentReceiptService } from "../services/rent-receipt.service";
 import { RentSettingsService } from "../services/rent-settings.service";
+import { assertRentInvariants } from "./helpers/assert-rent-invariants";
 import { RentFixtures } from "./helpers/rent-fixtures";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
@@ -53,6 +54,7 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
     payments = new RentPaymentService(db, settings, alloc, receipts);
   });
   afterAll(async () => {
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

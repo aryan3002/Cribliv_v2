@@ -8,6 +8,7 @@ import { AppModule } from "../../../app.module";
 import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
 import type { Role } from "../../../common/types";
+import { assertRentInvariants } from "./helpers/assert-rent-invariants";
 import { RentFixtures } from "./helpers/rent-fixtures";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
@@ -71,6 +72,7 @@ describe.skipIf(!HAS_DB)("pg-rent controllers", () => {
     if (prevFlag === undefined) delete process.env.FF_PG_RENT_COLLECTION;
     else process.env.FF_PG_RENT_COLLECTION = prevFlag;
     if (app) await app.close();
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

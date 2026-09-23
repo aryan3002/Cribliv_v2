@@ -76,6 +76,7 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
     invoices = new RentInvoiceService(db, alloc, payments, engine);
   });
   afterAll(async () => {
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

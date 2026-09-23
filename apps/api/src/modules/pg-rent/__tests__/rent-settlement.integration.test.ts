@@ -124,6 +124,7 @@ describe.skipIf(!HAS_DB)("RentSettlementService", () => {
     settlement = new RentSettlementService(db, alloc, payments, invoices, engine);
   });
   afterAll(async () => {
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

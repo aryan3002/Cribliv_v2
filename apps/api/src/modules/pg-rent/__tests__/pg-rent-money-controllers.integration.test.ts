@@ -103,6 +103,7 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
     if (prevFlag === undefined) delete process.env.FF_PG_RENT_COLLECTION;
     else process.env.FF_PG_RENT_COLLECTION = prevFlag;
     if (app) await app.close();
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

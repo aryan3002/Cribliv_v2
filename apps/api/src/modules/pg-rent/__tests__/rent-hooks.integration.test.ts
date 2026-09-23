@@ -8,6 +8,7 @@ import { DatabaseService } from "../../../common/database.service";
 import { AdminPgTransferService } from "../../admin/admin-pg-transfer.service";
 import { PgBedAssignmentService } from "../../pg-operations/services/pg-bed-assignment.service";
 import { RentSettingsService } from "../services/rent-settings.service";
+import { assertRentInvariants } from "./helpers/assert-rent-invariants";
 import { RentFixtures } from "./helpers/rent-fixtures";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
@@ -51,6 +52,7 @@ describe.skipIf(!HAS_DB)("pg-rent hooks", () => {
 
   afterAll(async () => {
     if (app) await app.close();
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

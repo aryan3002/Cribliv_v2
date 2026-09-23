@@ -94,6 +94,7 @@ describe.skipIf(!HAS_DB)("RentAllocationService mutations", () => {
     assignmentId = await fx.createAssignment(propertyId, bedId, { createdBy: operatorId });
   });
   afterAll(async () => {
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });
