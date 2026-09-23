@@ -12,6 +12,7 @@ import {
 import { InMemoryPdfStorage } from "../rent-agreement/pdf/in-memory-pdf-storage";
 import { PgRentInvoicesController } from "./controllers/pg-rent-invoices.controller";
 import { PgRentSettingsController } from "./controllers/pg-rent-settings.controller";
+import { receiptContainer as RECEIPT_CONTAINER } from "./receipt/receipt-container";
 import { LazyReceiptRenderer } from "./receipt/receipt-renderer";
 import { RentAllocationService } from "./services/rent-allocation.service";
 import { RentInvoiceEngineService } from "./services/rent-invoice-engine.service";
@@ -24,11 +25,6 @@ import {
   RentReceiptService
 } from "./services/rent-receipt.service";
 import { RentSettingsService } from "./services/rent-settings.service";
-
-// Receipts get their own Azure container (pg-rent-receipts) so a receipt
-// blob path can never collide with a rent-agreement's yyyy/mm/<id>.pdf.
-const RECEIPT_CONTAINER = () =>
-  (process.env.PG_RENT_AZURE_CONTAINER ?? "").trim() || "pg-rent-receipts";
 
 // Providers and controllers are appended by later tasks in this plan; the
 // arrays start empty so the module can be registered (and AppModule boot

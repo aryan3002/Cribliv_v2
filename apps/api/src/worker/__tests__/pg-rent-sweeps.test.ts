@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { DatabaseService } from "../../common/database.service";
-import { runPgRentSweep } from "../pg-rent-sweeps";
+import { receiptServiceFromEnv, runPgRentSweep } from "../pg-rent-sweeps";
 
 describe("runPgRentSweep", () => {
   it("returns zeros without a database", async () => {
@@ -43,5 +43,25 @@ describe("runPgRentSweep", () => {
     expect(result).toEqual({ properties: 3, invoices: 3, drafts: 1, deposits: 1 });
     expect(generate).toHaveBeenCalledTimes(3);
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining("paused_at IS NULL"), []);
+  });
+});
+
+describe("receiptServiceFromEnv", () => {
+  it("memoises the default receipt service across calls (Critical 2, fix round 1)", () => {
+    // Before this fix, runPgRentReceiptSweep constructed
+    // `new RentReceiptService(db, new LazyReceiptRenderer(), ...)` fresh on
+    // every call — since LazyReceiptRenderer launches a real Chromium via
+    // BrowserPool on its first render() and exposes no dispose(), any
+    // worker tick that rendered ≥1 receipt orphaned a browser process. This
+    // is the cheapest possible proof of the fix: the same module-scoped
+    // instance (and therefore the same LazyReceiptRenderer, launched at most
+    // once) comes back on every call, regardless of how many times the
+    // worker's 2-minute setInterval fires.
+    const db = { isEnabled: () => true } as DatabaseService;
+    const first = receiptServiceFromEnv(db);
+    const second = receiptServiceFromEnv(db);
+    const third = receiptServiceFromEnv(db);
+    expect(second).toBe(first);
+    expect(third).toBe(first);
   });
 });
