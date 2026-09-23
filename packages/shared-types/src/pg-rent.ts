@@ -275,3 +275,233 @@ export interface PgRentTenantOverridesInput {
   /** "Change rent from next cycle": writes pg_bed_assignments.monthly_rent_paise. */
   monthly_rent_inr?: number;
 }
+
+export interface PgRentAllocation {
+  id: string;
+  payment_id: string;
+  invoice_id: string | null;
+  invoice_number: string | null;
+  refund_payment_id: string | null;
+  amount_inr: number;
+  created_at: string;
+}
+
+export interface PgRentPayment {
+  id: string;
+  pg_property_id: string;
+  assignment_id: string;
+  occupant_name: string;
+  direction: PgRentPaymentDirection;
+  amount_inr: number;
+  /** amount − Σ allocations; only meaningful for confirmed inflows */
+  unallocated_inr: number;
+  method: PgRentPaymentMethod;
+  source: PgRentPaymentSource;
+  status: PgRentPaymentStatus;
+  claimed_invoice_id: string | null;
+  paid_on: string;
+  reference: string | null;
+  proof_paths: string[];
+  note: string | null;
+  recorded_by: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  rejected_reason: string | null;
+  reversed_at: string | null;
+  reversed_reason: string | null;
+  receipt_id: string | null;
+  allocations: PgRentAllocation[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PgRentAllocationTarget {
+  invoice_id: string;
+  amount_inr: number;
+}
+
+export interface PgRentRecordPaymentInput {
+  assignment_id: string;
+  amount_inr: number;
+  method: Exclude<PgRentPaymentMethod, "gateway" | "deposit">;
+  paid_on: string;
+  reference?: string | null;
+  note?: string | null;
+  proof_paths?: string[];
+  /** Operator-chosen split; omitted = targeted invoice (if any) then FIFO. */
+  allocations?: PgRentAllocationTarget[];
+  claimed_invoice_id?: string | null;
+}
+
+export interface PgRentClaimInput {
+  assignment_id: string;
+  invoice_id?: string | null;
+  amount_inr: number;
+  method: Exclude<PgRentPaymentMethod, "gateway" | "deposit" | "cash">;
+  paid_on: string;
+  reference?: string | null;
+  note?: string | null;
+  proof_paths?: string[];
+  idempotency_key: string;
+}
+
+export interface PgRentConfirmInput {
+  amount_inr?: number;
+  method?: Exclude<PgRentPaymentMethod, "gateway" | "deposit">;
+  paid_on?: string;
+  allocations?: PgRentAllocationTarget[];
+}
+
+export interface PgRentRejectInput {
+  reason: string;
+}
+export interface PgRentReverseInput {
+  reason: string;
+}
+
+export interface PgRentRefundInput {
+  assignment_id: string;
+  amount_inr: number;
+  method: Exclude<PgRentPaymentMethod, "gateway" | "deposit">;
+  paid_on: string;
+  reference?: string | null;
+  reason: string;
+}
+
+export interface PgRentAllocationsPatchInput {
+  allocations: PgRentAllocationTarget[];
+}
+
+export interface PgRentBackfillInput {
+  assignment_id: string;
+  /** rent | adhoc | deposit ("Deposit held") */
+  kind: Extract<PgRentInvoiceKind, "rent" | "adhoc" | "deposit">;
+  period_start?: string;
+  period_end?: string;
+  due_date: string;
+  lines: Array<{ kind: PgRentLineKind; label: string; amount_inr: number }>;
+  /** omitted = unpaid backfill invoice */
+  payment?: {
+    amount_inr: number;
+    method: Exclude<PgRentPaymentMethod, "gateway" | "deposit">;
+    paid_on: string;
+    reference?: string | null;
+  };
+}
+
+export interface PgRentManualInvoiceInput {
+  assignment_id: string;
+  kind: Extract<PgRentInvoiceKind, "adhoc">;
+  due_date: string;
+  lines: Array<{ kind: PgRentLineKind; label: string; amount_inr: number }>;
+  tenant_note?: string | null;
+}
+
+export interface PgRentBulkResult<T = string> {
+  succeeded: T[];
+  failed: Array<{ id: string; code: string }>;
+}
+
+export interface PgRentReceipt {
+  id: string;
+  payment_id: string;
+  assignment_id: string;
+  receipt_number: string;
+  amount_inr: number;
+  pdf_status: "pending" | "ready" | "failed";
+  attempts: number;
+  last_error: string | null;
+  generated_at: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  superseded_by: string | null;
+  share_expires_at: string | null;
+  created_at: string;
+}
+
+export interface PgRentReceiptDownload {
+  url: string;
+  expires_at: string;
+}
+
+export interface PgRentSettlementStatement {
+  assignment_id: string;
+  status: PgRentSettlementStatus;
+  deposit_held_inr: number;
+  credit_inr: number;
+  open_dues_inr: number;
+  open_invoices: Array<{
+    invoice_id: string;
+    invoice_number: string;
+    kind: PgRentInvoiceKind;
+    balance_inr: number;
+  }>;
+  deposit_uncollected_inr: number;
+  pending_suggestion: {
+    invoice_id: string;
+    leave_on: string;
+    from_inr: number;
+    to_inr: number;
+  } | null;
+  maintenance_prefills: Array<{ request_id: string; label: string; amount_inr: number | null }>;
+  /** already-entered deductions when re-settling */
+  deductions: Array<{ kind: PgRentLineKind; label: string; amount_inr: number }>;
+  net_inr: number;
+  to_return_inr: number;
+  settlement_invoice_id: string | null;
+}
+
+export type PgRentSettlementStatus = "not_leaving" | "leaving" | "settled" | "nothing_to_settle";
+
+export interface PgRentSettleInput {
+  deductions: Array<{
+    kind: Extract<PgRentLineKind, "damage" | "cleaning" | "forfeit" | "other">;
+    label: string;
+    amount_inr: number;
+  }>;
+  return_now?: {
+    amount_inr: number;
+    method: Exclude<PgRentPaymentMethod, "gateway" | "deposit">;
+    paid_on: string;
+    reference?: string | null;
+  } | null;
+  note?: string | null;
+}
+
+export interface PgRentForfeitInput {
+  amount_inr: number;
+  label?: string;
+}
+
+export interface PgRentLineInput {
+  kind: Exclude<PgRentLineKind, "rent" | "deposit" | "late_fee">;
+  label: string;
+  amount_inr: number;
+  meta?: Record<string, unknown>;
+}
+
+export interface PgRentLinePatchInput {
+  label?: string;
+  amount_inr?: number;
+  meta?: Record<string, unknown>;
+}
+
+export interface PgRentExtendDueInput {
+  due_date: string;
+}
+export interface PgRentCancelInvoiceInput {
+  reason: string;
+}
+export interface PgRentIssueDraftInput {
+  rent_inr?: number;
+  due_date?: string;
+}
+export interface PgRentApplyFeeInput {
+  amount_inr?: number;
+}
+export interface PgRentWaiveFeeInput {
+  reason: string;
+}
+export interface PgRentEligibilityInput {
+  late_fee_eligible: boolean;
+}
