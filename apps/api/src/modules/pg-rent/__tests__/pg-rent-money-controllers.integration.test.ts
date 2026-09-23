@@ -8,6 +8,9 @@ import { AppModule } from "../../../app.module";
 import { AuthGuard } from "../../../common/auth.guard";
 import { DatabaseService } from "../../../common/database.service";
 import type { Role } from "../../../common/types";
+import { paiseToInr } from "../dto/money";
+import { RentAllocationService } from "../services/rent-allocation.service";
+import { assertRentInvariants } from "./helpers/assert-rent-invariants";
 import { RentFixtures } from "./helpers/rent-fixtures";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
@@ -21,6 +24,7 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
   let propertyId: string;
   let assignmentId: string;
   let leavingAssignmentId: string; // For settlement/deposit-release test
+  const alloc = new RentAllocationService();
   const prevFlag = process.env.FF_PG_RENT_COLLECTION;
 
   const as = (identity: string) => ({ "x-test-identity": identity });
@@ -179,14 +183,19 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
       .send({ reason: "wrong tenant" });
     expect(reversed.body.data.status).toBe("reversed");
 
-    // Refund exceeding available credit should fail with refund_exceeds_credit
+    // Refund exceeding available credit should fail with refund_exceeds_credit.
+    // The reversal above does not necessarily zero the assignment's unallocated
+    // credit (it only removes `first`'s own contribution), so read the real
+    // figure — the same query fundOutflow itself sums — rather than assuming
+    // a hardcoded amount exceeds it.
+    const creditPaise = await alloc.unallocatedCredit(db, assignmentId);
     const refundBad = await request(app.getHttpServer())
       .post(`${base()}/refunds`)
       .set(as("operator"))
       .set("idempotency-key", randomUUID())
       .send({
         assignment_id: assignmentId,
-        amount_inr: 100,
+        amount_inr: paiseToInr(creditPaise) + 100,
         method: "cash",
         paid_on: "2026-09-05",
         reason: "x"
@@ -197,6 +206,7 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
     expect(
       (await request(app.getHttpServer()).get(`${base()}/payments`).set(as("other"))).status
     ).toBe(403);
+    await assertRentInvariants(db, propertyId);
   }, 60000);
 
   it("invoice actions and settlement routes are wired", async () => {
@@ -268,6 +278,7 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
           .send({ deductions: [] })
       ).status
     ).toBe(409);
+    await assertRentInvariants(db, propertyId);
   });
 
   it("backfill payment and deposit release create no pg_rent_receipts row", async () => {
@@ -293,17 +304,53 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
       });
     expect(backfill.status).toBe(201);
 
-    // Assert no pg_rent_receipts for backfill payment
+    // Assert no pg_rent_receipts for the backfill payment specifically — not just
+    // "none created on this assignment in the last minute", which would also count
+    // (and be satisfied by) the legitimate operator/tenant-claim receipts minted
+    // earlier in this file's first test. Scope to the backfill payment's own id,
+    // found via its distinguishing (claimed_invoice_id, source) pair.
+    const backfillPayment = await db.query<{ id: string }>(
+      `SELECT id::text FROM pg_rent_payments WHERE claimed_invoice_id = $1::uuid AND source = 'backfill'`,
+      [backfill.body.data.id]
+    );
+    expect(backfillPayment.rows.length).toBe(1);
     const backfillReceiptCount = await db.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM pg_rent_receipts WHERE assignment_id = $1::uuid AND created_at >= now() - INTERVAL '1 minute'`,
-      [assignmentId]
+      `SELECT COUNT(*) as count FROM pg_rent_receipts WHERE payment_id = $1::uuid`,
+      [backfillPayment.rows[0].id]
     );
     expect(Number(backfillReceiptCount.rows[0]?.count ?? 0)).toBe(0);
 
-    // Test deposit release: move-out settlement with deposit refund
-    // First, mark the leaving assignment as moved out
+    // Test deposit release: move-out settlement with deposit refund.
+    // settle() only calls releaseDeposit() when depositHeld > 0
+    // (rent-settlement.service.ts:406) — leavingAssignmentId was never issued a
+    // deposit invoice by the engine (its move-in of 2026-09-01 predates
+    // pg_rent_settings.enabled_on, which planDeposit requires; see
+    // rent-settlement.integration.test.ts's `leavingTenant()` fixture for the same
+    // constraint), so a paid deposit has to be backfilled here or settle() would
+    // take the applyUnallocatedCredit branch instead and never exercise the
+    // deposit-release path this test is about.
+    const depositBackfill = await request(app.getHttpServer())
+      .post(`${base()}/invoices`)
+      .set(as("operator"))
+      .set("idempotency-key", randomUUID())
+      .send({
+        source: "backfill",
+        assignment_id: leavingAssignmentId,
+        kind: "deposit",
+        due_date: "2026-09-01",
+        lines: [{ kind: "deposit", label: "Security Deposit", amount_inr: 18000 }],
+        payment: {
+          amount_inr: 18000,
+          method: "cash",
+          paid_on: "2026-09-01",
+          reference: "deposit backfill"
+        }
+      });
+    expect(depositBackfill.status).toBe(201);
+
+    // Now mark the leaving assignment as moved out
     await db.query(
-      `UPDATE pg_bed_assignments SET status = 'moved_out', move_out_on = $1::date WHERE id = $2::uuid`,
+      `UPDATE pg_bed_assignments SET status = 'moved_out', move_out_date = $1::date WHERE id = $2::uuid`,
       ["2026-09-15", leavingAssignmentId]
     );
 
@@ -313,7 +360,11 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
       .get(`${settleBase}/settlement`)
       .set(as("operator"));
     expect(settlement.status).toBe(200);
-    expect(settlement.body.data.status).toBe("can_settle");
+    // "can_settle" is not a member of PgRentSettlementStatus
+    // ("not_leaving" | "leaving" | "settled" | "nothing_to_settle",
+    // packages/shared-types/src/pg-rent.ts:454) — a moved-out, not-yet-settled
+    // assignment reports "leaving" (rent-settlement.service.ts:147).
+    expect(settlement.body.data.status).toBe("leaving");
 
     // Execute settlement (should release deposit)
     const settled = await request(app.getHttpServer())
@@ -323,12 +374,21 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
       .send({ deductions: [], return_now: null });
     expect(settled.status).toBe(201);
 
-    // Assert no pg_rent_receipts for deposit release
-    const releaseReceiptCount = await db.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM pg_rent_receipts WHERE assignment_id = $1::uuid AND created_at >= now() - INTERVAL '1 minute'`,
+    // Assert no pg_rent_receipts for the deposit-release payment specifically, scoped
+    // to its own id (same rationale as the backfill assertion above). Deposit-release
+    // payments carry no claimed_invoice_id, so source alone identifies it on this
+    // (single-use) assignment.
+    const releasePayment = await db.query<{ id: string }>(
+      `SELECT id::text FROM pg_rent_payments WHERE assignment_id = $1::uuid AND source = 'deposit_release'`,
       [leavingAssignmentId]
     );
+    expect(releasePayment.rows.length).toBe(1);
+    const releaseReceiptCount = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM pg_rent_receipts WHERE payment_id = $1::uuid`,
+      [releasePayment.rows[0].id]
+    );
     expect(Number(releaseReceiptCount.rows[0]?.count ?? 0)).toBe(0);
+    await assertRentInvariants(db, propertyId);
   });
 
   it("tenant routes are scoped to the tenant's own assignments", async () => {
