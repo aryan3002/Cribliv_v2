@@ -83,6 +83,20 @@ export class RentPaymentService {
     @Inject(RentReceiptService) private readonly receipts: RentReceiptService
   ) {}
 
+  /**
+   * Task 6 (fix round 1, Claim A): a handle onto the most recent
+   * fire-and-forget immediate-render call from getAndRenderReceipt(),
+   * exposed so a test can `await payments.lastMintedReceiptRender` and
+   * observe the same attempt production makes — deterministically, without
+   * the hook itself blocking the caller (it still doesn't: the promise is
+   * assigned here, never awaited by recordByOperator/confirm). Both the
+   * hook and the worker's runPgRentReceiptSweep claim through
+   * RentReceiptService.renderOne's `FOR UPDATE ... SKIP LOCKED`, so a
+   * double render is impossible by construction — this field exists purely
+   * for observability, not coordination.
+   */
+  lastMintedReceiptRender: Promise<"ready" | "failed" | "skipped"> | null = null;
+
   // ── intake ────────────────────────────────────────────────────────────────
 
   /** Spec §6.4. Confirmed at birth; idempotency key on the row (unique) AND in the controller cache. */
@@ -147,7 +161,7 @@ export class RentPaymentService {
       },
       { uniqueViolationCode: "duplicate_payment" }
     );
-    return this.get(operatorId, propertyId, id);
+    return this.getAndRenderReceipt(operatorId, propertyId, id);
   }
 
   /** Backfill payment for a backfill invoice (Task 5 calls this inside its transaction). No receipt (D19). */
@@ -366,7 +380,7 @@ export class RentPaymentService {
       });
       await this.finalizeConfirmed(client, paymentId, input.allocations ?? null, actor);
     });
-    return this.get(operatorId, propertyId, paymentId);
+    return this.getAndRenderReceipt(operatorId, propertyId, paymentId);
   }
 
   /** Per-item results; one conflict never fails the batch (spec §6.3). */
@@ -766,6 +780,31 @@ export class RentPaymentService {
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Task 6, Claim A (fix round 1, restored): best-effort immediate render
+   * right after a receipt-minting transaction commits — never inside the
+   * transaction, since rendering is slow (Chromium) and must never hold the
+   * payment/invoice/counters locks. Fire-and-forget for the caller
+   * (recordByOperator/confirm return as soon as get() resolves, same as
+   * before); the promise is only stashed on lastMintedReceiptRender for a
+   * test to observe. A failure here is silently swallowed — the 2-minute
+   * worker sweep (runPgRentReceiptSweep) and RentReceiptService.renderOne's
+   * `FOR UPDATE ... SKIP LOCKED` claim are the backstop and the concurrency
+   * guard, respectively, for exactly this hook racing the worker.
+   */
+  private async getAndRenderReceipt(
+    operatorId: string,
+    propertyId: string,
+    paymentId: string
+  ): Promise<PgRentPayment> {
+    const payment = await this.get(operatorId, propertyId, paymentId);
+    if (payment.receipt_id) {
+      const render = this.receipts.renderOne(payment.receipt_id).catch(() => "failed" as const);
+      this.lastMintedReceiptRender = render;
+    }
+    return payment;
+  }
 
   private assertPaidOn(paidOn: string): void {
     if (compareIsoDates(paidOn, todayIst()) > 0)

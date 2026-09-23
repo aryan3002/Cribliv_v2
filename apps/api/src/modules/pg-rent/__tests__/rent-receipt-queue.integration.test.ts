@@ -58,39 +58,44 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
   });
 
   it("renders pending receipts, retries with backoff, marks failed after 5 attempts, and serves a download URL", async () => {
+    // Fix round 1, Claim A: recordByOperator's own immediate-render hook now
+    // fires for real (RentPaymentService.getAndRenderReceipt), so it — not a
+    // later explicit call — is "attempt 1". Configuring the mock BEFORE the
+    // call and awaiting the exposed handle (lastMintedReceiptRender) is what
+    // makes this deterministic without deleting the hook (see that method's
+    // docstring): it settles before the test's very next line runs, so the
+    // shared mock is always under the test's control at every step.
+    //
+    // Cross-task determinism note (unchanged from the earlier round):
+    // renderPending() is deliberately global/unscoped (spec §6.7 — one
+    // worker sweep drains every property's queue), and 23+ other call sites
+    // across this suite mint receipts they never render, leaving them
+    // "pending" in the same shared pg_rent_receipts table for their whole
+    // test file's lifetime. renderOne(receiptId) — the brief's own scoping
+    // overload — is used for every explicit call below so this test never
+    // claims a stray receipt from a different test file under concurrent
+    // execution; production's unscoped renderPending()/the worker sweep are
+    // untouched.
+    renderer.render.mockRejectedValueOnce(new Error("chromium down"));
     const paid = await payments.recordByOperator(
       operatorId,
       propertyId,
       { assignment_id: assignmentId, amount_inr: 9000, method: "cash", paid_on: "2026-09-02" },
       randomUUID()
     );
+    await payments.lastMintedReceiptRender;
     const receiptId = paid.receipt_id!;
     await expect(receipts.downloadUrl(operatorId, propertyId, receiptId)).rejects.toMatchObject({
       response: { code: "receipt_not_ready" }
     });
-
-    // Cross-task determinism fix: renderPending() is deliberately global/
-    // unscoped (spec §6.7 — one worker sweep drains every property's queue),
-    // and 23+ other call sites across this suite mint receipts they never
-    // render, leaving them "pending" in the same shared pg_rent_receipts
-    // table for their whole test file's lifetime. Under real concurrent file
-    // execution an unscoped renderPending() here can claim and consume one
-    // of THOSE stray rows first (oldest next_attempt_at wins, and the loop
-    // breaks on the first non-terminal "skipped") — verified by direct
-    // instrumentation: this receipt's own attempts stayed 0 while telemetry
-    // showed a different receipt_id being attempted. renderOne(receiptId) is
-    // the brief's own scoping overload for exactly this; using it here
-    // doesn't touch renderPending()/renderOne()'s production behaviour at
-    // all (the worker's unscoped call is unchanged) and makes every
-    // assertion below deterministic regardless of what else is running.
-    renderer.render.mockRejectedValueOnce(new Error("chromium down"));
-    expect(await receipts.renderOne(receiptId)).toBe("skipped"); // attempt 1 failed (non-terminal) → still pending with backoff
     let row = (
       await db.query<{ pdf_status: string; attempts: number; last_error: string }>(
         `SELECT pdf_status::text, attempts, last_error FROM pg_rent_receipts WHERE id = $1::uuid`,
         [receiptId]
       )
     ).rows[0];
+    // attempt 1: the immediate hook, using the mock configured above — still
+    // pending with backoff
     expect(row).toMatchObject({ pdf_status: "pending", attempts: 1, last_error: "chromium down" });
     expect(await receipts.renderOne(receiptId)).toBe("skipped"); // backoff not elapsed → skipped
     await db.query(`UPDATE pg_rent_receipts SET next_attempt_at = now() WHERE id = $1::uuid`, [
@@ -114,14 +119,18 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
     const dl = await receipts.downloadUrl(operatorId, propertyId, receiptId);
     expect(dl.url).toContain("http://api.test");
 
-    // five failures → failed; retry resets
+    // five failures → failed; retry resets. The immediate hook consumes the
+    // first of the five (configured below, before recordByOperator), so the
+    // explicit loop only needs four more.
+    renderer.render.mockRejectedValueOnce(new Error("boom"));
     const paid2 = await payments.recordByOperator(
       operatorId,
       propertyId,
       { assignment_id: assignmentId, amount_inr: 100, method: "cash", paid_on: "2026-09-03" },
       randomUUID()
     );
-    for (let i = 0; i < 5; i += 1) {
+    await payments.lastMintedReceiptRender;
+    for (let i = 0; i < 4; i += 1) {
       renderer.render.mockRejectedValueOnce(new Error("boom"));
       await db.query(`UPDATE pg_rent_receipts SET next_attempt_at = now() WHERE id = $1::uuid`, [
         paid2.receipt_id
@@ -143,12 +152,16 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
   });
 
   it("share token resolves only while valid, ready and not voided", async () => {
+    // Same reasoning as the previous test: the immediate hook fires on
+    // recordByOperator, so configure its outcome first and await the handle.
+    renderer.render.mockRejectedValueOnce(new Error("not ready yet"));
     const paid = await payments.recordByOperator(
       operatorId,
       propertyId,
       { assignment_id: assignmentId, amount_inr: 200, method: "upi", paid_on: "2026-09-04" },
       randomUUID()
     );
+    await payments.lastMintedReceiptRender;
     const token = (
       await db.query<{ t: string }>(
         `SELECT share_token AS t FROM pg_rent_receipts WHERE id = $1::uuid`,
@@ -159,7 +172,12 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
       response: { code: "receipt_not_ready" }
     });
     renderer.render.mockResolvedValueOnce(Buffer.from("%PDF"));
-    await receipts.renderOne(paid.receipt_id!); // scoped — see determinism note in the test above
+    // The hook's failed attempt above set a backoff; bypass it for this
+    // explicit, scoped retry (see determinism note in the test above).
+    await db.query(`UPDATE pg_rent_receipts SET next_attempt_at = now() WHERE id = $1::uuid`, [
+      paid.receipt_id
+    ]);
+    await receipts.renderOne(paid.receipt_id!);
     expect((await receipts.resolveShareToken(token)).url).toContain("http://api.test");
     await expect(receipts.resolveShareToken("nope")).rejects.toMatchObject({
       response: { code: "receipt_not_found" }
