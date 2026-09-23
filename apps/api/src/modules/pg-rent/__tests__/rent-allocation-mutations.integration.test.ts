@@ -23,15 +23,24 @@ describe.skipIf(!HAS_DB)("RentAllocationService mutations", () => {
     kind: "rent" | "deposit" | "adhoc" | "settlement",
     totalPaise: number,
     dueDate: string,
-    status = "issued"
+    status = "issued",
+    forAssignmentId = assignmentId
   ): Promise<string> {
     seq += 1;
+    // A 'rent' invoice always carries a real period in production —
+    // RentInvoiceEngineService (the only production writer of 'rent'
+    // invoices) sets both bounds on every row it creates — so this fixture
+    // matches that instead of leaving them NULL, which is what a real
+    // invoice never does and is what assertRentInvariants' inv5b now checks.
     const inv = await db.query<{ id: string }>(
-      `INSERT INTO pg_rent_invoices (pg_property_id, assignment_id, room_number, bed_label, kind, invoice_number, billing_month, due_date, status, source, total_paise)
-       VALUES ($1::uuid, $2::uuid, 'R1', 'A', $3::pg_rent_invoice_kind, $4, date_trunc('month', $5::date)::date, $5::date, $6::pg_rent_invoice_status, 'manual', $7) RETURNING id::text`,
+      `INSERT INTO pg_rent_invoices (pg_property_id, assignment_id, room_number, bed_label, kind, invoice_number, billing_month, due_date, status, source, total_paise, period_start, period_end)
+       VALUES ($1::uuid, $2::uuid, 'R1', 'A', $3::pg_rent_invoice_kind, $4, date_trunc('month', $5::date)::date, $5::date, $6::pg_rent_invoice_status, 'manual', $7,
+               CASE WHEN $3::pg_rent_invoice_kind = 'rent' THEN date_trunc('month', $5::date)::date ELSE NULL END,
+               CASE WHEN $3::pg_rent_invoice_kind = 'rent' THEN (date_trunc('month', $5::date) + interval '1 month' - interval '1 day')::date ELSE NULL END)
+       RETURNING id::text`,
       [
         propertyId,
-        assignmentId,
+        forAssignmentId,
         kind,
         `T-INV-${String(seq).padStart(4, "0")}`,
         dueDate,
@@ -48,20 +57,21 @@ describe.skipIf(!HAS_DB)("RentAllocationService mutations", () => {
   async function inflow(
     amountPaise: number,
     paidOn: string,
-    status = "confirmed"
+    status = "confirmed",
+    forAssignmentId = assignmentId
   ): Promise<string> {
     const p = await db.query<{ id: string }>(
       `INSERT INTO pg_rent_payments (pg_property_id, assignment_id, amount_paise, method, source, status, paid_on, confirmed_at)
        VALUES ($1::uuid, $2::uuid, $3, 'cash', 'operator', $4::pg_rent_payment_status, $5::date, now()) RETURNING id::text`,
-      [propertyId, assignmentId, amountPaise, status, paidOn]
+      [propertyId, forAssignmentId, amountPaise, status, paidOn]
     );
     return p.rows[0].id;
   }
-  async function outflow(amountPaise: number): Promise<string> {
+  async function outflow(amountPaise: number, forAssignmentId = assignmentId): Promise<string> {
     const p = await db.query<{ id: string }>(
       `INSERT INTO pg_rent_payments (pg_property_id, assignment_id, direction, amount_paise, method, source, status, paid_on, note)
        VALUES ($1::uuid, $2::uuid, 'outflow', $3, 'cash', 'operator', 'confirmed', '2026-10-20', 'returned') RETURNING id::text`,
-      [propertyId, assignmentId, amountPaise]
+      [propertyId, forAssignmentId, amountPaise]
     );
     return p.rows[0].id;
   }
@@ -136,9 +146,24 @@ describe.skipIf(!HAS_DB)("RentAllocationService mutations", () => {
         [oct]
       );
       await c.query(`UPDATE pg_rent_invoices SET total_paise = 600000 WHERE id = $1::uuid`, [oct]);
-      await service.recomputeInvoice(c, oct);
+      // deallocateExcess's own internal recompute (still against the
+      // pre-shrink total_paise=900000) correctly drops oct to
+      // partially_paid, which clears settled_on/paid_at — an invoice that
+      // isn't fully paid must not carry a settlement date. Now that the
+      // shrink brings oct back to exactly paid (600000/600000), the caller
+      // must pass settledOn again to re-close it: recomputeInvoice only
+      // *keeps* an existing settled_on (COALESCE), it never re-derives one
+      // once cleared. p2 (paid_on 2026-09-10) is still the most recent
+      // contributor after the de-allocation (its allocation shrank from
+      // 500000 to 200000, but it wasn't removed), so that is the correct
+      // date to pass — the same date oct was closed on before.
+      await service.recomputeInvoice(c, oct, "2026-09-10");
     });
-    expect(await state(oct)).toMatchObject({ status: "paid", paid: "600000" });
+    expect(await state(oct)).toMatchObject({
+      status: "paid",
+      paid: "600000",
+      settled_on: "2026-09-10"
+    });
     expect(await service.unallocatedCredit(db, assignmentId)).toBe(400000);
     const ev = await db.query<{ event_type: string; payload: Record<string, unknown> }>(
       `SELECT event_type, payload FROM pg_rent_events WHERE entity_id = $1::uuid AND event_type = 'invoice.excess_deallocated'`,
@@ -157,6 +182,19 @@ describe.skipIf(!HAS_DB)("RentAllocationService mutations", () => {
     const ok = await outflow(1300000);
     await transaction(db, (c) => service.fundOutflow(c, ok));
     expect(await service.unallocatedCredit(db, assignmentId)).toBe(0);
+
+    // calling fundOutflow again on an already-fully-funded outflow is a
+    // no-op, not a second round of allocations — invariant 15 requires
+    // Σ allocations targeting an outflow to equal its amount exactly, not a
+    // multiple of it.
+    await transaction(db, (c) => service.fundOutflow(c, ok));
+    const refundAllocSum = await db.query<{ sum: string }>(
+      `SELECT COALESCE(SUM(amount_paise), 0)::text AS sum FROM pg_rent_payment_allocations WHERE refund_payment_id = $1::uuid`,
+      [ok]
+    );
+    expect(refundAllocSum.rows[0].sum).toBe("1300000");
+    await assertRentInvariants(db, propertyId);
+
     const tooMuch = await outflow(100);
     await expect(transaction(db, (c) => service.fundOutflow(c, tooMuch))).rejects.toMatchObject({
       response: { code: "refund_exceeds_credit" }
@@ -184,5 +222,44 @@ describe.skipIf(!HAS_DB)("RentAllocationService mutations", () => {
     ).rejects.toMatchObject({
       response: { code: "invalid_allocation" }
     });
+  });
+
+  it("allocateInflow plans against what is left of a payment, not its gross amount, when it already carries an allocation (invariant 3, no double-spend)", async () => {
+    // Stands in for the concurrent interleaving the class's own locking
+    // contract (rent-allocation.service.ts: allocateInflow's docstring and
+    // applyUnallocatedCredit's §2) guards against: allocateInflow(p3) reads
+    // p3 unlocked, waits on the invoice locks, and only then takes p3's own
+    // FOR UPDATE lock — in that window a concurrent fundOutflow can commit
+    // an allocation against p3 first. A fresh assignment isolates this from
+    // the residual credit the previous tests in this file leave behind on
+    // the shared assignment.
+    const roomB = await fx.createRoom(propertyId);
+    const bedB = await fx.createBed(roomB, "B");
+    const assignmentB = await fx.createAssignment(propertyId, bedB, { createdBy: operatorId });
+
+    const inv = await invoice("adhoc", 1000000, "2026-12-05", "issued", assignmentB);
+    const p3 = await inflow(1000000, "2026-12-01", "confirmed", assignmentB);
+
+    // p3's full credit (1000000) funds a 400000 outflow before allocateInflow
+    // ever looks at p3 — this is committed, not merely in-flight, exactly
+    // what a concurrent transaction would have done by the time
+    // allocateInflow's lock wait resolves.
+    const out = await outflow(400000, assignmentB);
+    await transaction(db, (c) => service.fundOutflow(c, out));
+
+    const plan = await transaction(db, (c) => service.allocateInflow(c, p3, null, SYSTEM_ACTOR));
+    // p3 is 1000000 gross; 400000 is already spent funding `out`, so only
+    // 600000 is actually available. The invoice's balance is 1000000 (more
+    // than what's left), so it absorbs exactly the 600000 available and no
+    // credit remains. Planning against the gross amount instead (the bug)
+    // would allocate the full 1000000 to the invoice on top of the existing
+    // 400000 refund allocation — Σ allocations for p3 would reach 1400000,
+    // over its own 1000000 amount, which assertRentInvariants' invariant 3
+    // catches below.
+    expect(plan).toEqual({
+      allocations: [{ invoiceId: inv, amountPaise: 600000 }],
+      creditPaise: 0
+    });
+    await assertRentInvariants(db, propertyId);
   });
 });

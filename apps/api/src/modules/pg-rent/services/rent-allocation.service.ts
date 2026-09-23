@@ -202,12 +202,17 @@ export class RentAllocationService {
   }
 
   /**
-   * Spec §6.2. The payment must be a confirmed inflow with no allocations
-   * yet. A `claimed_invoice_id` is a soft target: if that invoice is no
-   * longer open it is silently skipped (spec §6.10 "Claim for a cancelled
-   * invoice → FIFO/credit"). Explicit operator `targets` are hard: if any one
-   * of them is not an open invoice of this assignment, the whole call is
-   * rejected with 400 `invalid_allocation`.
+   * Spec §6.2. The payment must be a confirmed inflow; under the normal
+   * calling contract it has no allocations yet, but this plans against
+   * (amount_paise − Σ existing allocations), not the gross amount, so a
+   * payment that already carries some allocation by the time its lock is
+   * acquired (e.g. a concurrent `fundOutflow` claim, see the locking note
+   * below) is topped up rather than double-spent. A `claimed_invoice_id` is
+   * a soft target: if that invoice is no longer open it is silently skipped
+   * (spec §6.10 "Claim for a cancelled invoice → FIFO/credit"). Explicit
+   * operator `targets` are hard: if any one of them is not an open invoice
+   * of this assignment, the whole call is rejected with 400
+   * `invalid_allocation`.
    *
    * Locking order: invoices before the payment, matching
    * `applyUnallocatedCredit`'s contract and never the reverse — locking the
@@ -256,6 +261,22 @@ export class RentAllocationService {
         message: "Only confirmed inflows can be allocated"
       });
     }
+
+    // Locking contract §2: read Σ existing allocations for this payment in a
+    // separate statement, taken only after the FOR UPDATE lock above is
+    // held, so it reflects everything a concurrent writer committed while
+    // this call was waiting on the invoice locks (e.g. a fundOutflow that
+    // claimed part of this payment's credit for a refund). Plan against what
+    // is actually left, never the gross amount — planning against the gross
+    // amount would double-spend this payment's credit (Σ allocations could
+    // exceed amount_paise, invariant 3) whenever it already carries an
+    // allocation by the time this lock is acquired.
+    const already = await client.query<{ sum: string }>(
+      `SELECT COALESCE(SUM(amount_paise), 0)::text AS sum FROM pg_rent_payment_allocations WHERE payment_id = $1::uuid`,
+      [paymentId]
+    );
+    const available = Number(payment.amount_paise) - Number(already.rows[0].sum);
+
     const wanted = (
       targets ??
       (payment.claimed_invoice_id
@@ -266,9 +287,7 @@ export class RentAllocationService {
       .map((t) => {
         const balance = open.find((o) => o.invoiceId === t.invoice_id)!.balancePaise;
         const requested =
-          t.amount_inr === null
-            ? Math.min(balance, Number(payment.amount_paise))
-            : inrToPaise(t.amount_inr as number);
+          t.amount_inr === null ? Math.min(balance, available) : inrToPaise(t.amount_inr as number);
         return { invoiceId: t.invoice_id, amountPaise: requested };
       });
     if (targets && wanted.length !== targets.length) {
@@ -279,7 +298,7 @@ export class RentAllocationService {
     }
     let plan;
     try {
-      plan = planAllocation(Number(payment.amount_paise), open, wanted);
+      plan = planAllocation(available, open, wanted);
     } catch (error) {
       throw new BadRequestException({
         code: "invalid_allocation",
@@ -403,7 +422,14 @@ export class RentAllocationService {
 
   /**
    * Invariant 15: an outflow is fully funded from the assignment's credit,
-   * oldest inflow first. Postgres rejects `FOR UPDATE` combined with
+   * oldest inflow first, and the funding either fully succeeds or writes
+   * nothing — the take-list is computed entirely in memory and checked
+   * before any `INSERT`, so "never partially funds" is a property of this
+   * function, not of the caller's transaction rolling back on the eventual
+   * throw. Already-funded is a no-op: Σ allocations already targeting this
+   * outflow is read first (after its own lock), so a second call against an
+   * outflow that is already fully funded does nothing instead of doubling
+   * its allocations. Postgres rejects `FOR UPDATE` combined with
    * `GROUP BY`/`HAVING` (same constraint documented on
    * `applyUnallocatedCredit`), so the lock (on payment rows only,
    * oldest-first) and the allocated-sum aggregation are two queries instead
@@ -420,7 +446,13 @@ export class RentAllocationService {
     );
     if (!o.rows[0] || o.rows[0].direction !== "outflow")
       throw new BadRequestException({ code: "invalid_refund" });
-    let left = Number(o.rows[0].amount_paise);
+
+    const funded = await client.query<{ sum: string }>(
+      `SELECT COALESCE(SUM(amount_paise), 0)::text AS sum FROM pg_rent_payment_allocations WHERE refund_payment_id = $1::uuid`,
+      [outflowId]
+    );
+    const left = Number(o.rows[0].amount_paise) - Number(funded.rows[0].sum);
+    if (left <= 0) return;
 
     const locked = await client.query<{ id: string; amount_paise: string }>(
       `SELECT id::text, amount_paise::text
@@ -443,22 +475,27 @@ export class RentAllocationService {
       allocatedSums.rows.map((r) => [r.payment_id, Number(r.sum)])
     );
 
+    const takes: Array<{ paymentId: string; amountPaise: number }> = [];
+    let remaining = left;
     for (const c of locked.rows) {
-      if (left <= 0) break;
+      if (remaining <= 0) break;
       const unallocated = Number(c.amount_paise) - (allocatedByPayment.get(c.id) ?? 0);
       if (unallocated <= 0) continue;
-      const take = Math.min(left, unallocated);
-      await client.query(
-        `INSERT INTO pg_rent_payment_allocations (payment_id, refund_payment_id, amount_paise) VALUES ($1::uuid, $2::uuid, $3)`,
-        [c.id, outflowId, take]
-      );
-      left -= take;
+      const take = Math.min(remaining, unallocated);
+      takes.push({ paymentId: c.id, amountPaise: take });
+      remaining -= take;
     }
-    if (left > 0) {
+    if (remaining > 0) {
       throw new BadRequestException({
         code: "refund_exceeds_credit",
         message: "The tenant does not have that much credit to return"
       });
+    }
+    for (const t of takes) {
+      await client.query(
+        `INSERT INTO pg_rent_payment_allocations (payment_id, refund_payment_id, amount_paise) VALUES ($1::uuid, $2::uuid, $3)`,
+        [t.paymentId, outflowId, t.amountPaise]
+      );
     }
   }
 

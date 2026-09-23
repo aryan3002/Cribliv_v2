@@ -63,24 +63,34 @@ export async function assertRentInvariants(
       violations.push(`inv4 invoice ${r.id}: status ${r.status}, expected ${r.expected}`);
   }
 
-  // 5: no overlapping non-cancelled rent periods per assignment. A NULL bound
-  // means "no period recorded" (e.g. a hand-inserted test fixture), not an
-  // unbounded period — `daterange(NULL, NULL, '[]')` is the universal range
-  // and would otherwise flag every such invoice as overlapping every other
-  // one, so both invoices must actually carry a period before comparing.
+  // 5: no overlapping non-cancelled rent periods per assignment.
   const overlap = await db.query<{ a: string; b: string }>(
     `SELECT x.id::text AS a, y.id::text AS b
        FROM pg_rent_invoices x JOIN pg_rent_invoices y
          ON x.assignment_id = y.assignment_id AND x.id < y.id
         AND x.kind = 'rent' AND y.kind = 'rent'
         AND x.status <> 'cancelled' AND y.status <> 'cancelled'
-        AND x.period_start IS NOT NULL AND x.period_end IS NOT NULL
-        AND y.period_start IS NOT NULL AND y.period_end IS NOT NULL
         AND daterange(x.period_start, x.period_end, '[]') && daterange(y.period_start, y.period_end, '[]')
       WHERE x.pg_property_id = $1::uuid`,
     [propertyId]
   );
   for (const r of overlap.rows) violations.push(`inv5 invoices ${r.a} and ${r.b} overlap`);
+
+  // 5b: every rent invoice actually carries a period — `RentInvoiceEngineService`
+  // (the only production writer of 'rent' invoices) always sets both bounds,
+  // so a NULL one is a domain anomaly. This also guards inv5 above: a NULL
+  // bound makes `daterange(NULL, NULL, '[]')` the universal range, which
+  // would otherwise silently flag a missing-period rent invoice as
+  // overlapping every other rent invoice on the assignment regardless of
+  // their real dates — a check with no way to fail loudly on its own cause.
+  const missingPeriod = await db.query<{ id: string }>(
+    `SELECT id::text FROM pg_rent_invoices
+      WHERE pg_property_id = $1::uuid AND kind = 'rent'
+        AND (period_start IS NULL OR period_end IS NULL)`,
+    [propertyId]
+  );
+  for (const r of missingPeriod.rows)
+    violations.push(`inv5b invoice ${r.id}: rent invoice has no period_start/period_end`);
 
   // 15: outflows fully funded; inflows never targets
   const outflows = await db.query<{ id: string; amount: string; funded: string }>(
