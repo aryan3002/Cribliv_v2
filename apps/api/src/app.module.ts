@@ -39,6 +39,7 @@ import { RentAgreementModule } from "./modules/rent-agreement/rent-agreement.mod
 import { OpenApiModule } from "./modules/openapi/openapi.module";
 import { PgOperatorModule } from "./modules/pg-operator/pg-operator.module";
 import { PgOperationsModule } from "./modules/pg-operations/pg-operations.module";
+import { PgRentModule } from "./modules/pg-rent/pg-rent.module";
 import { VoiceAgentPgModule } from "./modules/voice-agent-pg/voice-agent-pg.module";
 
 @Module({
@@ -83,6 +84,7 @@ import { VoiceAgentPgModule } from "./modules/voice-agent-pg/voice-agent-pg.modu
     RentAgreementModule,
     PgOperatorModule,
     PgOperationsModule,
+    PgRentModule,
     VoiceAgentPgModule
   ],
   providers: [

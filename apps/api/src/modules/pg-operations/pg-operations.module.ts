@@ -4,6 +4,7 @@ import { GuardsModule } from "../../common/guards.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { AzureBlobPhotoStorageService } from "../owner/azure-blob-photo-storage.service";
 import { PgOperatorModule } from "../pg-operator/pg-operator.module";
+import { PgRentModule } from "../pg-rent/pg-rent.module";
 import { PgAssignmentController } from "./pg-assignment.controller";
 import { PgAdminManageController } from "./pg-admin-manage.controller";
 import {
@@ -21,7 +22,7 @@ import { PgOccupancyService } from "./services/pg-occupancy.service";
 import { PgResidenceService } from "./services/pg-residence.service";
 
 @Module({
-  imports: [CoreModule, GuardsModule, PgOperatorModule, NotificationsModule],
+  imports: [CoreModule, GuardsModule, PgOperatorModule, NotificationsModule, PgRentModule],
   controllers: [
     PgManageRequestController,
     PgAdminManageController,

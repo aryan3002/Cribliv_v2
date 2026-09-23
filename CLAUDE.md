@@ -48,7 +48,7 @@ Turborepo + pnpm workspaces. Build order is enforced: `packages/*` must build be
 - `apps/api/src/worker/` — standalone background process (separate from NestJS HTTP server), runs via `pnpm worker`
 - `packages/shared-types` — canonical TypeScript contracts, enums, DTO shapes shared between web and API
 - `packages/ui` — design tokens + React primitives
-- `infra/migrations/` — raw SQL files (`0001_init.sql` … `0054_…sql`, sequential; next free number is `0055`), applied via `infra/migrations/run-migrations.js`
+- `infra/migrations/` — raw SQL files (`0001_init.sql` … `0072_…sql`, sequential; next free number is `0073`), applied via `infra/migrations/run-migrations.js`
 
 ### DB dual-mode (critical)
 
@@ -90,7 +90,7 @@ Translations are inline in `apps/web/lib/i18n.ts` (a dictionary object, not sepa
 
 ### Background worker
 
-`apps/api/src/worker/worker.ts` is a standalone Node process (not part of the NestJS HTTP server). It runs periodic sweeps: timeout refunds, WhatsApp notification dispatch, stale listing cleanup, boost expiry, AI ranking recompute, lead nudges, subscription renewals, saved-search alerts, seeker pin cleanup, and alert zone sweeps. Start with `pnpm worker`.
+`apps/api/src/worker/worker.ts` is a standalone Node process (not part of the NestJS HTTP server). It runs periodic sweeps: timeout refunds, WhatsApp notification dispatch, stale listing cleanup, boost expiry, AI ranking recompute, lead nudges, subscription renewals, saved-search alerts, seeker pin cleanup, alert zone sweeps, and — behind `FF_PG_RENT_COLLECTION` — hourly PG rent invoice generation. Start with `pnpm worker`.
 
 ### Key external integrations
 
