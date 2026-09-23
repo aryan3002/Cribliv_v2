@@ -294,6 +294,16 @@ export class RentInvoiceEngineService {
     assignmentId: string,
     settings: RentSettingsRow
   ): Promise<void> {
+    // Fix 4 (final fix wave, completed): this transaction's writeRentEvent
+    // call below takes an implicit FK `FOR KEY SHARE` on pg_properties
+    // (pg_rent_events.pg_property_id references it) after this method's own
+    // `pg_rent_invoices FOR UPDATE` — the same reverse-order shape
+    // issueNextRentIfDue/issueDepositIfDue guard against. Share (not
+    // update) so concurrent engine transactions across different
+    // assignments don't serialise on the property themselves.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
     const rows = await this.loadAssignments(client, propertyId, assignmentId);
     const a = rows[0];
     if (!a || !a.move_in_date) return;
@@ -353,6 +363,14 @@ export class RentInvoiceEngineService {
     propertyId: string,
     assignmentId: string
   ): Promise<void> {
+    // Fix 4 (final fix wave, completed): same lock, same reason as
+    // suggestReprorate above — this transaction's writeRentEvent call below
+    // takes an implicit FK `FOR KEY SHARE` on pg_properties after this
+    // method's own `pg_rent_invoices FOR UPDATE OF i`, reversing the
+    // documented order without this lock taken first.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
     await client.query(
       `UPDATE pg_rent_invoices SET reprorate_suggestion = NULL WHERE assignment_id = $1::uuid AND reprorate_suggestion->>'mode' = 'reprorate'`,
       [assignmentId]

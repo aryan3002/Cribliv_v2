@@ -52,10 +52,16 @@ const RECEIPT_SOURCES = new Set(["operator", "tenant_claim", "gateway"]);
  *
  *   pg_properties  →  pg_rent_counters  →  pg_rent_invoices  →  pg_rent_payments
  *
- * `pg_properties` is the outermost lock: every writer in this file takes it
- * first via `assertManagedOwnership(..., true)` (a `FOR UPDATE` on the
- * property row) before touching anything else. The remaining three match
- * the only other writer of all of them: RentInvoiceEngineService's issuance
+ * `pg_properties` is the outermost lock: every operator-facing writer in
+ * this file takes it first via `assertManagedOwnership(..., true)` (a `FOR
+ * UPDATE` on the property row) before touching anything else. The one
+ * exception is `cancelClaim` (:326-345) — a tenant-facing writer that opens
+ * with `lockPayment` on a `pending_confirmation` row, never calls
+ * `assertManagedOwnership`, and touches `pg_properties` only implicitly
+ * through its trailing `writeRentEvent`, producing the payment →
+ * properties reverse edge against `confirm`, which holds the property and
+ * can wait on that same row. The remaining three match the only other
+ * writer of all of them: RentInvoiceEngineService's issuance
  * path (issueNextRentIfDue / issueDepositIfDue) takes `pg_properties FOR KEY
  * SHARE` first (Fix 4, final fix wave), then runs lockAssignment →
  * nextInvoiceNumber (pg_rent_counters, UPDATE next_invoice_seq) → INSERT the
@@ -949,10 +955,14 @@ export class RentPaymentService {
     );
     if (affected.rows.length) {
       // Fix 3 (final fix wave): ORDER BY id so this always acquires the
-      // affected invoices in the same order regardless of the property
-      // mutex — matching openInvoices' `due_date, created_at, id FOR UPDATE`
-      // (rent-allocation.service.ts:183-193), which is otherwise the only
-      // other multi-row invoice lock in the module.
+      // affected invoices in the same total order across calls, regardless
+      // of the property mutex. This isn't the same order as openInvoices'
+      // `due_date, created_at, id FOR UPDATE` (rent-allocation.service.ts:
+      // 183-193) — id is only that order's final tiebreaker, so the two can
+      // still differ for the same invoice set — but openInvoices is the
+      // only other multi-row invoice lock in the module, and a total order
+      // here is enough on its own to rule out a lock-order deadlock between
+      // two calls to this method.
       await client.query(
         `SELECT 1 FROM pg_rent_invoices WHERE id = ANY($1::uuid[]) ORDER BY id FOR UPDATE`,
         [affected.rows.map((r) => r.invoice_id)]
