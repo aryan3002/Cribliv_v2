@@ -16,6 +16,7 @@ import { toIsoDate } from "../dto/common";
 import { paiseToInr } from "../dto/money";
 import type { RentSettingsRow } from "../dto/settings.dto";
 import { addDays, dayOf, firstOfMonth } from "../pure/rent-dates";
+import { roundToRupee } from "../pure/rent-money";
 import {
   firstGeneratedPeriod,
   naturalDueDate,
@@ -279,16 +280,25 @@ export class RentInvoiceEngineService {
 
   private resolveRent(a: AssignmentCtx): { paise: number | null; source: PgRentRentSource } {
     if (a.monthly_rent_paise !== null)
-      return { paise: Number(a.monthly_rent_paise), source: "assignment" };
-    if (a.room_type_rent !== null) return { paise: Number(a.room_type_rent), source: "room_type" };
-    if (a.listing_rent !== null) return { paise: Number(a.listing_rent), source: "listing" };
+      return { paise: roundToRupee(Number(a.monthly_rent_paise)), source: "assignment" };
+    if (a.room_type_rent !== null)
+      return { paise: roundToRupee(Number(a.room_type_rent)), source: "room_type" };
+    if (a.listing_rent !== null)
+      return { paise: roundToRupee(Number(a.listing_rent)), source: "listing" };
     return { paise: null, source: "none" };
   }
 
-  /** Spec §2 deposit chain: assignment → room type (0065) → listing details. */
+  /**
+   * Spec §2 deposit chain: assignment → room type (0065) → listing details.
+   * Rounded before the >0 guard: a sub-50-paise source (e.g. 40 paise) would
+   * round to 0, and a zero-value deposit line must never be created, so such a
+   * source is treated as absent and the chain falls through to the next one.
+   */
   private resolveDeposit(a: AssignmentCtx): number | null {
     for (const v of [a.security_deposit_paise, a.room_type_deposit, a.listing_deposit]) {
-      if (v !== null && Number(v) > 0) return Number(v);
+      if (v === null) continue;
+      const rounded = roundToRupee(Number(v));
+      if (rounded > 0) return rounded;
     }
     return null;
   }

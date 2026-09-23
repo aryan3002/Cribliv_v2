@@ -71,9 +71,11 @@ describe.skipIf(!HAS_DB)("RentInvoiceEngineService", () => {
       rent_source: string | null;
       proration_factor: string | null;
       pay_token: string | null;
+      issued_at: string | null;
     }>(
       `SELECT kind::text, status::text, to_char(period_start,'YYYY-MM-DD') AS period_start, to_char(period_end,'YYYY-MM-DD') AS period_end,
-              to_char(due_date,'YYYY-MM-DD') AS due_date, total_paise::text, invoice_number, rent_source::text, proration_factor::text, pay_token
+              to_char(due_date,'YYYY-MM-DD') AS due_date, total_paise::text, invoice_number, rent_source::text, proration_factor::text, pay_token,
+              issued_at
          FROM pg_rent_invoices WHERE assignment_id = $1::uuid ORDER BY kind, period_start NULLS FIRST`,
       [assignmentId]
     );
@@ -114,6 +116,7 @@ describe.skipIf(!HAS_DB)("RentInvoiceEngineService", () => {
     ]);
     expect(rows[0].pay_token).toHaveLength(43);
     expect(Number(rows[0].proration_factor)).toBeCloseTo(19 / 30, 5);
+    expect(rows[0].issued_at).not.toBeNull();
 
     // Sep 29: October (due Oct 5, lead 5 → create from Sep 30) not yet
     expect(await engine.generateInvoicesForProperty(s.propertyId, "2026-09-29")).toMatchObject({
@@ -257,6 +260,40 @@ describe.skipIf(!HAS_DB)("RentInvoiceEngineService", () => {
     expect(await invoices(a)).toMatchObject([
       { status: "draft", rent_source: "listing", total_paise: "700000", pay_token: null }
     ]);
+  });
+
+  it("rounds a non-rupee assignment rent to the nearest rupee on a natural (unprorated) period (fix round 2, finding 1)", async () => {
+    const s = await setupProperty();
+    // 850050 paise = 8500.5 rupees; roundToRupee is half-up (rent-money.test.ts), so this
+    // rounds to 850100, not down to 850000 and not left raw at 850050.
+    const a = await tenant(s, "A", { moveIn: "2026-09-01", rentPaise: 850050 });
+    const r = await engine.generateInvoicesForProperty(s.propertyId, "2026-09-01");
+    expect(r).toMatchObject({ invoices_created: 1 });
+    const rows = await invoices(a);
+    expect(rows).toMatchObject([
+      {
+        kind: "rent",
+        status: "issued",
+        period_start: "2026-09-01",
+        period_end: "2026-09-30",
+        total_paise: "850100",
+        proration_factor: null
+      }
+    ]);
+    await assertRentInvariants(db, s.propertyId);
+  });
+
+  it("rounds a non-rupee deposit to the nearest rupee (fix round 2, finding 1)", async () => {
+    const s = await setupProperty();
+    const enabledOn = (await settings.get(operatorId, s.propertyId))!.enabled_on;
+    // 500050 paise = 5000.5 rupees; half-up rounds to 500100.
+    const a = await tenant(s, "A", { moveIn: enabledOn, depositPaise: 500050 });
+    const r = await engine.generateInvoicesForProperty(s.propertyId, enabledOn);
+    expect(r.deposits_created).toBe(1);
+    expect((await invoices(a)).find((i) => i.kind === "deposit")).toMatchObject({
+      total_paise: "500100"
+    });
+    await assertRentInvariants(db, s.propertyId);
   });
 
   it("skips assignments with no move-in date, reserved and cancelled ones, and paused properties", async () => {
