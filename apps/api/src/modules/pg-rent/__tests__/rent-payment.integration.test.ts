@@ -8,7 +8,7 @@ import { RentPaymentService } from "../services/rent-payment.service";
 import { RentReceiptService } from "../services/rent-receipt.service";
 import { RentSettingsService } from "../services/rent-settings.service";
 import { assertRentInvariants } from "./helpers/assert-rent-invariants";
-import { RentFixtures } from "./helpers/rent-fixtures";
+import { enableRentAsOf, RentFixtures } from "./helpers/rent-fixtures";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 
@@ -31,7 +31,11 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
       depositPaise: 1800000
     });
     const roomId = await fx.createRoom(propertyId, { roomTypeId, roomNumber: "101" });
-    await settings.enable(operatorId, propertyId, {
+    // This suite pins "today" to September 2026 via the `today` argument passed to
+    // generateInvoicesForProperty, so enabled_on must be backdated too or every deposit
+    // invoice silently disappears once the real calendar passes the move-in dates below.
+    // See enableRentAsOf for why enable() has no override field.
+    await enableRentAsOf(db, settings, operatorId, propertyId, "2026-01-01", {
       billing_starts_on: "2026-09-01",
       due_day: 5,
       late_fee_enabled: opts.lateFee ?? false,
@@ -40,19 +44,6 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
       late_fee_grace_days: 3,
       late_fee_auto_apply: opts.autoApply ?? true
     });
-    // RentSettingsService.enable() always stamps enabled_on = todayIst() (the
-    // real wall clock; no field in PgRentEnableInput can override it), while
-    // this whole suite pretends "today" is September 2026 via the `today`
-    // argument passed to generateInvoicesForProperty. planDeposit() (rent
-    // -invoice-engine.service.ts) only issues a deposit invoice when
-    // move_in_date >= enabled_on, so on any real run date after 2026-09-01
-    // the fixed move-in date used below would silently suppress every
-    // deposit invoice — a production-code gate this task does not own or
-    // touch. Backdating enabled_on here is a test-fixture-only fix.
-    await db.query(
-      `UPDATE pg_rent_settings SET enabled_on = '2026-01-01' WHERE pg_property_id = $1::uuid`,
-      [propertyId]
-    );
     return { propertyId, roomId };
   }
   async function tenant(p: { propertyId: string; roomId: string }, label: string, phone?: string) {
