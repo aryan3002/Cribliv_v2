@@ -11,7 +11,10 @@ import {
 } from "../rent-agreement/pdf/azure-storage-config";
 import { InMemoryPdfStorage } from "../rent-agreement/pdf/in-memory-pdf-storage";
 import { PgRentInvoicesController } from "./controllers/pg-rent-invoices.controller";
+import { PgRentPaymentsController } from "./controllers/pg-rent-payments.controller";
 import { PgRentSettingsController } from "./controllers/pg-rent-settings.controller";
+import { PgRentSettlementController } from "./controllers/pg-rent-settlement.controller";
+import { PgRentTenantClaimsController } from "./controllers/pg-rent-tenant-claims.controller";
 import { receiptContainer as RECEIPT_CONTAINER } from "./receipt/receipt-container";
 import { LazyReceiptRenderer } from "./receipt/receipt-renderer";
 import { RentAllocationService } from "./services/rent-allocation.service";
@@ -32,7 +35,13 @@ import { RentSettlementService } from "./services/rent-settlement.service";
 // tested) before any service exists.
 @Module({
   imports: [CoreModule, GuardsModule],
-  controllers: [PgRentSettingsController, PgRentInvoicesController],
+  controllers: [
+    PgRentSettingsController,
+    PgRentInvoicesController,
+    PgRentPaymentsController,
+    PgRentSettlementController,
+    PgRentTenantClaimsController
+  ],
   providers: [
     RentSettingsService,
     RentAllocationService,
