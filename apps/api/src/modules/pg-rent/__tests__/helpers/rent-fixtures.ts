@@ -2,6 +2,42 @@ import { randomUUID } from "node:crypto";
 
 import type { DatabaseService } from "../../../../common/database.service";
 import type { Role } from "../../../../common/types";
+import type { RentSettingsService } from "../../services/rent-settings.service";
+
+/**
+ * Enable rent collection, then pin `enabled_on` to `enabledOn`.
+ *
+ * `RentSettingsService.enable()` stamps `enabled_on = todayIst()` from the real wall
+ * clock, and that is deliberate: the design (§4.2) makes `enabled_on` the immutable
+ * record of when a property first enabled rent, and §19 finding #40 moved the deposit
+ * floor onto it precisely *because* the operator-settable `billing_starts_on` resets on
+ * resume. So there is no override field on `PgRentEnableInput`, and there should not be.
+ *
+ * The consequence for tests: `planDeposit()` only issues a deposit invoice when
+ * `move_in_date >= enabled_on`. A suite that pins a synthetic "today" (passing a fixed
+ * date to `generateInvoicesForProperty`) and hardcodes a move-in date in the past gets
+ * **zero deposit invoices and no error** once the real calendar passes that date —
+ * assertions on rent still pass, deposits silently vanish.
+ *
+ * Use this helper whenever fixture dates are hardcoded rather than derived from the real
+ * clock. When a test only needs move-in to equal the enable date, prefer reading
+ * `enabled_on` back from `settings.get()` and deriving fixture dates from it (see
+ * rent-invoice-engine.integration.test.ts) — that needs no backdating at all.
+ */
+export async function enableRentAsOf(
+  db: DatabaseService,
+  settings: RentSettingsService,
+  operatorId: string,
+  propertyId: string,
+  enabledOn: string,
+  input: Parameters<RentSettingsService["enable"]>[2]
+): Promise<void> {
+  await settings.enable(operatorId, propertyId, input);
+  await db.query(
+    `UPDATE pg_rent_settings SET enabled_on = $2::date WHERE pg_property_id = $1::uuid`,
+    [propertyId, enabledOn]
+  );
+}
 
 export class RentFixtures {
   cityId = 0;
