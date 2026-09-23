@@ -6396,7 +6396,9 @@ pnpm --filter @cribliv/api exec vitest run src/modules/pg-rent src/worker src/mo
 pnpm lint
 ```
 
-Expected: all pg-rent suites green — 1a's 91 plus this slice's payment-dto 6, late-fee/allocation 12, allocation mutations 2, payments 6, invoice actions 7, late-fee sweep 3, receipt render 3, receipt queue 2, settlement 5, money controllers 3 = **140 tests**; pre-existing failures only where the memory note says.
+Expected: all pg-rent suites green — 1a's **103** plus this slice's payment-dto 6, late-fee/allocation 12, allocation mutations 2, payments 6, invoice actions 7, late-fee sweep 3, receipt render 3, receipt queue 2, settlement 5, money controllers 3 (= 49) = **152 tests in `src/modules/pg-rent/__tests__/`**, plus the 2 in `src/worker/__tests__/pg-rent-sweeps.test.ts` = **154 pg-rent-related**; pre-existing failures only where the memory note says.
+
+> **Corrected 2026-09-23 at the 1a boundary.** This line originally read "1a's 91 … = **140 tests**". That 91 was the slice-1a plan's _estimate_; 1a actually merged with **103 tests across 15 files** under `src/modules/pg-rent/__tests__/` — the extra 12 came from review fix rounds (Tasks 6/10/11/12/13, the whole-slice review's invariant-9 rounding fix, and the `paiseKeysToInr` money-boundary fix), none of them loosened to pass. Measured directly at 1a's tip, not derived. **Do not delete or weaken tests to reach 140.**
 
 - [ ] **Step 2: Invariant sweep over every test property**
 
