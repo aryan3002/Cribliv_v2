@@ -165,16 +165,17 @@ export async function runPgRentLateFeeSweep(
             ctx.invoice.computedAt !== null &&
             (ctx.policy.kind !== "per_day" || ctx.invoice.overridePaise !== null)
         });
-        // an existing suggestion that changes amount is re-suggested, never auto-applied
+        // an existing suggestion that changes amount is re-suggested, never auto-applied.
+        // Fix 2 (final fix wave): this used to be handled by a raw UPDATE
+        // here that returned before calling applyFeeDecision — the everyday
+        // path for every suggest-mode property from day 2 of a per_day fee
+        // onward, and it wrote no writeRentEvent (invariant 8 violation).
+        // applyFeeDecision's own `opts.applyMode === "suggest" && ctx.feeLinePaise
+        // === null` branch (rent-fee-line.ts:190-197) already handles this
+        // identical case — decision.action is "apply" or "update", it
+        // doesn't branch on which — and writes the late_fee.suggested event,
+        // so deleting the early return here is enough; nothing else changes.
         const mode = c.auto_apply ? "line" : "suggest";
-        if (mode === "suggest" && decision.action === "update" && ctx.feeLinePaise === null) {
-          await client.query(
-            `UPDATE pg_rent_invoices SET suggested_late_fee_paise = $2 WHERE id = $1::uuid`,
-            [c.id, decision.feePaise]
-          );
-          out.suggested += 1;
-          return;
-        }
         await applyFeeDecision(client, alloc, ctx, decision, SYSTEM_ACTOR, {
           applyMode: mode,
           reason: "late_fee_sweep",
@@ -190,8 +191,12 @@ export async function runPgRentLateFeeSweep(
         if (decision.action === "apply") {
           if (mode === "line") out.applied += 1;
           else out.suggested += 1;
-        } else if (decision.action === "update") out.updated += 1;
-        else if (decision.action === "freeze") out.frozen += 1;
+        } else if (decision.action === "update") {
+          // Fix 2: in suggest mode this is now the re-suggestion path above
+          // (applyFeeDecision's suggest branch), not a line amount update.
+          if (mode === "suggest") out.suggested += 1;
+          else out.updated += 1;
+        } else if (decision.action === "freeze") out.frozen += 1;
       });
     } catch (error) {
       console.error(

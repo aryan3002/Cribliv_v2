@@ -321,4 +321,34 @@ describe.skipIf(!HAS_DB)("runPgRentLateFeeSweep", () => {
     expect(await fee(p.sep)).toMatchObject({ fee: "10000", total: "910000" });
     await assertRentInvariants(db, p.propertyId);
   });
+
+  // Fix 2 (final fix wave): a suggest-mode (auto_apply off) property whose fee
+  // grows daily used to have its day-2-onward re-suggestions written by a raw
+  // UPDATE that returned before ever calling applyFeeDecision/writeRentEvent —
+  // invariant 8 ("every mutation writes an event in the same transaction")
+  // silently broken on the everyday suggest-mode path. No test asserted sweep
+  // events at all before this fix; this proves a second run with a changed
+  // fee amount writes its own late_fee.suggested event, not just the first.
+  it("re-suggestion on a later sweep run writes its own late_fee.suggested event (invariant 8)", async () => {
+    const p = await property({
+      late_fee_auto_apply: false,
+      late_fee_kind: "per_day",
+      late_fee_amount_inr: 50
+    });
+    await runPgRentLateFeeSweep(db, "2026-09-10"); // 2 days late -> suggest 10000
+    expect(await fee(p.sep)).toMatchObject({ fee: null, suggested: "10000" });
+    const r2 = await runPgRentLateFeeSweep(db, "2026-09-12"); // 4 days late -> re-suggest 20000 (action: "update")
+    expect(await fee(p.sep)).toMatchObject({ fee: null, suggested: "20000" });
+    expect(r2.suggested).toBeGreaterThanOrEqual(1);
+    expect(r2.updated).toBe(0);
+
+    const events = await db.query<{ payload: { paise: number } }>(
+      `SELECT payload FROM pg_rent_events WHERE entity_id = $1::uuid AND event_type = 'late_fee.suggested' ORDER BY id`,
+      [p.sep]
+    );
+    expect(events.rows.length).toBeGreaterThanOrEqual(2);
+    expect(events.rows[0].payload).toMatchObject({ paise: 10000 });
+    expect(events.rows[events.rows.length - 1].payload).toMatchObject({ paise: 20000 });
+    await assertRentInvariants(db, p.propertyId);
+  });
 });
