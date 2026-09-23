@@ -169,18 +169,42 @@ export interface RentEventRow {
 }
 
 /**
- * Recursively rewrites every `*_paise` key to `*_inr`, converting its value
- * through `paiseToInr`. Only applies when the value is a number or numeric
- * string (Fix round 1, finding 1): a `_paise` key holding `null` is left
- * untouched rather than guessed at. Non-object values pass through unchanged.
+ * Every value reached under a `*_paise` key is a paise amount, so convert each
+ * scalar leaf and rename any nested `_paise` key too. `settings.updated`
+ * payloads store diffs as `{ from, to }` objects whose leaves carry no suffix
+ * of their own, which is why an object is walked rather than passed through.
+ */
+function paiseValueToInr(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value === "number" || typeof value === "string") return paiseToInr(value);
+  if (Array.isArray(value)) return value.map(paiseValueToInr);
+  if (typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
+      out[renameIfPaise(key)] = paiseValueToInr(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+function renameIfPaise(key: string): string {
+  return key.endsWith("_paise") ? `${key.slice(0, -"_paise".length)}_inr` : key;
+}
+
+/**
+ * Recursively rewrites every `*_paise` key to `*_inr` (spec D2 money boundary).
+ * The rename is unconditional: no key ending in `_paise` may survive into an
+ * HTTP response, whatever its value shape. Values that are not paise amounts
+ * (a boolean, say) keep their value but still lose the misleading suffix.
  */
 export function paiseKeysToInr(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(paiseKeysToInr);
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, v] of Object.entries(value as Record<string, unknown>)) {
-      if (key.endsWith("_paise") && (typeof v === "number" || typeof v === "string")) {
-        out[`${key.slice(0, -"_paise".length)}_inr`] = paiseToInr(v);
+      if (key.endsWith("_paise")) {
+        out[renameIfPaise(key)] = paiseValueToInr(v);
       } else {
         out[key] = paiseKeysToInr(v);
       }
