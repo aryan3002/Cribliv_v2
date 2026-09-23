@@ -46,6 +46,34 @@ import { RentSettingsService } from "./rent-settings.service";
 
 const RECEIPT_SOURCES = new Set(["operator", "tenant_claim", "gateway"]);
 
+/**
+ * Lock order for this file (binding, and consistent with
+ * rent-allocation.service.ts:37-45's invoice-before-payment contract):
+ *
+ *   pg_rent_counters  →  pg_rent_invoices  →  pg_rent_payments
+ *
+ * This matches the only other writer of all three: RentInvoiceEngineService's
+ * issuance path (issueNextRentIfDue / issueDepositIfDue) always runs
+ * lockAssignment → nextInvoiceNumber (pg_rent_counters, UPDATE next_invoice_seq)
+ * → INSERT the new invoice (a fresh, uncontended row) → applyUnallocatedCredit,
+ * which re-locks that same fresh invoice and then takes
+ * `FOR UPDATE OF p` on every EXISTING confirmed inflow payment of the
+ * assignment (rent-allocation.service.ts:71-77) — i.e. counters, then an
+ * existing payment row, with no existing-invoice lock in between (the
+ * invoice it locks is always the one it just inserted in the same
+ * transaction, never a pre-existing one).
+ *
+ * A method here that locks an EXISTING, already-committed payment row
+ * (`lockPayment`) before it either (a) takes `pg_rent_counters` FOR UPDATE
+ * (whenever the same transaction can reach RentReceiptService.mint/remint,
+ * which bumps next_receipt_seq) or (b) is done touching any invoice the
+ * removal/reallocation will reopen or close, produces the reverse edge —
+ * payment → counters or payment → invoice — and deadlocks against the
+ * engine's counters → payment edge above (40P01) whenever the two run
+ * concurrently against the same assignment/property. `lockCounters` below
+ * exists so every method that can mint/remint takes that lock first, before
+ * touching anything else this file or the engine also locks.
+ */
 @Injectable()
 export class RentPaymentService {
   constructor(
@@ -76,6 +104,10 @@ export class RentPaymentService {
       this.db,
       async (client) => {
         await assertManagedOwnership(client, operatorId, propertyId, true);
+        // Lock order (file header): source is always 'operator', always
+        // receipt-earning, so finalizeConfirmed below always mints — take
+        // counters first, before the invoice/payment locks that follow.
+        await this.lockCounters(client, propertyId);
         await this.assertAssignment(client, propertyId, input.assignment_id, [
           "reserved",
           "active",
@@ -296,6 +328,15 @@ export class RentPaymentService {
     const actor: RentActor = { id: operatorId, role: "pg_operator" };
     await transaction(this.db, async (client) => {
       await assertManagedOwnership(client, operatorId, propertyId, true);
+      // Lock order (file header): a pending_confirmation payment only ever
+      // reaches confirm() via claimByTenant's tenant_claim source, which is
+      // always receipt-earning, so finalizeConfirmed below always mints —
+      // take counters before the payment lock that follows. (The engine's
+      // applyUnallocatedCredit only locks CONFIRMED inflows, so this
+      // pending_confirmation row can't itself be the payment-side of a
+      // direct invoice/payment inversion the way an already-confirmed one
+      // can; counters is the only shared resource this path needs to order.)
+      await this.lockCounters(client, propertyId);
       const p = await this.lockPayment(client, paymentId, propertyId);
       if (p.status !== "pending_confirmation")
         throw new ConflictException({ code: "payment_not_pending" });
@@ -386,6 +427,11 @@ export class RentPaymentService {
     const actor: RentActor = { id: operatorId, role: "pg_operator" };
     await transaction(this.db, async (client) => {
       await assertManagedOwnership(client, operatorId, propertyId, true);
+      // Lock order (file header): reverse never mints, so no counters lock —
+      // but it does act on an already-confirmed payment, so lock every
+      // invoice it currently has an allocation against before the payment
+      // lock that follows.
+      await this.lockAffectedInvoices(client, paymentId);
       const p = await this.lockPayment(client, paymentId, propertyId);
       if (p.status !== "confirmed") throw new ConflictException({ code: "payment_not_confirmed" });
       const funds = await client.query(
@@ -486,6 +532,24 @@ export class RentPaymentService {
     const actor: RentActor = { id: operatorId, role: "pg_operator" };
     await transaction(this.db, async (client) => {
       await assertManagedOwnership(client, operatorId, propertyId, true);
+      // Lock order (file header): this is THE live cycle — reallocate can
+      // remint (counters), and it acts on an already-confirmed payment the
+      // engine's applyUnallocatedCredit can independently try to lock while
+      // it already holds counters. Take counters first (unconditionally:
+      // source is fixed at payment creation and cheap to over-lock for),
+      // then every invoice this call can touch — the ones the payment
+      // currently funds (status-agnostic, since one may already be `paid`)
+      // and the assignment's open invoices (covers the new targets and any
+      // FIFO overflow allocateInflow plans against) — and only then the
+      // payment row itself.
+      await this.lockCounters(client, propertyId);
+      const route = await client.query<{ assignment_id: string }>(
+        `SELECT assignment_id::text FROM pg_rent_payments WHERE id = $1::uuid AND pg_property_id = $2::uuid`,
+        [paymentId, propertyId]
+      );
+      if (!route.rows[0]) throw new NotFoundException({ code: "payment_not_found" });
+      await this.alloc.openInvoices(client, route.rows[0].assignment_id, true);
+      await this.lockAffectedInvoices(client, paymentId);
       const p = await this.lockPayment(client, paymentId, propertyId);
       if (p.status !== "confirmed" || p.direction !== "inflow")
         throw new ConflictException({ code: "payment_not_confirmed" });
@@ -583,14 +647,14 @@ export class RentPaymentService {
     targets: PgRentAllocationTarget[] | null,
     actor: RentActor
   ): Promise<void> {
-    // Lock order: invoice rows before the payment row, never the reverse
-    // (rent-allocation.service.ts's binding contract, §§37-45 there — the
-    // engine's sweep locks pg_rent_counters then confirmed inflow payments
-    // via applyUnallocatedCredit, i.e. counters → payments; locking the
-    // payment here before the invoices it settles would open a payments →
-    // counters cycle against that sweep and deadlock). The assignment id is
-    // only needed for routing, so it is read unlocked first — exactly the
-    // pattern allocateInflow already uses below for the same reason.
+    // Lock order (file header): invoice rows before the payment row, matching
+    // allocateInflow's own contract. This method never takes pg_rent_counters
+    // itself — mint() does that, at the very end, in step 4 — so it relies on
+    // every *caller* that can reach that step (recordByOperator, confirm)
+    // having already taken the counters lock before calling in here; callers
+    // that never mint (recordBackfillPayment, releaseDeposit) never touch
+    // counters at all. The assignment id is only needed for routing, so it is
+    // read unlocked first — exactly the pattern allocateInflow uses below.
     const route = await client.query<{ assignment_id: string }>(
       `SELECT assignment_id::text FROM pg_rent_payments WHERE id = $1::uuid`,
       [paymentId]
@@ -736,6 +800,34 @@ export class RentPaymentService {
     );
     if (!r.rows[0].enabled) throw new NotFoundException({ code: "rent_not_enabled" });
     return r.rows[0].pg_property_id;
+  }
+
+  /** Lock order (file header): first lock taken by any transaction that can reach mint/remint. */
+  private async lockCounters(client: PoolClient, propertyId: string): Promise<void> {
+    await client.query(
+      `SELECT 1 FROM pg_rent_counters WHERE pg_property_id = $1::uuid FOR UPDATE`,
+      [propertyId]
+    );
+  }
+
+  /**
+   * Lock order (file header): every invoice this payment currently has an
+   * allocation against, locked by status-agnostic lookup on
+   * pg_rent_payment_allocations rather than `openInvoices` — an invoice this
+   * payment fully paid is `paid` (not `issued`/`partially_paid`), so
+   * `openInvoices` would miss exactly the invoice a reversal or
+   * reallocation is most likely to reopen.
+   */
+  private async lockAffectedInvoices(client: PoolClient, paymentId: string): Promise<void> {
+    const affected = await client.query<{ invoice_id: string }>(
+      `SELECT DISTINCT invoice_id FROM pg_rent_payment_allocations WHERE payment_id = $1::uuid AND invoice_id IS NOT NULL`,
+      [paymentId]
+    );
+    if (affected.rows.length) {
+      await client.query(`SELECT 1 FROM pg_rent_invoices WHERE id = ANY($1::uuid[]) FOR UPDATE`, [
+        affected.rows.map((r) => r.invoice_id)
+      ]);
+    }
   }
 
   private async lockPayment(client: PoolClient, paymentId: string, propertyId?: string) {
