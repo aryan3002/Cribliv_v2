@@ -546,6 +546,22 @@ export class RentInvoiceEngineService {
     today: string,
     actor: RentActor
   ): Promise<"issued" | "draft" | "no_rent" | "none"> {
+    // Fix 4 (final fix wave): restore the documented lock order
+    // (rent-payment.service.ts's header: pg_properties → pg_rent_counters →
+    // pg_rent_invoices → pg_rent_payments). Every operator-facing
+    // transaction takes `assertManagedOwnership(..., true)` — a `FOR UPDATE`
+    // on pg_properties — as its FIRST statement before ever touching an
+    // invoice. This method's INSERT into pg_rent_invoices takes an implicit
+    // FK `FOR KEY SHARE` on its parent pg_properties row; without taking
+    // that lock first ourselves, this transaction's effective order is
+    // pg_bed_assignments → pg_rent_counters → pg_rent_invoices → properties,
+    // the exact reverse of every operator path, and deadlocks against it
+    // (40P01) under concurrent load. Share (not update) so concurrent engine
+    // transactions across different assignments don't serialise on the
+    // property themselves — mirrors pg-rent-sweeps.ts's runPgRentLateFeeSweep.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
     const a = await this.lockAssignment(client, propertyId, assignmentId);
     if (!a || a.move_in_date === null) return "none";
     const plan = await this.planNextRent(client, a, settings, today);
@@ -666,6 +682,15 @@ export class RentInvoiceEngineService {
     today: string,
     actor: RentActor
   ): Promise<boolean> {
+    // Fix 4 (final fix wave): same lock, same reason — see
+    // issueNextRentIfDue's comment above. This method has the identical
+    // shape (lockAssignment → nextInvoiceNumber → INSERT pg_rent_invoices)
+    // and is the other per-invoice transaction generateInvoicesForProperty
+    // drives, so it deadlocks against operator traffic the same way without
+    // this lock.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
     const a = await this.lockAssignment(client, propertyId, assignmentId);
     if (!a) return false;
     const plan = await this.planDeposit(client, a, settings, today);
