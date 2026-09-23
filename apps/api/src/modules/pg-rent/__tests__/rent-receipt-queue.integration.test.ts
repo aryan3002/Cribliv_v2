@@ -69,8 +69,22 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
       response: { code: "receipt_not_ready" }
     });
 
+    // Cross-task determinism fix: renderPending() is deliberately global/
+    // unscoped (spec §6.7 — one worker sweep drains every property's queue),
+    // and 23+ other call sites across this suite mint receipts they never
+    // render, leaving them "pending" in the same shared pg_rent_receipts
+    // table for their whole test file's lifetime. Under real concurrent file
+    // execution an unscoped renderPending() here can claim and consume one
+    // of THOSE stray rows first (oldest next_attempt_at wins, and the loop
+    // breaks on the first non-terminal "skipped") — verified by direct
+    // instrumentation: this receipt's own attempts stayed 0 while telemetry
+    // showed a different receipt_id being attempted. renderOne(receiptId) is
+    // the brief's own scoping overload for exactly this; using it here
+    // doesn't touch renderPending()/renderOne()'s production behaviour at
+    // all (the worker's unscoped call is unchanged) and makes every
+    // assertion below deterministic regardless of what else is running.
     renderer.render.mockRejectedValueOnce(new Error("chromium down"));
-    expect(await receipts.renderPending()).toEqual({ rendered: 0, failed: 0 }); // attempt 1 failed → still pending with backoff
+    expect(await receipts.renderOne(receiptId)).toBe("skipped"); // attempt 1 failed (non-terminal) → still pending with backoff
     let row = (
       await db.query<{ pdf_status: string; attempts: number; last_error: string }>(
         `SELECT pdf_status::text, attempts, last_error FROM pg_rent_receipts WHERE id = $1::uuid`,
@@ -78,13 +92,13 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
       )
     ).rows[0];
     expect(row).toMatchObject({ pdf_status: "pending", attempts: 1, last_error: "chromium down" });
-    expect(await receipts.renderPending()).toEqual({ rendered: 0, failed: 0 }); // backoff not elapsed → skipped
+    expect(await receipts.renderOne(receiptId)).toBe("skipped"); // backoff not elapsed → skipped
     await db.query(`UPDATE pg_rent_receipts SET next_attempt_at = now() WHERE id = $1::uuid`, [
       receiptId
     ]);
 
     renderer.render.mockResolvedValueOnce(Buffer.from("%PDF-1.4 fake"));
-    expect(await receipts.renderPending()).toEqual({ rendered: 1, failed: 0 });
+    expect(await receipts.renderOne(receiptId)).toBe("ready");
     row = (
       await db.query<{ pdf_status: string; attempts: number; last_error: string }>(
         `SELECT pdf_status::text, attempts, last_error FROM pg_rent_receipts WHERE id = $1::uuid`,
@@ -112,7 +126,7 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
       await db.query(`UPDATE pg_rent_receipts SET next_attempt_at = now() WHERE id = $1::uuid`, [
         paid2.receipt_id
       ]);
-      await receipts.renderPending();
+      await receipts.renderOne(paid2.receipt_id!);
     }
     expect(
       (
@@ -145,7 +159,7 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
       response: { code: "receipt_not_ready" }
     });
     renderer.render.mockResolvedValueOnce(Buffer.from("%PDF"));
-    await receipts.renderPending();
+    await receipts.renderOne(paid.receipt_id!); // scoped — see determinism note in the test above
     expect((await receipts.resolveShareToken(token)).url).toContain("http://api.test");
     await expect(receipts.resolveShareToken("nope")).rejects.toMatchObject({
       response: { code: "receipt_not_found" }
