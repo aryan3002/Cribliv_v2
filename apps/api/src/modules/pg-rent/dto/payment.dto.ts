@@ -61,7 +61,7 @@ export const RecordPaymentSchema = z.object({
   proof_paths: proofPaths,
   allocations: allocationTargets.optional(),
   claimed_invoice_id: uuid.nullable().optional()
-}) satisfies z.ZodType<PgRentRecordPaymentInput>;
+}) satisfies z.ZodType<PgRentRecordPaymentInput, PgRentRecordPaymentInput>;
 
 export const ClaimPaymentSchema = z.object({
   assignment_id: uuid,
@@ -73,22 +73,22 @@ export const ClaimPaymentSchema = z.object({
   note,
   proof_paths: proofPaths,
   idempotency_key: z.string().min(8).max(64)
-}) satisfies z.ZodType<PgRentClaimInput>;
+}) satisfies z.ZodType<PgRentClaimInput, PgRentClaimInput>;
 
 export const ConfirmPaymentSchema = z.object({
   amount_inr: amountInr.optional(),
   method: recordableMethod.optional(),
   paid_on: isoDate.optional(),
   allocations: allocationTargets.optional()
-}) satisfies z.ZodType<PgRentConfirmInput>;
+}) satisfies z.ZodType<PgRentConfirmInput, PgRentConfirmInput>;
 
 export const RejectPaymentSchema = z.object({
   reason: z.string().trim().min(1).max(200)
-}) satisfies z.ZodType<PgRentRejectInput>;
+}) satisfies z.ZodType<PgRentRejectInput, PgRentRejectInput>;
 
 export const ReversePaymentSchema = z.object({
   reason: z.string().trim().min(1).max(200)
-}) satisfies z.ZodType<PgRentReverseInput>;
+}) satisfies z.ZodType<PgRentReverseInput, PgRentReverseInput>;
 
 export const RefundSchema = z.object({
   assignment_id: uuid,
@@ -97,11 +97,11 @@ export const RefundSchema = z.object({
   paid_on: isoDate,
   reference,
   reason: z.string().trim().min(1).max(200)
-}) satisfies z.ZodType<PgRentRefundInput>;
+}) satisfies z.ZodType<PgRentRefundInput, PgRentRefundInput>;
 
 export const AllocationsPatchSchema = z.object({
   allocations: allocationTargets
-}) satisfies z.ZodType<PgRentAllocationsPatchInput>;
+}) satisfies z.ZodType<PgRentAllocationsPatchInput, PgRentAllocationsPatchInput>;
 
 export const BackfillSchema = z
   .object({
@@ -121,7 +121,7 @@ export const BackfillSchema = z
     {
       message: "rent backfill needs period_start <= period_end"
     }
-  ) satisfies z.ZodType<PgRentBackfillInput>;
+  ) satisfies z.ZodType<PgRentBackfillInput, PgRentBackfillInput>;
 
 export const ManualInvoiceSchema = z.object({
   assignment_id: uuid,
@@ -129,7 +129,7 @@ export const ManualInvoiceSchema = z.object({
   due_date: isoDate,
   lines: z.array(lineInput).min(1).max(10),
   tenant_note: note
-}) satisfies z.ZodType<PgRentManualInvoiceInput>;
+}) satisfies z.ZodType<PgRentManualInvoiceInput, PgRentManualInvoiceInput>;
 
 export interface RentPaymentRow {
   id: string;
