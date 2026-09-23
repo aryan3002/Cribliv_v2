@@ -51,6 +51,31 @@ export const PG_RENT_SAS_ISSUER = "PG_RENT_SAS_ISSUER";
 const MAX_ATTEMPTS = 5;
 const BACKOFF_MINUTES = [2, 5, 15, 30, 60];
 const DOWNLOAD_TTL_SECONDS = 15 * 60;
+// Important 3 (fix round 1): a receipt is a single A5 page, far lighter than
+// a rent agreement — 20s/10s is generous headroom for real Chromium even
+// under load, while still failing a genuinely hung renderer fast instead of
+// pinning a DB connection indefinitely (renderOne no longer holds one during
+// either call — see its docstring).
+const RENDER_TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 10_000;
+// Comfortably longer than RENDER_TIMEOUT_MS + UPLOAD_TIMEOUT_MS.
+const LEASE_MINUTES = 1;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 
 @Injectable()
 export class RentReceiptService {
@@ -230,23 +255,62 @@ export class RentReceiptService {
   // ── rendering queue (Task 6) ─────────────────────────────────────────────
 
   /**
-   * Spec §6.7: claim one row with SKIP LOCKED so two callers (e.g. an
-   * overlapping worker sweep, or a future controller-triggered retry) never
-   * render the same receipt twice. NOTE: the brief also calls for an
-   * "immediate best-effort render after commit" hook in
-   * RentPaymentService.recordByOperator/confirm — deliberately NOT wired.
-   * That fire-and-forget call, sharing this same renderOne() against the
-   * literal rent-receipt-queue.integration.test.ts fixture, reliably beat
-   * the test's very next assertion (reproduced 3/3 runs): it renders the
-   * receipt via the still-unconfigured mock before the test can configure
-   * per-attempt behaviour, corrupting the attempts/backoff/last_error
-   * assertions no matter how the mock's default is tuned (verified: instant
-   * success races ahead of the "not ready" check; a rejecting default
-   * consumes "attempt 1" out of order and desyncs the 5-failure loop). The
-   * 2-minute runPgRentReceiptSweep is the fully-tested backstop; the worker
-   * wiring for it is unchanged.
+   * Spec §6.7: claim one row with SKIP LOCKED so two callers — the
+   * RentPaymentService immediate-render hook and the worker's 2-minute
+   * runPgRentReceiptSweep — never render the same receipt twice; that
+   * concurrency guard is production-load-bearing, not decorative, now that
+   * both really call this concurrently.
+   *
+   * Fix round 1 (Important 3): this used to hold the claim transaction open
+   * — BEGIN → SELECT FOR UPDATE → await render() → await upload() → UPDATE →
+   * COMMIT — for the full duration of a real Chromium render. Neither await
+   * had a timeout, so a hung render pinned a row lock, a pooled DB
+   * connection, and (via the immediate hook, called inside reversal
+   * transactions that already hold pg_properties and invoice locks per
+   * Critical 1) widened the window for exactly that deadlock. Restructured
+   * into three short phases so no lock is ever held across a render:
+   *   1. claim: SELECT FOR UPDATE SKIP LOCKED, stamp a short lease onto
+   *      next_attempt_at (no attempts/status change yet), COMMIT, release.
+   *   2. render: outside any transaction/connection, each await individually
+   *      timeout-guarded so a hung renderer/storage call fails fast instead
+   *      of pinning anything indefinitely.
+   *   3. finalize: a fresh short transaction records the outcome,
+   *      compare-and-set on `attempts` so a concurrent retry()/void() that
+   *      reset the row while we were rendering is never clobbered.
    */
   async renderOne(receiptId?: string): Promise<"ready" | "failed" | "skipped"> {
+    const row = await this.claimForRender(receiptId);
+    if (!row) return "skipped";
+    let outcome: { ready: true; blobPath: string } | { ready: false; message: string };
+    try {
+      const pdf = await withTimeout(
+        this.renderer.render(
+          row.snapshot,
+          row.locale === "hi" ? "hi" : "en",
+          row.voided_at !== null
+        ),
+        RENDER_TIMEOUT_MS,
+        "render timed out"
+      );
+      const { blobPath } = await withTimeout(
+        this.storage.upload(pdf, row.id, row.locale),
+        UPLOAD_TIMEOUT_MS,
+        "upload timed out"
+      );
+      outcome = { ready: true, blobPath };
+    } catch (error) {
+      outcome = { ready: false, message: error instanceof Error ? error.message : String(error) };
+    }
+    return this.finalizeRender(row, outcome);
+  }
+
+  private async claimForRender(receiptId?: string): Promise<{
+    id: string;
+    snapshot: ReceiptSnapshot;
+    attempts: number;
+    voided_at: Date | null;
+    locale: string;
+  } | null> {
     const client = await this.db.getClient();
     try {
       await client.query("BEGIN");
@@ -266,42 +330,62 @@ export class RentReceiptService {
         receiptId ? [receiptId] : []
       );
       const row = claimed.rows[0];
-      if (!row) {
-        await client.query("COMMIT");
-        return "skipped";
-      }
-      try {
-        const pdf = await this.renderer.render(
-          row.snapshot,
-          row.locale === "hi" ? "hi" : "en",
-          row.voided_at !== null
-        );
-        const { blobPath } = await this.storage.upload(pdf, row.id, row.locale);
+      if (row)
+        // Lease: makes the row ineligible to any other claimant for the
+        // lease window without touching attempts/pdf_status — this isn't a
+        // completed attempt, just "someone is working on it right now".
+        // Comfortably longer than RENDER_TIMEOUT_MS + UPLOAD_TIMEOUT_MS so a
+        // legitimate render never loses its own lease mid-flight.
         await client.query(
-          `UPDATE pg_rent_receipts SET pdf_status = 'ready', pdf_path = $2, generated_at = now(), attempts = attempts + 1, last_error = NULL WHERE id = $1::uuid`,
-          [row.id, blobPath]
+          `UPDATE pg_rent_receipts SET next_attempt_at = now() + ($2 || ' minutes')::interval WHERE id = $1::uuid`,
+          [row.id, String(LEASE_MINUTES)]
+        );
+      await client.query("COMMIT");
+      return row ?? null;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async finalizeRender(
+    row: { id: string; attempts: number },
+    outcome: { ready: true; blobPath: string } | { ready: false; message: string }
+  ): Promise<"ready" | "failed" | "skipped"> {
+    const client = await this.db.getClient();
+    try {
+      await client.query("BEGIN");
+      if (outcome.ready) {
+        const r = await client.query(
+          `UPDATE pg_rent_receipts SET pdf_status = 'ready', pdf_path = $2, generated_at = now(), attempts = attempts + 1, last_error = NULL WHERE id = $1::uuid AND attempts = $3`,
+          [row.id, outcome.blobPath, row.attempts]
         );
         await client.query("COMMIT");
-        logTelemetry("pg_rent.receipt_rendered", { receipt_id: row.id });
+        if (r.rowCount === 0)
+          logTelemetry("pg_rent.receipt_render_cas_miss", { receipt_id: row.id });
+        else logTelemetry("pg_rent.receipt_rendered", { receipt_id: row.id });
         return "ready";
-      } catch (error) {
-        const attempts = row.attempts + 1;
-        const failed = attempts >= MAX_ATTEMPTS;
-        const backoff = BACKOFF_MINUTES[Math.min(attempts - 1, BACKOFF_MINUTES.length - 1)];
-        await client.query(
-          `UPDATE pg_rent_receipts SET attempts = $2, last_error = $3, pdf_status = $4::pg_rent_receipt_pdf_status, next_attempt_at = now() + ($5 || ' minutes')::interval WHERE id = $1::uuid`,
-          [
-            row.id,
-            attempts,
-            error instanceof Error ? error.message : String(error),
-            failed ? "failed" : "pending",
-            String(backoff)
-          ]
-        );
-        await client.query("COMMIT");
-        logTelemetry("pg_rent.receipt_failed", { receipt_id: row.id, attempts, final: failed });
-        return failed ? "failed" : "skipped";
       }
+      const attempts = row.attempts + 1;
+      const failed = attempts >= MAX_ATTEMPTS;
+      const backoff = BACKOFF_MINUTES[Math.min(attempts - 1, BACKOFF_MINUTES.length - 1)];
+      const r = await client.query(
+        `UPDATE pg_rent_receipts SET attempts = $2, last_error = $3, pdf_status = $4::pg_rent_receipt_pdf_status, next_attempt_at = now() + ($5 || ' minutes')::interval WHERE id = $1::uuid AND attempts = $6`,
+        [
+          row.id,
+          attempts,
+          outcome.message,
+          failed ? "failed" : "pending",
+          String(backoff),
+          row.attempts
+        ]
+      );
+      await client.query("COMMIT");
+      if (r.rowCount === 0) logTelemetry("pg_rent.receipt_render_cas_miss", { receipt_id: row.id });
+      else logTelemetry("pg_rent.receipt_failed", { receipt_id: row.id, attempts, final: failed });
+      return failed ? "failed" : "skipped";
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       throw error;
