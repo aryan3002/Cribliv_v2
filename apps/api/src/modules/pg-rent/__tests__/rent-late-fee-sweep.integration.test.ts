@@ -5,6 +5,7 @@ import { DatabaseService } from "../../../common/database.service";
 import { runPgRentLateFeeSweep } from "../../../worker/pg-rent-sweeps";
 import { RentAllocationService } from "../services/rent-allocation.service";
 import { RentInvoiceEngineService } from "../services/rent-invoice-engine.service";
+import { RentInvoiceService } from "../services/rent-invoice.service";
 import { RentPaymentService } from "../services/rent-payment.service";
 import { RentReceiptService } from "../services/rent-receipt.service";
 import { RentSettingsService } from "../services/rent-settings.service";
@@ -22,11 +23,18 @@ describe.skipIf(!HAS_DB)("runPgRentLateFeeSweep", () => {
   let settings: RentSettingsService;
   let engine: RentInvoiceEngineService;
   let payments: RentPaymentService;
+  let invoices: RentInvoiceService;
 
-  async function property(extra: Record<string, unknown>) {
+  async function property(
+    extra: Record<string, unknown>,
+    roomOpts: { depositPaise?: number } = {}
+  ) {
     const propertyId = await fx.createProperty(operatorId);
     const listingId = await fx.createListingWithDetails(propertyId, operatorId);
-    const roomTypeId = await fx.createRoomType(listingId, { rentPaise: 900000 });
+    const roomTypeId = await fx.createRoomType(listingId, {
+      rentPaise: 900000,
+      depositPaise: roomOpts.depositPaise ?? null
+    });
     const roomId = await fx.createRoom(propertyId, { roomTypeId });
     await settings.enable(operatorId, propertyId, {
       billing_starts_on: "2026-09-01",
@@ -35,6 +43,18 @@ describe.skipIf(!HAS_DB)("runPgRentLateFeeSweep", () => {
       late_fee_grace_days: 3,
       ...extra
     });
+    // Test-fixture-only fix (same pattern as rent-payment.integration.test.ts's
+    // property() helper): enable() always stamps enabled_on = todayIst(), the
+    // real wall clock — no field in PgRentEnableInput can override it. This
+    // whole file pretends "today" is September–December 2026 via runPgRentLateFeeSweep's
+    // own `today` argument, but planDeposit() only issues a deposit invoice
+    // when move_in_date >= enabled_on, so on any real run date after
+    // 2026-09-01 the fixed "2026-09-01" move-in date below would silently
+    // suppress every deposit invoice.
+    await db.query(
+      `UPDATE pg_rent_settings SET enabled_on = '2026-01-01' WHERE pg_property_id = $1::uuid`,
+      [propertyId]
+    );
     const bedId = await fx.createBed(roomId, "A");
     const a = await fx.createAssignment(propertyId, bedId, {
       createdBy: operatorId,
@@ -82,6 +102,7 @@ describe.skipIf(!HAS_DB)("runPgRentLateFeeSweep", () => {
         new DevApiSasIssuer()
       )
     );
+    invoices = new RentInvoiceService(db, alloc, payments, engine);
   });
   afterAll(async () => {
     await fx.teardown();
@@ -190,8 +211,75 @@ describe.skipIf(!HAS_DB)("runPgRentLateFeeSweep", () => {
 
   it("does not sweep backfill, deposit, adhoc or paused properties, and honours late_fee_enabled=false", async () => {
     const p = await property({ late_fee_enabled: false });
+
+    // Important 6 (fix round 1): the title promised four more exclusions
+    // than late_fee_enabled=false alone verifies. Build each fixture for
+    // real and prove the sweep leaves it untouched.
+    const on = await property(
+      {
+        late_fee_auto_apply: true,
+        late_fee_kind: "flat",
+        late_fee_amount_inr: 300
+      },
+      { depositPaise: 1800000 } // property()'s default room type has no deposit; set one so generateInvoicesForProperty below actually issues a deposit invoice to test against
+    );
+
+    // deposit: property()'s own generateInvoicesForProperty already issued
+    // one (kind='deposit') alongside the first rent invoice — excluded by
+    // the candidate query's `i.kind = 'rent'` filter.
+    const depositId = (
+      await db.query<{ id: string }>(
+        `SELECT id::text FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'deposit'`,
+        [on.a]
+      )
+    ).rows[0].id;
+
+    // adhoc: kind != 'rent' (same filter), and createManual hardcodes
+    // eligible: false besides.
+    const adhoc = await invoices.createManual(operatorId, on.propertyId, {
+      assignment_id: on.a,
+      kind: "adhoc",
+      due_date: "2026-08-01",
+      lines: [{ kind: "other", label: "One-off charge", amount_inr: 500 }]
+    });
+
+    // backfill, kind 'rent': the one case where source — not kind or the
+    // eligible flag — is the only thing standing between this invoice and
+    // an automated fee (Important 5). Prove the exclusion survives an
+    // operator later flipping eligibility back on: setEligibility only
+    // refuses non-'rent' invoices, so this is the fixture that actually
+    // exercises `AND i.source <> 'backfill'`.
+    const backfill = await invoices.createBackfill(operatorId, on.propertyId, {
+      assignment_id: on.a,
+      kind: "rent",
+      period_start: "2026-07-01",
+      period_end: "2026-07-31",
+      due_date: "2026-08-01",
+      lines: [{ kind: "rent", label: "Backfilled rent", amount_inr: 9000 }]
+    });
+    await invoices.setEligibility(operatorId, on.propertyId, backfill.id, true);
+
+    // paused: its own property, otherwise identical to `on`, so pausing it
+    // doesn't also mask `on`'s own eligible invoice below.
+    const paused = await property({
+      late_fee_auto_apply: true,
+      late_fee_kind: "flat",
+      late_fee_amount_inr: 300
+    });
+    await settings.pause(operatorId, paused.propertyId);
+
     await runPgRentLateFeeSweep(db, "2026-12-01");
-    expect(await fee(p.sep)).toMatchObject({ fee: null, suggested: null });
+    expect(await fee(p.sep)).toMatchObject({ fee: null, suggested: null }); // late_fee_enabled=false
+    expect(await fee(depositId)).toMatchObject({ fee: null, suggested: null });
+    expect(await fee(adhoc.id)).toMatchObject({ fee: null, suggested: null });
+    expect(await fee(backfill.id)).toMatchObject({ fee: null, suggested: null });
+    expect(await fee(paused.sep)).toMatchObject({ fee: null, suggested: null });
+    // Control: `on`'s own rent invoice — same property, same due date as
+    // the excluded fixtures above — DOES get a fee, proving the sweep ran
+    // and genuinely skipped the others rather than never reaching them.
+    expect(await fee(on.sep)).toMatchObject({ fee: "30000" });
+    await assertRentInvariants(db, on.propertyId);
+    await assertRentInvariants(db, paused.propertyId);
   });
 
   // Correction 3: "Fees are never recomputed upward by a payment" (spec line 390)

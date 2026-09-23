@@ -11,6 +11,7 @@ export interface FeeContext {
     id: string;
     propertyId: string;
     kind: string;
+    status: string;
     dueDate: string;
     totalPaise: number;
     paidPaise: number;
@@ -29,6 +30,7 @@ export async function loadFeeContext(client: PoolClient, invoiceId: string): Pro
     id: string;
     pg_property_id: string;
     kind: string;
+    status: string;
     due_date: string;
     total_paise: string;
     amount_paid_paise: string;
@@ -46,7 +48,7 @@ export async function loadFeeContext(client: PoolClient, invoiceId: string): Pro
     late_fee_cap_paise: string | null;
     late_fee_grace_days: number | null;
   }>(
-    `SELECT i.id::text, i.pg_property_id::text, i.kind::text, to_char(i.due_date,'YYYY-MM-DD') AS due_date, i.total_paise::text, i.amount_paid_paise::text,
+    `SELECT i.id::text, i.pg_property_id::text, i.kind::text, i.status::text, to_char(i.due_date,'YYYY-MM-DD') AS due_date, i.total_paise::text, i.amount_paid_paise::text,
             i.late_fee_eligible, i.late_fee_waived_at, i.late_fee_computed_at, i.suggested_late_fee_paise::text,
             a.late_fee_override_paise::text, a.late_fee_exempt,
             (SELECT l.amount_paise::text FROM pg_rent_invoice_lines l WHERE l.invoice_id = i.id AND l.kind = 'late_fee') AS fee_line,
@@ -73,6 +75,7 @@ export async function loadFeeContext(client: PoolClient, invoiceId: string): Pro
       id: x.id,
       propertyId: x.pg_property_id,
       kind: x.kind,
+      status: x.status,
       dueDate: x.due_date,
       totalPaise: Number(x.total_paise),
       paidPaise: Number(x.amount_paid_paise),
