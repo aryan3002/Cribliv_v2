@@ -242,4 +242,39 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
       response: { code: "receipt_not_ready" }
     });
   });
+
+  it("confirmBulk never fires the immediate-render hook, so an N-item batch opens zero Chromium pages, not N (Important B, fix round 2)", async () => {
+    // confirmBulk's own result only ever carries payment ids
+    // (PgRentBulkResult.succeeded: string[]) — confirm()'s single-item hook
+    // is what BrowserPool.acquire()'s uncapped page creation would otherwise
+    // fan out N times for a batch. Prove the bound is real: renderer.render
+    // is called zero additional times across three items confirmed together,
+    // and every one of their receipts is left 'pending' for the worker sweep.
+    const tenant = await fx.createUser("tenant", "+917700000088");
+    await db.query(`UPDATE pg_bed_assignments SET tenant_user_id = $2::uuid WHERE id = $1::uuid`, [
+      assignmentId,
+      tenant
+    ]);
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const claimed = await payments.claimByTenant(tenant, {
+        assignment_id: assignmentId,
+        amount_inr: 50 + i,
+        method: "upi",
+        paid_on: "2026-09-06",
+        idempotency_key: randomUUID()
+      });
+      ids.push(claimed.id);
+    }
+    const callsBefore = renderer.render.mock.calls.length;
+    const result = await payments.confirmBulk(operatorId, propertyId, ids);
+    expect(result).toEqual({ succeeded: ids, failed: [] });
+    expect(renderer.render.mock.calls.length).toBe(callsBefore); // zero, not "up to N"
+    const rows = await db.query<{ pdf_status: string }>(
+      `SELECT pdf_status::text FROM pg_rent_receipts WHERE payment_id = ANY($1::uuid[])`,
+      [ids]
+    );
+    expect(rows.rows).toHaveLength(3); // finalizeConfirmed still minted one per item
+    expect(rows.rows.every((r) => r.pdf_status === "pending")).toBe(true);
+  });
 });

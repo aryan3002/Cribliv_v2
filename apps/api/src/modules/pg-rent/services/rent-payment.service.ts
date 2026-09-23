@@ -338,6 +338,22 @@ export class RentPaymentService {
     paymentId: string,
     input: PgRentConfirmInput
   ): Promise<PgRentPayment> {
+    await this.confirmTransaction(operatorId, propertyId, paymentId, input);
+    return this.getAndRenderReceipt(operatorId, propertyId, paymentId);
+  }
+
+  /**
+   * The transactional body of confirm(), extracted so confirmBulk() below
+   * can drive it directly without going through confirm()'s own
+   * getAndRenderReceipt call (Important B, fix round 2 — see confirmBulk's
+   * docstring for why).
+   */
+  private async confirmTransaction(
+    operatorId: string,
+    propertyId: string,
+    paymentId: string,
+    input: PgRentConfirmInput
+  ): Promise<void> {
     requireDb(this.db);
     const actor: RentActor = { id: operatorId, role: "pg_operator" };
     await transaction(this.db, async (client) => {
@@ -380,10 +396,27 @@ export class RentPaymentService {
       });
       await this.finalizeConfirmed(client, paymentId, input.allocations ?? null, actor);
     });
-    return this.getAndRenderReceipt(operatorId, propertyId, paymentId);
   }
 
-  /** Per-item results; one conflict never fails the batch (spec §6.3). */
+  /**
+   * Per-item results; one conflict never fails the batch (spec §6.3).
+   *
+   * Important B (fix round 2): deliberately does NOT go through confirm()'s
+   * getAndRenderReceipt — confirm()'s immediate-render hook is
+   * fire-and-forget, so a loop of N confirms fires N unawaited renderOne()
+   * calls that all start racing in the background regardless of how the
+   * loop itself is sequenced. BrowserPool.acquire() has no concurrency cap
+   * (maxPagesPerBrowser only governs recycling, not in-flight pages), so an
+   * N-item bulk confirm would open ~N simultaneous Chromium pages in the API
+   * process. Chose to skip the hook here rather than add a semaphore: a bulk
+   * confirm is a batch operation, not the "operator standing in front of the
+   * tenant" case the hook exists for, so every receipt in the batch simply
+   * waits for the 2-minute worker sweep — the same backstop every receipt
+   * already relies on if the immediate hook fails or the API restarts
+   * mid-render. confirmBulk's own result type only ever carried payment ids
+   * (PgRentBulkResult.succeeded: string[]), never full PgRentPayment
+   * objects, so this also needs no getAndRenderReceipt/get() call at all.
+   */
   async confirmBulk(
     operatorId: string,
     propertyId: string,
@@ -392,7 +425,7 @@ export class RentPaymentService {
     const result: PgRentBulkResult = { succeeded: [], failed: [] };
     for (const id of ids) {
       try {
-        await this.confirm(operatorId, propertyId, id, {});
+        await this.confirmTransaction(operatorId, propertyId, id, {});
         result.succeeded.push(id);
       } catch (error) {
         const code = (error as { response?: { code?: string } }).response?.code ?? "error";
