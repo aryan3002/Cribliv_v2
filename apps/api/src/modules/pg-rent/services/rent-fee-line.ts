@@ -112,7 +112,19 @@ export async function applyFeeDecision(
   ctx: FeeContext,
   decision: { feePaise: number; action: "none" | "apply" | "update" | "remove" | "freeze" },
   actor: RentActor,
-  opts: { applyMode: "line" | "suggest"; reason?: string }
+  /**
+   * `settledOn` (carried requirement, Task 5): the date to stamp on
+   * `settled_on` if this decision is the one that closes the invoice's
+   * balance to zero. Every caller that can leave the invoice `paid` — Task 4's
+   * finalizeConfirmed already passes its payment's paid_on via a follow-up
+   * recomputeInvoice call, but a fee change with no payment in play (waive,
+   * extend-due, owner-applied fee) has no payment date to draw on, so those
+   * callers pass today's IST date. Omitted = null, matching recomputeInvoice's
+   * own default (spec §4.4 is violated only when a `paid` invoice keeps a NULL
+   * settled_on, never by a non-paid one, so the default is safe for the
+   * "none"/"freeze"/"suggest" paths that never reach paid here).
+   */
+  opts: { applyMode: "line" | "suggest"; reason?: string; settledOn?: string }
 ): Promise<void> {
   const { invoice } = ctx;
   const event = (type: string, payload: Record<string, unknown>) =>
@@ -150,7 +162,7 @@ export async function applyFeeDecision(
       `UPDATE pg_rent_invoices SET suggested_late_fee_paise = NULL, late_fee_computed_at = NULL WHERE id = $1::uuid`,
       [invoice.id]
     );
-    await alloc.recomputeInvoice(client, invoice.id);
+    await alloc.recomputeInvoice(client, invoice.id, opts.settledOn ?? null);
     await event("late_fee.removed", {
       reason: opts.reason ?? "recomputed",
       previous_paise: ctx.feeLinePaise ?? invoice.suggestedPaise
@@ -178,7 +190,7 @@ export async function applyFeeDecision(
       [invoice.id]
     );
     await setInvoiceTotalFromLines(client, invoice.id);
-    await alloc.recomputeInvoice(client, invoice.id);
+    await alloc.recomputeInvoice(client, invoice.id, opts.settledOn ?? null);
     await event("late_fee.applied", { paise: decision.feePaise });
     return;
   }
@@ -190,6 +202,6 @@ export async function applyFeeDecision(
     [invoice.id, decision.feePaise]
   );
   await setInvoiceTotalFromLines(client, invoice.id);
-  await alloc.recomputeInvoice(client, invoice.id);
+  await alloc.recomputeInvoice(client, invoice.id, opts.settledOn ?? null);
   await event("late_fee.updated", { from_paise: ctx.feeLinePaise, to_paise: decision.feePaise });
 }

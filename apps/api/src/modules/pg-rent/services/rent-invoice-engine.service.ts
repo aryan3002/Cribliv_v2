@@ -242,8 +242,8 @@ export class RentInvoiceEngineService {
   /**
    * Spec §5.8. Called after pg-operations commits an assignment transition.
    * Data-driven: no settings row → nothing. Best-effort: never throws to the caller.
-   * Final-period re-proration *suggestions* are slice 1b; here every event simply
-   * runs generation for that assignment so cut/final periods exist.
+   * Runs generation for that assignment so cut/final periods exist, then — when
+   * prorate_move_out is on — writes or clears a final-period re-proration suggestion.
    */
   async onAssignmentEvent(event: {
     type: string;
@@ -252,9 +252,29 @@ export class RentInvoiceEngineService {
   }): Promise<void> {
     if (!this.db.isEnabled()) return;
     try {
+      const settings = await this.settings.getRow(this.db, event.propertyId);
+      if (!settings) return;
       await this.generateInvoicesForProperty(event.propertyId, todayIst(), SYSTEM_ACTOR, {
         assignmentId: event.assignmentId
       });
+      if (!settings.prorate_move_out) return;
+      const leaving = [
+        "notice_served",
+        "operator_move_out_requested",
+        "tenant_move_out_requested",
+        "move_out_confirmed",
+        "operator_direct_move_out"
+      ].includes(event.type);
+      const staying = ["move_out_cancelled", "notice_cancelled"].includes(event.type);
+      if (leaving) {
+        await transaction(this.db, (client) =>
+          this.suggestReprorate(client, event.propertyId, event.assignmentId, settings)
+        );
+      } else if (staying) {
+        await transaction(this.db, (client) =>
+          this.suggestRestore(client, event.propertyId, event.assignmentId)
+        );
+      }
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -264,6 +284,108 @@ export class RentInvoiceEngineService {
           error: error instanceof Error ? error.message : String(error)
         })
       );
+    }
+  }
+
+  /** Spec §5.8: a suggestion on every issued/paid rent invoice whose period straddles the leave date. Never edits a bill. */
+  private async suggestReprorate(
+    client: PoolClient,
+    propertyId: string,
+    assignmentId: string,
+    settings: RentSettingsRow
+  ): Promise<void> {
+    const rows = await this.loadAssignments(client, propertyId, assignmentId);
+    const a = rows[0];
+    if (!a || !a.move_in_date) return;
+    const window = billingWindow(a);
+    if (!window?.end) return;
+    const leaveOn = window.end;
+    if (compareIsoDates(leaveOn, a.move_in_date) < 0) return; // "check the notice date" — refused as a suggestion
+    const { spec } = this.specFor(a, settings);
+    const invoices = await client.query<{
+      id: string;
+      period_start: string;
+      period_end: string;
+      rent_line: string;
+      rent_snapshot_paise: string | null;
+    }>(
+      `SELECT i.id::text, to_char(i.period_start,'YYYY-MM-DD') AS period_start, to_char(i.period_end,'YYYY-MM-DD') AS period_end, i.rent_snapshot_paise::text,
+              (SELECT l.amount_paise::text FROM pg_rent_invoice_lines l WHERE l.invoice_id = i.id AND l.kind = 'rent') AS rent_line
+         FROM pg_rent_invoices i
+        WHERE i.assignment_id = $1::uuid AND i.kind = 'rent' AND i.status IN ('issued','partially_paid','paid')
+          AND i.period_start <= $2::date AND i.period_end > $2::date AND i.reprorate_suggestion IS NULL FOR UPDATE`,
+      [assignmentId, leaveOn]
+    );
+    for (const inv of invoices.rows) {
+      if (compareIsoDates(leaveOn, inv.period_start) < 0) continue;
+      const rent =
+        inv.rent_snapshot_paise === null ? Number(inv.rent_line) : Number(inv.rent_snapshot_paise);
+      const { amountPaise } = prorate(
+        rent,
+        { start: inv.period_start, end: leaveOn },
+        spec,
+        settings.proration_mode
+      );
+      const suggestion = {
+        leave_on: leaveOn,
+        from_paise: Number(inv.rent_line),
+        to_paise: amountPaise,
+        mode: "reprorate" as const
+      };
+      await client.query(
+        `UPDATE pg_rent_invoices SET reprorate_suggestion = $2::jsonb WHERE id = $1::uuid`,
+        [inv.id, JSON.stringify(suggestion)]
+      );
+      await writeRentEvent(client, {
+        propertyId,
+        entityType: "invoice",
+        entityId: inv.id,
+        eventType: "invoice.final_reprorate_suggested",
+        actor: SYSTEM_ACTOR,
+        payload: suggestion
+      });
+    }
+  }
+
+  /** Spec §5.8: an unactioned suggestion disappears; an applied re-proration gets a Restore prompt. */
+  private async suggestRestore(
+    client: PoolClient,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<void> {
+    await client.query(
+      `UPDATE pg_rent_invoices SET reprorate_suggestion = NULL WHERE assignment_id = $1::uuid AND reprorate_suggestion->>'mode' = 'reprorate'`,
+      [assignmentId]
+    );
+    const applied = await client.query<{
+      id: string;
+      amount_paise: string;
+      meta: { reprorated: { original_paise: number; original_end: string; leave_on: string } };
+    }>(
+      `SELECT i.id::text, l.amount_paise::text, l.meta FROM pg_rent_invoices i JOIN pg_rent_invoice_lines l ON l.invoice_id = i.id AND l.kind = 'rent'
+        WHERE i.assignment_id = $1::uuid AND i.status <> 'cancelled' AND l.meta ? 'reprorated' AND i.reprorate_suggestion IS NULL FOR UPDATE OF i`,
+      [assignmentId]
+    );
+    for (const inv of applied.rows) {
+      const r = inv.meta.reprorated;
+      const suggestion = {
+        leave_on: r.original_end,
+        from_paise: Number(inv.amount_paise),
+        to_paise: r.original_paise,
+        mode: "restore" as const
+      };
+      await client.query(
+        `UPDATE pg_rent_invoices SET reprorate_suggestion = $2::jsonb WHERE id = $1::uuid`,
+        [inv.id, JSON.stringify(suggestion)]
+      );
+      await writeRentEvent(client, {
+        propertyId,
+        entityType: "invoice",
+        entityId: inv.id,
+        eventType: "invoice.restore_suggested",
+        actor: SYSTEM_ACTOR,
+        payload: suggestion
+      });
     }
   }
 
