@@ -192,4 +192,54 @@ describe.skipIf(!HAS_DB)("receipt render queue", () => {
     const regen = await receipts.regenerateShareToken(operatorId, propertyId, paid.receipt_id!);
     expect(new Date(regen.expires_at).getTime()).toBeGreaterThan(Date.now());
   });
+
+  it("does not resurrect a receipt voided mid-render as a clean 'ready' PDF (Important A, fix round 2)", async () => {
+    // Keep the immediate hook out of this scenario: fail its attempt so the
+    // receipt is 'pending' after minting, then drive the render explicitly
+    // and deterministically below.
+    renderer.render.mockRejectedValueOnce(new Error("not yet"));
+    const paid = await payments.recordByOperator(
+      operatorId,
+      propertyId,
+      { assignment_id: assignmentId, amount_inr: 300, method: "cash", paid_on: "2026-09-05" },
+      randomUUID()
+    );
+    await payments.lastMintedReceiptRender;
+    const receiptId = paid.receipt_id!;
+    await db.query(`UPDATE pg_rent_receipts SET next_attempt_at = now() WHERE id = $1::uuid`, [
+      receiptId
+    ]);
+
+    // Simulate a reversal's void() landing WHILE this render is in flight.
+    // claimForRender's own short transaction has already committed and
+    // released its client by the time render() is invoked (the whole point
+    // of the round-1 claim/render/finalize split), so a concurrent
+    // connection is free to update the row right here — exactly the window
+    // rent-payment.service.ts's reverse()/remint() would use in production.
+    renderer.render.mockImplementationOnce(async () => {
+      await db.query(
+        `UPDATE pg_rent_receipts SET voided_at = now(), void_reason = 'reallocated' WHERE id = $1::uuid`,
+        [receiptId]
+      );
+      return Buffer.from("%PDF-clean");
+    });
+    // finalizeRender still reports "ready" on a CAS miss (parked, not this
+    // test's concern — see the fix-round-2 report). What must not happen is
+    // the row actually ending up ready with the pre-void PDF.
+    await receipts.renderOne(receiptId);
+    const row = (
+      await db.query<{ pdf_status: string; voided_at: Date | null; pdf_path: string | null }>(
+        `SELECT pdf_status::text, voided_at, pdf_path FROM pg_rent_receipts WHERE id = $1::uuid`,
+        [receiptId]
+      )
+    ).rows[0];
+    expect(row.voided_at).not.toBeNull();
+    // Without the voided_at CAS, this would be "ready" with pdf_path set to
+    // the pre-void, un-bannered PDF the mock returned above.
+    expect(row.pdf_status).toBe("pending");
+    expect(row.pdf_path).toBeNull();
+    await expect(receipts.downloadUrl(operatorId, propertyId, receiptId)).rejects.toMatchObject({
+      response: { code: "receipt_not_ready" }
+    });
+  });
 });

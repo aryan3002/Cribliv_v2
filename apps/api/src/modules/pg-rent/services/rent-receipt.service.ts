@@ -351,16 +351,27 @@ export class RentReceiptService {
   }
 
   private async finalizeRender(
-    row: { id: string; attempts: number },
+    row: { id: string; attempts: number; voided_at: Date | null },
     outcome: { ready: true; blobPath: string } | { ready: false; message: string }
   ): Promise<"ready" | "failed" | "skipped"> {
     const client = await this.db.getClient();
+    // Fix round 2, Important A: the claim/render/finalize split (Important 3,
+    // round 1) released the row lock between claim and finalize, so a
+    // reversal's void() — gated on `pdf_status = 'ready'` — can run while a
+    // render is in flight, no-op (the row is still `pending`), and be
+    // silently lost: finalize's CAS matched on `attempts` alone, so it wrote
+    // `pdf_status = 'ready'` with the pre-void PDF and nothing ever re-queued
+    // it. Widen the CAS to also match on the void state captured at claim
+    // time — a void mid-render is now a CAS miss like any other concurrent
+    // write, and the row stays `pending` (still leased) for a real re-render
+    // with the VOID banner once the lease expires.
+    const wasUnvoided = row.voided_at === null;
     try {
       await client.query("BEGIN");
       if (outcome.ready) {
         const r = await client.query(
-          `UPDATE pg_rent_receipts SET pdf_status = 'ready', pdf_path = $2, generated_at = now(), attempts = attempts + 1, last_error = NULL WHERE id = $1::uuid AND attempts = $3`,
-          [row.id, outcome.blobPath, row.attempts]
+          `UPDATE pg_rent_receipts SET pdf_status = 'ready', pdf_path = $2, generated_at = now(), attempts = attempts + 1, last_error = NULL WHERE id = $1::uuid AND attempts = $3 AND (voided_at IS NULL) = $4`,
+          [row.id, outcome.blobPath, row.attempts, wasUnvoided]
         );
         await client.query("COMMIT");
         if (r.rowCount === 0)
@@ -372,14 +383,15 @@ export class RentReceiptService {
       const failed = attempts >= MAX_ATTEMPTS;
       const backoff = BACKOFF_MINUTES[Math.min(attempts - 1, BACKOFF_MINUTES.length - 1)];
       const r = await client.query(
-        `UPDATE pg_rent_receipts SET attempts = $2, last_error = $3, pdf_status = $4::pg_rent_receipt_pdf_status, next_attempt_at = now() + ($5 || ' minutes')::interval WHERE id = $1::uuid AND attempts = $6`,
+        `UPDATE pg_rent_receipts SET attempts = $2, last_error = $3, pdf_status = $4::pg_rent_receipt_pdf_status, next_attempt_at = now() + ($5 || ' minutes')::interval WHERE id = $1::uuid AND attempts = $6 AND (voided_at IS NULL) = $7`,
         [
           row.id,
           attempts,
           outcome.message,
           failed ? "failed" : "pending",
           String(backoff),
-          row.attempts
+          row.attempts,
+          wasUnvoided
         ]
       );
       await client.query("COMMIT");
