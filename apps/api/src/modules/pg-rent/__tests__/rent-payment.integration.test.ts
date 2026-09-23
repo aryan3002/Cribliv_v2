@@ -3,6 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DatabaseService } from "../../../common/database.service";
 import { transaction } from "../../../common/transaction";
+import { InMemoryPdfStorage } from "../../rent-agreement/pdf/in-memory-pdf-storage";
+import { DevApiSasIssuer } from "../../rent-agreement/downloads/dev-api-sas-issuer";
 import { RentAllocationService } from "../services/rent-allocation.service";
 import { RentInvoiceEngineService } from "../services/rent-invoice-engine.service";
 import { RentPaymentService } from "../services/rent-payment.service";
@@ -81,7 +83,17 @@ describe.skipIf(!HAS_DB)("RentPaymentService", () => {
     tenantUserId = await fx.createUser("tenant", "+917700000099");
     settings = new RentSettingsService(db);
     engine = new RentInvoiceEngineService(db, settings, alloc);
-    payments = new RentPaymentService(db, settings, alloc, new RentReceiptService(db));
+    payments = new RentPaymentService(
+      db,
+      settings,
+      alloc,
+      new RentReceiptService(
+        db,
+        { render: async () => Buffer.from("%PDF") },
+        new InMemoryPdfStorage(),
+        new DevApiSasIssuer()
+      )
+    );
   });
   afterAll(async () => {
     await fx.teardown();

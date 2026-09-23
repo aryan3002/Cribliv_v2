@@ -23,7 +23,7 @@ import {
   runSignupCreditExpirySweepDb
 } from "./signup-credit-sweep";
 import { runStaleListingSweep } from "./stale-listing-sweep";
-import { runPgRentSweep } from "./pg-rent-sweeps";
+import { runPgRentLateFeeSweep, runPgRentReceiptSweep, runPgRentSweep } from "./pg-rent-sweeps";
 import { todayIst } from "../common/date";
 
 const REFUND_SWEEP_MS = 5 * 60 * 1000;
@@ -53,6 +53,7 @@ const BLOG_PLANNER_MS = 7 * 24 * 60 * 60 * 1000; // weekly
 const BLOG_GENERATOR_MS = 24 * 60 * 60 * 1000; // daily
 const BLOG_EMBED_SWEEP_MS = 5 * 60 * 1000; // every 5 minutes
 const PG_RENT_SWEEP_MS = 60 * 60 * 1000; // hourly — invoices + deposits (spec §5.1)
+const PG_RENT_RECEIPT_SWEEP_MS = 2 * 60 * 1000; // every 2 minutes — receipt PDF render queue (spec §6.7)
 const DEFAULT_GOOGLE_INDEXING_DAILY_QUOTA = 200;
 
 // ── PG fraud sweep ──────────────────────────────────────────────────────────
@@ -1156,6 +1157,7 @@ async function run() {
       setInterval(async () => {
         try {
           await runPgRentSweep(maintenanceDb, todayIst());
+          await runPgRentLateFeeSweep(maintenanceDb, todayIst());
         } catch (error) {
           console.error(
             JSON.stringify({
@@ -1166,6 +1168,25 @@ async function run() {
           );
         }
       }, PG_RENT_SWEEP_MS);
+
+      // Receipt PDF rendering: separate, faster cadence than the hourly
+      // invoice/fee sweep above — a tenant waiting on a download shouldn't
+      // wait up to an hour for the worker to pick up what the API's own
+      // best-effort renderOne() call (rent-payment.service.ts) already tries
+      // right after a payment confirms.
+      setInterval(async () => {
+        try {
+          await runPgRentReceiptSweep(maintenanceDb);
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              job: "pg_rent_receipt_sweep",
+              error: error instanceof Error ? error.message : String(error),
+              timestamp: new Date().toISOString()
+            })
+          );
+        }
+      }, PG_RENT_RECEIPT_SWEEP_MS);
     }
   }
 

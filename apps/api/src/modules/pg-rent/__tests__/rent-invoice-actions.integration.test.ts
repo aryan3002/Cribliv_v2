@@ -3,6 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DatabaseService } from "../../../common/database.service";
 import { todayIst } from "../../../common/date";
+import { InMemoryPdfStorage } from "../../rent-agreement/pdf/in-memory-pdf-storage";
+import { DevApiSasIssuer } from "../../rent-agreement/downloads/dev-api-sas-issuer";
 import { RentAllocationService } from "../services/rent-allocation.service";
 import { RentInvoiceEngineService } from "../services/rent-invoice-engine.service";
 import { RentInvoiceService } from "../services/rent-invoice.service";
@@ -63,7 +65,12 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
     operatorId = await fx.createUser("pg_operator");
     settings = new RentSettingsService(db);
     const alloc = new RentAllocationService();
-    const receipts = new RentReceiptService(db);
+    const receipts = new RentReceiptService(
+      db,
+      { render: async () => Buffer.from("%PDF") },
+      new InMemoryPdfStorage(),
+      new DevApiSasIssuer()
+    );
     engine = new RentInvoiceEngineService(db, settings, alloc);
     payments = new RentPaymentService(db, settings, alloc, receipts);
     invoices = new RentInvoiceService(db, alloc, payments, engine);
