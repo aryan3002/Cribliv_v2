@@ -590,7 +590,16 @@ export class RentInvoiceService {
     const actor = this.actor(operatorId);
     await transaction(this.db, async (client) => {
       await assertManagedOwnership(client, operatorId, propertyId, true);
-      await this.lockInvoice(client, propertyId, invoiceId);
+      const inv = await this.lockInvoice(client, propertyId, invoiceId);
+      // Fix 5 (final fix wave): late_fee lines only ever belong to a 'rent'
+      // invoice with late_fee_eligible = true (invariant 16), and a
+      // cancelled invoice is frozen history. Fix 1 closes the creation path
+      // (no schema lets a late_fee line reach a non-rent invoice), but
+      // without this guard waiveFee would still happily delete a line and
+      // stamp late_fee_waived_at/late_fee_waive_reason on whatever the ID
+      // pointed to — the right defence even after Fix 1.
+      if (inv.kind !== "rent" || inv.status === "cancelled")
+        throw new ConflictException({ code: "fee_not_allowed" });
       const ctx = await loadFeeContext(client, invoiceId);
       await applyFeeDecision(client, this.alloc, ctx, { feePaise: 0, action: "remove" }, actor, {
         applyMode: "line",

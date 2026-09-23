@@ -143,6 +143,56 @@ describe("payment schemas", () => {
       })
     ).toThrow();
   });
+  // Fix 1 (final fix wave): a late_fee line may only ever exist on a 'rent'
+  // invoice with late_fee_eligible = true (invariant 16), but both
+  // ManualInvoiceSchema and BackfillSchema force eligible: false. Before this
+  // fix, LINE_KINDS accepted "late_fee" here, so POST /invoices with a
+  // late_fee line would parse and let insertInvoice persist exactly the row
+  // assertRentInvariants flags as broken — with no DB backstop (the unique
+  // index only limits an invoice to at most one late_fee line, not which
+  // invoices may carry one). This asserts parseOrThrow rejects it before it
+  // ever reaches the service, i.e. the controller returns 400.
+  it("rejects a late_fee line on manual or backfill invoices (invariant 16)", () => {
+    expect(() =>
+      parseOrThrow(ManualInvoiceSchema, {
+        assignment_id: UUID,
+        kind: "adhoc",
+        due_date: "2026-09-05",
+        lines: [{ kind: "late_fee", label: "Late fee", amount_inr: 100 }]
+      })
+    ).toThrow();
+    expect(() =>
+      parseOrThrow(BackfillSchema, {
+        assignment_id: UUID,
+        kind: "deposit",
+        due_date: "2026-09-05",
+        lines: [{ kind: "late_fee", label: "Late fee", amount_inr: 100 }]
+      })
+    ).toThrow();
+  });
+  // Fix 1: lineInput was missing the negative-amount refine its sibling
+  // (invoice-actions.dto.ts's LineInputSchema) already has, so a negative
+  // rent/meals/etc. line parsed here and hit the DB's
+  // pg_rent_lines_negative_only_discount CHECK as an unmapped 500 instead of
+  // a 400 at the schema boundary.
+  it("rejects a negative amount on a non-discount/adjustment line", () => {
+    expect(() =>
+      parseOrThrow(ManualInvoiceSchema, {
+        assignment_id: UUID,
+        kind: "adhoc",
+        due_date: "2026-09-05",
+        lines: [{ kind: "other", label: "Negative", amount_inr: -100 }]
+      })
+    ).toThrow();
+    expect(
+      parseOrThrow(ManualInvoiceSchema, {
+        assignment_id: UUID,
+        kind: "adhoc",
+        due_date: "2026-09-05",
+        lines: [{ kind: "discount", label: "Discount", amount_inr: -100 }]
+      }).lines
+    ).toEqual([{ kind: "discount", label: "Discount", amount_inr: -100 }]);
+  });
 });
 
 describe("toPaymentDto", () => {

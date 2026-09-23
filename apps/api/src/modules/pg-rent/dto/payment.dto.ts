@@ -29,10 +29,19 @@ const claimableMethod = z.enum(["upi", "bank_transfer", "cheque", "card", "other
 const allocationTargets = z
   .array(z.object({ invoice_id: uuid, amount_inr: amountInr }).strict())
   .max(20);
+// Fix 1 (final fix wave): "late_fee" excluded on purpose. A late_fee line may
+// only exist on a 'rent' invoice with late_fee_eligible = true (invariant 16,
+// enforced by assertRentInvariants and the sole unique index on the table),
+// and every legitimate late_fee line is written by rent-fee-line.ts's
+// applyFeeDecision, never by a manual/backfill invoice body. Both schemas
+// below force eligible: false and either kind: 'adhoc' or an operator-chosen
+// kind, so accepting "late_fee" here would let POST /invoices persist a row
+// assertRentInvariants would itself flag as broken. rent/deposit stay valid:
+// createBackfill's insertInvoice call legitimately needs a 'rent' or
+// 'deposit' line to match its own invoice kind.
 const LINE_KINDS = [
   "rent",
   "deposit",
-  "late_fee",
   "electricity",
   "meals",
   "maintenance",
@@ -49,7 +58,11 @@ const lineInput = z
     label: z.string().trim().min(1).max(40),
     amount_inr: z.number().int().min(-1000000).max(1000000)
   })
-  .strict();
+  .strict()
+  .refine(
+    (v) => v.amount_inr >= 0 || v.kind === "discount" || v.kind === "adjustment",
+    "only discount/adjustment may be negative"
+  );
 
 export const RecordPaymentSchema = z.object({
   assignment_id: uuid,

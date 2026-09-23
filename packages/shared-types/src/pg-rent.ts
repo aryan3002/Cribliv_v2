@@ -379,7 +379,8 @@ export interface PgRentBackfillInput {
   period_start?: string;
   period_end?: string;
   due_date: string;
-  lines: Array<{ kind: PgRentLineKind; label: string; amount_inr: number }>;
+  /** Fix 1 (final fix wave): "late_fee" excluded — see payment.dto.ts's LINE_KINDS. */
+  lines: Array<{ kind: Exclude<PgRentLineKind, "late_fee">; label: string; amount_inr: number }>;
   /** omitted = unpaid backfill invoice */
   payment?: {
     amount_inr: number;
@@ -393,7 +394,8 @@ export interface PgRentManualInvoiceInput {
   assignment_id: string;
   kind: Extract<PgRentInvoiceKind, "adhoc">;
   due_date: string;
-  lines: Array<{ kind: PgRentLineKind; label: string; amount_inr: number }>;
+  /** Fix 1 (final fix wave): "late_fee" excluded — see payment.dto.ts's LINE_KINDS. */
+  lines: Array<{ kind: Exclude<PgRentLineKind, "late_fee">; label: string; amount_inr: number }>;
   tenant_note?: string | null;
 }
 
