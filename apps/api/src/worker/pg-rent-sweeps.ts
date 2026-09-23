@@ -131,13 +131,20 @@ export async function runPgRentLateFeeSweep(
         // RentPaymentService.finalizeConfirmed's own re-check after loadFeeContext:
         // an operator who waives a fee, flips eligibility, or fully settles/cancels
         // the invoice mid-sweep must not be silently overridden (invariant 16).
+        // Fix round 2: the round-1 re-check missed two of the candidate
+        // query's own WHERE-clause conditions — s.paused_at IS NULL and
+        // NOT EXISTS(... pending_confirmation) — leaving both overridable
+        // from the stale snapshot too (an operator pausing the property, or
+        // a tenant filing a claim, mid-run). Completed here.
         if (
           !ctx.policy ||
           ctx.invoice.kind !== "rent" ||
           !ctx.invoice.eligible ||
           ctx.invoice.exempt ||
           ctx.invoice.waivedAt ||
-          !["issued", "partially_paid"].includes(ctx.invoice.status)
+          !["issued", "partially_paid"].includes(ctx.invoice.status) ||
+          ctx.paused ||
+          ctx.hasPendingClaim
         )
           return;
         const chargeable = ctx.invoice.totalPaise - ctx.invoice.paidPaise - (ctx.feeLinePaise ?? 0);

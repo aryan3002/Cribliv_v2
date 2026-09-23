@@ -7,6 +7,14 @@ import type { RentActor } from "./rent-guards";
 
 export interface FeeContext {
   policy: LateFeePolicy | null; // null = property policy disabled
+  // Fix round 2, Important 4 (completing the round-1 fix): the sweep's
+  // candidate query also filters on s.paused_at IS NULL and NOT EXISTS(...
+  // pending_confirmation), but the post-lock re-check only ever covered the
+  // invoice-level fields (kind/eligible/exempt/waivedAt/status). Plumbed the
+  // same way so the sweep can re-validate all five WHERE-clause conditions,
+  // not three of them.
+  paused: boolean;
+  hasPendingClaim: boolean;
   invoice: {
     id: string;
     propertyId: string;
@@ -47,12 +55,16 @@ export async function loadFeeContext(client: PoolClient, invoiceId: string): Pro
     late_fee_percent_bp: number | null;
     late_fee_cap_paise: string | null;
     late_fee_grace_days: number | null;
+    paused_at: Date | null;
+    has_pending_claim: boolean;
   }>(
     `SELECT i.id::text, i.pg_property_id::text, i.kind::text, i.status::text, to_char(i.due_date,'YYYY-MM-DD') AS due_date, i.total_paise::text, i.amount_paid_paise::text,
             i.late_fee_eligible, i.late_fee_waived_at, i.late_fee_computed_at, i.suggested_late_fee_paise::text,
             a.late_fee_override_paise::text, a.late_fee_exempt,
             (SELECT l.amount_paise::text FROM pg_rent_invoice_lines l WHERE l.invoice_id = i.id AND l.kind = 'late_fee') AS fee_line,
-            s.late_fee_enabled, s.late_fee_kind::text, s.late_fee_amount_paise::text, s.late_fee_percent_bp, s.late_fee_cap_paise::text, s.late_fee_grace_days
+            s.late_fee_enabled, s.late_fee_kind::text, s.late_fee_amount_paise::text, s.late_fee_percent_bp, s.late_fee_cap_paise::text, s.late_fee_grace_days,
+            s.paused_at,
+            EXISTS (SELECT 1 FROM pg_rent_payments p WHERE p.claimed_invoice_id = i.id AND p.status = 'pending_confirmation') AS has_pending_claim
        FROM pg_rent_invoices i
        JOIN pg_bed_assignments a ON a.id = i.assignment_id
        LEFT JOIN pg_rent_settings s ON s.pg_property_id = i.pg_property_id
@@ -71,6 +83,8 @@ export async function loadFeeContext(client: PoolClient, invoiceId: string): Pro
           graceDays: Number(x.late_fee_grace_days)
         }
       : null,
+    paused: x.paused_at !== null,
+    hasPendingClaim: x.has_pending_claim,
     invoice: {
       id: x.id,
       propertyId: x.pg_property_id,
