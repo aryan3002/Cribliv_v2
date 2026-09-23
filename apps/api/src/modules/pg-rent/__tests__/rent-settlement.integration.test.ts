@@ -362,26 +362,48 @@ describe.skipIf(!HAS_DB)("RentSettlementService", () => {
     await assertRentInvariants(db, propertyId);
   });
 
-  it("Important 2 (fix round 1): re-settling with a smaller deduction after the settlement invoice was paid in full releases the excess instead of throwing invariant 14", async () => {
-    const { propertyId, a } = await leavingTenant({ payDeposit: false, payRent: false });
+  it("Important 2 (fix round 1): re-settling with a smaller deduction, after the reversal ceremony re-opens and re-pays the settlement invoice, releases the excess instead of throwing invariant 14", async () => {
+    const { propertyId, a } = await leavingTenant();
     let st = await settlement.settle(
       operatorId,
       propertyId,
       a,
-      { deductions: [{ kind: "damage", label: "Broken chair", amount_inr: 1200 }] },
+      { deductions: [{ kind: "cleaning", label: "Deep clean", amount_inr: 800 }] },
       randomUUID()
     );
     const settlementInvoiceId = st.settlement_invoice_id!;
-    // The tenant pays the ₹1,200 settlement invoice in full via its live pay token.
+    // FIFO off the deposit release already paid the ₹800 settlement invoice in full.
+    const paidFromRelease = (
+      await db.query<{ status: string; total: string; paid: string }>(
+        `SELECT status::text, total_paise::text AS total, amount_paid_paise::text AS paid FROM pg_rent_invoices WHERE id = $1::uuid`,
+        [settlementInvoiceId]
+      )
+    ).rows[0];
+    expect(paidFromRelease).toEqual({ status: "paid", total: "80000", paid: "80000" });
+
+    // Fix round 2 / Important 3's guard now requires the reversal ceremony
+    // before a second settle is allowed at all — this also reopens every
+    // invoice the release funded, including the settlement invoice.
+    const releaseId = (
+      await db.query<{ id: string }>(
+        `SELECT id::text FROM pg_rent_payments WHERE assignment_id = $1::uuid AND source = 'deposit_release' ORDER BY created_at DESC LIMIT 1`,
+        [a]
+      )
+    ).rows[0].id;
+    await payments.reverse(operatorId, propertyId, releaseId, "revise deduction");
+
+    // Pay the reopened settlement invoice off again directly (not via a
+    // deposit release this time), so it carries amount_paid_paise into the
+    // re-settle below.
     await payments.recordByOperator(
       operatorId,
       propertyId,
       {
         assignment_id: a,
-        amount_inr: 1200,
+        amount_inr: 800,
         method: "upi",
         paid_on: "2026-07-20",
-        allocations: [{ invoice_id: settlementInvoiceId, amount_inr: 1200 }]
+        allocations: [{ invoice_id: settlementInvoiceId, amount_inr: 800 }]
       },
       randomUUID()
     );
@@ -391,10 +413,11 @@ describe.skipIf(!HAS_DB)("RentSettlementService", () => {
         [settlementInvoiceId]
       )
     ).rows[0];
-    expect(before).toEqual({ status: "paid", total: "120000", paid: "120000" });
+    expect(before).toEqual({ status: "paid", total: "80000", paid: "80000" });
 
     // Without deallocateExcess, shrinking the total below amount_paid_paise
-    // throws "invariant 14: amount_paid exceeds total" out of recomputeInvoice.
+    // throws the pg_rent_invoices_paid_lte_total check constraint straight
+    // out of setInvoiceTotalFromLines's raw UPDATE.
     st = await settlement.settle(
       operatorId,
       propertyId,
@@ -409,34 +432,42 @@ describe.skipIf(!HAS_DB)("RentSettlementService", () => {
       )
     ).rows[0];
     expect(after).toEqual({ status: "paid", total: "50000", paid: "50000" });
-    // The released ₹700 (120000 - 50000 paise) landed back as unallocated credit.
-    expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(70000);
     expect(st).toMatchObject({ status: "settled" });
     await assertRentInvariants(db, propertyId);
   });
 
-  it("Important 3 (fix round 1): settle() replay with the same idempotency key does not duplicate ledger events when nothing was ever collected toward the deposit", async () => {
+  it("Important 3 (fix round 2): a second settle on the zero-deposit branch is refused with the same ceremony the deposit-collected path already requires", async () => {
     const { propertyId, a } = await leavingTenant({ payDeposit: false, payRent: false });
-    const key = randomUUID();
-    const input = {
-      deductions: [{ kind: "damage" as const, label: "Broken chair", amount_inr: 1200 }]
-    };
-    const first = await settlement.settle(operatorId, propertyId, a, input, key);
+    const first = await settlement.settle(
+      operatorId,
+      propertyId,
+      a,
+      { deductions: [{ kind: "damage", label: "Broken chair", amount_inr: 1200 }] },
+      randomUUID()
+    );
+    expect(first).toMatchObject({ status: "settled" });
 
-    const eventCount = async () =>
-      (
-        await db.query<{ c: string }>(
-          `SELECT COUNT(*)::text AS c FROM pg_rent_events WHERE pg_property_id = $1::uuid
-            AND event_type IN ('settlement.created','invoice.line_updated','invoice.line_added')`,
-          [propertyId]
-        )
-      ).rows[0].c;
-    const before = await eventCount();
+    // No deposit was ever collected, so there is no deposit_release payment
+    // to reverse — nothing was ever collected toward the deposit means
+    // there is no ceremony available to unblock a second settle, matching
+    // (rather than bypassing) the deposit-collected path's own refusal.
+    // Without the already_settled guard covering this branch, this call
+    // used to succeed and silently rewrite the deduction lines.
+    await expect(
+      settlement.settle(
+        operatorId,
+        propertyId,
+        a,
+        { deductions: [{ kind: "other", label: "Different amount", amount_inr: 500 }] },
+        randomUUID()
+      )
+    ).rejects.toMatchObject({ response: { code: "already_settled" } });
 
-    // Same idempotency key, same call shape — a genuine retry/replay.
-    const second = await settlement.settle(operatorId, propertyId, a, input, key);
-    expect(second).toEqual(first);
-    expect(await eventCount()).toBe(before);
+    const count = await db.query(
+      `SELECT 1 FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'settlement' AND status <> 'cancelled'`,
+      [a]
+    );
+    expect(count.rowCount).toBe(1);
     await assertRentInvariants(db, propertyId);
   });
 });

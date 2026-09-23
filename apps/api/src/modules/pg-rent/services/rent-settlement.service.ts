@@ -201,9 +201,12 @@ export class RentSettlementService {
   }
 
   /**
-   * Spec §6.11 steps 0–5 in one transaction. Idempotent by key — stored on
-   * the deposit-release payment when there was a deposit to release, or on
-   * the settlement invoice itself when there wasn't (fix round 1 / Important 3).
+   * Spec §6.11 steps 0–5 in one transaction. Idempotent by key (stored on
+   * the deposit-release payment) when there was a deposit to release. When
+   * there wasn't (fix round 2 / Important 3), a plain key-replay is not
+   * distinguished from a fresh call — see the already_settled guard below,
+   * which refuses either one once a settlement invoice already exists for
+   * an assignment with no deposit ever collected.
    */
   async settle(
     operatorId: string,
@@ -214,15 +217,8 @@ export class RentSettlementService {
   ): Promise<PgRentSettlementStatement> {
     requireDb(this.db);
     const actor: RentActor = { id: operatorId, role: "pg_operator" };
-    // Fix round 1 / Important 3: the zero-deposit branch below (step 2) never
-    // creates a deposit_release payment, so a retry with the same key needs a
-    // second place to be recognized — the settlement invoice's own
-    // idempotency_key (pinned in step 3's else-branch when there was nothing
-    // to release).
     const dup = await this.db.query(
-      `SELECT 1 FROM pg_rent_payments WHERE pg_property_id = $1::uuid AND idempotency_key = $2
-        UNION ALL
-       SELECT 1 FROM pg_rent_invoices WHERE pg_property_id = $1::uuid AND idempotency_key = $2`,
+      `SELECT 1 FROM pg_rent_payments WHERE pg_property_id = $1::uuid AND idempotency_key = $2`,
       [propertyId, idempotencyKey]
     );
     if (dup.rowCount) return this.statement(operatorId, propertyId, assignmentId);
@@ -263,11 +259,33 @@ export class RentSettlementService {
           code: "suggestion_pending",
           message: "Act on the final-period re-proration first"
         });
-      const live = await client.query(
-        `SELECT 1 FROM pg_rent_payments WHERE assignment_id = $1::uuid AND source = 'deposit_release' AND status = 'confirmed'`,
+      // already_settled: a confirmed deposit_release payment means a real
+      // deposit was released and is live (reversing it un-settles, matching
+      // "Reverse the deposit release to re-settle" below). But the
+      // zero-deposit branch (step 2's applyUnallocatedCredit path) never
+      // creates a deposit_release payment at all — nothing to reverse — so
+      // for that lineage the signal has to be "a settlement invoice already
+      // exists AND no deposit_release row exists for this assignment at any
+      // status" (fix round 2 / Important 3: without this, a second
+      // operator-initiated settle silently rewrote the tenant's deduction
+      // lines with none of the deposit-collected path's re-settle
+      // ceremony). The "at any status" clause is what keeps this from
+      // re-blocking test 3's legitimate re-settle-after-reversal: once a
+      // deposit was genuinely released and later reversed, a
+      // deposit_release row still exists (status 'reversed'), so this
+      // clause is false and only the confirmed-release check above governs
+      // — unchanged from before.
+      const live = await client.query<{
+        confirmed_release: boolean;
+        settlement_no_release: boolean;
+      }>(
+        `SELECT
+           EXISTS (SELECT 1 FROM pg_rent_payments WHERE assignment_id = $1::uuid AND source = 'deposit_release' AND status = 'confirmed') AS confirmed_release,
+           EXISTS (SELECT 1 FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'settlement' AND status <> 'cancelled')
+             AND NOT EXISTS (SELECT 1 FROM pg_rent_payments WHERE assignment_id = $1::uuid AND source = 'deposit_release') AS settlement_no_release`,
         [assignmentId]
       );
-      if (live.rowCount)
+      if (live.rows[0].confirmed_release || live.rows[0].settlement_no_release)
         throw new ConflictException({
           code: "already_settled",
           message: "Reverse the deposit release to re-settle"
@@ -410,23 +428,17 @@ export class RentSettlementService {
           idempotencyKey,
           actor
         });
-      } else if (depositHeld > 0) {
-        // the idempotency key still has to live somewhere: pin it on the deposit-release row
+      } else {
+        // The idempotency key still has to live somewhere: pin it on the
+        // deposit-release row. A no-op when depositHeld was 0 (no such row
+        // exists) — fix round 2 / Important 3 gave up exact-replay
+        // semantics for that branch: the already_settled guard above now
+        // refuses a second call outright (same key or not) once a
+        // settlement invoice exists with no deposit ever collected, rather
+        // than this method trying to recognize and silently no-op a replay.
         await client.query(
           `UPDATE pg_rent_payments SET idempotency_key = $2 WHERE assignment_id = $1::uuid AND source = 'deposit_release' AND status = 'confirmed' AND idempotency_key IS NULL`,
           [assignmentId, idempotencyKey]
-        );
-      } else {
-        // Important 3 (fix round 1): nothing was ever collected toward the
-        // deposit, so step 2 took the applyUnallocatedCredit branch and no
-        // deposit_release payment exists to pin the key on. Anchor it on the
-        // settlement invoice instead — the dup check at the top of this
-        // method consults both tables, so a replay with this exact key is
-        // still recognized and short-circuited instead of duplicating the
-        // invoice.line_updated / settlement.created events.
-        await client.query(
-          `UPDATE pg_rent_invoices SET idempotency_key = $2 WHERE id = $1::uuid AND idempotency_key IS NULL`,
-          [settlementId, idempotencyKey]
         );
       }
     });
