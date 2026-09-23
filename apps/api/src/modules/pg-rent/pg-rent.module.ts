@@ -7,6 +7,8 @@ import { PgRentSettingsController } from "./controllers/pg-rent-settings.control
 import { RentAllocationService } from "./services/rent-allocation.service";
 import { RentInvoiceEngineService } from "./services/rent-invoice-engine.service";
 import { RentInvoiceService } from "./services/rent-invoice.service";
+import { RentPaymentService } from "./services/rent-payment.service";
+import { RentReceiptService } from "./services/rent-receipt.service";
 import { RentSettingsService } from "./services/rent-settings.service";
 
 // Providers and controllers are appended by later tasks in this plan; the
@@ -19,13 +21,17 @@ import { RentSettingsService } from "./services/rent-settings.service";
     RentSettingsService,
     RentAllocationService,
     RentInvoiceEngineService,
-    RentInvoiceService
+    RentInvoiceService,
+    RentReceiptService,
+    RentPaymentService
   ],
   exports: [
     RentSettingsService,
     RentAllocationService,
     RentInvoiceEngineService,
-    RentInvoiceService
+    RentInvoiceService,
+    RentReceiptService,
+    RentPaymentService
   ]
 })
 export class PgRentModule {}
