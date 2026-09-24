@@ -507,3 +507,269 @@ export interface PgRentWaiveFeeInput {
 export interface PgRentEligibilityInput {
   late_fee_eligible: boolean;
 }
+
+export type PgRentReminderState = "upcoming" | "due_soon" | "due_today" | "overdue";
+
+export interface PgRentQueueInvoiceRow {
+  invoice_id: string;
+  invoice_number: string;
+  assignment_id: string;
+  occupant_name: string;
+  occupant_phone_verified: boolean;
+  room_number: string;
+  bed_label: string;
+  kind: PgRentInvoiceKind;
+  period_label: string;
+  due_date: string;
+  balance_inr: number;
+  total_inr: number;
+  state: PgRentReminderState;
+  in_grace: boolean;
+  days_overdue: number;
+  applied_fee_inr: number | null;
+  suggested_fee_inr: number | null;
+  last_reminded_at: string | null;
+  last_reminded_channel: "whatsapp" | "call" | null;
+  /** ₹ × days, the Overdue section sort key */
+  urgency: number;
+}
+
+export interface PgRentQueueClaimRow {
+  payment_id: string;
+  assignment_id: string;
+  occupant_name: string;
+  room_number: string;
+  bed_label: string;
+  amount_inr: number;
+  method: PgRentPaymentMethod;
+  paid_on: string;
+  reference: string | null;
+  proof_count: number;
+  claimed_invoice_id: string | null;
+  claimed_invoice_number: string | null;
+  waiting_since: string;
+  waiting_days: number;
+}
+
+export type PgRentAttentionKind =
+  | "draft_invoice"
+  | "set_move_in_date"
+  | "notice_ended"
+  | "reprorate_suggested"
+  | "restore_suggested"
+  | "booking_held"
+  | "identity_disputed";
+
+export interface PgRentAttentionRow {
+  kind: PgRentAttentionKind;
+  assignment_id: string;
+  occupant_name: string;
+  room_number: string;
+  bed_label: string;
+  invoice_id: string | null;
+  /** kind-specific: draft total, suggestion from/to, booking credit, days since notice end */
+  amount_inr: number | null;
+  secondary_inr: number | null;
+  date: string | null;
+  days: number | null;
+}
+
+export interface PgRentLeavingRow {
+  assignment_id: string;
+  occupant_name: string;
+  room_number: string;
+  bed_label: string;
+  status: PgRentSettlementStatus;
+  leave_on: string | null;
+  deposit_held_inr: number;
+  to_return_inr: number;
+  open_dues_inr: number;
+}
+
+export interface PgRentFormerTenantRow {
+  assignment_id: string;
+  occupant_name: string;
+  room_number: string;
+  bed_label: string;
+  moved_out_on: string;
+  balance_inr: number;
+  invoice_ids: string[];
+}
+
+export interface PgRentQueue {
+  as_of: string;
+  awaiting_confirmation: PgRentQueueClaimRow[];
+  needs_attention: PgRentAttentionRow[];
+  leaving: PgRentLeavingRow[];
+  overdue: PgRentQueueInvoiceRow[];
+  due_today: PgRentQueueInvoiceRow[];
+  due_soon: PgRentQueueInvoiceRow[];
+  former_tenants: PgRentFormerTenantRow[];
+}
+
+export interface PgRentMonthSummary {
+  /** `YYYY-MM-01` */
+  month: string;
+  expected_inr: number;
+  collected_inr: number;
+  outstanding_inr: number;
+  overdue_inr: number;
+  overdue_tenants: number;
+  awaiting_inr: number;
+  awaiting_count: number;
+  collection_rate: number;
+}
+
+export interface PgRentPortfolioRow {
+  property_id: string;
+  display_name: string;
+  enabled: boolean;
+  paused: boolean;
+  summary: PgRentMonthSummary | null;
+  queue_counts: { awaiting: number; attention: number; overdue: number; leaving: number } | null;
+}
+
+export type PgRentTemplateKey = "reminder" | "overdue" | "tenant_paid" | "receipt_share";
+
+export interface PgRentMergeFields {
+  tenant_name: string;
+  owner_name: string;
+  property_name: string;
+  room: string;
+  bed: string;
+  period: string;
+  amount: string;
+  balance: string;
+  due_date: string;
+  due_phrase: string;
+  days_overdue: string;
+  late_fee: string;
+  invoice_no: string;
+  pay_link: string;
+  upi_id: string;
+  receipt_link: string;
+  utr: string;
+}
+
+export interface PgRentRenderedMessage {
+  key: PgRentTemplateKey;
+  text: string;
+  /** merge fields the template used that are not known (left literal) */
+  unknown_fields: string[];
+  truncated: boolean;
+  wa_me_url: string | null;
+  recipient_e164: string | null;
+}
+
+export interface PgRentInvoiceMessages {
+  invoice_id: string;
+  pay_link: string;
+  reminder: PgRentRenderedMessage;
+  overdue: PgRentRenderedMessage;
+  receipt_share: PgRentRenderedMessage | null;
+  warnings: string[];
+}
+
+export interface PgRentTemplatePreviewInput {
+  key: PgRentTemplateKey;
+  text: string;
+  invoice_id?: string;
+}
+
+export type PgRentPayInstruction =
+  | {
+      mode: "upi_intent";
+      upi_uri: string;
+      qr_svg: string;
+      payee_name: string;
+      vpa: string;
+      bank: PgRentBankDetails | null;
+    }
+  | { mode: "bank_details"; bank: PgRentBankDetails }
+  | { mode: "manual" };
+
+export interface PgRentPublicPayPage {
+  state: "payable" | "paid" | "expired";
+  property_name: string;
+  tenant_first_name: string;
+  period_label: string;
+  room_number: string;
+  bed_label: string;
+  invoice_number: string;
+  balance_inr: number;
+  total_inr: number;
+  due_date: string;
+  instruction: PgRentPayInstruction | null;
+  /** same payee, no `am` — for "Pay a different amount" (spec §7.7) */
+  instruction_open_amount: PgRentPayInstruction | null;
+  /** owner's WhatsApp for "Notify owner" — digits only, for wa.me */
+  owner_wa_digits: string | null;
+  notify_text: string | null;
+}
+
+export type PgRentHeroState =
+  | "due"
+  | "overdue"
+  | "partially_paid"
+  | "awaiting"
+  | "paid"
+  | "nothing_due"
+  | "leaving"
+  | "settled"
+  | "not_enabled";
+
+export interface PgRentTenantHero {
+  state: PgRentHeroState;
+  invoice: PgRentTenantInvoice | null;
+  more_open_count: number;
+  more_open_inr: number;
+  pending_claim: PgRentPayment | null;
+  credit_inr: number;
+  last_receipt: PgRentReceipt | null;
+  next_invoice_expected_on: string | null;
+  settlement: PgRentSettlementStatement | null;
+}
+
+export interface PgRentTenantInvoice extends Omit<
+  PgRentInvoice,
+  | "internal_note"
+  | "rent_snapshot_inr"
+  | "rent_source"
+  | "suggested_late_fee_inr"
+  | "reprorate_suggestion"
+> {
+  pay_link: string | null;
+  instruction: PgRentPayInstruction | null;
+  /** tenant-visible change log (spec §4.10) */
+  changes: PgRentEvent[];
+}
+
+export interface PgRentTenantResidence {
+  assignment_id: string;
+  property_id: string;
+  property_name: string;
+  room_number: string;
+  bed_label: string;
+  assignment_status: string;
+  identity_disputed: boolean;
+  enabled: boolean;
+  payee: { name: string | null; vpa: string | null; bank: PgRentBankDetails | null } | null;
+  owner_wa_digits: string | null;
+  hero: PgRentTenantHero;
+  deposit: { held_inr: number; paid_on: string | null; uncollected_inr: number } | null;
+}
+
+export interface PgRentTenantSummary {
+  residences: PgRentTenantResidence[];
+}
+
+export interface PgRentTenantHistory {
+  assignment_id: string;
+  invoices: PgRentTenantInvoice[];
+  payments: PgRentPayment[];
+  receipts: PgRentReceipt[];
+}
+
+export interface PgRentIdentityDisputeInput {
+  assignment_id: string;
+}
