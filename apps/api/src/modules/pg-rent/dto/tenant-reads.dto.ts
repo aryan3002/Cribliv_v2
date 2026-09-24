@@ -4,6 +4,7 @@ import type {
   PgRentIdentityDisputeInput,
   PgRentInvoice,
   PgRentPayInstruction,
+  PgRentSettlementStatement,
   PgRentTenantInvoice
 } from "@cribliv/shared-types";
 
@@ -34,6 +35,21 @@ export function toTenantInvoiceDto(
     instruction: extras.instruction,
     changes: extras.changes
   };
+}
+
+/**
+ * Fix round 1 (Task 5 review): spec §9/§6.11 — `pending_suggestion` (an unactioned
+ * final-period re-proration offer) and `maintenance_prefills` (chargeable-damage line
+ * items the owner is only being OFFERED, not yet charged) are owner-only. The tenant's
+ * settlement view is deposit − dues − applied deductions; suggested/unapplied items are
+ * invisible to them.
+ *
+ * `PgRentTenantHero.settlement` is typed as the full `PgRentSettlementStatement` (Task 1,
+ * shared-types) rather than an Omit — that type is not edited here — so the two owner-only
+ * fields are nulled/emptied in place instead of stripped from the shape.
+ */
+export function toTenantSettlementDto(s: PgRentSettlementStatement): PgRentSettlementStatement {
+  return { ...s, pending_suggestion: null, maintenance_prefills: [] };
 }
 
 /** Spec §4.10 tenant-visible subset. */

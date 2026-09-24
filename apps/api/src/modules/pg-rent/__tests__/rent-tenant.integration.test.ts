@@ -27,7 +27,11 @@ describe.skipIf(!HAS_DB)("RentTenantService", () => {
   let payments: RentPaymentService;
   let tenants: RentTenantService;
 
-  async function property(name: string, enable = true) {
+  async function property(
+    name: string,
+    enable = true,
+    extraSettings: Partial<Parameters<typeof enableRentAsOf>[5]> = {}
+  ) {
     const propertyId = await fx.createProperty(operatorId, { displayName: name });
     const listingId = await fx.createListingWithDetails(propertyId, operatorId);
     const roomTypeId = await fx.createRoomType(listingId, {
@@ -40,7 +44,8 @@ describe.skipIf(!HAS_DB)("RentTenantService", () => {
         billing_starts_on: "2026-09-01",
         due_day: 5,
         upi_vpa: "own@okaxis",
-        upi_payee_name: "Owner"
+        upi_payee_name: "Owner",
+        ...extraSettings
       });
     return { propertyId, roomId };
   }
@@ -204,5 +209,51 @@ describe.skipIf(!HAS_DB)("RentTenantService", () => {
       [a]
     );
     expect(flags.rows.map((x) => x.f)).toEqual(["identity_disputed", "identity_dispute_cleared"]);
+  });
+
+  it("a leaving residence's settlement hides the owner-only suggestion and maintenance prefill from the tenant", async () => {
+    const p = await property("PG Leaving", true, { prorate_move_out: true });
+    const bed = await fx.createBed(p.roomId, "A");
+    const a = await fx.createAssignment(p.propertyId, bed, {
+      createdBy: operatorId,
+      moveIn: "2026-09-01",
+      occupantPhone: "+917700000066"
+    }); // phone-matched: the parent's one linked active bed is a1 (uq_pg_active_assignment_per_tenant)
+    await engine.generateInvoicesForProperty(p.propertyId, "2026-09-01"); // deposit + Sep rent (period 09-01..10-01)
+    await db.query(
+      `INSERT INTO pg_maintenance_requests
+         (pg_property_id, assignment_id, created_by_user_id, category, description, chargeable_damage, resolution_cost_paise)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, 'damage', 'Broken window', true, 500000)`,
+      [p.propertyId, a, operatorId]
+    );
+    // notice_end_date sits inside the already-issued Sep rent period, so the engine's
+    // suggestReprorate (triggered by the notice_served event below) has an invoice to
+    // suggest against. Today is 2026-09-24 IST (see env-rules); onAssignmentEvent's own
+    // invoice generation runs off the real wall clock, and Sep 24 is still within the
+    // already-generated Sep period, so this stays deterministic without pinning "today".
+    await db.query(
+      `UPDATE pg_bed_assignments SET status = 'notice_served', notice_end_date = '2026-09-20' WHERE id = $1::uuid`,
+      [a]
+    );
+    await engine.onAssignmentEvent({
+      type: "notice_served",
+      propertyId: p.propertyId,
+      assignmentId: a
+    });
+
+    const s = await tenants.summary(parentUserId, "2026-09-24");
+    const res = s.residences.find((r) => r.assignment_id === a)!;
+    expect(res.hero.state).toBe("leaving");
+    expect(res.hero.settlement).not.toBeNull();
+    expect(res.hero.settlement!.pending_suggestion).toBeNull();
+    expect(res.hero.settlement!.maintenance_prefills).toEqual([]);
+    expect(JSON.stringify(res)).not.toMatch(
+      /internal_note|rent_source|suggested_late_fee|reprorate_suggestion|_paise/
+    );
+    // pending_suggestion/maintenance_prefills are nulled/emptied in place, not omitted, so
+    // their keys are still present (with null / [] values) — assert the values above
+    // instead of a key-absence regex; "reprorate" itself must not leak (e.g. inside a
+    // non-nulled suggestion payload).
+    expect(JSON.stringify(res)).not.toMatch(/reprorate/);
   });
 });

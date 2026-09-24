@@ -31,7 +31,11 @@ import {
   type RentPaymentRow
 } from "../dto/payment.dto";
 import { RECEIPT_SELECT, toReceiptDto, type RentReceiptRow } from "../dto/receipt.dto";
-import { TENANT_VISIBLE_EVENT_SQL, toTenantInvoiceDto } from "../dto/tenant-reads.dto";
+import {
+  TENANT_VISIBLE_EVENT_SQL,
+  toTenantInvoiceDto,
+  toTenantSettlementDto
+} from "../dto/tenant-reads.dto";
 import { addDays, dayOf } from "../pure/rent-dates";
 import { naturalDueDate, nextPeriod, type DueSpec, type PeriodSpec } from "../pure/rent-period";
 import { reminderState } from "../pure/rent-reminder-state";
@@ -171,8 +175,11 @@ export class RentTenantService {
     const first = openDtos[0] ?? null;
     const rest = openDtos.slice(1);
     // Read-only statement: a tenant GET never generates invoices or writes events.
+    // toTenantSettlementDto strips the owner-only pending_suggestion / maintenance_prefills
+    // (fix round 1: spec §9/§6.11 — an unactioned suggestion and an unapplied damage
+    // prefill are never shown to the tenant).
     const settlement: PgRentSettlementStatement | null = LEAVING.includes(status)
-      ? await this.settlement.computeStatement(propertyId, assignmentId)
+      ? toTenantSettlementDto(await this.settlement.computeStatement(propertyId, assignmentId))
       : null;
     let state: PgRentHeroState;
     if (settlement && settlement.status === "settled") state = "settled";
