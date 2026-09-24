@@ -690,6 +690,8 @@ export class RentInvoiceService {
       lines: Array<{ kind: string; label: string; amountPaise: number }>;
       eligible: boolean;
       tenantNote: string | null;
+      /** POST /invoices' Idempotency-Key (0074); null for settlement and forfeit invoices. */
+      idempotencyKey: string | null;
       actor: RentActor;
     }
   ): Promise<string> {
@@ -733,8 +735,8 @@ export class RentInvoiceService {
     const total = v.lines.reduce((s, l) => s + l.amountPaise, 0);
     if (total < 0) throw new BadRequestException({ code: "invalid_total" });
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO pg_rent_invoices (pg_property_id, assignment_id, bed_id, room_id, room_number, bed_label, kind, invoice_number, period_start, period_end, billing_month, due_date, status, source, total_paise, late_fee_eligible, pay_token, pay_token_expires_at, tenant_note, issued_at, created_by)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::pg_rent_invoice_kind, $8, $9::date, $10::date, $11::date, $12::date, 'issued', $13::pg_rent_invoice_source, $14, $15, $16, $17, $18, now(), $19::uuid) RETURNING id::text`,
+      `INSERT INTO pg_rent_invoices (pg_property_id, assignment_id, bed_id, room_id, room_number, bed_label, kind, invoice_number, period_start, period_end, billing_month, due_date, status, source, total_paise, late_fee_eligible, pay_token, pay_token_expires_at, tenant_note, issued_at, created_by, idempotency_key)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::pg_rent_invoice_kind, $8, $9::date, $10::date, $11::date, $12::date, 'issued', $13::pg_rent_invoice_source, $14, $15, $16, $17, $18, now(), $19::uuid, $20) RETURNING id::text`,
       [
         v.propertyId,
         v.assignmentId,
@@ -754,7 +756,8 @@ export class RentInvoiceService {
         token.token,
         token.expiresAt,
         v.tenantNote,
-        v.actor.id
+        v.actor.id,
+        v.idempotencyKey
       ]
     );
     const id = inserted.rows[0].id;
@@ -800,39 +803,67 @@ export class RentInvoiceService {
       lines: v.deductions,
       eligible: false,
       tenantNote: null,
+      idempotencyKey: null,
       actor: v.actor
     });
   }
 
+  /**
+   * The invoice a replayed POST /invoices already created, or null. Mirrors
+   * RentPaymentService.recordByOperator: a sequential retry returns the original
+   * here; a truly concurrent duplicate that also misses this read loses on
+   * uq_pg_rent_invoice_idem (0074) inside its transaction → 409 duplicate_invoice.
+   */
+  private async findByIdempotencyKey(
+    propertyId: string,
+    idempotencyKey: string | null
+  ): Promise<string | null> {
+    if (idempotencyKey === null) return null;
+    const existing = await this.db.query<{ id: string }>(
+      `SELECT id::text FROM pg_rent_invoices WHERE pg_property_id = $1::uuid AND idempotency_key = $2`,
+      [propertyId, idempotencyKey]
+    );
+    return existing.rows[0]?.id ?? null;
+  }
+
+  /** `idempotencyKey` is the controller's Idempotency-Key; RentSettlementService.forfeit has none and passes nothing. */
   async createManual(
     operatorId: string,
     propertyId: string,
-    input: PgRentManualInvoiceInput
+    input: PgRentManualInvoiceInput,
+    idempotencyKey: string | null = null
   ): Promise<PgRentInvoice> {
     requireDb(this.db);
     const actor = this.actor(operatorId);
-    const id = await transaction(this.db, async (client) => {
-      await assertManagedOwnership(client, operatorId, propertyId, true);
-      const id = await this.insertInvoice(client, {
-        propertyId,
-        assignmentId: input.assignment_id,
-        kind: "adhoc",
-        source: "manual",
-        periodStart: null,
-        periodEnd: null,
-        dueDate: input.due_date,
-        lines: input.lines.map((l) => ({
-          kind: l.kind,
-          label: l.label,
-          amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
-        })),
-        eligible: false,
-        tenantNote: input.tenant_note ?? null,
-        actor
-      });
-      await this.alloc.applyUnallocatedCredit(client, id, actor);
-      return id;
-    });
+    const existing = await this.findByIdempotencyKey(propertyId, idempotencyKey);
+    if (existing) return this.get(operatorId, propertyId, existing);
+    const id = await transaction(
+      this.db,
+      async (client) => {
+        await assertManagedOwnership(client, operatorId, propertyId, true);
+        const id = await this.insertInvoice(client, {
+          propertyId,
+          assignmentId: input.assignment_id,
+          kind: "adhoc",
+          source: "manual",
+          periodStart: null,
+          periodEnd: null,
+          dueDate: input.due_date,
+          lines: input.lines.map((l) => ({
+            kind: l.kind,
+            label: l.label,
+            amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
+          })),
+          eligible: false,
+          tenantNote: input.tenant_note ?? null,
+          idempotencyKey,
+          actor
+        });
+        await this.alloc.applyUnallocatedCredit(client, id, actor);
+        return id;
+      },
+      { uniqueViolationCode: "duplicate_invoice" }
+    );
     return this.readById(propertyId, id);
   }
 
@@ -840,45 +871,53 @@ export class RentInvoiceService {
   async createBackfill(
     operatorId: string,
     propertyId: string,
-    input: PgRentBackfillInput
+    input: PgRentBackfillInput,
+    idempotencyKey: string | null = null
   ): Promise<PgRentInvoice> {
     requireDb(this.db);
     const actor = this.actor(operatorId);
-    const id = await transaction(this.db, async (client) => {
-      await assertManagedOwnership(client, operatorId, propertyId, true);
-      const id = await this.insertInvoice(client, {
-        propertyId,
-        assignmentId: input.assignment_id,
-        kind: input.kind,
-        source: "backfill",
-        periodStart: input.period_start ?? null,
-        periodEnd: input.period_end ?? null,
-        dueDate: input.due_date,
-        lines: input.lines.map((l) => ({
-          kind: l.kind,
-          label: l.label,
-          amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
-        })),
-        eligible: false,
-        tenantNote: null,
-        actor
-      });
-      if (input.payment) {
-        await this.payments.recordBackfillPayment(client, {
+    const existing = await this.findByIdempotencyKey(propertyId, idempotencyKey);
+    if (existing) return this.get(operatorId, propertyId, existing);
+    const id = await transaction(
+      this.db,
+      async (client) => {
+        await assertManagedOwnership(client, operatorId, propertyId, true);
+        const id = await this.insertInvoice(client, {
           propertyId,
           assignmentId: input.assignment_id,
-          invoiceId: id,
-          amountPaise: inrToPaise(input.payment.amount_inr),
-          method: input.payment.method,
-          paidOn: input.payment.paid_on,
-          reference: input.payment.reference ?? null,
+          kind: input.kind,
+          source: "backfill",
+          periodStart: input.period_start ?? null,
+          periodEnd: input.period_end ?? null,
+          dueDate: input.due_date,
+          lines: input.lines.map((l) => ({
+            kind: l.kind,
+            label: l.label,
+            amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
+          })),
+          eligible: false,
+          tenantNote: null,
+          idempotencyKey,
           actor
         });
-      } else {
-        await this.alloc.applyUnallocatedCredit(client, id, actor);
-      }
-      return id;
-    });
+        if (input.payment) {
+          await this.payments.recordBackfillPayment(client, {
+            propertyId,
+            assignmentId: input.assignment_id,
+            invoiceId: id,
+            amountPaise: inrToPaise(input.payment.amount_inr),
+            method: input.payment.method,
+            paidOn: input.payment.paid_on,
+            reference: input.payment.reference ?? null,
+            actor
+          });
+        } else {
+          await this.alloc.applyUnallocatedCredit(client, id, actor);
+        }
+        return id;
+      },
+      { uniqueViolationCode: "duplicate_invoice" }
+    );
     return this.readById(propertyId, id);
   }
 

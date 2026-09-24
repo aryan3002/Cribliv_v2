@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { PgRentBackfillInput, PgRentManualInvoiceInput } from "@cribliv/shared-types";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { DatabaseService } from "../../../common/database.service";
@@ -56,6 +57,30 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
       await invoices.list(operatorId, p.propertyId, { assignment_id: a, kind: "rent" })
     )[0];
     return { a, sep };
+  }
+
+  /** Polls until `n` backends wait (directly or transitively) on `blockerPid`'s locks. */
+  async function waitForBlockedBehind(blockerPid: number, n: number): Promise<void> {
+    for (let i = 0; i < 250; i += 1) {
+      const rows = await db.query<{ pid: number; blockers: number[] }>(
+        `SELECT pid, pg_blocking_pids(pid) AS blockers FROM pg_stat_activity
+            WHERE datname = current_database() AND cardinality(pg_blocking_pids(pid)) > 0`
+      );
+      const behind = new Set<number>([blockerPid]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const r of rows.rows) {
+          if (!behind.has(r.pid) && r.blockers.some((b) => behind.has(b))) {
+            behind.add(r.pid);
+            grew = true;
+          }
+        }
+      }
+      if (behind.size - 1 >= n) return;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error(`expected ${n} transactions blocked behind pid ${blockerPid}`);
   }
 
   beforeAll(async () => {
@@ -327,6 +352,84 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
       payment: { amount_inr: 18000, method: "cash", paid_on: "2026-08-01" }
     });
     expect(held).toMatchObject({ kind: "deposit", status: "paid" });
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("manual and backfill invoices store their idempotency key: a replay returns the original, a concurrent duplicate never creates a second invoice", async () => {
+    const p = await property();
+    const { a } = await tenantWithSeptember(p);
+    const manual: PgRentManualInvoiceInput = {
+      assignment_id: a,
+      kind: "adhoc",
+      due_date: "2026-09-20",
+      lines: [{ kind: "other", label: "Key", amount_inr: 200 }]
+    };
+    const manualKey = randomUUID();
+    const first = await invoices.createManual(operatorId, p.propertyId, manual, manualKey);
+    const replay = await invoices.createManual(operatorId, p.propertyId, manual, manualKey);
+    expect(replay.id).toBe(first.id);
+
+    const backfill: PgRentBackfillInput = {
+      assignment_id: a,
+      kind: "rent",
+      period_start: "2026-08-01",
+      period_end: "2026-08-31",
+      due_date: "2026-08-05",
+      lines: [{ kind: "rent", label: "Rent · August 2026", amount_inr: 9000 }]
+    };
+    const backfillKey = randomUUID();
+    const aug = await invoices.createBackfill(operatorId, p.propertyId, backfill, backfillKey);
+    // Without the stored key the replay is a second insert and dies on period_overlap.
+    const augReplay = await invoices.createBackfill(
+      operatorId,
+      p.propertyId,
+      backfill,
+      backfillKey
+    );
+    expect(augReplay.id).toBe(aug.id);
+
+    const stored = await db.query<{ id: string; idempotency_key: string | null }>(
+      `SELECT id::text, idempotency_key FROM pg_rent_invoices WHERE id = ANY($1::uuid[])`,
+      [[first.id, aug.id]]
+    );
+    expect(Object.fromEntries(stored.rows.map((r) => [r.id, r.idempotency_key]))).toEqual({
+      [first.id]: manualKey,
+      [aug.id]: backfillKey
+    });
+
+    // Two genuinely concurrent first calls. A third connection holds the property row lock, so
+    // both calls get past the pre-check read before either can insert; only
+    // uq_pg_rent_invoice_idem (0074) then stands between them and a second invoice, and the
+    // loser's 23505 maps to 409 duplicate_invoice.
+    const raceKey = randomUUID();
+    const blocker = await db.getClient();
+    let raced: PromiseSettledResult<{ id: string }>[];
+    try {
+      await blocker.query("BEGIN");
+      await blocker.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR UPDATE`, [
+        p.propertyId
+      ]);
+      const blockerPid = (await blocker.query<{ pid: number }>(`SELECT pg_backend_pid() AS pid`))
+        .rows[0].pid;
+      const racing = Promise.allSettled([
+        invoices.createManual(operatorId, p.propertyId, manual, raceKey),
+        invoices.createManual(operatorId, p.propertyId, manual, raceKey)
+      ]);
+      await waitForBlockedBehind(blockerPid, 2);
+      await blocker.query("COMMIT");
+      raced = await racing;
+    } finally {
+      blocker.release();
+    }
+    expect(raced.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
+    expect(raced.find((r) => r.status === "rejected")).toMatchObject({
+      reason: { response: { code: "duplicate_invoice" } }
+    });
+    const count = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_rent_invoices WHERE pg_property_id = $1::uuid AND idempotency_key = $2`,
+      [p.propertyId, raceKey]
+    );
+    expect(count.rows[0].n).toBe(1);
     await assertRentInvariants(db, p.propertyId);
   });
 

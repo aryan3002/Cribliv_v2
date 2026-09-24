@@ -123,7 +123,7 @@ export class PgRentInvoicesController {
           user.id,
           `pg-rent:${propertyId}:invoices`,
           key,
-          () => this.invoices.createBackfill(user.id, propertyId, input)
+          () => this.invoices.createBackfill(user.id, propertyId, input, key)
         )
       );
     } else {
@@ -133,7 +133,7 @@ export class PgRentInvoicesController {
           user.id,
           `pg-rent:${propertyId}:invoices`,
           key,
-          () => this.invoices.createManual(user.id, propertyId, input)
+          () => this.invoices.createManual(user.id, propertyId, input, key)
         )
       );
     }
