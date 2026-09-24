@@ -34,6 +34,8 @@ import { RECEIPT_SELECT, toReceiptDto, type RentReceiptRow } from "../dto/receip
 import {
   TENANT_VISIBLE_EVENT_SQL,
   toTenantInvoiceDto,
+  toTenantPaymentDto,
+  toTenantReceiptDto,
   toTenantSettlementDto
 } from "../dto/tenant-reads.dto";
 import { addDays, dayOf } from "../pure/rent-dates";
@@ -245,7 +247,9 @@ export class RentTenantService {
       more_open_inr: rest.reduce((s, i) => s + i.balance_inr, 0),
       pending_claim: pending.rows[0] ? (await this.paymentsDto(pending.rows))[0] : null,
       credit_inr: credit,
-      last_receipt: lastReceipt.rows[0] ? toReceiptDto(lastReceipt.rows[0]) : null,
+      last_receipt: lastReceipt.rows[0]
+        ? toTenantReceiptDto(toReceiptDto(lastReceipt.rows[0]))
+        : null,
       next_invoice_expected_on: nextExpected,
       settlement
     };
@@ -274,7 +278,10 @@ export class RentTenantService {
       `SELECT ${ALLOCATION_SELECT} FROM pg_rent_payment_allocations al LEFT JOIN pg_rent_invoices i ON i.id = al.invoice_id WHERE al.payment_id = ANY($1::uuid[]) ORDER BY al.created_at, al.seq`,
       [rows.map((r) => r.id)]
     );
-    return rows.map((r) => toPaymentDto(r, allocs.rows));
+    // Fix (final review, finding 2): this service is tenant-only, so every payment
+    // it returns goes through the tenant DTO (drops note/recorded_by/confirmed_by
+    // unless the tenant claimed the payment themselves).
+    return rows.map((r) => toTenantPaymentDto(toPaymentDto(r, allocs.rows)));
   }
 
   /** Attach pay link + instruction + tenant-visible change log. */
@@ -372,7 +379,7 @@ export class RentTenantService {
       assignment_id: assignmentId,
       invoices,
       payments: await this.paymentsDto(pays.rows),
-      receipts: rec.rows.map(toReceiptDto)
+      receipts: rec.rows.map((r) => toTenantReceiptDto(toReceiptDto(r)))
     };
   }
 

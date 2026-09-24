@@ -85,7 +85,11 @@ export function toLineDto(row: RentLineRow): PgRentInvoiceLine {
     kind: row.kind,
     label: row.label,
     amount_inr: paiseToInr(row.amount_paise),
-    meta: row.meta,
+    // Fix (final review, finding 1): line `meta` crosses the money boundary too — a
+    // re-prorated rent line's `meta.reprorated` holds `original_paise`/an operator's
+    // free-form PATCH meta can hold anything ending in `_paise`. `paiseKeysToInr` is
+    // already recursive (walks nested objects/arrays), so it's reused as-is here.
+    meta: paiseKeysToInr(row.meta) as Record<string, unknown>,
     source: row.source,
     expense_id: row.expense_id,
     sort_order: row.sort_order,

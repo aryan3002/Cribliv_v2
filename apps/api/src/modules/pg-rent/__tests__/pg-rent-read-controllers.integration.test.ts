@@ -160,6 +160,42 @@ describe.skipIf(!HAS_DB)("pg-rent read controllers", () => {
   });
 
   it("tenant reads: summary, history, invoice, dispute; tenant cannot read operator routes", async () => {
+    // Final review, finding 1: set an open invoice's rent line meta to what
+    // rent-invoice.service.ts's applyReprorate writes on a re-prorate, so the
+    // forbidden-fields regex below (which includes `_paise`) actually exercises a
+    // re-prorated line. Directly via SQL — running the full notice/reprorate flow
+    // just to get this shape is unnecessary for what this test checks.
+    const reprorateInvoiceId = (
+      await db.query<{ id: string }>(
+        `SELECT i.id::text FROM pg_rent_invoices i WHERE i.assignment_id = $1::uuid AND i.kind = 'rent' AND i.status IN ('issued','partially_paid') ORDER BY i.due_date LIMIT 1`,
+        [assignmentId]
+      )
+    ).rows[0].id;
+    await db.query(
+      `UPDATE pg_rent_invoice_lines SET meta = meta || $2::jsonb WHERE invoice_id = $1::uuid AND kind = 'rent'`,
+      [
+        reprorateInvoiceId,
+        JSON.stringify({
+          reprorated: { original_paise: 900000, original_end: "2026-09-30", leave_on: "2026-09-15" }
+        })
+      ]
+    );
+    // Final review, finding 2: an OPERATOR-recorded payment carries a note the owner
+    // typed for themselves; it must never reach the tenant. `source` defaults to
+    // 'operator' for POST .../payments (rent-payment.service.ts's recordByOperator).
+    const OWNER_NOTE = "owner internal memo";
+    await request(app.getHttpServer())
+      .post(`${base()}/payments`)
+      .set(as("operator"))
+      .set("idempotency-key", randomUUID())
+      .send({
+        assignment_id: assignmentId,
+        amount_inr: 50,
+        method: "cash",
+        paid_on: "2026-09-03",
+        note: OWNER_NOTE
+      });
+
     const s = await request(app.getHttpServer())
       .get(`/v1/tenant/pg-rent/summary`)
       .set(as("tenant"));
@@ -169,13 +205,29 @@ describe.skipIf(!HAS_DB)("pg-rent read controllers", () => {
     expect(JSON.stringify(s.body)).not.toMatch(
       /internal_note|_paise|share_token"|rent_source|rent_snapshot|suggested_late_fee|reprorate_suggestion/
     );
+    // recorded_by/confirmed_by/last_error are nulled in place, not omitted
+    // (PgRentPayment/PgRentReceipt are used verbatim on PgRentTenantHero), so the key
+    // name alone isn't a valid forbidden-match (an operator id legitimately appears as
+    // a tenant-visible event's actor_user_id, spec §4.10) — assert the specific field.
+    expect(JSON.stringify(s.body)).not.toContain(OWNER_NOTE);
+    expect(res.hero.last_receipt?.last_error ?? null).toBeNull();
     const h = await request(app.getHttpServer())
       .get(`/v1/tenant/pg-rent/history?assignment=${res.assignment_id}`)
       .set(as("tenant"));
     expect(h.status).toBe(200);
     expect(h.body.data.invoices.length).toBeGreaterThan(0);
+    expect(h.body.data.payments.length).toBeGreaterThan(0);
     expect(JSON.stringify(h.body)).not.toMatch(
       /internal_note|_paise|share_token"|rent_source|rent_snapshot|suggested_late_fee|reprorate_suggestion/
+    );
+    expect(JSON.stringify(h.body)).not.toContain(OWNER_NOTE);
+    const opPayment = h.body.data.payments.find((p: { amount_inr: number }) => p.amount_inr === 50);
+    expect(opPayment).toBeTruthy();
+    expect(opPayment.note).toBeNull();
+    expect(opPayment.recorded_by).toBeNull();
+    expect(opPayment.confirmed_by).toBeNull();
+    expect(h.body.data.receipts.every((r: { last_error: unknown }) => r.last_error === null)).toBe(
+      true
     );
     expect(
       (await request(app.getHttpServer()).get(`/v1/tenant/pg-rent/history`).set(as("tenant")))
