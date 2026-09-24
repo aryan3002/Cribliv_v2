@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DatabaseService } from "../../../common/database.service";
 import { todayIst } from "../../../common/date";
 import { RentSettingsService } from "../services/rent-settings.service";
+import { assertRentInvariants } from "./helpers/assert-rent-invariants";
 import { RentFixtures } from "./helpers/rent-fixtures";
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
@@ -38,6 +39,7 @@ describe.skipIf(!HAS_DB)("RentSettingsService (real Postgres)", () => {
     service = new RentSettingsService(db);
   });
   afterAll(async () => {
+    for (const id of fx.propertyIds) await assertRentInvariants(db, id);
     await fx.teardown();
     await db.onModuleDestroy();
   });

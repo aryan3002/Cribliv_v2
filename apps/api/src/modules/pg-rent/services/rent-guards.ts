@@ -56,3 +56,13 @@ export async function assertManagedOwnership(
     throw new ForbiddenException({ code: "forbidden", message: "Forbidden" });
   }
 }
+
+/** Spec §9: every assignment the user matches, any status, no auto-link. */
+export async function resolveTenantAssignmentIds(q: Queryable, userId: string): Promise<string[]> {
+  const r = await q.query<{ id: string }>(
+    `SELECT a.id::text FROM pg_bed_assignments a JOIN users u ON u.id = $1::uuid
+      WHERE a.tenant_user_id = u.id OR (a.tenant_user_id IS NULL AND a.occupant_phone_e164 = u.phone_e164)`,
+    [userId]
+  );
+  return r.rows.map((x) => x.id);
+}

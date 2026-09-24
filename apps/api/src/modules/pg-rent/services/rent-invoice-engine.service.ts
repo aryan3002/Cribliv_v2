@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import type { PoolClient } from "pg";
 import type {
@@ -31,6 +30,7 @@ import { billingWindow, cutToWindow, type BillingWindow } from "../pure/rent-win
 import { RentAllocationService } from "./rent-allocation.service";
 import { writeRentEvent } from "./rent-events";
 import { requireDb, SYSTEM_ACTOR, type Queryable, type RentActor } from "./rent-guards";
+import { newPayToken, nextInvoiceNumber } from "./rent-numbering";
 import { RentSettingsService } from "./rent-settings.service";
 
 export type EngineSettings = Pick<
@@ -123,7 +123,6 @@ const ASSIGNMENT_SQL = `
 
 /** Per run, per assignment: catch-up bound so one stuck property cannot monopolise a sweep. */
 const MAX_INVOICES_PER_ASSIGNMENT_PER_RUN = 24;
-const PAY_TOKEN_DAYS = 45;
 
 @Injectable()
 export class RentInvoiceEngineService {
@@ -243,8 +242,8 @@ export class RentInvoiceEngineService {
   /**
    * Spec §5.8. Called after pg-operations commits an assignment transition.
    * Data-driven: no settings row → nothing. Best-effort: never throws to the caller.
-   * Final-period re-proration *suggestions* are slice 1b; here every event simply
-   * runs generation for that assignment so cut/final periods exist.
+   * Runs generation for that assignment so cut/final periods exist, then — when
+   * prorate_move_out is on — writes or clears a final-period re-proration suggestion.
    */
   async onAssignmentEvent(event: {
     type: string;
@@ -253,9 +252,29 @@ export class RentInvoiceEngineService {
   }): Promise<void> {
     if (!this.db.isEnabled()) return;
     try {
+      const settings = await this.settings.getRow(this.db, event.propertyId);
+      if (!settings) return;
       await this.generateInvoicesForProperty(event.propertyId, todayIst(), SYSTEM_ACTOR, {
         assignmentId: event.assignmentId
       });
+      if (!settings.prorate_move_out) return;
+      const leaving = [
+        "notice_served",
+        "operator_move_out_requested",
+        "tenant_move_out_requested",
+        "move_out_confirmed",
+        "operator_direct_move_out"
+      ].includes(event.type);
+      const staying = ["move_out_cancelled", "notice_cancelled"].includes(event.type);
+      if (leaving) {
+        await transaction(this.db, (client) =>
+          this.suggestReprorate(client, event.propertyId, event.assignmentId, settings)
+        );
+      } else if (staying) {
+        await transaction(this.db, (client) =>
+          this.suggestRestore(client, event.propertyId, event.assignmentId)
+        );
+      }
     } catch (error) {
       console.error(
         JSON.stringify({
@@ -265,6 +284,126 @@ export class RentInvoiceEngineService {
           error: error instanceof Error ? error.message : String(error)
         })
       );
+    }
+  }
+
+  /** Spec §5.8: a suggestion on every issued/paid rent invoice whose period straddles the leave date. Never edits a bill. */
+  private async suggestReprorate(
+    client: PoolClient,
+    propertyId: string,
+    assignmentId: string,
+    settings: RentSettingsRow
+  ): Promise<void> {
+    // Fix 4 (final fix wave, completed): this transaction's writeRentEvent
+    // call below takes an implicit FK `FOR KEY SHARE` on pg_properties
+    // (pg_rent_events.pg_property_id references it) after this method's own
+    // `pg_rent_invoices FOR UPDATE` — the same reverse-order shape
+    // issueNextRentIfDue/issueDepositIfDue guard against. Share (not
+    // update) so concurrent engine transactions across different
+    // assignments don't serialise on the property themselves.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
+    const rows = await this.loadAssignments(client, propertyId, assignmentId);
+    const a = rows[0];
+    if (!a || !a.move_in_date) return;
+    const window = billingWindow(a);
+    if (!window?.end) return;
+    const leaveOn = window.end;
+    if (compareIsoDates(leaveOn, a.move_in_date) < 0) return; // "check the notice date" — refused as a suggestion
+    const { spec } = this.specFor(a, settings);
+    const invoices = await client.query<{
+      id: string;
+      period_start: string;
+      period_end: string;
+      rent_line: string;
+      rent_snapshot_paise: string | null;
+    }>(
+      `SELECT i.id::text, to_char(i.period_start,'YYYY-MM-DD') AS period_start, to_char(i.period_end,'YYYY-MM-DD') AS period_end, i.rent_snapshot_paise::text,
+              (SELECT l.amount_paise::text FROM pg_rent_invoice_lines l WHERE l.invoice_id = i.id AND l.kind = 'rent') AS rent_line
+         FROM pg_rent_invoices i
+        WHERE i.assignment_id = $1::uuid AND i.kind = 'rent' AND i.status IN ('issued','partially_paid','paid')
+          AND i.period_start <= $2::date AND i.period_end > $2::date AND i.reprorate_suggestion IS NULL FOR UPDATE`,
+      [assignmentId, leaveOn]
+    );
+    for (const inv of invoices.rows) {
+      if (compareIsoDates(leaveOn, inv.period_start) < 0) continue;
+      const rent =
+        inv.rent_snapshot_paise === null ? Number(inv.rent_line) : Number(inv.rent_snapshot_paise);
+      const { amountPaise } = prorate(
+        rent,
+        { start: inv.period_start, end: leaveOn },
+        spec,
+        settings.proration_mode
+      );
+      const suggestion = {
+        leave_on: leaveOn,
+        from_paise: Number(inv.rent_line),
+        to_paise: amountPaise,
+        mode: "reprorate" as const
+      };
+      await client.query(
+        `UPDATE pg_rent_invoices SET reprorate_suggestion = $2::jsonb WHERE id = $1::uuid`,
+        [inv.id, JSON.stringify(suggestion)]
+      );
+      await writeRentEvent(client, {
+        propertyId,
+        entityType: "invoice",
+        entityId: inv.id,
+        eventType: "invoice.final_reprorate_suggested",
+        actor: SYSTEM_ACTOR,
+        payload: suggestion
+      });
+    }
+  }
+
+  /** Spec §5.8: an unactioned suggestion disappears; an applied re-proration gets a Restore prompt. */
+  private async suggestRestore(
+    client: PoolClient,
+    propertyId: string,
+    assignmentId: string
+  ): Promise<void> {
+    // Fix 4 (final fix wave, completed): same lock, same reason as
+    // suggestReprorate above — this transaction's writeRentEvent call below
+    // takes an implicit FK `FOR KEY SHARE` on pg_properties after this
+    // method's own `pg_rent_invoices FOR UPDATE OF i`, reversing the
+    // documented order without this lock taken first.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
+    await client.query(
+      `UPDATE pg_rent_invoices SET reprorate_suggestion = NULL WHERE assignment_id = $1::uuid AND reprorate_suggestion->>'mode' = 'reprorate'`,
+      [assignmentId]
+    );
+    const applied = await client.query<{
+      id: string;
+      amount_paise: string;
+      meta: { reprorated: { original_paise: number; original_end: string; leave_on: string } };
+    }>(
+      `SELECT i.id::text, l.amount_paise::text, l.meta FROM pg_rent_invoices i JOIN pg_rent_invoice_lines l ON l.invoice_id = i.id AND l.kind = 'rent'
+        WHERE i.assignment_id = $1::uuid AND i.status <> 'cancelled' AND l.meta ? 'reprorated' AND i.reprorate_suggestion IS NULL FOR UPDATE OF i`,
+      [assignmentId]
+    );
+    for (const inv of applied.rows) {
+      const r = inv.meta.reprorated;
+      const suggestion = {
+        leave_on: r.original_end,
+        from_paise: Number(inv.amount_paise),
+        to_paise: r.original_paise,
+        mode: "restore" as const
+      };
+      await client.query(
+        `UPDATE pg_rent_invoices SET reprorate_suggestion = $2::jsonb WHERE id = $1::uuid`,
+        [inv.id, JSON.stringify(suggestion)]
+      );
+      await writeRentEvent(client, {
+        propertyId,
+        entityType: "invoice",
+        entityId: inv.id,
+        eventType: "invoice.restore_suggested",
+        actor: SYSTEM_ACTOR,
+        payload: suggestion
+      });
     }
   }
 
@@ -417,27 +556,6 @@ export class RentInvoiceEngineService {
     return rows[0] ?? null;
   }
 
-  private async nextInvoiceNumber(
-    client: PoolClient,
-    propertyId: string,
-    prefix: string
-  ): Promise<string> {
-    const r = await client.query<{ seq: number }>(
-      `UPDATE pg_rent_counters SET next_invoice_seq = next_invoice_seq + 1
-        WHERE pg_property_id = $1::uuid RETURNING next_invoice_seq - 1 AS seq`,
-      [propertyId]
-    );
-    if (!r.rows[0]) throw new Error(`pg_rent_counters missing for ${propertyId}`);
-    return `${prefix}-INV-${String(r.rows[0].seq).padStart(4, "0")}`;
-  }
-
-  private payToken(): { token: string; expiresAt: Date } {
-    return {
-      token: randomBytes(32).toString("base64url"),
-      expiresAt: new Date(Date.now() + PAY_TOKEN_DAYS * 24 * 60 * 60 * 1000)
-    };
-  }
-
   private async issueNextRentIfDue(
     client: PoolClient,
     propertyId: string,
@@ -446,6 +564,22 @@ export class RentInvoiceEngineService {
     today: string,
     actor: RentActor
   ): Promise<"issued" | "draft" | "no_rent" | "none"> {
+    // Fix 4 (final fix wave): restore the documented lock order
+    // (rent-payment.service.ts's header: pg_properties → pg_rent_counters →
+    // pg_rent_invoices → pg_rent_payments). Every operator-facing
+    // transaction takes `assertManagedOwnership(..., true)` — a `FOR UPDATE`
+    // on pg_properties — as its FIRST statement before ever touching an
+    // invoice. This method's INSERT into pg_rent_invoices takes an implicit
+    // FK `FOR KEY SHARE` on its parent pg_properties row; without taking
+    // that lock first ourselves, this transaction's effective order is
+    // pg_bed_assignments → pg_rent_counters → pg_rent_invoices → properties,
+    // the exact reverse of every operator path, and deadlocks against it
+    // (40P01) under concurrent load. Share (not update) so concurrent engine
+    // transactions across different assignments don't serialise on the
+    // property themselves — mirrors pg-rent-sweeps.ts's runPgRentLateFeeSweep.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
     const a = await this.lockAssignment(client, propertyId, assignmentId);
     if (!a || a.move_in_date === null) return "none";
     const plan = await this.planNextRent(client, a, settings, today);
@@ -487,8 +621,8 @@ export class RentInvoiceEngineService {
       });
     }
     const total = lines.reduce((sum, l) => sum + l.amount, 0);
-    const number = await this.nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
-    const token = plan.draft ? null : this.payToken();
+    const number = await nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
+    const token = plan.draft ? null : newPayToken();
 
     const inserted = await client.query<{ id: string }>(
       `INSERT INTO pg_rent_invoices
@@ -566,12 +700,21 @@ export class RentInvoiceEngineService {
     today: string,
     actor: RentActor
   ): Promise<boolean> {
+    // Fix 4 (final fix wave): same lock, same reason — see
+    // issueNextRentIfDue's comment above. This method has the identical
+    // shape (lockAssignment → nextInvoiceNumber → INSERT pg_rent_invoices)
+    // and is the other per-invoice transaction generateInvoicesForProperty
+    // drives, so it deadlocks against operator traffic the same way without
+    // this lock.
+    await client.query(`SELECT 1 FROM pg_properties WHERE id = $1::uuid FOR KEY SHARE`, [
+      propertyId
+    ]);
     const a = await this.lockAssignment(client, propertyId, assignmentId);
     if (!a) return false;
     const plan = await this.planDeposit(client, a, settings, today);
     if (!plan) return false;
-    const number = await this.nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
-    const token = this.payToken();
+    const number = await nextInvoiceNumber(client, propertyId, settings.receipt_prefix);
+    const token = newPayToken();
     const inserted = await client.query<{ id: string }>(
       `INSERT INTO pg_rent_invoices
          (pg_property_id, assignment_id, bed_id, room_id, room_number, bed_label, kind, invoice_number,

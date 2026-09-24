@@ -1,0 +1,85 @@
+<html lang="hi"><head><meta charset="utf-8" />
+    <style>
+      body {
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+        color: #111;
+        font-size: 12px;
+        margin: 0;
+      }
+      .void {
+        position: fixed;
+        top: 40%;
+        left: 10%;
+        font-size: 64px;
+        color: rgba(200, 0, 0, 0.25);
+        transform: rotate(-20deg);
+        font-weight: 700;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 2px;
+      }
+      .muted {
+        color: #666;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      td,
+      th {
+        padding: 6px 4px;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+      th {
+        font-weight: 600;
+        background: #f5f5f5;
+      }
+      .amt {
+        text-align: right;
+      }
+      .box {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 10px;
+        margin-top: 12px;
+      }
+      .total {
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .foot {
+        margin-top: 18px;
+        font-size: 10px;
+        color: #666;
+      }
+    </style></head>
+  <body>
+    {{#if voided}}<div class="void">VOID</div>{{/if}}
+    <h1>{{#if business_name}}{{business_name}}{{else}}{{property_name}}{{/if}}</h1>
+    <div class="muted">{{#if address}}{{address}}<br />{{/if}}{{property_name}}</div>
+    <div class="box">
+      <div><strong>रसीद {{receipt_number}}</strong> · {{issued_on}}</div>
+      <div>किरायेदार <strong>{{tenant_name}}</strong> · कमरा {{room_number}} · बेड {{bed_label}}</div>
+      <div class="total">{{amount}}</div>
+      <div class="muted">{{amount_words}}</div>
+      <div>{{paid_on}} को
+        {{method_label}}
+        द्वारा भुगतान{{#if reference}} · संदर्भ {{reference}}{{/if}}</div>
+    </div>
+    <table>
+      <tr><th>विवरण</th><th>अवधि</th><th class="amt">राशि</th><th class="amt">शेष</th></tr>
+      {{#each covers}}<tr><td>{{invoice_number}}</td><td>{{period_label}}</td><td
+            class="amt"
+          >{{allocated}}</td><td class="amt">{{#if
+              remaining
+            }}{{remaining}}{{else}}—{{/if}}</td></tr>{{/each}}
+      {{#if credit}}<tr><td colspan="3">भविष्य की देय राशि हेतु शेष क्रेडिट</td><td
+            class="amt"
+          >{{credit}}</td></tr>{{/if}}
+    </table>
+    {{#if footer}}<div class="foot">{{footer}}</div>{{/if}}
+    <div class="foot">यह कंप्यूटर-जनित रसीद है और इस पर हस्ताक्षर की आवश्यकता नहीं है।</div>
+  </body></html>
