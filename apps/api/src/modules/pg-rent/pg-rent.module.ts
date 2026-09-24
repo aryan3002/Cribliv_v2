@@ -31,6 +31,7 @@ import { RentSettingsService } from "./services/rent-settings.service";
 import { RentSettlementService } from "./services/rent-settlement.service";
 import { RentMessageService } from "./services/rent-message.service";
 import { RentPayInstructionService } from "./services/rent-pay-instruction.service";
+import { RentQueueService } from "./services/rent-queue.service";
 
 @Module({
   imports: [CoreModule, GuardsModule],
@@ -51,6 +52,7 @@ import { RentPayInstructionService } from "./services/rent-pay-instruction.servi
     RentSettlementService,
     RentPayInstructionService,
     RentMessageService,
+    RentQueueService,
     { provide: PG_RENT_RECEIPT_RENDERER, useFactory: () => new LazyReceiptRenderer() },
     {
       provide: PG_RENT_PDF_STORAGE,
