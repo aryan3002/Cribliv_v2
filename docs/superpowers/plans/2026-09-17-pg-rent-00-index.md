@@ -38,7 +38,7 @@ Copied from the spec; every task's requirements include these.
 - **Migrations:** slice 1a took **0072** (file pair `0072_pg_rent_collection.sql` + `0072_pg_rent_collection.rollback.sql`), slice 1b added `0073_pg_rent_alloc_seq`, slice 1c adds `0074_pg_rent_invoice_idempotency`; the next free number after 1c is **0075**; conventions from 0062/0063 (`DO $$ … EXCEPTION WHEN duplicate_object`, `CREATE TABLE IF NOT EXISTS`, `trigger_set_updated_at`, `ON DELETE CASCADE` from `pg_properties`, `RESTRICT` between money rows). Additive only. No `btree_gist`.
 - **Tests:** vitest; DB suites are `describe.skipIf(!process.env.DATABASE_URL)`; pure functions get 100 % branch coverage; every test fails before its implementation exists.
 - **Nothing financial is deleted** (D14): payments are reversed, invoices cancelled, receipts voided; lines are hard-deleted only because the `invoice.line_removed` event carries the full line.
-- **Strings:** every user-visible string in `apps/web/lib/i18n.ts`, en + hi.
+- **Strings:** every user-visible string in `apps/web/lib/i18n.ts`, en + hi. **Plain words only** (spec §8.10): no engineering terms on screen — "Bill" not invoice, "Charge till 15 Oct" not re-prorate, "Charge full month" not restore, "Extra paid" not credit, "Final hisaab" not settlement; use §8.10's change-log lines and error-code texts verbatim.
 
 ## Environment (from project memory — read before running anything)
 
