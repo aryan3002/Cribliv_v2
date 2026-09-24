@@ -15,6 +15,10 @@ import { PgRentPaymentsController } from "./controllers/pg-rent-payments.control
 import { PgRentSettingsController } from "./controllers/pg-rent-settings.controller";
 import { PgRentSettlementController } from "./controllers/pg-rent-settlement.controller";
 import { PgRentTenantClaimsController } from "./controllers/pg-rent-tenant-claims.controller";
+import { PgRentPortfolioController } from "./controllers/pg-rent-portfolio.controller";
+import { PgRentPublicController } from "./controllers/pg-rent-public.controller";
+import { PgRentQueueController } from "./controllers/pg-rent-queue.controller";
+import { PgRentTenantController } from "./controllers/pg-rent-tenant.controller";
 import { receiptContainer as RECEIPT_CONTAINER } from "./receipt/receipt-container";
 import { LazyReceiptRenderer } from "./receipt/receipt-renderer";
 import { RentAllocationService } from "./services/rent-allocation.service";
@@ -41,7 +45,11 @@ import { RentTenantService } from "./services/rent-tenant.service";
     PgRentInvoicesController,
     PgRentPaymentsController,
     PgRentSettlementController,
-    PgRentTenantClaimsController
+    PgRentTenantClaimsController,
+    PgRentQueueController,
+    PgRentPortfolioController,
+    PgRentTenantController,
+    PgRentPublicController
   ],
   providers: [
     RentSettingsService,
