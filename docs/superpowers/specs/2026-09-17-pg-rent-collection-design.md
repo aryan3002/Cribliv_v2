@@ -410,6 +410,18 @@ Hooks only **trigger runs and suggestions**; they never change a bill (D18).
 - `move_in` → early `generateInvoicesForProperty` run (deposit invoice now instead of at the next hourly sweep).
 - `serve_notice` (tenant), `operator_move_out_request`, `confirm_move_out`, `direct_move_out` → run generation for that assignment (so a not-yet-created final period is created, already cut per §5.2), then: if `prorate_move_out` is on and the leave date (`notice_end_date` or `move_out_date`) is earlier than the end of an **already-issued** period, write `invoice.final_reprorate_suggested {leave_on, from_paise, to_paise}` on that invoice. The queue shows **"Tenant leaving on 15 Oct — re-prorate October to ₹4,355?"** → **Re-prorate** (runs `invoice.reprorated`, via §6.6 if the invoice is paid, credit shown as "return at settlement") or **Keep full month**. A leave date that is before `move_in_date` or before the period start is refused as a suggestion (the row says "check the notice date").
 - `cancel_move_out` / `cancel_notice` (back to `active`) → an unactioned suggestion disappears; an _applied_ re-proration is not undone automatically — the row becomes "Tenant is staying — restore October to ₹9,000?" → **Restore** (puts the rent line and `period_end` back to their pre-proration values — kept in the rent line's `meta.reprorated` — `invoice.line_updated {reason:'reprorate_restored'}`, then re-applies the assignment's unallocated credit to this invoice FIFO in the same transaction so the money that §6.6 released comes straight back; rent stays a rent line so analytics never see a synthetic adjustment).
+
+  By the time the owner taps Restore, the staying transition's own generation run has usually already issued an `auto` rent invoice for leave date + 1 … the original period end, often paid from the credit §6.6 released. **Restore absorbs that invoice** in the same transaction (owner decision 2026-09-24):
+  - its allocations go back to credit (`invoice.excess_deallocated`);
+  - it is cancelled (`invoice.cancelled {reason:'restore_absorbed', restored_invoice_id}`);
+  - that credit then flows to the restored invoice as above;
+  - receipts are untouched (§6.7), and a pending claim on it falls back to FIFO on confirm (§6.10).
+
+  Only an engine-issued invoice that lies entirely inside that gap is absorbed. Otherwise Restore is refused:
+  - any other overlapping invoice → 409 `period_overlap`;
+  - a gap invoice carrying a late fee or an operator-added line → 409 `restore_gap_edited`, until the owner waives or removes it;
+  - a cancelled invoice's leftover Restore card → 409 `invoice_cancelled`.
+
 - `cancel_reservation` → nothing (any booking credit is handled in §6.12).
 
 ### 5.9 Failure modes

@@ -59,6 +59,38 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
     return { a, sep };
   }
 
+  /**
+   * The real default path to a Restore card: notice for 15 Sep → re-prorate September →
+   * notice cancelled. onAssignmentEvent runs generation against the real clock before
+   * suggestRestore, so the engine issues the 16–30 Sep gap invoice on the way (unless
+   * `beforeStaying` already put a rent invoice there). Returns whatever rent invoice now
+   * starts on 16 Sep.
+   */
+  async function leaveThenStay(
+    propertyId: string,
+    a: string,
+    sepId: string,
+    beforeStaying: () => Promise<void> = async () => undefined
+  ) {
+    await db.query(
+      `UPDATE pg_bed_assignments SET status = 'notice_served', notice_end_date = '2026-09-15' WHERE id = $1::uuid`,
+      [a]
+    );
+    await engine.onAssignmentEvent({ type: "notice_served", propertyId, assignmentId: a });
+    await invoices.applyReprorate(operatorId, propertyId, sepId);
+    await beforeStaying();
+    await db.query(
+      `UPDATE pg_bed_assignments SET status = 'active', notice_end_date = NULL WHERE id = $1::uuid`,
+      [a]
+    );
+    await engine.onAssignmentEvent({ type: "notice_cancelled", propertyId, assignmentId: a });
+    const sep = await invoices.get(operatorId, propertyId, sepId);
+    expect(sep.reprorate_suggestion).toMatchObject({ mode: "restore" });
+    return (await invoices.list(operatorId, propertyId, { assignment_id: a, kind: "rent" })).find(
+      (i) => i.period_start === "2026-09-16"
+    );
+  }
+
   /** Polls until `n` backends wait (directly or transitively) on `blockerPid`'s locks. */
   async function waitForBlockedBehind(blockerPid: number, n: number): Promise<void> {
     for (let i = 0; i < 250; i += 1) {
@@ -433,7 +465,7 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
     await assertRentInvariants(db, p.propertyId);
   });
 
-  it("re-proration: notice writes a suggestion, owner applies it (paid invoice → credit), cancelled notice offers restore", async () => {
+  it("re-proration: notice writes a suggestion, owner applies it (paid invoice → credit), cancelled notice offers restore, and Restore absorbs the engine's gap invoice", async () => {
     const p = await property({ prorate_move_out: true });
     const { a, sep } = await tenantWithSeptember(p);
     await payments.recordByOperator(
@@ -469,17 +501,10 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
     });
     expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(450000);
 
-    // Fix round 1, Critical — unpaused, real sequence (no settings.pause: a pause here would
-    // switch off a whole production subsystem for the rest of the test instead of exercising it).
-    // onAssignmentEvent's own generateInvoicesForProperty call runs against the REAL wall-clock
-    // today (todayIst()), not this suite's fixed September 2026 fixture dates. Once the reprorate
-    // above shrinks sep's period_end to 2026-09-15, reactivating the assignment re-opens its
-    // billing window from that date onward, and on any real run date past the property's due day
-    // the engine auto-generates and settles a "2026-09-16..30" gap invoice for the reopened
-    // window before suggestRestore ever runs — this is the default production path, not a test
-    // artifact. restoreReprorate must therefore refuse to push sep's period_end back to
-    // 2026-09-30: doing so would create two non-cancelled rent invoices covering the same days
-    // (invariant 5) and double-bill the tenant for that tail.
+    // The real default path (no pause, no hand-written suggestion): onAssignmentEvent runs
+    // generateInvoicesForProperty against the real wall clock BEFORE suggestRestore, so the
+    // reopened window gets an auto "2026-09-16..30" gap invoice that FIFO-takes the ₹4,500
+    // credit the re-proration released — and only then is the Restore card offered.
     await db.query(
       `UPDATE pg_bed_assignments SET status = 'active', notice_end_date = NULL WHERE id = $1::uuid`,
       [a]
@@ -489,28 +514,231 @@ describe.skipIf(!HAS_DB)("RentInvoiceService actions", () => {
       propertyId: p.propertyId,
       assignmentId: a
     });
-    const gapInvoices = await invoices.list(operatorId, p.propertyId, {
-      assignment_id: a,
-      kind: "rent"
-    });
-    expect(gapInvoices.some((i) => i.id !== sep.id && i.period_start === "2026-09-16")).toBe(true);
-
-    inv = await invoices.get(operatorId, p.propertyId, sep.id);
-    expect(inv.reprorate_suggestion).toMatchObject({ mode: "restore", to_inr: 9000 });
-    await expect(invoices.restoreReprorate(operatorId, p.propertyId, sep.id)).rejects.toMatchObject(
-      { response: { code: "period_overlap" } }
-    );
-    // Refused cleanly: sep is untouched (still the reprorated 4500/paid/09-15), the suggestion
-    // is still offered (nothing was cleared), and no invariant is violated because nothing
-    // overlapping was ever committed.
-    inv = await invoices.get(operatorId, p.propertyId, sep.id);
-    expect(inv).toMatchObject({
+    const gap = (
+      await invoices.list(operatorId, p.propertyId, { assignment_id: a, kind: "rent" })
+    ).find((i) => i.period_start === "2026-09-16");
+    expect(gap).toMatchObject({
+      source: "auto",
+      period_end: "2026-09-30",
       total_inr: 4500,
       amount_paid_inr: 4500,
+      status: "paid"
+    });
+    inv = await invoices.get(operatorId, p.propertyId, sep.id);
+    expect(inv.reprorate_suggestion).toMatchObject({ mode: "restore", to_inr: 9000 });
+    await assertRentInvariants(db, p.propertyId);
+
+    // Owner decision 2026-09-24: Restore absorbs the gap invoice in its own transaction —
+    // releases its allocations to credit, cancels it, and the credit flows back to September.
+    inv = await invoices.restoreReprorate(operatorId, p.propertyId, sep.id);
+    expect(inv).toMatchObject({
+      total_inr: 9000,
+      amount_paid_inr: 9000,
       status: "paid",
+      reprorate_suggestion: null,
+      period_end: "2026-09-30"
+    });
+    expect(await invoices.get(operatorId, p.propertyId, gap!.id)).toMatchObject({
+      status: "cancelled",
+      amount_paid_inr: 0,
+      cancel_reason: "restore_absorbed",
+      reprorate_suggestion: null
+    });
+    expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(0);
+    const gapEvents = await db.query<{ event_type: string; payload: Record<string, unknown> }>(
+      `SELECT event_type, payload FROM pg_rent_events WHERE entity_type = 'invoice' AND entity_id = $1::uuid ORDER BY id`,
+      [gap!.id]
+    );
+    expect(gapEvents.rows.map((e) => e.event_type).slice(-2)).toEqual([
+      "invoice.excess_deallocated",
+      "invoice.cancelled"
+    ]);
+    expect(gapEvents.rows.at(-1)!.payload).toEqual({
+      reason: "restore_absorbed",
+      restored_invoice_id: sep.id
+    });
+    const restoredEvent = await db.query<{ payload: Record<string, unknown> }>(
+      `SELECT payload FROM pg_rent_events WHERE entity_type = 'invoice' AND entity_id = $1::uuid AND event_type = 'invoice.line_updated' ORDER BY id DESC LIMIT 1`,
+      [sep.id]
+    );
+    expect(restoredEvent.rows[0].payload).toMatchObject({
+      reason: "reprorate_restored",
+      absorbed_invoice_ids: [gap!.id]
+    });
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("restore absorbs a gap invoice the tenant paid directly: the money moves to the restored invoice, the receipt is untouched", async () => {
+    const p = await property({ prorate_move_out: true });
+    const { a, sep } = await tenantWithSeptember(p);
+    const gap = await leaveThenStay(p.propertyId, a, sep.id);
+    expect(gap).toMatchObject({ source: "auto", status: "issued", total_inr: 4500 });
+    const paid = await payments.recordByOperator(
+      operatorId,
+      p.propertyId,
+      {
+        assignment_id: a,
+        amount_inr: 4500,
+        method: "upi",
+        paid_on: "2026-09-20",
+        allocations: [{ invoice_id: gap!.id, amount_inr: 4500 }]
+      },
+      randomUUID()
+    );
+    expect((await invoices.get(operatorId, p.propertyId, gap!.id)).status).toBe("paid");
+    await assertRentInvariants(db, p.propertyId);
+
+    const inv = await invoices.restoreReprorate(operatorId, p.propertyId, sep.id);
+    expect(inv).toMatchObject({
+      total_inr: 9000,
+      amount_paid_inr: 4500,
+      status: "partially_paid",
+      period_end: "2026-09-30"
+    });
+    expect(await invoices.get(operatorId, p.propertyId, gap!.id)).toMatchObject({
+      status: "cancelled",
+      amount_paid_inr: 0
+    });
+    expect(await new RentAllocationService().unallocatedCredit(db, a)).toBe(0);
+    // Spec §6.7: only a manual re-allocation voids/re-mints; a release caused by an invoice
+    // mutation leaves the receipt as the record of what was received.
+    const receipts = await db.query<{ voided_at: Date | null }>(
+      `SELECT voided_at FROM pg_rent_receipts WHERE payment_id = $1::uuid`,
+      [paid.id]
+    );
+    expect(receipts.rows).toEqual([{ voided_at: null }]);
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("restore absorbs a gap invoice carrying a pending tenant claim; confirming the claim later pays the restored invoice", async () => {
+    const p = await property({ prorate_move_out: true });
+    const tenantUserId = await fx.createUser("tenant");
+    const { a, sep } = await tenantWithSeptember(p, "A", { tenantUserId });
+    const gap = await leaveThenStay(p.propertyId, a, sep.id);
+    const claim = await payments.claimByTenant(tenantUserId, {
+      assignment_id: a,
+      invoice_id: gap!.id,
+      amount_inr: 4500,
+      method: "upi",
+      paid_on: "2026-09-20",
+      idempotency_key: randomUUID()
+    });
+    expect(claim.status).toBe("pending_confirmation");
+
+    await invoices.restoreReprorate(operatorId, p.propertyId, sep.id);
+    expect(await invoices.get(operatorId, p.propertyId, gap!.id)).toMatchObject({
+      status: "cancelled"
+    });
+    await assertRentInvariants(db, p.propertyId);
+
+    // Spec §6.10 "Claim for a cancelled invoice → FIFO/credit": the claimed target is skipped.
+    await payments.confirm(operatorId, p.propertyId, claim.id, {});
+    expect(await invoices.get(operatorId, p.propertyId, sep.id)).toMatchObject({
+      total_inr: 9000,
+      amount_paid_inr: 4500,
+      status: "partially_paid"
+    });
+    expect(await invoices.get(operatorId, p.propertyId, gap!.id)).toMatchObject({
+      status: "cancelled",
+      amount_paid_inr: 0
+    });
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("restore still refuses period_overlap when the overlapping invoice is not an engine-issued gap invoice", async () => {
+    const p = await property({ prorate_move_out: true });
+    const { a, sep } = await tenantWithSeptember(p);
+    const backfill = await leaveThenStay(p.propertyId, a, sep.id, async () => {
+      await invoices.createBackfill(operatorId, p.propertyId, {
+        assignment_id: a,
+        kind: "rent",
+        period_start: "2026-09-16",
+        period_end: "2026-09-30",
+        due_date: "2026-09-16",
+        lines: [{ kind: "rent", label: "Rent · 16–30 Sep 2026", amount_inr: 4500 }]
+      });
+    });
+    expect(backfill).toMatchObject({ source: "backfill", status: "issued" });
+    expect(
+      (await invoices.get(operatorId, p.propertyId, sep.id)).reprorate_suggestion
+    ).toMatchObject({ mode: "restore" });
+    await expect(invoices.restoreReprorate(operatorId, p.propertyId, sep.id)).rejects.toMatchObject(
+      {
+        response: { code: "period_overlap" }
+      }
+    );
+    expect(await invoices.get(operatorId, p.propertyId, sep.id)).toMatchObject({
+      total_inr: 4500,
       period_end: "2026-09-15"
     });
-    expect(inv.reprorate_suggestion).toMatchObject({ mode: "restore", to_inr: 9000 });
+    expect((await invoices.get(operatorId, p.propertyId, backfill!.id)).status).toBe("issued");
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("restore refuses restore_gap_edited while the gap invoice carries an operator line or a late fee, and absorbs it once they are gone", async () => {
+    const p = await property({ prorate_move_out: true });
+    const { a, sep } = await tenantWithSeptember(p);
+    const gap = await leaveThenStay(p.propertyId, a, sep.id);
+    expect(gap).toMatchObject({ source: "auto", status: "issued" });
+
+    const withLine = await invoices.addLine(operatorId, p.propertyId, gap!.id, {
+      kind: "electricity",
+      label: "Electricity",
+      amount_inr: 400
+    });
+    await assertRentInvariants(db, p.propertyId);
+    await expect(invoices.restoreReprorate(operatorId, p.propertyId, sep.id)).rejects.toMatchObject(
+      {
+        response: { code: "restore_gap_edited" }
+      }
+    );
+    expect((await invoices.get(operatorId, p.propertyId, sep.id)).period_end).toBe("2026-09-15");
+    await invoices.removeLine(
+      operatorId,
+      p.propertyId,
+      gap!.id,
+      withLine.lines.find((l) => l.kind === "electricity")!.id
+    );
+
+    await invoices.applyFee(operatorId, p.propertyId, gap!.id, 300);
+    await assertRentInvariants(db, p.propertyId);
+    await expect(invoices.restoreReprorate(operatorId, p.propertyId, sep.id)).rejects.toMatchObject(
+      {
+        response: { code: "restore_gap_edited" }
+      }
+    );
+    await invoices.waiveFee(operatorId, p.propertyId, gap!.id, "tenant is staying");
+    await assertRentInvariants(db, p.propertyId);
+
+    const inv = await invoices.restoreReprorate(operatorId, p.propertyId, sep.id);
+    expect(inv).toMatchObject({
+      total_inr: 9000,
+      amount_paid_inr: 0,
+      status: "issued",
+      period_end: "2026-09-30"
+    });
+    expect(await invoices.get(operatorId, p.propertyId, gap!.id)).toMatchObject({
+      status: "cancelled",
+      cancel_reason: "restore_absorbed"
+    });
+    await assertRentInvariants(db, p.propertyId);
+  });
+
+  it("restore refuses invoice_cancelled on a cancelled invoice's leftover restore card and leaves the gap invoice alone", async () => {
+    const p = await property({ prorate_move_out: true });
+    const { a, sep } = await tenantWithSeptember(p);
+    const gap = await leaveThenStay(p.propertyId, a, sep.id);
+    await invoices.cancel(operatorId, p.propertyId, sep.id, "billed in error");
+    // cancel() does not clear reprorate_suggestion, so the Restore card outlives the invoice.
+    expect(
+      (await invoices.get(operatorId, p.propertyId, sep.id)).reprorate_suggestion
+    ).toMatchObject({ mode: "restore" });
+    await expect(invoices.restoreReprorate(operatorId, p.propertyId, sep.id)).rejects.toMatchObject(
+      {
+        response: { code: "invoice_cancelled" }
+      }
+    );
+    expect((await invoices.get(operatorId, p.propertyId, gap!.id)).status).toBe("issued");
     await assertRentInvariants(db, p.propertyId);
   });
 
