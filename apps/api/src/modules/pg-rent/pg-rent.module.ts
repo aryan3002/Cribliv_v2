@@ -15,6 +15,10 @@ import { PgRentPaymentsController } from "./controllers/pg-rent-payments.control
 import { PgRentSettingsController } from "./controllers/pg-rent-settings.controller";
 import { PgRentSettlementController } from "./controllers/pg-rent-settlement.controller";
 import { PgRentTenantClaimsController } from "./controllers/pg-rent-tenant-claims.controller";
+import { PgRentPortfolioController } from "./controllers/pg-rent-portfolio.controller";
+import { PgRentPublicController } from "./controllers/pg-rent-public.controller";
+import { PgRentQueueController } from "./controllers/pg-rent-queue.controller";
+import { PgRentTenantController } from "./controllers/pg-rent-tenant.controller";
 import { receiptContainer as RECEIPT_CONTAINER } from "./receipt/receipt-container";
 import { LazyReceiptRenderer } from "./receipt/receipt-renderer";
 import { RentAllocationService } from "./services/rent-allocation.service";
@@ -29,10 +33,11 @@ import {
 } from "./services/rent-receipt.service";
 import { RentSettingsService } from "./services/rent-settings.service";
 import { RentSettlementService } from "./services/rent-settlement.service";
+import { RentMessageService } from "./services/rent-message.service";
+import { RentPayInstructionService } from "./services/rent-pay-instruction.service";
+import { RentQueueService } from "./services/rent-queue.service";
+import { RentTenantService } from "./services/rent-tenant.service";
 
-// Providers and controllers are appended by later tasks in this plan; the
-// arrays start empty so the module can be registered (and AppModule boot
-// tested) before any service exists.
 @Module({
   imports: [CoreModule, GuardsModule],
   controllers: [
@@ -40,7 +45,11 @@ import { RentSettlementService } from "./services/rent-settlement.service";
     PgRentInvoicesController,
     PgRentPaymentsController,
     PgRentSettlementController,
-    PgRentTenantClaimsController
+    PgRentTenantClaimsController,
+    PgRentQueueController,
+    PgRentPortfolioController,
+    PgRentTenantController,
+    PgRentPublicController
   ],
   providers: [
     RentSettingsService,
@@ -50,6 +59,10 @@ import { RentSettlementService } from "./services/rent-settlement.service";
     RentReceiptService,
     RentPaymentService,
     RentSettlementService,
+    RentPayInstructionService,
+    RentMessageService,
+    RentQueueService,
+    RentTenantService,
     { provide: PG_RENT_RECEIPT_RENDERER, useFactory: () => new LazyReceiptRenderer() },
     {
       provide: PG_RENT_PDF_STORAGE,

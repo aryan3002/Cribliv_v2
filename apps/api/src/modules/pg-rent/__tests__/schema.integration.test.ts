@@ -105,4 +105,19 @@ describe.skipIf(!HAS_DB)("0072 pg_rent_collection schema", () => {
     );
     expect(result.rows).toHaveLength(7);
   });
+
+  it("0074: invoices store an idempotency key behind a partial unique index per property", async () => {
+    const column = await db.query<{ data_type: string; is_nullable: string }>(
+      `SELECT data_type, is_nullable FROM information_schema.columns
+          WHERE table_name = 'pg_rent_invoices' AND column_name = 'idempotency_key'`
+    );
+    expect(column.rows).toEqual([{ data_type: "text", is_nullable: "YES" }]);
+    const index = await db.query<{ indexdef: string }>(
+      `SELECT indexdef FROM pg_indexes WHERE tablename = 'pg_rent_invoices' AND indexname = 'uq_pg_rent_invoice_idem'`
+    );
+    expect(index.rows).toHaveLength(1);
+    expect(index.rows[0].indexdef).toContain("UNIQUE INDEX");
+    expect(index.rows[0].indexdef).toContain("(pg_property_id, idempotency_key)");
+    expect(index.rows[0].indexdef).toContain("WHERE (idempotency_key IS NOT NULL)");
+  });
 });

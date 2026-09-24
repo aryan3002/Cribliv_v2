@@ -407,4 +407,30 @@ describe.skipIf(!HAS_DB)("pg-rent money controllers", () => {
     expect(res.status).toBe(403);
     expect(stranger).toBeTruthy();
   });
+
+  it("POST /invoices stores the Idempotency-Key on the invoice row and replays it", async () => {
+    const key = randomUUID();
+    const post = () =>
+      request(app.getHttpServer())
+        .post(`${base()}/invoices`)
+        .set(as("operator"))
+        .set("idempotency-key", key)
+        .send({
+          source: "manual",
+          assignment_id: assignmentId,
+          kind: "adhoc",
+          due_date: "2026-09-25",
+          lines: [{ kind: "other", label: "Idem", amount_inr: 100 }]
+        });
+    const first = await post();
+    expect(first.status).toBe(201);
+    const second = await post();
+    expect(second.body.data.id).toBe(first.body.data.id);
+    const row = await db.query<{ k: string | null }>(
+      `SELECT idempotency_key AS k FROM pg_rent_invoices WHERE id = $1::uuid`,
+      [first.body.data.id]
+    );
+    expect(row.rows[0].k).toBe(key);
+    await assertRentInvariants(db, propertyId);
+  });
 });

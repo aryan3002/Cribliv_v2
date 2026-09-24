@@ -690,6 +690,8 @@ export class RentInvoiceService {
       lines: Array<{ kind: string; label: string; amountPaise: number }>;
       eligible: boolean;
       tenantNote: string | null;
+      /** POST /invoices' Idempotency-Key (0074); null for settlement and forfeit invoices. */
+      idempotencyKey: string | null;
       actor: RentActor;
     }
   ): Promise<string> {
@@ -733,8 +735,8 @@ export class RentInvoiceService {
     const total = v.lines.reduce((s, l) => s + l.amountPaise, 0);
     if (total < 0) throw new BadRequestException({ code: "invalid_total" });
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO pg_rent_invoices (pg_property_id, assignment_id, bed_id, room_id, room_number, bed_label, kind, invoice_number, period_start, period_end, billing_month, due_date, status, source, total_paise, late_fee_eligible, pay_token, pay_token_expires_at, tenant_note, issued_at, created_by)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::pg_rent_invoice_kind, $8, $9::date, $10::date, $11::date, $12::date, 'issued', $13::pg_rent_invoice_source, $14, $15, $16, $17, $18, now(), $19::uuid) RETURNING id::text`,
+      `INSERT INTO pg_rent_invoices (pg_property_id, assignment_id, bed_id, room_id, room_number, bed_label, kind, invoice_number, period_start, period_end, billing_month, due_date, status, source, total_paise, late_fee_eligible, pay_token, pay_token_expires_at, tenant_note, issued_at, created_by, idempotency_key)
+       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7::pg_rent_invoice_kind, $8, $9::date, $10::date, $11::date, $12::date, 'issued', $13::pg_rent_invoice_source, $14, $15, $16, $17, $18, now(), $19::uuid, $20) RETURNING id::text`,
       [
         v.propertyId,
         v.assignmentId,
@@ -754,7 +756,8 @@ export class RentInvoiceService {
         token.token,
         token.expiresAt,
         v.tenantNote,
-        v.actor.id
+        v.actor.id,
+        v.idempotencyKey
       ]
     );
     const id = inserted.rows[0].id;
@@ -800,39 +803,67 @@ export class RentInvoiceService {
       lines: v.deductions,
       eligible: false,
       tenantNote: null,
+      idempotencyKey: null,
       actor: v.actor
     });
   }
 
+  /**
+   * The invoice a replayed POST /invoices already created, or null. Mirrors
+   * RentPaymentService.recordByOperator: a sequential retry returns the original
+   * here; a truly concurrent duplicate that also misses this read loses on
+   * uq_pg_rent_invoice_idem (0074) inside its transaction → 409 duplicate_invoice.
+   */
+  private async findByIdempotencyKey(
+    propertyId: string,
+    idempotencyKey: string | null
+  ): Promise<string | null> {
+    if (idempotencyKey === null) return null;
+    const existing = await this.db.query<{ id: string }>(
+      `SELECT id::text FROM pg_rent_invoices WHERE pg_property_id = $1::uuid AND idempotency_key = $2`,
+      [propertyId, idempotencyKey]
+    );
+    return existing.rows[0]?.id ?? null;
+  }
+
+  /** `idempotencyKey` is the controller's Idempotency-Key; RentSettlementService.forfeit has none and passes nothing. */
   async createManual(
     operatorId: string,
     propertyId: string,
-    input: PgRentManualInvoiceInput
+    input: PgRentManualInvoiceInput,
+    idempotencyKey: string | null = null
   ): Promise<PgRentInvoice> {
     requireDb(this.db);
     const actor = this.actor(operatorId);
-    const id = await transaction(this.db, async (client) => {
-      await assertManagedOwnership(client, operatorId, propertyId, true);
-      const id = await this.insertInvoice(client, {
-        propertyId,
-        assignmentId: input.assignment_id,
-        kind: "adhoc",
-        source: "manual",
-        periodStart: null,
-        periodEnd: null,
-        dueDate: input.due_date,
-        lines: input.lines.map((l) => ({
-          kind: l.kind,
-          label: l.label,
-          amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
-        })),
-        eligible: false,
-        tenantNote: input.tenant_note ?? null,
-        actor
-      });
-      await this.alloc.applyUnallocatedCredit(client, id, actor);
-      return id;
-    });
+    const existing = await this.findByIdempotencyKey(propertyId, idempotencyKey);
+    if (existing) return this.get(operatorId, propertyId, existing);
+    const id = await transaction(
+      this.db,
+      async (client) => {
+        await assertManagedOwnership(client, operatorId, propertyId, true);
+        const id = await this.insertInvoice(client, {
+          propertyId,
+          assignmentId: input.assignment_id,
+          kind: "adhoc",
+          source: "manual",
+          periodStart: null,
+          periodEnd: null,
+          dueDate: input.due_date,
+          lines: input.lines.map((l) => ({
+            kind: l.kind,
+            label: l.label,
+            amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
+          })),
+          eligible: false,
+          tenantNote: input.tenant_note ?? null,
+          idempotencyKey,
+          actor
+        });
+        await this.alloc.applyUnallocatedCredit(client, id, actor);
+        return id;
+      },
+      { uniqueViolationCode: "duplicate_invoice" }
+    );
     return this.readById(propertyId, id);
   }
 
@@ -840,45 +871,53 @@ export class RentInvoiceService {
   async createBackfill(
     operatorId: string,
     propertyId: string,
-    input: PgRentBackfillInput
+    input: PgRentBackfillInput,
+    idempotencyKey: string | null = null
   ): Promise<PgRentInvoice> {
     requireDb(this.db);
     const actor = this.actor(operatorId);
-    const id = await transaction(this.db, async (client) => {
-      await assertManagedOwnership(client, operatorId, propertyId, true);
-      const id = await this.insertInvoice(client, {
-        propertyId,
-        assignmentId: input.assignment_id,
-        kind: input.kind,
-        source: "backfill",
-        periodStart: input.period_start ?? null,
-        periodEnd: input.period_end ?? null,
-        dueDate: input.due_date,
-        lines: input.lines.map((l) => ({
-          kind: l.kind,
-          label: l.label,
-          amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
-        })),
-        eligible: false,
-        tenantNote: null,
-        actor
-      });
-      if (input.payment) {
-        await this.payments.recordBackfillPayment(client, {
+    const existing = await this.findByIdempotencyKey(propertyId, idempotencyKey);
+    if (existing) return this.get(operatorId, propertyId, existing);
+    const id = await transaction(
+      this.db,
+      async (client) => {
+        await assertManagedOwnership(client, operatorId, propertyId, true);
+        const id = await this.insertInvoice(client, {
           propertyId,
           assignmentId: input.assignment_id,
-          invoiceId: id,
-          amountPaise: inrToPaise(input.payment.amount_inr),
-          method: input.payment.method,
-          paidOn: input.payment.paid_on,
-          reference: input.payment.reference ?? null,
+          kind: input.kind,
+          source: "backfill",
+          periodStart: input.period_start ?? null,
+          periodEnd: input.period_end ?? null,
+          dueDate: input.due_date,
+          lines: input.lines.map((l) => ({
+            kind: l.kind,
+            label: l.label,
+            amountPaise: inrToPaise(l.amount_inr, { allowNegative: true })
+          })),
+          eligible: false,
+          tenantNote: null,
+          idempotencyKey,
           actor
         });
-      } else {
-        await this.alloc.applyUnallocatedCredit(client, id, actor);
-      }
-      return id;
-    });
+        if (input.payment) {
+          await this.payments.recordBackfillPayment(client, {
+            propertyId,
+            assignmentId: input.assignment_id,
+            invoiceId: id,
+            amountPaise: inrToPaise(input.payment.amount_inr),
+            method: input.payment.method,
+            paidOn: input.payment.paid_on,
+            reference: input.payment.reference ?? null,
+            actor
+          });
+        } else {
+          await this.alloc.applyUnallocatedCredit(client, id, actor);
+        }
+        return id;
+      },
+      { uniqueViolationCode: "duplicate_invoice" }
+    );
     return this.readById(propertyId, id);
   }
 
@@ -982,6 +1021,9 @@ export class RentInvoiceService {
     await transaction(this.db, async (client) => {
       await assertManagedOwnership(client, operatorId, propertyId, true);
       const inv = await this.lockInvoice(client, propertyId, invoiceId);
+      // cancel() leaves reprorate_suggestion in place, so a cancelled invoice can still carry a
+      // Restore card; restoring it would now also cancel the live gap invoice below.
+      if (inv.status === "cancelled") throw new ConflictException({ code: "invoice_cancelled" });
       const s = inv.reprorate_suggestion;
       if (!s || s.mode !== "restore") throw new ConflictException({ code: "no_suggestion" });
       const line = await client.query<{
@@ -994,19 +1036,18 @@ export class RentInvoiceService {
       );
       const r = line.rows[0].meta.reprorated;
       if (!r) throw new ConflictException({ code: "no_suggestion" });
-      // Fix round 1, Critical: onAssignmentEvent runs generateInvoicesForProperty BEFORE this
-      // suggestion is even offered, so on the default production path a "staying" transition can
-      // already have auto-issued a gap invoice for leave_date+1..natural end (the same days this
-      // restore is about to re-cover) and FIFO-allocated floating credit to it. Restoring
-      // period_end back to the original end with no check would create two non-cancelled rent
-      // invoices covering the same days (invariant 5) and double-bill the tenant. Refuse instead;
-      // the operator must resolve the conflicting invoice (e.g. reverse its payment and cancel it)
-      // before retrying.
-      const overlap = await client.query(
-        `SELECT 1 FROM pg_rent_invoices WHERE assignment_id = $1::uuid AND kind = 'rent' AND status <> 'cancelled' AND id <> $2::uuid AND daterange(period_start, period_end, '[]') && daterange($3::date, $4::date, '[]')`,
-        [inv.assignment_id, invoiceId, inv.period_start, r.original_end]
+      const absorbed = await this.absorbGapInvoices(
+        client,
+        propertyId,
+        {
+          id: invoiceId,
+          assignmentId: inv.assignment_id,
+          periodStart: inv.period_start as string,
+          periodEnd: inv.period_end as string
+        },
+        r.original_end,
+        actor
       );
-      if (overlap.rowCount) throw new ConflictException({ code: "period_overlap" });
       await client.query(
         `UPDATE pg_rent_invoice_lines SET amount_paise = $2, meta = meta - 'reprorated' WHERE id = $1::uuid`,
         [line.rows[0].id, r.original_paise]
@@ -1020,7 +1061,8 @@ export class RentInvoiceService {
       await this.event(client, propertyId, invoiceId, "invoice.line_updated", actor, {
         reason: "reprorate_restored",
         from_paise: Number(line.rows[0].amount_paise),
-        to_paise: r.original_paise
+        to_paise: r.original_paise,
+        absorbed_invoice_ids: absorbed
       });
       // applyReprorate's own settleTotal call can leave a *partial* allocation row for
       // (payment, invoiceId) when the shrink only partly exceeded amount_paid (deallocateExcess
@@ -1030,11 +1072,96 @@ export class RentInvoiceService {
       // invoice_id), migration 0072), so calling it directly here throws 23505 whenever that
       // partial row survived the round trip. Releasing back to credit first — a no-op when
       // nothing is allocated yet — lets applyUnallocatedCredit's ordinary FIFO re-allocate the
-      // full amount fresh, without touching RentAllocationService itself.
+      // full amount fresh, without touching RentAllocationService itself. The same FIFO also
+      // picks up whatever absorbGapInvoices just released.
       await this.alloc.releaseAllocations(client, invoiceId, actor);
       await this.alloc.applyUnallocatedCredit(client, invoiceId, actor);
     });
     return this.readById(propertyId, invoiceId);
+  }
+
+  /**
+   * Owner decision 2026-09-24: Restore absorbs the gap invoice. onAssignmentEvent runs
+   * generateInvoicesForProperty BEFORE suggestRestore, so by the time the Restore card exists the
+   * engine has already issued a rent invoice for leave_on+1 … the natural period end (the days
+   * this restore re-covers) and usually FIFO-paid it with the credit the re-proration released.
+   * Restoring over it would bill those days twice (invariant 5), so every overlapping rent
+   * invoice is either absorbed here — allocations released to credit, cancelled — or the restore
+   * is refused. The caller's applyUnallocatedCredit then moves the released credit onto the
+   * restored invoice; anything left over stays the tenant's credit.
+   *
+   * Absorbable = engine-issued (`source = 'auto'`) and lying entirely inside the gap
+   * (invoice.period_end, original_end]. Anything else overlapping (a backfill, a manual rent
+   * invoice, a period that runs past original_end) is an operator decision or a bigger period
+   * and stays 409 `period_overlap`. An absorbable invoice that carries a charge the restored
+   * invoice does not already bill — a late_fee line, or a line the operator or an expense split
+   * added — is refused with 409 `restore_gap_edited` so no charge vanishes silently; its
+   * default_item lines duplicate the restored invoice's own (applyReprorate only touches the
+   * rent line), so cancelling them is correct. Receipts are not touched (spec §6.7: only a
+   * manual re-allocation voids/re-mints), and a pending claim that targets the gap invoice falls
+   * back to FIFO on confirm (spec §6.10).
+   *
+   * Lock order: the property (assertManagedOwnership) and the restored invoice are already
+   * held; the gap invoices are locked next in period order — the restored invoice starts
+   * earlier, so the whole transaction locks rent invoices in period_start order — and payment
+   * rows only afterwards (applyUnallocatedCredit).
+   */
+  private async absorbGapInvoices(
+    client: PoolClient,
+    propertyId: string,
+    restored: { id: string; assignmentId: string; periodStart: string; periodEnd: string },
+    originalEnd: string,
+    actor: RentActor
+  ): Promise<string[]> {
+    const overlapping = await client.query<{
+      id: string;
+      source: string;
+      period_start: string;
+      period_end: string;
+    }>(
+      `SELECT id::text, source::text, to_char(period_start,'YYYY-MM-DD') AS period_start, to_char(period_end,'YYYY-MM-DD') AS period_end
+         FROM pg_rent_invoices
+        WHERE assignment_id = $1::uuid AND kind = 'rent' AND status <> 'cancelled' AND id <> $2::uuid
+          AND daterange(period_start, period_end, '[]') && daterange($3::date, $4::date, '[]')
+        ORDER BY period_start, id
+        FOR UPDATE`,
+      [restored.assignmentId, restored.id, restored.periodStart, originalEnd]
+    );
+    const gap = overlapping.rows;
+    if (gap.length === 0) return [];
+    if (
+      gap.some(
+        (g) =>
+          g.source !== "auto" ||
+          compareIsoDates(g.period_start, restored.periodEnd) <= 0 ||
+          compareIsoDates(g.period_end, originalEnd) > 0
+      )
+    )
+      throw new ConflictException({ code: "period_overlap" });
+    const ids = gap.map((g) => g.id);
+    const edited = await client.query(
+      `SELECT 1 FROM pg_rent_invoice_lines
+        WHERE invoice_id = ANY($1::uuid[]) AND (kind = 'late_fee' OR source NOT IN ('system', 'default_item'))
+        LIMIT 1`,
+      [ids]
+    );
+    if (edited.rowCount)
+      throw new ConflictException({
+        code: "restore_gap_edited",
+        message: "Remove the extra charges or late fee on the later invoice first"
+      });
+    for (const id of ids) {
+      await this.alloc.releaseAllocations(client, id, actor);
+      await client.query(
+        `UPDATE pg_rent_invoices SET status = 'cancelled', cancelled_at = now(), cancel_reason = 'restore_absorbed', pay_token_expires_at = now(), reprorate_suggestion = NULL WHERE id = $1::uuid`,
+        [id]
+      );
+      await this.event(client, propertyId, id, "invoice.cancelled", actor, {
+        reason: "restore_absorbed",
+        restored_invoice_id: restored.id
+      });
+    }
+    return ids;
   }
 
   private async withLines(q: Queryable, rows: RentInvoiceRow[]): Promise<PgRentInvoice[]> {

@@ -61,6 +61,20 @@ export class RentSettlementService {
     return this.compute(this.db, propertyId, assignmentId);
   }
 
+  /**
+   * Slice 1c tenant reads: the same statement without generating first and without an
+   * ownership check (the caller already scoped the assignment to the tenant). A tenant GET
+   * must not write, and must not log engine events as the operator; the owner-side
+   * statement() above keeps generating so the final cut period exists before Settle.
+   */
+  async computeStatement(
+    propertyId: string,
+    assignmentId: string
+  ): Promise<PgRentSettlementStatement> {
+    requireDb(this.db);
+    return this.compute(this.db, propertyId, assignmentId);
+  }
+
   private async compute(
     q: Queryable,
     propertyId: string,

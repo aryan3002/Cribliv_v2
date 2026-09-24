@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { paiseKeysToInr } from "../dto/invoice.dto";
+import { paiseKeysToInr, toLineDto, type RentLineRow } from "../dto/invoice.dto";
 
 /** Collect every key in a nested structure, so the money-boundary check can be exhaustive. */
 function allKeys(value: unknown, acc: string[] = []): string[] {
@@ -63,5 +63,30 @@ describe("paiseKeysToInr", () => {
     };
     const keys = allKeys(paiseKeysToInr(payload));
     expect(keys.filter((k) => k.endsWith("_paise"))).toEqual([]);
+  });
+});
+
+describe("toLineDto", () => {
+  it("converts a nested _paise key inside line meta to rupees (final review, finding 1)", () => {
+    // Shape rent-invoice.service.ts's applyReprorate writes into a re-prorated rent line.
+    const row: RentLineRow = {
+      id: "line-1",
+      invoice_id: "inv-1",
+      kind: "rent",
+      label: "Rent",
+      amount_paise: "450000",
+      meta: {
+        reprorated: { original_paise: 900000, original_end: "2026-09-30", leave_on: "2026-09-15" }
+      },
+      source: "system",
+      expense_id: null,
+      sort_order: 0,
+      created_at: "2026-09-01T00:00:00.000Z"
+    };
+    const dto = toLineDto(row);
+    expect(dto.meta).toEqual({
+      reprorated: { original_inr: 9000, original_end: "2026-09-30", leave_on: "2026-09-15" }
+    });
+    expect(JSON.stringify(dto.meta)).not.toMatch(/_paise/);
   });
 });

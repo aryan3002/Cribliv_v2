@@ -16,7 +16,7 @@ an orchestrator or implementer with zero conversation history can work from it. 
 - Prefix every migrate/seed/test command with the local URL inline:
   `DATABASE_URL="postgres://postgres:postgres@127.0.0.1:5433/cribliv_v2" pnpm db:migrate`
   (`dotenv` does not override an already-set env var, so the inline value wins.)
-- Production migration (0072) and the Azure app-setting flips happen at the very end, by the human, per spec §15. No agent touches prod.
+- Production migrations (0072–0074) and the Azure app-setting flips happen at the very end, by the human, per spec §15. No agent touches prod.
 - If the DB is down: `docker start cribliv-pg-local`, then `docker exec cribliv-pg-local pg_isready -U postgres`. If the container is gone, the memory note `local-test-db-and-node-setup.md` has the recreate command (data survives in volume `infra_pgdata`; pgvector must be reinstalled in the container).
 
 ## 1. Environment quirks (verified)
@@ -46,7 +46,7 @@ pnpm lint
 
 ## 3. Verified schema and code facts (do NOT re-derive)
 
-- **Next free migration is 0072** (`infra/migrations/0071_blog_post_views.sql` is the last). Runner: `infra/migrations/run-migrations.js` — lexical order, each file in its own `BEGIN…COMMIT`, files containing `rollback` are skipped. Rollback companion: `0072_pg_rent_collection.rollback.sql`.
+- **Next free migration is 0074** at the start of slice 1c (`infra/migrations/0073_pg_rent_alloc_seq.sql` is the last); slice 1c's Task 7 takes 0074, so it is **0075** after 1c. Test baseline at 1c start: `src/modules/pg-rent` = 26 files / 179 tests (212 / 31 files expected after 1c). Runner: `infra/migrations/run-migrations.js` — lexical order, each file in its own `BEGIN…COMMIT`, files containing `rollback` are skipped. Rollback companion: `0072_pg_rent_collection.rollback.sql`.
 - **`pg_bed_assignments` (0062):** `move_in_date` **nullable**; `notice_end_date`, `move_out_date`, `monthly_rent_paise` (null = inherit), `security_deposit_paise`; statuses `reserved|active|notice_served|move_out_requested|move_out_pending_confirmation|moved_out|cancelled`; `uq_pg_active_assignment_per_tenant` (one active bed per linked user), `uq_pg_active_assignment_per_bed`.
 - **Assignment date writers** (`apps/api/src/modules/pg-operations/services/pg-bed-assignment.service.ts`): `CURRENT_DATE` at `:544`, `:573`, `:655`, `:663`, `:914`, `:973`, `:981` — slice 0 makes them IST. `cancelMoveOut` (`:753`) does not clear notice fields; slice 0 fixes it and adds `cancelNotice`. No DB session timezone is pinned anywhere (UTC on Azure).
 - **Rent resolution:** `COALESCE(a.monthly_rent_paise, rt.monthly_rent_paise, pl.starting_rent_paise)` (`pg-residence.service.ts:135`). **Deposit:** `a.security_deposit_paise → pg_room_types.security_deposit_paise` (0065) `→ pg_details.security_deposit_paise` — the residence page skips the middle step (spec §17 #9); the rent module must not.
