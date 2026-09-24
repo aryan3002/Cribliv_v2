@@ -163,6 +163,22 @@ describe.skipIf(!HAS_DB)("RentMessageService + public pay page", () => {
     );
   });
 
+  it("an expired pay token blanks the shared pay_link and warns; regenerating restores it", async () => {
+    await db.query(
+      `UPDATE pg_rent_invoices SET pay_token_expires_at = now() - interval '1 minute' WHERE id = $1::uuid`,
+      [invoiceId]
+    );
+    const expired = await messages.messagesForInvoice(operatorId, propertyId, invoiceId);
+    expect(expired.pay_link).toBe("");
+    expect(expired.warnings).toContain("pay_link_expired");
+    expect(expired.reminder.text).not.toContain("/pay/");
+
+    await messages.regeneratePayToken(operatorId, propertyId, invoiceId);
+    const live = await messages.messagesForInvoice(operatorId, propertyId, invoiceId);
+    expect(live.pay_link).toMatch(/\/en\/pay\/[A-Za-z0-9_-]{43}$/);
+    expect(live.warnings).not.toContain("pay_link_expired");
+  });
+
   it("preview merges arbitrary text against the invoice; reminder-opened logs stage + channel", async () => {
     const p = await messages.preview(operatorId, propertyId, {
       key: "overdue",
@@ -226,9 +242,22 @@ describe.skipIf(!HAS_DB)("RentMessageService + public pay page", () => {
     expect(page.notify_text).toContain("— Rahul");
     expect(JSON.stringify(page)).not.toContain("Verma");
     expect(JSON.stringify(page)).not.toContain("7700000022");
+    expect(JSON.stringify(page)).not.toContain(token);
     await expect(pay.publicPayPage("nope")).rejects.toMatchObject({
       response: { code: "pay_link_not_found" }
     });
+
+    // A cancelled invoice reads "expired", never "paid" — mirrors what
+    // RentInvoiceService.cancel() does (status='cancelled', token expired).
+    await db.query(
+      `UPDATE pg_rent_invoices SET status = 'cancelled', pay_token_expires_at = now() WHERE id = $1::uuid`,
+      [invoiceId]
+    );
+    expect((await pay.publicPayPage(token)).state).toBe("expired");
+    await db.query(
+      `UPDATE pg_rent_invoices SET status = 'issued', pay_token_expires_at = now() + interval '45 days' WHERE id = $1::uuid`,
+      [invoiceId]
+    );
 
     const regen = await messages.regeneratePayToken(operatorId, propertyId, invoiceId);
     expect(regen.pay_link).toMatch(/\/pay\/[A-Za-z0-9_-]{43}$/);

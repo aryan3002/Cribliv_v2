@@ -16,7 +16,7 @@ import { requireDb } from "./rent-guards";
 
 /** Apex site origin (never www); the same fallback modules/openapi/openapi.document.ts:11 uses. */
 export const SITE_URL = () =>
-  (process.env.NEXT_PUBLIC_SITE_URL ?? "https://cribliv.com").replace(/\/$/, "");
+  (process.env.NEXT_PUBLIC_SITE_URL || "https://cribliv.com").replace(/\/$/, "");
 
 @Injectable()
 export class RentPayInstructionService {

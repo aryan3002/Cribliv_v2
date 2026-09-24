@@ -50,6 +50,7 @@ interface FieldsRow {
   total_paise: string;
   amount_paid_paise: string;
   pay_token: string | null;
+  pay_token_live: boolean;
   fee_line: string | null;
   occupant_name: string;
   occupant_phone_e164: string;
@@ -77,7 +78,7 @@ interface FieldsRow {
 const FIELDS_SQL = `
   SELECT i.id::text, i.pg_property_id::text, i.assignment_id::text, i.invoice_number, i.kind::text, i.status::text,
          to_char(i.period_start,'YYYY-MM-DD') AS period_start, to_char(i.period_end,'YYYY-MM-DD') AS period_end, to_char(i.due_date,'YYYY-MM-DD') AS due_date,
-         i.total_paise::text, i.amount_paid_paise::text, i.pay_token,
+         i.total_paise::text, i.amount_paid_paise::text, i.pay_token, (i.pay_token_expires_at > now()) AS pay_token_live,
          (SELECT l.amount_paise::text FROM pg_rent_invoice_lines l WHERE l.invoice_id = i.id AND l.kind = 'late_fee') AS fee_line,
          a.occupant_name, a.occupant_phone_e164, a.tenant_user_id::text, i.room_number, i.bed_label,
          p.display_name AS property_name, op.full_name AS operator_name, op.phone_e164 AS operator_phone, s.whatsapp_phone_e164, s.upi_vpa,
@@ -131,10 +132,12 @@ export class RentMessageService {
         : x.kind === "deposit"
           ? "Security deposit"
           : x.invoice_number;
+    const openStatus = x.status !== "paid" && x.status !== "cancelled";
+    // A token lives 45 days; without this check the most-overdue tenants (the ones
+    // most likely to still be reminded) get links that silently 404 on the pay page.
+    const payLinkExpired = Boolean(x.pay_token) && !x.pay_token_live && openStatus;
     const payLink =
-      x.pay_token && x.status !== "paid" && x.status !== "cancelled"
-        ? this.pay.payLinkFor(locale, x.pay_token)
-        : "";
+      x.pay_token && x.pay_token_live && openStatus ? this.pay.payLinkFor(locale, x.pay_token) : "";
     const fields: PgRentMergeFields = {
       tenant_name: x.occupant_name,
       owner_name: x.operator_name ?? "",
@@ -165,6 +168,7 @@ export class RentMessageService {
       ownerPhone: x.whatsapp_phone_e164 ?? x.operator_phone,
       verified: x.tenant_user_id !== null,
       payLink,
+      payLinkExpired,
       templates: {
         reminder: x.msg_reminder,
         overdue: x.msg_overdue,
@@ -222,6 +226,7 @@ export class RentMessageService {
         )
       : null;
     const warnings: string[] = [];
+    if (f.payLinkExpired) warnings.push("pay_link_expired");
     if (!f.row.upi_vpa)
       warnings.push(
         'No UPI ID is set — {upi_id} renders as "(not set)"; tenants see bank details or a manual note instead'
