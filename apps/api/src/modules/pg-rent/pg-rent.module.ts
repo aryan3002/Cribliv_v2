@@ -29,10 +29,9 @@ import {
 } from "./services/rent-receipt.service";
 import { RentSettingsService } from "./services/rent-settings.service";
 import { RentSettlementService } from "./services/rent-settlement.service";
+import { RentMessageService } from "./services/rent-message.service";
+import { RentPayInstructionService } from "./services/rent-pay-instruction.service";
 
-// Providers and controllers are appended by later tasks in this plan; the
-// arrays start empty so the module can be registered (and AppModule boot
-// tested) before any service exists.
 @Module({
   imports: [CoreModule, GuardsModule],
   controllers: [
@@ -50,6 +49,8 @@ import { RentSettlementService } from "./services/rent-settlement.service";
     RentReceiptService,
     RentPaymentService,
     RentSettlementService,
+    RentPayInstructionService,
+    RentMessageService,
     { provide: PG_RENT_RECEIPT_RENDERER, useFactory: () => new LazyReceiptRenderer() },
     {
       provide: PG_RENT_PDF_STORAGE,
