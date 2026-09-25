@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Workspace packages are resolved from source via tsconfig `paths`
@@ -7,6 +9,9 @@ const nextConfig = {
   // "X is not a function" for their value exports. Transpiling them makes Next
   // own their build + HMR, keeping runtime named exports correct.
   transpilePackages: ["@cribliv/shared-types", "@cribliv/ui"],
+  // Self-contained server bundle for the Azure Container Apps image
+  // (Dockerfile.web). Ignored by Vercel, which uses its own output.
+  output: "standalone",
   eslint: {
     // eslint-config-next@16 uses flat config internally, incompatible with ESLint v8 legacy config.
     // Run linting separately via `pnpm lint`.
@@ -21,6 +26,8 @@ const nextConfig = {
     ],
   },
   experimental: {
+    // Monorepo: trace workspace packages from the repo root into standalone.
+    outputFileTracingRoot: fileURLToPath(new URL("../../", import.meta.url)),
     typedRoutes: true,
     optimizePackageImports: ["lucide-react"],
   },
